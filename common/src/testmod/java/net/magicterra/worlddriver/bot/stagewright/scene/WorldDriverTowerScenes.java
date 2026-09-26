@@ -34,13 +34,13 @@ import net.minecraft.world.phys.AABB;
  * <h2>Why this family exists</h2>
  *
  * The manifest registers 253 scenes (202 {@code wd.*}). Exactly one of them ever puts a
- * {@link TowerProcess} on a body — {@code wd.serverTowersOutOfADeepShaft} — and it drives the
- * process <b>one course at a time</b>, inside a recursion that lands the body with a
+ * {@link TowerProcess} on a bot — {@code wd.serverTowersOutOfADeepShaft} — and it drives the
+ * process <b>one course at a time</b>, inside a recursion that lands the bot with a
  * {@code HoldStill} before every single call, in a shaft with stone on all four sides. So the
  * number of scenes that have ever asked one {@code TowerProcess} call to climb from a low place to
- * a high one and then checked that the body got there is <b>zero</b>. {@code wd.digUpY} and
+ * a high one and then checked that the bot got there is <b>zero</b>. {@code wd.digUpY} and
  * {@code wd.columnRadius} are planner scenes and never build; {@code wd.serverPillarsOutOfAPit}
- * asserts only「出了坑」, which the Walker's own pillar branch satisfies with the builder entirely
+ * asserts only "got out of the pit", which the Walker's own pillar branch satisfies with the builder entirely
  * broken.
  *
  * <p>The production caller is not shaped like the covered scene at all.
@@ -49,7 +49,7 @@ import net.minecraft.world.phys.AABB;
  * pillar)} where {@code top} is dozens of blocks up, and it issues it in the continuation of a walk,
  * with <b>no {@code HoldStill} and no landing wait</b>. Every property that call depends on is
  * therefore unmeasured: that N courses produce N blocks of climb, that the blocks land in the
- * column the body started in, that a body still moving when the order arrives climbs at all.
+ * column the bot started in, that a bot still moving when the order arrives climbs at all.
  *
  * <h2>What these five arms are</h2>
  *
@@ -66,10 +66,10 @@ import net.minecraft.world.phys.AABB;
  *   <li><b>{@code wd.serverTowersAfterAWalk} — expected RED, and the red is the point.</b> It is
  *       {@code JourneyEndRungs.smashCrystal}'s own ordering: walk, then tower from the continuation
  *       with nothing in between. {@code TowerProcess:PLACING} recomputes the support cell from the
- *       body's <b>current</b> x/z while {@code jumpFromY} stays latched at the jump, so a body still
+ *       player's <b>current</b> x/z while {@code jumpFromY} stays latched at the jump, so a player still
  *       carrying the walk's momentum fills a column it is no longer over — and the READY phase's
  *       {@code if (!p.onGround()) return false} burns stuck-ticks while it settles. Neither is
- *       observable through a rig that lands the body first, which is why the covered scene lands
+ *       observable through a rig that lands the player first, which is why the covered scene lands
  *       it.</li>
  *   <li><b>{@code wd.serverTowersOnAFreePillar} — expected GREEN, and it is the drift sensor.</b>
  *       A 1x1 pillar with five clear cells of air on every side and a long drop under it: any
@@ -77,9 +77,9 @@ import net.minecraft.world.phys.AABB;
  *       it. Arm 1 cannot see drift because arm 1 has a floor to drift onto.</li>
  *   <li><b>{@code wd.serverTowersToWhereItStands} — RED BY DESIGN. The criterion is written first
  *       and the engine is expected to be fixed afterwards; do NOT loosen this arm to make it
- *       green.</b> Ordering a tower to the cell the body already occupies, or to one below it,
+ *       green.</b> Ordering a tower to the cell the bot already occupies, or to one below it,
  *       exits on {@code TowerProcess:104} with {@code "done (placed=0, feetY=…)"} — the SAME verdict
- *       shape a finished tower reports. A caller cannot tell「从未需要垒」from「垒完了」, which is
+ *       shape a finished tower reports. A caller cannot tell "never needed to build" from "finished building", which is
  *       exactly the ambiguity the client entry point refuses to create: {@code BotApiImpl} rejects
  *       {@code finalTargetY <= startY} with {@code "target Y must be > current feet Y"} before it
  *       ever constructs the process. The constructor has no such guard, and every server-side
@@ -87,13 +87,13 @@ import net.minecraft.world.phys.AABB;
  *       of the arm (nothing placed, done on the first tick) is green today and is kept as the
  *       control reading.</li>
  *   <li><b>{@code wd.serverTowersWithAFullBackpack} — expected GREEN, and it is the anti-overfit
- *       arm.</b> Without it,「让 {@code ensureHoldingPlaceable} 也扫背包」is a full-marks answer to
+ *       arm.</b> Without it, "make {@code ensureHoldingPlaceable} scan the backpack too" is a full-marks answer to
  *       any red above, and it would be the wrong fix twice over: it would silently spend blocks the
  *       caller reserved for something else, and it would delete the one honest diagnostic this
- *       process has. {@code TowerProcess:177-209} scans slots 0..8 only outside creative, so a body
+ *       process has. {@code TowerProcess:177-209} scans slots 0..8 only outside creative, so a bot
  *       whose cobblestone has settled into the bag must fail, and must fail SAYING SO. The arm
  *       therefore asserts the message itself: {@code "no placeable block in hotbar"} and NOT
- *       {@code "…out of blocks?"} — a body holding 64 cobblestone that is told it ran out of blocks
+ *       {@code "…out of blocks?"} — a bot holding 64 cobblestone that is told it ran out of blocks
  *       has been sent to debug the wrong subsystem, and this repo has paid for that misdirection
  *       before.</li>
  * </ol>
@@ -102,25 +102,25 @@ import net.minecraft.world.phys.AABB;
  *
  * <ul>
  *   <li><b>Three readings between staging and driving, on every arm.</b> Where the feet actually
- *       are, that the target column is <b>air right now</b>, and how many blocks the body carries.
+ *       are, that the target column is <b>air right now</b>, and how many blocks the bot carries.
  *       Without them every criterion below is at risk of being {@code 0 == 0}: a column that was
- *       already stone reports twelve placed blocks for a tower that placed none, and a body that
+ *       already stone reports twelve placed blocks for a tower that placed none, and a bot that
  *       never spawned where the scene thinks reports its climb against the wrong datum. A staging
  *       mismatch is a hard {@code ctx.fail} that names the rig, never a soft check — a scene that
  *       measures the subject through a broken rig is worse than a scene that does not run.</li>
  *   <li><b>Criteria are equalities, not inequalities.</b> {@code climbed == 12} and
  *       {@code spent == 12}, never {@code >= 1} or {@code > 0}. A tower that manages one course out
  *       of twelve is a defect and passes every {@code > 0} form of this family's criteria.</li>
- *   <li><b>Three independent readings of the same climb, kept separate.</b> The body's end cell, the
+ *   <li><b>Three independent readings of the same climb, kept separate.</b> The bot's end cell, the
  *       inventory delta, and the blocks actually standing in the start column. They disagree in
  *       informative ways — a lean spends blocks and gains height while leaving the start column
- *       empty; a rejected place gains nothing and spends nothing; a body that fell back down leaves
+ *       empty; a rejected place gains nothing and spends nothing; a bot that fell back down leaves
  *       a full column and no height — and merging them into one criterion prints three different
  *       failures as the same line.</li>
  *   <li><b>Every evidence row is {@link SceneContext#record}ed, so a PASS carries it too.</b> The
  *       harness prints the evidence map into the log only on FAIL; a green run's readings land in
  *       {@code stagewright-results.jsonl} and nowhere else. {@code placeTally()} is on every arm
- *       because it is the only reading that splits「没调过 / 无面 / 无块」— and this process never
+ *       because it is the only reading that splits "never called / no face / no block" — and this process never
  *       calls {@code exAlarms.notePlace}, so a place it silently loses is invisible everywhere
  *       else.</li>
  *   <li><b>Only arm 2 plans.</b> The other four drive {@code ServerWorldDriver.tick()} synchronously
@@ -187,7 +187,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         return ctx.origin().getY() + 20;
     }
 
-    /** The switches every arm shares. {@code allowBreak} is OFF deliberately: a body that can dig has
+    /** The switches every arm shares. {@code allowBreak} is OFF deliberately: a bot that can dig has
      *  a second way up, and a scene about placing blocks that accepts a staircase is measuring
      *  something else. */
     private static void towerConfig() {
@@ -221,9 +221,9 @@ public final class WorldDriverTowerScenes implements SceneProvider {
     }
 
     /**
-     * Three physics steps with no input, so the body is standing flush before anything is measured.
+     * Three physics steps with no input, so the player is standing flush before anything is measured.
      *
-     * <p>{@code wd.jumpWaitsForOnGround} settles the same way and for the same reason: a body
+     * <p>{@code wd.jumpWaitsForOnGround} settles the same way and for the same reason: a player
      * that has never moved reports {@code onGround() == false}, and vanilla's jump refuses a
      * press on that. An unsettled start would spend its first ticks landing and
      * charge them to the tower, which is a reading about the spawn and not about the verb.
@@ -244,7 +244,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
     }
 
     /** Cell-by-cell readback of a column, as {@code y221=cobblestone y222=air …}. The direct reading
-     *  of what a tower built, which neither the inventory delta nor the body's end cell can give. */
+     *  of what a tower built, which neither the inventory delta nor the bot's end cell can give. */
     private static String column(ServerLevel level, int x, int y0, int n, int z) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < n; i++) {
@@ -277,9 +277,9 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * meaningless rather than merely unmet. The message says so, so nobody reads a staging fault as
      * a TowerProcess defect.
      *
-     * @param wantFeet the foot cell the body must be standing in, or {@code null} to skip that half
+     * @param wantFeet the foot cell the bot must be standing in, or {@code null} to skip that half
      *                 (the walk arm latches its tower's start from where the walk actually left the
-     *                 body, and checks THAT against the runway end itself)
+     *                 bot, and checks THAT against the runway end itself)
      */
     private static void requireStaged(SceneContext ctx, String arm, ServerPlayer fp, BlockPos wantFeet,
                                       int colX, int colY0, int colN, int colZ, int wantCarry) {
@@ -295,7 +295,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
                 carry, BuiltInRegistries.ITEM.getKey(ITEM), wantCarry);
         ctx.record(arm + ".staged", row);
         if (wantFeet != null && !feet.equals(wantFeet))
-            ctx.fail(arm + ": THE RIG, not the subject — the body is not standing where the scene"
+            ctx.fail(arm + ": THE RIG, not the subject — the bot is not standing where the scene"
                     + " staged it, so every climb measured against that datum is meaningless: " + row);
         if (solid != 0)
             ctx.fail(arm + ": THE RIG, not the subject — " + solid + " of the " + colN + " target"
@@ -360,7 +360,8 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         r.columnSolid = columnSolid(level, r.startX, r.startFeetY, columnCells, r.startZ);
 
         // Recorded on PASS as well as on FAIL — the harness only prints the evidence map when a
-        // scene fails, and「绿的那一趟垒了几块、花了几块」is as much of the conclusion as the colour.
+        // scene fails, and "how many blocks the green run placed and spent" is as much of the
+        // conclusion as the colour.
         ctx.record(arm + ".order", "TowerProcess(targetY=" + targetY + ", " + BLOCK_ID + ")"
                 + " from feet y=" + r.startFeetY + " (" + (targetY - r.startFeetY) + " courses asked)");
         ctx.record(arm + ".drive", "ran " + r.ticks + " ticks of " + budget
@@ -376,7 +377,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         ctx.record(arm + ".column", "start column x=" + r.startX + " z=" + r.startZ
                 + " y=" + r.startFeetY + ".." + (r.startFeetY + columnCells - 1)
                 + " -> " + r.columnAfter + " (" + r.columnPlaced + " placed, " + r.columnSolid + " solid)");
-        // The only reading that splits「没调过 / 无面 / 无块」. TowerProcess never calls
+        // The only reading that splits "never called / no face / no block". TowerProcess never calls
         // exAlarms.notePlace, so a place it loses is silent in every other channel.
         ctx.record(arm + ".placeTally", r.placeTally);
         WorldDriverCommon.LOG.info("[tower:{}] ticks={} climbed={} spent={} columnPlaced={}"
@@ -385,7 +386,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         return r;
     }
 
-    /** A body, its driver, and the cleanup that removes both. */
+    /** A server-side player, its driver, and the cleanup that removes both. */
     private static ServerWorldDriver body(SceneContext ctx, double x, double y, double z) {
         return SceneBody.managed(ctx, x, y, z);
     }
@@ -395,12 +396,12 @@ public final class WorldDriverTowerScenes implements SceneProvider {
     /**
      * <b>The missing base case: twelve courses from one order, on open ground.</b>
      *
-     * <p>Flat 7x7 stone, the body in the middle, no walls, 40 clear cells overhead, 64 cobblestone
+     * <p>Flat 7x7 stone, the bot in the middle, no walls, 40 clear cells overhead, 64 cobblestone
      * in hotbar slot 0. The covered scene ({@code wd.serverTowersOutOfADeepShaft}) differs in three
      * ways at once — one course per call, a {@code HoldStill} before each, and stone on all four
      * sides — so nothing it reports transfers to this shape.
      *
-     * <h2>判据 — four, all equalities, and none of them redundant</h2>
+     * <h2>Criteria — four, all equalities, and none of them redundant</h2>
      *
      * <ol>
      *   <li><b>{@code endFeetY == startFeetY + 12}</b>, not {@code >=}. A tower that manages one
@@ -408,7 +409,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      *   <li><b>exactly 12 blocks spent.</b> Fewer means courses that never cost anything (a climb
      *       that came from somewhere else); more means placements that did not become the tower.</li>
      *   <li><b>all 12 cells of the START column are cobblestone.</b> Height and spend together still
-     *       admit a tower that leaned: blocks placed, height gained, and the column the body began
+     *       admit a tower that leaned: blocks placed, height gained, and the column the bot began
      *       in left empty. This is the only reading that sees it.</li>
      *   <li><b>the verdict reads {@code done (placed=12}.</b> The process's own count is verified
      *       against the world at {@code TowerProcess:164}, so a disagreement between it and criteria
@@ -440,18 +441,18 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         final int startFeetY = fp.blockPosition().getY();
         Run r = runTower(ctx, "tower", driver, startFeetY + courses, courses, DRIVE_BUDGET, () -> {});
 
-        ctx.check(r.endFeetY).as("A 塔要垒到定高: end feet y (start " + startFeetY + " + " + courses
+        ctx.check(r.endFeetY).as("A: the tower reaches the target height: end feet y (start " + startFeetY + " + " + courses
                 + " courses = " + (startFeetY + courses) + "; an equality on purpose — one course out"
                 + " of twelve is a defect and would pass any '>' form of this)")
                 .isEqualTo(startFeetY + courses);
-        ctx.check(r.spent).as("B 恰好花掉 " + courses + " 块: cobblestone spent (started with " + stock
+        ctx.check(r.spent).as("B: exactly " + courses + " blocks spent: cobblestone spent (started with " + stock
                 + ", ended with " + r.carriedAfter + "); fewer means height that cost nothing, more"
                 + " means placements that did not become the tower").isEqualTo(courses);
-        ctx.check(r.columnPlaced).as("C 世界侧那 " + courses + " 格全是 " + BLOCK_ID + ": " + r.columnAfter
+        ctx.check(r.columnPlaced).as("C: all " + courses + " cells of the column in the world are " + BLOCK_ID + ": " + r.columnAfter
                 + " — the only reading that catches a tower which gained height by leaning into"
                 + " another column").isEqualTo(courses);
         ctx.check(r.lastError != null && r.lastError.startsWith("done (placed=" + courses))
-                .as("D 进程自己的判词要是 'done (placed=" + courses + "': got »" + r.lastError
+                .as("D: the process's own result message is 'done (placed=" + courses + "': got »" + r.lastError
                         + "«; its count is verified against the world at TowerProcess:164, so a"
                         + " disagreement with B/C localises the defect to the place actuator").isTrue();
     }
@@ -462,14 +463,14 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * <p>A twelve-cell runway, an {@link IntentProcess} to its far end, and then — from the walk's
      * continuation, with <b>no {@code HoldStill} and no {@code onGround} wait</b> — an eight-course
      * tower. That is verbatim the shape the only multi-course production caller uses, and it is the
-     * one shape the covered scene structurally cannot produce: {@code towerOneCourse} lands the body
-     * before every call precisely because a moving body was known to burn its patience.
+     * one shape the covered scene structurally cannot produce: {@code towerOneCourse} lands the bot
+     * before every call precisely because a moving bot was known to burn its patience.
      *
      * <h2>What is expected to break, and which criterion sees which</h2>
      *
      * <ul>
-     *   <li><b>Drift.</b> {@code TowerProcess:155-157} computes the support cell from the body's
-     *       CURRENT x/z, while {@code jumpFromY} was latched at the jump. A body still carrying the
+     *   <li><b>Drift.</b> {@code TowerProcess:155-157} computes the support cell from the player's
+     *       CURRENT x/z, while {@code jumpFromY} was latched at the jump. A player still carrying the
      *       walk's momentum fills a column it has already left — criteria C and D.</li>
      *   <li><b>The settle tax.</b> READY returns early while {@code !onGround()}, and
      *       {@code stuckTicks} counts from the first tick regardless — criteria A and B, via a run
@@ -512,7 +513,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         // NO settle(): starting un-landed is arm 2's variable, and the walk provides it.
 
         // Staged against the runway END, which is where the tower is expected to start. The tower's
-        // own column is re-checked in the continuation against where the walk ACTUALLY left the body.
+        // own column is re-checked in the continuation against where the walk ACTUALLY left the bot.
         requireStaged(ctx, "walk", fp, new BlockPos(cx, standY, cz),
                 cx + runway, standY, courses, cz, stock);
 
@@ -537,18 +538,18 @@ public final class WorldDriverTowerScenes implements SceneProvider {
             final int startX = at.getX(), startZ = at.getZ(), startFeetY = at.getY();
             Run r = runTower(ctx, "tower", driver, startFeetY + courses, courses, DRIVE_BUDGET, () -> {});
 
-            ctx.check(r.endFeetY).as("A 涨 " + courses + " 格: end feet y (start " + startFeetY
+            ctx.check(r.endFeetY).as("A: the bot rises " + courses + " blocks: end feet y (start " + startFeetY
                     + "; the walk's momentum is the only difference from wd.serverTowersTwelveCourses)")
                     .isEqualTo(startFeetY + courses);
-            ctx.check(r.spent).as("B 恰好耗 " + courses + " 块: cobblestone spent").isEqualTo(courses);
-            ctx.check(r.columnPlaced).as("C 那 " + courses + " 格全是放的方块: " + r.columnAfter
+            ctx.check(r.spent).as("B: exactly " + courses + " blocks spent: cobblestone spent").isEqualTo(courses);
+            ctx.check(r.columnPlaced).as("C: all " + courses + " cells of the start column hold placed blocks: " + r.columnAfter
                     + " — a leaning tower spends its blocks and gains its height while leaving this"
                     + " column empty, and only this row can tell the two apart").isEqualTo(courses);
             ctx.check(r.endX == startX && r.endZ == startZ)
-                    .as("D 终点 x/z 等于起塔时的 x/z: started at x=" + startX + " z=" + startZ
+                    .as("D: the end x/z equals the x/z where the tower started: started at x=" + startX + " z=" + startZ
                             + ", ended at x=" + r.endX + " z=" + r.endZ + " — TowerProcess:155-157"
                             + " recomputes the support from the CURRENT x/z against a jumpFromY"
-                            + " latched at the jump, so a moving body builds under where it is going"
+                            + " latched at the jump, so a moving bot builds under where it is going"
                             + " rather than where it jumped").isTrue();
         });
     }
@@ -562,12 +563,12 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * perfectly good climb one column over.
      *
      * <p>The subject is {@code TowerProcess:155-157}: the support cell is recomputed from the live
-     * x/z on the PLACING tick, so the process is only correct while the body is exactly over the
+     * x/z on the PLACING tick, so the process is only correct while the player is exactly over the
      * column it jumped from. Sixteen blocks are stocked for ten courses — enough slack that "ran
      * out" cannot be confused with "placed somewhere else", which the {@code stock} row makes
      * explicit either way.
      *
-     * <p>Expected GREEN: with no horizontal input the body should not drift at all, and a green
+     * <p>Expected GREEN: with no horizontal input the player should not drift at all, and a green
      * here is what makes arm 2's red attributable to the walk's momentum rather than to the process
      * being unable to hold a column under any circumstances.
      */
@@ -587,7 +588,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         final int catchY = baseY - drop - 1;
         ctx.cleanup(() -> clearBox(level, cx, cz, topY, -6, 6, catchY - topY, HEADROOM + 4, -6, 6));
         clearBox(level, cx, cz, topY, -6, 6, catchY - topY, HEADROOM + 4, -6, 6);
-        // A floor to catch a body that slips off, so the arm reports a drift instead of a fall out
+        // A floor to catch a bot that slips off, so the arm reports a drift instead of a fall out
         // of the world — the two want completely different fixes and must not print alike.
         for (int dx = -6; dx <= 6; dx++)
             for (int dz = -6; dz <= 6; dz++)
@@ -612,12 +613,12 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         Run r = runTower(ctx, "tower", driver, startFeetY + courses, courses, DRIVE_BUDGET, () -> {});
 
         ctx.check(r.endX == startX && r.endZ == startZ)
-                .as("A 不许漂: started x=" + startX + " z=" + startZ + ", ended x=" + r.endX
+                .as("A: no horizontal drift: started x=" + startX + " z=" + startZ + ", ended x=" + r.endX
                         + " z=" + r.endZ + " — there is nothing to stand on beside this column, so"
                         + " any drift is a fall to y=" + (catchY + 1)).isTrue();
-        ctx.check(r.endFeetY).as("B 涨 " + courses + " 格: end feet y (start " + startFeetY + ")")
+        ctx.check(r.endFeetY).as("B: the bot rises " + courses + " blocks: end feet y (start " + startFeetY + ")")
                 .isEqualTo(startFeetY + courses);
-        ctx.check(r.columnPlaced).as("C 柱身 " + courses + " 格全是放的方块: " + r.columnAfter
+        ctx.check(r.columnPlaced).as("C: all " + courses + " cells of the pillar column hold placed blocks: " + r.columnAfter
                 + " (stocked " + stock + ", spent " + r.spent + " — the slack is why 'ran out' and"
                 + " 'placed elsewhere' cannot be confused here)").isEqualTo(courses);
     }
@@ -627,7 +628,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * Do not relax this arm to get a green; a criterion adjusted to fit today's answer records
      * nothing.
      *
-     * <p>Two orders, on the same flat rig: tower to the cell the body already stands in, and tower
+     * <p>Two orders, on the same flat rig: tower to the cell the bot already stands in, and tower
      * to one three blocks BELOW it. Both exit on the first tick at {@code TowerProcess:104}:
      *
      * <pre>{@code
@@ -636,7 +637,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * }
      * }</pre>
      *
-     * <h2>判据 — two halves, and only one of them is red</h2>
+     * <h2>Criteria — two halves, and only one of them is red</h2>
      *
      * <ol>
      *   <li><b>Green today, and kept as the control reading:</b> nothing is placed, nothing is
@@ -645,7 +646,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      *       defect than the one below and nothing else in the family would see it.</li>
      *   <li><b>RED today:</b> the verdict must not read {@code done (placed=…}. That prefix is the
      *       verdict of a tower that <i>built</i>, so a caller receiving it cannot distinguish
-     *       「从未需要垒」from「垒完了」— and the distinction is exactly what it needs in order to
+     *       "never needed to build" from "finished building" — and the distinction is exactly what it needs in order to
      *       decide whether to retry, to give up, or to carry on. The client entry point already
      *       refuses to create the ambiguity: {@code BotApiImpl} rejects {@code finalTargetY <=
      *       startY} with {@code "target Y (…) must be > current feet Y (…)"} before constructing
@@ -659,13 +660,13 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * at construction. Which is why the criterion is phrased as "not that prefix" instead of naming
      * a replacement string this file would then be dictating.
      *
-     * <p>Both legs keep their own {@code record} prefix. One key written twice is a silent
-     * overwrite, and the second leg's answer would quietly replace the first's.
+     * <p>Both orders keep their own {@code record} prefix. One key written twice is a silent
+     * overwrite, and the second order's answer would quietly replace the first's.
      *
-     * <p><b>And each leg gets its own body two cells away</b>, rather than reusing one. Sharing
-     * would make the second leg's staged readings depend on the first leg's outcome: a first leg
-     * that (defectively) placed a block would leave the second one failing its rig check, and the
-     * message would blame the staging for a defect the first leg had already caught.
+     * <p><b>And each order gets its own bot two cells away</b>, rather than reusing one. Sharing
+     * would make the second order's staged readings depend on the first order's outcome: a first
+     * order that (defectively) placed a block would leave the second one failing its rig check, and
+     * the message would blame the staging for a defect the first order had already caught.
      */
     private static void serverTowersToWhereItStands(SceneContext ctx) {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
@@ -679,11 +680,11 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         ctx.cleanup(ServerAvatarManager::clear);
         stageFlatArena(ctx, 3, floorY);
 
-        noOpLeg(ctx, "atLevel", cx - 2, cz, standY, stock, 0, "targetY == 当前脚格");
-        noOpLeg(ctx, "below", cx + 2, cz, standY, stock, -3, "targetY 比当前脚格低 3 格");
+        noOpLeg(ctx, "atLevel", cx - 2, cz, standY, stock, 0, "targetY == current feet cell");
+        noOpLeg(ctx, "below", cx + 2, cz, standY, stock, -3, "targetY 3 blocks below the current feet cell");
     }
 
-    /** One order that asks for no climb at all: its own body, its own column, its own record keys. */
+    /** One order that asks for no climb at all: its own bot, its own column, its own record keys. */
     private static void noOpLeg(SceneContext ctx, String arm, int x, int z, int standY,
                                 int stock, int dTargetY, String order) {
         ServerWorldDriver driver = body(ctx, x + 0.5, standY, z + 0.5);
@@ -698,17 +699,18 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         noOpCriteria(ctx, arm, r, order + " (" + (startFeetY + dTargetY) + ")");
     }
 
-    /** The three criteria both legs of {@link #serverTowersToWhereItStands} share. */
+    /** The three criteria both orders of {@link #serverTowersToWhereItStands} share. */
     private static void noOpCriteria(SceneContext ctx, String arm, Run r, String order) {
         ctx.check(r.spent == 0 && r.columnSolid == 0)
-                .as(arm + " A 什么都不该垒 [" + order + "]: spent " + r.spent + ", foot cell now »"
+                .as(arm + " A: nothing is built [" + order + "]: spent " + r.spent + ", foot cell now »"
                         + r.columnAfter + "« — a no-op that quietly built something is a worse defect"
                         + " than the verdict wording and nothing else in this family would see it")
                 .isTrue();
-        ctx.check(r.ticks).as(arm + " B 第一 tick 就该结束 [" + order + "]: ran " + r.ticks
+        ctx.check(r.ticks).as(arm + " B: the order ends on the first tick [" + order + "]: ran " + r.ticks
                 + " ticks, finished=" + r.finished).isEqualTo(1);
         ctx.check(r.lastError != null && !r.lastError.startsWith("done (placed="))
-                .as(arm + " C ⚠️ RED BY DESIGN —「从未需要垒」和「垒完了」不能长得一样 [" + order
+                .as(arm + " C: WARNING: RED BY DESIGN — \"never needed to build\" and \"finished building\""
+                        + " must not produce the same result message [" + order
                         + "]: got »" + r.lastError + "«, and 'done (placed=…' is what a tower that"
                         + " actually built reports. BotApiImpl already refuses this argument"
                         + " ('target Y must be > current feet Y'); the constructor every server-side"
@@ -724,7 +726,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * cheapest way to turn any of the five arms above green is to widen it. This arm is what makes
      * that cost something.
      *
-     * <h2>判据 — two clauses, and the second is about the MESSAGE</h2>
+     * <h2>Criteria — two clauses, and the second is about the MESSAGE</h2>
      *
      * <ol>
      *   <li><b>Nothing is placed and nothing is spent.</b> The bag's 64 cobblestone are still there
@@ -732,7 +734,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      *   <li><b>The verdict is {@code "no placeable block in hotbar"} and NOT
      *       {@code "…out of blocks?"}.</b> Both are exits from the same tick loop and both leave a
      *       caller with a tower that did not happen; only one of them sends the reader to the right
-     *       place. A body holding 64 cobblestone told it ran out of blocks has been pointed at the
+     *       place. A bot holding 64 cobblestone told it ran out of blocks has been pointed at the
      *       inventory when the fault is in the hotbar scan — this repo has already spent rounds on
      *       exactly that class of misdirection, so the wording is a criterion here, not a nicety.
      *       The two clauses are checked separately although the first implies the second: a
@@ -774,14 +776,15 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         Run r = runTower(ctx, "tower", driver, startFeetY + courses, courses, DRIVE_BUDGET, () -> {});
 
         ctx.check(r.spent == 0 && r.columnSolid == 0)
-                .as("A 一块也不许放: spent " + r.spent + " of the " + stock + " parked in the bag,"
+                .as("A: not a single block is placed: spent " + r.spent + " of the " + stock + " parked in the bag,"
                         + " target column now »" + r.columnAfter + "« — reaching into the main"
                         + " inventory would spend blocks the caller never put in hand").isTrue();
-        ctx.check(r.lastError).as("B-a 判词要说对原因: the exit must name the HOTBAR"
+        ctx.check(r.lastError).as("B-a: the result message names the correct cause: the exit must name the HOTBAR"
                         + " (place tally: " + r.placeTally + ")")
                 .isEqualTo("no placeable block in hotbar");
         ctx.check(r.lastError != null && !r.lastError.contains("out of blocks"))
-                .as("B-b 判词不许说成缺方块: got »" + r.lastError + "« while the body carries "
+                .as("B-b: the result message does not claim the bot ran out of blocks: got »" + r.lastError
+                        + "« while the bot carries "
                         + r.carriedAfter + " " + BLOCK_ID + ". Kept as its own clause although B-a"
                         + " implies it — a deliberate reword updates B-a, and B-b still catches a"
                         + " reword that starts naming the wrong cause").isTrue();
@@ -795,13 +798,13 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      *  second sixty-tick patience. */
     private static final int CEILING_VERDICT_TICKS = 10;
 
-    /** The body's own box as cells, so a straddle is a reading rather than an inference. The whole
+    /** The player's own box as cells, so a straddle is a reading rather than an inference. The whole
      *  point of the neighbour arm is that {@code blockPosition()} answers the same in both of its
      *  runs while this row does not. */
     private static String footprint(ServerPlayer fp) {
         AABB b = fp.getBoundingBox();
-        return String.format(Locale.ROOT, "x=%.2f z=%.2f box x[%.2f,%.2f] z[%.2f,%.2f] -> 列 x %d..%d"
-                        + " z %d..%d（blockPosition 只说得出 %d,%d）", fp.getX(), fp.getZ(),
+        return String.format(Locale.ROOT, "x=%.2f z=%.2f box x[%.2f,%.2f] z[%.2f,%.2f] -> columns x %d..%d"
+                        + " z %d..%d (blockPosition reports only %d,%d)", fp.getX(), fp.getZ(),
                 b.minX, b.maxX, b.minZ, b.maxZ,
                 Mth.floor(b.minX + 1.0E-7), Mth.floor(b.maxX - 1.0E-7),
                 Mth.floor(b.minZ + 1.0E-7), Mth.floor(b.maxZ - 1.0E-7),
@@ -809,11 +812,11 @@ public final class WorldDriverTowerScenes implements SceneProvider {
     }
 
     /**
-     * A per-tick sampler that records the highest y the body ever reached during one order.
+     * A per-tick sampler that records the highest y the player ever reached during one order.
      *
      * <p>It is the reading that separates the two ways a course can produce no height, and the
-     * ladder's own row could not: {@code apexFeetY} is a floored CELL, so「跳了但只升了 0.2」and
-     * 「一次也没起跳」print the same number. A jump that fired peaks at {@code +1.25} in the open and
+     * ladder's own row could not: {@code apexFeetY} is a floored CELL, so "jumped but rose only 0.2"
+     * and "never jumped at all" print the same number. A jump that fired peaks at {@code +1.25} in the open and
      * at {@code +0.2} under a lid; one that never fired never leaves {@code +0.00}. Paired with
      * {@code dbgLastJumpTick}, which says whether an impulse was emitted at all.
      */
@@ -823,7 +826,8 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         return () -> {
             apex[0] = Math.max(apex[0], fp.getY());
             ctx.record(arm + ".apex", String.format(Locale.ROOT,
-                    "起 y=%.2f 最高 y=%.2f（升 %.2f 格；满一跳 +1.25，撞盖子 +0.20，没起跳 +0.00）",
+                    "start y=%.2f highest y=%.2f (rose %.2f blocks; full jump +1.25, hit the lid +0.20,"
+                            + " no jump +0.00)",
                     base[0], apex[0], apex[0] - base[0]));
         };
     }
@@ -831,7 +835,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
     /**
      * <b>A ceiling one cell over the head: the wedge that cost the ladder rungs 10 through 12.</b>
      *
-     * <p>Three independent legs of the 2026-08-19 journey run reported the same row, and it is a row
+     * <p>Three independent segments of the 2026-08-19 journey run reported the same row, and it is a row
      * the process cannot produce on purpose:
      *
      * <pre>
@@ -840,21 +844,21 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * crystal.0.climb              = stuck (no Y gain in 60t: placed=0, holding=21, phase=JUMPING, apexFeetY=63)
      * </pre>
      *
-     * A body on the ground, holding a stack, not in water, sixty ticks, nothing placed. Read against
+     * A bot on the ground, holding a stack, not in water, sixty ticks, nothing placed. Read against
      * {@link TowerProcess}'s state machine those four facts pick out exactly one state: {@code
      * JUMPING} is left on {@code p.getY() >= jumpFromY + 1.0} and on nothing else, and the jump key
-     * is released on its first tick — so <b>a jump that fails to lift the body one whole block ends
+     * is released on its first tick — so <b>a jump that fails to lift the player one whole block ends
      * the order</b>. Not the course: the ORDER. There is no way back to {@code READY}, so the
      * process spends every remaining tick face-down over a cell it has already decided not to fill.
      * {@code apexFeetY} equal to the start height is the corroboration: a clean 0.42 jump peaks at
      * {@code +1.25} and would have moved it.
      *
-     * <p>A block at {@code feet+2} is the cheapest way to produce that short rise — the body's box is
+     * <p>A block at {@code feet+2} is the cheapest way to produce that short rise — the player's box is
      * {@code [y, y+1.8]}, so a whole block of rise needs {@code y+2} free, and a jump into it clips
      * at {@code +0.2} and drops straight back. That is not an exotic arena: it is a two-cell mine
      * corridor, which is what {@code vein2.exit} climbs out of.
      *
-     * <h2>控制臂先跑，而且它是有故障的那一臂</h2>
+     * <h2>The control arm runs first, and it is the arm with the fault</h2>
      *
      * The fault predicate is the caller's own bottom line — <b>the tower did not deliver the height
      * it was ordered</b>. Under the ceiling that must be 1 fault: a tower cannot dig, and this arm
@@ -875,7 +879,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * </ol>
      *
      * <p>The subject is the same order over the same rig with that one ceiling row taken away, and
-     * it must climb all four courses. Without it「垒不上去」would also be satisfied by a tower that
+     * it must climb all four courses. Without it, "cannot build upward" would also be satisfied by a tower that
      * cannot climb anywhere.
      */
     private static void serverTowersUnderALowCeiling(SceneContext ctx) {
@@ -903,8 +907,8 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         cfp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         cfp.getInventory().selected = 0;
         settle(control.avatar());
-        // Only the cells UNDER the lid: the staged-column check asserts「the tower's target column is
-        // air right now」, and the lid deliberately sits inside the four cells the order asks for. A
+        // Only the cells UNDER the lid: the staged-column check asserts "the tower's target column is
+        // air right now", and the lid deliberately sits inside the four cells the order asks for. A
         // rig check that failed on the arena's own subject would report the ceiling as a staging bug.
         requireStaged(ctx, "control", cfp, new BlockPos(cx, standY, cz), cx, standY, ceilY - standY, cz, stock);
         ctx.record("control.ceiling", "stone at y=" + ceilY + " over the whole 7x7 | feet y=" + standY
@@ -914,35 +918,38 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         Run c = runTower(ctx, "control", control, standY + courses, ceilY - standY, DRIVE_BUDGET,
                 apexWatch(cfp, "control", ctx));
         ctx.record("control.jumpTick", "last emitted jump impulse t=" + control.avatar().dbgLastJumpTick()
-                + "。配合 control.apex 读：非 -1 且 apex ≈ +0.20 = 跳了、撞盖子、又落回来"
-                + "（修之前就是这一行，接着 60 tick 卡在 JUMPING）；-1 且 apex = +0.00 = 根本没起跳，"
-                + "READY 先把盖子点名了");
+                + ". Read together with control.apex: not -1 and apex ≈ +0.20 means the bot jumped, hit"
+                + " the lid and fell back (the defective behaviour, followed by 60 ticks stuck in JUMPING);"
+                + " -1 and apex = +0.00 means the bot never jumped because READY named the lid first");
         int controlFaults = c.climbed() == courses ? 0 : 1;
-        ctx.record("control.after", controlFaults + " fault(s): 顶上封死，" + courses + " 格里涨了 "
-                + c.climbed() + " 格；判词 »" + c.lastError + "«");
+        ctx.record("control.after", controlFaults + " fault(s): ceiling sealed; rose " + c.climbed()
+                + " of " + courses + " blocks; result message »" + c.lastError + "«");
         WorldDriverCommon.LOG.info("[tower:ceiling] control climbed={} ticks={} finished={} err={}",
                 c.climbed(), c.ticks, c.finished, c.lastError);
         if (controlFaults == 0)
-            ctx.fail("THE RIG, not the subject: the body climbed " + c.climbed() + " courses with"
+            ctx.fail("THE RIG, not the subject: the bot climbed " + c.climbed() + " courses with"
                     + " stone at y=" + ceilY + " over every column of the arena, so the ceiling was"
                     + " never in the way and nothing this arm measures is about one — " + c.columnAfter);
         control.fakePlayer().discard();
 
-        ctx.check(c.finished).as("A 垒不上去也要给判词，不许把预算耗光: ran " + c.ticks + " of "
+        ctx.check(c.finished).as("A: a tower that cannot rise still reports a result message instead of"
+                + " exhausting the budget: ran " + c.ticks + " of "
                 + DRIVE_BUDGET + " ticks, finished=" + c.finished + ", verdict »" + c.lastError
-                + "«。JUMPING 只有一条出路（p.getY() >= jumpFromY + 1.0），跳不满一格就再也回不到"
-                + " READY —— 这正是 vein2.exit#3 / crystal.0 那三行 phase=JUMPING 的来处").isTrue();
+                + "«. JUMPING has only one exit (p.getY() >= jumpFromY + 1.0), so a jump that rises less"
+                + " than one block never returns to READY — this is the source of the three"
+                + " phase=JUMPING rows from vein2.exit#3 / crystal.0").isTrue();
         ctx.check(c.ticks <= CEILING_VERDICT_TICKS)
-                .as("B 判词要来得快: " + c.ticks + " tick（上限 " + CEILING_VERDICT_TICKS
-                        + "）。「头顶是不是实心」是一次方块读数，不是一场 60 tick 的实验，"
-                        + "而爬井的每一级都要付这笔钱").isTrue();
+                .as("B: the result message arrives quickly: " + c.ticks + " ticks (limit " + CEILING_VERDICT_TICKS
+                        + "). \"Is the head cell solid?\" is a single block read, not a 60-tick experiment,"
+                        + " and every step of a shaft climb pays that cost").isTrue();
         ctx.check(c.lastError != null && c.lastError.contains(String.valueOf(ceilY))
                         && !c.lastError.contains("phase=JUMPING"))
-                .as("C 判词要说出挡路的那一格（y=" + ceilY + "），不许只报 phase: got »" + c.lastError
-                        + "«。相位说的是代码停在哪，调用方需要的是格子 —— 能挖掉它的是调用方"
-                        + "（JourneyShaft.ascendByTowering 就在挖）").isTrue();
-        ctx.check(c.spent).as("D 一块也不该花: spent " + c.spent + "，起塔柱 »" + c.columnAfter
-                + "« —— 一次跳不起来的课程不该留下花掉的方块").isEqualTo(0);
+                .as("C: the result message names the blocking cell (y=" + ceilY + ") rather than only the"
+                        + " phase: got »" + c.lastError
+                        + "«. A phase says where the code stopped; the caller needs the cell, because the"
+                        + " caller is the one that can mine it (JourneyShaft.ascendByTowering already does)").isTrue();
+        ctx.check(c.spent).as("D: no block is spent: spent " + c.spent + ", tower start column »" + c.columnAfter
+                + "« — a course whose jump never succeeded must not leave spent blocks behind").isEqualTo(0);
 
         // ---- subject: the same order, the same rig, that one row of stone gone ----
         stageFlatArena(ctx, 3, floorY);
@@ -956,32 +963,33 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         Run s = runTower(ctx, "subject", subject, standY + courses, courses, DRIVE_BUDGET,
                 apexWatch(sfp, "subject", ctx));
         int subjectFaults = s.climbed() == courses ? 0 : 1;
-        ctx.record("subject.after", subjectFaults + " fault(s): 抽掉 y=" + ceilY + " 那一层，"
-                + "同一条命令涨了 " + s.climbed() + "/" + courses + " 格");
-        ctx.check(s.climbed()).as("E 两臂只差 y=" + ceilY + " 那一层石头: 涨了 " + s.climbed()
-                + " 格（对照臂 " + c.climbed() + "）。没有这一读，「垒不上去」也可以是一个"
-                + "到哪都垒不动的塔说的").isEqualTo(courses);
-        ctx.check(s.spent).as("F 恰好花 " + courses + " 块: spent " + s.spent).isEqualTo(courses);
+        ctx.record("subject.after", subjectFaults + " fault(s): with the y=" + ceilY + " layer removed,"
+                + " the same order rose " + s.climbed() + "/" + courses + " blocks");
+        ctx.check(s.climbed()).as("E: the two arms differ only by the stone layer at y=" + ceilY + ": rose "
+                + s.climbed() + " blocks (control arm " + c.climbed() + "). Without this reading,"
+                + " \"cannot build upward\" could also come from a tower that cannot build anywhere")
+                .isEqualTo(courses);
+        ctx.check(s.spent).as("F: exactly " + courses + " blocks spent: spent " + s.spent).isEqualTo(courses);
     }
 
     /**
      * <b>The ceiling is over the NEXT column, and the caller's own check cannot see it.</b>
      *
      * <p>{@code JourneyShaft.ascendByTowering} clears {@code at.above(2)} before every course, where
-     * {@code at} is {@code player().blockPosition()} — one column, the body's own. A body is 0.6
+     * {@code at} is {@code player().blockPosition()} — one column, the player's own. A player is 0.6
      * wide and stands wherever a walk left it, so its box straddles two columns whenever its x or z
      * is within 0.3 of a cell boundary, and a rise is stopped by whichever of them is lowest. That is
      * the ladder's shape exactly: a two-cell mine corridor whose ceiling has been opened over one
      * column only is precisely what the caller's check produces.
      *
      * <p>It is also how {@code vein2.exit#3} could report {@code phase=JUMPING} on course
-     * <b>1</b>: course 0 opened the body's own ceiling and gained its block, and the neighbour's
+     * <b>1</b>: course 0 opened the player's own ceiling and gained its block, and the neighbour's
      * never moved.
      *
      * <h2>One variable, and it is a fifth of a block</h2>
      *
      * Both runs use the same arena and the same single stone cell at {@code (cx-1, standY+2, cz)}.
-     * The control's body sits at {@code x = cx + 0.05} — box {@code [cx-0.25, cx+0.35]}, straddling
+     * The control's player sits at {@code x = cx + 0.05} — box {@code [cx-0.25, cx+0.35]}, straddling
      * into that neighbour — and the subject's at {@code x = cx + 0.5}, box {@code [cx+0.2, cx+0.8]},
      * clear of it. Both report {@code blockPosition().getX() == cx}, so <b>the cell the caller checks
      * is air in both</b> and no column-shaped question can tell them apart. {@code footprint()} is
@@ -1002,7 +1010,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
 
-        // ---- control: the body straddles into the lidded column ----
+        // ---- control: the player straddles into the lidded column ----
         stageFlatArena(ctx, 3, floorY);
         level.setBlockAndUpdate(lid, Blocks.STONE.defaultBlockState());
 
@@ -1012,31 +1020,32 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         cfp.getInventory().selected = 0;
         settle(control.avatar());
         requireStaged(ctx, "control", cfp, new BlockPos(cx, standY, cz), cx, standY, courses, cz, stock);
-        ctx.record("control.footprint", footprint(cfp) + " | 盖子 " + lid.toShortString() + "="
-                + level.getBlockState(lid).getBlock() + " | 调用方查的那一格 " + own.toShortString()
+        ctx.record("control.footprint", footprint(cfp) + " | lid " + lid.toShortString() + "="
+                + level.getBlockState(lid).getBlock() + " | cell the caller checks " + own.toShortString()
                 + "=" + level.getBlockState(own).getBlock());
 
         Run c = runTower(ctx, "control", control, standY + courses, courses, DRIVE_BUDGET,
                 apexWatch(cfp, "control", ctx));
         int controlFaults = c.climbed() == courses ? 0 : 1;
-        ctx.record("control.after", controlFaults + " fault(s): 身体压着 " + lid.toShortString()
-                + " 那一柱，" + courses + " 格里涨了 " + c.climbed() + " 格；判词 »" + c.lastError + "«");
+        ctx.record("control.after", controlFaults + " fault(s): the bot's bounding box overlaps the "
+                + lid.toShortString() + " column; rose " + c.climbed() + " of " + courses
+                + " blocks; result message »" + c.lastError + "«");
         WorldDriverCommon.LOG.info("[tower:neighbour] control climbed={} ticks={} finished={} err={}",
                 c.climbed(), c.ticks, c.finished, c.lastError);
         if (controlFaults == 0)
-            ctx.fail("THE RIG, not the subject: a body whose box reaches into " + lid.toShortString()
+            ctx.fail("THE RIG, not the subject: a player whose box reaches into " + lid.toShortString()
                     + " climbed all " + courses + " courses, so either the stone is not there or the"
-                    + " body is not straddling — " + footprint(cfp) + " | " + c.columnAfter);
+                    + " player is not straddling — " + footprint(cfp) + " | " + c.columnAfter);
         control.fakePlayer().discard();
 
-        ctx.check(c.finished).as("A 邻柱封住时也要给判词: ran " + c.ticks + " of " + DRIVE_BUDGET
+        ctx.check(c.finished).as("A: a result message is reported even when the neighbouring column is sealed: ran " + c.ticks + " of " + DRIVE_BUDGET
                 + " ticks, verdict »" + c.lastError + "«").isTrue();
         ctx.check(c.lastError != null && c.lastError.contains(lid.toShortString()))
-                .as("B 判词要点名邻柱那一格 " + lid.toShortString() + "（而不是身体自己的柱 "
-                        + own.toShortString() + "，那一格是空的）: got »" + c.lastError
-                        + "«。调用方只挖得动它说得出名字的格子").isTrue();
+                .as("B: the result message names the neighbouring cell " + lid.toShortString()
+                        + " (not the bot's own column " + own.toShortString() + ", which is empty): got »"
+                        + c.lastError + "«. The caller can only mine a cell the message names").isTrue();
 
-        // ---- subject: same arena, same lid, the body a fifth of a block further in ----
+        // ---- subject: same arena, same lid, the player a fifth of a block further in ----
         stageFlatArena(ctx, 3, floorY);
         level.setBlockAndUpdate(lid, Blocks.STONE.defaultBlockState());
         ServerWorldDriver subject = body(ctx, cx + 0.5, standY, cz + 0.5);
@@ -1045,16 +1054,17 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         sfp.getInventory().selected = 0;
         settle(subject.avatar());
         requireStaged(ctx, "subject", sfp, new BlockPos(cx, standY, cz), cx, standY, courses, cz, stock);
-        ctx.record("subject.footprint", footprint(sfp) + " | 盖子仍在 " + lid.toShortString() + "="
+        ctx.record("subject.footprint", footprint(sfp) + " | lid still at " + lid.toShortString() + "="
                 + level.getBlockState(lid).getBlock());
 
         Run s = runTower(ctx, "subject", subject, standY + courses, courses, DRIVE_BUDGET,
                 apexWatch(sfp, "subject", ctx));
         int subjectFaults = s.climbed() == courses ? 0 : 1;
-        ctx.record("subject.after", subjectFaults + " fault(s): 同一块盖子还在，身体挪进半格，涨了 "
-                + s.climbed() + "/" + courses + " 格");
-        ctx.check(s.climbed()).as("C 两臂只差身体在格内的位置（对照 x=cx+0.05，本体 x=cx+0.5），"
-                + "盖子一模一样: 涨了 " + s.climbed() + " 格（对照臂 " + c.climbed() + "）").isEqualTo(courses);
-        ctx.check(s.spent).as("D 恰好花 " + courses + " 块: spent " + s.spent).isEqualTo(courses);
+        ctx.record("subject.after", subjectFaults + " fault(s): the same lid is still in place, the bot"
+                + " moved half a block further in, rose " + s.climbed() + "/" + courses + " blocks");
+        ctx.check(s.climbed()).as("C: the two arms differ only by the bot's position within the cell"
+                + " (control x=cx+0.05, subject x=cx+0.5), with an identical lid: rose " + s.climbed()
+                + " blocks (control arm " + c.climbed() + ")").isEqualTo(courses);
+        ctx.check(s.spent).as("D: exactly " + courses + " blocks spent: spent " + s.spent).isEqualTo(courses);
     }
 }

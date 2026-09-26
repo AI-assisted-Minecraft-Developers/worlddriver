@@ -21,11 +21,11 @@ import net.minecraft.world.level.block.Blocks;
  *
  * <p><b>Why this is a scene and not another ladder run.</b> Three fixes in a row were recoveries for
  * rare failures, and three consecutive ladder runs — stopping at rungs 11, 10 and 6, each on a
- * different cause — did not exercise a single one. A ladder answers「did it happen this time」; what
- * has to be answered is「when it happens, does the recovery work」.
+ * different cause — did not exercise a single one. A ladder answers "did it happen this time"; what
+ * has to be answered is "when it happens, does the recovery work".
  *
  * <p><b>What the first version of this scene found, which is why it is now about lily pads.</b> It
- * staged the body over deep water and asserted a recovery that had just been added to the craft.
+ * staged the bot over deep water and asserted a recovery that had just been added to the craft.
  * The scene went red on that assertion and green on everything else, and the evidence said why:
  * {@code station.steppingOff.0 = …219 → …216} then {@code furnace.crafted = 1}. The job already
  * belonged to {@code JourneyStation.makeRoomForAStation}, which runs earlier and is strictly more
@@ -33,21 +33,22 @@ import net.minecraft.world.level.block.Blocks;
  * five minutes by deleting a fix instead of confirming it.
  *
  * <p><b>The occasion that is real.</b> Ladder j47's furnace rung failed in three ticks holding
- * sixteen cobblestone and a table, on {@code 需要工作台（背包里有，但脚边没有可放置的空位）}, and
- * {@code makeRoomForAStation} wrote no row at all — it had answered「there is room」. The one line
- * that says why lives in the game log rather than the results:
+ * sixteen cobblestone and a table, with the error "a crafting table is needed (there is one in the
+ * inventory, but no free spot beside the feet to place it)", and {@code makeRoomForAStation} wrote
+ * no row at all — it had answered "there is room". The one line that says why lives in the game
+ * log rather than the results:
  *
  * <pre>
  * [craft] placeNearby: click failed cell=67,64,59 (air) below=67,63,59 (lily_pad)
  * </pre>
  *
  * A lily pad is not air and cannot be replaced, so it passes the support test both the placer and
- * the recovery use — and its top face holds nothing. The rung then reported「no spot」about a body
+ * the recovery use — and its top face holds nothing. The rung then reported "no spot" about a bot
  * that had a spot it could not use.
  *
- * <p><b>The staging is taken from the body, not predicted.</b> A body dropped into water settles at
+ * <p><b>The staging is taken from the bot, not predicted.</b> A player dropped into water settles at
  * whatever row the surface puts it in, and the whole point of this arena is that the pad sits in the
- * body's OWN row. So the pool is built first, the body is dropped and stepped, and only then is the
+ * bot's OWN row. So the pool is built first, the bot is dropped and stepped, and only then is the
  * pad placed beside where it actually came to rest. Predicting that row is how a scene ends up
  * asserting on geometry it does not have.
  */
@@ -70,10 +71,10 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
     /** How far along z this arm's ground sits from the pool the other arm floods. */
     private static final int DIG_Z = 24;
 
-    /** How far the positive control sits from the body, in cells. Twenty-four: well outside
+    /** How far the positive control sits from the bot, in cells. Twenty-four: well outside
      *  {@code Body.canBreak}'s reach — which is the ONLY gate {@code breakItWhereItStands} has, as
      *  the bedrock version of this arm proved by removing bedrock — and about three times what
-     *  {@link #DIG_TICKS} buys a walking body, so the budget cannot expire「nearly」in reach and make
+     *  {@link #DIG_TICKS} buys a walking bot, so the budget cannot expire "nearly" in reach and make
      *  this control depend on pathfinding luck. Not further: a cell several chunks out is one whose
      *  staging depends on what the arena's ticket keeps loaded, and that is a different bug to debug. */
     private static final int DIG_FAR = 24;
@@ -83,26 +84,26 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
      *
      * <p><b>Calibrating the instrument, on a known positive AND a known negative in one arm.</b>
      * {@code mineCellOrGiveUp} records only the cells that did NOT open, which makes the ABSENCE of a
-     * row meaningful — and an absence is only meaningful if something would have written one. Until
-     * this arm, nothing had ever seen that row: rung 12's rehearsal asked for three doorway cells, got
-     * two, and the run contained no line at all between「要清三格」and「还堵着一格」. A silence I have
-     * not seen speak is not evidence of success; it is evidence of nothing.
+     * row meaningful — and an absence is only meaningful if something would have written one.
+     * Without this arm, nothing would ever have seen that row: rung 12's rehearsal asked for three
+     * doorway cells, got two, and the run contained no line at all between "three cells to clear"
+     * and "one cell still blocked". A silence that has never been seen to speak is not evidence of
+     * success; it is evidence of nothing.
      *
      * <p><b>The positive is DISTANCE, and the first version got that wrong in a way worth keeping.</b>
      * It staged bedrock, on the reasoning that unbreakable-by-construction beats unbreakable-by-
      * circumstance. The arm went red and {@code subject.after} said why: {@code …100024=air} — the
      * bedrock was gone. {@code breakItWhereItStands} goes through {@code destroyBlock}, which honours
-     * neither hardness nor reach for this body, so「can never be mined」is not a property this arena
+     * neither hardness nor reach for this bot, so "can never be mined" is not a property this arena
      * can buy with a block id.
      *
-     * <p>That failure is also a reading about the case this instrument was added for: a body whose
+     * <p>That failure is also a reading about the case this instrument was added for: a bot whose
      * dig removes BEDROCK did not leave rung 12's doorway cobblestone standing because it was too
      * hard. It never got within reach of it. So the positive here is a cell far enough away that the
      * give-up budget expires first — which is the real failure mode rather than a substitute for it.
      *
-     * <p>Plain stone at the body's elbow is the negative, and the two assertions take opposite
-     * values, so a scene-global leaking between them could not satisfy both
-     * ([[a-scene-that-owns-a-global]]).
+     * <p>Plain stone at the bot's elbow is the negative, and the two assertions take opposite
+     * values, so a scene-global leaking between them could not satisfy both.
      */
     private static void namesTheCellADigCouldNotOpen(SceneContext ctx) {
         // Its own patch of ground, clear of the lily-pad pool this file's other arm digs out — the two
@@ -135,13 +136,14 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
         ServerPlayerBody av = driver.avatar();
         for (int i = 0; i < 3; i++) av.step();
         ServerLevel level = ctx.level();
-        ctx.record("staged.cells", "够不着的 " + wontOpen.toShortString() + "="
-                + level.getBlockState(wontOpen).getBlock() + "（距身体 " + DIG_FAR + " 格，预算 "
-                + DIG_TICKS + " tick）；够得着的 " + willOpen.toShortString()
-                + "=" + level.getBlockState(willOpen).getBlock() + "；身体 "
+        ctx.record("staged.cells", "out of reach: " + wontOpen.toShortString() + "="
+                + level.getBlockState(wontOpen).getBlock() + " (" + DIG_FAR + " blocks from the bot, budget "
+                + DIG_TICKS + " ticks); within reach: " + willOpen.toShortString()
+                + "=" + level.getBlockState(willOpen).getBlock() + "; bot at "
                 + fp.blockPosition().toShortString());
-        ctx.check(level.getBlockState(wontOpen).isAir()).as("控制组：阳性那格开跑前必须**有东西**，"
-                + "空的格子谁挖都「开」，那样这一臂测的是 0==0").isFalse();
+        ctx.check(level.getBlockState(wontOpen).isAir()).as("Control: the positive cell must contain a"
+                + " block before the run starts. An empty cell counts as opened no matter who digs it,"
+                + " and this arm would then be testing 0==0").isFalse();
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
         rig.mineCellOrGiveUp(wontOpen, DIG_TICKS, () -> rig.mineCellOrGiveUp(willOpen, DIG_TICKS, () -> {
@@ -150,28 +152,36 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
             ctx.record("subject.wontOpen", String.valueOf(saidNo));
             ctx.record("subject.willOpen", String.valueOf(saidYes));
             ctx.record("subject.after", wontOpen.toShortString() + "="
-                    + level.getBlockState(wontOpen).getBlock() + "，" + willOpen.toShortString()
+                    + level.getBlockState(wontOpen).getBlock() + ", " + willOpen.toShortString()
                     + "=" + level.getBlockState(willOpen).getBlock());
 
-            ctx.check(saidNo).as("A 挖不开的那格必须留下一行 —— 没有它，"
-                    + "「没有 mineCell 行」就同时意味着「都挖开了」和「这行根本不写」，"
-                    + "而下游正是靠这个沉默下结论的").isNotNull();
-            ctx.check(String.valueOf(saidNo)).as("A2 那一行要说得出仍是什么方块："
+            ctx.check(saidNo).as("A The cell that could not be dug must leave a row. Without it, the"
+                    + " absence of a mineCell row would mean both 'everything was dug' and 'the row is"
+                    + " never written', and downstream code draws its conclusion from that silence")
+                    .isNotNull();
+            ctx.check(String.valueOf(saidNo)).as("A2 The row must name the block that is still there: "
                     + saidNo).contains("stone");
-            ctx.check(String.valueOf(saidNo)).as("A3 那一行还要说得出身体离它多远 —— "
-                    + "「够不着」和「够得着但挥空了」要的修法相反，而两者的方块名一模一样："
-                    + saidNo).contains("格心距");
-            ctx.check(String.valueOf(saidNo)).as("A4 那一行要带上闸自己的答案，而不是一个长得像它的距离 —— "
-                    + "权威量的是眼睛到格心，读者手算的是格到格，差着一个眼高，"
-                    + "所以贴着上限的那一段读数单独看没有意义：" + saidNo).contains("canBreak=false");
-            ctx.check(String.valueOf(saidNo)).as("A5 而且要说得出是闸的哪一半没过。这一臂摆的是**距离**不够，"
-                    + "暴露面是有的；如果这里读到 false，说明拒绝来自封闭而不是距离，"
-                    + "那这一臂就没在测它以为在测的东西：" + saidNo).contains("有暴露面=true");
-            ctx.check(level.getBlockState(willOpen).isAir()).as("B 控制组：挖得开的那格必须真的开了 —— "
-                    + "没开的话 C 的沉默是「也没挖开」，不是「挖开了所以不写」："
+            // The literals below are matched against text written by JourneyRig.sayIfStillThere.
+            ctx.check(String.valueOf(saidNo)).as("A3 The row must also state how far the bot was from"
+                    + " the cell. 'Out of reach' and 'within reach but the swing missed' need opposite"
+                    + " fixes, and both report the same block name: "
+                    + saidNo).contains("cell-centre distance");
+            ctx.check(String.valueOf(saidNo)).as("A4 The row must carry the gate's own answer, not a"
+                    + " distance that resembles it. The authority measures eye to cell centre while a"
+                    + " reader computes cell to cell, one eye height apart, so a reading close to the"
+                    + " limit means nothing on its own: " + saidNo).contains("canBreak=false");
+            ctx.check(String.valueOf(saidNo)).as("A5 The row must also say which half of the gate"
+                    + " failed. This arm stages insufficient distance while the cell has an exposed"
+                    + " face; reading false here means the refusal came from enclosure rather than"
+                    + " distance, and the arm is not testing what it claims to test: " + saidNo)
+                    .contains("exposedFace=true");
+            ctx.check(level.getBlockState(willOpen).isAir()).as("B Control: the diggable cell must"
+                    + " actually be open. Otherwise the silence in C means 'not dug either', not 'dug,"
+                    + " so no row was written': "
                     + level.getBlockState(willOpen).getBlock()).isTrue();
-            ctx.check(saidYes).as("C 挖开了的那格必须**不留行** —— 每格都写会把真正要看的那一条埋掉，"
-                    + "而缺席能有意义正是因为 A 证明了它会出声：" + saidYes).isNull();
+            ctx.check(saidYes).as("C The cell that was dug must leave no row. Writing a row for every"
+                    + " cell would bury the one that matters, and the absence is meaningful only"
+                    + " because A proved the row is written when it applies: " + saidYes).isNull();
         }));
     }
 
@@ -179,7 +189,7 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
     private static final int SURFACE = 20;
 
     /** How deep the pool is. Four: the placer probes {@code dy} of 0, −1 and +1, so two would already
-     *  leave every support wet — this is double that, so a body that settles a row lower than
+     *  leave every support wet — this is double that, so a bot that settles a row lower than
      *  expected is still over water on every side. */
     private static final int DEPTH = 4;
 
@@ -206,45 +216,50 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
         BlockPos foot = fp.blockPosition();
         BlockPos pad = foot.east();
         level.setBlockAndUpdate(pad, Blocks.LILY_PAD.defaultBlockState());
-        ctx.record("staged.foot", foot.toShortString() + "，脚格="
-                + level.getBlockState(foot).getBlock() + "，脚下="
+        ctx.record("staged.foot", foot.toShortString() + ", feet cell="
+                + level.getBlockState(foot).getBlock() + ", below feet="
                 + level.getBlockState(foot.below()).getBlock());
         ctx.record("staged.pad", pad.toShortString() + " = " + level.getBlockState(pad).getBlock());
 
         // THE CONTROL, and it is the whole finding: the staged spot has EXACTLY ONE support the old
         // test accepts, that support is the pad, and NOTHING here is sturdy enough to build on. A
-        // green run without these three numbers could not tell「the recovery worked」from「the
-        // staging never posed the question」.
+        // green run without these three numbers could not tell "the recovery worked" from "the
+        // test setup never posed the question".
         int loose = supports(level, foot, false);
         int sturdy = supports(level, foot, true);
-        ctx.record("staged.supports", "旧判据（非空气且不可替换）认可 " + loose
-                + " 个，真能承重（isFaceSturdy UP）的有 " + sturdy + " 个");
-        ctx.check(loose > 0).as("控制组 A 旧判据必须被骗过去，否则这一格根本不是 j47 那个场合："
-                + loose + " 个").isTrue();
-        ctx.check(sturdy).as("控制组 B 而真正承得住的必须一个都没有，否则合成本来就会成功，"
-                + "下面「补救跑了」是 0==0：" + sturdy + " 个").isEqualTo(0);
+        ctx.record("staged.supports", "the old criterion (not air and not replaceable) accepts " + loose
+                + ", actually load-bearing (isFaceSturdy UP): " + sturdy);
+        ctx.check(loose > 0).as("Control A: the old criterion must be fooled, otherwise this spot does"
+                + " not reproduce the j47 situation: " + loose).isTrue();
+        ctx.check(sturdy).as("Control B: no support may actually be load-bearing, otherwise the craft"
+                + " would succeed anyway and 'the recovery ran' below would be 0==0: " + sturdy)
+                .isEqualTo(0);
         ctx.check(level.getBlockState(pad).is(Blocks.LILY_PAD))
-                .as("控制组 C 睡莲要真的还在（水没冲走它）：" + level.getBlockState(pad).getBlock())
+                .as("Control C: the lily pad must still be there (the water did not wash it away): "
+                        + level.getBlockState(pad).getBlock())
                 .isTrue();
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.FURNACE, driver);
         WorldDriverJourneyScenes.craftKeepingTheTable(rig, "minecraft:furnace", 3_000, () -> {
             BlockPos ended = fp.blockPosition();
             Object stepped = rig.evidenceOf("station.steppingOff.0");
-            ctx.record("subject.endedAt", ended.toShortString() + "，脚下="
+            ctx.record("subject.endedAt", ended.toShortString() + ", below feet="
                     + level.getBlockState(ended.below()).getBlock());
             ctx.record("subject.steppingOff", String.valueOf(stepped));
             ctx.record("subject.noGround", String.valueOf(rig.evidenceOf("station.noGround")));
 
             ctx.check(stepped).as(
-                    "A 补救**被观察到进入** —— `station.steppingOff.0` 必须写了。它没写就说明 "
-                    + "placerWouldFindRoom 又被睡莲骗过去了，也就是这条修法没生效："
+                    "A The recovery must be observed to start: `station.steppingOff.0` must be written."
+                    + " If it is missing, placerWouldFindRoom was fooled by the lily pad again and the"
+                    + " fix did not take effect: "
                     + stepped).isNotNull();
             ctx.check(supports(level, ended, true) > 0).as(
-                    "B 身体最后站的那一格真的承得住东西（判的是终点，不是走了几格）：" + ended
-                    + " 有 " + supports(level, ended, true) + " 个").isTrue();
+                    "B The cell where the bot finally stands can actually bear a block (this checks the"
+                    + " end position, not how far the bot walked): " + ended
+                    + " has " + supports(level, ended, true)).isTrue();
             ctx.check(rig.carrying("minecraft:furnace")).as(
-                    "C 而且熔炉真的合出来了 —— A/B 全中而这条不中，说明挪窝治的不是这个病")
+                    "C The furnace must actually be crafted. If A and B pass and this fails, moving to"
+                    + " a new spot did not fix this failure")
                     .isEqualTo(1);
         });
     }
@@ -286,8 +301,8 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
             for (int dz = -POOL; dz <= POOL; dz++)
                 for (int dy = SURFACE - DEPTH; dy <= SURFACE; dy++)
                     ctx.setBlock(dx, dy, dz, Blocks.WATER);
-        // The shore, and the rim that lets the body wade out rather than climb: this scene is about
-        // the craft, and a body that cannot leave the pool would fail it for the wrong reason.
+        // The shore, and the rim that lets the bot wade out rather than climb: this scene is about
+        // the craft, and a bot that cannot leave the pool would fail it for the wrong reason.
         for (int dx = POOL + 1; dx <= SHORE_FAR; dx++)
             for (int dz = -3; dz <= 3; dz++)
                 for (int dy = SURFACE - DEPTH; dy <= SURFACE; dy++)

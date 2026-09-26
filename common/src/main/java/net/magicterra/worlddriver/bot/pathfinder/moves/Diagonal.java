@@ -25,11 +25,11 @@ public final class Diagonal extends Move {
         // which the Walker executes cleanly. Costs at most one extra step per
         // corner; in exchange no diagonal ever wedges.
         // ...and at least one corner must have GROUND under it. Passable is the wedge test; it says
-        // nothing about what the body walks over. A diagonal is executed by aiming straight at the
+        // nothing about what the bot walks over. A diagonal is executed by aiming straight at the
         // destination centre, so the hitbox crosses both corner columns — and on an island rim both
-        // of them are open void. Rung 20 kept ending 「身体掉出世界」 from cells like -15,60,36:
+        // of them are open void. Rung 20 kept ending with the bot falling out of the world from cells like -15,60,36:
         // flat ground, no leap involved, a diagonal off the edge. One cornered floor is enough,
-        // because the body then always has something under some part of it during the crossing.
+        // because the bot then always has something under some part of it during the crossing.
         if (BotConfig.pathfinderForbidParkourOverTheVoid
                 && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) return false;
         return clearColumn(w, sideA) && clearColumn(w, sideB);

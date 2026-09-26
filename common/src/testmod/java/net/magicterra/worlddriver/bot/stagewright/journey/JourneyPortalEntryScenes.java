@@ -27,20 +27,20 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.NetherPortalBlock;
 
 /**
- * A lit portal whose front is walled up, and a body that has to open one cell to get in.
+ * A lit portal whose front is walled up, and a bot that has to open one cell to get in.
  *
  * <p>The ladder's rung 13 died here on 2026-08-19 after rung 12 had lit the portal from a fresh
- * world. The evidence it left is worth quoting, because every row of it is true and the conclusion
- * it drew from them was not:
+ * world. The evidence it left is worth quoting (rendered in English), because every row of it is
+ * true and the conclusion it drew from them was not:
  *
  * <pre>
  * portal.found = 4, 57, 19      stand.at = 2, 58, 19      stand.in = Block{minecraft:air}
- * portal.leg.0 … portal.leg.7   走进去：2, 58, 19 站的是 Block{minecraft:air}，维度 minecraft:overworld
- * 站在传送门里 1200 tick 没被送走：身体在 2, 58, 19
+ * portal.leg.0 … portal.leg.7   walk in: 2, 58, 19 standing in Block{minecraft:air}, dimension minecraft:overworld
+ * stood in the portal for 1200 ticks and was not transferred: bot at 2, 58, 19
  * </pre>
  *
- * The body was never in the portal — its own {@code stand.in} says so — the scene ran 451 ticks and
- * not the 1200 the message claimed, and the eight legs are byte-identical because each asked the
+ * The bot was never in the portal — its own {@code stand.in} says so — the scene ran 451 ticks and
+ * not the 1200 the message claimed, and the eight walks are byte-identical because each asked the
  * pathfinder the same unanswerable question.
  *
  * <h2>The geometry, and why it is not exotic</h2>
@@ -50,7 +50,7 @@ import net.minecraft.world.level.block.NetherPortalBlock;
  * run's world save, with the portal in the plane {@code x=4} and the alcove at {@code x in [2,3]}:
  *
  * <pre>
- * 3,57,19 = cobblestone   3,58,19 = cobblestone   3,59,19 = air（脚下 3,58,19 是实心的）
+ * 3,57,19 = cobblestone   3,58,19 = cobblestone   3,59,19 = air (3,58,19 below it is solid)
  * </pre>
  *
  * So the bottom two rows of the doorway were walled and the top one was open. That is a sandwich
@@ -59,14 +59,14 @@ import net.minecraft.world.level.block.NetherPortalBlock;
  * <ul>
  *   <li>the only portal cell the pathfinder can accept as a GOAL is the bottom one — every other
  *       cell's floor is another portal block, which has no collision — and no route reached it;</li>
- *   <li>the only row with an open front is the TOP one, and a body does not fit there: a portal
- *       interior is three cells tall, a body is 1.8, so its head would be in the frame's obsidian
+ *   <li>the only row with an open front is the TOP one, and a player does not fit there: a portal
+ *       interior is three cells tall, a player is 1.8, so its head would be in the frame's obsidian
  *       cap. This arm measured that before {@code JourneyPortalEntry.enterable} existed — sixty
- *       ticks of held forward moved the body to {@code z = cellZ − 0.3} and stopped, {@code dm.z}
+ *       ticks of held forward moved the bot to {@code z = cellZ − 0.3} and stopped, {@code dm.z}
  *       exactly {@code 0.000}.</li>
  * </ul>
  *
- * <p>So the way in is to open ONE cell of the alcove wall, in front of the row the body does fit
+ * <p>So the way in is to open ONE cell of the alcove wall, in front of the row the bot does fit
  * through, and walk in there.
  *
  * <h2>Two arms</h2>
@@ -77,8 +77,9 @@ import net.minecraft.world.level.block.NetherPortalBlock;
  *       inside the portal.</li>
  *   <li>{@code wd.portalEntryWillNotMineItsOwnFrame} — the same doorway with obsidian all around it.
  *       Now the only removable neighbour of any portal cell is the frame, and mining the frame would
- *       put the portal out, so the answer must be「no way in」— which is what makes the rung report
- *       「到不了传送门方块」rather than「站进去了没被送走」. Its control is the same arena with one
+ *       put the portal out, so the answer must be "no way in" — which is what makes the rung report
+ *       "could not reach a portal block" rather than "stood in it and was not transferred". Its
+ *       control is the same arena with one
  *       obsidian cell swapped for stone, where a way in must be found.</li>
  * </ul>
  *
@@ -116,11 +117,11 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
      *  journey arenas, which leaves head room over the portal and stays far under the build limit. */
     private static final int BASE = 20;
 
-    /** How many legs the control gets to prove the pre-fix approach cannot get in. Fewer than the
+    /** How many walks the control gets to prove the pre-fix approach cannot get in. Fewer than the
      *  rung's eight only because each one ends the instant the search reports no path. */
     private static final int CONTROL_LEGS = 4;
 
-    /** Synchronous ticks one walk leg may spend. The whole arena is nine blocks across. */
+    /** Synchronous ticks one walk may spend. The whole arena is nine blocks across. */
     private static final int LEG_TICKS = 200;
 
     /** What is standing in front of the doorway. One variable per arm; everything else is identical. */
@@ -134,7 +135,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
          *  cell is the frame, and the frame is not removable. */
         FRAME_ONLY,
         /** {@link #FRAME_ONLY} with the middle row's front cell swapped for stone — the control that
-         *  proves「no way in」is a reading and not a constant. */
+         *  proves "no way in" is a reading and not a constant. */
         FRAME_ONLY_WITH_A_WINDOW
     }
 
@@ -143,7 +144,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
     private static BlockPos bottomCell(SceneContext ctx) { return ctx.rel(0, BASE + 2, 0); }
 
     /** The portal's middle-left interior cell: the lowest one whose head cell is also portal, so the
-     *  lowest one a 1.8-tall body can stand in with the doorway's front open. */
+     *  lowest one a 1.8-tall player can stand in with the doorway's front open. */
     private static BlockPos middleCell(SceneContext ctx) { return ctx.rel(0, BASE + 3, 0); }
 
     /** The cell of the alcove wall that stands in front of {@link #middleCell}. */
@@ -155,7 +156,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         return List.of(ctx.rel(0, BASE + 3, -1), ctx.rel(0, BASE + 4, -1));
     }
 
-    /** Where the body starts: on the plateau, four cells north of the doorway. */
+    /** Where the bot starts: on the plateau, four cells north of the doorway. */
     private static BlockPos start(SceneContext ctx) { return ctx.rel(0, BASE + 4, -4); }
 
     /**
@@ -165,7 +166,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
      * ({@code wd.serverLightsPortal}) and this one is about the walk. The premise is asserted
      * immediately afterwards instead of assumed: a portal block whose frame vanilla does not accept
      * is removed by {@code NetherPortalBlock.updateShape} on the next neighbour update, and an arm
-     * that then walked a body into six cells of air would pass every check it has.
+     * that then walked a bot into six cells of air would pass every check it has.
      */
     private static void stage(SceneContext ctx, Front front) {
         clearBox(ctx);
@@ -175,8 +176,8 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
             for (int dz = -6; dz <= 4; dz++)
                 ctx.setBlock(dx, BASE, dz, Blocks.STONE);
 
-        // The plateau the body walks in on. SLAG puts its top face at BASE+3, so the standable row in
-        // front of the doorway is BASE+4 — the portal's TOP row, which a body does not fit through.
+        // The plateau the bot walks in on. SLAG puts its top face at BASE+3, so the standable row in
+        // front of the doorway is BASE+4 — the portal's TOP row, which a player does not fit through.
         // OPEN puts it one lower, so the standable row is the MIDDLE one and nothing needs digging.
         int plateauTop = front == Front.OPEN ? BASE + 2 : BASE + 3;
         for (int dx = -3; dx <= 4; dx++)
@@ -216,7 +217,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
                     ctx.setBlock(dx, dy, -1, Blocks.OBSIDIAN);
                     ctx.setBlock(dx, dy, 1, Blocks.OBSIDIAN);
                 }
-            // Both cells of the middle row's front, because a doorstep is TWO cells: a body needs
+            // Both cells of the middle row's front, because a doorstep is TWO cells: a player needs
             // somewhere for its feet and somewhere for its head, and leaving obsidian in the head
             // cell would make the control fail for the reason the subject is supposed to.
             if (front == Front.FRAME_ONLY_WITH_A_WINDOW)
@@ -250,27 +251,27 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
         // Registered BEFORE anything is built, so an arm that fails mid-drive still hands the shared
-        // dogfood world back empty — a portal left standing would take the next scene's body.
+        // dogfood world back empty — a portal left standing would take the next scene's bot.
         ctx.cleanup(() -> clearBox(ctx));
     }
 
-    /** A body standing in {@code foot}, settled, with a pickaxe and the cleanup that removes it. */
+    /** A bot standing in {@code foot}, settled, with a pickaxe and the cleanup that removes it. */
     private static ServerWorldDriver body(SceneContext ctx, BlockPos foot) {
         return body(ctx, foot, 0.5);
     }
 
-    /** The same, with the body's z inside its own cell named — a stance on the LIP of a block is a
+    /** The same, with the bot's z inside its own cell named — a stance on the LIP of a block is a
      *  different situation from one at its centre, and one arm here needs the lip. */
     private static ServerWorldDriver body(SceneContext ctx, BlockPos foot, double dz) {
         ServerWorldDriver driver = SceneBody.managed(ctx,
                 foot.getX() + 0.5, foot.getY(), foot.getZ() + dz);
         ServerPlayer fp = driver.fakePlayer();
-        // A pickaxe because the ladder's body has one by rung 13 and because destroyBlock hands the
+        // A pickaxe because the ladder's bot has one by rung 13 and because destroyBlock hands the
         // held item to dropResources — a fist opens the cell and drops nothing.
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
         fp.getInventory().selected = 0;
         ServerPlayerBody av = driver.avatar();
-        // Three physics steps with no input, so the body is flush before anything is measured.
+        // Three physics steps with no input, so the bot is flush before anything is measured.
         for (int i = 0; i < 3; i++) av.step();
         return driver;
     }
@@ -281,12 +282,12 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
     }
 
     /**
-     * Run one process to completion, its budget, or the body entering the portal.
+     * Run one process to completion, its budget, or the bot entering the portal.
      *
-     * <p>That last clause is not a shortcut. This arena's portal is LIT, so a body left standing in
+     * <p>That last clause is not a shortcut. This arena's portal is LIT, so a bot left standing in
      * it for eighty ticks is taken to the Nether and every reading after that is about a different
-     * world — including the arm's own cleanup, which would be airing out a box the body is no longer
-     * in. What is under test is the entry, and the entry is finished the moment the body's own cell
+     * world — including the arm's own cleanup, which would be airing out a box the bot is no longer
+     * in. What is under test is the entry, and the entry is finished the moment the bot's own cell
      * reads {@code nether_portal}.
      */
     private static int drive(ServerWorldDriver driver, BotProcess process, int budget) {
@@ -300,10 +301,10 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
     }
 
     /**
-     * The body to three decimals, with the heading and the ground bit.
+     * The bot's position to three decimals, with the heading and the ground bit.
      *
-     * <p>A cell is too coarse to judge a one-block push by: the difference between「did not move」and
-     * 「slid to the lip and stopped」is a tenth of a block, and they are different defects — the second
+     * <p>A cell is too coarse to judge a one-block push by: the difference between "did not move" and
+     * "slid to the lip and stopped" is a tenth of a block, and they are different defects — the second
      * is what named the head-clearance rule this file exists for. Yaw is here because
      * {@code aimAtBlock} is the only thing steering the push, and {@code onGround} because
      * {@code getFrictionInfluencedSpeed} reads it.
@@ -315,11 +316,11 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
                 fp.getDeltaMovement().x, fp.getDeltaMovement().y, fp.getDeltaMovement().z);
     }
 
-    /** Where the body is and what it is standing in — the one sentence both arms judge on. */
+    /** Where the bot is and what it is standing in — the one sentence both arms judge on. */
     private static String where(ServerWorldDriver driver) {
         ServerPlayer fp = driver.fakePlayer();
         BlockPos at = fp.blockPosition();
-        return at.toShortString() + " 站的是 " + fp.level().getBlockState(at).getBlock();
+        return at.toShortString() + " standing in " + fp.level().getBlockState(at).getBlock();
     }
 
     /** {@link JourneyHands#swing} — the arena's own break oracle, shared with the pour-line arenas
@@ -330,69 +331,69 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
 
     // ---------------------------------------------------------------------- arms ----
 
-    // ------------------------------------------- the leg that asked a question already answered ----
+    // ------------------------------------------ the walk that asked a question already answered ----
 
     /** The perch arm's floor, as a dy offset. Its own {@code BASE} so a re-stage cannot inherit the
      *  portal arms' hill. */
     private static final int LEDGE = 40;
 
-    /** The body's z inside its own cell. {@code 0.79} leaves {@code 0.6 x 0.09 = 0.054} of sole on the
+    /** The bot's z inside its own cell. {@code 0.79} leaves {@code 0.6 x 0.09 = 0.054} of sole on the
      *  perch north of it — the ladder's own stance was {@code 0.794} for {@code 0.0563}. Rounded to
-     *  the cell centre the body has no support at all and simply falls, which would answer the
+     *  the cell centre the bot has no support at all and simply falls, which would answer the
      *  question by accident. */
     private static final double LEDGE_DZ = 0.79;
 
-    /** Ticks one leg gets. The whole move is one cell down; the ladder's legs were over in 11. */
+    /** Ticks one walk gets. The whole move is one cell down; the ladder's walks were over in 11. */
     private static final int LEDGE_TICKS = 80;
 
-    /** Where the body stands: one row ABOVE the doorstep, in its column, held up by the perch. */
+    /** Where the bot stands: one row ABOVE the doorstep, in its column, held up by the perch. */
     private static BlockPos ledgePerch(SceneContext ctx) { return ctx.rel(0, LEDGE + 2, 0); }
 
     /** The doorstep, straight down from {@link #ledgePerch}. */
     private static BlockPos ledgeStep(SceneContext ctx) { return ctx.rel(0, LEDGE + 1, 0); }
 
     /**
-     * <b>{@code Goal.XZ} ignores Y, so a leg that asks for a column the body is already standing in
-     * reports success without moving — and the rung counted that as a still leg.</b>
+     * <b>{@code Goal.XZ} ignores Y, so a walk that asks for a column the bot is already standing in
+     * reports success without moving — and the rung counted that as a walk that did not move.</b>
      *
      * <h2>What the ladder did</h2>
      *
-     * Rung 13 alternates its walk legs between {@code Goal.XZ} and {@code Goal.Block} because a retry
+     * Rung 13 alternates its walks between {@code Goal.XZ} and {@code Goal.Block} because a retry
      * that asks the identical question gets the identical answer. On 2026-08-20 15:20 the doorstep was
-     * {@code 3,57,20} and the body ended one row directly above it, on {@code 3,58,20}:
+     * {@code 3,57,20} and the bot ended one row directly above it, on {@code 3,58,20}:
      *
      * <pre>
-     * portal.walk.1 = XZ 目标 3, 57, 20：2, 58, 20 → 3, 58, 20（挪了 1 格）end=arrived
-     * portal.walk.2 = 3D 目标 3, 57, 20：3, 58, 20 → 3, 58, 20（挪了 0 格）end=path-consumed
-     * portal.walk.3 = XZ 目标 3, 57, 20：3, 58, 20 → 3, 58, 20（挪了 0 格）end=arrived
+     * portal.walk.1 = XZ goal 3, 57, 20: 2, 58, 20 → 3, 58, 20 (moved 1 block) end=arrived
+     * portal.walk.2 = 3D goal 3, 57, 20: 3, 58, 20 → 3, 58, 20 (moved 0 blocks) end=path-consumed
+     * portal.walk.3 = XZ goal 3, 57, 20: 3, 58, 20 → 3, 58, 20 (moved 0 blocks) end=arrived
      * </pre>
      *
-     * {@code walk.1} and {@code walk.3} both say {@code arrived} and neither body was ever on the
+     * {@code walk.1} and {@code walk.3} both say {@code arrived} and in neither was the bot ever on the
      * doorstep, because {@code Goal.XZ(3,20,0).reached(3,58,20)} is TRUE — the column matches and the
      * row is not part of the question. {@code walk.3} is a pure no-op that reports success, and
-     * because it moved zero cells it also fed the two-still-legs terminator that ended the rung. So
-     * half of the leg budget was being spent on a shape that could not express「and be on that row」,
-     * and the shape that could was being interleaved with it.
+     * because it moved zero cells it also fed the two-stationary-walks terminator that ended the
+     * rung. So half of the walk budget was being spent on a shape that could not express "and be on
+     * that row", and the shape that could was being interleaved with it.
      *
      * <h2>What this asks, and what it deliberately does not</h2>
      *
      * The subject is {@link JourneyPortalEntry#legGoal}, not the terrain — so unlike
      * {@code wd.serverStepsDownAPlanItSpentInOneTick}, whose subject IS the plan the terrain produces
      * and which therefore copies the region file cell for cell, this arm stages the smallest world in
-     * which the situation is real: a doorstep, a perch, and a body standing on the lip of the perch
-     * one row above the doorstep. The stance is not incidental and is checked — a body at the cell
+     * which the situation is real: a doorstep, a perch, and a bot standing on the lip of the perch
+     * one row above the doorstep. The stance is not incidental and is checked — a bot at the cell
      * centre has nothing under it and falls onto the doorstep by gravity, which would pass every
      * clause below while measuring nothing.
      *
-     * <h2>判据</h2>
+     * <h2>Criteria</h2>
      *
      * <ol>
-     *   <li><b>the XZ leg is a no-op</b> — drive the goal the old alternation would have issued and
-     *       require the body NOT to reach the doorstep. This is the control: if this arm can descend,
+     *   <li><b>the XZ walk is a no-op</b> — drive the goal the old alternation would have issued and
+     *       require the bot NOT to reach the doorstep. This is the control: if this arm can descend,
      *       the scene cannot tell a fix from a walk that was never blocked;</li>
      *   <li><b>{@code legGoal} does not issue it</b> on a flat turn from that cell — it must hand back
      *       a {@code Goal.Block};</li>
-     *   <li><b>and driving what it does issue lands the body on the doorstep</b>;</li>
+     *   <li><b>and driving what it does issue lands the bot on the doorstep</b>;</li>
      *   <li><b>the alternation still exists.</b> From a cell OUTSIDE the doorstep's column a flat turn
      *       must still be {@code Goal.XZ}. Without this the fix could have deleted the alternation
      *       outright and every clause above would still be green.</li>
@@ -411,11 +412,12 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
 
         BlockPos perch = ledgePerch(ctx);
         BlockPos step = ledgeStep(ctx);
-        ctx.record("rig", "身体那一格 " + perch.toShortString() + "（脚下 "
-                + level.getBlockState(perch.below()).getBlock() + "，靠北边那块垫脚撑住），门口 "
-                + step.toShortString() + " 就在正下方 —— 同一列，差一行");
+        ctx.record("rig", "bot cell " + perch.toShortString() + " (below it "
+                + level.getBlockState(perch.below()).getBlock() + ", held up by the perch block to the"
+                + " north), doorstep " + step.toShortString() + " directly below: same column, one row lower");
         ctx.check(JourneyPortalEntry.standable(level, step))
-                .as("THE RIG: 门口 " + step.toShortString() + " 得是站得住的，不然量的是别的东西")
+                .as("THE RIG: the doorstep " + step.toShortString() + " must be standable, otherwise"
+                        + " this measures something else")
                 .isTrue();
 
         // ---- control: the goal the alternation used to issue on this turn ----
@@ -424,15 +426,17 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         Goal.XZ column = new Goal.XZ(step.getX(), step.getZ(), 0);
         ctx.record("blind.premise", "XZ(" + step.getX() + "," + step.getZ() + ",0).reached("
                 + before.toShortString() + ") = " + column.reached(before)
-                + " —— 身体站的就是目标那一列，所以这一问的答案本来就是「是」");
+                + "; the bot already stands in the target column, so the answer to this question is"
+                + " already \"yes\"");
         int blindTicks = drive(blind, new IntentProcess(new Intent(column)), LEDGE_TICKS);
         boolean blindArrived = blind.fakePlayer().blockPosition().equals(step);
-        ctx.record("blind.leg", "XZ 目标 " + step.toShortString() + "：" + before.toShortString()
-                + " → " + where(blind) + "（" + blindTicks + " tick） "
+        ctx.record("blind.leg", "XZ goal " + step.toShortString() + ": " + before.toShortString()
+                + " → " + where(blind) + " (" + blindTicks + " ticks) "
                 + JourneyLeg.walkerEnd(blind) + " " + exactly(blind));
         if (blindArrived)
-            ctx.fail("THE RIG, not the subject: XZ 那一腿自己就走到了门口 " + step.toShortString()
-                    + "，那么「换成 3D 才走得到」就分不清修好了和这座场地本来就走得通 —— " + where(blind));
+            ctx.fail("THE RIG, not the subject: the XZ walk reached the doorstep " + step.toShortString()
+                    + " on its own, so \"only the 3D goal gets there\" cannot tell a fix from an arena"
+                    + " that was always walkable: " + where(blind));
 
         // ---- subject: what legGoal issues on the same turn, from the same cell ----
         ServerWorldDriver seeing = body(ctx, perch, LEDGE_DZ);
@@ -440,32 +444,35 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         Goal picked = JourneyPortalEntry.legGoal(here, step, true);
         ctx.record("picked", JourneyPortalEntry.legShape(here, step, true) + " → " + picked);
         int seeTicks = drive(seeing, new IntentProcess(new Intent(picked)), LEDGE_TICKS);
-        ctx.record("subject.leg", "目标 " + step.toShortString() + "：" + here.toShortString()
-                + " → " + where(seeing) + "（" + seeTicks + " tick） "
+        ctx.record("subject.leg", "goal " + step.toShortString() + ": " + here.toShortString()
+                + " → " + where(seeing) + " (" + seeTicks + " ticks) "
                 + JourneyLeg.walkerEnd(seeing) + " " + exactly(seeing));
 
         // The alternation has to survive the fix, or this is a deletion wearing a fix's clothes.
         BlockPos far = step.offset(4, 1, 4);
         Goal stillXz = JourneyPortalEntry.legGoal(far, step, true);
-        ctx.record("alternation", "从 " + far.toShortString() + "（不在那一列上）问平的那一轮 → "
-                + stillXz);
+        ctx.record("alternation", "flat turn asked from " + far.toShortString()
+                + " (not in that column) → " + stillXz);
 
-        ctx.check(picked instanceof Goal.Block).as("A 身体已经站在门口那一列上时，平的那一轮不许再问 XZ："
-                + "实测 " + picked + "（XZ 对这一格的答案是 " + column.reached(here) + "）").isTrue();
-        ctx.check(seeing.fakePlayer().blockPosition()).as("B 而且换来的那个目标要真把身体带到门口 "
-                + step.toShortString() + " —— 实测 " + where(seeing)).isEqualTo(step);
-        ctx.check(stillXz instanceof Goal.XZ).as("C 而且不在那一列上时，平的那一轮还得是 XZ —— "
-                + "交替是为了换个问法，不是为了删掉一种问法：实测 " + stillXz).isTrue();
+        ctx.check(picked instanceof Goal.Block).as("A When the bot already stands in the doorstep's"
+                + " column, the flat turn must not ask XZ again: measured " + picked
+                + " (XZ's answer for this cell is " + column.reached(here) + ")").isTrue();
+        ctx.check(seeing.fakePlayer().blockPosition()).as("B The replacement goal must actually bring"
+                + " the bot to the doorstep " + step.toShortString() + ": measured " + where(seeing))
+                .isEqualTo(step);
+        ctx.check(stillXz instanceof Goal.XZ).as("C Outside that column the flat turn must still be XZ;"
+                + " the alternation exists to ask a different question, not to remove one: measured "
+                + stillXz).isTrue();
     }
 
-    /** Floor, doorstep and the one block the body balances on. Nothing else: the subject is which
-     *  goal a leg asks for, so terrain past that would only add ways for the arm to be wrong. */
+    /** Floor, doorstep and the one block the bot balances on. Nothing else: the subject is which
+     *  goal a walk asks for, so terrain past that would only add ways for the arm to be wrong. */
     private static void stageLedge(SceneContext ctx) {
         clearLedge(ctx);
         for (int dx = -3; dx <= 3; dx++)
             for (int dz = -3; dz <= 3; dz++)
                 ctx.setBlock(dx, LEDGE, dz, Blocks.STONE);
-        // The perch: its top face is the body's floor, one row ABOVE the doorstep, one cell north.
+        // The perch: its top face is the bot's floor, one row ABOVE the doorstep, one cell north.
         ctx.setBlock(0, LEDGE + 1, 1, Blocks.STONE);
     }
 
@@ -480,24 +487,24 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
      *
      * <h2>The control, and why the subject's criterion needs one</h2>
      *
-     * 「the body ends inside a {@code nether_portal} cell」is satisfied by any arena where it was
+     * "the bot ends inside a {@code nether_portal} cell" is satisfied by any arena where it was
      * already there, by a portal staged around the start cell, by a step-in across a room with no
      * walls. So the arm FIRST drives the pre-fix approach — {@code Goal.Block(bottomCell)}, the goal
-     * the rung asked for eight times — and requires it to come back with the body OUTSIDE the portal.
+     * the rung asked for eight times — and requires it to come back with the bot OUTSIDE the portal.
      * An arm that cannot fail to get in has not earned the right to report that it got in.
      *
-     * <h2>判据</h2>
+     * <h2>Criteria</h2>
      *
      * <ol>
      *   <li><b>nothing is walkable as staged.</b> The top row's front is open and the search must
-     *       still refuse it, because the body does not fit — this is the clause the first cut of the
+     *       still refuse it, because the player does not fit — this is the clause the first cut of the
      *       fix did not have;</li>
      *   <li><b>the way in it does name is the middle row, at the price of exactly one cell</b>, and
      *       that cell is the alcove wall rather than the frame;</li>
      *   <li><b>the dig actually opened it</b> — without this the walk below is measuring a wall that
      *       was never there;</li>
      *   <li><b>the walk arrives somewhere it can step in from</b>, else the step-in is 0 == 0;</li>
-     *   <li><b>the body ends inside a portal cell.</b></li>
+     *   <li><b>the bot ends inside a portal cell.</b></li>
      * </ol>
      */
     private static void digsIntoTheRowItFits(SceneContext ctx) {
@@ -535,8 +542,8 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         WorldDriverCommon.LOG.info("[portalEntry] control faults={} at {}", controlFaults, where(control));
         if (controlFaults == 0)
             ctx.fail("THE RIG, not the subject: the pre-fix goal " + bottom.toShortString()
-                    + " got the body into the portal on its own, so this arm's 「ended inside a"
-                    + " nether_portal cell」criterion cannot tell a fix from a walk that was never"
+                    + " got the bot into the portal on its own, so this arm's \"ended inside a"
+                    + " nether_portal cell\" criterion cannot tell a fix from a walk that was never"
                     + " blocked — " + trail);
         control.fakePlayer().discard();
 
@@ -546,79 +553,85 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         BlockPos from = subject.fakePlayer().blockPosition();
 
         JourneyPortalEntry.Doorstep walkIn = JourneyPortalEntry.find(level, bottom, from);
-        ctx.record("subject.walkIn", walkIn == null ? "null（没有现成能走进去的门口）"
-                : "站 " + walkIn.stand().toShortString() + " 迈进 " + walkIn.cell().toShortString());
-        ctx.check(walkIn).as("A 顶排的门面是开的，但身体 1.8 格高、门洞内高 3 格 —— 站顶排头顶就是"
-                + "框顶的黑曜石，所以「现在就能走进去」必须是 null：" + JourneyPortalEntry.survey(level, bottom))
+        ctx.record("subject.walkIn", walkIn == null ? "null (no doorstep to walk in from as staged)"
+                : "stand at " + walkIn.stand().toShortString() + ", step into " + walkIn.cell().toShortString());
+        ctx.check(walkIn).as("A The top row's front is open, but the bot is 1.8 blocks tall and the"
+                + " doorway interior is 3 tall; standing in the top row puts the head in the obsidian"
+                + " cap, so \"can walk in now\" must be null: " + JourneyPortalEntry.survey(level, bottom))
                 .isNull();
 
         JourneyPortalEntry.Doorstep door = JourneyPortalEntry.find(level, bottom, from, true);
-        ctx.record("subject.doorstep", door == null ? "null" : "站 " + door.stand().toShortString()
-                + " 迈进 " + door.cell().toShortString() + "，先挖开 " + door.clear());
-        ctx.check(door == null ? null : door.cell()).as("B 挖得动的那条路要落在中排 "
-                + middle.toShortString() + "（身体进得去的最低一排）").isEqualTo(middle);
-        ctx.check(door == null ? null : door.clear()).as("C 代价恰好是壁龛墙上那一格 "
-                + slag.toShortString() + "，不是门框的黑曜石").isEqualTo(List.of(slag));
+        ctx.record("subject.doorstep", door == null ? "null" : "stand at " + door.stand().toShortString()
+                + ", step into " + door.cell().toShortString() + ", dig out " + door.clear() + " first");
+        ctx.check(door == null ? null : door.cell()).as("B The diggable way in must be the middle row "
+                + middle.toShortString() + " (the lowest row the bot fits through)").isEqualTo(middle);
+        ctx.check(door == null ? null : door.clear()).as("C The cost is exactly the one alcove wall cell "
+                + slag.toShortString() + ", not the frame's obsidian").isEqualTo(List.of(slag));
         if (door == null) return;   // every check below would be 0 == 0
 
         boolean opened = swing(subject, slag);
         ctx.record("subject.dig", slag.toShortString() + " → " + level.getBlockState(slag).getBlock()
-                + "（canBreak=" + subject.avatar().canBreak(slag) + "，身体在 "
-                + subject.fakePlayer().blockPosition().toShortString() + "）");
-        ctx.check(opened).as("D 那一格真的挖开了，否则下面的行走是在量一堵不存在的墙："
+                + " (canBreak=" + subject.avatar().canBreak(slag) + ", bot at "
+                + subject.fakePlayer().blockPosition().toShortString() + ")");
+        ctx.check(opened).as("D The cell was actually dug open; otherwise the walk below is measuring a"
+                + " wall that does not exist: "
                 + slag.toShortString() + "=" + level.getBlockState(slag).getBlock()).isTrue();
         if (!opened) return;
 
         JourneyPortalEntry.Doorstep after = JourneyPortalEntry.find(level, bottom, from);
-        ctx.record("subject.doorstep.after", after == null ? "null" : "站 " + after.stand().toShortString()
-                + " 迈进 " + after.cell().toShortString());
+        ctx.record("subject.doorstep.after", after == null ? "null" : "stand at " + after.stand().toShortString()
+                + ", step into " + after.cell().toShortString());
         if (after == null) return;
 
         int walked = drive(subject, new IntentProcess(new Intent(new Goal.Block(after.stand()))), LEG_TICKS);
         // Let it land. The last edge into a doorstep one row down is a step off a ledge, and the walk
-        // ends on the tick the process reports finished — with the body still in the air over the
-        // cell it is arriving at. Before this the arm read「不能就地迈进」about a cell the body was a
-        // tenth of a second from standing on, and the rung has the same settle for the same reason.
+        // ends on the tick the process reports finished — with the bot still in the air over the
+        // cell it is arriving at. Without this settle the arm reads "cannot step in from here" about
+        // a cell the bot is a tenth of a second from standing on, and the rung has the same settle
+        // for the same reason.
         drive(subject, new HoldStill(10), 20);
         BlockPos atDoor = subject.fakePlayer().blockPosition();
         BlockPos ready = JourneyPortalEntry.stepFrom(level, atDoor, bottom);
         ctx.record("subject.walk", from.toShortString() + " → " + atDoor.toShortString()
-                + "（" + walked + " tick）" + JourneyLeg.walkerEnd(subject)
-                + "，就地能迈进的门洞格=" + (ready == null ? "无" : ready.toShortString()));
-        ctx.check(ready).as("E 走完要真的站在能迈进去的那一格上，否则下面的「迈进去」是 0==0："
-                + "身体在 " + atDoor.toShortString() + "，想去 " + after.stand().toShortString()).isNotNull();
+                + " (" + walked + " ticks) " + JourneyLeg.walkerEnd(subject)
+                + ", doorway cell enterable from here=" + (ready == null ? "none" : ready.toShortString()));
+        ctx.check(ready).as("E After the walk the bot must stand on a cell it can step in from,"
+                + " otherwise the step-in below is 0==0: bot at " + atDoor.toShortString()
+                + ", heading for " + after.stand().toShortString()).isNotNull();
         if (ready == null) return;
 
         // The walk brakes into its goal with the sneak flag and nothing clears it when the process
-        // ends; a shifting body will not step off a ledge, and stepping into a floorless portal cell
+        // ends; a sneaking player will not step off a ledge, and stepping into a floorless portal cell
         // is exactly that. Recorded at the moment of the push because it is one of the two readings
-        // that separate「推了六十 tick 一格没挪」from「顶到东西了」— the other is `exactly`.
+        // that separate "pushed for sixty ticks and did not move" from "ran into something" — the
+        // other is `exactly`.
         boolean braking = subject.fakePlayer().isShiftKeyDown();
         String before = exactly(subject);
         int pushed = drive(subject, JourneyPortalEntry.stepInto(ready, JourneyPortalEntry.STEP_IN_TICKS),
                 JourneyPortalEntry.STEP_IN_TICKS + 20);
         int subjectFaults = inPortal(subject) ? 0 : 1;
-        ctx.record("subject.stepIn", atDoor.toShortString() + " 推向 " + ready.toShortString()
-                + "（" + pushed + " tick，起步时 shiftKeyDown=" + braking + "）→ " + where(subject)
-                + " | 起 " + before + " 止 " + exactly(subject));
+        ctx.record("subject.stepIn", atDoor.toShortString() + " pushed toward " + ready.toShortString()
+                + " (" + pushed + " ticks, shiftKeyDown at the start=" + braking + ") → " + where(subject)
+                + " | start " + before + " end " + exactly(subject));
         ctx.record("subject.after", subjectFaults + " fault(s): " + where(subject));
-        ctx.check(subjectFaults).as("F 身体最后要站在 nether_portal 方块里：" + where(subject))
+        ctx.check(subjectFaults).as("F The bot must end up standing in a nether_portal block: "
+                + where(subject))
                 .isEqualTo(0);
     }
 
     /**
-     * <b>Obsidian all round the doorway: the answer is「no way in」, because the frame is not a wall
+     * <b>Obsidian all round the doorway: the answer is "no way in", because the frame is not a wall
      * this rung may remove.</b>
      *
-     * <p>This is the branch the failure message has to get right. A body that never reached a portal
-     * cell and a body that stood in one and was not transferred want opposite fixes — the geometry in
+     * <p>This is the branch the failure message has to get right. A bot that never reached a portal
+     * cell and a bot that stood in one and was not transferred want opposite fixes — the geometry in
      * front of the door, or {@code Entity.handlePortal} — so the rung picks between two messages on
      * exactly this predicate. And the temptation the digging search creates is precise: the frame
      * borders every doorway cell, so it is always the geometrically cheapest thing to remove, and a
      * search that took it would report a green walk into a portal it had just put out.
      *
-     * <p>The control is the same arena with ONE obsidian cell swapped for stone. Without it,「walled
-     * means null」is satisfied by a search that returns null always.
+     * <p>The control is the same arena with ONE obsidian cell swapped for stone. Without it, "walled
+     * means null" is satisfied by a search that returns null always.
      */
     private static void willNotMineItsOwnFrame(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -630,13 +643,13 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         BlockPos slag = slagCell(ctx);
         JourneyPortalEntry.Doorstep window = JourneyPortalEntry.find(level, bottom, start(ctx), true);
         ctx.record("control.after", (window == null ? 1 : 0) + " fault(s): "
-                + (window == null ? "墙上开着两格石头也找不到进路"
-                        : "站 " + window.stand().toShortString() + " 迈进 "
-                          + window.cell().toShortString() + "，挖开 " + window.clear()));
+                + (window == null ? "no way in found even with two stone cells in the wall"
+                        : "stand at " + window.stand().toShortString() + ", step into "
+                          + window.cell().toShortString() + ", dig out " + window.clear()));
         if (window == null)
             ctx.fail("THE RIG, not the subject: the middle row's doorstep is stone here ("
-                    + windowCells(ctx) + ") and the search still found no way in, so 「obsidian means"
-                    + " null」below measures nothing — " + JourneyPortalEntry.survey(level, bottom));
+                    + windowCells(ctx) + ") and the search still found no way in, so \"obsidian means"
+                    + " null\" below measures nothing — " + JourneyPortalEntry.survey(level, bottom));
 
         // ---- subject ----
         stage(ctx, Front.FRAME_ONLY);
@@ -645,13 +658,17 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         JourneyPortalEntry.Doorstep dug = JourneyPortalEntry.find(level, bottom, start(ctx), true);
         ctx.record("subject.doorway", survey);
         ctx.record("subject.after", (walkIn == null && dug == null ? 0 : 1) + " fault(s): "
-                + (dug == null ? "四周只剩门框，挖也没有进路 —— 这一趟会报「到不了传送门方块」"
-                        : "还找得到进路 " + dug.stand().toShortString() + "，要挖 " + dug.clear()));
-        ctx.check(walkIn).as("A 四面全是黑曜石时「现在就能走进去」必须是 null：" + survey).isNull();
-        ctx.check(dug).as("B 连「挖开一格」也必须是 null —— 门框永远是最便宜的那块，"
-                + "挖了它人是进去了，门却灭了：" + survey).isNull();
+                + (dug == null ? "only the frame remains around the doorway and digging offers no way"
+                        + " in; this run will report \"could not reach a portal block\""
+                        : "a way in is still found at " + dug.stand().toShortString() + ", digging "
+                          + dug.clear()));
+        ctx.check(walkIn).as("A With obsidian on every side, \"can walk in now\" must be null: "
+                + survey).isNull();
+        ctx.check(dug).as("B \"Dig out one cell\" must also be null. The frame is always the cheapest"
+                + " block, and digging it gets the bot in but puts the portal out: " + survey).isNull();
         ctx.check(level.getBlockState(slag).is(Blocks.OBSIDIAN))
-                .as("C 两臂之间只差中排门口那两格 " + windowCells(ctx) + "（对照是 stone，本体是 obsidian）："
+                .as("C The two arms differ only in the two middle-row doorstep cells " + windowCells(ctx)
+                        + " (stone in the control, obsidian in the subject): "
                         + level.getBlockState(slag).getBlock()).isTrue();
     }
 }

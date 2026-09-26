@@ -263,7 +263,7 @@ public final class DriverApi {
         // Async actions accept an optional `awaitMs` that, when set, makes the
         // route block on bot.status until the named slot goes idle (or times
         // out), folding the final status snapshot into the response.
-        // Verbs that drive the body go through body(): BodyReady's refusal answers
+        // Verbs that drive the player go through body(): BodyReady's refusal answers
         // first when the player is missing, dead, paused, in bed, loading or off a
         // loaded chunk. status/cancel/setting/waypoint stay open while it is down.
         // The verbs that also take `body` are in putBodyRoutes().
@@ -335,7 +335,7 @@ public final class DriverApi {
         return b;
     }
 
-    /** A body verb behind the client's {@link BotApi#bodyRefusal()}: the refusal is the answer when there is one. */
+    /** A player-driving verb behind the client's {@link BotApi#bodyRefusal()}: the refusal is the answer when there is one. */
     private static Function<Map<String, Object>, Object> body(Function<Map<String, Object>, Object> verb) {
         return p -> {
             Map<String, Object> refused = requireBot().bodyRefusal();
@@ -345,7 +345,7 @@ public final class DriverApi {
 
     /**
      * The verbs that also take {@code body}: anything but self goes to {@link BodyRoutes}, which
-     * never touches the client bot, so these answer for server bodies on a dedicated server.
+     * never touches the client bot, so these answer for server-side bots on a dedicated server.
      */
     private void putBodyRoutes() {
         BodyRoutes bodies = new BodyRoutes(this);
@@ -379,7 +379,7 @@ public final class DriverApi {
     }
 
     /**
-     * {@code method} on self through {@code onSelf} behind {@link #body}, on another body through
+     * {@code method} on self through {@code onSelf} behind {@link #body}, on another bot through
      * {@code onHost} by way of {@link BodyRoutes#onHost}. {@code slot} is what {@code awaitMs} waits
      * on, or null for a verb that does not wait.
      */
@@ -615,8 +615,8 @@ public final class DriverApi {
         return awaitable(params, slot, impl, () -> requireBot().status());
     }
 
-    /** {@link #awaitable} polling {@code statusSource} for the slot: how an order to a body named by
-     *  {@code body} waits on that body's slots rather than the client bot's. */
+    /** {@link #awaitable} polling {@code statusSource} for the slot: how an order to a bot named by
+     *  {@code body} waits on that bot's slots rather than the client bot's. */
     @SuppressWarnings("unchecked")
     private Map<String, Object> awaitable(Map<String, Object> params, String slot,
                                           Function<Map<String, Object>, Map<String, Object>> impl,

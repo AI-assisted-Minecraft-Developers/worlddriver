@@ -74,12 +74,12 @@ public final class WaitApi {
                     return size() > MAX_RESULTS;
                 }
             });
-    /** waitIds whose body is still running. Without it an id missing from RESULTS is
+    /** waitIds whose callback is still running. Without it an id missing from RESULTS is
      *  ambiguous — still running, or gone — and reading it as "pending" hung agents. */
     private static final Set<String> IN_FLIGHT = ConcurrentHashMap.newKeySet();
 
     /**
-     * Run a wait body either inline (blocking, default) or — when {@code background:true}
+     * Run a wait callback either inline (blocking, default) or — when {@code background:true}
      * — on a daemon thread, returning a {@code waitId} ack immediately. Caller-side
      * validation (e.g. {@code api.level()}) must run BEFORE this so a bad request
      * still fails fast rather than being acked and failing on the background thread.

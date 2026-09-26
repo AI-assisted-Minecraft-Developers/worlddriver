@@ -6,7 +6,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 
 /**
- * 同一件事让两具身体都做到 —— aiming, holding, and the rows that read both halves at once.
+ * Helpers that apply one action to both the client and the server player: aiming, holding, and the
+ * rows that read both halves at once.
  *
  * <p>On the client topology {@code rig.avatar()} and {@code rig.player()} are two different objects
  * one packet apart, and every helper here exists because a verb applied to one of them only looks
@@ -23,7 +24,7 @@ final class JourneyHands {
      * <p>Not {@code Entity.pick}, and the difference cost this rung a run. {@code pick} calls
      * {@code getViewYRot}, which {@code LivingEntity} overrides to return <b>{@code yHeadRot}</b> —
      * and {@code Body.aimAtBlock} sets {@code yRot}/{@code xRot} only. So the pick rays down a
-     * direction nobody aimed: measured, the body at {@code -4,27,56} aiming at a pool at
+     * direction nobody aimed: measured, the bot at {@code -4,27,56} aiming at a pool at
      * {@code -6,26,54} produced hits marching away at {@code -4,28,57 → -3,28,57 → -2,27,58}, and
      * the self-driving tunnel dutifully mined eight blocks in the wrong direction.
      *
@@ -38,7 +39,7 @@ final class JourneyHands {
      *
      * <p><b>Takes {@code Player}, not {@code ServerPlayer}, on purpose.</b> Every existing caller
      * passes {@code rig.player()} and still compiles, but the widening lets the SAME clip run over
-     * {@code rig.avatar().asPlayer()} — and comparing the two bodies' rays is the only way to tell a
+     * {@code rig.avatar().asPlayer()} — and comparing the two bots' rays is the only way to tell a
      * pour whose server ray missed from a pour the server never held the bucket for. {@code Player}
      * is also the widest type that is safe to name here: {@code Body.player()} is declared to
      * return it precisely so that headless code never resolves {@code LocalPlayer}.
@@ -58,7 +59,7 @@ final class JourneyHands {
     /**
      * Hold still, THEN aim, then act — with nothing between the aim and the act.
      *
-     * <p><b>On this topology an aim only lives until the next packet.</b> The ladder's body is an
+     * <p><b>On this topology an aim only lives until the next packet.</b> The ladder's bot is an
      * adopted REAL player, and {@code ServerPlayerBody.aimAtBlock} writes {@code yRot}/{@code xRot}
      * on the {@code ServerPlayer}. A real player's rotation is client-authoritative: every tick
      * {@code ServerboundMovePlayerPacket} arrives and {@code handleMovePlayer} overwrites it with
@@ -74,7 +75,7 @@ final class JourneyHands {
      *
      * <p>The remedy is ordering, not a new verb: two Java statements have no tick between them, so
      * an aim written immediately before the read cannot be overwritten before it is used, whatever
-     * the packet order is. The {@code HoldStill} still runs — a still body was always wanted — it
+     * the packet order is. The {@code HoldStill} still runs — a still bot was always wanted — it
      * just runs BEFORE the aim instead of after it.
      *
      * <p>The dedicated-server topology never needed this and still does not: nothing else writes a
@@ -89,18 +90,18 @@ final class JourneyHands {
     }
 
     /**
-     * Point BOTH bodies at one cell — the client's, which acts, and the server's, which predicts.
+     * Point BOTH bots at one cell — the client's, which acts, and the server's, which predicts.
      *
      * <p>On the client topology {@code rig.avatar()} is the CLIENT avatar ({@link JourneyRig#avatar}
      * hands back {@code BotHooks.impl().clientAvatar()}) while {@code rig.player()} is the
      * {@code ServerPlayer}.
-     * The first version of {@link #aimThenAct} aimed one body and rayed the other, with a
+     * The first version of {@link #aimThenAct} aimed one bot and rayed the other, with a
      * {@code ServerboundMovePlayerPacket} in between; putting the two calls on adjacent lines bought
      * nothing, because <b>adjacency is about ticks and that gap is about objects</b>.
      *
-     * <p>Measured, client rehearsal of rung 11: the body sat in cell −4,27,56 for seven consecutive
+     * <p>Measured, client rehearsal of rung 11: the bot sat in cell −4,27,56 for seven consecutive
      * steps and the target never moved, yet the recorded angle changed every step (yaw
-     * 142→116→102→98→96→95, pitch 35→7→4→2→2→1). One body and one target can only produce one angle,
+     * 142→116→102→98→96→95, pitch 35→7→4→2→2→1). One bot and one target can only produce one angle,
      * so the printed angle was never the one just written.
      *
      * <p><b>What the server-side aim is FOR, precisely.</b> It is not for the use — that would be
@@ -112,13 +113,13 @@ final class JourneyHands {
      * using anything. {@code ServerboundUseItemOnPacket} is stronger still: it carries the client's
      * whole {@code BlockHitResult}. So a use aimed only on the client is aimed correctly on both.
      *
-     * <p>The aim on the server is owed entirely to the code in THIS repo that rays the server body:
+     * <p>The aim on the server is owed entirely to the code in THIS repo that rays the server-side player:
      * {@code aimedAt(rig.player(), …)} prediction gates such as {@code JourneyFill.scoop}'s
      * {@code onTarget}. Those gates decide whether to re-aim, to MINE a supposed blocker, or to walk
-     * the body somewhere else — <b>branches that change the world</b> — so a gate reading an unaimed
-     * body does not merely mis-report, it acts. Aiming both is exact rather than approximate:
-     * {@code aimAtBlock} is a pure function of (body position, target cell) and the two bodies are
-     * the same body one packet apart.
+     * the bot somewhere else — <b>branches that change the world</b> — so a gate reading an unaimed
+     * player does not merely mis-report, it acts. Aiming both is exact rather than approximate:
+     * {@code aimAtBlock} is a pure function of (player position, target cell) and the two bots are
+     * the same bot one packet apart.
      *
      * <p><b>"One packet apart" is not a negligible quantity, and a server-side gate is not a
      * prediction of the use.</b> Both halves of a real player's state are client-authoritative:
@@ -128,7 +129,7 @@ final class JourneyHands {
      * eye and angles together. A gate must ray {@code rig.avatar().asPlayer()}; {@code rig.player()}'s
      * eye, read some ticks earlier, is a snapshot guaranteed to be stale by the use.
      *
-     * <p>Measured, ladder5 rung 12 cell 4: the two bodies stood 0.06 blocks apart and their rays
+     * <p>Measured, ladder5 rung 12 cell 4: the two bots stood 0.06 blocks apart and their rays
      * picked different FACES — client {@code 4,56,21 face=west}, server {@code 4,56,22 face=up}. The
      * gate cleared the SERVER's, and the cell check afterwards read {@code air}; the outcome names the
      * client's ray, because the server's would have dropped lava into {@code 4,57,22} against the
@@ -172,7 +173,7 @@ final class JourneyHands {
      *       client presses no attack key at all (vanilla's own pass stands aside for the drive), and
      *       {@code continueDestroy} drives {@code gameMode.continueDestroyBlock} directly and swings
      *       the arm. It runs first because an instant-break block may simply die here, which is the
-     *       faithful path; on a headless body it is a no-op and costs nothing.</li>
+     *       faithful path; on a headless bot it is a no-op and costs nothing.</li>
      *   <li>The <b>server</b> half is authoritative and is what actually clears the line. It still
      *       answers to {@code canBreakFromHere}, so a plant out of reach is refused rather than
      *       teleport-broken — judge it by re-reading the cell, never by these calls returning.</li>
@@ -194,7 +195,7 @@ final class JourneyHands {
      * Put a specific item in the main hand, and record what actually ended up there.
      *
      * <p>{@code useItemInHand} uses the SELECTED hotbar slot, not "the bucket in the bag". By the
-     * time the ladder reaches the lava the body has mined a 36-block shaft, so the selected slot
+     * time the ladder reaches the lava the bot has mined a 36-block shaft, so the selected slot
      * holds a pickaxe — and a pickaxe's {@code use} returns {@code PASS} and changes nothing, which
      * is byte-identical to a bucket whose ray missed. Run 15 read {@code fill.result=PASS,
      * lava_bucket=0, fill.sourceAfter=lava} while the aim was dead on the source at 2.5 m, and the
@@ -222,20 +223,21 @@ final class JourneyHands {
      */
     static boolean holdForUse(JourneyRig rig, net.minecraft.world.item.Item item, String what) {
         boolean ok = holdBoth(rig, item);
-        rig.evidence(what + ".hand", (ok ? "" : "拿不到 " + BuiltInRegistries.ITEM.getKey(item) + "，手上是 ")
+        rig.evidence(what + ".hand", (ok ? "" : "cannot hold " + BuiltInRegistries.ITEM.getKey(item) + "; main hand holds ")
                 + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem())
                 + actingHand(rig)
-                + (ok ? "" : "；" + bucketStock(rig)));
+                + (ok ? "" : "; " + bucketStock(rig)));
         return ok;
     }
 
     /**
-     * Put the item in BOTH bodies' hands — the twin of {@link #aimBoth}, one field over.
+     * Put the item in BOTH bots' hands — the twin of {@link #aimBoth}, one field over.
      *
      * <p><b>Why one call is not enough, measured.</b> Rung 12's client rehearsal spent one use
      * successfully and then every later use did nothing, silently. The server's ray was never at
-     * fault: {@code water0.picks.3 = 5,57,19 stone face=west → 落进 4,57,19}, dead on the target
-     * cell, and {@code lava0.aimsAt#3 = -9,63,18 minecraft:lava 源块=true} at 3.5 m. What the server
+     * fault: {@code water0.picks.3} reported a hit on the west face of stone at {@code 5,57,19} with
+     * the fluid landing in {@code 4,57,19}, dead on the target cell, and {@code lava0.aimsAt#3}
+     * reported the lava source block at {@code -9,63,18} at 3.5 m. What the server
      * was holding was: {@code stone_pickaxe}, while the client held the bucket. A pickaxe's
      * {@code use} returns {@code PASS} — no exception, no chat, no sound, no log line — which is
      * byte-identical to every other way a use can do nothing.
@@ -243,21 +245,21 @@ final class JourneyHands {
      * <p><b>The drift has two authors and neither can see the other.</b>
      * {@code ServerPlayerBody.selectTool} (the engine's {@code MineProcess} path, which this
      * ladder still steers for {@code d.mine}) writes {@code inv.selected} on the {@code ServerPlayer}
-     * and deliberately sends no packet — its comment says "this body's connection swallows them
-     * anyway", true of a headless {@code FakePlayer} and <b>false here</b>, where the body is an
+     * and deliberately sends no packet — its comment says "this bot's connection swallows them
+     * anyway", true of a headless {@code FakePlayer} and <b>false here</b>, where the bot is an
      * adopted player with a live client. Then {@code BotInteract.ensureHolding} opens with
      * {@code if (inv.getSelected().getItem() == item) return true;} — correct for a real player,
-     * whose selected slot only ever moves from the client, and wrong for a body a second helm
+     * whose selected slot only ever moves from the client, and wrong for a bot a second helm
      * steers. So a mine between two uses moves the server's hand, the next hold sees the CLIENT's
      * hand already right, sends nothing, and the server uses the wrong item.
      *
-     * <p>Asked by ITEM on each side rather than by slot index, deliberately: each body then resolves
+     * <p>Asked by ITEM on each side rather than by slot index, deliberately: each bot then resolves
      * the slot within its own inventory, which stays correct even after the two have diverged.
      * {@code ServerPlayerBody.holdItem}'s bag branch swaps stacks server-side, and
      * {@code broadcastChanges} pushes that to the client on the next tick — the corrective
      * direction.
      *
-     * <p>Returns the CLIENT's answer, because the client is the body that runs {@code useItem} and
+     * <p>Returns the CLIENT's answer, because the client is the bot that runs {@code useItem} and
      * predicts. The server's answer is recorded rather than returned: a false there with a true here
      * is the diverged-inventory case, and it must not silently cancel a use the caller can still
      * make land.
@@ -281,13 +283,14 @@ final class JourneyHands {
         //                   that swap TWICE — once here, once when the click lands — and a swap is
         //                   an INVOLUTION. Twice is the identity, and the hand goes back.
         //
-        // Measured on ladder j48's rung 12: six pours and six casts all read 槽 0 and all worked;
+        // Measured on ladder j48's rung 12: six pours and six casts all read slot 0 and all worked;
         // the one pour that came after a ramp (a ramp holds cobblestone, which pushes the bucket out
-        // of the hotbar) read 槽 3 and did nothing. Every row agreed at send time —
-        // `water6.again.hand` and `water6.atUse` showed the bucket on BOTH bodies — because the
+        // of the hotbar) read slot 3 and did nothing. Every row agreed at send time -
+        // `water6.again.hand` and `water6.atUse` showed the bucket on BOTH bots — because the
         // click had not landed. It landed before the use packet, on the same ordered connection,
         // and `handleUseItem` then read a stone_pickaxe: PASS, nothing consumed, nothing logged.
-        // `water6.spent = water_bucket 1→1`, then `lava6.hand = 槽 3 = stone_pickaxe；桶存量 空=0 水=1`.
+        // `water6.spent = water_bucket 1→1`, then `lava6.hand` showed slot 3 holding stone_pickaxe
+        // with a bucket stock of empty=0 water=1.
         //
         // So the bag branch gets ONE author, and it is the client: its click already fixes the
         // server, and it arrives BEFORE the use — the very ordering that breaks this today is what
@@ -303,31 +306,32 @@ final class JourneyHands {
         boolean server;
         if (client && wouldSwapFromBag) {
             // Read, never write. False here is the click in flight, NOT a diverged bag — and saying
-            // so matters, because the old row's wording ("两份背包已经分叉") would now fire on every
-            // single bag-branch hold and read as a defect report.
+            // so matters, because the diverged-inventories wording of the other row would fire on
+            // every single bag-branch hold and read as a defect report.
             server = rig.player().getMainHandItem().getItem() == item;
             if (!server) {
                 rig.evidence("holdBoth." + BuiltInRegistries.ITEM.getKey(item).getPath() + ".inFlight",
-                        "客户端走的是背包交换分支（快捷栏里没有 "
-                                + BuiltInRegistries.ITEM.getKey(item) + "），服务端这一刻手上还是 "
+                        "the client took the inventory-swap branch (no "
+                                + BuiltInRegistries.ITEM.getKey(item) + " in the hotbar); the server still holds "
                                 + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem())
-                                + " —— 这是那个 SWAP 点击包还没到，不是背包分叉。"
-                                + "服务端这一半故意不动手：交换两次等于没换，"
-                                + "而点击包排在 use 包前面，会把服务端改对。" + stockOnBoth(rig, item));
+                                + " at this instant - the SWAP click packet has not arrived yet; the inventories have not diverged. "
+                                + "The server half deliberately does nothing: swapping twice is no swap, "
+                                + "and the click packet is ordered before the use packet, so it corrects the server. "
+                                + stockOnBoth(rig, item));
             }
             return client;
         }
         server = rig.body().avatar().holdItem(item);
         if (client != server) {
             rig.evidence("holdBoth." + BuiltInRegistries.ITEM.getKey(item).getPath(),
-                    "两具身体对同一件物品给了不同答案：客户端 " + client + "，服务端 " + server
-                            + " —— 两份背包已经分叉，" + stockOnBoth(rig, item));
+                    "the client and server players gave different answers for the same item: client " + client
+                            + ", server " + server + " - the two inventories have diverged; " + stockOnBoth(rig, item));
         }
         return client;
     }
 
     /** {@code BotInteract.hotbarSlotOf} asked of a {@link net.minecraft.world.entity.player.Player}
-     *  rather than a {@code LocalPlayer}, so {@link #holdBoth} can ask it of the acting body without
+     *  rather than a {@code LocalPlayer}, so {@link #holdBoth} can ask it of the acting bot without
      *  a client-only type in a signature this common source set compiles for both sides. Same nine
      *  slots, same order, same {@code -1}. */
     private static int hotbarSlotOf(net.minecraft.world.entity.player.Player p,
@@ -338,7 +342,7 @@ final class JourneyHands {
     }
 
     /**
-     * How many of one item each body thinks it has — the number that decides which way a
+     * How many of one item each bot thinks it has — the number that decides which way a
      * {@code holdBoth} disagreement should be read.
      *
      * <p>Deliberately not the bucket triple: this is called for cobblestone and ender eyes as often
@@ -355,8 +359,8 @@ final class JourneyHands {
                 if (stack.getItem() == item) onClient += stack.getCount();
             }
         }
-        return BuiltInRegistries.ITEM.getKey(item) + " 客户端 ×" + onClient
-                + "，服务端 ×" + rig.carrying(BuiltInRegistries.ITEM.getKey(item).toString());
+        return BuiltInRegistries.ITEM.getKey(item) + " client ×" + onClient
+                + ", server ×" + rig.carrying(BuiltInRegistries.ITEM.getKey(item).toString());
     }
 
     /**
@@ -372,7 +376,7 @@ final class JourneyHands {
      * <p>Rung 12 spent three rounds without it. The pour reported
      * {@code water0.hand=minecraft:stone_pickaxe} (server, stale), {@code water0.result=SUCCESS}
      * (client, predicted) and {@code water0.spent=water_bucket 1→1} (server, after a round trip) —
-     * three readings from two bodies and two moments, and no two of them describe the same thing.
+     * three readings from two bots and two moments, and no two of them describe the same thing.
      * Printing both hands in one row costs nothing and collapses that.
      *
      * <p>Identical on the dedicated-server helm, where both calls reach the same object — the row
@@ -394,25 +398,27 @@ final class JourneyHands {
         // a selection that was merely in flight. `waterFill.hand#2 = minecraft:bucket` (the clash
         // guard's second write, taken later) is the proof: the server DID catch up.
         //
-        // The matrix that comment wanted lives in `handsAtUse`, which reads both bodies at the
+        // The matrix that comment wanted lives in `handsAtUse`, which reads both bots at the
         // moment of the use, after the settle. Read that row, not this one.
-        return "（真正要动手的那只手：槽 " + acting.getInventory().selected + " = "
+        return " (hand that will perform the use: slot " + acting.getInventory().selected + " = "
                 + BuiltInRegistries.ITEM.getKey(acting.getMainHandItem().getItem())
-                + "；服务端槽 " + rig.player().getInventory().selected + "，换手包还没往返，这个数按定义是旧的）";
+                + "; server slot " + rig.player().getInventory().selected
+                + ", stale by definition because the slot-change packet has not completed its round trip)";
     }
 
     /**
-     * Is the body that will actually run the use holding {@code item} RIGHT NOW?
+     * Is the bot that will actually run the use holding {@code item} RIGHT NOW?
      *
      * <p>The one question {@link #holdForUse} cannot answer, because it is asked at the wrong moment.
      * {@code holdForUse} runs where the caller decides to use something; the use runs after the aim,
      * after the plant clearing, after the last settle — and ladder-11's twelfth rung showed those are
-     * far enough apart for the hold to come undone on BOTH bodies at once.
+     * far enough apart for the hold to come undone on BOTH bots at once.
      *
      * <p><b>How a hold comes undone, measured.</b> Cell six read {@code cast6.hand =
-     * minecraft:lava_bucket} with {@code 真正要动手的那只手：槽 4 = minecraft:lava_bucket} — client and
-     * server agreeing — and then, ten ticks later, {@code cast6.atUse = 客户端 槽 4 = minecraft:dirt}
-     * and {@code 服务端 槽 4 = minecraft:dirt}. Cells zero through five never did. What is different
+     * minecraft:lava_bucket} with the acting hand at slot 4 = {@code minecraft:lava_bucket} — client
+     * and server agreeing — and then, ten ticks later, {@code cast6.atUse} read slot 4 =
+     * {@code minecraft:dirt} on both the client and the server. Cells zero through five never did.
+     * What is different
      * about six is that six is the first cell whose pour needed a RAISE, and the tower holds dirt:
      * that hold pushed the bucket out of the hotbar, so the next hold went down
      * {@code BotInteract.ensureHolding}'s main-inventory branch instead of its hotbar branch — a swap
@@ -423,7 +429,7 @@ final class JourneyHands {
      * hold dirt by then. Ask here, right before the use, and re-hold — see {@link #holdForUse}'s
      * caller in {@code JourneyPortalRung.placeFluid} for the gate that follows.
      *
-     * <p>Reads the ACTING body ({@code rig.avatar()}), because that is the one whose
+     * <p>Reads the ACTING bot ({@code rig.avatar()}), because that is the one whose
      * {@code useItemInHand} runs; on a headless helm the two are the same object and this degrades to
      * the server reading.
      */
@@ -438,8 +444,9 @@ final class JourneyHands {
      * <p>The gap {@link #actingHolds} documents is not one site's mistake — it is what
      * {@link #aimThenAct} does for a living: settle two ticks, aim, act. Every caller that holds
      * something and then goes through an aim has ten ticks between the hold and the use, and rung
-     * 11's {@code pourInto} has exactly that shape over a bucket its own comment calls「一桶岩浆
-     * 只有一次机会」. It has never been bitten because nothing there holds dirt in between; that is a
+     * 11's {@code pourInto} has exactly that shape over a bucket its own comment describes as a
+     * single chance per bucket of lava. It has never been bitten because nothing there holds dirt in
+     * between; that is a
      * property of the neighbouring code, not a guarantee.
      *
      * <p>Three states, on purpose, and the caller must keep them apart:
@@ -448,37 +455,37 @@ final class JourneyHands {
      *   <li>a row and then {@code true} ⇒ it came undone and the second hold fixed it;</li>
      *   <li>a row and then {@code false} ⇒ refuse the use. A use with the wrong thing in hand
      *       returns {@code PASS} and changes nothing, which is byte-identical to a ray that
-     *       missed — and the failure then surfaces legs later, somewhere else.</li>
+     *       missed — and the failure then surfaces several steps later, somewhere else.</li>
      * </ul>
      */
     static boolean regripBeforeUse(JourneyRig rig, net.minecraft.world.item.Item item, String tag) {
         if (actingHolds(rig, item)) return true;
-        rig.evidence(tag + ".handSlipped", "动手前手上不是 "
-                + BuiltInRegistries.ITEM.getKey(item) + " 了：" + heldOnBoth(rig)
-                + " —— 上一次 hold 之后隔了一次落定，重新拿一次");
+        rig.evidence(tag + ".handSlipped", "the main hand no longer holds "
+                + BuiltInRegistries.ITEM.getKey(item) + " before the use: " + heldOnBoth(rig)
+                + " - a settle ran after the previous hold; holding the item again");
         holdForUse(rig, item, tag + ".again");
         return actingHolds(rig, item);
     }
 
-    /** What both bodies hold, for a failure message that has to name the thing that went wrong. */
+    /** What both bots hold, for a failure message that has to name the thing that went wrong. */
     static String heldOnBoth(JourneyRig rig) {
         var acting = rig.avatar().asPlayer();
-        return "客户端 " + (acting == null ? "没有身体"
-                        : "槽 " + acting.getInventory().selected + " = "
+        return "client " + (acting == null ? "no player entity"
+                        : "slot " + acting.getInventory().selected + " = "
                           + BuiltInRegistries.ITEM.getKey(acting.getMainHandItem().getItem()))
-                + "，服务端 槽 " + rig.player().getInventory().selected + " = "
+                + ", server slot " + rig.player().getInventory().selected + " = "
                 + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem());
     }
 
     /**
-     * Both bodies, at the instant of the use — the reading every earlier row was too early to take.
+     * Both bots, at the instant of the use — the reading every earlier row was too early to take.
      *
      * <p>Rung 12's pour has three rows and no two of them describe the same thing:
      * {@code .hand} is the SERVER before the selection packet has flown, {@code .result} is the
      * CLIENT's own return value (and {@code sidedSuccess} makes {@code SUCCESS} mean nothing more
      * than "the client ran it"), and {@code .spent} is the SERVER after a round trip. Three
-     * readings, two bodies, three moments. This row collapses them: one line, one moment, both
-     * bodies, everything the use consumes.
+     * readings, two bots, three moments. This row collapses them: one line, one moment, both
+     * bots, everything the use consumes.
      *
      * <p><b>Why the ray is here and not left to be inferred.</b> A pour that does nothing has two
      * causes that every other row prints identically. Either the server is holding the wrong item —
@@ -486,7 +493,7 @@ final class JourneyHands {
      * {@code getPlayerPOVHitResult} came back {@code MISS}, which also returns {@code PASS}.
      * Vanilla logs neither: {@code handleUseItem} has no refusal branch that speaks, and the range
      * cap inside the clip ({@code blockInteractionRange()}, 4.5) fails silently. So the ray has to
-     * be printed, and printed for BOTH bodies, because they can disagree — the use packet carries
+     * be printed, and printed for BOTH bots, because they can disagree — the use packet carries
      * yRot/xRot so the ANGLES always agree, but the eye POSITIONS are one movement packet apart.
      *
      * <p>Both fluid modes, deliberately, so no caller has to pass a flag it can get backwards: an
@@ -497,14 +504,14 @@ final class JourneyHands {
         var client = rig.avatar().asPlayer();
         var server = rig.player();
         rig.evidence(tag + ".atUse", client == server
-                ? "两半是同一个对象（无客户端拓扑）：" + oneBodyAtUse(server)
-                : "客户端 " + oneBodyAtUse(client) + "\n            服务端 " + oneBodyAtUse(server));
+                ? "both halves are the same object (no client topology): " + oneBodyAtUse(server)
+                : "client " + oneBodyAtUse(client) + "\n            server " + oneBodyAtUse(server));
     }
 
     private static String oneBodyAtUse(net.minecraft.world.entity.player.Player p) {
-        if (p == null) return "没有身体";
+        if (p == null) return "no player entity";
         return String.format(java.util.Locale.ROOT,
-                "槽 %d = %s；眼睛 %.2f/%.2f/%.2f 朝 yaw=%.2f pitch=%.2f；满桶线 %s；空桶线 %s",
+                "slot %d = %s; eye %.2f/%.2f/%.2f facing yaw=%.2f pitch=%.2f; full-bucket ray %s; empty-bucket ray %s",
                 p.getInventory().selected,
                 BuiltInRegistries.ITEM.getKey(p.getMainHandItem().getItem()),
                 p.getEyePosition().x, p.getEyePosition().y, p.getEyePosition().z,
@@ -517,14 +524,14 @@ final class JourneyHands {
      *
      * <p>Six, not the five the question was first phrased with, and the extra one is not slack.
      * {@code t0} lands in the SAME server tick as the use (see {@link #handTrace}), so five rows
-     * would cover only {@code use+0 … use+4} — and the reading that says「the other author is merely
-     * slower」is a flip on {@code use+5}. A window whose last tick is the one an inconvenient answer
+     * would cover only {@code use+0 … use+4} — and the reading that says "the other author is merely
+     * slower" is a flip on {@code use+5}. A window whose last tick is the one an inconvenient answer
      * lives on cannot return that answer.
      */
     static final int TRACE_TICKS = 6;
 
     /**
-     * ONE tick's hand on BOTH bodies, written as <b>two independent rows</b>.
+     * ONE tick's hand on BOTH bots, written as <b>two independent rows</b>.
      *
      * <p><b>The question it exists to answer.</b> {@code ServerboundUseItemPacket} carries
      * hand/sequence/yaw/pitch and <b>no item</b>: {@code handleUseItem} runs
@@ -538,7 +545,7 @@ final class JourneyHands {
      * <p><b>Two rows, never one.</b> {@link #handsAtUse} joins the halves into a single string,
      * which permanently destroys the ability to ask whether they were read at the same instant.
      * Each half here is its own key with its own thread name and its own {@code gameTime}, so
-     *「same moment?」stays a question the output can answer.
+     * "same moment?" stays a question the output can answer.
      *
      * <p><b>The sampling thread is recorded because the thread IS the finding.</b>
      * {@link JourneyRig#avatar()}'s javadoc already required it — <i>"judge this path only with the
@@ -551,13 +558,13 @@ final class JourneyHands {
      * {@code handleUseItem} consults, and the CLIENT row is a cross-thread snapshot — which is
      * exactly the asymmetry {@code cast.atUse} hid by concatenating them.
      *
-     * <p><b>{@code gameTime} is printed rather than the tick index alone</b> so that「six
-     * consecutive server ticks」is measured instead of argued: two rows sharing a {@code gameTime}
+     * <p><b>{@code gameTime} is printed rather than the tick index alone</b> so that "six
+     * consecutive server ticks" is measured instead of argued: two rows sharing a {@code gameTime}
      * were sampled in one tick no matter what the index says, and that is how a caller finds out
      * that {@code t0} coincides with the use rather than following it.
      *
-     * <p>Read-only and total: a null half prints「没有身体」rather than throwing, because an
-     * instrument that can end the leg it is measuring is not an instrument.
+     * <p>Read-only and total: a null half prints "no player entity" rather than throwing, because
+     * an instrument that can end the step it is measuring is not an instrument.
      */
     static void handTrace(JourneyRig rig, String tag, int tick) {
         String thread = Thread.currentThread().getName();
@@ -566,19 +573,20 @@ final class JourneyHands {
         String key = tag + ".handTrace.t" + tick;
         rig.evidence(key + ".client", oneHandAt(client, tick, thread,
                 client == server
-                        ? "客户端半（无客户端拓扑，与服务端是同一个对象）"
-                        : "客户端 LocalPlayer（拥有它的是客户端线程，本行由上面那个线程读 ⇒ 跨线程快照）"));
+                        ? "client half (no client topology; same object as the server half)"
+                        : "client LocalPlayer (owned by the client thread and read by the thread named above, "
+                                + "so this is a cross-thread snapshot)"));
         rig.evidence(key + ".server", oneHandAt(server, tick, thread,
-                "服务端 ServerPlayer（handleUseItem 读的就是这一份）"));
+                "server ServerPlayer (the object handleUseItem reads)"));
     }
 
     private static String oneHandAt(net.minecraft.world.entity.player.Player p, int tick,
                                     String thread, String whose) {
         if (p == null) {
-            return "tick=" + tick + " 取数线程=" + thread + "；" + whose + "：没有身体";
+            return "tick=" + tick + " readThread=" + thread + "; " + whose + ": no player entity";
         }
         return String.format(java.util.Locale.ROOT,
-                "tick=%d gameTime=%d 取数线程=%s；%s：槽 %d = %s ×%d",
+                "tick=%d gameTime=%d readThread=%s; %s: slot %d = %s ×%d",
                 tick, p.level().getGameTime(), thread, whose,
                 p.getInventory().selected,
                 BuiltInRegistries.ITEM.getKey(p.getMainHandItem().getItem()),
@@ -589,13 +597,13 @@ final class JourneyHands {
         var hit = aimedAt(p, p.blockInteractionRange(), hitFluids);
         if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
             return String.format(java.util.Locale.ROOT,
-                    "MISS（%.2f 格内什么都没挡住 —— vanilla 到这里就 return PASS，一个字都不打印）",
+                    "MISS (nothing blocks the ray within %.2f blocks; vanilla returns PASS here and logs nothing)",
                     p.blockInteractionRange());
         }
         return hit.getBlockPos().toShortString() + " "
                 + BuiltInRegistries.BLOCK.getKey(p.level().getBlockState(hit.getBlockPos()).getBlock())
-                + " 面=" + hit.getDirection()
-                + String.format(java.util.Locale.ROOT, "（%.2f 格）",
+                + " face=" + hit.getDirection()
+                + String.format(java.util.Locale.ROOT, " (%.2f blocks)",
                         Math.sqrt(hit.getLocation().distanceToSqr(p.getEyePosition())));
     }
 
@@ -606,16 +614,17 @@ final class JourneyHands {
      * ({@code bucket} / {@code water_bucket} / {@code lava_bucket}), and rung 12 carries exactly one
      * of it. So {@code holdItem(Items.BUCKET)} returning false has two completely different
      * meanings — the bucket was lost, or the bucket is FULL — and the row it used to write
-     * ({@code 拿不到 minecraft:bucket，手上是 minecraft:stone_pickaxe}) could not tell them apart.
-     * Rung 12's client rehearsal died on exactly that row with an aim that was beyond reproach:
-     * {@code 射线停在 -10,63,12 Block{minecraft:lava}} at 3.5 m. Nothing about the fill was wrong;
+     * ({@code cannot hold minecraft:bucket; main hand holds minecraft:stone_pickaxe}) could not tell
+     * them apart. Rung 12's client rehearsal died on exactly that row with an aim that was beyond
+     * reproach: the ray stopped on {@code Block{minecraft:lava}} at {@code -10,63,12}, 3.5 m away.
+     * Nothing about the fill was wrong;
      * the question was upstream and unasked.
      *
      * <p>Only on failure, deliberately. On the success path these three numbers are noise in every
      * evidence map the ladder writes, and this rung already spends its budget of rows.
      */
     static String bucketStock(JourneyRig rig) {
-        return String.format(java.util.Locale.ROOT, "桶存量 空=%d 水=%d 岩浆=%d",
+        return String.format(java.util.Locale.ROOT, "bucket stock empty=%d water=%d lava=%d",
                 rig.carrying("minecraft:bucket"),
                 rig.carrying("minecraft:water_bucket"),
                 rig.carrying("minecraft:lava_bucket"));

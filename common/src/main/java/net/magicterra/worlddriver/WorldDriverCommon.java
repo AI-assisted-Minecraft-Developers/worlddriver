@@ -254,9 +254,10 @@ public final class WorldDriverCommon {
         Thread t = new Thread(() -> {
             try { Thread.sleep(ms); } catch (InterruptedException e) { return; }
             if (serverEverStarted) return;
-            LOG.error("[worlddriver] 启动看门狗：{} ms 内服务器没有启动完成，强制退出 JVM。"
-                    + "常见原因是端口被占（BindException）或世界目录被另一趟占住——"
-                    + "这两种情况服务器都会死掉而 JVM 不会，于是构建会永远等下去。", ms);
+            LOG.error("[worlddriver] Startup watchdog: the server did not finish starting within {} ms; "
+                    + "halting the JVM. The usual causes are a port already in use (BindException) or a "
+                    + "world directory held by another run. In both cases the server dies but the JVM "
+                    + "does not, so the build would otherwise wait forever.", ms);
             Runtime.getRuntime().halt(90);
         }, "worlddriver-startup-watchdog");
         t.setDaemon(true);
@@ -265,11 +266,11 @@ public final class WorldDriverCommon {
 
     /**
      * Runs every {@link TestContent} on the classpath. Called by each loader entry during mod
-     * construction, after the body factory is installed and after {@link WorldDriverEvents}
-     * subscribed, so test content registers its registries and events in the same window the
-     * driver's own do. The published jar has no implementation and the loop is empty there.
-     * Discovery goes through this class's loader: on both platforms the testmod is folded into
-     * the driver's own mod, so its service file is visible to exactly this loader.
+     * construction, after the server-side player factory is installed and after
+     * {@link WorldDriverEvents} subscribed, so test content registers its registries and events in
+     * the same window the driver's own do. The published jar has no implementation and the loop is
+     * empty there. Discovery goes through this class's loader: on both platforms the testmod is
+     * folded into the driver's own mod, so its service file is visible to exactly this loader.
      */
     public static void installTestContent() {
         int n = 0;
@@ -315,7 +316,7 @@ public final class WorldDriverCommon {
      * which McpServer converts to a tool isError.
      */
     public static void onServerStopping() {
-        // Every addressable body wraps an entity of the stopping server.
+        // Every addressable bot player wraps an entity of the stopping server.
         net.magicterra.worlddriver.bot.body.BodyRegistry.clear();
         if (api != null) {
             api.detachServer();

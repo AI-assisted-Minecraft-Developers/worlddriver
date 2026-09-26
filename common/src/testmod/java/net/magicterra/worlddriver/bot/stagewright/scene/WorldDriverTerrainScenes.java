@@ -45,8 +45,8 @@ import net.minecraft.world.level.block.Blocks;
  *       + {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after the
  *       avatar discard) then the SAME keys the legacy body flipped;</li>
  *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
- *       (per-scene body, #48) + {@code ctx.cleanup(() -> fp.discard())} (closes the leak
- *       the throwaway-world GameTest bodies never had to);</li>
+ *       (per-scene player) + {@code ctx.cleanup(() -> fp.discard())} (closes the leak
+ *       the throwaway-world GameTest methods never had to);</li>
  *   <li>{@code AgentGameTestSupport.grantWaterEffects} →
  *       {@link SimProbes#grantWaterEffects} (the common single source);</li>
  *   <li>{@code AgentGameTestSupport.buildFloor} → the inlined {@link #buildFloor} helper
@@ -79,9 +79,9 @@ import net.minecraft.world.level.block.Blocks;
  *
  * <p><b>{@code descentDrift} is NOT migrated — retired-without-scene, pending controller
  * adjudication (P4b escape hatch).</b> The 13th Terrain test, {@code descentDriftArena}, is a
- * legacy {@code required = false} PROVEN FALSE GREEN (gap #49 audit: it "passed" the shared-body
+ * legacy {@code required = false} PROVEN FALSE GREEN (it "passed" the shared-player
  * suite only because a concurrent arena shoved the shared FakePlayer out of the wedge; SOLO it
- * is deterministically RED — the fix-ON leg still LAUNCHES off the stair into open void, minY≈−60).
+ * is deterministically RED — the fix-ON arm still LAUNCHES off the stair into open void, minY≈−60).
  * Its own javadoc records that "the fix's gate is the LIVE A/B" — i.e. the arena is superseded and
  * provides no reliable regression signal. It is <b>unmigratable as a faithful synchronous-body
  * scene</b>: the RED path is an open-void A* churn needing ~110 s of compute, and the dogfood
@@ -128,7 +128,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         SceneArena.buildFloor(level, cx, cz, floorY);
         // A CANOPY: leaves only in the rows the rising head meets (the first rung's ceiling and the
         // one above). The column used to run down to foot level, which is a wall, not a canopy —
-        // a body cannot be off-centre into a wall beside its own feet, so PillarUp rightly stops
+        // a player cannot be off-centre into a wall beside its own feet, so PillarUp rightly stops
         // listing that side once the wall reaches the foot or the head (wd.clientPillarOutOfShaft).
         for (int y = standY + 3; y <= standY + 4; y++)
             level.setBlockAndUpdate(new BlockPos(cx - 1, y, cz), Blocks.OAK_LEAVES.defaultBlockState());
@@ -388,10 +388,10 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
     /** Ported from {@code AgentGameTestTerrain#stepUpCrestOrbitArena}: a deterministic A/B on the
      *  +1 STEPUP-CREST NODE-ORBIT gate. The scene HOLDS the orbit pose (foot at the node Y, ~0.74 b
      *  short of centre, cur2≈0.55, zero velocity) every tick — a pure function of pose + stall
-     *  counter, so it is deterministic by construction (auto slot safe). Leg 0 (flag OFF) must WEDGE
-     *  (step frozen), leg 1 (flag ON) must ADVANCE. The ONLY variable is
-     *  {@code walkerStepUpCrestReach}. A single {@code createUnique} body is reused across both legs
-     *  (the truest port of the legacy shared body repositioned each leg). */
+     *  counter, so it is deterministic by construction (auto slot safe). Arm 0 (flag OFF) must WEDGE
+     *  (step frozen), arm 1 (flag ON) must ADVANCE. The ONLY variable is
+     *  {@code walkerStepUpCrestReach}. A single {@code createUnique} player is reused across both
+     *  arms (the truest port of the legacy shared player repositioned for each arm). */
     private static void stepUpCrestOrbit(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), baseY = ctx.origin().getY();   // legacy baseY 200 = origin.y
@@ -473,7 +473,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                     + " is not in the orbit band (0.45, 1.3) — re-tune poseX so the gate is exercised faithfully.");
         if (advanced[0])
             ctx.fail("stepUpCrestOrbit: with the fix OFF the step-pointer ADVANCED past the crest stepUp node "
-                    + "(advanceTick=" + advanceTick[0] + ") — the orbit did not reproduce; the OFF leg must stay "
+                    + "(advanceTick=" + advanceTick[0] + ") — the orbit did not reproduce; the OFF arm must stay "
                     + "pinned (within needs cur2<0.45 and passed can't fire at the held orbit pose).");
         if (!advanced[1])
             ctx.fail("stepUpCrestOrbit: with walkerStepUpCrestReach ON the step-pointer FAILED to advance past the "

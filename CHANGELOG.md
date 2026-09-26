@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-09-24
+
+- **Messages and descriptions call the controlled player "the bot", not "the body", and a walk or
+  task by its name, not "leg".** Error text changes accordingly, for example `no bot named 'x';
+  mc.bot.status lists the bots` and `waypoint is only accepted with body=self`, and so do the MCP
+  tool and setting descriptions and the `scene.run` report lines (`task 0 goto arrived at …`).
+  Parameter names, JSON keys and evidence keys are unchanged: `body`, `bodies`, `userTaskLeg`,
+  `legs`, `body.*` and `leg.*` still mean what they did.
+- **Messages, comments and test output are in English.** Error text a caller can read, such as
+  the smelt failures in `lastError` ("timed out opening the furnace", "partially completed: smelted
+  only 3/8 (the ingredient ran out)"), log lines, and the evidence StageWright scenes record were
+  partly in Chinese; they are now English. Code that matched the old Chinese wording has to match
+  the English text instead.
+- **The "BOT in control" badge follows the game language.** Its two lines come from the mod's
+  language files, English and Simplified Chinese, instead of being fixed Chinese text.
+- **`mc.client.screen.tree` reports a widget's translation key.** A node whose label is
+  translated also carries `key` (for example `deathScreen.respawn`), which is the same in every
+  language, so a script can find a vanilla button without one label per locale.
+
 ## 2026-09-23
 
 - **`lastProcessEnd.error` says whether the last user task did what it was asked.** It was null

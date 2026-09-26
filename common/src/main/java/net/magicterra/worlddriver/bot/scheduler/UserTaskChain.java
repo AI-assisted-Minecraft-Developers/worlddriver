@@ -65,7 +65,7 @@ public final class UserTaskChain implements Chain {
     private boolean asked;
 
     /** Whether the held process has been left running across a tick boundary, i.e. has driven the
-     *  body. One that ends on its first tick never did, and the keybinds it would release are the
+     *  bot. One that ends on its first tick never did, and the keybinds it would release are the
      *  human's. */
     private boolean drove;
 

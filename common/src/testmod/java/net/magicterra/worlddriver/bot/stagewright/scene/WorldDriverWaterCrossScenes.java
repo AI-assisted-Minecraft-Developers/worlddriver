@@ -54,8 +54,8 @@ import net.minecraft.world.level.block.state.BlockState;
  *       + {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after the
  *       avatar discard) then the SAME keys the legacy body flipped;</li>
  *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
- *       (per-scene body, #48) + {@code ctx.cleanup(() -> fp.discard())}. The legacy
- *       per-arena isolation batches drop out — a createUnique body cannot bleed
+ *       (per-scene server-side player) + {@code ctx.cleanup(() -> fp.discard())}. The
+ *       legacy per-arena isolation batches drop out — a player from createUnique cannot bleed
  *       into another scene;</li>
  *   <li>{@code AgentGameTestSupport.grantWaterEffects} → {@link SimProbes#grantWaterEffects};</li>
  *   <li>{@code AgentGameTestSupport.runSearch}/{@code maxPathY} → the inlined
@@ -75,7 +75,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * the wave brief as candidate lottery members are, in this class, either a WaterBank scene
  * ({@code wd.deepWaterCross} / {@code ad.deepWaterClimbout*} live there) or the pure-planner
  * {@code wd.deepWaterSubmergedCross} here. As a deterministic planner A/B (a committed A* plan
- * over a fixed world, no executor stepping) it is NOT subject to the shared-body flake, and it
+ * over a fixed world, no executor stepping) it is NOT subject to the shared-player flake, and it
  * ran identically across the ×2×2 dogfood — so it stays {@code required=true}. No WaterCross
  * scene was flaky across the ×2 runs; none is marked optional.
  *
@@ -237,7 +237,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
     /** Ported from {@code AgentGameTestWaterCross#waterClimbOutRouteArena}. Two exits at equal crossing
      *  distance: a +1 bank (jump-needed) and a surface-level (+0) flush bank.
      *
-     *  <p>This used to pin the +1 exit as STRUCTURALLY unavailable to a floating body. It no longer is: a
+     *  <p>This used to pin the +1 exit as STRUCTURALLY unavailable to a floating player. It no longer is: a
      *  surface floater mounts a +1 dry bank on vanilla's collision boost, measured on the real client by
      *  {@code wd.clientFlushBankClimbOut}, and {@code StepUp} now offers that edge from the surface cell.
      *  What remains pinned is the PREFERENCE: with the climb-out tax at its default the flush exit must
@@ -310,9 +310,9 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
     }
 
     /** Ported from {@code AgentGameTestWaterCross#waterStepDownFloatArena}: deterministic repro of the #47
-     *  SHALLOW WATER-SURFACE STEP-DOWN bob-stall. The node is HEAD-WALLED so the seeded buoyant body pins in
-     *  the east-adjacent 1-deep water cell (cur2≈0.6-1.0, hCol). Leg 0 (flag OFF) must WEDGE (step frozen —
-     *  the live bug), leg 1 (flag ON) must ADVANCE. Clean A/B on the step-advance gate; the only variable is
+     *  SHALLOW WATER-SURFACE STEP-DOWN bob-stall. The node is HEAD-WALLED so the seeded buoyant bot pins in
+     *  the east-adjacent 1-deep water cell (cur2≈0.6-1.0, hCol). Run 0 (flag OFF) must WEDGE (step frozen —
+     *  the live bug), run 1 (flag ON) must ADVANCE. Clean A/B on the step-advance gate; the only variable is
      *  {@code walkerWaterStepDownFloat}. */
     private static void waterStepDownFloat(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -334,12 +334,12 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
         }
         // NODE = the water-surface stepDown foothold at (cx, waterY, cz). HEAD-WALL the node so the buoyant
-        // body pins in the east cell ~0.6-1.0 b short.
+        // bot pins in the east cell ~0.6-1.0 b short.
         //
         // No lily pad in the east cell's head any more. Its 1.5/16 collision box leaves room for neither a
-        // standing nor a crouching body, so vanilla's updatePlayerPose drops the body into the 0.6-tall
-        // swimming pose, and that pose slides under the head-wall: the pumped body reached the node
-        // centre in 5 ticks and the OFF leg measured nothing. The hand-integrated body never ran
+        // standing nor a crouching player, so vanilla's updatePlayerPose drops the player into the 0.6-tall
+        // swimming pose, and that pose slides under the head-wall: the pumped server-side player reached the
+        // node centre in 5 ticks and the OFF run measured nothing. The hand-integrated player never ran
         // updatePlayerPose, stayed standing, and pinned; the pin was the missing pose, not the pad.
         BlockPos node  = new BlockPos(cx,     waterY, cz);
         BlockPos cont  = new BlockPos(cx - 3, waterY, cz);   // continuation further WEST along the shelf
@@ -355,11 +355,11 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        int[] advanceTick = { -1, -1 };    // first tick the step-pointer left the water node, per leg
-        int[] nodeDwell = new int[2];      // ticks the step-pointer sat ON the water node, per leg
+        int[] advanceTick = { -1, -1 };    // first tick the step-pointer left the water node, per run
+        int[] nodeDwell = new int[2];      // ticks the step-pointer sat ON the water node, per run
         boolean[] advanced = new boolean[2];
         double[] minCur2 = { Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY };
-        // Leg 0 = flag OFF (must WEDGE), leg 1 = flag ON (must ADVANCE).
+        // Run 0 = flag OFF (must WEDGE), run 1 = flag ON (must ADVANCE).
         for (int leg = 0; leg < 2; leg++) {
             BotConfig.walkerWaterStepDownFloat = (leg == 1);
             BotConfig.walkerDebug = true;
@@ -382,7 +382,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     new Move.Edge(cont,  10, List.of(), List.of(), "walk"),
                     new Move.Edge(goalN, 10, List.of(), List.of(), "walk"));
             // beginReplay: pin the scripted plan with replayMode → the safety repath is DISABLED, so the OFF
-            // leg's wedge is a TRUE permanent stall (no A* escape muddies the A/B).
+            // run's wedge is a TRUE permanent stall (no A* escape muddies the A/B).
             walker.beginReplay(w, plan, planEdges, goal, approach);
 
             Walker.Step s = Walker.Step.WALKING;
@@ -408,7 +408,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     String.format(Locale.ROOT, "%.2f", fp.getX()), String.format(Locale.ROOT, "%.2f", fp.getY()),
                     String.format(Locale.ROOT, "%.2f", fp.getZ()), s);
         }
-        // CONFIRM the pin reproduced: the OFF leg must have stayed above the tight reach gate.
+        // CONFIRM the pin reproduced: the OFF run must have stayed above the tight reach gate.
         if (minCur2[0] < 0.45)
             ctx.fail("waterStepDownFloat: the head-wall did NOT reproduce the buoyant pin "
                     + "(OFF minCur2=" + String.format(Locale.ROOT, "%.3f", minCur2[0]) + " < REACH_DIST_SQ=0.45 → the bot reached "
@@ -417,7 +417,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         if (advanced[0])
             ctx.fail("waterStepDownFloat: with the fix OFF the step-pointer ADVANCED past "
                     + "the water-surface stepDown node (advanceTick=" + advanceTick[0] + ") — the bug did not reproduce; the "
-                    + "OFF leg must stay pinned (within needs cur2<0.45, unreachable at the buoyant pin).");
+                    + "OFF run must stay pinned (within needs cur2<0.45, unreachable at the buoyant pin).");
         // ON must ADVANCE promptly.
         if (!advanced[1])
             ctx.fail("waterStepDownFloat: with walkerWaterStepDownFloat ON the step-pointer "
@@ -453,7 +453,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         BlockPos node  = new BlockPos(cx,     waterY, cz);
         BlockPos cont  = new BlockPos(cx - 3, waterY, cz);
         BlockPos goalN = new BlockPos(cx - 6, waterY, cz);
-        BlockPos padCell = new BlockPos(cx + 1, waterY + 1, cz);   // the pinned body's OWN head cell
+        BlockPos padCell = new BlockPos(cx + 1, waterY + 1, cz);   // the pinned bot's OWN head cell
         Runnable setup = () -> {
             level.setBlockAndUpdate(node.above(), Blocks.STONE.defaultBlockState());       // head-wall → deterministic pin
             level.setBlockAndUpdate(padCell, Blocks.LILY_PAD.defaultBlockState());
@@ -517,9 +517,9 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
     /** Ported from {@code AgentGameTestWaterCross#deepWaterSubmergedCrossArena}: deep-water submerged-crossing
      *  surface-bias ({@code pathfinderFloatingSurfaceCross}). A deep (9-block) open-water channel; the search
-     *  is seeded submerged (surface-1) for a Y-aware Near goal on the far bank. Leg A (planner A/B): the legacy
+     *  is seeded submerged (surface-1) for a Y-aware Near goal on the far bank. Part A (planner A/B): the legacy
      *  water model with the bias OFF threads MANY submerged crossing nodes (the bug); the surface-node model
-     *  with the bias ON surfaces immediately. Leg B (integration): the floating Walker crosses and reaches the
+     *  with the bias ON surfaces immediately. Part B (integration): the floating Walker crosses and reaches the
      *  far bank, spending almost no ticks below the surface. */
     private static void deepWaterSubmergedCross(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -571,13 +571,13 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each search completes in one go
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        // ---- Leg A: predicate A/B on the committed plan ----
+        // ---- Part A: predicate A/B on the committed plan ----
         int[] subNodes = new int[2];
         boolean[] reached = new boolean[2];
         for (int leg = 0; leg < 2; leg++) {
             BotConfig.pathfinderFloatingSurfaceCross = (leg == 1);
-            // The bug lives in the legacy model, where every water cell is a node; leg 0 reproduces it
-            // there. Under the surface-node model (leg 1) a submerged crossing cannot be planned at all.
+            // The bug lives in the legacy model, where every water cell is a node; run 0 reproduces it
+            // there. Under the surface-node model (run 1) a submerged crossing cannot be planned at all.
             BotConfig.pathfinderSurfaceWaterNodes = (leg == 1);
             ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, surface - 1, cz + 0.5);
             ServerPlayer fp = av.fakePlayer();
@@ -609,7 +609,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             ctx.fail("deepWaterSubmergedCross: with the flag ON A* failed to reach the goal "
                     + "(the surface route must still solve the crossing).");
 
-        // ---- Leg B: integration — the floating Walker crosses cleanly with the flag ON ----
+        // ---- Part B: integration — the floating Walker crosses cleanly with the flag ON ----
         BotConfig.pathfinderFloatingSurfaceCross = true;
         BotConfig.pathfinderSurfaceWaterNodes = true;
         BotConfig.walkerDebug = true;
@@ -646,7 +646,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
     /** Ported from {@code AgentGameTestWaterCross#vineOverWaterCrossArena}: planner A/B for the vine/leaf-
      *  canopy-OVER-DEEP-WATER tax ({@code pathfinderVineOverWaterTax}). A tree canopy grows in a 1-cell CENTER
      *  lane over a deep crossing; OFF threads the center lane (bug), ON detours around it (fix) and still
-     *  reaches. #1 silent-no-op guards confirm the center body cell is a vine (climbable, not leaves, not a
+     *  reaches. #1 silent-no-op guards confirm the center head-level cell is a vine (climbable, not leaves, not a
      *  breakable obstruction). Pure planner. */
     private static void vineOverWaterCross(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -685,14 +685,14 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             for (int dz = -halfZ; dz <= halfZ; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, surface - 1, cz + dz), Blocks.STONE.defaultBlockState());
 
-        // TREE-CANOPY band over the center lane (z=cz), treeX0..treeX1: surface+1 = hanging vine (body cell),
+        // TREE-CANOPY band over the center lane (z=cz), treeX0..treeX1: surface+1 = hanging vine (head cell),
         // surface+2/+3 = oak-leaf canopy. Vine hangs DOWN from the leaf above. Lily pads at z=cz±2 (scenery).
         BlockState leaf = Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, Boolean.TRUE);
         BlockState vineHang = Blocks.VINE.defaultBlockState().setValue(VineBlock.UP, Boolean.TRUE);
         for (int dx = treeX0; dx <= treeX1; dx++) {
             level.setBlockAndUpdate(new BlockPos(cx + dx, surface + 3, cz), leaf);
             level.setBlockAndUpdate(new BlockPos(cx + dx, surface + 2, cz), leaf);
-            level.setBlockAndUpdate(new BlockPos(cx + dx, surface + 1, cz), vineHang);   // body-level vine
+            level.setBlockAndUpdate(new BlockPos(cx + dx, surface + 1, cz), vineHang);   // head-level vine
             level.setBlockAndUpdate(new BlockPos(cx + dx, surface + 1, cz - 2), Blocks.LILY_PAD.defaultBlockState());
             level.setBlockAndUpdate(new BlockPos(cx + dx, surface + 1, cz + 2), Blocks.LILY_PAD.defaultBlockState());
         }
@@ -718,13 +718,13 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         BlockPos bodyMid = new BlockPos(cx + (treeX0 + treeX1) / 2, surface + 1, cz);   // a vine cell
         BlockPos capMid  = new BlockPos(cx + (treeX0 + treeX1) / 2, surface + 2, cz);    // a leaf cell
         if (!w.isClimbable(bodyMid))
-            ctx.fail("vineOverWaterCross: center body cell is NOT climbable (vine) at "
+            ctx.fail("vineOverWaterCross: center head-level cell is NOT climbable (vine) at "
                     + bodyMid + " — the vine did not survive setBlockAndUpdate; the repro is vacuous.");
         if (w.isLeaves(bodyMid))
-            ctx.fail("vineOverWaterCross: center body cell reads as LEAVES at " + bodyMid
+            ctx.fail("vineOverWaterCross: center head-level cell reads as LEAVES at " + bodyMid
                     + " — leafCellTax would already catch it and the new tax would be redundant; expected a VINE.");
         if (w.isBreakableObstruction(bodyMid))
-            ctx.fail("vineOverWaterCross: center body vine reads as a breakable obstruction at "
+            ctx.fail("vineOverWaterCross: center head-level vine reads as a breakable obstruction at "
                     + bodyMid + " — padCellTax would already catch it; a vine must have no collision shape.");
         if (!w.isLeaves(capMid))
             ctx.fail("vineOverWaterCross: leaf canopy missing at " + capMid + ".");
@@ -761,7 +761,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
     /** Ported from {@code AgentGameTestWaterCross#padOverWaterCrossArena}: planner A/B for the SPARSE-single-
      *  lily-pad-OVER-DEEP-WATER tax ({@code pathfinderPadOverWaterTax}), the Y-aware-goal sibling of the
      *  XZ-only padCellTax. Sparse single pads on the center line; OFF threads them (bug), ON detours around
-     *  (fix) and still reaches. #1 guards confirm the pad body is a breakable obstruction AND padCellTax does
+     *  (fix) and still reaches. #1 guards confirm the pad's head-level cell is a breakable obstruction AND padCellTax does
      *  not fire on the Y-aware goal. Pure planner. */
     private static void padOverWaterCross(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -828,7 +828,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             ctx.fail("padOverWaterCross: foot under the pad is NOT water at " + padFoot
                     + " — the pad did not land on a water surface cell; the repro is vacuous.");
         if (!w.isBreakableObstruction(padBody))
-            ctx.fail("padOverWaterCross: pad body cell is NOT a breakable obstruction at "
+            ctx.fail("padOverWaterCross: pad head-level cell is NOT a breakable obstruction at "
                     + padBody + " — the lily pad did not survive setBlockAndUpdate; the repro is vacuous.");
         if (goal.ignoresY())
             ctx.fail("padOverWaterCross: the goal reads as ignoresY (XZ) — padCellTax "
@@ -869,7 +869,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
      *  z=cz±4: with only the flat single-pad tax a single dig (+20) beats the detour (+32) — the cluster
      *  surcharge flips it. Three regions in one arena: (1) cluster wall A/B; (2) a lone pad (no single-pad
      *  regression); (3) a full-width wall (a tax, never a forbid → no stranding). Single-pad tax ON for both
-     *  legs. Pure planner. */
+     *  runs. Pure planner. */
     private static void padClusterCross(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
@@ -948,7 +948,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             ctx.fail("padClusterCross: the goal reads as ignoresY (XZ) — padCellTax would "
                     + "already fire; expected a Y-aware goal.");
 
-        // ---- REGION 1: the CLUSTER WALL A/B (single-pad tax ON for BOTH legs; CLUSTER flag is the variable).
+        // ---- REGION 1: the CLUSTER WALL A/B (single-pad tax ON for BOTH runs; CLUSTER flag is the variable).
         BotConfig.pathfinderPadOverWaterTax = true;        // the shipped single-pad fix stays ON for the A/B
         int[] wallNodes = new int[2];
         boolean[] reached = new boolean[2];

@@ -97,7 +97,7 @@ public final class WalkerExpectAlarms {
         }
         exPrevBreakHeld = held;
         exPrevAimBlock = aim;
-        // JUMP-noRise: a grounded launch (vy jumped to ~+0.42) should lift the body ~+1 block
+        // JUMP-noRise: a grounded launch (vy jumped to ~+0.42) should lift the bot ~+1 block
         // within 8 ticks; a peak under +0.9 is an in-place/blocked jump (§48 mount grind).
         double vy = p.getDeltaMovement().y;
         if (exJumpTicksLeft > 0) {
@@ -138,7 +138,7 @@ public final class WalkerExpectAlarms {
         exPrevX = p.getX(); exPrevZ = p.getZ();
         // DRIVE-tear: the driven heading (body yaw under commandMove decoupling ≈ the
         // carrot bearing) points >90° away from the committed node for 40 straight ticks
-        // while the body is pinned — the carrot-vs-node tear (§56, user-witnessed: carrot
+        // while the bot is pinned — the carrot-vs-node tear (user-witnessed: carrot
         // east into a wall, node 5 blocks south, attack=false, pinned indefinitely).
         if (path != null && step < path.size()) {
             BlockPos node = path.get(step);
@@ -200,7 +200,7 @@ public final class WalkerExpectAlarms {
             // on a dedicated server crashed the walker tick with "Cannot load class
             // net.minecraft.client.player.LocalPlayer" (ad.expectAlarmWallRam, 2026-07-19).
             // Every LocalPlayer reference lives in ClientGearCheck so the server JVM never
-            // loads it; the sentinel is a client-body concern anyway (hotbar gear).
+            // loads it; the sentinel is a client-player concern anyway (hotbar gear).
             String missing = p.level().isClientSide() ? ClientGearCheck.missing(p) : null;
             if (missing != null) {
                 FIRED.incrementAndGet();
@@ -213,10 +213,10 @@ public final class WalkerExpectAlarms {
     /** Client-only holder for the GEAR sentinel — see the side guard above. */
     private static final class ClientGearCheck {
         /** EVERY pickaxe tier. The tier is irrelevant to what this sentinel watches: a wooden pick
-         *  stranded in slot 33 leaves the body mining by hand exactly as a diamond one would.
+         *  stranded in slot 33 leaves the bot mining by hand exactly as a diamond one would.
          *  Listing only IRON/DIAMOND — as this did until 2026-08-26 — put the alarm's threshold
          *  ABOVE the run it was watching: the journey ladder does not smelt iron until rung 9, so
-         *  rungs 1-8 tripped it every 100t no matter how healthy the body was (ladder5: 30 times
+         *  rungs 1-8 tripped it every 100t no matter how healthy the bot was (ladder5: 30 times
          *  through rung 6, wording unchanged after rung 4 handed over a wooden pick). */
         private static final List<net.minecraft.world.item.Item> PICKS = List.of(
                 net.minecraft.world.item.Items.WOODEN_PICKAXE,
@@ -245,7 +245,7 @@ public final class WalkerExpectAlarms {
         /** DEGRADED names a cause — pickups crowded the gear out — so the judgement has to be able
          *  to refute that cause: the bag must HOLD a member of {@code family} while the hotbar holds
          *  none. Carrying none of it at all is "not crafted yet", a different fact and not this
-         *  alarm's business; conflating the two is what made it fire on a body that was fine.
+         *  alarm's business; conflating the two is what made it fire on a bot that was fine.
          *
          *  <p>Note this feeds the shared {@link WalkerExpectAlarms#FIRED} counter, which scenes diff across an
          *  edge. Today that is safe only because those scenes drive a FakePlayer and {@link #missing}

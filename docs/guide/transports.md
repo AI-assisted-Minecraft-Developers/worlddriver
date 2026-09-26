@@ -40,7 +40,7 @@ starts. Two consequences are worth knowing before you debug anything:
 - World-dependent verbs return an error until a save is open. The `mc.client.*` family and
   `mc.script.eval` work immediately.
 - The `mc.client.*` family needs a Minecraft client in the same JVM and is absent on a
-  dedicated server. Most of `mc.bot.*` is in the same position for the body it drives by
+  dedicated server. Most of `mc.bot.*` is in the same position for the player it drives by
   default, with an exception explained in [Capabilities](capabilities.md).
 
 Ports and the other transport-level knobs are system properties:
@@ -224,7 +224,7 @@ preflight, but not `application/json`. `POST` with a JSON-RPC request returns 20
 `application/json`. `POST` with a notification, meaning any message with no `id`, returns 202
 with an empty body. A notification is acknowledged and not acted on: `notifications/cancelled`
 does not interrupt the call it names, and a `tools/call` sent without an `id` does not run,
-since its result would have nowhere to go. A body over `worlddriver.maxRequestBytes` returns 413, checked against
+since its result would have nowhere to go. A request body over `worlddriver.maxRequestBytes` returns 413, checked against
 `Content-Length` first and then enforced by a bounded read when that header is missing.
 
 **`GET` opens the event stream.** `GET /mcp` with `Accept: text/event-stream` opens the
@@ -387,7 +387,7 @@ permission level 2 (an operator, or on a single-player world, one with cheats al
 | `/worlddriver port` | Print the RPC port |
 | `/worlddriver mcp` | Print the MCP endpoint |
 | `/worlddriver reload` | Re-load user scripts from the scripts directory and report the count |
-| `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side body |
+| `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side player |
 
 The test framework adds more subcommands when it is loaded — see
 [Human verification](human-verification.md), and `/worlddriver test` in

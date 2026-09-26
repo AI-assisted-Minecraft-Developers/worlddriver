@@ -10,7 +10,7 @@ import net.minecraft.world.entity.monster.piglin.Piglin;
 import net.minecraft.world.level.Level;
 
 /**
- * The testmod's first NPC: a piglin whose legs a driver can take, registered as
+ * The testmod's first NPC: a piglin whose movement a driver can take over, registered as
  * {@code worlddriver:driven_piglin} with a vanilla piglin's size, eyes and attributes.
  *
  * <h2>Why a class of its own and no mixin</h2>
@@ -27,7 +27,7 @@ import net.minecraft.world.level.Level;
  *
  * The shape of {@code JoinedBody}: while driven, the level's entity loop only records that it came,
  * and {@link #pump} runs the tick when the driver steps, doing the loop's {@code setOldPosAndRot()}
- * and {@code tickCount++} itself when the loop has not. Scenes step a body hundreds of times inside
+ * and {@code tickCount++} itself when the loop has not. Scenes step an entity hundreds of times inside
  * one server tick, and a mob the loop also ticked would move once more per server tick on whatever
  * input it last held.
  *

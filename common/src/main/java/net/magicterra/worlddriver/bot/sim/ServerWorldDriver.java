@@ -14,25 +14,25 @@ import java.util.Map;
 
 /**
  * Phase 2: a fully server-side agent driver — the real {@link Walker} steering a
- * {@link ServerPlayerBody} (a headless {@link ServerPlayer} body) with no client. Each call to
+ * {@link ServerPlayerBody} (a headless {@link ServerPlayer}) with no client. Each call to
  * {@link #tick()} advances the Walker (which sets the avatar's impulse/jump via
  * the {@code Body} seam) then runs the manual vanilla physics step. This is
  * exactly the loop the headless arenas validate; {@link ServerAvatarManager}
  * wires it to the live {@code ServerTickEvent} so a dedicated server drives the
- * body with no {@code LocalPlayer}.
+ * bot with no {@code LocalPlayer}.
  *
- * <p>Phase 0/1 capability note: the body is a {@code ServerPlayer}, so it
+ * <p>Capability note: the bot is a {@code ServerPlayer}, so it
  * has full Player capability (place/break/craft/containers). This Phase-2
  * increment wires the MOVEMENT loop end-to-end on the server tick; richer
  * task processes (mine/craft) migrate off the client {@code mc} in later work.
  *
  * <p>MIGRATION (P1.6 Task 1): moved verbatim from
- * {@code net.magicterra.worlddriver.neoforge.sim.ServerWorldDriver}; body type is now
+ * {@code net.magicterra.worlddriver.neoforge.sim.ServerWorldDriver}; the player type is now
  * vanilla {@link ServerPlayer}.
  *
  * <p><b>Why the accessors are {@code non-final}.</b> This class is extension surface for other
  * mods. The NeoForge shim of the same simple name, which narrowed {@link #avatar()} and
- * {@link #fakePlayer()} to NeoForge types, was deleted with the fake bodies, so nothing in this
+ * {@link #fakePlayer()} to NeoForge types, was deleted with the fake players, so nothing in this
  * repo overrides them.
  *
  * <p>Who holds a driver of THIS type: the testmod's scenes, via
@@ -44,13 +44,13 @@ import java.util.Map;
 public class ServerWorldDriver implements BodyDriver {
     private final ServerPlayerBody avatar;
     /**
-     * Not final: the body can change dimension, and a view does not follow it.
+     * Not final: the bot can change dimension, and a view does not follow it.
      *
-     * <p>This was built once in the constructor from the body's creation level and handed to every
-     * {@code BotProcess} forever. The moment the body stepped through a nether portal, every
+     * <p>This was built once in the constructor from the bot's creation level and handed to every
+     * {@code BotProcess} forever. The moment the bot stepped through a nether portal, every
      * pathfind was planning across <b>overworld</b> terrain at <b>nether</b> coordinates — and
      * nothing says so from outside: the walker plans, drives, and reports an ordinary failure to
-     * arrive. See {@link #world()}, which rebuilds when the body has moved on.
+     * arrive. See {@link #world()}, which rebuilds when the bot has moved on.
      */
     private volatile LevelWorldView world;
     private final Walker walker = new Walker("server");
@@ -64,7 +64,7 @@ public class ServerWorldDriver implements BodyDriver {
      */
     private volatile boolean tasked;
     private volatile BlockPos mineTarget;   // non-null = mine task: navigate near, then break
-    /** Holds a real (Body-migrated) BotProcess when there is one, and the slots it switched on. */
+    /** Holds a real ({@code Body}-migrated) BotProcess when there is one, and the slots it switched on. */
     private final HeldProcess held = new HeldProcess(botState);
 
     public ServerWorldDriver(ServerPlayerBody avatar) {
@@ -72,13 +72,13 @@ public class ServerWorldDriver implements BodyDriver {
         this.world = new LevelWorldView(avatar.fakePlayer().level(), avatar.fakePlayer());
     }
 
-    /** Put the level's shared body at {@code (x,y,z)} and wrap it in a driver. */
+    /** Put the level's shared player at {@code (x,y,z)} and wrap it in a driver. */
     public static ServerWorldDriver create(ServerLevel level, double x, double y, double z) {
         return new ServerWorldDriver(ServerPlayerBody.create(level, x, y, z));
     }
 
-    /** {@link #create} with an isolated body ({@link ServerPlayerBody#createUnique}) —
-     *  the production entry point: every {@code /worlddriver server} agent gets its own body. */
+    /** {@link #create} with an isolated player ({@link ServerPlayerBody#createUnique}) —
+     *  the production entry point: every {@code /worlddriver server} agent gets its own player. */
     public static ServerWorldDriver createIsolated(ServerLevel level, double x, double y, double z) {
         return new ServerWorldDriver(ServerPlayerBody.createUnique(level, x, y, z));
     }
@@ -125,7 +125,7 @@ public class ServerWorldDriver implements BodyDriver {
         return this;
     }
 
-    /** Run a real (Body-migrated) {@link BotProcess} headless on the server tick.
+    /** Run a real ({@code Body}-migrated) {@link BotProcess} headless on the server tick.
      *  This is the Phase-2b process-layer seam: the SAME process the client
      *  scheduler runs (e.g. {@link net.magicterra.worlddriver.bot.process.IntentProcess})
      *  drives the FakePlayer through its {@code tick(Body,...)} path — no
@@ -171,7 +171,7 @@ public class ServerWorldDriver implements BodyDriver {
 
     public ServerPlayerBody avatar() { return avatar; }
     public ServerPlayer fakePlayer() { return avatar.fakePlayer(); }
-    /** The view of the level the body is in <b>now</b>, rebuilt if it has changed dimension. */
+    /** The view of the level the bot is in <b>now</b>, rebuilt if it has changed dimension. */
     public LevelWorldView world() {
         net.minecraft.world.level.Level now = avatar.fakePlayer().level();
         LevelWorldView current = world;

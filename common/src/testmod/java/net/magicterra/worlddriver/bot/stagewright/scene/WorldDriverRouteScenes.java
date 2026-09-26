@@ -38,8 +38,8 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 
 /**
- * The constraint layer of route selection on a headless body: a {@code route} object goes through
- * {@link RouteParams#parse} exactly as {@code mc.bot.goto} would send it, the resulting
+ * The constraint layer of route selection on a headless server-side player: a {@code route} object
+ * goes through {@link RouteParams#parse} exactly as {@code mc.bot.goto} would send it, the resulting
  * {@link SearchProfile} is searched with the same {@link SearchScope#gather} snapshot the walker
  * takes, and the assertions read the route. Runs on every topology (the verb layer above it,
  * {@code wd.clientRoute*}, only where the client half is), which is why the parser is covered here
@@ -90,7 +90,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         ctx.await(() -> level.getEntitiesOfClass(Mob.class, box).size() >= n).within(200).then(then);
     }
 
-    /** A finder over {@code profile} with the walker's own snapshot source, the body excluded. */
+    /** A finder over {@code profile} with the walker's own snapshot source, the bot excluded. */
     private static PathFinder finder(ServerLevel level, ServerPlayer body, LevelWorldView w, SearchProfile profile) {
         return new PathFinder(w, profile)
                 .withScopeSource((s, g, p) -> SearchScope.gather(level, body.getId(), s, g, p))
@@ -141,12 +141,12 @@ public final class WorldDriverRouteScenes implements SceneProvider {
             int pen = mc.count(penGap, 6);
             int worst = 0;
             for (BlockPos p : res.path()) worst = Math.max(worst, mc.count(p, 6));
-            ctx.record("路线", "goalReached=" + res.goalReached() + " cells=" + res.path().size() + " prunedBy=" + res.prunedBy()
-                    + " snapshotTruncated=" + res.snapshotTruncated() + "：" + cells(res.path()));
-            ctx.check(pen >= 3).as("A 关僵尸的缺口是怪群格（6 格内 " + pen + " 只）").isTrue();
-            ctx.check(res.goalReached()).as("B 搜索到达目标").isTrue();
-            ctx.check(res.path().contains(freeGap)).as("C 路线经过空缺口 " + freeGap.toShortString()).isTrue();
-            ctx.check(worst < 3).as("D 路线上没有怪群格：最多一格 6 格内 " + worst + " 只").isTrue();
+            ctx.record("route", "goalReached=" + res.goalReached() + " cells=" + res.path().size() + " prunedBy=" + res.prunedBy()
+                    + " snapshotTruncated=" + res.snapshotTruncated() + ": " + cells(res.path()));
+            ctx.check(pen >= 3).as("A: the gap holding the zombies is a mob-cluster cell (" + pen + " mobs within 6 blocks)").isTrue();
+            ctx.check(res.goalReached()).as("B: the search reaches the goal").isTrue();
+            ctx.check(res.path().contains(freeGap)).as("C: the route passes through the empty gap " + freeGap.toShortString()).isTrue();
+            ctx.check(worst < 3).as("D: no cell on the route is a mob-cluster cell: at most " + worst + " mobs within 6 blocks of any cell").isTrue();
         });
     }
 
@@ -156,7 +156,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
      * {@code sight: avoid} the route hugs the wall's shadow, no ray budget is spent out; with
      * {@code sight: forbid} a goal in the shadow is still reached (not best-effort — a spent
      * budget reruns without sight and would pass that check by the wrong failure mode, so the
-     * flag is asserted too). Then the body WALKS the avoid route and {@code ThreatScanner} counts
+     * flag is asserted too). Then the bot WALKS the avoid route and {@code ThreatScanner} counts
      * the ticks the skeleton could see it.
      */
     private static void staysOutOfSkeletonSight(SceneContext ctx) {
@@ -192,20 +192,20 @@ public final class WorldDriverRouteScenes implements SceneProvider {
             int plainSeen = 0, huggedSeen = 0;
             for (BlockPos p : plain.path()) if (se.seen(p) > 0) plainSeen++;
             for (BlockPos p : hugged.path()) if (se.seen(p) > 0) huggedSeen++;
-            ctx.record("直线", "cells=" + plain.path().size() + " 暴露 " + plainSeen + "：" + cells(plain.path()));
-            ctx.record("避视线", "goalReached=" + hugged.goalReached() + " cells=" + hugged.path().size() + " 暴露 " + huggedSeen
+            ctx.record("straight", "cells=" + plain.path().size() + " exposed " + plainSeen + ": " + cells(plain.path()));
+            ctx.record("sightAvoid", "goalReached=" + hugged.goalReached() + " cells=" + hugged.path().size() + " exposed " + huggedSeen
                     + " sightBudgetExhausted=" + hugged.sightBudgetExhausted() + " rays=" + se.raysFired()
-                    + " observers=" + se.observers().size() + "：" + cells(hugged.path()));
-            ctx.check(plainSeen >= 12).as("A 不带 sight 的直线大半在视线里：" + plainSeen + " 格").isTrue();
-            ctx.check(hugged.goalReached() && !hugged.sightBudgetExhausted()).as("B 避视线的搜索到达且射线预算没有耗尽").isTrue();
-            ctx.check(huggedSeen <= 6).as("C 避视线的路线暴露不超过 6 格：" + huggedSeen).isTrue();
+                    + " observers=" + se.observers().size() + ": " + cells(hugged.path()));
+            ctx.check(plainSeen >= 12).as("A: most of the straight route without sight is in view: " + plainSeen + " cells").isTrue();
+            ctx.check(hugged.goalReached() && !hugged.sightBudgetExhausted()).as("B: the sight-avoiding search reaches the goal without exhausting the ray budget").isTrue();
+            ctx.check(huggedSeen <= 6).as("C: the sight-avoiding route has at most 6 exposed cells: " + huggedSeen).isTrue();
             PathFinder.Result held = finder(level, fp, w, forbid.profile()).findPath(start, new Goal.Block(shadowGoal));
-            ctx.record("禁视线", "goalReached=" + held.goalReached() + " cells=" + held.path().size()
+            ctx.record("sightForbid", "goalReached=" + held.goalReached() + " cells=" + held.path().size()
                     + " sightBudgetExhausted=" + held.sightBudgetExhausted() + " prunedBy=" + held.prunedBy());
             ctx.check(held.goalReached() && !held.sightBudgetExhausted())
-                    .as("D forbid 模式到达墙影里的目标（不是 bestEffort），预算仍未耗尽").isTrue();
+                    .as("D: forbid mode reaches the goal in the wall's shadow (not best-effort) without exhausting the budget").isTrue();
 
-            // Now walk it: the body drives the avoid route while the skeleton's view is sampled.
+            // Now walk it: the bot drives the avoid route while the skeleton's view is sampled.
             Intent intent = new Intent(List.of(new Goal.Block(goal)), avoid.profile().bias(),
                     avoid.profile().capability(), avoid.profile().constraints(), null);
             driver.runProcess(new IntentProcess(intent));
@@ -224,11 +224,11 @@ public final class WorldDriverRouteScenes implements SceneProvider {
                 return driver.finished() || ticks[0] >= 600;
             }).within(700).then(() -> {
                 double gap = Math.hypot(fp.getX() - (goal.getX() + 0.5), fp.getZ() - (goal.getZ() + 0.5));
-                ctx.record("足迹", "相对 dx,dz/朝向，! 为被看见：" + trace);
-                ctx.record("行走", String.format(Locale.ROOT, "%d tick，被看见 %d tick，终点 %.1f,%.1f,%.1f 距目标 %.2f",
+                ctx.record("trace", "relative dx,dz/yaw, ! marks a tick in view: " + trace);
+                ctx.record("walk", String.format(Locale.ROOT, "%d ticks, in view for %d ticks, end at %.1f,%.1f,%.1f, %.2f from the goal",
                         ticks[0], seen[0], fp.getX(), fp.getY(), fp.getZ(), gap));
-                ctx.check(gap <= 1.5).as(String.format(Locale.ROOT, "E 走到了目标：水平差 %.2f", gap)).isTrue();
-                ctx.check(seen[0] <= 60).as("F 全程被骷髅看见的 tick 不超过 60：" + seen[0]).isTrue();
+                ctx.check(gap <= 1.5).as(String.format(Locale.ROOT, "E: the bot walked to the goal: horizontal distance %.2f", gap)).isTrue();
+                ctx.check(seen[0] <= 60).as("F: the skeleton could see the bot for at most 60 ticks over the whole walk: " + seen[0]).isTrue();
             });
         });
     }
@@ -254,11 +254,11 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         RouteParams.Parsed route = RouteParams.parse(Map.of("regions", List.of(box)));
         PathFinder.Result res = new PathFinder(w, route.profile()).findPath(start, new Goal.Block(goal));
         String reason = res.blockedBy(route.constraintNames());
-        ctx.record("搜索", "goalReached=" + res.goalReached() + " cells=" + res.path().size() + " prunedBy=" + res.prunedBy()
+        ctx.record("search", "goalReached=" + res.goalReached() + " cells=" + res.path().size() + " prunedBy=" + res.prunedBy()
                 + " declared=" + route.constraintNames() + " reason=" + reason);
-        ctx.check(!res.goalReached()).as("A 目标被围死，搜索只能 bestEffort").isTrue();
-        ctx.check(route.constraintNames().contains("ForbidRegion")).as("B 本次意图声明了 ForbidRegion").isTrue();
-        ctx.check("constraint:ForbidRegion".equals(reason)).as("C 归因是 constraint:ForbidRegion：" + reason).isTrue();
+        ctx.check(!res.goalReached()).as("A: the goal is fully enclosed, so the search can only be best-effort").isTrue();
+        ctx.check(route.constraintNames().contains("ForbidRegion")).as("B: this intent declares ForbidRegion").isTrue();
+        ctx.check("constraint:ForbidRegion".equals(reason)).as("C: the cause is constraint:ForbidRegion: " + reason).isTrue();
     }
 
     /** A hard corridor along a bent polyline: every cell of the route within its radius, the straight route not. */
@@ -282,12 +282,12 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         double plainWorst = 0, heldWorst = 0;
         for (BlockPos p : plain.path()) plainWorst = Math.max(plainWorst, corridor.distance(p.getX() + 0.5, p.getY(), p.getZ() + 0.5));
         for (BlockPos p : held.path()) heldWorst = Math.max(heldWorst, corridor.distance(p.getX() + 0.5, p.getY(), p.getZ() + 0.5));
-        ctx.record("直线", String.format(Locale.ROOT, "cells=%d 离折线最远 %.2f", plain.path().size(), plainWorst));
-        ctx.record("走廊", String.format(Locale.ROOT, "goalReached=%s cells=%d 离折线最远 %.2f prunedBy=%s：%s",
+        ctx.record("straight", String.format(Locale.ROOT, "cells=%d max distance from the polyline %.2f", plain.path().size(), plainWorst));
+        ctx.record("corridor", String.format(Locale.ROOT, "goalReached=%s cells=%d max distance from the polyline %.2f prunedBy=%s: %s",
                 held.goalReached(), held.path().size(), heldWorst, held.prunedBy(), cells(held.path())));
-        ctx.check(plainWorst > 2).as(String.format(Locale.ROOT, "A 不带走廊的路线会离开折线 %.2f 格", plainWorst)).isTrue();
-        ctx.check(held.goalReached()).as("B 走廊约束下到达目标").isTrue();
-        ctx.check(heldWorst <= 2 + 1e-6).as(String.format(Locale.ROOT, "C 路线每格到折线不超过 radius 2：最远 %.2f", heldWorst)).isTrue();
+        ctx.check(plainWorst > 2).as(String.format(Locale.ROOT, "A: without a corridor the route strays %.2f blocks from the polyline", plainWorst)).isTrue();
+        ctx.check(held.goalReached()).as("B: the goal is reached under the corridor constraint").isTrue();
+        ctx.check(heldWorst <= 2 + 1e-6).as(String.format(Locale.ROOT, "C: every route cell is within radius 2 of the polyline: max %.2f", heldWorst)).isTrue();
     }
 
     /**
@@ -323,12 +323,12 @@ public final class WorldDriverRouteScenes implements SceneProvider {
                 if (!clustered) out = true;
                 else if (out && reentry == null) reentry = p;
             }
-            ctx.record("搜索", "起点 6 格内 " + atStart + " 只，goalReached=" + res.goalReached() + " cells=" + res.path().size()
-                    + " prunedBy=" + res.prunedBy() + "：" + cells(res.path()));
-            ctx.check(atStart >= 3).as("A 起点本身是怪群格：" + atStart + " 只").isTrue();
-            ctx.check(res.goalReached()).as("B 归位规则起作用，搜索给出到达目标的路线").isTrue();
-            ctx.check(out && reentry == null).as("C 离开怪群后不再进入任何怪群格"
-                    + (reentry == null ? "" : "：在 " + reentry.toShortString() + " 又进去了")).isTrue();
+            ctx.record("search", atStart + " mobs within 6 blocks of the start, goalReached=" + res.goalReached() + " cells=" + res.path().size()
+                    + " prunedBy=" + res.prunedBy() + ": " + cells(res.path()));
+            ctx.check(atStart >= 3).as("A: the start itself is a mob-cluster cell: " + atStart + " mobs").isTrue();
+            ctx.check(res.goalReached()).as("B: the rejoin rule takes effect and the search returns a route that reaches the goal").isTrue();
+            ctx.check(out && reentry == null).as("C: after leaving the cluster the route never enters another mob-cluster cell"
+                    + (reentry == null ? "" : ": it re-entered at " + reentry.toShortString())).isTrue();
         });
     }
 }

@@ -23,7 +23,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * <b>A body barely on a ledge over the void, holding blocks, with no legal move.</b>
+ * <b>A player barely on a ledge over the void, holding blocks, with no legal move.</b>
  *
  * <h2>The cell this is a copy of</h2>
  *
@@ -32,11 +32,11 @@ import net.minecraft.world.level.block.Blocks;
  * <pre>{@code
  * run l: footing guard: sole 0.1594 < 0.18 at -32,85,27 beside a lethal drop -> sneak-pin
  *        ascend dead-zone UNREACHABLE move=diagUp node=(-33,86,26) foot=(-32,85,27)
- *        -> stood there 2400 ticks, the whole leg budget
- * run t: body left the world; last stood on -32,85,27 (108 ticks earlier)
+ *        -> stood there 2400 ticks, the whole walk budget
+ * run t: bot left the world; last stood on -32,85,27 (108 ticks earlier)
  * }</pre>
  *
- * The body stands on 16% of its sole at the end of a bridge it built itself, void on every side,
+ * The bot stands on 16% of its sole at the end of a bridge it built itself, void on every side,
  * the plan's next node one cell diagonally up, and 500+ cobblestone in the bag. The footing guard
  * sneak-pins it (right), the stride floor-guard refuses the next step (right), the recovery hop
  * refuses to jump with a lethal drop one cell away (right), and the ascent executor calls the node
@@ -54,19 +54,19 @@ import net.minecraft.world.level.block.Blocks;
  * <ol>
  *   <li><b>It must not fall.</b> The lowest y must stay at the ledge.</li>
  *   <li><b>It must actually reach the node.</b> Without this, standing perfectly still is a
- *       full-marks answer — and standing still is exactly what the body does today. The guards
+ *       full-marks answer — and standing still is exactly what the bot does today. The guards
  *       already satisfy clause 1; the entire defect lives in clause 2.</li>
  * </ol>
  *
- * <p><b>RED BY DESIGN until the body can widen its own footing.</b> The remedy this arm waits for is
+ * <p><b>RED BY DESIGN until the bot can widen its own footing.</b> The remedy this arm waits for is
  * one block placed into the empty column under the overhanging half of the sole: the stride guard
- * plugs the cell AHEAD, and nothing has ever plugged the cell the body is already half off.
+ * plugs the cell AHEAD, and nothing has ever plugged the cell the bot is already half off.
  * {@code Walker.widenFooting} exists as of 2026-08-18 and did not fire once on the ladder; this arm
  * is where that gets answered instead of guessed.
  */
 public final class WorldDriverThinFootingScenes implements SceneProvider {
 
-    /** Clear cells under the ledge. Past survivable fall at full health, so a body that leaves the
+    /** Clear cells under the ledge. Past survivable fall at full health, so a player that leaves the
      *  ledge is unambiguously lost rather than merely hurt. */
     private static final int VOID_DEPTH = 30;
 
@@ -80,8 +80,8 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                         ctx -> widensAThinFooting(ctx, 0)),
                 // Same cell, same stack, one difference: the blocks are in the backpack rather than
                 // the hotbar. holdPlaceable() has only ever looked at slots 0..8 (a tower once
-                // reported "out of blocks?" while the body held 110 cobblestone), and rung 20 walks
-                // its End legs with the haul wherever picking it up put it. Two arms differing by
+                // reported "out of blocks?" while the bot held 110 cobblestone), and rung 20 walks
+                // its End segments with the haul wherever picking it up put it. Two arms differing by
                 // exactly one variable is the only way to tell "the remedy is wrong" from "the
                 // remedy could not see the blocks".
                 Scene.of("wd.serverWidensFromTheBackpack", 600,
@@ -110,8 +110,8 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                         WorldDriverThinFootingScenes::stopsAtALavaShore),
                 Scene.of("wd.serverWalksOffASurvivableLedge", 600,
                         WorldDriverThinFootingScenes::walksOffASurvivableLedge),
-                // The shore arms above ask whether the guard STOPS a body walking into a lake. These
-                // two ask the opposite question about the same guard: what the pin costs a body whose
+                // The shore arms above ask whether the guard STOPS a bot walking into a lake. These
+                // two ask the opposite question about the same guard: what the pin costs a bot whose
                 // route runs ALONG the rim and was never going in. Same trench twice, and its fill is
                 // again the only variable.
                 Scene.of("wd.serverKeepsWalkingAtALavaRim", 600,
@@ -128,7 +128,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
         // One 1-wide strip of ledge and a single landing cell one up and one across — the diagUp the
         // ladder's plan keeps producing. Everything else is cleared, so any block found under the
-        // body afterwards was put there by the body.
+        // bot afterwards was put there by the bot.
         for (int dx = -8; dx <= 8; dx++)
             for (int dz = -8; dz <= 8; dz++)
                 for (int y = deckY - VOID_DEPTH; y <= deckY + 6; y++)
@@ -144,7 +144,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 if (dx < -2 || dx > 2 || dz < -2 || dz > 3)      // outside the shaft, see below
                     level.setBlockAndUpdate(new BlockPos(cx + dx, deckY - VOID_DEPTH, cz + dz),
                             Blocks.STONE.defaultBlockState());
-        // A GENUINE shaft under the cells the body's own footprint spans. The remedy this arm judges
+        // A GENUINE shaft under the cells the bot's own footprint spans. The remedy this arm judges
         // only spends a block over a column that is bottomless — scanned all the way to
         // Walker.BOTTOMLESS_SCAN_FLOOR (-70) — and it is right to: over an ordinary drop a thin sole
         // is a graze, and paying a block per ridge walk eats a bridging contract. A catch floor 30
@@ -165,7 +165,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
         // Nudge outward until the sole reads under the guard's own threshold rather than computing
         // an offset: the guard's predicate is the authority on what "barely on" means, and a rig
-        // that assumes a number can stage a body the guard never looks at.
+        // that assumes a number can stage a player the guard never looks at.
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
@@ -181,7 +181,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 + " y=" + deckY + " | landing (one up, one across)=" + landing.getX() + ","
                 + landing.getY() + "," + landing.getZ() + " | " + VOID_DEPTH
                 + " clear cells under it, catch floor y=" + (deckY - VOID_DEPTH));
-        ctx.record("staged", String.format(Locale.ROOT, "body x=%.2f sole=%.4f (threshold %s)",
+        ctx.record("staged", String.format(Locale.ROOT, "bot x=%.2f sole=%.4f (threshold %s)",
                 nudge, sole, Walker.footingMin()));
         if (sole >= Walker.footingMin()) {
             ctx.fail("THE RIG, not the subject: could not stage a stand under the footing threshold"
@@ -200,7 +200,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         if (fp.getY() < standY - 0.5) {
             ctx.fail("THE RIG, not the subject: vanilla itself dropped the staged stand in "
                     + SETTLE_TICKS + " idle ticks (y=" + fp.getY() + "), so this arena is not the"
-                    + " ladder's cell — there the body stood on it for 2400 ticks");
+                    + " ladder's cell — there the bot stood on it for 2400 ticks");
             return;
         }
 
@@ -252,17 +252,17 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 + " predicate true; its log line is unconditional, so any gap between this count"
                 + " and the [walker] footing guard lines is the guard not being reached at all."
                 + " sole per tick:" + soles);
-        ctx.record("drive", String.format(Locale.ROOT, "%d ticks, body=(%.2f,%.2f,%.2f) step=%s",
+        ctx.record("drive", String.format(Locale.ROOT, "%d ticks, bot=(%.2f,%.2f,%.2f) step=%s",
                 t, fp.getX(), fp.getY(), fp.getZ(), s));
         ctx.record("minY", String.format(Locale.ROOT, "%.3f (deck %d, criterion > %d)",
                 minY, standY, standY - 1));
-        ctx.record("widen", spent + " cobblestone left the bag; the deck row under the body is "
+        ctx.record("widen", spent + " cobblestone left the bag; the deck row under the bot is "
                 + (underfootSolid ? "SOLID" : "AIR"));
         ctx.record("arrived", arrived + " (target " + landing.getX() + "," + (landing.getY() + 1)
                 + "," + landing.getZ() + ", one up and one across — not reached today, see the"
                 + " class note)");
 
-        ctx.expect(minY > standY - 1).as("the body must not drop below the ledge").isTrue();
+        ctx.expect(minY > standY - 1).as("the bot must not drop below the ledge").isTrue();
         ctx.expect(arrived).as("it must actually reach the cell one up and one across — with only"
                 + " the first clause, standing perfectly still scores full marks, and that is"
                 + " exactly today's behaviour").isTrue();
@@ -273,13 +273,13 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *
      * <h2>The cell this is a copy of</h2>
      *
-     * Journey rung 14's fortress corridor, waypoint 8. Three archived ladder runs seat the body at
+     * Journey rung 14's fortress corridor, waypoint 8. Three archived ladder runs seat the bot at
      * the identical cell — {@code fortress.wp7.at = 88,41,107} in every one — and give the identical
      * next hop, {@code 88,41,107 → 95,41,115}, eleven blocks. Two crossed it. The third:
      *
      * <pre>{@code
-     * fortress.wp8.at  停在 88, 41, 107，差 11 格   end=failed:no path (expanded=100000)
-     * 身上还剩 205 个可放置方块（netherrack×2, cobblestone×104, dirt×79, diorite×7, granite×13）
+     * fortress.wp8.at  stopped at 88, 41, 107, 11 blocks short   end=failed:no path (expanded=100000)
+     * 205 placeable blocks still in the inventory (netherrack×2, cobblestone×104, dirt×79, diorite×7, granite×13)
      * }</pre>
      *
      * <p>Same seed, same terrain, same seat, same goal, blocks in hand — and 100000 nodes spent on a
@@ -290,10 +290,10 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * {@link ServerPlayerBody#holdPlaceable()} swaps a stack up from slots 9..35 when the hotbar
      * has none — the executor is not limited to the hotbar. The planner was: {@code
      * LevelWorldView.placeableBlockCount()} counted 0..8 only. Two consumers turn that gap into a
-     * dead leg — {@code BridgePlace.eval} emits no bridge edge, and {@code WalkerTickSearch}'s block
-     * budget throws away a path A* has ALREADY FOUND and re-searches with placing OFF whenever the
-     * edges outnumber the count. Over a nether gap, place-off leaves only walking, and walking is
-     * what spends the node budget.
+     * failed walk — {@code BridgePlace.eval} emits no bridge edge, and {@code WalkerTickSearch}'s
+     * block budget throws away a path A* has ALREADY FOUND and re-searches with placing OFF whenever
+     * the edges outnumber the count. Over a nether gap, place-off leaves only walking, and walking
+     * is what spends the node budget.
      *
      * <h2>Why two arms</h2>
      *
@@ -319,7 +319,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int deckY = ctx.origin().getY() + 40;
         final int standY = deckY + 1;
-        final int nearCells = 4;      // deck the body starts on
+        final int nearCells = 4;      // deck the bot starts on
         final int gapCells = 4;       // open void it must bridge
         final int farCells = 4;       // deck on the other side
 
@@ -379,34 +379,41 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         int spent = 64 - fp.getInventory().countItem(Items.COBBLESTONE.asItem());
         boolean crossed = farZ >= cz + farStart;
 
-        ctx.record("rig", "近岸 " + nearCells + " 格 + 虚空 " + gapCells + " 格 + 对岸 "
-                + farCells + " 格，1 格宽黑曜石，x=" + cx + " y=" + deckY
-                + "，箱下挖空到 y=" + level.getMinBuildHeight() + "（接住的地板等于在量场地）");
-        ctx.record("slot", "64 圆石放在槽位 " + slot
-                + (slot < 9 ? "（快捷栏 —— 对照臂）" : "（背包 —— 执行器够得着，问的是规划器）"));
-        ctx.record("hotbar", "快捷栏里 " + hotbar + " 件东西"
-                + (slot < 9 ? "" : "，判据 = 0：不为零说明布景没造出条件，后两条判据就成了恒真"));
-        ctx.record("planner", "A* 读到的可放置数 = " + planner + "，判据 = 64"
-                + "（修法前这一臂读到的是 0，因为它只数 0..8）");
-        ctx.record("drive", String.format(Locale.ROOT, "%d tick，身体=(%.2f,%.2f,%.2f) step=%s",
+        ctx.record("rig", "near bank " + nearCells + " blocks + void " + gapCells + " blocks + far bank "
+                + farCells + " blocks, 1-block-wide obsidian, x=" + cx + " y=" + deckY
+                + ", cleared down to y=" + level.getMinBuildHeight()
+                + " (a catch floor would measure the arena instead of the planner)");
+        ctx.record("slot", "64 cobblestone placed in slot " + slot
+                + (slot < 9 ? " (hotbar: the control arm)"
+                        : " (backpack: reachable by the executor; the question is whether the planner counts it)"));
+        ctx.record("hotbar", hotbar + " items in the hotbar"
+                + (slot < 9 ? "" : ", expected 0: a non-zero value means the test setup did not create the"
+                        + " condition, and the next two checks would then be trivially true"));
+        ctx.record("planner", "placeable count read by A* = " + planner + ", expected 64"
+                + " (without the fix this arm reads 0, because only slots 0..8 are counted)");
+        ctx.record("drive", String.format(Locale.ROOT, "%d ticks, bot=(%.2f,%.2f,%.2f) step=%s",
                 t, fp.getX(), fp.getY(), fp.getZ(), s));
         ctx.record("crossed", String.format(Locale.ROOT,
-                "最远 z=%.2f（对岸起点 z=%d，判据 ≥ 该值）；%d 块圆石离开背包", farZ, cz + farStart, spent));
-        ctx.record("minY", String.format(Locale.ROOT, "%.3f（桥面 %d，判据 > %d）",
+                "furthest z=%.2f (far bank starts at z=%d; expected >= that value); %d cobblestone left the inventory",
+                farZ, cz + farStart, spent));
+        ctx.record("minY", String.format(Locale.ROOT, "%.3f (deck surface %d, expected > %d)",
                 minY, standY, standY - 1));
 
         if (slot >= 9)
-            ctx.expect(hotbar).as("布景必须真的把石头放到快捷栏之外，否则这个场景什么也没测")
+            ctx.expect(hotbar).as("the test setup must actually place the stone outside the hotbar;"
+                    + " otherwise this scene tests nothing")
                     .isEqualTo(0);
-        ctx.expect(planner).as("规划器数到的方块必须是执行器够得着的那些 —— 这就是缺陷所在的那个量")
+        ctx.expect(planner).as("the blocks the planner counts must be the ones the executor can reach;"
+                + " this is the quantity the defect was in")
                 .isEqualTo(64);
-        ctx.expect(minY > standY - 1).as("身体不许掉进虚空").isTrue();
-        ctx.expect(crossed).as("而且必须真的架桥过去 —— 只数对不过去，说明修法接错了消费者")
+        ctx.expect(minY > standY - 1).as("the bot must not fall into the void").isTrue();
+        ctx.expect(crossed).as("and it must actually bridge across; counting correctly without crossing"
+                + " means the fix was applied to the wrong consumer")
                 .isTrue();
     }
 
     /**
-     * <b>A body with a FULL sole walks off the end of its own bridge.</b>
+     * <b>A bot with a FULL sole walks off the end of its own bridge.</b>
      *
      * <h2>The shape this is a copy of</h2>
      *
@@ -415,11 +422,11 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * off a graze, leaping from a standstill). The eighth is none of them:
      *
      * <pre>{@code
-     * step=WALKING 跳标=未标 身体=-10.38,111.00,-2.44 速度h=0.118 脚底=0.360 节点=-13,111,-3
+     * step=WALKING jumpFlag=unset bot=-10.38,111.00,-2.44 speedH=0.118 sole=0.360 node=-13,111,-3
      * }</pre>
      *
      * No jump. Sole 0.360 — the FULL 0.6×0.6 footprint, not a graze. Walking speed, level target.
-     * The body simply walked off the end of a bridge it had built, at y=111 over the End void.
+     * The bot simply walked off the end of a bridge it had built, at y=111 over the End void.
      *
      * <h2>Why an arena and not another gate</h2>
      *
@@ -447,7 +454,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * <ol>
      *   <li><b>It must not fall.</b> The lowest y stays at the deck.</li>
      *   <li><b>It must actually have walked.</b> Without this, refusing to move at all is a
-     *       full-marks answer — and a guard that pins the body at the first cell would "pass" while
+     *       full-marks answer — and a guard that pins the bot at the first cell would "pass" while
      *       making the ladder unable to cross anything. The bar is four of the eight deck cells.</li>
      * </ol>
      */
@@ -514,27 +521,33 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         int spent = 64 - fp.getInventory().countItem(Items.COBBLESTONE.asItem());
         double walked = farZ - (cz + 1.5);
 
-        ctx.record("goal", lateral == 0 ? "目标在桥的延长线上（直走）"
-                : "目标横向偏 " + lateral + " 格 —— 路径必须在桥头转向，而真梯第八族的节点正是"
-                  + "「三格外、偏一格」");
-        ctx.record("rig", "1 格宽黑曜石桥 x=" + cx + " z=" + cz + ".." + (cz + deckCells - 1)
-                + " y=" + deckY + "，桥外与桥下全部挖空到 y=" + level.getMinBuildHeight()
-                + "（守卫只在直通虚空的柱子上立即武装，铺接住的地板等于在量场地）");
-        ctx.record("drive", String.format(Locale.ROOT, "%d tick，身体=(%.2f,%.2f,%.2f) step=%s",
+        ctx.record("goal", lateral == 0 ? "goal on the bridge's extension line (straight ahead)"
+                : "goal offset laterally by " + lateral + " blocks: the path must turn at the bridge head,"
+                  + " and the eighth departure on the real ladder had exactly this node shape,"
+                  + " \"three blocks out, one across\"");
+        ctx.record("rig", "1-block-wide obsidian bridge x=" + cx + " z=" + cz + ".." + (cz + deckCells - 1)
+                + " y=" + deckY + ", everything beside and below the bridge cleared down to y="
+                + level.getMinBuildHeight()
+                + " (the guard arms immediately only over a column open to the void, so a catch floor"
+                + " would measure the arena)");
+        ctx.record("drive", String.format(Locale.ROOT, "%d ticks, bot=(%.2f,%.2f,%.2f) step=%s",
                 t, fp.getX(), fp.getY(), fp.getZ(), s));
-        ctx.record("minY", String.format(Locale.ROOT, "%.3f（桥面 %d，判据 > %d）",
+        ctx.record("minY", String.format(Locale.ROOT, "%.3f (deck surface %d, expected > %d)",
                 minY, standY, standY - 1));
         ctx.record("walked", String.format(Locale.ROOT,
-                "沿桥走了 %.2f 格（共 %d 格），最远 z=%.2f，判据 ≥ 4", walked, deckCells, farZ));
-        ctx.record("bridged", spent + " 块圆石离开背包（守卫可以选择架桥继续，那是最好的答案）");
+                "walked %.2f blocks along the bridge (of %d), furthest z=%.2f, expected >= 4",
+                walked, deckCells, farZ));
+        ctx.record("bridged", spent + " cobblestone left the inventory (the guard may choose to keep"
+                + " bridging onward, which is the best answer)");
 
-        ctx.expect(minY > standY - 1).as("身体不许掉到桥面以下").isTrue();
-        ctx.expect(walked >= 4.0).as("而且必须真的沿桥走过 4 格 —— 只有前一条判据的话，"
-                + "「一步都不迈」就是满分答案，而那样的守卫会让整条真梯寸步难行").isTrue();
+        ctx.expect(minY > standY - 1).as("the bot must not drop below the deck surface").isTrue();
+        ctx.expect(walked >= 4.0).as("and it must actually walk 4 blocks along the bridge; with only the"
+                + " previous check, not taking a single step would score full marks, and such a guard"
+                + " would leave the real ladder unable to cross anything").isTrue();
     }
 
     /**
-     * <b>Can this body draw a bow and loose an arrow at all?</b>
+     * <b>Can this player draw a bow and loose an arrow at all?</b>
      *
      * <h2>Why this exists</h2>
      *
@@ -542,12 +555,12 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * dragon search box was narrower than the arena it flies in, a raised block budget overflowed
      * the inventory and pushed the bow out of it, and the avatar's edge-triggered use flag could not
      * re-arm after vanilla stopped the use. Every one of those was a real defect. None of them moved
-     * the number: three consecutive rehearsals reported {@code 拉弓计数 7, 箭存量 256} — the same 7,
+     * the number: three consecutive rehearsals reported {@code bow draws 7, arrows in stock 256} — the same 7,
      * before and after a change that should have altered it. A value that does not move when its
      * cause is removed is measuring something else, and thirty minutes per reading is the wrong
      * price for finding out what.
      *
-     * <p>So: flat stone, a body, a bow, arrows, and nothing else — no dragon, no walker, no
+     * <p>So: flat stone, a player, a bow, arrows, and nothing else — no dragon, no walker, no
      * knockback, no fountain. Hold the use for well past a full draw and ask the only question that
      * matters: <b>did the quiver go down?</b> Everything the ladder adds on top of this is a
      * separate question, and none of it is worth asking until this one has an answer.
@@ -603,14 +616,14 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
     }
 
     /**
-     * How far from the body the arrow count looks, and the number is arithmetic rather than margin.
+     * How far from the player the arrow count looks, and the number is arithmetic rather than margin.
      *
      * <p>A full draw leaves the string at {@code power * 3.0} = <b>3 blocks per tick</b>
      * ({@code BowItem.releaseUsing} → {@code shootFromRotation(..., 3.0F, 1.0F)}), and the count runs
      * ten real server ticks later — the wait that exists so the entity is promoted out of the pending
      * queue. Thirty blocks of flight against a 24-block box is a scene that fails whenever the arrow
      * happens to fly straight, which is most of the time it is working: one run reported
-     * {@code flew=0} beside {@code probe.flew=1} and read as「the release produced nothing」about a
+     * {@code flew=0} beside {@code probe.flew=1} and read as "the release produced nothing" about a
      * release that had produced an arrow and lost it. Three times the arrow's own reach, so no draw
      * this arm can produce outruns the question.
      */
@@ -622,52 +635,55 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         // Count the ARROWS IN THE WORLD, not the ones missing from the bag. A player with
         // instabuild gets a fresh projectile from getProjectile() and the quiver is never touched,
         // so an ammo delta can be structurally zero while the bow is working perfectly — and that
-        // is precisely the counter rung 20 has been reporting for four rounds of「fixes」.
+        // is precisely the counter rung 20 has been reporting for four rounds of "fixes".
         int flew = level.getEntitiesOfClass(net.minecraft.world.entity.projectile.AbstractArrow.class,
                 fp.getBoundingBox().inflate(ARROW_SEARCH)).size();
 
-        ctx.record("draw", "按住 60 tick，逐 tick 的 getTicksUsingItem（-1 = 那一 tick 不在使用中）:"
-                + draw + " …… 最大 " + maxDraw + "（满蓄力需要 20）");
-        ctx.record("promote", "松手后又等了 10 个真实服务器 tick 才数箭 —— 实体是在 level tick 时"
-                + "才从待加入队列里提升的，同步循环里数等于问一个还没被告知的索引");
-        ctx.record("ammo", "松手前 " + before + " 支 → 松手后 " + after + " 支"
-                + "（instabuild=" + fp.getAbilities().instabuild
-                + "；为真时 vanilla 从 getProjectile 另发一支、箭袋不动，为假时必须扣一支）");
-        ctx.record("flew", flew + " 支箭出现在世界里（这才是「射出去了」的证据）");
-        ctx.record("hand", "主手=" + fp.getMainHandItem().getItem()
-                + "，isUsingItem=" + fp.isUsingItem());
+        ctx.record("draw", "held for 60 ticks; getTicksUsingItem per tick (-1 = not in use on that tick):"
+                + draw + " ... max " + maxDraw + " (a full draw needs 20)");
+        ctx.record("promote", "after release, waited 10 more real server ticks before counting arrows:"
+                + " entities are promoted out of the pending queue only when the level ticks, so counting"
+                + " inside a synchronous loop queries an index that has not been told about them yet");
+        ctx.record("ammo", before + " arrows before release -> " + after + " after release"
+                + " (instabuild=" + fp.getAbilities().instabuild
+                + "; when true, vanilla issues a separate arrow from getProjectile and the quiver is"
+                + " untouched; when false, exactly one must be deducted)");
+        ctx.record("flew", flew + " arrows present in the world (this is the evidence that a shot was fired)");
+        ctx.record("hand", "main hand=" + fp.getMainHandItem().getItem()
+                + ", isUsingItem=" + fp.isUsingItem());
         // DISCRIMINATOR. Two explanations survive an empty sky: stopUsingItem() never reached
-        // BowItem.releaseUsing, or releaseUsing ran and this body cannot spawn a projectile at all.
+        // BowItem.releaseUsing, or releaseUsing ran and this player cannot spawn a projectile at all.
         // They call for opposite fixes, so ask directly rather than picking one. Probe on the
         // failure path only; it never runs when the normal release already worked.
         ItemStack bow = fp.getMainHandItem();
         String probe;
         try {
             bow.getItem().releaseUsing(bow, level, fp, bow.getItem().getUseDuration(bow, fp) - 30);
-            probe = "直接调用 releaseUsing 没有抛异常";
+            probe = "calling releaseUsing directly did not throw";
         } catch (RuntimeException e) {
-            probe = "直接调用 releaseUsing 抛了 " + e;
+            probe = "calling releaseUsing directly threw " + e;
         }
-        ctx.record("probe", probe + "；弹药查询 getProjectile="
+        ctx.record("probe", probe + "; ammunition lookup getProjectile="
                 + fp.getProjectile(bow).getItem()
-                + "，instabuild=" + fp.getAbilities().instabuild);
+                + ", instabuild=" + fp.getAbilities().instabuild);
         int afterProbe = level.getEntitiesOfClass(
                 net.minecraft.world.entity.projectile.AbstractArrow.class,
                 fp.getBoundingBox().inflate(ARROW_SEARCH)).size();
-        ctx.record("probe.flew", afterProbe + " —— 直接调 releaseUsing 之后世界里的箭数。"
-                + "跟上面的 flew 一起读：两个都是 0 说明这具身体根本生不出箭；"
-                + "只有这一个非 0 说明 stopUsingItem 没走到 releaseUsing");
+        ctx.record("probe.flew", afterProbe + ": arrows in the world after calling releaseUsing directly."
+                + " Read together with flew above: both 0 means this bot's player entity cannot spawn an"
+                + " arrow at all; only this one non-zero means stopUsingItem never reached releaseUsing");
 
-        ctx.expect(maxDraw >= 20).as("按住 60 tick 之后，拉弓计数必须至少到过一次满蓄力 20").isTrue();
+        ctx.expect(maxDraw >= 20).as("after holding for 60 ticks, the draw counter must reach a full draw"
+                + " of 20 at least once").isTrue();
         if (!fp.getAbilities().instabuild) {
             // Not a duplicate of flew: an entity in the sky only proves something spawned.
             // The quiver going down by exactly one proves it came out of BowItem.releaseUsing.
-            ctx.expect(before - after == 1).as("松手之后箭袋里必须恰好少一支，实测 "
-                    + before + " → " + after);
+            ctx.expect(before - after == 1).as("after release the quiver must hold exactly one arrow"
+                    + " fewer; measured " + before + " -> " + after);
         }
-        ctx.expect(flew >= 1).as("松手之后世界里必须出现一支箭 —— 只断言拉弓计数的话，"
-                + "一次射不出箭的满蓄力也是满分答案；而只断言箭袋减少的话，"
-                + "instabuild 下即使正常开火也永远不合格").isTrue();
+        ctx.expect(flew >= 1).as("after release an arrow must appear in the world; asserting only the"
+                + " draw counter would give full marks to a full draw that fires nothing, and asserting"
+                + " only the quiver decrease would always fail under instabuild even when firing works").isTrue();
     }
 
     // =====================================================================================
@@ -675,7 +691,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
     // =====================================================================================
 
     /**
-     * <b>A body walks straight off a shelf into a lava bay, and the guard whose job that was
+     * <b>A bot walks straight off a shelf into a lava bay, and the guard whose job that was
      * declines because it counted the lake as a floor.</b>
      *
      * <h2>The tick this is a copy of</h2>
@@ -685,15 +701,15 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * off the bot's own view:
      *
      * <pre>{@code
-     * fortress.ground.3.0 = 上一 tick：位置 (80.407, 42.0000, 81.368) 速度 (0.109, -0.078, 0.045)
-     *   onGround=true 潜行=false；walker 那一 tick：drive=y-59 F1.00 L0.00 s0.00 f1.00
-     *   vanilla 自己那一问（脚下 0.0784 格内有碰撞吗）=没有；实心接触面积 0.0000/0.36
-     *   致命边刹车照 level 重算：1/0=岩10 -1/0=落1 0/1=岩10 0/-1=底 … → 该响
-     * fortress.fell.3.0   = 从 80, 42, 81 … → 落进岩浆 80, 29, 81，坠 13 格
-     *   计划下一格 77, 41, 83[diagDown]（计划第 1/6 步）… 距身体 3.70 格水平
+     * fortress.ground.3.0 = previous tick: position (80.407, 42.0000, 81.368) velocity (0.109, -0.078, 0.045)
+     *   onGround=true sneaking=false; walker on that tick: drive=y-59 F1.00 L0.00 s0.00 f1.00
+     *   vanilla's own check (any collision within 0.0784 blocks below the feet)=none; solid contact area 0.0000/0.36
+     *   lethal-edge brake recomputed from the level: 1/0=lava10 -1/0=drop1 0/1=lava10 0/-1=floor ... -> should fire
+     * fortress.fell.3.0   = from 80, 42, 81 ... -> fell into lava at 80, 29, 81, a 13-block fall
+     *   planned next cell 77, 41, 83[diagDown] (plan step 1/6) ... 3.70 blocks horizontally from the bot
      * }</pre>
      *
-     * <p>Three brakes could have held that body and all three were off, for three different reasons:
+     * <p>Three brakes could have held that bot and all three were off, for three different reasons:
      *
      * <ul>
      *   <li>{@code WalkerTickDrive}'s {@code edgeBrake} — released, because {@code plannedDescent}
@@ -723,7 +739,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * The same headland, the same eight cells of walk, the same eleven-block bay — a drop that is
      * comfortably SURVIVABLE dry, so nothing in this arena is lethal except what the bay is filled
      * with. {@code wd.serverStopsAtALavaShore} fills it with lava and requires the guard to stop the
-     * body; {@code wd.serverWalksOffASurvivableLedge} fills it with stone and requires the guard to
+     * bot; {@code wd.serverWalksOffASurvivableLedge} fills it with stone and requires the guard to
      * stay out of the way. A fix that made every ledge a pin would pass the first and fail the
      * second, which is the whole reason the second exists.
      *
@@ -737,7 +753,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *
      * <h2>{@code lethalEdgeBrake} is OFF in both arms, and that is the isolation</h2>
      *
-     * Not a convenience: with it on, {@link Walker#footingGuard} pins this body as its sole thins and
+     * Not a convenience: with it on, {@link Walker#footingGuard} pins this bot as its sole thins and
      * neither arm ever reaches the bay, so the scene would be measuring the guard that was already
      * working. Live it was released by the plan's own descent — the row above quotes the node. Off
      * here, the guard that had no release is the only thing left, which is the situation rung 14
@@ -745,12 +761,12 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *
      * <h2>The drive is the rig's, not the pathfinder's</h2>
      *
-     * The body is walked forward at walking speed on a heading the rig re-imposes every tick, and the
+     * The bot is walked forward at walking speed on a heading the rig re-imposes every tick, and the
      * walker is ticked only so that its guards run — they live in {@code Walker#tick}'s single-exit
      * wrapper, after every branch of {@code tickInner}. A goal is set because a null one NPEs in the
      * stall detector, and it is overridden immediately; nothing here is a claim about A*. Sneak
      * travels on a different channel from the impulse, so a guard's pin survives the rig's drive and
-     * is what the body is actually stopped by.
+     * is what the bot is actually stopped by.
      *
      * <h2>Arena footprint</h2>
      *
@@ -760,12 +776,12 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
     private static void stopsAtALavaShore(SceneContext ctx) { shoreArm(ctx, true); }
 
     /** The lava arm's negative control — see {@link #stopsAtALavaShore}. The same bay filled with
-     *  stone, where the guard must stay silent: an eleven-block drop onto rock is a graze this body
-     *  walks off, and pinning at every such lip is what「killing momentum on every ledge would make
-     *  ridge walking crawl」means in the guard's own note. */
+     *  stone, where the guard must stay silent: an eleven-block drop onto rock is a graze this bot
+     *  walks off, and pinning at every such lip is what "killing momentum on every ledge would make
+     *  ridge walking crawl" means in the guard's own note. */
     private static void walksOffASurvivableLedge(SceneContext ctx) { shoreArm(ctx, false); }
 
-    /** dy of the shelf's top block — the cell the body's sole rests on. Its foot cell is one above. */
+    /** dy of the shelf's top block — the cell the bot's sole rests on. Its foot cell is one above. */
     private static final int SHELF = 30;
 
     /** Cells of shelf along +z. Eight, the same run {@code wd.serverStopsAtTheBridgeHead} walks. */
@@ -776,8 +792,8 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *  enough to be lethal dry would let a fix pass here for the wrong reason. */
     private static final int BAY_TOP = SHELF - 10;
 
-    /** Rows of fill under that surface. Four, so a body that goes in is IN it rather than standing on
-     *  the bed through a film of it. */
+    /** Rows of fill under that surface. Four, so a player that goes in is IN it rather than standing
+     *  on the bed through a film of it. */
     private static final int BAY_ROWS = 4;
 
     /** dy of the bed's top block — the first solid cell the guard's downward scan can find, and the
@@ -801,42 +817,47 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ctx.cleanup(() -> clearShore(ctx));
 
         stageShore(ctx, lava);
-        ctx.record("rig", "3 格宽石台 dz=-2..7，顶面 dy=" + SHELF + "；越过台缘是一个 "
-                + (SHELF + 1 - BAY_TOP) + " 格深的湾（湾面 dy=" + BAY_TOP + "，" + BAY_ROWS + " 层"
-                + (lava ? "岩浆" : "石头") + "，湾底实心 dy=" + BAY_BED
-                + "）。干着落是活得下来的（满血 22 格），所以这座场地里唯一致命的东西是湾里装了什么");
+        ctx.record("rig", "3-block-wide stone shelf dz=-2..7, top surface dy=" + SHELF + "; past the edge is a "
+                + (SHELF + 1 - BAY_TOP) + "-block-deep bay (bay surface dy=" + BAY_TOP + ", " + BAY_ROWS
+                + " layers of " + (lava ? "lava" : "stone") + ", solid bay floor dy=" + BAY_BED
+                + "). A dry fall is survivable (22 blocks at full health), so the only lethal thing in"
+                + " this arena is what the bay is filled with");
         ctx.record("scan", scanRow(ctx, lava));
 
         Shore control = drive(ctx, "control", false);
         ctx.record("control.after", (control.inLava() ? 1 : 0) + " fault(s): " + control.endedAt());
         if (lava && !control.inLava())
-            ctx.fail("THE RIG, not the subject: 关掉 walkerStrideFloorGuard 之后身体也没走进岩浆，"
-                    + "那么「主体没进岩浆」这条判据就分不清「守卫拦住了」和「这座场地根本走不进去」 —— "
+            ctx.fail("THE RIG, not the subject: with walkerStrideFloorGuard off the bot still did not walk"
+                    + " into the lava, so the check \"the subject stayed out of the lava\" cannot"
+                    + " distinguish \"the guard stopped it\" from \"this arena cannot be walked into at all\": "
                     + control.endedAt());
         if (!lava && control.inLava())
-            ctx.fail("THE RIG, not the subject: 石头湾里出现了岩浆 —— 两条臂只差这一个变量，"
-                    + "而这一臂的布景没放对：" + control.endedAt());
+            ctx.fail("THE RIG, not the subject: lava appeared in the stone bay; the two arms differ only"
+                    + " in this one variable, and this arm's test setup was built incorrectly: "
+                    + control.endedAt());
 
         stageShore(ctx, lava);
         Shore subject = drive(ctx, "subject", true);
         ctx.record("subject.after", (subject.inLava() ? 1 : 0) + " fault(s): " + subject.endedAt());
 
         if (lava) {
-            ctx.check(subject.inLava()).as("A 开着守卫，身体一次都不许碰到岩浆（对照臂："
-                    + control.endedAt() + "）").isFalse();
-            ctx.check(subject.walked() >= 4.0).as("B 而且必须真的沿台面走过 4 格 —— 只有 A 的话，"
-                    + "「一步都不迈」就是满分答案，而那样的守卫会让整条真梯寸步难行：走了 "
-                    + String.format(Locale.ROOT, "%.2f", subject.walked()) + " 格").isTrue();
-            ctx.check(subject.pinnedTicks() >= 1).as("C 而且要是守卫按住的，不是别的东西碰巧停住的："
-                    + subject.pinnedTicks() + " 个 tick 处于潜行钉住状态").isTrue();
+            ctx.check(subject.inLava()).as("A: with the guard on, the bot must never touch the lava"
+                    + " (control arm: " + control.endedAt() + ")").isFalse();
+            ctx.check(subject.walked() >= 4.0).as("B: and it must actually walk 4 blocks along the shelf;"
+                    + " with only A, not taking a single step would score full marks, and such a guard"
+                    + " would leave the real ladder unable to cross anything: walked "
+                    + String.format(Locale.ROOT, "%.2f", subject.walked()) + " blocks").isTrue();
+            ctx.check(subject.pinnedTicks() >= 1).as("C: and the stop must come from the guard's pin, not"
+                    + " from something else that happened to halt the bot: "
+                    + subject.pinnedTicks() + " ticks in the sneak-pinned state").isTrue();
         } else {
             ctx.check(subject.minY() < ctx.rel(0, SHELF, 0).getY())
-                    .as("A 干湾上守卫必须让开：关着守卫落到 "
-                            + String.format(Locale.ROOT, "%.2f", control.minY()) + "，开着必须也落下去，"
-                            + "实测 " + String.format(Locale.ROOT, "%.2f", subject.minY())
-                            + "（台面 y=" + ctx.rel(0, SHELF + 1, 0).getY() + "）").isTrue();
-            ctx.check(subject.pinnedTicks()).as("B 一次都不许钉：在活得下来的落差上钉住身体，"
-                    + "等于把每一道台缘都变成一堵墙 —— " + subject.endedAt()).isEqualTo(0);
+                    .as("A: over a dry bay the guard must stay out of the way: with the guard off the bot fell to "
+                            + String.format(Locale.ROOT, "%.2f", control.minY()) + ", and with it on the bot"
+                            + " must fall as well; measured " + String.format(Locale.ROOT, "%.2f", subject.minY())
+                            + " (shelf top y=" + ctx.rel(0, SHELF + 1, 0).getY() + ")").isTrue();
+            ctx.check(subject.pinnedTicks()).as("B: the guard must never pin: pinning the bot above a"
+                    + " survivable drop turns every ledge into a wall: " + subject.endedAt()).isEqualTo(0);
         }
     }
 
@@ -844,7 +865,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * Re-derive the guard's own downward scan off the LEVEL, cell by cell.
      *
      * <p>The guard's decision and the row that judges it must not be able to disagree about what the
-     * column holds, and「the guard declined」has two causes that want opposite fixes: it never
+     * column holds, and "the guard declined" has two causes that want opposite fixes: it never
      * reached the scan, or it ran the scan and the scan said safe. This prints the two indices, so a
      * reader can see the bed sitting inside the loop's reach without opening the source.
      */
@@ -858,20 +879,21 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
             if (hazardAt < 0 && level.getBlockState(c).getFluidState().is(FluidTags.LAVA)) hazardAt = i;
             if (level.getBlockState(c).blocksMotion()) floorAt = i;
         }
-        return "从 stride 格 " + stride.toShortString() + " 往下扫，最多 " + depth
-                + " 格（max(maxDryFall+1, ceil(满血 20)+3)）："
-                + (hazardAt < 0 ? "整列没有危险物" : "第 " + hazardAt + " 格是岩浆")
-                + "，" + (floorAt < 0 ? "扫到底也没有实心格" : "第 " + floorAt + " 格是实心的")
-                + "。修好之前这个循环只认第二个数字，于是"
-                + (lava ? "它在岩浆下面找到了「地板」并放行" : "它照样在石头上找到地板并放行 —— 这一臂里那是对的");
+        return "scanning down from stride cell " + stride.toShortString() + ", at most " + depth
+                + " blocks (max(maxDryFall+1, ceil(full health 20)+3)): "
+                + (hazardAt < 0 ? "no hazard in the column" : "block " + hazardAt + " is lava")
+                + ", " + (floorAt < 0 ? "no solid block down to the end of the scan" : "block " + floorAt + " is solid")
+                + ". Without the fix this loop looks only at the second number, so "
+                + (lava ? "it finds a \"floor\" beneath the lava and lets the bot through"
+                        : "it likewise finds the floor on the stone and lets the bot through, which is correct in this arm");
     }
 
     /**
-     * Walk the shelf once and report what stopped the body, if anything.
+     * Walk the shelf once and report what stopped the bot, if anything.
      *
      * <p>{@code strideGuard} is the arm's only variable. The walker is ticked for its guards alone —
      * they run in {@code Walker#tick}'s single-exit wrapper after every branch of {@code tickInner} —
-     * and the heading, the impulse and the jump are re-imposed after that call so the body walks one
+     * and the heading, the impulse and the jump are re-imposed after that call so the bot walks one
      * straight line whatever the walker would rather do. Sneak is NOT re-imposed: it is the channel a
      * guard pins on, and it is the thing being measured.
      */
@@ -890,8 +912,8 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         aim(fp);
         for (int i = 0; i < SETTLE_TICKS; i++) av.step();
         if (fp.getY() < standY - 0.5)
-            ctx.fail("THE RIG, not the subject: vanilla 自己就没端住这个站位（" + SETTLE_TICKS
-                    + " 个空 tick 之后 y=" + fp.getY() + "）");
+            ctx.fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y="
+                    + fp.getY() + " after " + SETTLE_TICKS + " idle ticks)");
 
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(ctx.rel(0, SHELF + 1, SHELF_CELLS - 1)));
@@ -911,9 +933,10 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
             if (fp.onGround() && fp.getY() < ctx.rel(0, SHELF, 0).getY()) break;   // landed in the bay
         }
         String ended = String.format(Locale.ROOT,
-                "%d tick，身体=(%.2f,%.2f,%.2f)，最低 y=%.2f，沿台面走了 %.2f 格，钉住 %d tick，脚下=%s%s",
+                "%d ticks, bot=(%.2f,%.2f,%.2f), lowest y=%.2f, walked %.2f blocks along the shelf,"
+                        + " pinned %d ticks, block below=%s%s",
                 t, fp.getX(), fp.getY(), fp.getZ(), minY, farZ - startZ, pinned,
-                blockUnder(level, fp), inLava ? "，泡在岩浆里" : "");
+                blockUnder(level, fp), inLava ? ", submerged in lava" : "");
         ctx.record(arm + ".drive", "walkerStrideFloorGuard=" + strideGuard + " → " + ended);
         return new Shore(t, farZ - startZ, minY, inLava, pinned, ended);
     }
@@ -946,12 +969,12 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * arms' only difference.
      *
      * <p>The basin's rim is laid solid all the way round BEFORE the fill goes in, so lava cannot flow
-     * out of it and the「floor」the guard's scan finds is real rock rather than the edge of the
+     * out of it and the "floor" the guard's scan finds is real rock rather than the edge of the
      * staging. Same ordering, and the same reason, as the blaze room's walls-before-the-lid.
      */
     private static void stageShore(SceneContext ctx, boolean lava) {
         clearShore(ctx);
-        for (int dx = -3; dx <= 3; dx++)                     // the headland the body walks out on
+        for (int dx = -3; dx <= 3; dx++)                     // the headland the bot walks out on
             for (int dz = -2; dz <= 7; dz++)
                 for (int dy = 4; dy <= SHELF; dy++)
                     ctx.setBlock(dx, dy, dz, Blocks.STONE);
@@ -968,34 +991,34 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
     // ── the lava RIM pair ────────────────────────────────────────────────────────────────────
     //
     // Everything below measures the OTHER half of the same guard's job. stopsAtALavaShore asks
-    // whether it refuses a stride INTO a lake; these ask what its refusal costs a body that was
+    // whether it refuses a stride INTO a lake; these ask what its refusal costs a bot that was
     // only ever walking PAST one.
 
-    /** dy of the rim shelf's top block. The body's foot cell is one above it. */
+    /** dy of the rim shelf's top block. The bot's foot cell is one above it. */
     private static final int RIM_DECK = 20;
 
-    /** dy of the trench fill's surface. Four rows under the deck, so a dry body that goes over the
+    /** dy of the trench fill's surface. Four rows under the deck, so a dry player that goes over the
      *  edge falls four and loses one heart (damage is blocks − 3). The only lethal thing in this
      *  arena is what the trench is filled with, exactly as in the shore pair. */
     private static final int RIM_FILL_TOP = RIM_DECK - 4;
 
-    /** Rows of fill. Four, so a body that goes in is IN it rather than standing on the bed through a
-     *  film of it — and so the bed sits at index 9 of the guard's downward scan, comfortably inside
+    /** Rows of fill. Four, so a player that goes in is IN it rather than standing on the bed through
+     *  a film of it — and so the bed sits at index 9 of the guard's downward scan, comfortably inside
      *  its 23-cell reach. That last part is the whole pre-fix behaviour: the scan walked through the
      *  lava and found this bed. */
     private static final int RIM_FILL_ROWS = 4;
 
-    /** dy of the trench bed's top block — the「floor」the scan used to stop on. */
+    /** dy of the trench bed's top block — the "floor" the scan used to stop on. */
     private static final int RIM_BED = RIM_FILL_TOP - RIM_FILL_ROWS;
 
     /** Westmost shelf cell. dx below this is open trench, so the rim runs down the whole arena at a
-     *  constant x and the body can walk beside it for as long as its budget lasts. */
+     *  constant x and the bot can walk beside it for as long as its budget lasts. */
     private static final int RIM_EDGE = -1;
 
     /** Heading in degrees; 0 is +z. 25° leans the walk toward -x, i.e. slightly into the trench.
      *
      *  <p>Not decoration and not a way to force a fall: it is the reading the ladder actually
-     *  logged. Every one of rung 12's 83 pins on 2026-08-19 was a body travelling along the shore
+     *  logged. Every one of rung 12's 83 pins on 2026-08-19 was a bot travelling along the shore
      *  with {@code vel (-0.12, -0.00)} — a lateral drift toward the lake while the route it was
      *  following ran along the rim to a goal ON the rim. A pure +z walk keeps the stride cell on the
      *  deck forever and would measure nothing at all. */
@@ -1008,12 +1031,12 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
     /** What one drive of the rim produced. {@code zAfterPin} is the +z distance covered after the
      *  FIRST pinned tick — the number the whole pair exists to produce, and the one a total stop
-     *  drives to zero while the plain「walked」figure stays healthy on the pre-pin run-up alone. */
+     *  drives to zero while the plain "walked" figure stays healthy on the pre-pin run-up alone. */
     private record Rim(int ticks, double walked, double zAfterPin, double minY, boolean inLava,
                        int pinnedTicks, int longestPin, String endedAt) {}
 
     /**
-     * <b>A body walking ALONG a lava rim, not into it.</b>
+     * <b>A bot walking ALONG a lava rim, not into it.</b>
      *
      * <h2>The reading this is a copy of</h2>
      *
@@ -1037,20 +1060,20 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *
      * <h2>The question, which the shore pair does not ask</h2>
      *
-     * {@code wd.serverStopsAtALavaShore} drives a body AT a lake and requires the guard to stop it.
-     * There, stopping is the whole answer. Here the body is walking PAST a lake to somewhere else,
-     * and「stopped」is the failure: a guard that pins wherever an open column ends in lava turns
+     * {@code wd.serverStopsAtALavaShore} drives a bot AT a lake and requires the guard to stop it.
+     * There, stopping is the whole answer. Here the bot is walking PAST a lake to somewhere else,
+     * and "stopped" is the failure: a guard that pins wherever an open column ends in lava turns
      * every rim into a wall, and a Nether crossing is nothing but rim. So this arm asks for three
      * things at once and the third is the one that had to be earned separately:
      *
      * <ol>
-     *   <li><b>It must not go in.</b> The protection is not negotiable — a body that walks into lava
+     *   <li><b>It must not go in.</b> The protection is not negotiable — a bot that walks into lava
      *       dies and ends the run.</li>
-     *   <li><b>The pin must be what held it.</b> Without this, an arena whose edge the body never
+     *   <li><b>The pin must be what held it.</b> Without this, an arena whose edge the bot never
      *       reaches scores full marks for the guard.</li>
      *   <li><b>It must keep going along the rim afterwards.</b> Measured from the first pinned tick,
      *       not from the start: the run-up to the rim is four or five cells of ordinary walking and
-     *       would carry a plain「walked N cells」clause on its own while the body stood frozen for
+     *       would carry a plain "walked N cells" clause on its own while the bot stood frozen for
      *       the rest of the drive.</li>
      * </ol>
      *
@@ -1058,7 +1081,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *
      * Both arms drive the rim TWICE over identical staging with {@code walkerStrideFloorGuard} as the
      * only difference. On lava the two must DISAGREE — the control walks in at 36 ticks with
-     * {@code 脚下=lava}, and an arm whose control did not walk in has not earned the right to report
+     * {@code block below=lava}, and an arm whose control did not walk in has not earned the right to report
      * that the subject stayed out. On stone they must AGREE, both dropping into the trench, because
      * there the guard's correct answer is silence.
      *
@@ -1070,17 +1093,17 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * guard is able to express — and the gate re-run. <b>It did not go red.</b> Post-pin travel fell
      * from 11.08 cells to 7.53, still nearly four times the bar, and clauses 1 and 2 were untouched.
      *
-     * <p>That is a result and not a shrug: zeroing the horizontal momentum stops the body for one
+     * <p>That is a result and not a shrug: zeroing the horizontal momentum stops the bot for one
      * tick and the drive re-accelerates it on the next, and vanilla's {@code maybeBackOffFromEdge}
      * refuses only the component of a move that would leave the floor. <b>A pin at a rim is a
      * refusal of the sideways step, not of the journey</b> — which is exactly the question the
      * ladder's caveat asked, answered with a number. Clause 3 is kept as the floor under that
-     * finding: it is the row that would have gone red if a rim pin could immobilise this body, and
+     * finding: it is the row that would have gone red if a rim pin could immobilise this bot, and
      * it is the row a future brake-on-fire has to get past.
      *
      * <h2>{@code lethalEdgeBrake} is OFF, for the shore pair's reason</h2>
      *
-     * With it on, {@link Walker#footingGuard} pins this body the moment its sole thins at the rim and
+     * With it on, {@link Walker#footingGuard} pins this bot the moment its sole thins at the rim and
      * the arm would be measuring the guard that was already working. Off, the sneak channel carries
      * exactly one writer and {@code pinnedTicks} means what it says.
      *
@@ -1092,9 +1115,9 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
     private static void keepsWalkingAtALavaRim(SceneContext ctx) { rimArm(ctx, true); }
 
     /** The lava arm's negative control — see {@link #keepsWalkingAtALavaRim}. The same trench filled
-     *  with stone, where the guard must stay silent and let the body drift over the edge and drop the
+     *  with stone, where the guard must stay silent and let the bot drift over the edge and drop the
      *  four blocks: a fix that pinned at every lip would pass the lava arm and fail this one, which
-     *  is the only reason a body is ever allowed to walk off anything. */
+     *  is the only reason a bot is ever allowed to walk off anything. */
     private static void keepsWalkingAtADryRim(SceneContext ctx) { rimArm(ctx, false); }
 
     private static void rimArm(SceneContext ctx, boolean lava) {
@@ -1107,65 +1130,77 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ctx.cleanup(() -> clearRim(ctx));
 
         stageRim(ctx, lava);
-        ctx.record("rig", "石台面 dy=" + RIM_DECK + "（落脚排 dy=" + (RIM_DECK + 1)
-                + "），西边 dx≤" + (RIM_EDGE - 1) + " 是一条沿 z 通到底的沟，沟里装 " + RIM_FILL_ROWS
-                + " 层" + (lava ? "岩浆" : "石头") + "（面 dy=" + RIM_FILL_TOP + "，底 dy=" + RIM_BED
-                + "）。掉进去是 " + (RIM_DECK - RIM_FILL_TOP)
-                + " 格落差（落脚排 → 沟面上那一排），干着落满血只掉一颗心 —— "
-                + "所以这座场地里唯一致命的东西还是沟里装了什么");
+        ctx.record("rig", "stone deck dy=" + RIM_DECK + " (standing row dy=" + (RIM_DECK + 1)
+                + "); to the west, dx<=" + (RIM_EDGE - 1) + " is a trench running the full length along z,"
+                + " filled with " + RIM_FILL_ROWS + " layers of " + (lava ? "lava" : "stone")
+                + " (surface dy=" + RIM_FILL_TOP + ", bottom dy=" + RIM_BED
+                + "). Falling in is a " + (RIM_DECK - RIM_FILL_TOP)
+                + "-block drop (standing row -> the row on the trench surface), which costs only one heart"
+                + " dry at full health, so the only lethal thing in this arena is again what the trench is filled with");
         ctx.record("scan", rimScanRow(ctx, lava));
-        ctx.record("heading", "偏航 " + RIM_YAW + "°（0 是 +z）：沿 +z 走，同时带一点朝沟的横移 —— "
-                + "真梯 2026-08-19 那 83 次点火，每一次的速度都是「沿岸走、横着往湖里飘」");
+        ctx.record("heading", "yaw " + RIM_YAW + " degrees (0 is +z): walking along +z with a slight"
+                + " sideways drift toward the trench; in the 83 fires of the real ladder run on 2026-08-19,"
+                + " every velocity had this shape: \"walking along the shore, drifting sideways into the lake\"");
 
         Rim control = rimDrive(ctx, "control", false);
         ctx.record("control.after", (control.inLava() ? 1 : 0) + " fault(s): " + control.endedAt());
         if (lava && !control.inLava())
-            ctx.fail("THE RIG, not the subject: 关掉 walkerStrideFloorGuard 之后身体也没走进岩浆，"
-                    + "那么「主体没进岩浆」这条判据就分不清「守卫拦住了」和「这座场地根本走不进去」 —— "
+            ctx.fail("THE RIG, not the subject: with walkerStrideFloorGuard off the bot still did not walk"
+                    + " into the lava, so the check \"the subject stayed out of the lava\" cannot"
+                    + " distinguish \"the guard stopped it\" from \"this arena cannot be walked into at all\": "
                     + control.endedAt());
         if (!lava && control.inLava())
-            ctx.fail("THE RIG, not the subject: 石头沟里出现了岩浆 —— 两条臂只差这一个变量，"
-                    + "而这一臂的布景没放对：" + control.endedAt());
+            ctx.fail("THE RIG, not the subject: lava appeared in the stone trench; the two arms differ only"
+                    + " in this one variable, and this arm's test setup was built incorrectly: "
+                    + control.endedAt());
 
         stageRim(ctx, lava);
         Rim subject = rimDrive(ctx, "subject", true);
         ctx.record("subject.after", (subject.inLava() ? 1 : 0) + " fault(s): " + subject.endedAt());
         // Unconditional, both arms. The escape hatch meant to convert a sustained pin into a fresh
         // route is `guardPinStreak >= 30`, and whether it is ever reached is a property of the
-        // approach rather than of the guard: a body pressing steadily at a rim pins every tick and
+        // approach rather than of the guard: a bot pressing steadily at a rim pins every tick and
         // sails past 30, while the ladder's rung-12 rim produced BURSTS OF FIVE — the fires stop as
-        // soon as the pin decelerates the body under the guard's own h ≥ 0.03, and the 8-tick hold
-        // tail then expires and resets the streak. So「the crossing will route around」holds in one
+        // soon as the pin decelerates the bot under the guard's own h ≥ 0.03, and the 8-tick hold
+        // tail then expires and resets the streak. So "the crossing will route around" holds in one
         // of those shapes and not the other, and this row is what tells a reader which shape the
         // measurement came from instead of leaving them to re-derive the hysteresis.
-        // ⚠️ 「够得着」不再蕴含「被丢掉重找过」。`Walker.forcedRepathIfPinnedTooLong` 自 c7849ac9
-        // 起在钉满 30 tick 时先问身体这一段有没有前进：换过计划的重定基、还在推进的保留，只有真冻住
-        // 的才丢。所以这一行只报它测得到的量（钉了多久、够不够门槛），把「那一次到底丢没丢」交给
-        // JourneyFlight 的 guardForcedRepaths／guardKeptPlans 那一对——它们是并排报的，因为单独一个
-        // 0 分不清「从没钉满」和「钉满了但计划被保住」。
-        ctx.record("streak", "最长一次连续钉住 " + subject.longestPin()
-                + " tick，强制重找路的门槛是 guardPinStreak ≥ 30 —— 这一趟"
+        // WARNING: reaching the threshold does not imply the plan was discarded and re-searched.
+        // At a 30-tick pin, `Walker.forcedRepathIfPinnedTooLong` first asks whether the bot made progress
+        // on this segment: it re-bases when the plan was replaced, keeps a plan that is still advancing,
+        // and discards only a truly frozen one. So this row reports only what it can measure (pin length
+        // and whether it reached the threshold) and leaves "was the plan actually discarded" to
+        // JourneyFlight's guardForcedRepaths / guardKeptPlans pair. They are reported side by side because
+        // a single 0 cannot distinguish "never pinned for 30 ticks" from "pinned for 30 ticks but the plan
+        // was kept".
+        ctx.record("streak", "longest continuous pin " + subject.longestPin()
+                + " ticks; the forced re-path threshold is guardPinStreak >= 30, and this run "
                 + (subject.longestPin() >= 30
-                        ? "够得着（是否真的丢弃还要看身体那一段有没有前进，本场景不测这一步）"
-                        : "够不着，所以从头到尾没改过道，只是一轮一轮地钉、松、再钉"));
+                        ? "reaches it (whether the plan is actually discarded also depends on whether the bot"
+                                + " made progress on that segment; this scene does not test that step)"
+                        : "does not reach it, so the route was never changed; the guard only pinned,"
+                                + " released and pinned again, cycle after cycle"));
 
         if (lava) {
-            ctx.check(subject.inLava()).as("A 开着守卫，身体一次都不许碰到岩浆（对照臂："
-                    + control.endedAt() + "）").isFalse();
-            ctx.check(subject.pinnedTicks() >= 1).as("B 而且要是守卫按住的，不是身体压根没走到沟边："
-                    + subject.pinnedTicks() + " 个 tick 处于潜行钉住状态").isTrue();
-            ctx.check(subject.zAfterPin() >= 2.0).as("C 而且钉住之后必须还能沿着坑沿继续走 —— "
-                    + "这一条量的是「第一次被钉住之后」，因为走到沟边那四五格普通行走本身就够满足一条"
-                    + "「走过几格」的判据，而那样的守卫会把每一道岩浆沿都变成一堵墙：钉住之后又走了 "
-                    + String.format(Locale.ROOT, "%.2f", subject.zAfterPin()) + " 格").isTrue();
+            ctx.check(subject.inLava()).as("A: with the guard on, the bot must never touch the lava"
+                    + " (control arm: " + control.endedAt() + ")").isFalse();
+            ctx.check(subject.pinnedTicks() >= 1).as("B: and the stop must come from the guard's pin, not"
+                    + " from the bot never reaching the trench edge: "
+                    + subject.pinnedTicks() + " ticks in the sneak-pinned state").isTrue();
+            ctx.check(subject.zAfterPin() >= 2.0).as("C: and after being pinned the bot must still keep"
+                    + " walking along the rim; this check measures travel after the first pin, because the"
+                    + " four or five blocks of ordinary walking up to the trench edge would satisfy a plain"
+                    + " \"walked N blocks\" check on their own, and such a guard would turn every lava rim"
+                    + " into a wall: walked a further "
+                    + String.format(Locale.ROOT, "%.2f", subject.zAfterPin()) + " blocks after the pin").isTrue();
         } else {
             ctx.check(subject.minY() < ctx.rel(0, RIM_DECK, 0).getY())
-                    .as("A 干沟上守卫必须让开：关着守卫落到 "
-                            + String.format(Locale.ROOT, "%.2f", control.minY()) + "，开着必须也落下去，"
-                            + "实测 " + String.format(Locale.ROOT, "%.2f", subject.minY())
-                            + "（台面 y=" + ctx.rel(0, RIM_DECK + 1, 0).getY() + "）").isTrue();
-            ctx.check(subject.pinnedTicks()).as("B 一次都不许钉：在活得下来的落差上钉住身体，"
-                    + "等于把每一道台缘都变成一堵墙 —— " + subject.endedAt()).isEqualTo(0);
+                    .as("A: over a dry trench the guard must stay out of the way: with the guard off the bot fell to "
+                            + String.format(Locale.ROOT, "%.2f", control.minY()) + ", and with it on the bot"
+                            + " must fall as well; measured " + String.format(Locale.ROOT, "%.2f", subject.minY())
+                            + " (deck top y=" + ctx.rel(0, RIM_DECK + 1, 0).getY() + ")").isTrue();
+            ctx.check(subject.pinnedTicks()).as("B: the guard must never pin: pinning the bot above a"
+                    + " survivable drop turns every ledge into a wall: " + subject.endedAt()).isEqualTo(0);
         }
     }
 
@@ -1187,21 +1222,23 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
             if (hazardAt < 0 && level.getBlockState(c).getFluidState().is(FluidTags.LAVA)) hazardAt = i;
             if (level.getBlockState(c).blocksMotion()) floorAt = i;
         }
-        return "从沟上第一格 " + stride.toShortString() + " 往下扫，最多 " + depth
-                + " 格（max(maxDryFall+1, ceil(满血 20)+3)）："
-                + (hazardAt < 0 ? "整列没有危险物" : "第 " + hazardAt + " 格是岩浆")
-                + "，" + (floorAt < 0 ? "扫到底也没有实心格" : "第 " + floorAt + " 格是实心的")
-                + "。只认第二个数字的那版" + (lava
-                        ? "会在岩浆下面找到「地板」并放行 —— 这一臂就是那条缺陷的现场；认第一个数字的"
-                          + "这版会点火，而点火之后身体还走不走得动，才是这一臂真正在问的"
-                        : "照样在石头上找到地板并放行 —— 这一臂里那是对的，守卫必须一声不吭");
+        return "scanning down from the first cell over the trench " + stride.toShortString() + ", at most "
+                + depth + " blocks (max(maxDryFall+1, ceil(full health 20)+3)): "
+                + (hazardAt < 0 ? "no hazard in the column" : "block " + hazardAt + " is lava")
+                + ", " + (floorAt < 0 ? "no solid block down to the end of the scan" : "block " + floorAt + " is solid")
+                + ". A guard that looks only at the second number " + (lava
+                        ? "finds a \"floor\" beneath the lava and lets the bot through; this arm reproduces"
+                          + " that defect. The current guard, which checks the first number, fires, and what"
+                          + " this arm really asks is whether the bot can still keep moving after it fires"
+                        : "likewise finds the floor on the stone and lets the bot through; that is correct in"
+                          + " this arm, and the guard must stay silent");
     }
 
     /**
      * Walk the rim once and report what the guard cost.
      *
      * <p>Same rig as the shore pair's {@link #drive}: the heading and the impulse are re-imposed
-     * after {@code walker.tick} so the body walks one straight diagonal whatever the walker would
+     * after {@code walker.tick} so the bot walks one straight diagonal whatever the walker would
      * rather do, and sneak is NOT re-imposed because sneak is the channel a guard pins on and the
      * thing being measured. The goal is level and well up the deck — nothing here is a claim about
      * A*, and a goal BELOW the foot would hand the guard its planned-descent exemption and measure
@@ -1221,8 +1258,8 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         aimRim(fp);
         for (int i = 0; i < SETTLE_TICKS; i++) av.step();
         if (fp.getY() < standY - 0.5)
-            ctx.fail("THE RIG, not the subject: vanilla 自己就没端住这个站位（" + SETTLE_TICKS
-                    + " 个空 tick 之后 y=" + fp.getY() + "）");
+            ctx.fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y="
+                    + fp.getY() + " after " + SETTLE_TICKS + " idle ticks)");
 
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(ctx.rel(0, RIM_DECK + 1, 18)));
@@ -1247,10 +1284,11 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
             if (fp.getZ() > ctx.origin().getZ() + 17) break;      // ran out of staged deck
         }
         String ended = String.format(Locale.ROOT,
-                "%d tick，身体=(%.2f,%.2f,%.2f)，最低 y=%.2f，沿岸走了 %.2f 格，"
-                + "第一次被钉住之后又走了 %.2f 格，钉住 %d tick（最长连续 %d），脚下=%s%s",
+                "%d ticks, bot=(%.2f,%.2f,%.2f), lowest y=%.2f, walked %.2f blocks along the shore,"
+                + " a further %.2f blocks after the first pin, pinned %d ticks (longest continuous %d),"
+                + " block below=%s%s",
                 t, fp.getX(), fp.getY(), fp.getZ(), minY, farZ - startZ, farAfterPin, pinned,
-                longest, blockUnder(level, fp), inLava ? "，泡在岩浆里" : "");
+                longest, blockUnder(level, fp), inLava ? ", submerged in lava" : "");
         ctx.record(arm + ".drive", "walkerStrideFloorGuard=" + strideGuard + " → " + ended);
         return new Rim(t, farZ - startZ, farAfterPin, minY, inLava, pinned, longest, ended);
     }
@@ -1276,7 +1314,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * One solid block, a trench cut out of it, and the fill put back — in that order.
      *
      * <p>The trench's walls and bed therefore exist BEFORE any lava does, so the lava cannot flow out
-     * of the arena and the「floor」the guard's scan finds under it is real rock rather than the edge
+     * of the arena and the "floor" the guard's scan finds under it is real rock rather than the edge
      * of the staging. Same ordering, and the same reason, as {@link #stageShore}.
      */
     private static void stageRim(SceneContext ctx, boolean lava) {

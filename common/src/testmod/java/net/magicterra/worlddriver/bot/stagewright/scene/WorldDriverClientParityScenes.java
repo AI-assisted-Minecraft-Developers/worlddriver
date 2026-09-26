@@ -29,7 +29,7 @@ import net.minecraft.world.level.block.state.properties.SlabType;
  * The two planners' views of one world, cell by cell. The shipped client plans through
  * {@link ClientWorldView}; the {@code wd.*} suite and the server ladder plan through
  * {@link LevelWorldView}. Wherever the two disagree on a cell, a route the suite validated is not
- * a route the client will emit, and the scene「ran」on a different set of rules than the product.
+ * a route the client will emit, and the scene "ran" on a different set of rules than the product.
  * This scene asks both views the same questions over a palette of the terrains the split is
  * known to bite on and records every disagreement as a row; the check is that there are none.
  */
@@ -44,7 +44,7 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
     private static final int SPACING = 2;
     private static final int COLUMNS = 8;
 
-    /** Foot cell of palette entry i. A grid hugging the body, not a row marching away from it:
+    /** Foot cell of palette entry i. A grid hugging the player, not a row marching away from it:
      *  the client only holds the chunks around its player, and a cell it never received reads as
      *  air on its side, which would show up here as a disagreement about nothing. */
     private static BlockPos footOf(SceneContext ctx, int i) {
@@ -152,10 +152,10 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
             level.setBlockAndUpdate(foot, en.foot());
         }
         BlockPos start = ctx.rel(0, GROUND + 1, 0);
-        ctx.record("布景", palette.size() + " 种地形，" + COLUMNS + " 列网格，脚格 y=" + (GROUND + 1) + "，间隔 " + SPACING + "；身体在 " + start.toShortString());
+        ctx.record("test setup", palette.size() + " terrain types, grid of " + COLUMNS + " columns, foot cell y=" + (GROUND + 1) + ", spacing " + SPACING + "; bot starts at " + start.toShortString());
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, 0f);
-        // The same hand on both bodies: the client's LocalPlayer and its ServerPlayer share one
+        // The same hand on both players: the client's LocalPlayer and its ServerPlayer share one
         // inventory on an integrated server, so a break price that differs is a rule that differs.
         helm.hold(new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.DIRT, 16));
         BotConfig.allowBreak = true;
@@ -173,18 +173,18 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
                 Entry en = palette.get(i);
                 BlockPos foot = footOf(ctx, i);
                 for (BlockPos cell : new BlockPos[] { foot.below(), foot, foot.above() }) {
-                    String where = cell.getY() < foot.getY() ? "下" : cell.getY() > foot.getY() ? "上" : "脚";
+                    String where = cell.getY() < foot.getY() ? "below" : cell.getY() > foot.getY() ? "above" : "foot";
                     for (Question q : questions()) {
                         Object c = q.ask().apply(client, cell), s = q.ask().apply(server, cell);
                         asked++;
                         if (!String.valueOf(c).equals(String.valueOf(s)))
-                            rows.add(en.name() + "/" + where + " " + q.name() + " 客户端=" + c + " 专用服=" + s);
+                            rows.add(en.name() + "/" + where + " " + q.name() + " client=" + c + " server=" + s);
                     }
                 }
             }
-            ctx.record("问了", asked + " 次，不一致 " + rows.size() + " 行");
-            ctx.record("差集", rows.isEmpty() ? "空" : String.join("；", rows));
-            ctx.check(rows.isEmpty()).as("两份视图对同一世界的判词一致（不一致 " + rows.size() + " 行）").isTrue();
+            ctx.record("queries", asked + " queries, " + rows.size() + " mismatched rows");
+            ctx.record("differences", rows.isEmpty() ? "none" : String.join("; ", rows));
+            ctx.check(rows.isEmpty()).as("both views give the same answers for the same world (" + rows.size() + " mismatched rows)").isTrue();
         });
     }
 

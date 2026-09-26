@@ -25,7 +25,7 @@ of having copied the sequence rather than of having reimplemented the outcome. A
 step sees what it expects.
 
 **The result reports what actually landed.** A mount and an opened menu are both observable, so the
-call reports whether the body ended up riding and whether a screen opened, instead of forcing a
+call reports whether the bot ended up riding and whether a screen opened, instead of forcing a
 follow-up observation. That turned out to need care: the server applies the mount and opens the menu
 on a *later* tick, so the result compares against the state captured before the call and then polls
 off the game thread. Blocking the client thread to wait would deadlock the very packet processing
@@ -52,7 +52,7 @@ parameterised call beats one that depends on where the crosshair happens to poin
 
 - `bot/InteractionCommands.java` — the vanilla sequence, the sneak handling, and the deferred result poll.
 - `api/DriverApi.java` — the three-way dispatch on the use-item route.
-- `api/BodyInteractions.java` — the same operation for a body that is not the client's, where the reach
+- `api/BodyInteractions.java` — the same operation for a bot player that is not the client's, where the reach
   check has to be explicit because there is no server to silently drop it.
 - `mcp/catalog/BotTools.java` — the advertised schema and the documented return shape.
 

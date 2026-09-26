@@ -38,12 +38,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
- * What an order to one of the {@code mc.bot.*} verbs that start a process means, apart from which body
+ * What an order to one of the {@code mc.bot.*} verbs that start a process means, apart from which player
  * carries it out: the params read, a bad order refused, the process built and the reply written.
- * {@code BotApiImpl} starts the process on the client's body and {@code api/BodyRoutes} on a body named
- * by {@code body}, so the two cannot read an order differently.
+ * {@code BotApiImpl} starts the process on the client player and {@code api/BodyRoutes} on the bot
+ * player named by {@code body}, so the two cannot read an order differently.
  *
- * <p>The body comes in as a {@link LivingEntity} for the verbs that read it (feet Y, facing, the chest
+ * <p>The player comes in as a {@link LivingEntity} for the verbs that read it (feet Y, facing, the chest
  * slot); the rest ignore it. Nothing here may name a client class: on a dedicated server this runs with
  * none loaded.
  */
@@ -71,7 +71,7 @@ public final class VerbOrders {
     /**
      * "acted" (did BunkerProcess ever really break/place a block) can't be known synchronously here — the
      * dig/carve/plug runs over many later ticks, not within this call. The reply stays a start ack
-     * ("ok:true" = "受理", not "sealed"); the honest terminal verdict (goalReached/endReason, folded in via
+     * ("ok:true" = "accepted", not "sealed"); the honest terminal verdict (goalReached/endReason, folded in via
      * awaitable()) lands on the bunker slot once BunkerProcess actually finishes or bails.
      */
     public static Order bunker(Params p, LivingEntity self) {
@@ -109,7 +109,7 @@ public final class VerbOrders {
                 Map.of("ok", true, "started", true, "item", item, "count", count, "fuel", fuel == null ? "auto" : fuel));
     }
 
-    /** A read combat order. The client hands it to its combat chain; another body gets a {@link CombatProcess}. */
+    /** A read combat order. The client hands it to its combat chain; any other player gets a {@link CombatProcess}. */
     public record CombatOrder(CombatProcess.Mode mode, Integer targetId, String targetType, boolean force) {
         public Map<String, Object> reply() {
             Map<String, Object> out = new LinkedHashMap<>();
@@ -153,9 +153,9 @@ public final class VerbOrders {
     }
 
     /**
-     * {@code mc.bot.combat} for a body that is not the client's: the same order, as a {@link CombatProcess}.
+     * {@code mc.bot.combat} for a player that is not the client's: the same order, as a {@link CombatProcess}.
      * {@code force} has nothing to override there, since the frail-HP gate it lifts belongs to the
-     * client's {@code CombatChain} and another body has no chains.
+     * client's {@code CombatChain} and any other player has no chains.
      */
     public static Order combat(Params p, LivingEntity self) {
         CombatOrder c;

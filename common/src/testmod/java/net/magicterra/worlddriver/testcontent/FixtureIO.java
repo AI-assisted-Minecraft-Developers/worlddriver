@@ -241,7 +241,7 @@ public final class FixtureIO {
 
     /**
      * Puts the markers back so the tester can keep editing: origin and corners from the box, the
-     * rest from the fixture. The goal legs' goals come back as goal markers with their kind as
+     * rest from the fixture. The goals of the walks come back as goal markers with their kind as
      * label, and via points in their order.
      */
     public static void placeMarkers(ServerLevel level, SceneFixture fixture, BlockPos origin) {

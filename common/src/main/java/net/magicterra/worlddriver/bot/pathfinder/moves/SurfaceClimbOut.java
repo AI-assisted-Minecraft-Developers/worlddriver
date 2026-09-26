@@ -9,8 +9,8 @@ import net.minecraft.core.BlockPos;
  * The edge the walker's water climb-out takeover really performs — a ground jump and a fill in
  * one-deep water, a side rung on a neighbouring floor, or a press against a bank while the fill
  * cell is placed under the risen feet — and legal only in those three shapes, with a block in
- * hand. Replaces the legacy {@code swimUp}「into the air」edge, which A* could plan over any
- * open column and which the body could only bob against. Same price as that edge so the two
+ * hand. Replaces the legacy {@code swimUp} "into the air" edge, which A* could plan over any
+ * open column and which the bot could only bob against. Same price as that edge so the two
  * models differ in legality, not in taste; the water climb-out tax still applies on top.
  *
  * <p>No {@code toPlace}: the takeover chooses its own fill cell (the latched column's top water
@@ -31,14 +31,14 @@ public final class SurfaceClimbOut extends Move {
         return w.canStandOn(from.below()) || bankBeside(w, to) || sideFoothold(w, from);
     }
 
-    /** A solid beside the risen feet: the body presses into it and vanilla's swim boost lifts it
+    /** A solid beside the risen feet: the player presses into it and vanilla's swim boost lifts it
      *  clear of the fill cell. */
     private static boolean bankBeside(WorldView w, BlockPos to) {
         return w.isSolid(to.east()) || w.isSolid(to.west()) || w.isSolid(to.north()) || w.isSolid(to.south());
     }
 
     /** An open neighbour at foot level with a floor under it and head room above: the rung the
-     *  takeover places beside the body instead of under it. */
+     *  takeover places beside the bot instead of under it. */
     private static boolean sideFoothold(WorldView w, BlockPos from) {
         for (BlockPos n : new BlockPos[] { from.east(), from.west(), from.north(), from.south() }) {
             if (w.isSolid(n) || w.isHazard(n)) continue;

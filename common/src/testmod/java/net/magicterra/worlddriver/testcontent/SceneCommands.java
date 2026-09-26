@@ -178,10 +178,10 @@ public final class SceneCommands {
         }
         if (!out.observed().isEmpty()) to.sendSystemMessage(Component.literal("  observed " + out.observed()).withStyle(ChatFormatting.GRAY));
         MutableComponent buttons = Component.literal("  ");
-        buttons.append(button("[通过]", ChatFormatting.GREEN, "/worlddriver scene verdict " + name + " pass"));
-        buttons.append(button("[失败]", ChatFormatting.RED, "/worlddriver scene verdict " + name + " fail"));
-        buttons.append(button("[不稳定]", ChatFormatting.YELLOW, "/worlddriver scene verdict " + name + " flaky"));
-        if (!name.equals("here")) buttons.append(button("[记录为标准]", ChatFormatting.AQUA, "/worlddriver scene accept " + name));
+        buttons.append(button("[Pass]", ChatFormatting.GREEN, "/worlddriver scene verdict " + name + " pass"));
+        buttons.append(button("[Fail]", ChatFormatting.RED, "/worlddriver scene verdict " + name + " fail"));
+        buttons.append(button("[Flaky]", ChatFormatting.YELLOW, "/worlddriver scene verdict " + name + " flaky"));
+        if (!name.equals("here")) buttons.append(button("[Accept as baseline]", ChatFormatting.AQUA, "/worlddriver scene accept " + name));
         to.sendSystemMessage(buttons);
     }
 

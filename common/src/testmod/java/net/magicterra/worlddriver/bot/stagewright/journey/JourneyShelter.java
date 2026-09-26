@@ -10,7 +10,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 
 /**
- * Building a room around a blaze spawner out of whatever the body happens to be carrying.
+ * Building a room around a blaze spawner out of whatever the bot happens to be carrying.
  *
  * <p>Split out of {@code JourneyNetherRungs} because it shares nothing with that file's subject.
  * The rungs there are about crossing the Nether — waypoints, bridging, biomes, dimensions. This is
@@ -39,7 +39,7 @@ final class JourneyShelter {
     static final int ROOM_RADIUS = 4;
     static final int ROOM_HEIGHT = 3;
 
-    /** How many break-and-collect legs the quarry may spend. Each is a walk, a break and a settle,
+    /** How many break-and-collect trips the quarry may spend. Each is a walk, a break and a settle,
      *  so this is a budget statement: a quarry sized to fill the whole shell would cost more ticks
      *  than the fight it exists to enable. */
     private static final int MAX_QUARRY_LEGS = 60;
@@ -57,7 +57,7 @@ final class JourneyShelter {
             "minecraft:andesite", "minecraft:diorite", "minecraft:granite");
 
     /** What the quarry is allowed to take. A whitelist, because the neighbourhood of a fortress
-     *  spawner also contains lava, magma and the bridge the body is standing on. */
+     *  spawner also contains lava, magma and the bridge the bot is standing on. */
     private static final Set<String> QUARRYABLE = Set.of(
             "minecraft:netherrack", "minecraft:nether_bricks", "minecraft:blackstone",
             "minecraft:basalt", "minecraft:smooth_basalt", "minecraft:cobblestone",
@@ -70,10 +70,10 @@ final class JourneyShelter {
         List<BlockPos> shell = roomShell(spawner);
         int open = 0;
         for (BlockPos cell : shell) if (!nether.getBlockState(cell).blocksMotion()) open++;
-        rig.evidence("room.shell", shell.size() + " 格外壳，其中 " + open + " 格是空的（"
-                + (2 * ROOM_RADIUS - 1) + "×" + (2 * ROOM_RADIUS - 1) + "×" + ROOM_HEIGHT + " 的屋子）");
+        rig.evidence("room.shell", shell.size() + " shell cells, " + open + " of them empty ("
+                + (2 * ROOM_RADIUS - 1) + "×" + (2 * ROOM_RADIUS - 1) + "×" + ROOM_HEIGHT + " room)");
         rig.evidence("room.stockBefore", stock(rig));
-        rig.attempting("先补齐石料，再按 先墙后顶 的顺序把刷怪笼围起来");
+        rig.attempting("gather enough stone first, then enclose the spawner, walls before ceiling");
         Set<BlockPos> keepOut = new HashSet<>(shell);
         quarryUntilStocked(rig, keepOut, open, MAX_QUARRY_LEGS, MAX_QUARRY_LEGS,
                 () -> layTheShell(rig, spawner, shell, then));
@@ -87,7 +87,7 @@ final class JourneyShelter {
      * every wall course is emitted before any ceiling cell, and a run that goes short of material
      * goes short of ceiling rather than short of walls.
      *
-     * <p>Sized on the spawner rather than on the body, because what has to be enclosed is the
+     * <p>Sized on the spawner rather than on the bot, because what has to be enclosed is the
      * SPAWN volume — vanilla scatters spawns up to four cells either side of the block — and a room
      * built around wherever the walk happened to stop would leave most of that volume outside it.
      */
@@ -111,9 +111,9 @@ final class JourneyShelter {
     }
 
     /**
-     * Mine nearby rock until there is enough of it to build with, or the legs run out.
+     * Mine nearby rock until there is enough of it to build with, or the trips run out.
      *
-     * <p>Bounded on purpose, and the bound is a budget statement rather than a safety one: each leg
+     * <p>Bounded on purpose, and the bound is a budget statement rather than a safety one: each trip
      * is a walk plus a break plus a settle, so a quarry sized to fill the whole shell would cost
      * more ticks than the fight it exists to enable. A run that comes up short still builds — walls
      * first — and records exactly how short, which is the reading that says whether the ladder
@@ -123,14 +123,15 @@ final class JourneyShelter {
                                            int need, int legsLeft, int legsTotal, Runnable then) {
         if (placeableCount(rig) >= need || legsLeft <= 0) {
             rig.evidence("quarry.legs", (legsTotal - legsLeft) + "/" + legsTotal);
-            rig.evidence("quarry.stock", stock(rig) + "，需要 " + need + " 格");
+            rig.evidence("quarry.stock", stock(rig) + ", " + need + " blocks needed");
             then.run();
             return;
         }
         BlockPos rock = quarryCell(rig, keepOut);
         if (rock == null) {
-            rig.evidence("quarry.legs", (legsTotal - legsLeft) + "/" + legsTotal + "（身边挖不到更多石料）");
-            rig.evidence("quarry.stock", stock(rig) + "，需要 " + need + " 格");
+            rig.evidence("quarry.legs", (legsTotal - legsLeft) + "/" + legsTotal
+                    + " (no more minable stone nearby)");
+            rig.evidence("quarry.stock", stock(rig) + ", " + need + " blocks needed");
             then.run();
             return;
         }
@@ -148,7 +149,7 @@ final class JourneyShelter {
      *
      * <p>The count that matters is read back off the WORLD, not off the number of calls made. A
      * placement can be refused for reasons the caller cannot see (the cell is not empty after all,
-     * the body is standing in it, vanilla found no face to place against), and a rung that counted
+     * the bot is standing in it, vanilla found no face to place against), and a rung that counted
      * its own attempts would report a room it does not have.
      */
     private static void layTheShell(JourneyRig rig, BlockPos spawner,
@@ -160,7 +161,7 @@ final class JourneyShelter {
             if (nether.getBlockState(cell).blocksMotion()) continue;
             if (cell.equals(body) || cell.equals(body.above())) { occupied++; continue; }
             String id = placeableBlock(rig);
-            // Both bodies: `placeInto` places through the server. See
+            // Both bots: `placeInto` places through the server. See
             // JourneyHands.holdBoth.
             if (id == null || !JourneyHands.holdBoth(rig, JourneyRig.item(id))) {
                 ranOut++; continue;
@@ -175,11 +176,12 @@ final class JourneyShelter {
         int stillOpen = 0;
         for (BlockPos cell : shell) if (!nether.getBlockState(cell).blocksMotion()) stillOpen++;
 
-        rig.evidence("room.placed", placed + " 格（墙 " + walls + "，顶 " + roof + "）");
-        rig.evidence("room.refused", refused + " 格放不上（没有可贴的面，或者格子并不是空的）");
-        rig.evidence("room.ranOut", ranOut + " 格没石料了");
-        rig.evidence("room.bodyInTheWay", occupied + " 格是身体自己占着的");
-        rig.evidence("room.stillOpen", stillOpen + " 格仍然是通的");
+        rig.evidence("room.placed", placed + " cells (walls " + walls + ", ceiling " + roof + ")");
+        rig.evidence("room.refused", refused + " cells could not be placed (no face to place against,"
+                + " or the cell was not empty)");
+        rig.evidence("room.ranOut", ranOut + " cells skipped for lack of stone");
+        rig.evidence("room.bodyInTheWay", occupied + " cells occupied by the bot itself");
+        rig.evidence("room.stillOpen", stillOpen + " cells still open");
         rig.evidence("room.stockAfter", stock(rig));
         // Recorded, never asserted. "The room is not finished" is a reason the FIGHT may go badly,
         // and the fight is what the rung claims; failing here would replace a measurement of the
@@ -188,7 +190,7 @@ final class JourneyShelter {
     }
 
     /**
-     * Whichever wall material the body has most of, or null when it has none.
+     * Whichever wall material the bot has most of, or null when it has none.
      *
      * <p>Most-of rather than first-in-a-list, and re-read per cell rather than once: the room is
      * built out of whatever the shaft, the portal and the quarry left behind, and a run that
@@ -204,8 +206,8 @@ final class JourneyShelter {
         return best;
     }
 
-    /** How many blocks the body could build with. Also the corridor's fuel — see {@code causewayNote},
-     *  where a zero is the difference between "the pathfinder gave up" and "the body ran out". */
+    /** How many blocks the bot could build with. Also the corridor's fuel — see {@code causewayNote},
+     *  where a zero is the difference between "the pathfinder gave up" and "the bot ran out". */
     static int placeableCount(JourneyRig rig) {
         int total = 0;
         for (String id : WALL_BLOCKS) total += rig.carrying(id);
@@ -217,7 +219,7 @@ final class JourneyShelter {
      *
      * <p>Itemised because the bare total could not answer the question it raised. The run that first
      * built this room was handed 384 cobblestone, spent bridging on the way, ran <b>zero</b> quarry
-     * legs, and still reached the spawner with 459 placeable blocks — 75 blocks entered the bag
+     * trips, and still reached the spawner with 459 placeable blocks — 75 blocks entered the bag
      * somewhere in the corridor and not one row could name them. Netherrack is on the wall list and
      * the corridor walks with breaking allowed, which is a hypothesis and not a reading. One line
      * turns the next run's answer into a fact.
@@ -229,17 +231,17 @@ final class JourneyShelter {
             int n = rig.carrying(id);
             if (n <= 0) continue;
             total += n;
-            if (what.length() > 0) what.append('，');
+            if (what.length() > 0) what.append(", ");
             what.append(id.substring(id.indexOf(':') + 1)).append('×').append(n);
         }
-        return total + " 个可放置方块（" + (what.length() == 0 ? "空" : what) + "）";
+        return total + " placeable blocks (" + (what.length() == 0 ? "none" : what) + ")";
     }
 
     /**
      * The nearest thing worth mining for wall material, avoiding the room's own shell.
      *
      * <p>Whitelisted rather than "anything solid", because the neighbourhood of a fortress spawner
-     * includes lava, magma, the bridge the body is standing on and the spawner itself, and a quarry
+     * includes lava, magma, the bridge the bot is standing on and the spawner itself, and a quarry
      * that took the nearest solid block would eventually take one of those.
      */
     private static BlockPos quarryCell(JourneyRig rig, Set<BlockPos> keepOut) {
@@ -252,7 +254,7 @@ final class JourneyShelter {
                 for (int dz = -QUARRY_RADIUS; dz <= QUARRY_RADIUS; dz++) {
                     BlockPos at = body.offset(dx, dy, dz);
                     if (keepOut.contains(at)) continue;
-                    if (at.equals(body.below())) continue;          // the cell holding the body up
+                    if (at.equals(body.below())) continue;          // the cell holding the bot up
                     var id = BuiltInRegistries.BLOCK.getKey(level.getBlockState(at).getBlock());
                     if (id == null || !QUARRYABLE.contains(id.toString())) continue;
                     double d2 = body.distSqr(at);

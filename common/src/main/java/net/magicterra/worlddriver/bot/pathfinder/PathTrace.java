@@ -25,7 +25,7 @@ public interface PathTrace {
      * One per-tick execution sample. Plain data only (no Minecraft refs) so the recorder
      * can be snapshotted and rendered off the client thread. {@code targetX/targetZ} are the
      * centre of the path node the Walker was steering toward this tick (NaN when no path);
-     * {@code yawActual} is the body yaw at tick entry. Speed and heading-error are derived in
+     * {@code yawActual} is the bot's yaw at tick entry. Speed and heading-error are derived in
      * the renderer from consecutive samples + targets.
      */
     record WalkerSample(long tick, double x, double y, double z, float yawActual,

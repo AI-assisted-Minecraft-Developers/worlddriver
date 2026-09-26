@@ -54,7 +54,7 @@ import net.minecraft.world.level.block.Blocks;
  * {@code (ok, msg) -> { if (!ok) ctx.fail(msg); }}. Row counts (legacy == scene, audited in
  * migration-log wave-7): retreatGateMatrix 43, walkerTerminalReport 5, antiSuffocateShouldTrigger 8,
  * chainEpisodeCancel 3, combatGrace 2, frailBlocked 3, urgentBid 10 (urgentBid 5 + wouldEscalate 5),
- * duskSecureHeldProcessLifecycle 33 (matrix 26 + world leg 7), cancelRouting 19, manualSlotGrace 8,
+ * duskSecureHeldProcessLifecycle 33 (matrix 26 + world phase 7), cancelRouting 19, manualSlotGrace 8,
  * nearestFirstScan 5.
  *
  * <p><b>Nine of the eleven are PURE LOGIC — no world, no avatar, no walker</b> (static gate /
@@ -70,9 +70,9 @@ import net.minecraft.world.level.block.Blocks;
  * (RangedAttackMob) + {@code Zombie} to hold as {@code ThreatScanner.Threat} references — the mobs are
  * used only for their entity identity / {@code instanceof RangedAttackMob} discrimination and are NOT
  * scanned via {@code getEntitiesOfClass} (so, unlike the CombatSense wave, no entity-visibility await
- * is needed); it also plants a 1×1 stone pocket for the {@code BunkerProcess.enclosed} geometry leg.
+ * is needed); it also plants a 1×1 stone pocket for the {@code BunkerProcess.enclosed} geometry rows.
  * {@code wd.duskSecureHeldProcessLifecycle} runs the pure lifecycle matrix, then a REAL
- * {@code BunkerProcess} world leg (the gap#75-b re-arm incident) over a {@code createIsolated}
+ * {@code BunkerProcess} world phase (the re-arm incident) over a {@code createIsolated}
  * FakePlayer driven synchronously via {@code driver.tick()}. Both register {@code ctx.cleanup} to
  * discard their avatar/mobs and scrub every block they place (the #40 persistent-world lesson). The
  * canonical substitutions are the wave-6 Station set: {@code helper.getLevel()} →
@@ -104,7 +104,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
     // ==================================================================================
     // wd.retreatGateMatrix — gap#65/#68-①/#71/#72-③④ RetreatChain enter/release gate matrix.
     // Touches the world: real Skeleton (RangedAttackMob) + Zombie threat references + a 1×1
-    // stone pocket for the BunkerProcess.enclosed geometry leg. 43 matrix rows.
+    // stone pocket for the BunkerProcess.enclosed geometry rows. 43 matrix rows.
     // ==================================================================================
 
     private static void retreatGateMatrixScene(SceneContext ctx) {
@@ -113,7 +113,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         var skeleton = net.minecraft.world.entity.EntityType.SKELETON.create(level);
         var zombie = net.minecraft.world.entity.EntityType.ZOMBIE.create(level);
         ctx.cleanup(() -> { skeleton.discard(); zombie.discard(); });
-        // Scrub the pocket the geometry leg plants (#40 persistent-world lesson — the mobs are
+        // Scrub the pocket the geometry rows plant (the world persists between scenes — the mobs are
         // discarded above; only the stone pocket is left in the world otherwise).
         ctx.cleanup(() -> {
             for (int dx = 7; dx <= 9; dx++)
@@ -189,21 +189,22 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
                         java.util.List.of(new net.magicterra.worlddriver.bot.combat.ThreatScanner.Threat(
                                 zombie, zombie.getId(), "minecraft:zombie", dist, true, true, false, 0.6, 0f, /*attackedMe*/ false)),
                         java.util.List.of());
-        // gap#68-①: 被近战打中(attackedMe,非 Ranged)必须进闩——旧门只认 Ranged 或 HP≤thr
+        // A melee hit (attackedMe, not Ranged) must latch the flee; a gate that recognises only
+        // Ranged or HP<=thr would miss it.
         if (!RetreatChain.shouldEnter(18f, 6f, 20f, meleeHit.apply(2.0)))
             ctx.fail("gap#68-①: melee attackedMe at full-ish HP must latch the flee");
-        // 动态阈值:maxHp*0.4=8 > thr=6,HP 7 + 近战近身必须进
+        // Dynamic threshold: maxHp*0.4=8 > thr=6, so HP 7 with a melee mob close by must enter.
         if (!RetreatChain.shouldEnter(7f, 6f, 20f, zombieNear.apply(5.0)))
             ctx.fail("gap#68-①: effective threshold is max(thr, 40% maxHp)");
-        // 阴性:无人打我、HP 高、无 ranged → 不进
+        // Negative case: nobody is attacking, HP is high and there is no ranged threat, so no entry.
         if (RetreatChain.shouldEnter(18f, 6f, 20f, zombieNear.apply(5.0)))
             ctx.fail("gap#68-①: nearby idle zombie at high HP must NOT latch");
-        // release 对称性(gap#65 先例: underRangedFire 同时挡 enter 和 release):
-        // melee attackedMe@14 在 hostileWithin(12) 外、hurt-entry(24) 内 —— 若 release
-        // 不认 hurtByAnyone, safe 支当 tick 放闩、下一 tick hurt-entry 重进 = 每 tick 抖动。
+        // Release symmetry (as with underRangedFire, which blocks both enter and release): a melee
+        // attackedMe at 14 is outside hostileWithin(12) but inside hurt-entry(24). If release ignored
+        // hurtByAnyone, the safe branch would unlatch on one tick and hurt-entry re-enter on the next.
         if (RetreatChain.shouldRelease(20f, 10f, meleeHit.apply(14.0)))
             ctx.fail("gap#68-①: melee attackedMe at 14 must BLOCK release (enter/release symmetry)");
-        // 进入边界: 锁定 CLEAR_RADIUS*2=24 的精确截断。
+        // Entry boundary: pins the exact cutoff at CLEAR_RADIUS*2=24.
         if (!RetreatChain.shouldEnter(18f, 6f, 20f, meleeHit.apply(23.0)))
             ctx.fail("gap#68-①: connected hit at 23 (inside 2xCLEAR_RADIUS) must enter");
         if (RetreatChain.shouldEnter(18f, 6f, 20f, meleeHit.apply(25.0)))
@@ -213,7 +214,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         // latch made a HEALTHY bot deliberately brawling (mc.bot.combat) flee on the
         // first connected counter-hit — retreat (>=100) outbids COMBAT (60), so an
         // explicit fight can livelock (approach -> hit -> flee -> repeat). gap#68's
-        // evidence book (legs ⑨⑪⑫) is all hit-while-goto/digging, never
+        // evidence book (items ⑨⑪⑫) is all hit-while-goto/digging, never
         // hit-while-brawling; Task 7's frail gate is the designed handoff once HP
         // actually drops. hp=18, thr=6, maxHp=20 -> effThr=max(6,8)=8.
         // engaged + healthy (18>8) + melee hit -> must NOT enter (the fix).
@@ -222,10 +223,10 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         // engaged but FRAIL (hp7<=effThr8) + melee hit -> still enter: the safety net.
         if (!RetreatChain.shouldEnter(7f, 6f, 20f, meleeHit.apply(2.0), /*combatEngaged*/ true))
             ctx.fail("finding#2: engaged + frail (hp7<=effThr8) + melee hit must enter (frail handoff)");
-        // NOT engaged + healthy + melee hit -> must enter (leg ① preserved; the
+        // NOT engaged + healthy + melee hit -> must enter (item ① preserved; the
         // not-engaged scenario the 4-arg back-compat overload models, = case (g)).
         if (!RetreatChain.shouldEnter(18f, 6f, 20f, meleeHit.apply(2.0), /*combatEngaged*/ false))
-            ctx.fail("finding#2: not-engaged + healthy + melee hit must enter (leg ① / case (g) preserved)");
+            ctx.fail("finding#2: not-engaged + healthy + melee hit must enter (item ① / case (g) preserved)");
 
         // gap#71 (near-death #19): a pursuing skeleton (bow 15+, 2-3s shot cadence)
         // circled a naked bot 20->3.2 across 4 hits — release fired on EVERY gap
@@ -413,11 +414,11 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         if (RetreatChain.releaseReason(20f, 10f, meleeHit.apply(14.0), Long.MAX_VALUE) != null)
             ctx.fail("gap#72-④: hurt-blocked release must classify as null");
 
-        // gap#72-③ geometry leg: the "am I sealed" signal is BunkerProcess's
-        // block-level enclosure ground truth (foot's 4 horizontal neighbors +
-        // head's 4 + the cell above the head all solid), now a public static
-        // gate shared with RetreatChain — single source, and it self-verifies
-        // "龛未破" (a stale SEALED slot over a since-breached pocket reads false).
+        // Geometry check: the "am I sealed" signal is BunkerProcess's block-level
+        // enclosure ground truth (the 4 horizontal neighbours of the foot cell, the 4 of
+        // the head cell, and the cell above the head all solid), a public static gate
+        // shared with RetreatChain. Being a single source, it self-verifies that the
+        // pocket is still intact: a stale SEALED slot over a since-breached pocket reads false.
         BlockPos pFoot = new BlockPos(cx + 8, floorY + 1, cz + 8);
         BlockPos pHead = pFoot.above();
         for (BlockPos b : new BlockPos[]{pFoot.north(), pFoot.south(), pFoot.east(), pFoot.west(),
@@ -430,15 +431,16 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
             ctx.fail("gap#72-③(x): fully enclosed 1×1 pocket must read enclosed=true");
         level.setBlockAndUpdate(pHead.above(), Blocks.AIR.defaultBlockState());   // breach the roof
         if (BunkerProcess.enclosed(pocketView, pFoot))
-            ctx.fail("gap#72-③(y): pocket with a broken roof must read enclosed=false (龛未破 self-verifies)");
+            ctx.fail("gap#72-③(y): pocket with a broken roof must read enclosed=false (the pocket-intact check self-verifies)");
     }
 
     // ==================================================================================
     // wd.walkerTerminalReportMatrix — gap#68-R2a Walker.classifyArrival honesty (5 rows).
     // ==================================================================================
 
-    // gap#68-R2: Walker.classifyArrival 纯函数矩阵 —— ARRIVED 出口必须可区分
-    // (goal-snapped / frontier-giveup 等由调用点直接传标签,本函数只管三态通用出口)
+    // Pure-function matrix for Walker.classifyArrival: the ARRIVED exits must be distinguishable.
+    // Call sites pass specific labels such as goal-snapped or frontier-giveup themselves; this
+    // function covers only the three generic exit states.
     static void walkerTerminalReportMatrix(BiConsumer<Boolean, String> check) {
         check.accept("arrived".equals(Walker.classifyArrival(false, true,  false)), "full path + reached = arrived");
         check.accept("arrived".equals(Walker.classifyArrival(true,  true,  false)), "best-effort + reached = arrived");
@@ -477,20 +479,20 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         check.accept(!AntiSuffocateGate.shouldTrigger(false, "mob", true, true),
                 "gap#69(f): a non-inWall lastDamage msgId must NOT trigger");
 
-        // final-review M1: AntiSuffocate#resolveHead's foot/horizontal fallback legs
+        // final-review M1: AntiSuffocate#resolveHead's foot/horizontal fallback branches
         // must additionally require hurtTime>0 — shouldTrigger above stays a coarse
-        // ~40t damage-window gate (fine for the eye/above legs), but the proximity
+        // ~40t damage-window gate (fine for the eye/above branches), but the proximity
         // fallback is a last-resort guess that must go quiet as soon as the bot is
         // actually freed, well before the 40t window itself lapses.
         // (g) a real, ongoing desync burial: shouldTrigger fires (damage signal) AND
         // hurtTime is hot (re-damaged this cycle) → fallback stays armed.
         check.accept(AntiSuffocateGate.shouldTrigger(false, "inWall", true, true)
                         && AntiSuffocateGate.allowProximityFallback(10),
-                "M1(g): damage-signal fresh (death-#16 desync) AND hurtTime=10 (still being hurt) must arm the fallback legs");
+                "M1(g): damage-signal fresh (death-#16 desync) AND hurtTime=10 (still being hurt) must arm the fallback branches");
         // (h) THE M1 case: damage-signal still fresh (shouldTrigger true — we're inside
         // the stale 40t tail) but hurtTime has already decayed to 0 (freed) → the
         // fallback must NOT arm, even though shouldTrigger itself is still true (the
-        // eye/above legs are unaffected and keep reading real air, so nothing breaks).
+        // eye/above branches are unaffected and keep reading real air, so nothing breaks).
         check.accept(AntiSuffocateGate.shouldTrigger(false, "inWall", true, true)
                         && !AntiSuffocateGate.allowProximityFallback(0),
                 "M1(h): damage-signal fresh but hurtTime==0 (freed) must NOT arm foot/horizontal fallback (eye/above-only)");
@@ -509,7 +511,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
     // mc.bot.cancel (all or named) had no seam to reach it. Chain now exposes
     // episodePhase()/cancelEpisode(); the pure state reset (resetEpisodeState) is
     // exercised directly — the client key-release half touches Minecraft.getInstance()
-    // and is NOT exercised here (dedicated server has no client classes; live in Task 10 leg ⑦).
+    // and is NOT exercised here (dedicated server has no client classes; live in Task 10 step ⑦).
     static void chainEpisodeCancelMatrix(BiConsumer<Boolean, String> check) {
         BunkerChain bc = new BunkerChain();
         // Build a sealed episode (the ⑦ deadlock shape: sealed anchor re-bids forever).
@@ -610,17 +612,17 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
 
     // ==================================================================================
     // wd.duskSecureHeldProcessLifecycle — gap#72-① held-process interrupt/cancel lifecycle
-    // matrix (26 rows) + gap#75-b re-arm WORLD leg over a real BunkerProcess (7 rows) = 33.
+    // matrix (26 rows) + re-arm WORLD phase over a real BunkerProcess (7 rows) = 33.
     // ==================================================================================
 
-    // gap#72-①: duskSecure holds a BunkerProcess (SEALED-hold, active=true endReason=SEALED
-    // = "驻守中" by design) and a higher chain (RetreatChain 100) preempts it. onInterrupt
-    // used to only `process = null` — the slot's ONLY reset point (BunkerProcess.finish)
-    // became forever unreachable, so st.bunker stayed active=true/SEALED as a permanent
-    // orphan and mc.bot.status lied all night (live 2026-07-14 incident). Interrupt/cancel
-    // of a chain-held process must go through the same finish/slot-reset lifecycle as a
+    // duskSecure holds a BunkerProcess (SEALED-hold, active=true endReason=SEALED, which by
+    // design means "holding position") and a higher chain (RetreatChain 100) preempts it.
+    // If onInterrupt only cleared `process`, the slot's ONLY reset point (BunkerProcess.finish)
+    // would become unreachable, st.bunker would stay active=true/SEALED as a permanent orphan,
+    // and mc.bot.status would report a stale bunker indefinitely. Interrupt/cancel of a
+    // chain-held process must therefore go through the same finish/slot-reset lifecycle as a
     // natural completion, with a distinguishable endReason (INTERRUPTED vs CANCELLED vs
-    // SEALED). Pure state matrix — client key release is NOT exercised here (dedicated
+    // SEALED). Pure state matrix: client key release is NOT exercised here (the dedicated
     // server has no client classes; same split as chainEpisodeCancelMatrix).
     static void duskSecureHeldProcessLifecycleMatrix(BiConsumer<Boolean, String> check) {
         // ① preemption (onInterrupt) of a SEALED-hold bunker
@@ -748,10 +750,10 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
     }
 
     /**
-     * gap#75-b world leg (merged into the lifecycle scene — no new scene): the full live
+     * Re-arm world phase, run inside the lifecycle scene: the full live
      * incident shape over a REAL {@link BunkerProcess} on a FakePlayer. duskSecure starts a
      * dusk dig; a user goto (USER 50 > 40) preempts it mid-shaft; the goto is then cancelled
-     * and the body is idle IN the half-dug, unsealed pit. Ground truth asserted from the real
+     * and the bot is idle IN the half-dug, unsealed pit. Ground truth asserted from the real
      * world: that pit reads {@code cornered=true} in the HazardField and is still sky-exposed —
      * so pre-fix, priority()'s cornered start-gate self-vetoed and duskSecure never re-armed,
      * idling the bot exposed all night (live 2026-07-14, dayTime 13000). Asserts the pure
@@ -810,7 +812,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         if (chain.heldProcessForTest() != null || st.bunker.active)
             ctx.fail("rig: interrupt must drop the held process + slot");
 
-        // ③ user goto cancelled; body idle IN the half-dug unsealed shaft. Evidence
+        // ③ user goto cancelled; bot idle IN the half-dug unsealed shaft. Evidence
         // for the root cause, from the real world:
         BlockPos foot = fp.blockPosition();
         HazardField hf = HazardField.compute(driver.world(), foot, 1,
@@ -830,7 +832,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         if (!openAbove)
             ctx.fail("rig: the unsealed shaft must still be open to the sky — foot=" + foot);
 
-        // ④ THE gap: the dusk window is still open and the body is idle — the
+        // ④ THE gap: the dusk window is still open and the bot is idle — the
         // start-gate must be willing to restart. Pre-fix it blocked all night.
         if (DuskSecureChain.startGateBlocks(true, true, cornered, chain.rearmPendingForTest()))
             ctx.fail("gap#75-b: duskSecure preempted mid-dig never re-arms — its own "
@@ -917,7 +919,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         // the user slot; an idle duskSecure must not be dragged in.
         CancelRouting.Plan user = CancelRouting.resolve("bunker", "bunker", chains);
         check.accept(user.cancelUserProcess(),
-                "user-verb bunker: the user slot leg must hit");
+                "user-verb bunker: the user-slot target must be hit");
         check.accept(user.episodeTargets().isEmpty(),
                 "user-verb bunker: no chain episode to cancel — got " + user.episodeTargets());
         check.accept(List.of("user/bunker-process").equals(user.labels()),
@@ -952,7 +954,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         check.accept(flee.episodeTargets().equals(List.of(retreat))
                         && List.of("retreat/runAway-process").equals(flee.labels()),
                 "kind=runAway: retreat's held flee is the target — got " + flee.labels());
-        // user runAway AND reflex flee at once: both legs hit, both labelled.
+        // user runAway AND reflex flee at once: both targets are hit, both labelled.
         CancelRouting.Plan fleeBoth = CancelRouting.resolve("runAway", "runAway", chains);
         check.accept(fleeBoth.cancelUserProcess()
                         && List.of("user/runAway-process", "retreat/runAway-process").equals(fleeBoth.labels()),

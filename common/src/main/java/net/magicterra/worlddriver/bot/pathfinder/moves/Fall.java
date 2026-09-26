@@ -13,7 +13,7 @@ import net.minecraft.core.BlockPos;
  * <p><b>That cap ships at 4, not at the no-damage 3.</b> Baritone's conservative
  * dry-fall behaviour is what the knob's LOWEST legal value (3) buys; the shipping
  * default deliberately spends damage, so {@code Fall(4)} is LIVE on every default
- * run and the planner takes a real 1 HP hit rather than build a dirt "天梯"
+ * run and the planner takes a real 1 HP hit rather than build a dirt
  * staircase down a steep jungle slope — the smooth-descent lever. Only
  * {@code Fall(5)} is inert by default. Vanilla charges {@code ceil(distance - 3)}
  * HP, so fall4 = 1 HP = 0.5♥ and fall5 = 2 HP = 1♥.
@@ -35,7 +35,7 @@ public final class Fall extends Move {
         BlockPos to = apply(from);
         if (!w.canStandAt(to)) return false;
         // Buoyancy: a fall into SUBMERGED water (more water directly above the
-        // landing) doesn't rest there — autoSwim floats the body up to the
+        // landing) doesn't rest there — autoSwim floats the bot up to the
         // surface cell. canStandAt accepts ANY water cell as a floor, so without
         // this A* routes the floating bot DOWN to a riverbed node it can never
         // reach and wedges (live 2026-06-15 deep-water crossing: fall3 to a y59

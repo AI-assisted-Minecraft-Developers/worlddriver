@@ -10,7 +10,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
- * Common-side sim probe helpers for the dogfood scenes (P1.6 Task 2). The bodies came
+ * Common-side sim probe helpers for the dogfood scenes (P1.6 Task 2). The bots came
  * over from the neoforge legacy GameTest files ({@code AgentGameTestServer.probeSwing}
  * / {@code probeHurt}, {@code AgentGameTestSupport.grantWaterEffects}), which no longer
  * exist — the GameTest path was retired in P4-final and these are now the only copies.

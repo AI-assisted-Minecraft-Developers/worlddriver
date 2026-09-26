@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * scene suite that is green over a behaviour proves nothing about a live client, and a live
  * client's behaviour proves nothing about the suite — the two run different bots. Nothing
  * announces this. There is no SKIP line, no warning, no absent scene; the assertions run, pass,
- * and describe a body that had two of its capabilities removed by the process measuring it.
+ * and describe a bot that had two of its capabilities removed by the process measuring it.
  *
  * <p>2026-08-22 cost of the version of this with one flag: {@code walkerDigAimPriority} is pinned
  * off here, so two successive fixes to the dig-claim release were authored, landed and judged
@@ -57,14 +57,14 @@ class GameTestBaselineManifestTest {
     private static final Map<String, String> PINNED = new TreeMap<>(Map.ofEntries(
             // --- capability permissions: not "a behaviour flipped later", a whole ability removed
             e("allowBreak", "permission: the pathfinder may mine obstructing blocks. OFF here, so any "
-                    + "arena assertion about digging is about a body that cannot dig unless the scene says so"),
+                    + "arena assertion about digging is about a bot that cannot dig unless the scene says so"),
             e("allowPlace", "permission: the pathfinder may place a throwaway block to bridge a gap"),
             e("allowWaterBucketFall", "permission: the planner may route a fall taller than the dry cap "
-                    + "because the body carries a water bucket"),
+                    + "because the bot carries a water bucket"),
 
             // --- §78 flip wave: ON for live play after the arena assertions were written
             e("walkerStepUpBackoffRetry", "§78 — stepUp mount backoff-retry (#47 problem-6 grind)"),
-            e("walkerCarrotBodyLos", "§78 — carrot LOS honest about body width (jungle-trunk friction)"),
+            e("walkerCarrotBodyLos", "carrot LOS honest about player width (jungle-trunk friction)"),
             e("walkerBankDigGroundBlip", "§78 — bank-dig ground-blip immunity (underground-pool climb-out grind)"),
             e("walkerExpectAlarm", "§78 — actuator expectation alarms; changes what the log SAYS, "
                     + "which is why a scene reading log lines would see it"),
@@ -89,12 +89,12 @@ class GameTestBaselineManifestTest {
             e("walkerWaterStepDownFloat", "§78 — step-advance for a stepDown onto a shallow water-surface foothold"),
             e("walkerWallCornerFastChurn", "§78 — wall-corner fast-churn recovery"),
             e("walkerSwimAshorePillarDespiteDeepDig", "§78 — pillar-place fallback for a +2 bank the bank-dig skips"),
-            e("walkerFootholdBeforeBankDig", "foothold first — a body holding a block pillars before it digs the bank"),
+            e("walkerFootholdBeforeBankDig", "foothold first — a bot holding a block pillars before it digs the bank"),
             e("walkerClimbIntentFromSurface", "climb-out intent read against the surface cell, not the bobbing foot"),
             e("walkerPillarTopsOutAtFlushExit", "the water pillar tops out only on a rung with a flush exit beside it"),
             e("walkerFinalNodeDirectAim", "the last path node is aimed at directly and approached at a walk"),
             e("walkerHoldLastNodeUntilStanding", "a last node that is the goal is spent only once the foot stands in it"),
-            e("walkerShallowWaterSideFoothold", "afloat in one-deep water the pillar takeover places its first rung beside the body"),
+            e("walkerShallowWaterSideFoothold", "afloat in one-deep water the pillar takeover places its first rung beside the bot"),
             e("walkerClimbOutResyncsAim", "topping out of a water climb-out resets the aim's low-pass state"),
             e("walkerOrbitBreaksAimLag", "a sustained mid-range heading error on dry land switches the aim EMA to the cruise alpha"),
             e("walkerSurfaceSprintSwim", "open water is crossed in the prone sprint-swim pose"),
@@ -122,7 +122,7 @@ class GameTestBaselineManifestTest {
 
     private static final Map<String, String> LIVE = new TreeMap<>(Map.ofEntries(
             // survival reflexes and safety gates — a scene that removed these would be testing
-            // a body that cannot save itself, which is not the body that plays
+            // a bot that cannot save itself, which is not the bot that plays
             e("antiSuffocate", "suffocation backstop"),
             e("autoDrownEscape", "active-process drowning-escape chain"),
             e("autoFloatWhenDrowning", "idle drowning float"),

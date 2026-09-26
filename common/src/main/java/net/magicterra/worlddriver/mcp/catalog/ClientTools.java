@@ -270,9 +270,10 @@ public final class ClientTools {
             "is only what a selection list reports, and a widget that draws its own selection " +
             "leaves this tree identical before and after the click that chose it — read that " +
             "with a screenshot. A widget that throws leaves 'error' on its own node instead " +
-            "of blanking the answer. " +
+            "of blanking the answer. 'message' is the label in the player's language; 'key' is " +
+            "its translation key when it has one (e.g. 'deathScreen.respawn'), the same in every language. " +
             "Returns {hasScreen:boolean, type:string, width:integer, height:integer, " +
-            "children:[{type, x, y, width, height, visible, active, focused, message?, " +
+            "children:[{type, x, y, width, height, visible, active, focused, message?, key?, " +
             "selected?, error?, children?}, ...]}.",
             emptyObject());
     }

@@ -50,12 +50,12 @@ import net.minecraft.world.level.block.Blocks;
  * absolute {@code cx/cz} → origin X/Z; absolute {@code floorY=220} → {@code origin.y + 20}
  * (grid {@code GRID_Y = 200}, so the mapped absolute Y equals the legacy Y — geometry unchanged,
  * only X/Z relocate); {@code ServerWorldDriver.create} → {@link ServerWorldDriver#createIsolated}
- * (#48 per-scene isolated body via {@code ServerPlayerBody.createUnique}) + a {@code
+ * (per-scene isolated player via {@code ServerPlayerBody.createUnique}) + a {@code
  * ctx.cleanup(fp::discard)}; {@code try/finally} {@link BotConfig} save/restore →
  * {@link BotConfig#pinnedBaseline()} + {@code ctx.cleanup(pin::close)}; {@code
  * GameTestAssertException}/{@code throw} → {@link SceneContext#fail} with a scene-name prefix;
  * {@code helper.succeed()} → return; the {@code gtOnlySkips(...)} probe line → deleted. The
- * legacy body type was a NeoForge {@code FakePlayer}; the common driver's {@link
+ * legacy player type was a NeoForge {@code FakePlayer}; the common driver's {@link
  * ServerWorldDriver#fakePlayer()} is a plain {@link ServerPlayer} (a {@code FakePlayer} IS a
  * {@code ServerPlayer}), and every station call used here — {@code getInventory()},
  * {@code containerMenu}, {@code inventoryMenu} — is a {@code ServerPlayer} member, so the port is
@@ -354,12 +354,10 @@ public final class WorldDriverStationScenes implements SceneProvider {
         if (tablesLeft != 0)
             ctx.fail("wd.serverCraftTableReclaim: placed crafting_table was abandoned (gap #276): "
                     + tablesLeft + " still standing near the bot");
-        // This used to require errA to name 工作台 — the scene rode the FakePlayer menu-open cliff as
-        // its vehicle, because a server 3×3 craft could not succeed and reclaim therefore only ever
-        // ran on the failure path. The cliff is gone (server bodies are joined players now, and
-        // vanilla's openMenu opens the table), so the craft completes and the assertion inverts: reclaim must run on the SUCCESS path, which
-        // is the stronger claim and the one gap #276 was always about. A craft that failed here would
-        // now be a real regression rather than the expected outcome, so it is checked as one.
+        // Server bots are joined players, so vanilla's openMenu opens the table and the 3×3 craft
+        // completes. Reclaim must therefore run on the SUCCESS path, which is the stronger claim than
+        // reclaiming after a failed craft. A craft that fails here is a real regression, not an
+        // expected outcome, so it is checked as one.
         if (errA != null)
             ctx.fail("wd.serverCraftTableReclaim: the 3×3 craft failed: " + errA);
         if (countItem(da.fakePlayer(), Items.WOODEN_PICKAXE) < 1)
@@ -568,7 +566,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
      * <p>It was a capability-cliff proof — a fake player could not open a furnace menu, so the most
      * this could ask was that the process degrade gracefully and finish with an "open furnace"
      * error instead of wedging the tick. A hand-built station menu removed the cliff, and joined
-     * server bodies now open the furnace through vanilla's own {@code openMenu}, so the
+     * server-side players now open the furnace through vanilla's own {@code openMenu}, so the
      * graceful-degradation assertion became a test that the feature stays broken. It
      * now asserts the capability. Renamed with it: a scene called {@code …Cliff} that requires the
      * cliff to be gone is a trap for the next reader.
@@ -618,8 +616,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         // up to 200 avatar ticks inside a SINGLE server tick, so no furnace tick ever fires and the
         // process is still working when the loop ends — which is why "finished" is deliberately not
         // asserted. What is asserted is everything up to the first world tick: the menu opened, the
-        // input and fuel went in.
-        if (err != null && err.contains("熔炉"))
+        // input and fuel went in. SmeltProcess names the furnace in every failure that concerns it.
+        if (err != null && err.contains("furnace"))
             ctx.fail("wd.serverSmeltStationOpens: SmeltProcess could not open the furnace: " + err);
         if (furnace == null)
             ctx.fail("wd.serverSmeltStationOpens: no furnace container at the rig position");
@@ -927,7 +925,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         // `new LoggerConfig(name, root.getLevel(), root.isAdditive())`. Loom's generated log4j.xml
         // declares <Root> without an `additivity` attribute, and the root builder's field is a
         // primitive boolean with no default — so `root.isAdditive()` is FALSE. Harmless on the root,
-        // which has nowhere to forward to. Copied onto a CHILD it means「do not forward to parent」.
+        // which has nowhere to forward to. Copied onto a CHILD it means "do not forward to parent".
         // Then the cleanup below removes the appender but NOT the LoggerConfig, and a LoggerConfig
         // with zero appenders that does not forward discards every event at every level, forever.
         //
@@ -935,7 +933,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         // every one of them stopping at the same place — the last `(WorldDriver)` line was this
         // scene's predecessor, and the run then went on for minutes with `(Minecraft)` and
         // `(StageWrightCommon)` still writing. The cost is nameable: `PathFinder`'s RUNAWAY WATCH
-        // says「WARN so no filter drops it」, and the run that died of exactly that failure logged
+        // says "WARN so no filter drops it", and the run that died of exactly that failure logged
         // none of it. The author defended against a level filter; what killed the line was a logger
         // with no appenders, which does not filter by level at all.
         //
@@ -952,7 +950,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ctx.cleanup(ServerAvatarManager::clear);
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        driver.fakePlayer().getInventory().clearContent();   // zero materials: plan() must report "缺 …"
+        driver.fakePlayer().getInventory().clearContent();   // zero materials: plan() must report missing materials
         driver.runProcess(new CraftProcess("minecraft:oak_planks", 4));
         ServerAvatarManager.register(driver);
         for (int t = 0; t < 60 && ServerAvatarManager.activeCount() > 0; t++)
@@ -979,9 +977,10 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ctx.record("log.additiveAfterAttach", String.valueOf(additiveAfterAttach));
         ctx.record("log.additiveNow", String.valueOf(coreLogger.isAdditive()));
         if (!coreLogger.isAdditive())
-            ctx.fail("wd.serverCraftFailTelemetry: 这条场景把 WorldDriver logger 留成了 additivity=false —— "
-                    + "零 appender 且不向父转发，等于此后整趟静默丢弃模组的每一行日志（含 WARN/ERROR）。"
-                    + "捕获用的 appender 摘掉了，LoggerConfig 没有。");
+            ctx.fail("wd.serverCraftFailTelemetry: this scene left the WorldDriver logger at additivity=false. "
+                    + "With zero appenders and no forwarding to its parent, every later log line from the mod "
+                    + "in this run (including WARN/ERROR) is silently discarded. "
+                    + "The capturing appender was removed, but the LoggerConfig was not.");
     }
 
     /** Minimal non-inventory menu stand-in (inlined from {@code AgentGameTestServer.DummyMenu}) — makes
@@ -1012,7 +1011,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
-        fp.getInventory().clearContent();   // zero materials: plan() must report "缺 …", never reach STATION
+        fp.getInventory().clearContent();   // zero materials: plan() must report missing materials, never reach STATION
         InventoryMenu invMenu = (InventoryMenu) fp.inventoryMenu;
         invMenu.getCraftSlots().setItem(0, new ItemStack(Items.OAK_LOG, 1));
         invMenu.getCraftSlots().setItem(1, new ItemStack(Items.STICK, 2));

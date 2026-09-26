@@ -34,40 +34,41 @@ import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A body that <b>joins the server</b> instead of pretending to be on it.
+ * A bot player that <b>joins the server</b> instead of pretending to be on it.
  *
  * <h2>Why this exists</h2>
  *
  * Every gap the playthrough ladder found in the headless agent has the same shape: vanilla does
- * the thing in a method this body never runs. Blocks dropped nothing
+ * the thing in a method this player never runs. Blocks dropped nothing
  * ({@code Level#destroyBlock}'s flag), drops were never picked up (the entity-touch loop in
  * {@code Player.aiStep}), crafting tables would not open ({@code openMenu} returning empty), and
  * no advancement was ever awarded (no listener on {@code inventoryMenu}, and nothing calling
  * {@code broadcastChanges}). Each was fixed by hand-copying one more piece of vanilla into the
- * server body's mirror of {@code Player.tick()} — and that list only grew, because it was a
+ * server-side player's mirror of {@code Player.tick()} — and that list only grew, because it was a
  * re-implementation maintained by discovering what was missing.
  *
  * <p>A {@code FakePlayer} is a {@code ServerPlayer} that was never <i>placed</i>. The join path —
  * {@code PlayerList.placeNewPlayer} — is what attaches the inventory-menu listener that awards
- * advancements, puts the body in {@code ServerLevel.players()} so the level keeps ticking and mob
+ * advancements, puts the player in {@code ServerLevel.players()} so the level keeps ticking and mob
  * AI can see it, registers it with the {@code ChunkMap} so it loads the chunks it walks into, and
  * fires the loader's login event that modpack mods hook. None of that is reachable by copying
  * methods; it is reachable by joining.
  *
  * <h2>Joined first, then ticked by vanilla</h2>
  *
- * This landed in two halves, so that no gate had to tell "the body is real now" apart from
- * "movement moved". The first joined the body and left its {@code tick()} empty while the driver
+ * This landed in two halves, so that no gate had to tell "the player is real now" apart from
+ * "movement moved". The first joined the player and left its {@code tick()} empty while the driver
  * still integrated locomotion by hand. The second is {@link JoinedBody#pump}: each step runs
  * vanilla's player tick on the input a client writes, and {@code tick()} stays empty only for the
- * level's entity loop, which must not move a body on a schedule of its own.
+ * level's entity loop, which must not move a bot on a schedule of its own.
  *
- * <h2>The only server body</h2>
+ * <h2>The only server-side player</h2>
  *
- * {@link ServerAvatarBodies} hands out these and nothing else. This body was first armed with
+ * {@link ServerAvatarBodies} hands out these and nothing else. This player was first armed with
  * {@code -Dworlddriver.realPlayerBodies=true} in place of each loader's fake player, which turned
- * the dogfood scenes and the journey ladder into an A/B harness for the two bodies. Once every gate
- * and every ladder topology ran on this one, the switch and the fake players were deleted.
+ * the dogfood scenes and the journey ladder into an A/B harness for the two player kinds. Once
+ * every gate and every ladder topology ran on this one, the switch and the fake players were
+ * deleted.
  *
  * <h2>The trap in the connection</h2>
  *
@@ -80,29 +81,29 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class JoinedPlayerBodies {
 
-    /** The name the per-level shared body joins under — one per level, the same per-level sharing
+    /** The name the per-level shared player joins under — one per level, the same per-level sharing
      *  the fake-player factories had, so scene behaviour stayed comparable across the switch. */
     private static final String SHARED_NAME = "worlddriver";
 
     private final Map<ServerLevel, Map<String, JoinedBody>> byLevel = new ConcurrentHashMap<>();
 
-    /** The per-level shared body: every caller in a level gets the same player. */
+    /** The per-level shared player: every caller in a level gets the same player. */
     public ServerPlayer shared(ServerLevel level) {
         return body(level, profileFor(SHARED_NAME));
     }
 
-    /** A body of its own for {@code profile}, per level. */
+    /** A player of its own for {@code profile}, per level. */
     public ServerPlayer unique(ServerLevel level, GameProfile profile) {
         return body(level, profile);
     }
 
-    /** Drop this level's bodies — they leave the player list rather than linger as ghosts. */
+    /** Drop this level's bot players — they leave the player list rather than linger as ghosts. */
     public void unloadLevel(ServerLevel level) {
         Map<String, JoinedBody> bodies = byLevel.remove(level);
         if (bodies == null) return;
         for (JoinedBody body : bodies.values()) {
             try {
-                // discard(), not PlayerList.remove(): the body's own remove() is what leaves the
+                // discard(), not PlayerList.remove(): the player's own remove() is what leaves the
                 // list, and going straight to PlayerList would re-enter it from the outside.
                 body.discard();
             } catch (RuntimeException e) {
@@ -113,17 +114,17 @@ public final class JoinedPlayerBodies {
     }
 
     /**
-     * The cached body for this profile, re-joining when the last one left.
+     * The cached player for this profile, re-joining when the last one left.
      *
-     * <p>Not {@code computeIfAbsent}: a body that has been discarded is no longer in the player
+     * <p>Not {@code computeIfAbsent}: a player that has been discarded is no longer in the player
      * list, and handing it back would drive a corpse. Sweeping the removed ones here, rather than
-     * from a removal callback, keeps the cache self-healing — bodies are only ever minted on the
+     * from a removal callback, keeps the cache self-healing — players are only ever created on the
      * server thread, so the sweep-then-put is not racing anything.
      *
-     * <p>The sweep is not optional. Scenes mint bodies under unique names ({@code agent-body-N}),
+     * <p>The sweep is not optional. Scenes create players under unique names ({@code agent-body-N}),
      * so a stale entry is never overwritten by a re-join; it just stays, and the map was the last
      * thing holding each departed {@code ServerPlayer} with its advancements, stats and inventory.
-     * Measured on the dedicated Fabric suite: 255 bodies retained after 300 scenes, and the 2 GB
+     * Measured on the dedicated Fabric suite: 255 players retained after 300 scenes, and the 2 GB
      * server heap ran out around scene 290 in two of three runs.
      */
     private JoinedBody body(ServerLevel level, GameProfile profile) {
@@ -162,7 +163,7 @@ public final class JoinedPlayerBodies {
         return body;
     }
 
-    /** A stable offline-style profile, so a body rejoining the same world is the same player. */
+    /** A stable offline-style profile, so a bot rejoining the same world is the same player. */
     private static GameProfile profileFor(String name) {
         return new GameProfile(
                 java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + name)
@@ -171,8 +172,8 @@ public final class JoinedPlayerBodies {
     }
 
     /**
-     * The body itself. Deliberately thin: what made it different from the fake players it replaced
-     * was not what it overrides, it is that it was placed.
+     * The joined player itself. Deliberately thin: what made it different from the fake players it
+     * replaced was not what it overrides, it is that it was placed.
      */
     public static final class JoinedBody extends ServerPlayer {
 
@@ -188,7 +189,7 @@ public final class JoinedPlayerBodies {
         /**
          * Leaving the world means leaving the <b>player list</b>, not just the level.
          *
-         * <p>Every scene already disposes its body with {@code fp.discard()}, which is enough for a
+         * <p>Every scene already disposes its player with {@code fp.discard()}, which is enough for a
          * fake player — it was never in a list to begin with. A placed player discarded that way
          * stops ticking but stays in {@code PlayerList}, where the next scene's
          * {@code ctx.player()} picks it up as "a connected player". Measured on the first armed
@@ -201,12 +202,12 @@ public final class JoinedPlayerBodies {
          *
          * <p><b>Why this logs at all.</b> A departure here is REQUIRED to be silent in the vanilla
          * channel, and that silence has already been misread once as a leak. The chat line
-         * 「X left the game」 is broadcast from {@code ServerGamePacketListenerImpl}'s
+         * "X left the game" is broadcast from {@code ServerGamePacketListenerImpl}'s
          * {@code removePlayerFromWorld()}, reached only from {@code onDisconnect} — a socket path
-         * this body deliberately never enters. {@code PlayerList.remove} itself broadcasts a
+         * this player deliberately never enters. {@code PlayerList.remove} itself broadcasts a
          * {@code ClientboundPlayerInfoRemovePacket} and logs nothing. Meanwhile the ARRIVAL is
-         * announced by vanilla, from {@code PlayerList.placeNewPlayer}, which this body does call.
-         * So counting 「joined」 against 「left」 in a server log compares two unrelated channels and
+         * announced by vanilla, from {@code PlayerList.placeNewPlayer}, which this player does call.
+         * So counting "joined" against "left" in a server log compares two unrelated channels and
          * will report a totally healthy run as 239 joins and 0 departures. The line below is this
          * class's own leave channel, deliberately shaped like the join line, so the comparison is
          * finally between two things that answer the same question.
@@ -234,13 +235,13 @@ public final class JoinedPlayerBodies {
          *
          * <p>{@code ServerLevel.tickNonPassenger} does {@code setOldPosAndRot()} and {@code tickCount++}
          * itself and then calls {@link #tick()}; neither is in {@code ServerPlayer.tick()} or
-         * {@code doTick()}. A body pumped once per server tick gets both from the loop, but scenes
-         * pump one body hundreds of times inside a single server tick, and each of those steps needs
+         * {@code doTick()}. A player pumped once per server tick gets both from the loop, but scenes
+         * pump one player hundreds of times inside a single server tick, and each of those steps needs
          * its own: {@code xo}/{@code zo} feed the body yaw and the walk animation, and every
          * {@code tickCount % N} rule would otherwise fire on all of them or on none. A flag rather
          * than a game-time comparison, because a scene may re-enter {@code level.tick} between steps
-         * and a portal scene moves the body to another level mid-loop; the flag answers "did a loop
-         * tick this body since the last step" for whichever loop it was.
+         * and a portal scene moves the player to another level mid-loop; the flag answers "did a loop
+         * tick this player since the last step" for whichever loop it was.
          */
         private boolean levelTicked;
 
@@ -250,8 +251,8 @@ public final class JoinedPlayerBodies {
         private long lastJumpGameTime = -1;
 
         /**
-         * The level's entity loop. Records that it came and does nothing else: the body moves when its
-         * driver pumps it, never on the loop's schedule, so a body no driver steps stands still.
+         * The level's entity loop. Records that it came and does nothing else: the player moves when its
+         * driver pumps it, never on the loop's schedule, so a player no driver steps stands still.
          */
         @Override public void tick() { levelTicked = true; }
 
@@ -270,7 +271,7 @@ public final class JoinedPlayerBodies {
          * empty, so only {@code doCheckFallDamage} reaches the landing rules), the known movement,
          * the fall-distance reset on upward movement, the impulse-context reset, and
          * {@code ChunkMap.move}. The handler's own {@code checkMovementStatistics} call is the one
-         * piece of that tail left out: this body's {@code travel} runs above and already counted the
+         * piece of that tail left out: this player's {@code travel} runs above and already counted the
          * same displacement, so a second call doubles the statistics and the food that swimming and
          * sprinting cost.
          *
@@ -300,8 +301,8 @@ public final class JoinedPlayerBodies {
                 tryResetCurrentImpulseContext();
             }
             // Load-bearing guard: ChunkMap.move ends in DistanceManager.removePlayer, which
-            // dereferences this player's playersPerChunk entry without a null check, and a body that
-            // has left the player list has none. Membership of players() is exactly that question.
+            // dereferences this player's playersPerChunk entry without a null check, and a player
+            // that has left the player list has none. Membership of players() is exactly that question.
             if (!isRemoved() && serverLevel().players().contains(this)) {
                 serverLevel().getChunkSource().move(this);
             }
@@ -312,15 +313,15 @@ public final class JoinedPlayerBodies {
          * vanilla's own {@code aiStep}.
          *
          * <p>A server never does this for a player; the client does it and sends the result, so a
-         * body that is its own client has to. Ported in {@code LocalPlayer}'s order: the crouch
+         * player that is its own client has to. Ported in {@code LocalPlayer}'s order: the crouch
          * decision and the {@code SNEAKING_SPEED} scale, the 0.2 scale while using an item, the push
-         * out of a block a corner of the body is inside, the rules that stop sprinting, and the sink
+         * out of a block a corner of the hitbox is inside, the rules that stop sprinting, and the sink
          * while sneaking in water. The crouch is decided from THIS tick's shift key, not last tick's
          * pose: {@code LocalPlayer.isCrouching()} returns the field computed at the top of its
          * {@code aiStep}, so a client slows on the tick it presses sneak.
          *
          * <p>Not ported, because the driver does these another way or not at all: starting a sprint
-         * (the driver sets the flag, as it does on the client body), creative flight, starting an
+         * (the driver sets the flag, as it does on the client player), creative flight, starting an
          * elytra glide from the jump key (the driver calls {@code startFallFlying}), and riding jumps.
          */
         @Override
@@ -363,7 +364,7 @@ public final class JoinedPlayerBodies {
             super.aiStep();
         }
 
-        /** {@code LocalPlayer.moveTowardsClosestSpace}: nudge a body out of a suffocating block. */
+        /** {@code LocalPlayer.moveTowardsClosestSpace}: nudge the player out of a suffocating block. */
         private void pushOutOfBlock(double x, double z) {
             BlockPos cell = BlockPos.containing(x, getY(), z);
             if (!suffocatesAt(cell)) return;
@@ -419,10 +420,10 @@ public final class JoinedPlayerBodies {
             lastJumpGameTime = level().getGameTime();
         }
 
-        /** Game time of this body's last jump, or -1 before the first. */
+        /** Game time of this player's last jump, or -1 before the first. */
         public long lastJumpGameTime() { return lastJumpGameTime; }
 
-        /** Scenes and the journey rig both assume a body that cannot die; keeping that here means
+        /** Scenes and the journey rig both assume a player that cannot die; keeping that here means
          *  the A/B measures the join and nothing else. A survival-fidelity run wants this gone. */
         @Override public boolean isInvulnerableTo(DamageSource source) { return true; }
 
@@ -448,7 +449,7 @@ public final class JoinedPlayerBodies {
          * <p>Vanilla's join path never touches {@code channel()} — every reach for it goes through
          * {@code send}, which this class swallows. NeoForge's does: it stores the connection type as
          * a <b>channel attribute</b>, so {@code placeNewPlayer} dies on
-         * {@code Connection.channel().attr(...)} before the body exists. Measured: the whole armed
+         * {@code Connection.channel().attr(...)} before the player exists. Measured: the whole armed
          * NeoForge suite fell to 76 executed scenes, every avatar scene reporting the same NPE.
          *
          * <p>{@link EmbeddedChannel} supplies attributes for free, but its default tail queues
@@ -498,7 +499,7 @@ public final class JoinedPlayerBodies {
          * still died: a protocol switch is not a packet, it is a pipeline edit, and
          * {@code setupInboundProtocol} writes a marker straight to the channel rather than through
          * {@code send}. The join sequence changes protocol twice (login → configuration → play),
-         * so this NPEs before the body is usable and after vanilla has already printed
+         * so this NPEs before the player is usable and after vanilla has already printed
          * "logged in", which reads as if the join succeeded.
          *
          * <p>Recording the listener is not optional: {@code setupInboundProtocol} is also where

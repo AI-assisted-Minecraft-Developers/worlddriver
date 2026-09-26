@@ -34,17 +34,17 @@ import net.minecraft.world.level.block.LadderBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * The NPC body on five terrains: down a staircase, over a one-block gap, across open water, out of
+ * The NPC bot on five terrains: down a staircase, over a one-block gap, across open water, out of
  * the water onto a bank, and up a ladder. A sixth scene orders it the work that needs hands.
  *
  * <p><b>Two arms on one terrain.</b> The driven piglin walks the course first. Where a headless
- * player body may be minted (the dedicated server), a {@code ServerPlayerBody} then walks the same
- * course with the same walker, so a red on the NPC arm arrives with the player's reading beside it:
- * both failing is the rig, only the NPC failing is a difference between the bodies. On a server a
- * client hosts the NPC arm runs alone; the player arm's coverage is the dedicated gate's.
+ * server-side player may be created (the dedicated server), a {@code ServerPlayerBody} then walks the
+ * same course with the same walker, so a red on the NPC arm arrives with the player's reading beside
+ * it: both failing is the rig, only the NPC failing is a difference between the two driven entities.
+ * On a server a client hosts the NPC arm runs alone; the player arm's coverage is the dedicated gate's.
  *
  * <p>Break and place are off under the pinned baseline. The NPC has no hands, so a course that
- * needed either would measure the refusal rather than the legs.
+ * needed either would measure the refusal rather than the movement.
  */
 public final class WorldDriverNpcScenes implements SceneProvider {
 
@@ -75,7 +75,7 @@ public final class WorldDriverNpcScenes implements SceneProvider {
         for (int i = 0; i <= steps; i++) fill(level, o.offset(i, -steps - 1, -1), o.offset(i, -i, 1), STONE);
         fill(level, o.offset(steps + 1, -steps - 1, -1), o.offset(steps + 2, -steps, 1), STONE);
         BlockPos bottom = o.offset(steps + 1, -steps + 1, 0);
-        compare(ctx, "走下 " + steps + " 级楼梯", o.above(), bottom, 400,
+        compare(ctx, "walk down a staircase of " + steps + " steps", o.above(), bottom, 400,
                 e -> e.blockPosition().equals(bottom) && e.onGround());
     }
 
@@ -88,7 +88,7 @@ public final class WorldDriverNpcScenes implements SceneProvider {
         fill(level, o.offset(-3, 0, -1), o.offset(0, 0, 1), STONE);
         fill(level, o.offset(2, 0, -1), o.offset(5, 0, 1), STONE);
         BlockPos goal = o.offset(4, 1, 0);
-        compare(ctx, "跳过一格宽的沟", o.offset(-2, 1, 0), goal, 300,
+        compare(ctx, "jump across a one-block-wide gap", o.offset(-2, 1, 0), goal, 300,
                 e -> e.blockPosition().getX() >= o.getX() + 2 && e.onGround() && e.getY() >= goal.getY() - 0.01);
     }
 
@@ -105,7 +105,7 @@ public final class WorldDriverNpcScenes implements SceneProvider {
         fill(level, o.offset(span, -2, -1), o.offset(span + 3, 0, 1), STONE);
         fill(level, o.offset(0, -2, -1), o.offset(span - 1, 0, 1), WATER);
         BlockPos goal = o.offset(span - 1, 0, 0);
-        compare(ctx, "游过 " + span + " 格开阔水面", o.offset(-2, 1, 0), goal, 400,
+        compare(ctx, "swim across " + span + " blocks of open water", o.offset(-2, 1, 0), goal, 400,
                 e -> e.blockPosition().getX() >= goal.getX() && e.isInWater());
     }
 
@@ -121,7 +121,7 @@ public final class WorldDriverNpcScenes implements SceneProvider {
         fill(level, o.offset(-2, -2, 2), o.offset(2, 0, 6), STONE);
         fill(level, o.offset(-2, -2, -2), o.offset(2, 0, 1), WATER);
         BlockPos goal = o.offset(0, 1, 4);
-        compare(ctx, "从水里爬上齐平的岸", o, goal, 400,
+        compare(ctx, "climb out of the water onto a flush bank", o, goal, 400,
                 e -> e.blockPosition().getZ() >= o.getZ() + 3 && e.onGround() && e.getY() >= goal.getY() - 0.01);
     }
 
@@ -136,14 +136,14 @@ public final class WorldDriverNpcScenes implements SceneProvider {
         BlockState ladder = Blocks.LADDER.defaultBlockState().setValue(LadderBlock.FACING, Direction.WEST);
         for (int y = 1; y <= rise; y++) level.setBlockAndUpdate(o.offset(0, y, 0), ladder);
         BlockPos goal = o.offset(2, rise + 1, 0);
-        compare(ctx, "爬上 " + rise + " 格梯子", o.offset(-1, 1, 0), goal, 400,
+        compare(ctx, "climb a ladder " + rise + " blocks high", o.offset(-1, 1, 0), goal, 400,
                 e -> e.getY() >= goal.getY() - 0.01 && e.onGround() && e.blockPosition().getX() >= o.getX() + 1);
     }
 
     /**
-     * Work a body without hands cannot do, ordered of the NPC: each order has to end on its first tick
-     * with {@code no_hands}, before it has changed a block. Break and place are switched on, so the
-     * refusal is the body's and not the config's.
+     * Work an entity without hands cannot do, ordered of the NPC: each order has to end on its first
+     * tick with {@code no_hands}, before it has changed a block. Break and place are switched on, so
+     * the refusal comes from the NPC and not from the config.
      */
     private static void refusesWorkThatNeedsHands(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -179,13 +179,13 @@ public final class WorldDriverNpcScenes implements SceneProvider {
             // from engaged() every tick, so the process leaves it as attach set it.
             ctx.record(name, "done=" + done + " lastError=" + error + " active=" + slot.active);
             ctx.check(done && BodyReady.Reason.NO_HANDS.equals(error))
-                    .as(name + " 在没有手的身体上第一 tick 就该以 no_hands 收单：done=" + done + " lastError=" + error)
+                    .as(name + " on an entity without hands ends with no_hands on its first tick: done=" + done + " lastError=" + error)
                     .isTrue();
         }
         long changed = BlockPos.betweenClosedStream(lo, hi)
                 .filter(p -> !level.getBlockState(p).is(p.getY() < o.getY() ? Blocks.STONE : Blocks.AIR))
                 .count();
-        ctx.check(changed == 0).as("拒单之前不该动过方块：变了 " + changed + " 格").isTrue();
+        ctx.check(changed == 0).as("no block is changed before the request is refused: " + changed + " blocks changed").isTrue();
     }
 
     private record Leg(int ticks, boolean arrived, String ended) {}
@@ -210,9 +210,10 @@ public final class WorldDriverNpcScenes implements SceneProvider {
             fp.discard();
         }
         if (p != null && !p.arrived())
-            ctx.fail("THE RIG, not the NPC: 服务端玩家身体在同一块地形上也没能" + what + " —— " + p.ended());
-        ctx.check(n.arrived()).as("NPC 身体" + what + "：" + n.ended()).isTrue();
-        ctx.passNote("NPC " + n.ticks() + " tick" + (p == null ? "" : "，玩家身体 " + p.ticks() + " tick"));
+            ctx.fail("THE RIG, not the NPC: the server-side player also failed to " + what
+                    + " on the same terrain: " + p.ended());
+        ctx.check(n.arrived()).as("the NPC entity manages to " + what + ": " + n.ended()).isTrue();
+        ctx.passNote("NPC " + n.ticks() + " ticks" + (p == null ? "" : ", server-side player " + p.ticks() + " ticks"));
     }
 
     private static Leg drive(Body body, Runnable step, LevelWorldView view, BlockPos goal, int maxTicks,
@@ -232,7 +233,7 @@ public final class WorldDriverNpcScenes implements SceneProvider {
             minY = Math.min(minY, e.getY());
             at = arrived.test(e);
         }
-        return new Leg(t, at, String.format(Locale.ROOT, "%d tick，身体=(%.2f,%.2f,%.2f)，最低 y=%.2f，行走器=%s，到达=%b",
+        return new Leg(t, at, String.format(Locale.ROOT, "%d ticks, entity=(%.2f,%.2f,%.2f), lowest y=%.2f, walker=%s, arrived=%b",
                 t, e.getX(), e.getY(), e.getZ(), minY, s, at));
     }
 

@@ -17,49 +17,51 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * How the body actually travelled one leg — recorded tick by tick, not read off the wreckage.
+ * How the bot actually travelled one walk, recorded tick by tick rather than inferred from where
+ * it ended.
  *
  * <h2>Why a recorder and not another snapshot</h2>
  *
- * Every reading the nether crossing has produced so far is taken AFTER the leg gave up:
- * {@code fortress.around.1 = 脚下=cave_air 身处=cave_air 头顶=air}, then two attempts of
- * {@code 六面全是 lava}. Those lines say where the body ENDED. They cannot say how it got there,
- * and the three ways it could have are the three different bugs:
+ * Every reading the nether crossing has produced so far is taken AFTER the goto run gave up:
+ * {@code fortress.around.1} reported cave_air below the feet, cave_air in the bot's own cell and
+ * air overhead, then two attempts reported lava on all six sides. Those lines say where the bot
+ * ENDED. They cannot say how it got there, and the three ways it could have are the three
+ * different bugs:
  *
  * <ol>
  *   <li>the floor it was standing on stopped being a floor — a thin roof, gravel, or the walker
  *       breaking through its own support;</li>
  *   <li>it walked off the edge of a floor that is still there — the planned route crossed a cave
  *       mouth or a lava shore;</li>
- *   <li>it never left the ground under its own steam and the leg was judged finished while it was
+ *   <li>it never left the ground under its own power and the walk was judged finished while it was
  *       in the air, in which case the fall is downstream of the verdict, not upstream of it.</li>
  * </ol>
  *
- * <p>All three end with a body hanging in {@code cave_air}, and the snapshot that reports that is
+ * <p>All three end with the bot hanging in {@code cave_air}, and the snapshot that reports that is
  * the same line in all three cases.
  *
  * <h2>Which cells it asks about, and why that had to be fixed once already</h2>
  *
- * The first version read the single cell at {@code blockPosition().below()} and printed
- * {@code 原地离地（脚下 air）} — a line with two completely different causes and no way to tell
- * them apart, because <b>a player is 0.6 blocks wide and its support is whatever its bounding box
- * rests on</b>, which is up to four cells and frequently not the one under its centre. A body
+ * Reading only the single cell at {@code blockPosition().below()} prints "left the ground in place
+ * (air below the feet)", a line with two completely different causes and no way to tell them
+ * apart, because <b>a player is 0.6 blocks wide and its support is whatever its bounding box
+ * rests on</b>, which is up to four cells and frequently not the one under its centre. A player
  * standing on the last block of a lava shore has air directly beneath its feet position for a
  * whole tick before it falls. So the recorder reads the <i>footprint</i>: every cell the bounding
  * box spans, at the y just below it. Keeping the previous tick's footprint POSITIONS (not just
- * their names) is what makes "the floor was removed" and "the body walked off it" separable —
+ * their names) is what makes "the floor was removed" and "the bot walked off it" separable —
  * the same cells are re-read after the fall starts.
  *
  * <h2>What it reads, and from where</h2>
  *
- * The level and the body's own physics, never the bot's world view — the open question includes
- * "is the plan going somewhere the world does not agree with", and a view is not a witness to that.
- * Everything it touches is in the body's own chunk or the one it just left, both loaded by
- * definition, so a leg costs a handful of block reads per tick and no chunk loads.
+ * The level and the player entity's own physics, never the bot's world view — the open question
+ * includes "is the plan going somewhere the world does not agree with", and a view is not a witness
+ * to that. Everything it touches is in the bot's own chunk or the one it just left, both loaded by
+ * definition, so a walk costs a handful of block reads per tick and no chunk loads.
  *
  * <h2>What it deliberately does not do</h2>
  *
- * It never fails, never steers and never touches the world. A recorder that could end a leg would
+ * It never fails, never steers and never touches the world. A recorder that could end a walk would
  * change the thing it is measuring, and the current diagnosis needs an unmodified crossing far more
  * than it needs another guard. {@link JourneyNetherRungs}'s {@code hazardBlockingARetry} is the
  * guard; this is the instrument.
@@ -71,16 +73,16 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private static final int NOTABLE_DROP = 3;
 
     /** How many falls get their own line before the rest are only counted. Six is more than any
-     *  healthy leg has and few enough to stay readable in one evidence value. */
+     *  healthy walk has and few enough to stay readable in one evidence value. */
     private static final int MAX_FALLS = 6;
 
     /** How many ticks of run-up are kept for the first notable fall. Eight is about half a second —
-     *  long enough to show the body walking to the edge, short enough to read in one line. */
+     *  long enough to show the bot walking to the edge, short enough to read in one line. */
     private static final int RUN_UP = 8;
 
     /** How many track samples to keep. When full the track halves itself and doubles its stride, so
-     *  a leg of any length ends with the same number of evenly spaced samples — the alternative is
-     *  choosing a stride up front, which is choosing wrong for either a 300-tick leg or a 48000-tick
+     *  a walk of any length ends with the same number of evenly spaced samples — the alternative is
+     *  choosing a stride up front, which is choosing wrong for either a 300-tick walk or a 48000-tick
      *  one. */
     private static final int TRACK_SAMPLES = 16;
 
@@ -91,11 +93,11 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private final int legLength;
 
     /** How far down vanilla's own "am I standing on something" question reaches: one tick of
-     *  gravity (0.08 × 0.98). A grounded body's {@code deltaMovement.y} sits there every tick —
+     *  gravity (0.08 × 0.98). A grounded player's {@code deltaMovement.y} sits there every tick —
      *  the collision that clips it is exactly what sets {@code onGround}. */
     private static final double GROUND_PROBE = 0.0784;
 
-    /** A player box is 0.6 × 0.6 = 0.36 of ground. Below a quarter of that the body is cornering
+    /** A player box is 0.6 × 0.6 = 0.36 of ground. Below a quarter of that the player is balanced
      *  on one block rather than standing on the ground, which is the state a walk cannot survive
      *  any drift from. */
     private static final double FULL_CONTACT = 0.36;
@@ -110,7 +112,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private boolean prevOnGround;
     private double prevY;
     private List<BlockPos> prevSupport = List.of();
-    private String prevSupportNames = "无";
+    private String prevSupportNames = "none";
     private int prevSupportSolid;
     private AABB prevBox;
     private Vec3 prevDelta = Vec3.ZERO;
@@ -120,7 +122,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private String prevDrive;
     private String prevJumpTag;
 
-    /** The least of the body's own footprint that was ever holding it up, while grounded. A leg
+    /** The least of the bot's own footprint that was ever holding it up, while grounded. A walk
      *  that never drops below {@link #FULL_CONTACT} walked on ground; one that spends ticks near
      *  zero walked a knife edge, and that is a property of the ROUTE, not of the fall it ends in. */
     private double leastContact = Double.MAX_VALUE;
@@ -131,41 +133,41 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     /** One physics dump per recorded fall — see {@link #groundDump}. */
     private final List<String> grounds = new ArrayList<>();
 
-    /** Which move entered each node this leg walked, counted once per node. */
+    /** Which move entered each node this walk covered, counted once per node. */
     private final Map<String, Integer> moveTally = new LinkedHashMap<>();
     private BlockPos lastPlanNode;
 
     /**
-     * How many nodes this leg entered by a given move — the same tally {@code 走过的边} prints,
-     * readable by the caller.
+     * How many nodes this goto run entered by a given move — the same tally the report's
+     * "edges walked" clause prints, readable by the caller.
      *
-     * <p>Exists so a caller can carry a total ACROSS legs. One leg's {@code {bridgePlace=15}} reads
-     * as a detail; the corridor's legs 6..11 summing to sixty-odd with {@code walk=0} is the finding
-     * — the surveyed waypoints are not terrain, they are the causeway a previous run BUILT, so every
-     * one of them has to be rebuilt. No single leg's row can say that.
+     * <p>Exists so a caller can carry a total ACROSS walks. One walk's {@code {bridgePlace=15}}
+     * reads as a detail; the corridor's walks 6..11 summing to sixty-odd with {@code walk=0} is the
+     * finding — the surveyed waypoints are not terrain, they are the causeway a previous run BUILT,
+     * so every one of them has to be rebuilt. No single walk's row can say that.
      */
     int moveCount(String move) {
         return moveTally.getOrDefault(move, 0);
     }
 
     /**
-     * The vertical bill the PLAN ran up, split from the vertical the body took by falling.
+     * The vertical bill the PLAN ran up, split from the vertical the bot took by falling.
      *
-     * <h2>「y 41→5」says how far down the body got. It does not say who took it there.</h2>
+     * <h2>"y 41→5" says how far down the bot got. It does not say what took it there.</h2>
      *
-     * Two rung-14 legs died the same way and neither line could name the mechanism: the rehearsal's
-     * wp4 descended 22 blocks into lava, the real ladder's wp5 descended 36 to bedrock, and both
-     * ended {@code expanded=1} — unable to plan back out. Both printed a y range and an edge tally,
-     * and neither answers <b>whether A* deliberately routed downward or the body fell off something
-     * the plan expected it to stand on.</b> Those two want opposite fixes: the first is a cost the
-     * planner is missing, the second is an executor that left the path.
+     * Two rung-14 goto runs died the same way and neither line could name the mechanism: the
+     * rehearsal's wp4 descended 22 blocks into lava, the real ladder's wp5 descended 36 to bedrock,
+     * and both ended {@code expanded=1}, unable to plan back out. Both printed a y range and an edge
+     * tally, and neither answers <b>whether A* deliberately routed downward or the bot fell off
+     * something the plan expected it to stand on.</b> Those two want opposite fixes: the first is a
+     * cost the planner is missing, the second is an executor that left the path.
      *
      * <p>So: sum the y deltas <b>between consecutive plan nodes</b>. That is the descent the planner
-     * ASKED for. Compare it with the body's own drop (already in the y-range clause) and the
+     * ASKED for. Compare it with the bot's own drop (already in the y-range clause) and the
      * difference is what gravity contributed. {@code descentByMove} attributes the planned half to
      * the move kinds that spent it, because the evidence already showed {@code diagAscendPenalty}
-     * pricing diagonal ASCENT while {@code diagDown} edges went unpriced — and a per-move split is
-     * what turns「下潜没有标价」from a guess into a number.
+     * pricing diagonal ASCENT while {@code diagDown} edges went unpriced, and a per-move split is
+     * what turns "descent has no cost" from a guess into a number.
      *
      * <p><b>Measured before priced.</b> Adding a descent penalty now would be a free parameter with
      * no measurement behind it, and this repo has already paid for one of those; the two-armed
@@ -204,17 +206,17 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private int lowestY = Integer.MAX_VALUE;
     private int highestY = Integer.MIN_VALUE;
 
-    /** How far the body ever got from the node it was steering at, WHILE ON THE GROUND, and where.
-     *  Grounded only on purpose: a body mid-fall is trivially far from its plan and that says
-     *  nothing — the question this answers is whether the body walks off its own route before any
+    /** How far the bot ever got from the node it was steering at, WHILE ON THE GROUND, and where.
+     *  Grounded only on purpose: a bot in mid-fall is trivially far from its plan and that says
+     *  nothing — the question this answers is whether the bot walks off its own route before any
      *  fall starts. */
     private double worstOffPlan = -1;
     private String worstOffPlanAt = "";
-    /** The worst amount by which the node being steered at was FURTHER from this leg's goal than the
-     *  body itself, and where. Never negative in a healthy leg by more than a node's own length. */
+    /** The worst amount by which the node being steered at was FURTHER from this walk's goal than
+     *  the bot itself, and where. Never negative in a healthy walk by more than a node's own length. */
     private double backwards = -1;
     private String backwardsAt = "";
-    /** Ticks the walker had no node to steer at. A leg that spends most of itself here is not being
+    /** Ticks the walker had no node to steer at. A walk that spends most of itself here is not being
      *  steered at all, which is a different machine from one steered at a bad node. */
     private int ticksWithNoPlan;
 
@@ -236,39 +238,39 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         this.strideSkipsAtStart = new long[Walker.STRIDE_SKIP_REASONS.length];
         for (int i = 0; i < strideSkipsAtStart.length; i++)
             strideSkipsAtStart[i] = Walker.strideGuardSkips.get(i);
-        // THE leg boundary, for everything that is budgeted per leg. Walker#newLeg's note says why
+        // THE walk boundary, for everything that is budgeted per walk. Walker#newLeg's note says why
         // it is taken from here and not given a definition of its own.
         Walker.newLeg();
     }
 
-    /** {@link Walker#strideGuardFires} and {@link Walker#strideGuardSkips} when this leg began.
+    /** {@link Walker#strideGuardFires} and {@link Walker#strideGuardSkips} when this walk began.
      *
-     *  <p>Reported only on a leg that actually entered lava — see {@link #report()}. Elsewhere the
-     *  distribution is just terrain, and a row printed on every leg is a row nobody reads. On the
-     *  leg that burned, it is the only thing that separates「the guard let the body through」from
-     *  「the guard was never in a position to speak」, and those want opposite fixes. */
+     *  <p>Reported only on a goto run that actually entered lava — see {@link #report()}. Elsewhere
+     *  the distribution is just terrain, and a row printed on every run is a row nobody reads. On
+     *  the run that burned, it is the only thing that separates "the guard let the bot through"
+     *  from "the guard was never in a position to fire", and those want opposite fixes. */
     private final int strideFiresAtStart;
     private final long[] strideSkipsAtStart;
 
-    /** {@link Walker#guardForcedRepaths} when this leg began, so the leg can report its own DELTA.
+    /** {@link Walker#guardForcedRepaths} when this walk began, so the walk can report its own DELTA.
      *
      *  <p>The one thing the walker does that used to leave no trace: a sustained guard pin throws
      *  the plan away. On the 2026-08-20 shuttle that made two opposite diagnoses fit every row —
-     *  a body given a bad plan, and a body whose good plan kept being discarded under it — and the
-     *  evidence map could not choose. A per-leg count, next to the moves the leg walked, can. */
+     *  a bot given a bad plan, and a bot whose good plan kept being discarded under it — and the
+     *  evidence map could not choose. A per-walk count, next to the moves the walk covered, can. */
     private final int repathsAtStart;
 
-    /** {@link Walker#guardKeptPlans} when this leg began. <b>Reported beside the discards and never
-     *  instead of them</b>: since 2026-08-21 a pinned streak has two outcomes, so a leg that reports
+    /** {@link Walker#guardKeptPlans} when this walk began. <b>Reported beside the discards and never
+     *  instead of them</b>: since 2026-08-21 a pinned streak has two outcomes, so a walk that reports
      *  zero discards may have been pinned to the threshold dozens of times and kept its plan every
      *  time. 0/0 was never pinned; 0/45 walked a rim. One number can no longer say which. */
     private final int keptAtStart;
 
-    /** {@link Walker#stepAdvancesLogged} when this leg began — the denominator that says whether the
-     *  advance log a reader is holding is the WHOLE leg or only its opening. */
+    /** {@link Walker#stepAdvancesLogged} when this walk began — the denominator that says whether the
+     *  advance log a reader is holding is the WHOLE walk or only its opening. */
     private final int advancesAtStart;
 
-    /** Start watching a leg that is about to be walked towards the column {@code (x, z)}. */
+    /** Start watching a walk that is about to head towards the column {@code (x, z)}. */
     public static JourneyFlight watching(JourneyRig rig, BlockPos from, int x, int z) {
         return new JourneyFlight(rig, from, x, z);
     }
@@ -301,12 +303,12 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         }
         watchThePlan(level, fp, at, onGround);
 
-        // The tick the leg was decided on, whatever the verdict.
+        // The tick the walk was decided on, whatever the verdict.
         //
         // NOT ServerWorldDriver.lastStep(). On the runProcess path that field is set to ARRIVED for
         // ANY process that reports done — a walk that ended `no path (expanded=1)` prints ARRIVED
-        // there, and the first version of this line did exactly that: `step=ARRIVED … 泡在岩浆里`,
-        // which reads as "the walker believed it had arrived, in lava" and is simply false. The
+        // there, so reading it would print `step=ARRIVED … immersed in lava`, which reads as
+        // "the walker believed it had arrived, in lava" and is simply false. The
         // process's own honest verdict is the goto slot's, so that is what this asks.
         if (finishedAt == null && rig.body().finished()) {
             // Server BotState on purpose, and NOT for the usual reason: goalReached/endReason ARE in
@@ -316,38 +318,40 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
             // nothing observable. Gate and reading have to move together; see JourneyRig.slot.
             var slot = rig.body().botState().mc_goto;
             finishedAt = "goalReached=" + slot.goalReached + " end=" + slot.endReason
-                    + " 在 " + at.toShortString() + " onGround=" + onGround
-                    + " 支撑" + names(level, support)
-                    + (inLava ? " 泡在岩浆里" : inWater ? " 泡在水里" : "");
+                    + " at " + at.toShortString() + " onGround=" + onGround
+                    + " support " + names(level, support)
+                    + (inLava ? " immersed in lava" : inWater ? " immersed in water" : "");
         }
 
         if (lava == null && inLava) {
-            lava = "t=" + t + " " + at.toShortString() + " —— "
-                    + (airborne ? "从 y=" + launchY + " 掉进去的" : "走进去的")
-                    + "；" + planCell(level, fp, at);
+            lava = "t=" + t + " " + at.toShortString() + ", "
+                    + (airborne ? "fell in from y=" + launchY : "walked in")
+                    + "; " + planCell(level, fp, at);
         }
 
-        if (prev == null) {                        // first tick of the leg
+        if (prev == null) {                        // first tick of the goto run
             startedAirborne = !onGround;
-            // A LEG CAN INHERIT A FALL, AND launch() CAN NEVER SEE ONE. It fires on a grounded →
-            // airborne TRANSITION (`prevOnGround && !onGround`), so a leg handed a body that is
+            // A GOTO RUN CAN INHERIT A FALL, AND launch() CAN NEVER SEE ONE. It fires on a grounded →
+            // airborne TRANSITION (`prevOnGround && !onGround`), so a run handed a bot that is
             // already in the air has no grounded previous tick and never arms any of it: `airborne`
-            // stayed false for the whole leg, and every reading taken off that flag described a body
-            // that was standing.
+            // would stay false for the whole run, and every reading taken off that flag would
+            // describe a bot that was standing.
             //
-            // Measured — corridor wp5, 2026-08-21 rehearsal, a leg the previous leg handed over
-            // mid-fall: 「首次入岩浆 t=18 64,29,88 —— 走进去的」about a body that had dropped
-            // thirteen blocks to get there, and 「离地 0 次」about a leg that spent all 269 of its
-            // ticks off the ground. The first row is the expensive one, because it names a
-            // MECHANISM: it says the walker steered into lava, which sends a reader after the cost
-            // function instead of after the leg before it.
+            // Measured on corridor wp5 in the 2026-08-21 rehearsal, a run the previous movement task
+            // handed over mid-fall: the first lava entry was reported as "t=18 64,29,88, walked in"
+            // for a bot that had dropped thirteen blocks to get there, and "left the ground 0 times"
+            // for a run that spent all 269 of its ticks off the ground. The first row is the
+            // expensive one, because it names a MECHANISM: it says the walker steered into lava,
+            // which sends a reader after the cost function instead of after the movement task
+            // before it.
             if (startedAirborne && !inLava && !inWater) {
                 airborne = true;
                 launchAt = at;
                 launchTick = t;
                 launchY = at.getY();
-                launchWhy = "（起步时就不在地上，这一段没看见起跳 —— 上一段交过来时身体已经在坠）";
-                launchGround = "起步时就不在地上，没有起跳格可记";
+                launchWhy = "(not on the ground at the start; this run saw no take-off, the bot was"
+                        + " already falling when the previous movement task handed it over)";
+                launchGround = "not on the ground at the start, no take-off cell to record";
             }
             remember(fp, at, onGround, support, names(level, support), solid, box, contact);
             return;
@@ -365,17 +369,17 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     }
 
     /**
-     * Note the cell the body just left the ground from, and WHY it stopped being ground.
+     * Note the cell the bot just left the ground from, and WHY it stopped being ground.
      *
      * <p>Three readings, and the order they are tested in is the diagnosis. The previous tick's
      * footprint POSITIONS are re-read now: solid then and gone now is a floor that disappeared under
-     * a standing body. Still solid, and the body's footprint has moved off it, is a body that walked
+     * a standing bot. Still solid, and the bot's footprint has moved off it, is a bot that walked
      * over the edge — and the cells it walked ONTO name what it walked into. Still solid and the
      * footprint unchanged is neither, and says so rather than picking one.
      *
      * <p><b>And the plan, snapshotted HERE.</b> All three of those readings are about the cell under
-     * the body's own feet, and none of them can say whether the body was doing what it was told: a
-     * next node across a gap and a next node the body overshot leave identical footprints. See
+     * the bot's own feet, and none of them can say whether the bot was doing what it was told: a
+     * next node across a gap and a next node the bot overshot leave identical footprints. See
      * {@link #planCell}. It is taken at the launch tick and not at the landing tick because those
      * are different plans — a fall lasts long enough for the walker to consume steps, repath, or run
      * out of path entirely, and the question is what it was steering at when it left the ground.
@@ -390,10 +394,10 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         launchY = prev.getY();
         deepestFallField = 0;
         fastestDrop = 0;
-        // Snapshot the run-up HERE and not when the fall lands. The first version kept it until
-        // landing, by which time an eleven-block drop had rolled eight airborne ticks through the
-        // ring and the evidence line read `t=72 空 撑0 | t=73 空 撑0 | …` — a perfect record of the
-        // fall and none at all of the walk into it, which is the half being asked about. Held
+        // Snapshot the run-up HERE and not when the fall lands. By landing time an eleven-block drop
+        // has rolled eight airborne ticks through the ring, and the evidence line would read
+        // `t=72 air support0 | t=73 air support0 | …`: a perfect record of the fall and none at all
+        // of the walk into it, which is the half being asked about. Held
         // pending rather than committed, because a launch is not yet a notable fall: an ordinary
         // one-block step down also leaves the ground, and the run-up wanted is the one belonging to
         // the drop that gets written down.
@@ -402,27 +406,30 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         launchGround = groundDump(level, fp);
         openLeap(fp);
         if (prevSupportSolid > 0 && stillSolid == 0) {
-            launchWhy = "上一 tick 撑着它的 " + prevSupportSolid + " 格没了（" + prevSupportNames
-                    + " → " + names(level, prevSupport) + "）";
+            launchWhy = "the " + prevSupportSolid + " cell(s) supporting it on the previous tick are"
+                    + " gone (" + prevSupportNames + " → " + names(level, prevSupport) + ")";
         } else if (prevSupportSolid > 0 && movedOff) {
-            launchWhy = "走出了支撑格（上一 tick 踩着 " + prevSupportNames
-                    + "，这一 tick 脚下是 " + names(level, support) + "）";
+            launchWhy = "walked off its support cells (on the previous tick it stood on "
+                    + prevSupportNames + ", on this tick below the feet is " + names(level, support)
+                    + ")";
         } else if (prevSupportSolid == 0) {
-            launchWhy = "上一 tick 就已经没有支撑格了（" + prevSupportNames
-                    + "），onGround 却还报 true —— 支撑在别处，或者 onGround 迟了一拍";
+            launchWhy = "there were already no support cells on the previous tick ("
+                    + prevSupportNames + "), yet onGround still reported true: the support is"
+                    + " elsewhere, or onGround lags by one tick";
         } else {
-            launchWhy = "支撑格还在也没走开（" + prevSupportNames + "）";
+            launchWhy = "the support cells are still there and the bot did not move off them ("
+                    + prevSupportNames + ")";
         }
     }
 
     /**
      * Every parkour launch, not only the ones that ended badly — <b>the control group.</b>
      *
-     * <h2>A record that only exists when the body fell cannot say whether the fall was unusual</h2>
+     * <h2>A record that only exists when the bot fell cannot say whether the fall was unusual</h2>
      *
      * The {@code fell.*} rows are written at {@link #land} and only when the drop is notable, so a
-     * leg where every leap worked leaves no leap rows at all. That made the rung-14 wp5 reading
-     * unreadable in the direction that matters: the body took a {@code parkour2d} whose target was
+     * walk where every leap worked leaves no leap rows at all. That made the rung-14 wp5 reading
+     * unreadable in the direction that matters: the bot took a {@code parkour2d} whose target was
      * <b>0.64 blocks away and one block DOWN</b>, jumped, and fell fifteen blocks into lava — and
      * nothing in the file could say whether launching at 0.64 remaining is routine (so the distance
      * is not the variable) or exceptional (so it is).
@@ -445,28 +452,29 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         if (move == null || !move.startsWith("parkour")) { pendingLeap = null; return; }
         BlockPos node = rig.body().botState().mc_goto.pathNode;
         pendingLeapTarget = node;
-        String want = node == null ? "无节点" : node.toShortString();
-        String gap = node == null ? "没量到（起跳那一 tick 手上没有节点）"
-                : String.format(Locale.ROOT, "剩 %.2f 格水平、dy=%d",
+        String want = node == null ? "no node" : node.toShortString();
+        String gap = node == null ? "not measured (no node was held on the take-off tick)"
+                : String.format(Locale.ROOT, "%.2f blocks horizontal remaining, dy=%d",
                         Math.hypot(node.getX() + 0.5 - fp.getX(), node.getZ() + 0.5 - fp.getZ()),
                         node.getY() - launchY);
-        pendingLeap = "t=" + t + " " + move + " 从 " + launchAt.toShortString()
-                + " 起跳瞄 " + want + "（" + gap + "）";
+        pendingLeap = "t=" + t + " " + move + " took off from " + launchAt.toShortString()
+                + " aiming at " + want + " (" + gap + ")";
     }
 
-    /** Close the pending leap with where it actually put the body. */
+    /** Close the pending leap with where it actually put the bot. */
     private void closeLeap(BlockPos at, boolean inLava) {
         if (pendingLeap == null) return;
         leaps++;
         if (leapLines.size() < MAX_LEAPS) {
-            String miss = pendingLeapTarget == null ? "没有目标可比"
-                    : String.format(Locale.ROOT, "落在 %s，离目标 %.2f 格水平、dy=%d",
+            String miss = pendingLeapTarget == null ? "no target to compare against"
+                    : String.format(Locale.ROOT, "landed at %s, %.2f blocks horizontal from the"
+                                    + " target, dy=%d",
                             at.toShortString(),
                             Math.hypot(at.getX() - pendingLeapTarget.getX(),
                                     at.getZ() - pendingLeapTarget.getZ()),
                             at.getY() - pendingLeapTarget.getY());
             leapLines.add("#" + leaps + " " + pendingLeap + " → " + miss
-                    + (inLava ? "，落进岩浆" : ""));
+                    + (inLava ? ", landed in lava" : ""));
         }
         pendingLeap = null;
         pendingLeapTarget = null;
@@ -485,32 +493,33 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         if (runUpOfFirstFall == null) runUpOfFirstFall = pendingRunUp;
         if (falls.size() >= MAX_FALLS) return;
         grounds.add("#" + fallCount + " " + launchGround);
-        String ended = inLava ? "落进岩浆 " + at.toShortString()
-                : onGround ? "落到 " + at.toShortString() + "（脚下 " + names(level, support) + "）"
-                : "落进水里 " + at.toShortString();
-        // The two speeds are printed together on purpose. fastestDrop is measured off the body's own
-        // y; fallDistance is the field vanilla keeps. Until 2026-09-14 the server body's stayed 0
-        // forever, because ServerPlayer.checkFallDamage (the one Entity.move calls) is an EMPTY
-        // override and the accumulating version, doCheckFallDamage, runs only off a movement packet
-        // that body never sent; printing both made that provable from an evidence row: 1.14 blocks in
-        // one tick against a fallDistance of 0.0. JoinedBody.pump runs the packet tail now, so the
-        // two should agree, and a row where they do not is worth reading again.
-        falls.add("#" + fallCount + " t=" + launchTick + " 从 " + launchAt.toShortString()
+        String ended = inLava ? "fell into lava at " + at.toShortString()
+                : onGround ? "landed at " + at.toShortString() + " (below the feet "
+                             + names(level, support) + ")"
+                : "fell into water at " + at.toShortString();
+        // The two speeds are printed together on purpose. fastestDrop is measured off the player's
+        // own y; fallDistance is the field vanilla keeps. Until 2026-09-14 the server-side player's
+        // stayed 0 forever, because ServerPlayer.checkFallDamage (the one Entity.move calls) is an
+        // EMPTY override and the accumulating version, doCheckFallDamage, runs only off a movement
+        // packet that player never sent; printing both made that provable from an evidence row:
+        // 1.14 blocks in one tick against a fallDistance of 0.0. JoinedBody.pump runs the packet
+        // tail now, so the two should agree, and a row where they do not is worth reading again.
+        falls.add("#" + fallCount + " t=" + launchTick + " from " + launchAt.toShortString()
                 + " " + launchWhy + " → " + ended
-                + "，坠 " + drop + " 格（最快一 tick 掉 "
+                + ", fell " + drop + " blocks (fastest single tick "
                 + String.format(Locale.ROOT, "%.2f", fastestDrop)
-                + " 格；同期 fallDistance 最大 "
+                + " blocks; largest fallDistance over the same span "
                 + String.format(Locale.ROOT, "%.1f", deepestFallField)
-                + "）"
-                + "，已走 " + walkedAt(launchAt) + "/" + legLength + " 格"
-                + "，" + launchPlan);
+                + ")"
+                + ", walked " + walkedAt(launchAt) + "/" + legLength + " blocks so far"
+                + ", " + launchPlan);
     }
 
     /**
-     * Keep the worst distance between the body and the node it is being steered at.
+     * Keep the worst distance between the bot and the node it is being steered at.
      *
      * <p>The falls list answers "what happened at the edge". This answers the question one step
-     * earlier: was the body ON its route at all. A walk whose worst grounded offset is a block and a
+     * earlier: was the bot ON its route at all. A walk whose worst grounded offset is a block and a
      * half is executing its plan and fell off a plan that went somewhere bad; one that reaches six
      * blocks off is not executing it, and the plan's quality is beside the point.
      */
@@ -518,10 +527,10 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         // Server BotState on purpose: pathNode is excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
         BlockPos node = rig.body().botState().mc_goto.pathNode;
         if (node == null) { ticksWithNoPlan++; return; }
-        // WHICH EDGES THIS LEG ACTUALLY WALKED, counted once per node rather than per tick.
-        // A leg's fall names one move; this names the diet. It is also the only honest check that
-        // a change to what the PLANNER is allowed to cost reached the plan at all — a cost knob
-        // set on a static and read on another tick can silently do nothing, and a leg that still
+        // WHICH EDGES THIS WALK ACTUALLY COVERED, counted once per node rather than per tick.
+        // A walk's fall names one move; this names the full mix. It is also the only honest check
+        // that a change to what the PLANNER is allowed to cost reached the plan at all — a cost knob
+        // set on a static and read on another tick can silently do nothing, and a walk that still
         // walks the move it was told to avoid says so here instead of being argued about.
         if (!node.equals(lastPlanNode)) {
             // Server BotState on purpose: pathMove is excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
@@ -529,8 +538,8 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
             String kind = move == null ? "?" : move;
             moveTally.merge(kind, 1, Integer::sum);
             // The y delta BETWEEN PLAN NODES, which is the descent the planner asked for — see
-            // plannedDown. Skipped on the first node of the leg because there is no previous node to
-            // subtract, and a leg's opening node is where the body already is, not a step it took.
+            // plannedDown. Skipped on the first node of the walk because there is no previous node to
+            // subtract, and a walk's opening node is where the bot already is, not a step it took.
             if (lastPlanNode != null) {
                 int dy = node.getY() - lastPlanNode.getY();
                 if (dy < 0) {
@@ -543,31 +552,32 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
             lastPlanNode = node;
         }
         if (!onGround) return;
-        // IS THE PLAN POINTING BACKWARDS? The node's distance to this leg's goal, minus the body's.
+        // IS THE PLAN POINTING BACKWARDS? The node's distance to this walk's goal, minus the bot's.
         // Positive means the walker is being steered further from the goal than it already is.
         //
         // This exists because the forced-repath line cannot answer it in the case that matters
-        // most. That line names the discarded plan's last node — but only when a discard happens,
-        // and「the plans themselves route backwards」is precisely the branch where no discard does.
-        // Measured per grounded tick out of the goal this leg already holds, so it needs no plan
-        // end node and no plumbing: a leg that walks 61 edges to a net −8 either shows a positive
+        // most. That line names the discarded plan's last node, but only when a discard happens,
+        // and "the plans themselves route backwards" is precisely the branch where no discard does.
+        // Measured per grounded tick out of the goal this walk already holds, so it needs no plan
+        // end node and no plumbing: a walk that covers 61 edges to a net −8 either shows a positive
         // worst here (bad plans) or does not (good plans, taken away).
         double nodeAway = Math.hypot(node.getX() + 0.5 - goalX, node.getZ() + 0.5 - goalZ);
         double bodyAway = Math.hypot(fp.getX() - goalX, fp.getZ() - goalZ);
         if (nodeAway - bodyAway > backwards) {
             backwards = nodeAway - bodyAway;
             // Server BotState on purpose: pathMove is excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
-            backwardsAt = "t=" + t + " 身体 " + at.toShortString() + "（离目标 "
-                    + Math.round(bodyAway) + "）计划下一格 " + node.toShortString() + "["
-                    + rig.body().botState().mc_goto.pathMove + "]（离目标 " + Math.round(nodeAway) + "）";
+            backwardsAt = "t=" + t + " bot " + at.toShortString() + " (" + Math.round(bodyAway)
+                    + " from the goal), next plan cell " + node.toShortString() + "["
+                    + rig.body().botState().mc_goto.pathMove + "] (" + Math.round(nodeAway)
+                    + " from the goal)";
         }
         double gap = Math.hypot(node.getX() + 0.5 - fp.getX(), node.getZ() + 0.5 - fp.getZ());
         if (gap <= worstOffPlan) return;
         worstOffPlan = gap;
         // Server BotState on purpose: pathMove is excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
-        worstOffPlanAt = "t=" + t + " 身体 " + at.toShortString() + " 计划下一格 "
+        worstOffPlanAt = "t=" + t + " bot " + at.toShortString() + ", next plan cell "
                 + node.toShortString() + "[" + rig.body().botState().mc_goto.pathMove + "]"
-                + "，其脚下 " + blockName(level, node.below());
+                + ", the block under it " + blockName(level, node.below());
     }
 
     private void remember(ServerPlayer fp, BlockPos at, boolean onGround,
@@ -590,25 +600,25 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     }
 
     /** The last few ticks, kept so the FIRST notable fall can show its run-up. The contact area
-     *  is what makes the run-up readable as a DRIFT: a body walking a knife edge sheds it tick by
+     *  is what makes the run-up readable as a DRIFT: a bot walking a knife edge sheds it tick by
      *  tick, and the count of solid cells cannot show that (it is 1 the whole way). */
     private void rememberRunUp(BlockPos at, boolean onGround, int solid, double contact) {
-        runUp.add("t=" + t + " " + at.toShortString() + (onGround ? " 地" : " 空") + " 撑" + solid
-                + " 接触" + String.format(Locale.ROOT, "%.3f", contact));
+        runUp.add("t=" + t + " " + at.toShortString() + (onGround ? " ground" : " air") + " support"
+                + solid + " contact" + String.format(Locale.ROOT, "%.3f", contact));
         if (runUp.size() > RUN_UP) runUp.remove(0);
     }
 
     /**
-     * Keep an evenly spaced track of the whole leg, at whatever stride fits.
+     * Keep an evenly spaced track of the whole walk, at whatever stride fits.
      *
-     * <p>The falls list says where the body dropped; this says what the leg looked like between
+     * <p>The falls list says where the bot dropped; this says what the walk looked like between
      * them. A crossing that descended steadily for two hundred blocks and one that walked level and
      * then fell off a cliff produce the same fall entry and completely different tracks.
      */
     private void sample(BlockPos at, boolean onGround, boolean inLava) {
         if (t < trackNext) return;
         track.add(at.getX() + "," + at.getY() + "," + at.getZ()
-                + (inLava ? "(岩浆)" : onGround ? "" : "(空中)"));
+                + (inLava ? "(lava)" : onGround ? "" : "(airborne)"));
         trackNext = t + trackStride;
         if (track.size() < TRACK_SAMPLES) return;
         for (int i = track.size() - 1; i > 0; i -= 2) track.remove(i);
@@ -619,93 +629,109 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     // Reading it back.
     // -----------------------------------------------------------------------------------------
 
-    /** One line for the whole leg: how far it got, how it moved, and how it ended. */
+    /** One line for the whole walk: how far it got, how it moved, and how it ended. */
     public String report() {
         ServerPlayer fp = rig.player();
         BlockPos at = fp.blockPosition();
         StringBuilder sb = new StringBuilder();
-        sb.append("走了 ").append(walkedAt(at)).append('/').append(legLength).append(" 格（还差 ")
-          .append(awayFromGoal(at)).append("）；y ").append(from.getY()).append('→').append(at.getY());
+        sb.append("walked ").append(walkedAt(at)).append('/').append(legLength).append(" blocks (")
+          .append(awayFromGoal(at)).append(" still to go); y ").append(from.getY()).append('→')
+          .append(at.getY());
         if (highestY != Integer.MIN_VALUE) {
-            sb.append("（途中最高 ").append(highestY).append("，最低 ").append(lowestY).append("）");
+            sb.append(" (highest ").append(highestY).append(", lowest ").append(lowestY)
+              .append(" along the way)");
         }
-        sb.append("；共 ").append(t).append(" tick；离地 ").append(fallCount).append(" 次");
-        if (fallCount > 0) sb.append("，最深 ").append(deepestDrop).append(" 格");
-        if (startedAirborne) sb.append("；起步时就不在地上");
+        sb.append("; ").append(t).append(" ticks in total; left the ground ").append(fallCount)
+          .append(" time(s)");
+        if (fallCount > 0) sb.append(", deepest ").append(deepestDrop).append(" blocks");
+        if (startedAirborne) sb.append("; not on the ground at the start");
         if (airborne) {
-            sb.append("；结束时还在空中（从 ").append(launchAt.toShortString())
-              .append(" y=").append(launchY).append(" 起，").append(launchWhy).append("）");
+            sb.append("; still in the air at the end (took off from ").append(launchAt.toShortString())
+              .append(" y=").append(launchY).append(", ").append(launchWhy).append(")");
         }
-        // "没量到" and "从未有过计划" are different worlds and the counter beside it separates them:
-        // this is only sampled on a GROUNDED tick that had a node, so a leg spent entirely airborne
-        // and a leg the walker never steered both leave it unset.
-        sb.append("；离计划最远 ").append(worstOffPlan < 0 ? "没量到（没有一个 tick 是既在地上又有计划的）"
-                : String.format(Locale.ROOT, "%.2f 格（%s）", worstOffPlan, worstOffPlanAt));
-        sb.append("；").append(ticksWithNoPlan).append("/").append(t).append(" tick 身上没有计划");
-        sb.append("；").append(contactLine());
-        sb.append("；走过的边 ").append(moveTally.isEmpty() ? "没有（这一段没执行过任何计划边）" : moveTally);
-        // WHO TOOK THE BODY DOWN — the plan, or gravity. The y-range clause above says how far down
+        // "Not measured" and "never had a plan" are different situations, and the counter beside it
+        // separates them: this is only sampled on a GROUNDED tick that had a node, so a run spent
+        // entirely airborne and a run the walker never steered both leave it unset.
+        sb.append("; furthest from the plan ").append(worstOffPlan < 0
+                ? "not measured (no tick was both on the ground and holding a plan)"
+                : String.format(Locale.ROOT, "%.2f blocks (%s)", worstOffPlan, worstOffPlanAt));
+        sb.append("; ").append(ticksWithNoPlan).append("/").append(t).append(" ticks with no plan");
+        sb.append("; ").append(contactLine());
+        sb.append("; edges walked ").append(moveTally.isEmpty()
+                ? "none (this run executed no plan edges)" : moveTally);
+        // WHAT TOOK THE BOT DOWN — the plan, or gravity. The y-range clause above says how far down
         // it got; this says how much of that A* deliberately asked for. Printed unconditionally,
-        // including on a leg that never descended, because「计划下潜 0 格」on a body that ended 36
-        // blocks lower is itself the finding, and a row that only appears when it is interesting
-        // cannot be compared across two arms. See plannedDown.
-        sb.append("；计划里的垂直账 下潜 ").append(plannedDown).append(" 格、上爬 ").append(plannedUp)
-                .append(" 格（净 ").append(plannedUp - plannedDown).append("）")
-                .append(descentByMove.isEmpty() ? "，没有一条计划边是往下的 —— 身体下去了多少全是掉的"
-                        : "，下潜来自 " + descentByMove);
-        // Unconditional for the same reason the vertical bill is: 「parkour 起跳 0 次」on a leg that
-        // ended in a lava pit rules out a whole family in one word. See openLeap.
-        sb.append("；parkour 起跳 ").append(leaps).append(" 次")
-                .append(leaps > leapLines.size() ? "（只逐条记了前 " + leapLines.size() + " 次）" : "")
-                .append(pendingLeap == null ? "" : "，另有一次起跳到收工都还没落地");
-        // A leg that walked 61 edges to a net −8 has either been given bad plans or has had good
-        // ones taken away from it. This is the number that says which, and it is the leg's own
+        // including on a run that never descended, because "planned descent 0 blocks" on a bot that
+        // ended 36 blocks lower is itself the finding, and a row that only appears when it is
+        // interesting cannot be compared across two arms. See plannedDown.
+        sb.append("; planned vertical total: down ").append(plannedDown).append(" blocks, up ")
+                .append(plannedUp).append(" blocks (net ").append(plannedUp - plannedDown).append(")")
+                .append(descentByMove.isEmpty()
+                        ? ", no plan edge went downward, so every block the bot descended was a fall"
+                        : ", descent came from " + descentByMove);
+        // Unconditional for the same reason the vertical total is: "parkour take-offs 0" on a run
+        // that ended in a lava pit rules out a whole family in one word. See openLeap.
+        sb.append("; parkour take-offs ").append(leaps)
+                .append(leaps > leapLines.size() ? " (only the first " + leapLines.size()
+                        + " recorded individually)" : "")
+                .append(pendingLeap == null ? "" : ", plus one take-off that had not landed when the"
+                        + " run ended");
+        // A run that walked 61 edges to a net −8 has either been given bad plans or has had good
+        // ones taken away from it. This is the number that says which, and it is the run's own
         // delta rather than the JVM total — see repathsAtStart.
-        sb.append("；计划最往回指 ").append(backwards < 0 ? "没量到"
-                : String.format(Locale.ROOT, "%.2f 格（%s）", backwards, backwardsAt));
+        sb.append("; plan pointing furthest backwards ").append(backwards < 0 ? "not measured"
+                : String.format(Locale.ROOT, "%.2f blocks (%s)", backwards, backwardsAt));
         int advances = Walker.stepAdvancesLogged - advancesAtStart;
-        sb.append("；步进记了 ").append(advances).append(" 条")
+        sb.append("; step advances logged ").append(advances)
           .append(advances >= Walker.stepAdvanceBudget()
-                  ? "（记满了，后面的步进没进日志 —— 这一段的步进日志不完整）" : "（这一段的步进日志是完整的）");
+                  ? " (budget full, later advances were not logged; this run's step log is"
+                    + " incomplete)"
+                  : " (this run's step log is complete)");
         int repaths = Walker.guardForcedRepaths - repathsAtStart;
         int kept = Walker.guardKeptPlans - keptAtStart;
-        // BOTH, ALWAYS, and never the discard alone — see keptAtStart. "丢掉 0 次" used to mean the
-        // pin never reached its threshold; it now also covers a leg pinned to the threshold every
-        // thirty ticks that kept its plan each time, and those are opposite terrain reports.
-        sb.append("；守卫钉满 ").append(repaths + kept).append(" 次：丢掉计划 ").append(repaths)
-          .append(" 次、判定沿岸走而保留 ").append(kept).append(" 次")
-          .append(repaths + kept == 0 ? "（这一段从没被钉满过，走的一直是同一批计划）"
-                  : repaths == 0 ? "（计划一次都没被丢掉 —— 每次钉满时它都在前进）"
-                  : "，最后一次丢弃 " + Walker.lastGuardRepath);
-        sb.append("；收工那一刻：").append(finishedAt == null
-                ? "没有 —— 这一段是跑满 tick 被叫停的，不是进程自己结束的" : finishedAt);
-        if (lava != null) sb.append("；首次入岩浆 ").append(lava).append("；").append(strideGuardDelta());
+        // BOTH, ALWAYS, and never the discard alone — see keptAtStart. "0 discards" also covers a
+        // run pinned to the threshold every thirty ticks that kept its plan each time, not only a
+        // pin that never reached its threshold, and those are opposite terrain reports.
+        sb.append("; guard pin reached the threshold ").append(repaths + kept)
+          .append(" time(s): plan discarded ").append(repaths)
+          .append(", kept as a rim walk ").append(kept)
+          .append(repaths + kept == 0
+                  ? " (this run never reached the pin threshold and kept the same plans throughout)"
+                  : repaths == 0
+                  ? " (no plan was ever discarded; the bot was advancing each time the pin reached"
+                    + " the threshold)"
+                  : ", last discard " + Walker.lastGuardRepath);
+        sb.append("; at the moment the run ended: ").append(finishedAt == null
+                ? "nothing; this run was stopped when its tick budget ran out, the process did not"
+                  + " finish on its own"
+                : finishedAt);
+        if (lava != null) sb.append("; first lava entry ").append(lava).append("; ").append(strideGuardDelta());
         return sb.toString();
     }
 
     /**
-     * This leg's share of the stride guard's fires and skips.
+     * This walk's share of the stride guard's fires and skips.
      *
      * <p>Deltas, not totals, for the reason {@link #repathsAtStart} spells out: a total answers
-     *「did this ever happen on this run」when the question is「did it happen HERE」. The buckets are
+     * "did this ever happen on this run" when the question is "did it happen HERE". The buckets are
      * named by {@link Walker#STRIDE_SKIP_REASONS} rather than by index, so a reader does not have to
      * hold the order in their head and a bucket added later cannot silently shift the meaning of
      * this row.
      */
     private String strideGuardDelta() {
-        StringBuilder sb = new StringBuilder("这一段里 stride 守卫点火 ")
+        StringBuilder sb = new StringBuilder("stride guard fired ")
                 .append(Walker.strideGuardFires - strideFiresAtStart)
-                .append(" 次，没点火的原因分布：");
+                .append(" time(s) during this run; reasons it did not fire: ");
         for (int i = 0; i < Walker.STRIDE_SKIP_REASONS.length; i++)
-            sb.append(i == 0 ? "" : "，").append(Walker.STRIDE_SKIP_REASONS[i]).append('=')
+            sb.append(i == 0 ? "" : ", ").append(Walker.STRIDE_SKIP_REASONS[i]).append('=')
               .append(Walker.strideGuardSkips.get(i) - strideSkipsAtStart[i]);
         return sb.toString();
     }
 
     /**
-     * The same leg in one clause, for a crossing that records one of these per hop.
+     * The same walk in one clause, for a crossing that records one of these per hop.
      *
-     * <p>{@link #report()} is the right size for a leg that IS the crossing and the wrong size for
+     * <p>{@link #report()} is the right size for a walk that IS the crossing and the wrong size for
      * one of twenty — twenty of them in one evidence row is a paragraph nobody reads. What survives
      * the shortening is what differs between a healthy hop and a wedged one: distance, ticks, and
      * the two readings that name WHY a hop went nowhere (ticks with no plan at all, and falls).
@@ -713,62 +739,62 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     public String brief() {
         BlockPos at = rig.player().blockPosition();
         StringBuilder sb = new StringBuilder();
-        sb.append("走 ").append(walkedAt(at)).append('/').append(legLength).append(" 格 ")
-          .append(t).append("t（无计划 ").append(ticksWithNoPlan).append("t）");
-        if (fallCount > 0) sb.append("，离地 ").append(fallCount).append(" 次最深 ")
-                             .append(deepestDrop).append(" 格");
-        if (lava != null) sb.append("，入岩浆");
+        sb.append("walked ").append(walkedAt(at)).append('/').append(legLength).append(" blocks ")
+          .append(t).append("t (no plan ").append(ticksWithNoPlan).append("t)");
+        if (fallCount > 0) sb.append(", left the ground ").append(fallCount).append(" time(s), deepest ")
+                             .append(deepestDrop).append(" blocks");
+        if (lava != null) sb.append(", entered lava");
         return sb.toString();
     }
 
     /**
-     * How narrow the ground under this leg got, as a property of the whole leg.
+     * How narrow the ground under this walk got, as a property of the whole walk.
      *
-     * <p>The falls list says where the body came off. This says whether it was ever properly on:
-     * a body that spends a third of its grounded ticks under a quarter of a sole's worth of
+     * <p>The falls list says where the bot came off. This says whether it was ever properly on:
+     * a bot that spends a third of its grounded ticks under a quarter of a sole's worth of
      * contact is walking a knife edge, and the next fall is the terrain's, not the executor's.
      */
     private String contactLine() {
-        if (groundedTicks == 0) return "没有一个 tick 是在地上的";
-        return "落脚最窄时接触 " + (leastContact == Double.MAX_VALUE ? "没量到"
-                : String.format(Locale.ROOT, "%.4f/%.2f（%s）", leastContact, FULL_CONTACT, leastContactAt))
-                + "；" + edgeTicks + "/" + groundedTicks + " 个着地 tick 接触面积不足 "
-                + String.format(Locale.ROOT, "%.2f", EDGE_CONTACT) + "（等于只踩住一个角）";
+        if (groundedTicks == 0) return "not a single tick on the ground";
+        return "narrowest footing contact " + (leastContact == Double.MAX_VALUE ? "not measured"
+                : String.format(Locale.ROOT, "%.4f/%.2f (%s)", leastContact, FULL_CONTACT, leastContactAt))
+                + "; " + edgeTicks + "/" + groundedTicks + " grounded ticks with contact area under "
+                + String.format(Locale.ROOT, "%.2f", EDGE_CONTACT) + " (standing on one corner only)";
     }
 
-    /** How many notable falls this leg had — see {@link #falls()} for what each was. */
+    /** How many notable falls this walk had — see {@link #falls()} for what each was. */
     public int fallCount() { return fallCount; }
 
-    /** The physics under the body on the tick before each recorded fall — see {@link #groundDump}. */
+    /** The physics under the bot on the tick before each recorded fall — see {@link #groundDump}. */
     public List<String> grounds() { return List.copyOf(grounds); }
 
     /** Ticks the walker had nothing to steer at. See {@link #ticksWithNoPlan}. */
     public int noPlanTicks() { return ticksWithNoPlan; }
 
-    /** Ticks this leg ran for. Read by the crossing so「no plan for 67 ticks」can be given the
+    /** Ticks this goto run lasted. Read by the crossing so "no plan for 67 ticks" can be given the
      *  denominator that decides whether re-planning was the cost or a rounding error. */
     public int ticks() { return t; }
 
-    /** How the body first entered lava on this leg, or null when it never did. */
+    /** How the bot first entered lava on this walk, or null when it never did. */
     public String lavaLine() { return lava; }
 
-    /** The fall lines, in order. Empty when the leg never left the ground by more than a step. */
+    /** The fall lines, in order. Empty when the walk never left the ground by more than a step. */
     public List<String> falls() {
         if (fallCount <= falls.size()) return List.copyOf(falls);
         List<String> out = new ArrayList<>(falls);
-        out.add("…另有 " + (fallCount - falls.size()) + " 次没有逐条记");
+        out.add("…plus " + (fallCount - falls.size()) + " more not recorded individually");
         return List.copyOf(out);
     }
 
-    /** The leg's shape, sampled evenly. */
+    /** The walk's shape, sampled evenly. */
     public String trackLine() {
-        return "每 " + trackStride + " tick 一采：" + String.join(" → ", track);
+        return "one sample every " + trackStride + " ticks: " + String.join(" → ", track);
     }
 
     /**
      * Attach everything this recorder has to the rung's evidence, under {@code <what>.<tag>}.
      *
-     * <p>Recorded on arrival as well as on failure, deliberately. A leg that reached its column
+     * <p>Recorded on arrival as well as on failure, deliberately. A walk that reached its column
      * after a thirty-block fall into a cave arrived by the goal's definition and is still the
      * finding — and a PASS prints no evidence, so the only place that row can be read is the
      * results file, which is exactly where it belongs.
@@ -777,8 +803,8 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         rig.evidence(what + ".flight." + tag, report());
         List<String> lines = falls();
         for (int i = 0; i < lines.size(); i++) rig.evidence(what + ".fell." + tag + "." + i, lines.get(i));
-        // The control group — see openLeap. Written even on a leg where nothing went wrong, because
-        //「起跳时还剩 0.64 格」only means something against the leaps that worked.
+        // The control group — see openLeap. Written even on a run where nothing went wrong, because
+        // "0.64 blocks remaining at take-off" only means something against the leaps that worked.
         for (int i = 0; i < leapLines.size(); i++)
             rig.evidence(what + ".leap." + tag + "." + i, leapLines.get(i));
         for (int i = 0; i < grounds.size(); i++) rig.evidence(what + ".ground." + tag + "." + i, grounds.get(i));
@@ -789,12 +815,12 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     // -----------------------------------------------------------------------------------------
 
     /**
-     * The cells the body's bounding box would rest on — its real support, not the one under its
+     * The cells the player's bounding box would rest on — its real support, not the one under its
      * centre.
      *
      * <p>A player box is 0.6 wide, so it spans one or two cells per axis and up to four in total.
      * Reading only {@code blockPosition().below()} is what made the first version of this recorder
-     * unable to tell "the block was removed" from "the body was standing on the very edge of it".
+     * unable to tell "the block was removed" from "the bot was standing on the very edge of it".
      */
     private static List<BlockPos> footprint(ServerPlayer fp) {
         AABB box = fp.getBoundingBox();
@@ -810,11 +836,11 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     }
 
     /**
-     * The slab immediately under the body's box — the volume vanilla sweeps to decide
+     * The slab immediately under the player's box — the volume vanilla sweeps to decide
      * {@code onGround}.
      *
      * <p>{@code Entity.move} asks for a collision against the box displaced by this tick's
-     * {@code deltaMovement}, and a standing body's y-component is one tick of gravity, so a
+     * {@code deltaMovement}, and a standing player's y-component is one tick of gravity, so a
      * collision inside this slab is EXACTLY the thing that sets {@code onGround}. Asking it
      * directly is what separates "onGround is lying" from "the reading looked at the wrong cells":
      * the two produce the same evidence line and want opposite fixes.
@@ -824,19 +850,19 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     }
 
     /**
-     * How much of the body's 0.36 m² of sole is actually resting on something solid.
+     * How much of the player's 0.36 m² of sole is actually resting on something solid.
      *
      * <p><b>Enumerated the way VANILLA's collision does — outward by 1e-7 — and not the way
-     * {@link #footprint} does, inward by 1e-4.</b> That difference is not pedantry: a body walking
+     * {@link #footprint} does, inward by 1e-4.</b> That difference is not pedantry: a player walking
      * off a ledge spends its last grounded tick overlapping the ledge by a hair, and an inward
      * epsilon DISCARDS exactly that cell. The old reading then printed "the previous tick had no
      * support at all and onGround still said true", which reads as an engine lie and is really a
-     * body standing on a sliver. The area says which: a real sliver is a small positive number.
+     * player standing on a sliver. The area says which: a real sliver is a small positive number.
      *
      * <p>The row is {@code floor(minY − 1e-7)} — the row the sole sits ON, which is the block below
-     * for a body flush on a full cube and the block ITSELF for one resting on a shorter shape
+     * for a player flush on a full cube and the block ITSELF for one resting on a shorter shape
      * (soul sand, a slab). {@code floor(minY − 0.02)} answers the same for the first case and the
-     * WRONG row for a body that has risen even 0.02 off the floor — the first tick of a jump.
+     * WRONG row for a player that has risen even 0.02 off the floor — the first tick of a jump.
      */
     private static double contactArea(ServerLevel level, AABB box) {
         int y = Mth.floor(box.minY - 1.0E-7);
@@ -855,14 +881,14 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     }
 
     /**
-     * Everything about the ground under the body on the tick BEFORE it left it.
+     * Everything about the ground under the bot on the tick BEFORE it left it.
      *
      * <p>The five questions the last three rounds each answered by guessing, in one row:
      * <ol>
      *   <li><b>Did it jump or did it walk off?</b> The y-velocity says so outright — a jump seeds
      *       +0.42 and a step off a ledge is −0.08. Every fall so far was argued about without it.</li>
-     *   <li><b>Was {@code onGround} telling the truth?</b> {@code 脚下 0.08 格} is vanilla's own
-     *       question, asked again here. Agreeing with {@code onGround} closes the "it lags a tick"
+     *   <li><b>Was {@code onGround} telling the truth?</b> The collision check 0.08 blocks below the
+     *       feet is vanilla's own question, asked again here. Agreeing with {@code onGround} closes the "it lags a tick"
      *       theory; disagreeing is the first evidence for it.</li>
      *   <li><b>Which row did the old reading look at?</b> Both rows are printed when they differ.</li>
      *   <li><b>How much ground was left?</b> The contact area, in m² out of 0.36.</li>
@@ -871,86 +897,92 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      * </ol>
      */
     private String groundDump(ServerLevel level, ServerPlayer fp) {
-        if (prevBox == null) return "上一 tick 没有记录";
+        if (prevBox == null) return "no record of the previous tick";
         AABB box = prevBox;
         int row = Mth.floor(box.minY - 1.0E-7);
         int oldRow = Mth.floor(box.minY - 0.02);
         Vec3 now = fp.getDeltaMovement();
         StringBuilder sb = new StringBuilder();
-        sb.append("上一 tick：位置 ")
+        sb.append("previous tick: position ")
           .append(String.format(Locale.ROOT, "(%.3f, %.4f, %.3f)", box.minX + 0.3, box.minY, box.minZ + 0.3))
-          .append(" 速度 ").append(String.format(Locale.ROOT, "(%.3f, %.3f, %.3f)",
+          .append(" velocity ").append(String.format(Locale.ROOT, "(%.3f, %.3f, %.3f)",
                   prevDelta.x, prevDelta.y, prevDelta.z))
           .append(" onGround=").append(prevOnGround)
-          .append(" 潜行=").append(prevSneak)
-          .append("；walker 那一 tick：")
+          .append(" sneaking=").append(prevSneak)
+          .append("; walker on that tick: ")
           .append(prevDrive == null
-                  ? "没走到 drive 收尾（提前返回的分支 —— 致命边刹车/冲刺/跳跃都在收尾里，这一 tick 一条都没跑）"
+                  ? "did not reach the end of drive (an early-return branch; the lethal edge brake,"
+                    + " sprint and jump all live at the end of drive, and none of them ran on this"
+                    + " tick)"
                   : "drive=" + prevDrive)
-          .append(" 跳=").append(prevJumpTag == null ? "没有分支命令跳" : prevJumpTag);
-        sb.append("；vanilla 自己那一问（脚下 ").append(GROUND_PROBE).append(" 格内有碰撞吗）=")
-          .append(prevSwept ? "有" : "没有")
-          .append(prevSwept == prevOnGround ? "（和 onGround 一致 —— 它没有迟一拍）"
-                  : "（和 onGround 不一致 —— onGround 说的是别的 tick 的事）");
-        sb.append("；实心接触面积 ").append(String.format(Locale.ROOT, "%.4f/%.2f", prevContact, FULL_CONTACT));
-        sb.append("；支撑行 y=").append(row);
-        if (row != oldRow) sb.append("（旧读数用的 floor(minY-0.02)=").append(oldRow).append("，问错了行）");
+          .append(" jump=").append(prevJumpTag == null ? "no branch commanded a jump" : prevJumpTag);
+        sb.append("; vanilla's own check (any collision within ").append(GROUND_PROBE)
+          .append(" blocks below the feet)=")
+          .append(prevSwept ? "yes" : "no")
+          .append(prevSwept == prevOnGround ? " (agrees with onGround; it did not lag a tick)"
+                  : " (disagrees with onGround; onGround describes a different tick)");
+        sb.append("; solid contact area ").append(String.format(Locale.ROOT, "%.4f/%.2f", prevContact, FULL_CONTACT));
+        sb.append("; support row y=").append(row);
+        if (row != oldRow) sb.append(" (the old reading used floor(minY-0.02)=").append(oldRow)
+                             .append(", the wrong row)");
         sb.append(" ").append(contactCells(level, box, row));
-        sb.append("；这一 tick 速度 y=").append(String.format(Locale.ROOT, "%.3f", now.y))
-          .append(now.y > 0.15 ? "（是起跳，不是走出去的）" : "（不是起跳）");
-        sb.append("；").append(edgeBrakeVerdict(level,
+        sb.append("; velocity y on this tick=").append(String.format(Locale.ROOT, "%.3f", now.y))
+          .append(now.y > 0.15 ? " (a jump, not a walk-off)" : " (not a jump)");
+        sb.append("; ").append(edgeBrakeVerdict(level,
                 new BlockPos(Mth.floor(box.minX + 0.3), Mth.floor(box.minY), Mth.floor(box.minZ + 0.3))));
-        sb.append("；立足面 5×5（y=").append(row).append("，行 z=")
+        sb.append("; footing 5×5 (y=").append(row).append(", rows z=")
           .append(Mth.floor(box.minZ + 0.3) - 2).append("..").append(Mth.floor(box.minZ + 0.3) + 2)
-          .append("，列 x=").append(Mth.floor(box.minX + 0.3) - 2).append("..")
-          .append(Mth.floor(box.minX + 0.3) + 2).append("）：").append(neighbourhood(level, box, row))
-          .append("（#=实心 ~=岩浆 !=空的且下面有岩浆 .=空的且下面没岩浆）");
+          .append(", columns x=").append(Mth.floor(box.minX + 0.3) - 2).append("..")
+          .append(Mth.floor(box.minX + 0.3) + 2).append("): ").append(neighbourhood(level, box, row))
+          .append(" (#=solid ~=lava !=open with lava below .=open with no lava below)");
         return sb.toString();
     }
 
     /**
      * Re-ask the walker's own lethal-edge question here, off the LEVEL, cell by cell.
      *
-     * <p>"The body was not sneaking beside a lava lake" has three causes and the walker's telemetry
+     * <p>"The bot was not sneaking beside a lava lake" has three causes and the walker's telemetry
      * separates only one of them ({@code driveTag} says whether the tick reached the brake at all).
      * The other two are "the brake asked and got false" and "the brake asked about the wrong cells",
      * and nothing in the run could tell them apart — so this recomputes
      * {@code WalkerGeometry.dropAdjacentExceeds}'s loop verbatim and prints every neighbour's
-     * verdict, plus the one cell that loop never looks at: <b>the body's own floor</b>.
+     * verdict, plus the one cell that loop never looks at: <b>the floor of the bot's own cell</b>.
      *
-     * <p>Verdicts: {@code 固} the neighbour is solid (the loop skips it), {@code 底} it has a floor
-     * one down, {@code 落N} an N-block dry drop, {@code 岩N} lava N down — lethal at any depth.
+     * <p>Verdicts: {@code solid} the neighbour is solid (the loop skips it), {@code floor} it has a
+     * floor one down, {@code dropN} an N-block dry drop, {@code lavaN} lava N down — lethal at any
+     * depth.
      */
     private static String edgeBrakeVerdict(ServerLevel level, BlockPos foot) {
-        StringBuilder sb = new StringBuilder("致命边刹车照 level 重算（foot=" + foot.toShortString()
-                + "，自己这一格的地板 " + blockName(level, foot.below())
-                + (level.getBlockState(foot.below()).blocksMotion() ? "（撑得住）" : "（撑不住，而这一格守卫从来不问）")
-                + "）：");
+        StringBuilder sb = new StringBuilder("lethal edge brake recomputed against the level (foot="
+                + foot.toShortString() + ", this cell's own floor " + blockName(level, foot.below())
+                + (level.getBlockState(foot.below()).blocksMotion() ? " (holds)"
+                        : " (does not hold, and the guard never checks this cell)")
+                + "):");
         boolean lethal = false;
         for (int[] o : EDGE_NEIGHBOURS) {
             BlockPos n = foot.offset(o[0], 0, o[1]);
             String verdict;
             if (level.getBlockState(n).blocksMotion()) {
-                verdict = "固";
+                verdict = "solid";
             } else if (isLava(level, n.below())) {
-                verdict = "岩0";
+                verdict = "lava0";
             } else if (level.getBlockState(n.below()).blocksMotion()) {
-                verdict = "底";
+                verdict = "floor";
             } else {
                 int fall = 1;
                 BlockPos pr = n.below(2);
                 String hit = null;
                 while (fall <= SURVIVABLE_FALL + 2 && !level.getBlockState(pr).blocksMotion()) {
-                    if (isLava(level, pr)) { hit = "岩" + fall; break; }
+                    if (isLava(level, pr)) { hit = "lava" + fall; break; }
                     fall++;
                     pr = pr.below();
                 }
-                verdict = hit != null ? hit : fall > SURVIVABLE_FALL ? "落>" + SURVIVABLE_FALL : "落" + fall;
+                verdict = hit != null ? hit : fall > SURVIVABLE_FALL ? "drop>" + SURVIVABLE_FALL : "drop" + fall;
             }
-            if (verdict.startsWith("岩") || verdict.startsWith("落>")) lethal = true;
+            if (verdict.startsWith("lava") || verdict.startsWith("drop>")) lethal = true;
             sb.append(' ').append(o[0]).append('/').append(o[1]).append('=').append(verdict);
         }
-        return sb.append(lethal ? " → 该响" : " → 不该响").toString();
+        return sb.append(lethal ? " → should fire" : " → should not fire").toString();
     }
 
     /** The walker's own neighbour set, copied rather than imported: this is a re-derivation and it
@@ -959,7 +991,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private static final int[][] EDGE_NEIGHBOURS = {
             {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
 
-    /** {@code SurvivalMath.survivableFall(20)} — the threshold a full-health body's brake uses. */
+    /** {@code SurvivalMath.survivableFall(20)} — the threshold the brake uses at full health. */
     private static final int SURVIVABLE_FALL = 22;
 
     private static boolean isLava(ServerLevel level, BlockPos p) {
@@ -982,7 +1014,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         return sb.append(']').toString();
     }
 
-    /** The 5×5 of the support row around the body, and what a drift off each open cell lands in. */
+    /** The 5×5 of the support row around the bot, and what a drift off each open cell lands in. */
     private static String neighbourhood(ServerLevel level, AABB box, int y) {
         int cx = Mth.floor(box.minX + 0.3);
         int cz = Mth.floor(box.minZ + 0.3);
@@ -1012,7 +1044,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     }
 
     private static String names(ServerLevel level, List<BlockPos> cells) {
-        if (cells.isEmpty()) return "[无]";
+        if (cells.isEmpty()) return "[none]";
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < cells.size(); i++) {
             if (i > 0) sb.append(' ');
@@ -1021,7 +1053,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         return sb.append(']').toString();
     }
 
-    /** Where in the plan the walker was, at the moment asked. A body that left the ground on step
+    /** Where in the plan the walker was, at the moment asked. A bot that left the ground on step
      *  3 of 40 was following a route; one that left it with the plan exhausted was not. */
     private String planAt() {
         // Server BotState on purpose, and NOT for the usual reason: pathStep/pathLen ARE in
@@ -1030,30 +1062,30 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         // alone would build one row out of two channels, one live and one dead, which is a worse
         // reading than a uniformly dead one. Both halves move when status() carries the plan fields.
         var slot = rig.body().botState().mc_goto;
-        return "计划第 " + slot.pathStep + "/" + slot.pathLen + " 步";
+        return "plan step " + slot.pathStep + "/" + slot.pathLen;
     }
 
     /**
-     * WHICH CELL the plan was steering at, and whether that cell could hold a body.
+     * WHICH CELL the plan was steering at, and whether that cell could hold the player.
      *
      * <p><b>The reading every earlier diagnosis of this crossing was missing.</b> Everything the
-     * recorder knew was about the cell under the body's own FEET, and two completely different
+     * recorder knew was about the cell under the bot's own FEET, and two completely different
      * failures write the same feet: a plan whose next node really is across a lava shore (the
-     * planner is at fault) and a plan that is fine while the body slid past its node (the executor
+     * planner is at fault) and a plan that is fine while the bot slid past its node (the executor
      * is). One says re-plan in shorter hops, the other says stop overshooting, and choosing between
      * them without this row is guessing.
      *
      * <p>Three answers, and each is a different machine:
      *
      * <ul>
-     *   <li><b>No node at all</b> — the plan was consumed and the body was still moving. Nothing
+     *   <li><b>No node at all</b> — the plan was consumed and the bot was still moving. Nothing
      *       was steering it off that edge, and no change to how routes are cut would help.</li>
      *   <li><b>A node with nothing under it</b> — the plan asked for this. The move name says
      *       whether it asked ON PURPOSE: every {@code Fall} edge carries its height in its name
      *       ({@code fall3}), so {@code walk} over a hole is a planner that read the world wrong,
      *       and {@code fall7} is a planner that was allowed to spend seven blocks of drop.</li>
      *   <li><b>A node standing on solid ground, some way off</b> — the plan was walkable and the
-     *       body is not on it. That is the executor, and the horizontal gap is its size.</li>
+     *       bot is not on it. That is the executor, and the horizontal gap is its size.</li>
      * </ul>
      *
      * <p>Read off the LEVEL, not the bot's world view: this rung's own guard exists because the
@@ -1064,17 +1096,18 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         var slot = rig.body().botState().mc_goto;
         BlockPos node = slot.pathNode;
         if (node == null) {
-            return "计划里没有「下一格」（" + planAt() + "，move=" + slot.pathMove
-                    + "）—— 这一刻没有任何节点在牵着身体走";
+            return "the plan has no next cell (" + planAt() + ", move=" + slot.pathMove
+                    + "); no node was steering the bot at this moment";
         }
         BlockPos under = node.below();
         boolean holds = level.getBlockState(under).blocksMotion();
         double gap = Math.hypot(node.getX() + 0.5 - fp.getX(), node.getZ() + 0.5 - fp.getZ());
-        return "计划下一格 " + node.toShortString() + "[" + slot.pathMove + "]（" + planAt()
-                + "）：那一格=" + blockName(level, node) + "，其脚下 " + under.toShortString() + "="
-                + blockName(level, under) + (holds ? "（撑得住）" : "（撑不住）")
-                + "，距身体 " + String.format(Locale.ROOT, "%.2f", gap) + " 格水平、dy="
-                + (node.getY() - at.getY());
+        return "next plan cell " + node.toShortString() + "[" + slot.pathMove + "] (" + planAt()
+                + "): that cell=" + blockName(level, node) + ", the block under it "
+                + under.toShortString() + "=" + blockName(level, under)
+                + (holds ? " (holds)" : " (does not hold)")
+                + ", " + String.format(Locale.ROOT, "%.2f", gap) + " blocks horizontal from the bot,"
+                + " dy=" + (node.getY() - at.getY());
     }
 
     private int walkedAt(BlockPos at) {

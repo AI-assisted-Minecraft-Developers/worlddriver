@@ -64,14 +64,14 @@ import net.minecraft.world.phys.Vec3;
  * world's coordinate collisions) → {@link SceneContext#origin()} AUTO slots (the harness allocates a
  * fresh non-colliding slot per scene, so the collision-avoidance the legacy did by hand is now
  * structural); ground-anchored {@code helper.absolutePos(ZERO)} → {@code ctx.origin()};
- * {@code ServerWorldDriver.create} → {@link ServerWorldDriver#createIsolated} (#48 per-scene body);
+ * {@code ServerWorldDriver.create} → {@link ServerWorldDriver#createIsolated} (per-scene player);
  * legacy NeoForge {@code FakePlayer} → common {@link ServerPlayer}; {@code try/finally} config
  * save/restore → {@link BotConfig#pinnedBaseline()} + {@code ctx.cleanup(pin::close)} (snapshots EVERY
  * mutable field, so {@code fleeActive}/{@code walkerWallDigFallback}/… are restored too); {@code throw
  * new GameTestAssertException} → {@link SceneContext#fail}; {@code helper.succeed()} → return;
  * {@code gtOnlySkips(...)} → deleted. The real {@code IntentProcess}/{@code MineProcess}/
  * {@code RunAwayProcess}/{@code BuildProcess}/{@code FollowProcess}/{@code CombatProcess}/
- * {@code LookProcess}/{@code BridgeProcess} legs and the bespoke driver/gotoGoal legs run over the
+ * {@code LookProcess}/{@code BridgeProcess} tasks and the bespoke driver/gotoGoal tasks run over the
  * bounded {@code ServerAvatarManager.register}+{@code tickAll()} loop (finish auto-unregisters).
  *
  * <p><b>⚡ The three re-entrant {@code level.tick()} mines.</b> The legacy
@@ -79,7 +79,7 @@ import net.minecraft.world.phys.Vec3;
  * {@code for (int i=0;i<3;i++) level.tick(()->true)} "index the fresh entity" loop — the documented
  * ChunkMap-livelock trigger that ⛔MUST NOT be copied into a scene (persistent dogfood world). Each is
  * translated to the established wave-5 <b>bounded entity-visibility await</b>: build + summon in the
- * body, then {@code ctx.await(() -> !level.getEntitiesOfClass(...).isEmpty()).within(100).then(...)}
+ * bot, then {@code ctx.await(() -> !level.getEntitiesOfClass(...).isEmpty()).within(100).then(...)}
  * (loud STEP_TIMEOUT on non-appearance) — the harness ticks the server between polls, and the fresh
  * entity enters the queryable section index (the exact state the legacy 3-tick loop hand-forced).
  * Since 2026-08-05 StageWright's PREP will not start a scene until its arena is entity-ticking, so
@@ -136,7 +136,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // hole at all, they were sealed inside rock the avatar had no business mining
                 // through, and the miner now peels its way down instead.
                 Scene.of("wd.serverMineHarvestBuried", 1_500, WorldDriverProcessScenes::serverMineHarvestBuriedScene),
-                // A body that digs the block out from under itself and rides it down. It shipped
+                // A bot that digs the block out from under itself and rides it down. It shipped
                 // optional and red as the smallest statement of why the scene above was red, and
                 // outlived that explanation — the buried drops turned out to be sealed in rock
                 // rather than lying at the bottom of a hole. It has since gone green on both
@@ -173,11 +173,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // 21.1.230 is what gradle.properties:26 pins; a 21.0.167 tree also sits in that
                 // cache and is MC 1.21.0, i.e. NOT what this repo builds. Re-checked 2026-08-21.
                 //
-                // So on NeoForge this body cannot earn ANY advancement, in ANY scene, ever — no
-                // amount of driver-side work moves it. What DOES move it is the body: both patches
-                // key on `instanceof FakePlayer`, and JoinedBody extends ServerPlayer without being
-                // one. THIS RED THEREFORE DISAPPEARS WITH THE FakePlayer RETIREMENT rather than with
-                // a fix, and this scene should be promoted back to required at that point, not
+                // So on NeoForge this bot cannot earn ANY advancement, in ANY scene, ever — no
+                // amount of driver-side work moves it. What DOES move it is the player class: both
+                // patches key on `instanceof FakePlayer`, and JoinedBody extends ServerPlayer without
+                // being one. THIS RED THEREFORE DISAPPEARS WITH THE FakePlayer RETIREMENT rather than
+                // with a fix, and this scene should be promoted back to required at that point, not
                 // before. See docs/dev/fake-player-parity.md for the full derivation.
                 Scene.of("wd.serverAvatarEarnsAdvancement", 300,
                         WorldDriverProcessScenes::serverAvatarEarnsAdvancementScene).withRequired(false),
@@ -205,7 +205,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 Scene.of("wd.serverBridgePillarStart", 400, WorldDriverProcessScenes::serverBridgePillarStartScene),
                 // Required from the day it was written, because it passed the day it was written.
                 // It exists because the journey reported the opposite — exit.fromY=54 ->
-                // exit.toY=55, one block in 1200 ticks — and an isolated arena said the body leaves
+                // exit.toY=55, one block in 1200 ticks — and an isolated arena said the bot leaves
                 // a four-deep shaft in 46 ticks. That gap is now known to be about the journey's
                 // budget and terrain, not about a missing capability, which is exactly the sort of
                 // thing a stalled rung four scenes downstream cannot tell you.
@@ -213,7 +213,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // The same question at the depth a real mining rung digs to, and driven by the
                 // process the journey now scripts rather than by the walker. It shipped optional —
                 // the four-deep arena above proves a capability, not this one, and the journey had
-                // measured a NINE-deep shaft moving the body one block in 6 000 ticks — and was
+                // measured a NINE-deep shaft moving the bot one block in 6 000 ticks — and was
                 // promoted in the run that first saw it green (135 ticks), which is what keeps a
                 // frontier from sliding back.
                 Scene.of("wd.serverTowersOutOfADeepShaft", 1_500,
@@ -225,11 +225,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     }
 
     /**
-     * Can a server-driven body earn an advancement at all?
+     * Can a server-driven bot earn an advancement at all?
      *
      * <p>{@code story/upgrade_tools} is "hold a stone pickaxe" — an {@code inventory_changed}
      * trigger, the simplest one there is. It fires from the {@code ContainerListener} vanilla
-     * attaches in {@code ServerPlayer.initInventoryMenu}, which a body that was never placed
+     * attaches in {@code ServerPlayer.initInventoryMenu}, which a player that was never placed
      * through {@code PlayerList} does not have, and it is only delivered when something calls
      * {@code containerMenu.broadcastChanges()} — which {@code ServerPlayer.doTick} does and this
      * avatar's {@code Player}-shaped tick did not. Both are now done, and the result is
@@ -264,22 +264,22 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         fp.getInventory().clearContent();
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
         // A process, because a registered driver with nothing to do is not ticked — and the
-        // inventory broadcast that delivers the trigger rides the body's tick. LookProcess is the
+        // inventory broadcast that delivers the trigger rides the player's tick. LookProcess is the
         // cheapest one there is (pure yaw/pitch, no world interaction), so what this scene
-        // measures stays "can this body earn anything" and not "can it mine".
+        // measures stays "can this bot earn anything" and not "can it mine".
         driver.runProcess(new LookProcess(new BlockPos(cx + 2, floorY + 1, cz), 0f, 0f));
         ServerAvatarManager.register(driver);
         for (int t = 0; t < 40 && ServerAvatarManager.activeCount() > 0; t++)
             ServerAvatarManager.tickAll();
 
         if (!earned(fp, "minecraft:story/upgrade_tools"))
-            ctx.fail("the body holds a stone pickaxe and did not earn story/upgrade_tools — "
+            ctx.fail("the bot holds a stone pickaxe and did not earn story/upgrade_tools — "
                     + "nothing is listening to its inventory, so a server-driven agent's whole "
                     + "progression is invisible [diag ticked=" + driver.finished()
                     + " held=" + fp.getMainHandItem().getItem() + "]");
     }
 
-    /** Whether this body has completed a named advancement. False also when the id is unknown,
+    /** Whether this player has completed a named advancement. False also when the id is unknown,
      *  which cannot happen for a vanilla story id in a vanilla runtime. */
     private static boolean earned(ServerPlayer fp, String id) {
         var holder = fp.server.getAdvancements().get(
@@ -612,15 +612,15 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     /**
      * Dig the block under your own feet and end up one block lower.
      *
-     * <p>The most ordinary thing a player does underground, and this body cannot do it. The journey's
+     * <p>The most ordinary thing a player does underground, and this bot cannot do it. The journey's
      * iron rung found it the expensive way: the ore is four blocks under the surface, so the route
-     * scripted a shaft — break the block below, fall in, repeat — and the trace showed twelve legs
-     * with the body at a constant {@code y=63}, shuffling sideways one cell at a time.
+     * scripted a shaft — break the block below, fall in, repeat — and the trace showed twelve steps
+     * with the bot at a constant {@code y=63}, shuffling sideways one cell at a time.
      *
      * <p>Two separate facts have to hold and the failure message names which one broke.
      * <b>The block must break</b>: {@code ServerWorldDriver.mine} aims a {@code Goal.Near(target,2)}
      * and the target is one block away, so navigation is trivially satisfied and the actuator runs.
-     * <b>The body must then descend into the hole</b>: it has no free-running physics — the platform
+     * <b>The bot must then descend into the hole</b>: it has no free-running physics — the platform
      * only steps an avatar that a registered driver is ticking, and the single-block mine ends on the
      * tick the block turns to air, which buys one {@code avatar.step()} and about a tenth of a block
      * of gravity. So the descent is driven explicitly, with the emptied cell as the goal.
@@ -628,7 +628,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
      * <p>Goal.Block on that cell rather than a height: {@code Goal.YLevel} was tried on the journey
      * and it descends to the wrong place — "be at y=60" is satisfied anywhere, and the walker took
      * the cheapest way down it could find, landing six blocks off the ore column. A shaft is a
-     * column, and only a goal naming the column keeps the body over its own hole.
+     * column, and only a goal naming the column keeps the bot over its own hole.
      */
     private static void serverSelfShaftDescends(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -678,7 +678,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         // silently ignored and the stale process ran instead, finishing against its already-met
         // goal. A one-course version arms mine() on a fresh driver, which is the single ordering
         // where that cannot bite; the journey found it only after four rungs of processes had run
-        // on the same body. So the second course is mined AFTER a process has owned this driver.
+        // on the same bot. So the second course is mined AFTER a process has owned this driver.
         driver.mine(under);
         ServerAvatarManager.register(driver);
 
@@ -697,16 +697,16 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     String diag = " [diag under=" + level.getBlockState(under).getBlock()
                             + " deeper=" + level.getBlockState(deeper).getBlock()
                             + " startY=" + startY + " midY=" + midY + " endY=" + at.getY()
-                            + " body@" + (at.getX() - cx) + "," + (at.getY() - floorY)
+                            + " bot@" + (at.getX() - cx) + "," + (at.getY() - floorY)
                             + "," + (at.getZ() - cz)
                             + " onGround=" + fp.onGround()
                             + " lastStep=" + driver.lastStep() + "]";
                     ctx.expect(brokeFirst)
-                            .as("the block under the body broke — if this is false the descent was"
+                            .as("the block under the bot broke — if this is false the descent was"
                                     + " never even attempted and the rest of the message is noise" + diag)
                             .isEqualTo(true);
                     ctx.expect(midY < startY)
-                            .as("the body followed its own shaft down; a player who digs the block"
+                            .as("the bot followed its own shaft down; a player who digs the block"
                                     + " beneath them falls in, and every drop from that dig is down"
                                     + " there with it" + diag)
                             .isEqualTo(true);
@@ -725,7 +725,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
      *
      * <p>Three targets in one slab, at once, so a fix that trades one for another cannot pass:
      * a block <b>sealed</b> in stone (all six faces solid), a block <b>far</b> away but exposed,
-     * and a block <b>adjacent</b> to the body. Only the third may break.
+     * and a block <b>adjacent</b> to the bot. Only the third may break.
      *
      * <p>This is the contract behind {@code wd.serverMineHarvestBuried}. Without it
      * {@code Level#destroyBlock} breaks anything the avatar aims at, at any distance, through any
@@ -795,7 +795,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                         + " distance alone" + diag)
                 .isEqualTo(true);
         ctx.expect(level.getBlockState(adjacent).isAir())
-                .as("and the block right next to the body must still break, or the gate has simply"
+                .as("and the block right next to the bot must still break, or the gate has simply"
                         + " turned mining off" + diag)
                 .isEqualTo(true);
     }
@@ -807,7 +807,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
      * back up is. Once the reach gate stopped the avatar mining through rock, every mining rung had
      * to dig a shaft, and the journey then measured what happens next: {@code exit.fromY=54 ->
      * exit.toY=55}, one block in 1200 ticks, with 17 cobblestone in the inventory and placing
-     * allowed. The rung above it inherited a body in a pit and spent its whole budget walking
+     * allowed. The rung above it inherited a bot in a pit and spent its whole budget walking
      * nowhere.
      *
      * <p>Isolated deliberately. A stalled food rung four scenes downstream is a terrible place to
@@ -864,18 +864,18 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             String diag = " [diag startY=" + startY + " endY=" + at.getY()
                     + " surfaceY=" + (floorY + 1)
                     + " climbed=" + (at.getY() - startY)
-                    + " body@" + (at.getX() - cx) + "," + (at.getY() - floorY) + "," + (at.getZ() - cz)
+                    + " bot@" + (at.getX() - cx) + "," + (at.getY() - floorY) + "," + (at.getZ() - cz)
                     + " cobble=" + fp.getInventory().countItem(Items.COBBLESTONE)
                     + " lastStep=" + driver.lastStep()
                     + " path=" + driver.botState().mc_goto.pathStep
                     + "/" + driver.botState().mc_goto.pathLen
                     + " endReason=" + driver.botState().mc_goto.endReason + "]";
             ctx.expect(at.getY() >= floorY)
-                    .as("the body pillared out of the shaft it would have dug — a miner that cannot"
+                    .as("the bot pillared out of the shaft it would have dug — a miner that cannot"
                             + " leave its own hole strands every rung after it" + diag)
                     .isEqualTo(true);
             // NOT "it spent blocks pillaring". That was the first version of this assertion and it
-            // was wrong in the instructive way: the body got out in 46 ticks having spent nothing,
+            // was wrong in the instructive way: the bot got out in 46 ticks having spent nothing,
             // because with breaking allowed it cut a staircase through the shaft wall — which is
             // what a player with a pickaxe does, and is a better answer than pillaring. Demanding
             // the pillar would have written one implementation into the requirement and reported a
@@ -891,7 +891,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
      * Nine deep, one wide, and a ceiling — the shaft an honest mining rung actually leaves.
      *
      * <p>{@link #serverPillarsOutOfAPit} is four deep and open to the sky, and it passes in 46
-     * ticks. The journey's stone rung sinks nine courses and then mines sideways, so the body ends
+     * ticks. The journey's stone rung sinks nine courses and then mines sideways, so the bot ends
      * under its own roof, and there the walker measured one block of climb in 6 000 ticks. Two
      * things differ at once — depth, and the overhang — so this scene reproduces both and drives
      * the exit the way the journey now scripts it: clear {@code feet+2}, then
@@ -923,7 +923,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
                             Blocks.STONE.defaultBlockState());
         // The shaft, and then one cell of sideways working at the bottom — which is what puts a
-        // roof over the body's head. Standing in the alcove, the column home is a step away and
+        // roof over the bot's head. Standing in the alcove, the column home is a step away and
         // the way up is through stone.
         for (int dy = -9; dy <= 0; dy++)
             level.setBlockAndUpdate(new BlockPos(cx, floorY + dy, cz), Blocks.AIR.defaultBlockState());
@@ -947,7 +947,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, 32));
         fp.getInventory().selected = 0;
         // A stone pickaxe, because the ceiling is stone and the exit is only scriptable if the
-        // body can clear it in a sensible number of ticks.
+        // bot can clear it in a sensible number of ticks.
         fp.getInventory().items.set(1, new ItemStack(Items.STONE_PICKAXE));
 
         final int startY = fp.blockPosition().getY();
@@ -956,11 +956,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             String diag = " [diag startY=" + startY + " endY=" + at.getY()
                     + " surfaceY=" + (floorY + 1)
                     + " climbed=" + (at.getY() - startY)
-                    + " body@" + (at.getX() - cx) + "," + (at.getY() - floorY) + "," + (at.getZ() - cz)
+                    + " bot@" + (at.getX() - cx) + "," + (at.getY() - floorY) + "," + (at.getZ() - cz)
                     + " cobble=" + fp.getInventory().countItem(Items.COBBLESTONE)
                     + " builder=" + driver.botState().builder.lastError + "]";
             ctx.expect(at.getY() > floorY)
-                    .as("the body climbed nine courses out of a roofed shaft — the exit a mining"
+                    .as("the bot climbed nine courses out of a roofed shaft — the exit a mining"
                             + " rung has to make before the next rung can go anywhere" + diag)
                     .isEqualTo(true);
         });
@@ -968,7 +968,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
     /** One course of the scripted exit: clear {@code feet+2} if it is solid, else tower one block.
      *  Recursive rather than looped for the same reason the journey's version is — a course is two
-     *  waits, and the body has to move between them. */
+     *  waits, and the bot has to move between them. */
     private static void towerOneCourse(SceneContext ctx, ServerWorldDriver driver, ServerPlayer fp,
                                        int surfaceY, int budget, Runnable then) {
         BlockPos at = fp.blockPosition();
@@ -981,7 +981,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             return;
         }
         // Land before jumping, exactly as the journey's version does. TowerProcess waits for
-        // onGround in READY and counts stuck ticks from zero, so a body still settling out of the
+        // onGround in READY and counts stuck ticks from zero, so a bot still settling out of the
         // mine that preceded it burns its whole patience falling and reports "out of blocks?" while
         // holding thirty-two cobblestone. Same HoldStill the journey uses — an arena that models
         // the routine with a different settle is not modelling the routine.
@@ -1072,7 +1072,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             double away = Math.sqrt(at.distSqr(pitBottom));
             String diag = " [diag pit=" + (pitBottom.getX() - cx) + "," + (pitBottom.getY() - floorY)
                     + "," + (pitBottom.getZ() - cz)
-                    + " body@" + (at.getX() - cx) + "," + (at.getY() - floorY) + "," + (at.getZ() - cz)
+                    + " bot@" + (at.getX() - cx) + "," + (at.getY() - floorY) + "," + (at.getZ() - cz)
                     + " dist=" + String.format("%.1f", away)
                     + " lastStep=" + driver.lastStep()
                     + " pathStep=" + driver.botState().mc_goto.pathStep
@@ -1080,7 +1080,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     + " endReason=" + driver.botState().mc_goto.endReason
                     + " lastError=" + driver.botState().mc_goto.lastError + "]";
             ctx.expect(at.getY() <= pitBottom.getY())
-                    .as("the body got down into the pit — a drop at the bottom of a two-deep hole"
+                    .as("the bot got down into the pit — a drop at the bottom of a two-deep hole"
                             + " is only unreachable if this is false" + diag)
                     .isEqualTo(true);
             ctx.expect(away <= 1.5)
@@ -1189,7 +1189,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     + " finished=" + driver.finished()
                     + " lastError=" + driver.botState().mine.lastError
                     + " endReason=" + driver.botState().mine.endReason
-                    + " body@" + (fp.blockPosition().getX() - cx) + "," + (fp.blockPosition().getY() - floorY)
+                    + " bot@" + (fp.blockPosition().getX() - cx) + "," + (fp.blockPosition().getY() - floorY)
                     + "," + (fp.blockPosition().getZ() - cz)
                     + " lastStep=" + driver.lastStep()
                     + " collectPath=" + driver.botState().mine.pathStep + "/" + driver.botState().mine.pathLen
@@ -1211,7 +1211,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             // was never reached". Same contract BunkerProcess and IntentProcess already keep.
             if (driver.botState().mine.endReason == null)
                 ctx.fail("mineHarvest: the mine finished without stating a terminal verdict" + diag);
-            // Whether the body EARNED anything for this is a separate question with a separate
+            // Whether the bot EARNED anything for this is a separate question with a separate
             // answer per loader — see wd.serverAvatarEarnsAdvancement.
         });
     }
@@ -1647,7 +1647,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     }
 
     // ==================================================================================
-    // wd.serverFollowGivesUpOnAPennedQuarry — a quarry pacing inside a sealed bedrock pen. The body
+    // wd.serverFollowGivesUpOnAPennedQuarry — a quarry pacing inside a sealed bedrock pen. The bot
     // can walk round the pen but never reach the standoff, and every lap reads as movement to the
     // walker's futile guard, so only the follow's own give-up window can end it.
     // ==================================================================================
@@ -1703,11 +1703,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 ServerAvatarManager.tickAll();
             }
             String err = driver.botState().follow.lastError;
-            ctx.record("结束", "第 " + t + " tick，activeKind=" + driver.activeKind() + "，lastError=" + err);
+            ctx.record("end", "tick " + t + ", activeKind=" + driver.activeKind() + ", lastError=" + err);
             ctx.check(driver.activeKind() == null)
-                    .as("A 追不进围栏的 follow 在 " + 4 * PEN_GIVE_UP_TICKS + " tick 内结束：第 " + t + " tick").isTrue();
+                    .as("A: a follow that cannot get into the pen ends within " + 4 * PEN_GIVE_UP_TICKS + " ticks: ended at tick " + t).isTrue();
             ctx.check(err != null && err.startsWith("unreachable"))
-                    .as("B 以 unreachable 结束：" + err).isTrue();
+                    .as("B: it ends as unreachable: " + err).isTrue();
         });
     }
 
@@ -2012,7 +2012,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
     // ==================================================================================
     // wd.serverBridgePillarStart — gap#75-a (live death #24): BridgeProcess from a 1×1 pillar top;
-    // leg A = sneak-overhang start (yaw 90° off), leg B = centered baseline.
+    // arm A = sneak-overhang start (yaw 90° off), arm B = centered baseline.
     // ==================================================================================
 
     private static void serverBridgePillarStartScene(SceneContext ctx) {
@@ -2022,8 +2022,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ctx.cleanup(ServerAvatarManager::clear);
         BotConfig.walkerDebug = false;
 
-        // Leg A: live death-#24 shape — sneak-overhang start (center 1.05 east of the pillar cell
-        // origin => floor(center) is already the void column) + yaw 90° off. Leg B: centered start.
+        // Arm A: live death-#24 shape — sneak-overhang start (center 1.05 east of the pillar cell
+        // origin => floor(center) is already the void column) + yaw 90° off. Arm B: centered start.
         bridgePillarLeg(ctx, 0, 0, 0.55, 90f, "A(overhang)");
         bridgePillarLeg(ctx, 0, 16, 0.0, 270f, "B(centered)");
     }
@@ -2031,7 +2031,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     /** One bridge-from-pillar-top run: 1×1 cobblestone pillar (6 high) over a catch floor,
      *  FakePlayer on top at {@code (cx+0.5+xOff, cz+0.5)}, REAL {@link BridgeProcess} east ×4.
      *  Asserts: feet never drop below pillar-top−1, 4 bridge blocks laid, process ends {@code done}.
-     *  {@code dxRel/dzRel} are offsets from the scene origin (leg A at origin, leg B +16 z). */
+     *  {@code dxRel/dzRel} are offsets from the scene origin (arm A at origin, arm B +16 z). */
     private static void bridgePillarLeg(SceneContext ctx, int dxRel, int dzRel, double xOff,
                                         float startYaw, String leg) {
         ServerLevel level = ctx.level();
@@ -2049,7 +2049,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             }
         for (int y = floorY + 1; y <= topY; y++)
             level.setBlockAndUpdate(new BlockPos(cx, y, cz), Blocks.COBBLESTONE.defaultBlockState());
-        // Air-scrub this leg's footprint (floor + pillar + bridge cells) at scene resolution.
+        // Air-scrub this arm's footprint (floor + pillar + bridge cells) at scene resolution.
         ctx.cleanup(() -> {
             for (int dx = -3; dx <= 9; dx++)
                 for (int y = floorY; y <= topY + 5; y++)
@@ -2088,18 +2088,18 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         WorldDriverCommon.LOG.info("[bridgePillar {}] END t={} pos=({},{},{}) minY={} laid={} finished={} lastErr={}",
                 leg, t, fp.getX(), fp.getY(), fp.getZ(), minY, laid, driver.finished(), lastErr);
         if (minY < feetY - 1.0)
-            ctx.fail("gap#75-a leg " + leg + ": bot dropped below pillar-top-1 (minY="
+            ctx.fail("arm " + leg + ": bot dropped below pillar-top-1 (minY="
                     + minY + ", start feetY=" + feetY + ") — bridge start fell off the pillar (death #24 shape)");
         if (laidCount < distance)
-            ctx.fail("gap#75-a leg " + leg + ": bridge only laid " + laidCount + "/"
+            ctx.fail("arm " + leg + ": bridge only laid " + laidCount + "/"
                     + distance + " (" + laid + ") — lastErr=" + lastErr);
         if (!driver.finished() || lastErr == null || !lastErr.startsWith("done"))
-            ctx.fail("gap#75-a leg " + leg + ": process did not reach the done terminal: "
+            ctx.fail("arm " + leg + ": process did not reach the done terminal: "
                     + "finished=" + driver.finished() + " lastErr=" + lastErr);
         ServerAvatarManager.clear();
     }
 
-    /** How many of an item the body holds — the only witness a right-click leaves behind. */
+    /** How many of an item the bot holds — the only witness a right-click leaves behind. */
     static int countItem(net.minecraft.server.level.ServerPlayer fp,
                          net.minecraft.world.item.Item item) {
         int n = 0;
@@ -2111,14 +2111,14 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     // The trunk-tax waiver's STATE MACHINE — three scenes, and deliberately not one of them
     // asks about a price.
     //
-    // `pathfinderLogBreakTax` is waived while a MineProcess is working a log, so the leg that
+    // `pathfinderLogBreakTax` is waived while a MineProcess is working a log, so the walk that
     // goes to fetch the fifth log of a trunk may plan through the four under it. The waiver is
     // DERIVED from the current target rather than latched beside it, and the two things most
     // likely to be wrong are the derivation (does it lift when the goal stops being a log?) and
-    // the release (does a body that dies up a tree leave it set forever?).
+    // the release (does a bot that dies up a tree leave it set forever?).
     //
     // Both are testable here. The MULTIPLICATION is not, and no scene below claims it is: the
-    // tax lives in ClientWorldView, and the server body plans through LevelWorldView, which
+    // tax lives in ClientWorldView, and the server-side player plans through LevelWorldView, which
     // applies no break taxes at all — not this one, not the wrong-tool ×3, not the dig
     // multiplier. On a dedicated server every one of those is inert, so a scene asserting
     // "this cell costs 3×" would be asserting something about a cost table this topology never
@@ -2149,8 +2149,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     /** The guard every scene here opens with. Returns true when the run must stop. */
     private static boolean waiverLeakedIn(SceneContext ctx, String scene) {
         if (!MineProcess.miningALog()) return false;
-        ctx.fail(scene + "：进场时豁免就是开的 —— 有别的场景把 owner 漏了出来。"
-                + "这一趟读到的任何「豁免开着」都不是本场景造成的，不能当证据。");
+        ctx.fail(scene + ": the waiver was already on when the scene started; another scene leaked its owner. "
+                + "Any 'waiver on' reading in this run would not be caused by this scene and cannot count as evidence.");
         return true;
     }
 
@@ -2182,23 +2182,23 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         }
         boolean mined = !level.getBlockState(logPos).is(Blocks.OAK_LOG);
         boolean stillOn = MineProcess.miningALog();
-        ctx.record("闸.豁免开着的 tick 数", onTicks);
-        ctx.record("闸.原木采掉了吗", mined);
-        ctx.record("闸.收尾后豁免还在吗", stillOn);
+        ctx.record("gate.ticks with the waiver on", onTicks);
+        ctx.record("gate.log mined", mined);
+        ctx.record("gate.waiver still on after the order ended", stillOn);
 
-        // Order matters. "The waiver never came on" and "the body never reached a log" are the same
+        // Order matters. "The waiver never came on" and "the bot never reached a log" are the same
         // reading, and only one of them is a defect — so ask about the log first.
         if (!mined) {
-            ctx.fail("mineLogWaiverEngages: 这一趟根本没采到那根原木，所以「豁免没开」说明不了任何事"
-                    + "（未触发，不是证伪）。lastError=" + driver.botState().mine.lastError);
+            ctx.fail("mineLogWaiverEngages: this run never mined the log, so 'the waiver was off' proves nothing "
+                    + "(not triggered, not a counterexample). lastError=" + driver.botState().mine.lastError);
             return;
         }
         if (onTicks == 0)
-            ctx.fail("mineLogWaiverEngages: 原木采掉了，但整趟没有一个 tick 读到豁免开着 —— "
-                    + "推导没接上，采原木的那一段并没有拿到它该拿的定价。");
+            ctx.fail("mineLogWaiverEngages: the log was mined, but no tick in the run read the waiver as on; "
+                    + "the derivation is not wired, so the approach to the log did not get the pricing it should have.");
         if (stillOn)
-            ctx.fail("mineLogWaiverEngages: 订单结束后豁免仍然开着 —— 它会跟着身体走进下一段路，"
-                    + "而那正是这条税存在的理由。");
+            ctx.fail("mineLogWaiverEngages: the waiver is still on after the order ended; it would carry over into "
+                    + "the bot's next route, which is exactly what the tax exists to prevent.");
     }
 
     // wd.mineStoneLeavesTheWaiverOff — the control arm. Same rig, same log standing in the world,
@@ -2233,18 +2233,18 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             if (MineProcess.miningALog()) onTicks++;
         }
         boolean stoneGone = !level.getBlockState(stonePos).is(Blocks.STONE);
-        ctx.record("闸.豁免开着的 tick 数", onTicks);
-        ctx.record("闸.石头采掉了吗", stoneGone);
-        ctx.record("闸.那根原木还立着吗", level.getBlockState(logPos).is(Blocks.OAK_LOG));
+        ctx.record("gate.ticks with the waiver on", onTicks);
+        ctx.record("gate.stone mined", stoneGone);
+        ctx.record("gate.log still standing", level.getBlockState(logPos).is(Blocks.OAK_LOG));
 
         if (!stoneGone) {
-            ctx.fail("mineStoneLeavesTheWaiverOff: 石头没被采掉，那么「豁免全程没开」只是"
-                    + "「这一趟什么都没干」，不是对照。lastError=" + driver.botState().mine.lastError);
+            ctx.fail("mineStoneLeavesTheWaiverOff: the stone was not mined, so 'the waiver stayed off throughout' only means "
+                    + "'this run did nothing'; it is not a control. lastError=" + driver.botState().mine.lastError);
             return;
         }
         if (onTicks > 0)
-            ctx.fail("mineStoneLeavesTheWaiverOff: 采石头的订单开了 " + onTicks + " 个 tick 的木税豁免 —— "
-                    + "世界里有原木不该武装它，只有目标是原木才该。");
+            ctx.fail("mineStoneLeavesTheWaiverOff: the stone-mining order turned the log-tax waiver on for " + onTicks + " ticks; "
+                    + "a log standing in the world must not arm it, only a log goal may.");
     }
 
     // wd.mineLogWaiverReleasedOnSupersede — the leak scene. It supersedes the order through the
@@ -2278,18 +2278,18 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             ServerAvatarManager.tickAll();
             if (MineProcess.miningALog()) { armed = true; armedAt = t; }
         }
-        ctx.record("闸.第几 tick 武装的", armedAt);
+        ctx.record("gate.tick the waiver armed at", armedAt);
         if (!armed) {
-            ctx.fail("mineLogWaiverReleasedOnSupersede: 400 tick 内豁免从没开过，"
-                    + "那么「取消之后它是关的」就是 0 → 0，证不了释放（未触发）。");
+            ctx.fail("mineLogWaiverReleasedOnSupersede: the waiver never came on within 400 ticks, "
+                    + "so 'it is off after cancellation' would be 0 -> 0 and cannot prove a release (not triggered).");
             return;
         }
 
         driver.runProcess(new HoldStill(1));       // the production door: hand it a new order
         boolean afterSupersede = MineProcess.miningALog();
-        ctx.record("闸.顶替之后豁免还在吗", afterSupersede);
+        ctx.record("gate.waiver still on after supersede", afterSupersede);
         if (afterSupersede)
-            ctx.fail("mineLogWaiverReleasedOnSupersede: 换了订单，豁免还开着 —— 中途被顶替的采集"
-                    + "会把 1.0 的定价永久留给这具身体之后的每一段路。");
+            ctx.fail("mineLogWaiverReleasedOnSupersede: the order was replaced but the waiver is still on; a mining order "
+                    + "superseded midway would leave the 1.0 pricing on every later route this bot plans.");
     }
 }

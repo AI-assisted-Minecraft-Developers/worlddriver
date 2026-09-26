@@ -57,7 +57,7 @@ public final class HazardField {
         int cx = center.getX() + dx, cz = center.getZ() + dz;
         BlockPos body = new BlockPos(cx, center.getY(), cz);
         if (!w.isKnown(body)) return HazardCell.unknown();
-        // Explicit body/head hazard check: if lava/fire/etc occupies the bot's own level,
+        // Explicit foot/head hazard check: if lava/fire/etc occupies the bot's own level,
         // classify it immediately as contactDamage, not standable, lethal — before the
         // standable-foot scan (canStandAt excludes hazard cells so they'd otherwise read
         // as walls/drops and never set contactDamage=true).

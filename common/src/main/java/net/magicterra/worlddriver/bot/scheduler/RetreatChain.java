@@ -35,7 +35,7 @@ import static net.magicterra.worlddriver.bot.util.BotUtil.blockPosOf;
 public final class RetreatChain implements Chain {
     /** Flee until this many blocks from where the retreat began. */
     private static final int FLEE_DIST = 16;
-    /** Hysteresis (the 兜圈子 fix): once fleeing, KEEP fleeing until HP climbs this
+    /** Hysteresis (the fix for fleeing in circles): once fleeing, KEEP fleeing until HP climbs this
      *  far ABOVE the trigger. Without it, a single regen tick / a missed hit lifts
      *  HP a hair over the threshold, the channel snaps straight back to the goal,
      *  the bot marches into the SAME mob, HP drops, and it flips again — a tight
@@ -203,7 +203,7 @@ public final class RetreatChain implements Chain {
      *  ({@link #hurtByAnyone}) used to fire at ANY hp unconditionally, so a HEALTHY bot
      *  deliberately brawling via {@code mc.bot.combat} fled on the very first connected
      *  counter-hit — retreat outbids COMBAT (100 > 60), so an explicit fight order can
-     *  livelock (approach → hit → flee → repeat). gap#68's evidence book (legs ⑨⑪⑫)
+     *  livelock (approach → hit → flee → repeat). The recorded retreat evidence
      *  is all hit-while-goto/digging, never hit-while-brawling — taking hits mid-fight
      *  is normal, and Task 7's frail gate ({@link CombatChain#frailBlocked}) is the
      *  designed handoff once HP actually drops. So the hurt-entry term now only latches
@@ -223,7 +223,7 @@ public final class RetreatChain implements Chain {
      *  no-enter. {@link #shouldEnter} delegates here, so the telemetry line in
      *  {@link #priority} can never disagree with the gate itself (single source).
      *
-     *  <p>On the "hurt" leg: being HIT by a ranged attacker (gap#55's attackedMe
+     *  <p>On the "hurt" condition: being HIT by a ranged attacker (the attackedMe
      *  attribution) latches the flee at ANY hp and regardless of LoS — {@code charging}
      *  goes blind in exactly the stair/corner geometry where arrows still arc in
      *  (canSee is an eye-to-eye ray, arrows are ballistic); waiting for hp<=thr there
@@ -243,7 +243,7 @@ public final class RetreatChain implements Chain {
     }
 
     /** Back-compat 3-arg gate (existing matrix tests + call sites): maxHp=20,
-     *  combatEngaged=false (models the not-engaged scenario — leg ① / case (g)). */
+     *  combatEngaged=false (models the not-engaged scenario — case ① / case (g)). */
     public static boolean shouldEnter(float hp, float thr, ThreatScanner.Scan scan) {
         return shouldEnter(hp, thr, 20f, scan, false);
     }
@@ -481,7 +481,7 @@ public final class RetreatChain implements Chain {
             // source, so sourcing it at the mob cluster gives a consistent
             // away-from-danger heading; sourcing it at the bot's own foot let each
             // 16-block reset pick an arbitrary direction — sometimes straight back
-            // into the mob (the zig-zag half of the 兜圈子).
+            // into the mob (the zig-zag half of fleeing in circles).
             // Report flee status to the reflex's OWN slot (state.retreat), never the
             // user mc.bot.runAway slot — so reflex and user flee never stomp each other.
             process = new RunAwayProcess(fleeFrom(mc), FLEE_DIST, state.retreat);

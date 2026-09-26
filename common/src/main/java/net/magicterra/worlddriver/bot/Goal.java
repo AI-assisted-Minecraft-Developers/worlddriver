@@ -28,7 +28,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      * True when this goal's heuristic IGNORES Y — an XZ column goal. For such a
      * goal descending reads as free progress (the estimate doesn't change with Y),
      * so A* can be lured into diving/tunnelling DOWN through water and rock to reach
-     * the target column at a lower Y (the deep-water-bowl "卡上岸" root cause).
+     * the target column at a lower Y (the root cause of the bot getting stuck climbing ashore from a deep-water bowl).
      * {@link net.magicterra.worlddriver.bot.pathfinder.PathFinder}'s descend-tax applies
      * ONLY to these. A goal that knows its target Y (Block/Near/TwoBlocks/GetToBlock
      * — a seabed monument, shipwreck, or any {@code pos:}/{@code block:} target)
@@ -38,10 +38,10 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      * <p><b>The same fact bites CALLERS, and that half has its own scar.</b> A goal whose heuristic
      * ignores Y also ARRIVES without an opinion about Y: "I reached that column" is not "I am on the
      * row you meant". Anything that computed something for a specific row — a ray, a reach, a
-     * placement — and then walked there with an XZ goal is holding a result for a row the body may
+     * placement — and then walked there with an XZ goal is holding a result for a row the bot may
      * not be on, and nothing in the arrival will say so. Measured on the journey ladder's portal
      * rung, 2026-08-16: a bucket column was verified with the eye at one row, the walk to it was a
-     * {@code Goal.XZ}, the body arrived one row high, and the run blamed the block that was then in
+     * {@code Goal.XZ}, the bot arrived one row high, and the run blamed the block that was then in
      * the way. Walk with a Y-aware goal, or re-check on arrival.
      */
     default boolean ignoresY() { return false; }
@@ -175,7 +175,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
     /**
      * Stand inside {@code target} at either foot or eye level — Baritone's
      * {@code GoalTwoBlocks}. Reached when the foot is at the target Y or one
-     * below it (so the body occupies the target cell).
+     * below it (so the player occupies the target cell).
      */
     record TwoBlocks(BlockPos target) implements Goal {
         @Override public BlockPos targetPos() { return target; }

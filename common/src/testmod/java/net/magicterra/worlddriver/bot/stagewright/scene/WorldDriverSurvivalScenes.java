@@ -63,13 +63,13 @@ import net.minecraft.world.level.block.Blocks;
  * apply — {@code helper.getLevel()} → {@link SceneContext#level()}; absolute {@code cx/cz} →
  * origin X/Z; absolute {@code floorY=220} → {@code origin.y + 20} / {@code floorY=200} →
  * {@code origin.y}; ground-anchored {@code helper.absolutePos(ZERO)} → {@link SceneContext#origin()};
- * {@code ServerWorldDriver.create} → {@link ServerWorldDriver#createIsolated} (#48 per-scene body);
+ * {@code ServerWorldDriver.create} → {@link ServerWorldDriver#createIsolated} (per-scene server-side player);
  * legacy NeoForge {@code FakePlayer} → common {@link ServerPlayer} (a FakePlayer IS a ServerPlayer;
  * every call used — {@code getInventory()}, {@code getY()}, {@code getHealth()}, {@code setAirSupply}
  * — is a ServerPlayer member, type-faithful on both loaders); {@code try/finally} config save/restore
  * → {@link BotConfig#pinnedBaseline()} + {@code ctx.cleanup(pin::close)}; {@code throw new
  * GameTestAssertException} → {@link SceneContext#fail}; {@code helper.succeed()} → return. The real
- * {@code BunkerProcess}/{@code EscapeProcess}/{@code RunAwayProcess}/{@code IntentProcess} legs run
+ * {@code BunkerProcess}/{@code EscapeProcess}/{@code RunAwayProcess}/{@code IntentProcess} tasks run
  * synchronously over the bounded {@code ServerAvatarManager.register}+{@code tickAll()} loop (wave-7
  * dusk precedent); every scene registers {@code ctx.cleanup} to discard its avatar, drain every dug
  * and placed block in its footprint (LIFO air-scrub) and clear the manager (the #40 persistent-world
@@ -104,7 +104,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
                 Scene.of("wd.serverBunker", 400, WorldDriverSurvivalScenes::serverBunkerScene),
                 Scene.of("wd.serverBunkerAnchorRatchet", 200, WorldDriverSurvivalScenes::serverBunkerAnchorRatchetScene),
                 // Optional as of the break reach gate. The carve aims at the EXIT (y=224 from a
-                // body at y=221) instead of at the next block up, and that only ever worked
+                // bot at y=221) instead of at the next block up, and that only ever worked
                 // because Level#destroyBlock let the avatar mine through the two courses in
                 // between. wd.serverBreakNeedsReach forbids it now.
                 //
@@ -182,7 +182,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
     }
 
     // ==================================================================================
-    // wd.serverBunker — real BunkerProcess seals a 挖三填一 shelter shaft.
+    // wd.serverBunker — real BunkerProcess seals a dig-three, fill-one shelter shaft.
     // ==================================================================================
 
     private static void serverBunkerScene(SceneContext ctx) {
@@ -397,7 +397,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 13, cz + 0.5);
         driver.fakePlayer().setHealth(2.0f);
         // Hungry enough that natural regeneration stays off (FoodData.tick heals a hurt player only
-        // at food >= 18) and fed enough to sprint (> 6). The body runs FoodData.tick every step, and
+        // at food >= 18) and fed enough to sprint (> 6). The player runs FoodData.tick every step, and
         // at full food it would heal past lowHealthCareful long before the flee ends, switching off
         // the careful walk this scene is about.
         driver.fakePlayer().getFoodData().setFoodLevel(17);
@@ -585,8 +585,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
     }
 
     // ==================================================================================
-    // wd.underwaterBase — A5 part 2: full 游进水里回水下基地 dive + submerged traverse into an
-    // air-pocket chamber. LEGACY HANG RECIDIVIST — bounded actuation, ported with ×3 validation.
+    // wd.underwaterBase — the full "swim back to the underwater base" dive + submerged traverse
+    // into an air-pocket chamber. LEGACY HANG RECIDIVIST — bounded actuation, ported with ×3 validation.
     // ==================================================================================
 
     private static void underwaterBaseScene(SceneContext ctx) {
@@ -887,13 +887,13 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         }
         // (e) live death #31, the real ladder of 2026-08-26 rung 9. A column that CAN surface,
         // with rock in between. Every cell below was transcribed from that run's own saved region
-        // file (fabric/run-journey-integrated/saves/JourneyClient), origin = the body's cell
-        // 81,59,82; the run's log shows this arm holding `forward` at 水平速度=0.0000 for 532
-        // ticks and the body drowning without moving one block.
+        // file (fabric/run-journey-integrated/saves/JourneyClient), origin = the bot's cell
+        // 81,59,82; the run's log shows this arm holding `forward` at a horizontal speed of 0.0000
+        // for 532 ticks and the bot drowning without moving one block.
         //
-        // The old ring scan answered「can 81,59,80 surface?」— yes, it is air — and steered there.
+        // The old ring scan answered "can 81,59,80 surface?" — yes, it is air — and steered there.
         // 81,59,81, the single cell between, is stone; 81,60,80, the picked column's HEAD cell, is
-        // stone too, so it was steering at a cell no two-block-tall body could ever occupy. And
+        // stone too, so it was steering at a cell no two-block-tall player could ever occupy. And
         // because a non-null answer skips the lid-break, the false positive did not merely fail to
         // help: it withheld the one arm the class doc calls always-escapable.
         {
@@ -903,11 +903,11 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
             // column that does not exist in the world this case claims to reproduce, and named
             // 80,59,83 (stone in the save). The staging committed the very error the case is about:
             // answering for cells nobody asked about. Read as z rows (80..84) of x columns (79..83),
-            // origin = the body at 81,59,82; '#' solid, '~' water, '.' air.
+            // origin = the bot at 81,59,82; '#' solid, '~' water, '.' air.
             String[] floorY59 = {
                     "#~.##",   // z=80  81,59,80 is the '.' — the column the run steered at
-                    "#~###",   // z=81  81,59,81 is the '#' between it and the body
-                    "##~##",   // z=82  81,59,82 — the body's pocket
+                    "#~###",   // z=81  81,59,81 is the '#' between it and the bot
+                    "##~##",   // z=82  81,59,82 — the bot's pocket
                     "#####",   // z=83
                     "#####",   // z=84
             };
@@ -924,7 +924,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
             water.add(new BlockPos(0, 60, 0));                 // 81,60,82 — the source the tower guard named
             solid.add(new BlockPos(0, 61, 0));                 // 81,61,82 — dirt: the lid ⇒ capped
             solid.add(new BlockPos(0, 60, -2));                // 81,60,80 — stone: so the picked column
-                                                               //   is not even standable for a 2-tall body
+                                                               //   is not even standable for a 2-tall player
             water.add(new BlockPos(-1, 60, -2));               // 80,60,80 — lake
             solid.add(new BlockPos(-1, 61, -2));               // 80,61,80 — dirt caps it ⇒ not breathable
             for (int y = 60; y <= 62; y++)
@@ -958,8 +958,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         // framework reports only `unexpected RuntimeException: <message>`, and for a class-loading
         // failure the message ("Cannot load class …LocalPlayer in environment type SERVER") names
         // the class that could not load but NOT the instruction that asked for it. Two hours of
-        // reading javap output and git history could not answer「which of the three matrices, and
-        // at which call」 — one stack does. Rethrown afterwards so the verdict is unchanged.
+        // reading javap output and git history could not answer "which of the three matrices, and
+        // at which call" — one stack does. Rethrown afterwards so the verdict is unchanged.
         runMatrixNamingItsStack(ctx, "gate", () -> drownEscapeGateMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); }));
         runMatrixNamingItsStack(ctx, "lifecycle", () -> drownEscapeChainLifecycleMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); }));
         runMatrixNamingItsStack(ctx, "lateral", () -> drownEscapeLateralMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); }));

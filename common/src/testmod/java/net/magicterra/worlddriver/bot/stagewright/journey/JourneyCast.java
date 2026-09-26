@@ -30,7 +30,7 @@ final class JourneyCast {
 
     /** Climb back to daylight carrying the lava, get out of the water it surfaced in, then cast. */
     static void leaveWithTheLava(SceneContext ctx, JourneyRig rig, int surfaceY) {
-        rig.attempting("背着岩浆爬回地面");
+        rig.attempting("climb back to the surface carrying the lava");
         JourneyShaft.climbOut(rig, surfaceY, "lava.exit", () -> {
             rig.evidence("lava_bucket.atSurface", rig.carrying("minecraft:lava_bucket"));
             standOnDryGround(rig, () -> castBesideWater(ctx, rig));
@@ -43,95 +43,100 @@ final class JourneyCast {
     private static final int DRY_LAND_SEARCH = 16;
 
     /**
-     * Get out of the water before doing anything else, because a body that surfaced into it is on a
-     * clock.
+     * Get out of the water before doing anything else, because a bot that surfaced into it is
+     * drowning against a clock.
      *
      * <p><b>The run this is written from.</b> j34 reached this rung holding the lava —
      * {@code lava_bucket.atSurface = 1}, one pour from the obsidian — and then drowned:
      * {@code death.blow = drown −2.0→14.0@6 … drown −2.0→0.0@146}, {@code death.driving = goto},
-     * {@code death.standingIn = 脚格/脚下/头格 全是 water[level=8]}. The exit had already said so
-     * one row earlier: {@code lava.exit#6.endedOn = 脚格=water，脚下=water —— 浮在水里，脚下没有
-     * 地板；上面每一级都会从一个正在下沉的身体开始}, over {@code endedIn = -3,56（起塔柱是
-     * -7,53 —— 不是同一柱）} and {@code gained = 32/37}. The cast then walked a suffocating body
-     * for 146 ticks and the rung's verdict was a death.
+     * and {@code death.standingIn} reported the foot, floor and head cells all as
+     * {@code water[level=8]}. The exit had already said so one row earlier:
+     * {@code lava.exit#6.endedOn} reported water in the foot cell and under the feet (floating,
+     * with no floor, so every step above would start from a sinking bot), over an
+     * {@code endedIn} of {@code -3,56} while the pillar column was {@code -7,53} (not the same
+     * column), and {@code gained = 32/37}. The cast then walked a suffocating bot for 146 ticks and
+     * the rung's result was a death.
      *
      * <p><b>This is a missing hand-off, not a new mechanism.</b> {@link JourneyShaft#recordExit}'s
-     * javadoc worked this out on 2026-08-22 and deliberately left the repair here: 「Getting out of
-     * water is a horizontal problem and it belongs to the caller, which is why the iron rung now
-     * ends with a walk home.」 The iron rung took that hand-off; this one never did. So the fix is
-     * a caller-side step, and specifically NOT 「refuse to finish the climb while wet」— that same
+     * javadoc deliberately leaves the repair here: "Getting out of water is a horizontal problem and
+     * it belongs to the caller, which is why the iron rung now ends with a walk home." The iron rung
+     * performs that hand-off, and this method is the same hand-off for the cast. It is a
+     * caller-side step, and
+     * specifically NOT "refuse to finish the climb while wet"; that same
      * javadoc already priced that one: it falls through to a {@code Goal.YLevel(surfaceY)} fallback
      * which is satisfied at that very moment, i.e. the same question asked twice.
      *
      * <p>Both branches record, and the afloat test is literally the one {@code recordExit} prints:
-     * this leg used to spell out the same two-cell predicate a second time, and it now calls
-     * {@link JourneyShaft#afloat} so the hand-off and the row that motivates it can never drift
-     * apart — a caller answering「wet」where the exit answered「afloat」would walk ashore for a body
-     * that was standing on rock, or leave one floating.
+     * it delegates to the shared predicate in {@link JourneyShaft} instead of restating it, so the
+     * hand-off and the row that motivates it cannot drift apart. A caller answering "wet" where the
+     * exit answered "afloat" would walk ashore for a bot that was standing on rock, or leave one
+     * floating.
      */
-    // Package-visible so `wd.journeyGetsAshoreBeforePouring` can run this leg on its own. Driving
+    // Package-visible so `wd.journeyGetsAshoreBeforePouring` can run this step on its own. Driving
     // `leaveWithTheLava` instead would be wrong twice over: it starts with a climb this arena has no
     // shaft for, and it ENDS by casting, so a red would as often be about the pour as about getting
     // out of the water.
     static void standOnDryGround(JourneyRig rig, Runnable then) {
         ServerLevel lvl = rig.ctx().level();
         BlockPos at = rig.player().blockPosition();
-        // THE FLOOR, not the head. This used to ask `JourneyShaft.afloat`, which also requires the
-        // FOOT cell to be fluid and therefore answers「no」for a body treading water at the surface —
-        // a body that has nothing to stand on, cannot place, and cannot pour. See
-        // JourneyShaft#noDryFooting for the run that measured the difference.
+        // THE FLOOR, not the head. `JourneyShaft.afloat` also requires the FOOT cell to be fluid
+        // and therefore answers "no" for a bot treading water at the surface, which has nothing to
+        // stand on, cannot place, and cannot pour. See JourneyShaft#noDryFooting for the run that
+        // measured the difference.
         boolean afloat = JourneyShaft.noDryFooting(lvl, at);
         rig.evidence("lava.exit.afloat", afloat
-                ? "是 —— 脚下是流体（不问头顶：浮在水面上一样没有地板），" + at.toShortString()
-                  + "，先上岸再浇"
-                : "否 —— " + at.toShortString() + "，脚下=" + lvl.getBlockState(at.below()).getBlock());
+                ? "yes - fluid under the feet (the head cell is not checked: floating at the surface"
+                  + " also has no floor), " + at.toShortString() + ", going ashore before pouring"
+                : "no - " + at.toShortString() + ", below the feet="
+                  + lvl.getBlockState(at.below()).getBlock());
         if (!afloat) { then.run(); return; }
         // dryUnderfoot is the descent's own predicate for REFUSING a wet column; it is asked here
-        // for the opposite reason — the nearest column that PASSES it is where the body gets ashore.
+        // for the opposite reason: the nearest column that PASSES it is where the bot gets ashore.
         // Ranked by horizontal distance only: the y is whatever that column's daylight is.
         BlockPos dry = JourneyTerrain.nearestDryColumn(lvl, at, DRY_LAND_SEARCH);
         rig.evidence("lava.exit.dryLand", dry == null
-                ? DRY_LAND_SEARCH + " 格内没有一柱是干的" : dry.toShortString());
+                ? "no dry column within " + DRY_LAND_SEARCH + " blocks" : dry.toShortString());
         // Nothing to walk to is not a reason to stop: the pour may still find shallow water from
         // here, and failing the rung on the recovery would replace a pour diagnosis with a walking
         // one. The row above is what says which happened.
         if (dry == null) { then.run(); return; }
-        rig.attempting("背着岩浆先上岸：走不到 " + dry.getX() + "," + dry.getZ() + "（正在窒息）");
+        rig.attempting("go ashore with the lava first: could not walk to " + dry.getX() + "," + dry.getZ()
+                + " (the bot is drowning)");
         // Tolerance 1 and a short budget on purpose. Drowning costs 2 HP every 20 ticks, so a full
-        // health bar is 200 ticks of swimming — a leg allowed to spend thousands here would watch
-        // the body die exactly as the cast's own goto did.
+        // health bar is 200 ticks of swimming; a goto allowed to spend thousands of ticks here would
+        // watch the bot die exactly as the cast's own goto did.
         WorldDriverJourneyScenes.walkToColumn(rig, "lava.ashore", dry.getX(), dry.getZ(), 1, 600,
                 () -> stepOntoTheBank(rig, dry, then),
                 () -> stepOntoTheBank(rig, dry, then));
     }
 
-    /** How long the last step onto the bank may take. Two hundred, not the eighty this started at:
-     *  the first arena run spent the whole eighty one cell short of the bank. The drowning budget
-     *  that justified eighty applies to the leg BEFORE this one — by here the body is at the surface
-     *  with its air supply full (measured: {@code 血 20.0，空气 300}), so what this spends is time,
-     *  not health. Two hundred is still under one drowning bar if the body does go back under. */
+    /** How long the last step onto the bank may take. Two hundred, not eighty: an arena run spent
+     *  all of eighty ticks one cell short of the bank. The drowning budget that would justify eighty
+     *  applies to the goto BEFORE this one; by here the bot is at the surface with its air supply
+     *  full (measured: health 20.0, air 300), so what this spends is time, not health. Two hundred
+     *  is still under one drowning bar if the bot does go back under. */
     private static final int LAST_STEP = 200;
 
     /**
      * The step the tolerance swallowed.
      *
-     * <p>{@code walkToColumn} above is given a tolerance of one, which is right for the leg — asking
-     * a drowning body for an exact cell is how a recovery spends its budget in the water. But「within
-     * one of the bank」and「on the bank」are different places, and the scene
+     * <p>{@code walkToColumn} above is given a tolerance of one, which is right for that goto: asking
+     * a drowning bot for an exact cell is how a recovery spends its budget in the water. But "within
+     * one of the bank" and "on the bank" are different places, and the scene
      * {@code wd.journeyGetsAshoreBeforePouring} caught this recovery reporting success from the
      * wrong one:
      *
      * <pre>
-     * lava.exit.afloat  = 是 …
+     * lava.exit.afloat  = yes …
      * lava.exit.dryLand = 242843, 221, 100000
-     * (ended)             242844, 220, 100000，脚下=water
+     * (ended)             242844, 220, 100000, below the feet=water
      * </pre>
      *
-     * <p>One block out and one block down — still in the water it was sent to leave, with every row
-     * above it reading like a success. So the arrival is re-asked as the question that matters (is
-     * the body still afloat) rather than as a distance, and only a body that is still floating pays
-     * for one more short leg at the exact cell. Same family as the bed rung's walk home, which
-     * judged「arrived」three blocks short inside a tolerance of five and handed the next rung a body
+     * <p>One block out and one block down, still in the water it was sent to leave, with every row
+     * above it reading like a success. So the arrival is re-checked as the question that matters (is
+     * the bot still afloat) rather than as a distance, and only a bot that is still floating pays
+     * for one more short goto to the exact cell. The bed rung's walk home had the same defect: it
+     * judged "arrived" three blocks short inside a tolerance of five and handed the next rung a bot
      * standing in a swamp.
      *
      * <p>Records on both paths: a run where the extra step was not needed has to look different from
@@ -140,19 +145,20 @@ final class JourneyCast {
     private static void stepOntoTheBank(JourneyRig rig, BlockPos dry, Runnable then) {
         ServerLevel lvl = rig.ctx().level();
         if (!JourneyShaft.noDryFooting(lvl, rig.player().blockPosition())) {
-            rig.evidence("lava.exit.onTheBank", "一步就够了，落在 "
+            rig.evidence("lava.exit.onTheBank", "the first goto was enough, ended at "
                     + rig.player().blockPosition().toShortString());
             ashore(rig);
             then.run();
             return;
         }
-        rig.attempting("上岸最后一格：容差把身体留在水里了，补一步到 " + dry.toShortString());
+        rig.attempting("last cell onto the bank: the tolerance left the bot in the water, one more"
+                + " step to " + dry.toShortString());
         // TOLERANCE ZERO, and a COLUMN rather than a cell. Two readings from the arena decided both
-        // halves. The leg above reported `end=arrived …距 242843,100000 1 格，容差 5` — the walker's
-        // own arrival radius is five and the `1` this caller passed is a different quantity, so
-        // 「arrived」was true of a body one cell out in the water. And a `Goal.Block` retry returned
-        // almost immediately without moving: the exact cell carries a y the swimming body does not
-        // have. Asking for the COLUMN with no slack is the question that has one answer.
+        // halves. The goto above reported `end=arrived`, 1 block from 242843,100000 with a tolerance
+        // of 5: the walker's own arrival radius is five and the `1` this caller passed is a different
+        // quantity, so "arrived" was true of a bot one cell out in the water. And a `Goal.Block`
+        // retry returned almost immediately without moving: the exact cell carries a y the swimming
+        // bot does not have. Asking for the COLUMN with no slack is the question that has one answer.
         WorldDriverJourneyScenes.walkToColumn(rig, "lava.lastStep", dry.getX(), dry.getZ(), 0,
                 LAST_STEP, () -> bankRow(rig, dry, then), () -> bankRow(rig, dry, then));
     }
@@ -160,43 +166,45 @@ final class JourneyCast {
     private static void bankRow(JourneyRig rig, BlockPos dry, Runnable then) {
         ServerLevel lvl = rig.ctx().level();
         BlockPos at = rig.player().blockPosition();
-        rig.evidence("lava.exit.onTheBank", "容差留下的最后一格：想到 " + dry.toShortString()
-                + "，停在 " + at.toShortString() + "，脚下还是流体="
-                + JourneyShaft.noDryFooting(lvl, at) + "（脚下="
-                + lvl.getBlockState(at.below()).getBlock() + "）；这一腿 end="
-                + rig.slotEnd("goto"));
+        rig.evidence("lava.exit.onTheBank", "the last cell the tolerance left: aimed for "
+                + dry.toShortString() + ", stopped at " + at.toShortString()
+                + ", still fluid below the feet=" + JourneyShaft.noDryFooting(lvl, at)
+                + " (below the feet=" + lvl.getBlockState(at.below()).getBlock()
+                + "); this goto's end=" + rig.slotEnd("goto"));
         ashore(rig);
         then.run();
     }
 
     /**
-     * The row both exits land on — and it is named {@code ashore} on a path that has just printed
-     * 「脚下还是流体=true」, so it must carry the predicate that decides the word rather than a block
-     * name that only usually agrees with it.
+     * The row both exits land on. It is named {@code ashore} on a path that has just printed
+     * "still fluid below the feet=true", so it must carry the predicate that decides the word rather
+     * than a block name that only usually agrees with it.
      *
-     * <p>{@link JourneyShaft#noDryFooting} asks {@code getFluidState(at.below())}; this row used to
-     * print {@code getBlock()} of the same cell. The two part company on a WATERLOGGED block, where
-     * the name answers「oak_stairs」for a cell that is still fluid — the one case where a reader
-     * checking the name alone sees dry land under a body that is on none.
+     * <p>{@link JourneyShaft#noDryFooting} asks {@code getFluidState(at.below())}, whereas
+     * {@code getBlock()} of the same cell disagrees on a WATERLOGGED block, where the name answers
+     * "oak_stairs" for a cell that is still fluid. That is the one case where a reader checking the
+     * name alone sees dry land under a bot that is standing on none.
      */
     private static void ashore(JourneyRig rig) {
         BlockPos at = rig.player().blockPosition();
         ServerLevel lvl = rig.ctx().level();
         boolean wet = JourneyShaft.noDryFooting(lvl, at);
-        rig.evidence("lava.exit.ashore", (wet ? "没上岸（仍无干立足）：" : "上岸：") + at.toShortString()
-                + "，脚下=" + lvl.getBlockState(at.below()).getBlock() + "，无干立足=" + wet
-                + "，血 " + rig.player().getHealth() + "，空气 " + rig.player().getAirSupply());
+        rig.evidence("lava.exit.ashore", (wet ? "not ashore (still no dry footing): " : "ashore: ")
+                + at.toShortString()
+                + ", below the feet=" + lvl.getBlockState(at.below()).getBlock()
+                + ", no dry footing=" + wet
+                + ", health " + rig.player().getHealth() + ", air " + rig.player().getAirSupply());
     }
 
     /**
      * Pour the lava into standing water, at a cell chosen before the pour.
      *
      * <p>"Chosen before" is the whole assertion. Obsidian appearing SOMEWHERE after a bucket is
-     * emptied proves the fluids met; obsidian appearing in the cell the rung named proves the body
+     * emptied proves the fluids met; obsidian appearing in the cell the rung named proves the bot
      * put it there, and only the second is a capability a portal can be built on.
      */
     private static void castBesideWater(SceneContext ctx, JourneyRig rig) {
-        rig.attempting("找一处底下是实心的浅水，把岩浆倒进去");
+        rig.attempting("find shallow water with a solid bed and pour the lava into it");
         BlockPos shallow = JourneyTerrain.shallowWaterNear(rig, 24);
         if (shallow != null) { approachAndPour(ctx, rig, shallow); return; }
         // Nothing underfoot: fall back on the surveyed water. A swamp normally makes this branch
@@ -205,8 +213,8 @@ final class JourneyCast {
         rig.evidence("cast.walkedToSurveyedWater", w.toShortString());
         WorldDriverJourneyScenes.walkToColumn(rig, "water", w.getX(), w.getZ(), 0, 16_000,
                 () -> approachAndPour(ctx, rig, JourneyTerrain.shallowWaterNear(rig, 12)),
-                () -> ctx.fail("走不到 firstWater " + w.toShortString()
-                        + "：停在 " + rig.player().blockPosition()));
+                () -> ctx.fail("cannot reach firstWater " + w.toShortString()
+                        + ": stopped at " + rig.player().blockPosition()));
     }
 
     private static void approachAndPour(SceneContext ctx, JourneyRig rig, BlockPos water) {
@@ -227,7 +235,7 @@ final class JourneyCast {
     /**
      * How near the walk is asked to end, and why the retry is allowed to tighten it to 1.
      *
-     * <p>Two is what「adjacent, not merely near」bought — but {@code Goal.Near} measures in 3D, so
+     * <p>Two is what "adjacent, not merely near" requires, but {@code Goal.Near} measures in 3D, so
      * radius 2 also admits standing two rows BELOW the target, which is where ladder-1 poured from
      * ({@code 3,60,63} for a target at {@code 3,62,63}). From there the eye sits at y≈61.6, under
      * the bed's own top face at y=62, and the ray can only reach that bed through a SIDE — so the
@@ -243,8 +251,10 @@ final class JourneyCast {
     private static void approachAndPour(SceneContext ctx, JourneyRig rig, BlockPos water, int tries,
                                         int radius) {
         if (water == null) {
-            ctx.fail("附近没有底下实心的水面：身体在 " + rig.player().blockPosition()
-                    + "（深水没有落点，浇下去的岩浆会沉，铸出的黑曜石也拿不回来）");
+            ctx.fail("no water surface with a solid bed nearby: the bot is at "
+                    + rig.player().blockPosition()
+                    + " (deep water has no landing cell; poured lava would sink and the obsidian it"
+                    + " casts could not be recovered)");
             return;
         }
         // NUMBERED, and counting FORWARD. Two reasons, and the run that needed both is ladder-14.
@@ -264,16 +274,16 @@ final class JourneyCast {
         // left the target empty while the use still reported CONSUME.
         rig.settle(new IntentProcess(new Intent(new Goal.Near(water, radius))), 2_000, () -> {
             BlockPos at = rig.player().blockPosition();
-            // HOW THIS LEG ENDED, on both branches. `rig.settle` runs its callback when the budget
-            // is spent just as it does when the process finishes, and nothing here told them apart:
-            // ladder-14 spent all 2100 ticks pinned at -7,58,45 with the water eight blocks away,
-            // then re-picked a nearer pool and failed the pour — and the rung's verdict named the
-            // AIMING LINE. The walk that never happened left no row at all, so the only account of
-            // it was three heartbeat lines in the log. Same key shape the lava leg already uses.
-            rig.evidence("cast.walk." + approach, JourneyLeg.walkerEnd(rig) + "；停在 " + at.toShortString()
-                    + "，距计划的水面 " + water.toShortString() + " "
+            // HOW THIS WALK ENDED, on both branches. `rig.settle` runs its callback when the budget
+            // is spent just as it does when the process finishes, so the two must be told apart
+            // here: ladder-14 spent all 2100 ticks pinned at -7,58,45 with the water eight blocks
+            // away, then re-picked a nearer pool and failed the pour, and the rung's result named
+            // the AIMING LINE. The walk that never happened left no row at all, so the only account
+            // of it was three heartbeat lines in the log. Same key shape the lava walk uses.
+            rig.evidence("cast.walk." + approach, JourneyLeg.walkerEnd(rig) + "; stopped at "
+                    + at.toShortString() + ", "
                     + String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(at.distSqr(water)))
-                    + " 格");
+                    + " blocks from the planned water surface " + water.toShortString());
             BlockPos again = JourneyTerrain.shallowWaterNear(rig, 8);
             BlockPos aim = again == null ? water : again;
             // A NEARER WATER IS NOT A VISIBLE WATER. The re-pick exists because a walk can end a
@@ -285,8 +295,8 @@ final class JourneyCast {
             //
             // Ask the engine, from here, with the FULL bucket's own ray. Blocked → go back to the
             // surveyed pool and walk again rather than dig upward into the pool's own floor: that
-            // pool is above the body, so clearing the line means removing what holds the water,
-            // and the reward for succeeding is water on the body's head.
+            // pool is above the bot, so clearing the line means removing what holds the water,
+            // and the reward for succeeding is water on the bot's head.
             //
             // ⚠️ ASK THE POUR'S QUESTION, NOT THE FILL'S. This guard used to call
             // `bucketLineLandsOn`, which compares the hit BLOCK — the right question for an empty
@@ -298,11 +308,14 @@ final class JourneyCast {
             BlockPos rePickLands = again == null ? null : JourneyFill.bucketPourLandsIn(rig, again.below());
             if (again != null && !again.equals(water) && tries > 0 && !again.equals(rePickLands)) {
                 rig.evidence("cast.rePickBlocked." + approach, again.toShortString()
-                        + " 更近，但从这儿以满桶自己的射线浇过去会落进 "
-                        + (rePickLands == null ? "MISS（射线够不着）" : rePickLands.toShortString())
-                        + "，不是它自己 —— 退回勘测到的 " + water.toShortString() + " 再走一趟");
-                // Radius carried, never reset: it only ever tightens, and handing a later leg the
-                // loose default would undo a tightening some earlier leg paid a walk for.
+                        + " is nearer, but pouring from here along the full bucket's own ray would"
+                        + " land in "
+                        + (rePickLands == null ? "MISS (out of the ray's reach)"
+                                               : rePickLands.toShortString())
+                        + ", not in that cell; falling back to the surveyed " + water.toShortString()
+                        + " and walking again");
+                // Radius carried, never reset: it only ever tightens, and handing a later approach
+                // the loose default would undo a tightening an earlier approach paid a walk for.
                 approachAndPour(ctx, rig, water, tries - 1, radius);
                 return;
             }
@@ -319,13 +332,13 @@ final class JourneyCast {
                     .distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(aim));
             if (range > limit && tries > 0) {
                 rig.evidence("cast.tooFar." + approach, String.format(java.util.Locale.ROOT,
-                        "%.1fm > %.1fm，再走一次", range, limit));
+                        "%.1fm > %.1fm, walking again", range, limit));
                 approachAndPour(ctx, rig, aim, tries - 1, radius);
                 return;
             }
             // WHICH CELL THE POUR WOULD LAND IN — asked here, where a walk is still affordable.
-            // Everything above answers「can the ray REACH it」: `cast.range` measures a distance and
-            // the re-pick measures a line. Neither answers「where does the fluid GO」, and vanilla
+            // Everything above answers "can the ray REACH it": `cast.range` measures a distance and
+            // the re-pick measures a line. Neither answers "where does the fluid GO", and vanilla
             // decides that with the hit FACE, not the hit block. ladder-1 stood at `3,60,63` — two
             // rows under its target — read `cast.picks = 3,61,62 dirt face=south`, poured, and cast
             // its one bucket of obsidian at `3,61,63`.
@@ -334,23 +347,27 @@ final class JourneyCast {
             // thing left to try is digging — and the block in the way there is the bed itself, i.e.
             // the floor holding up the very water being poured into.
             BlockPos lands = JourneyFill.bucketPourLandsIn(rig, aim.below());
-            // NOT GATED ON `tries`, and that is the whole of ladder-14's rung eleven. This branch
-            // used to share the approach budget with the re-pick above it, and the re-pick spends
-            // that budget on a walk that changes nothing: three passes ended in the identical cell,
-            // three identical rows collapsed into one, and by the time the body's own stance was the
-            // question the counter read zero. The remedy was present, correct, and documented at
-            // CAST_APPROACH_RADIUS in the very terms of the geometry that killed the rung — feet two
-            // rows below the bed, eye under its top face, side hits only — and it never got a turn.
+            // NOT GATED ON `tries`. Sharing the approach budget with the re-pick above lets the
+            // re-pick spend it on a walk that changes nothing: on ladder-14's rung eleven three
+            // passes ended in the identical cell, three identical rows collapsed into one, and by
+            // the time the bot's own stance was the question the counter read zero. The remedy
+            // documented at CAST_APPROACH_RADIUS, in the very terms of the geometry that failed the
+            // rung (feet two rows below the bed, eye under its top face, side hits only), never got
+            // a turn.
             //
             // `radius > 1` is the bound, and it is a better one: the radius only ever tightens, 2→1,
             // so this can fire exactly once and then never again. A counter shared between two
             // remedies is really one remedy, and it is whichever of them runs first.
             if (!aim.equals(lands) && radius > 1) {
-                rig.evidence("cast.landsElsewhere." + approach, "站在 " + at.toShortString() + " 浇会落进 "
-                        + (lands == null ? "MISS（射线够不着床格）" : lands.toShortString())
-                        + "，不是要浇的 " + aim.toShortString()
-                        + " —— 打中的块对、面不对，这是站位不是障碍物；收紧到半径 " + (radius - 1)
-                        + " 再走一趟（半径 1 才逼得脚不低于床格那一排，眼才越过床格顶面）");
+                rig.evidence("cast.landsElsewhere." + approach, "pouring from " + at.toShortString()
+                        + " would land in "
+                        + (lands == null ? "MISS (the ray cannot reach the bed cell)"
+                                         : lands.toShortString())
+                        + ", not in the target " + aim.toShortString()
+                        + ". The hit block is right but the face is wrong, so this is a standing"
+                        + " position, not an obstruction; tightening to radius " + (radius - 1)
+                        + " and walking again (only radius 1 forces the feet to be no lower than the"
+                        + " bed's row, which puts the eye above the bed's top face)");
                 approachAndPour(ctx, rig, aim, tries - 1, radius - 1);
                 return;
             }
@@ -412,9 +429,9 @@ final class JourneyCast {
             // guard compared `getBlockPos()` alone for its whole life, while the comment fifteen
             // lines above stated the assumption it never checked («the fluid goes into the cell in
             // front of the face it hit — which is the water cell above»). ladder-1 lost rung 11 in
-            // that gap: hit `3,61,62` from the south, guard said「right block」, bucket spent,
-            // obsidian at `3,61,63`, and the rung reported「casts obsidian in the chosen cell
-            // (false)」 — the failure mode this method's own comment names as the worst one.
+            // that gap: hit `3,61,62` from the south, guard said "right block", bucket spent,
+            // obsidian at `3,61,63`, and the rung reported "casts obsidian in the chosen cell
+            // (false)", the failure mode this method's own comment names as the worst one.
             //
             // NOT `face == UP`. A ray that hits the target's NEIGHBOUR on a side face and lands in
             // the target is a perfectly good pour; the invariant is the landing CELL, so the landing
@@ -423,53 +440,57 @@ final class JourneyCast {
             BlockPos lands = hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                     ? hit.getBlockPos().relative(hit.getDirection()) : null;
             rig.evidence("cast.lands", (lands == null ? "MISS" : lands.toShortString())
-                    + "（打中的块 + 打中的面，香草 BucketItem 就是这么落的）；要浇的是 "
-                    + target.toShortString()
-                    + (target.equals(lands) ? " ✓ 一致" : " ✗ 不一致 —— 不倒"));
+                    + " (hit block + hit face, which is how vanilla BucketItem places); the target"
+                    + " is " + target.toShortString()
+                    + (target.equals(lands) ? " ✓ match" : " ✗ mismatch, not pouring"));
             boolean onLine = target.equals(lands);
             if (!onLine) {
                 BlockPos inTheWay = hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         ? hit.getBlockPos() : null;
-                // NEVER THE CELL UNDER THE BED. It is what holds the pool up, and a body clearing
+                // NEVER THE CELL UNDER THE BED. It is what holds the pool up, and a bot clearing
                 // its way up to a pool above itself is digging out the floor of the water it wants
-                // to pour into — the reward for succeeding is the pool on its own head. The re-pick
+                // to pour into; the reward for succeeding is the pool on its own head. The re-pick
                 // guard above should mean this line is never reached; it stays because a guard that
                 // is only correct while its neighbour is correct is not a guard.
                 boolean holdsThePool = inTheWay != null && inTheWay.equals(bed.below());
                 if (holdsThePool)
                     rig.evidence("cast.wontClear", inTheWay.toShortString()
-                            + " 撑着要浇的那格水，清掉它等于把水放到自己头上 —— 不清");
-                // ⛔ NOR THE BED. The bed is what the aim ASKS the ray to hit, so「the ray hit the
-                // bed」can never be an obstruction — reaching this line with `inTheWay == bed` means
+                            + " holds up the water cell being poured into; clearing it would drop"
+                            + " the water onto the bot, so it is not cleared");
+                // ⛔ NOR THE BED. The bed is what the aim ASKS the ray to hit, so "the ray hit the
+                // bed" can never be an obstruction; reaching this line with `inTheWay == bed` means
                 // the block was right and the FACE was wrong, which is a standing position and not
                 // something in the way. Mining it would remove the floor under the target water and
                 // drain the pool this pour needs, i.e. the fix for one defect opening a worse one.
                 // Read `cast.lands` for where the fluid would have gone; `cast.landsElsewhere`
-                // upstream is where a body still has the budget to move instead.
+                // upstream is where a bot still has the budget to move instead.
                 boolean isTheBed = inTheWay != null && inTheWay.equals(bed);
                 if (isTheBed)
                     rig.evidence("cast.wrongFace", inTheWay.toShortString()
-                            + " 正是瞄的床格，打中的面是 " + hit.getDirection() + " ⇒ 流体会落进 "
+                            + " is the aimed bed cell itself; the hit face is " + hit.getDirection()
+                            + " ⇒ the fluid would land in "
                             + (lands == null ? "MISS" : lands.toShortString())
-                            + "。这是站位不是障碍 —— 挖掉它等于抽走那格水的地板，不清");
+                            + ". This is a standing position, not an obstruction; mining it would"
+                            + " remove the floor under that water cell, so it is not cleared");
                 if (clearings > 0 && inTheWay != null && !holdsThePool && !isTheBed) {
-                    // A plant stops the RAY but not the BODY. short_grass and seagrass have no
-                    // collider — the body walks through them — yet `getPlayerPOVHitResult` clips on
+                    // A plant stops the RAY but not the PLAYER. short_grass and seagrass have no
+                    // collider — the player walks through them — yet `getPlayerPOVHitResult` clips on
                     // Block.OUTLINE, which a plant has, so they land square on the aiming line. And
                     // MineProcess will not remove them: measured, two clearings in a row left the
                     // same seagrass standing, and short_grass cost run 9 this rung.
                     //
                     // So swing at it directly, which is what a player does — aim, hold, destroy.
-                    // This is the body's own verb, not staging: `staging.calls` stays 0 and the rung
+                    // This is the bot's own verb, not staging: `staging.calls` stays 0 and the rung
                     // keeps its claim. Solid blockers still go through mine, where the drop matters.
                     boolean noCollider = level.getBlockState(inTheWay)
                             .getCollisionShape(level, inTheWay).isEmpty();
                     rig.evidence("cast.blockedBy", inTheWay.toShortString() + " "
                             + level.getBlockState(inTheWay).getBlock()
-                            + (noCollider ? "（无碰撞箱的植物：直接挥手清掉，mine 清不动）"
-                                          : "（挡在瞄准线上，先清掉）"));
+                            + (noCollider ? " (a plant with no collision box: swing at it directly,"
+                                            + " mine cannot clear it)"
+                                          : " (blocking the aiming line, clearing it first)"));
                     if (noCollider) {
-                        // Aim BOTH bodies, then swing — see JourneyHands.swingOffPlant, which owns
+                        // Aim BOTH players (client and server), then swing — see JourneyHands.swingOffPlant, which owns
                         // the whole shape and the two measurements that shaped it. Routing the break
                         // to the server avatar without moving the aim there (the previous fix here)
                         // left `aimTarget` null and destroyed nothing: this exact cell, `-4, 63, 55`,
@@ -495,34 +516,35 @@ final class JourneyCast {
                 // (Measured: two clearings in a row failed to remove the same seagrass, so the
                 // third attempt poured blind. Why mineBlock cannot break it is a separate finding;
                 // not choosing that cell in the first place is the fix, and this is the backstop.)
-                ctx.fail((isTheBed ? "浇筑站位不对（不是被挡）：" : "浇筑瞄准线被挡住，且清不掉：")
-                        + "想浇 " + target.toShortString()
-                        + "（瞄 " + bed.toShortString() + "），射线停在 "
+                ctx.fail((isTheBed ? "wrong standing position for the pour (not an obstruction): "
+                                   : "the pour's aiming line is blocked and cannot be cleared: ")
+                        + "target " + target.toShortString()
+                        + " (aiming at " + bed.toShortString() + "), the ray stops at "
                         + (inTheWay == null ? String.valueOf(hit.getType())
                             : inTheWay.toShortString() + " " + level.getBlockState(inTheWay).getBlock()
                               + " face=" + hit.getDirection())
-                        + "，流体会落进 " + (lands == null ? "MISS" : lands.toShortString())
-                        + "，身体在 " + fp.blockPosition().toShortString()
-                        + "。没有倒 —— 一桶岩浆只有一次机会，倒下去只会浇歪并且把失败写成"
-                        + "\"浇不出黑曜石\"");
+                        + ", the fluid would land in " + (lands == null ? "MISS" : lands.toShortString())
+                        + ", the bot is at " + fp.blockPosition().toShortString()
+                        + ". Not poured: there is only one bucket of lava, and pouring now would"
+                        + " miss the cell and report the failure as \"no obsidian cast\"");
                 return;
             }
             // THE HAND, RE-ASSERTED — `aimThenAct` settles ten ticks between the hold above and this
             // use, and ten ticks is enough for a hold that went down `ensureHolding`'s bag branch to
-            // come undone on both bodies at once. See JourneyHands.regripBeforeUse; rung 12 lost a
-            // cast to it and reported the failure six legs later.
-            // ⚠️ This site's earlier note said it「has never been bitten because nothing between the
-            // two lines holds anything else」. ladder-12 (2026-08-23) falsified that from here:
-            // `cast.handSlipped` fired with COBBLESTONE in slot 0 on both bodies — the shaft climb-out
-            // pillars up to 36 blocks of cobblestone, and the pillar's own hold is what displaces the
-            // bucket. The neighbour that bites is not the next line, it is the last leg.
+            // come undone on both player entities at once. See JourneyHands.regripBeforeUse; rung 12
+            // lost a cast to it and reported the failure six movement tasks later.
+            // ⚠️ Nothing between the hold and the use holds anything else, yet ladder-12 still saw
+            // `cast.handSlipped` fire with COBBLESTONE in slot 0 on both player entities: the shaft
+            // climb-out pillars up to 36 blocks of cobblestone, and the pillar's own hold is what
+            // displaces the bucket. The interference comes from the previous movement task, not
+            // from the next line.
             // SILENCE THE OTHER AUTHOR FOR THE LENGTH OF THE POUR.
             //
             // Re-gripping is as close to the use as a caller can get and ladder j46 proved it is
             // still not close enough: `cast.handSlipped` fired, `cast.again.hand` re-took the
             // bucket, `cast.atUse` recorded lava_bucket on BOTH ends — and then
-            // `handTrace.t0.server = gameTime=28476 槽4 = lava_bucket` was followed by
-            // `t1.server = gameTime=28477 槽4 = cobblestone ×29`. The slot INDEX never moved (the
+            // `handTrace.t0.server` (gameTime=28476, slot 4 = lava_bucket) was followed by
+            // `t1.server` (gameTime=28477, slot 4 = cobblestone ×29). The slot INDEX never moved (the
             // row prints `inv.selected`), so what changed is the slot's CONTENTS, which is
             // `BotInteract.ensureHoldingPillarBlock`'s tail: a real SWAP click that pulls a pillar
             // block out of the main inventory into the selected slot and pushes the bucket back
@@ -534,39 +556,41 @@ final class JourneyCast {
             // grep `holdPlaceable`) ALL short-circuit on
             // `BotConfig.allowPlace` before they touch the hand, so turning it off for these twelve
             // ticks makes the swap unreachable rather than merely unlikely. Nothing here needs to
-            // place: the body is standing still, aimed, about to empty a bucket.
+            // place: the bot is standing still, aimed, about to empty a bucket.
             //
             // Restored on every exit below — the fail branch and the settle's completion — because
             // the walk that follows the pour DOES need to pillar.
             boolean placeWas = BotConfig.allowPlace;
             BotConfig.allowPlace = false;
             // AND A NET UNDER IT. The two restores below cover every path this method can take, but
-            // not the one it cannot: `cast.handTrace.samples` documents that a body which leaves the
+            // not the one it cannot: `cast.handTrace.samples` documents that a bot which leaves the
             // world skips the settle outright, and then the flag would stay false for whatever runs
             // after — a global flipped by a scene that never came back. Cleanups drain on every exit,
             // including a timeout, so the flag cannot outlive the scene that turned it off.
             ctx.cleanup(() -> BotConfig.allowPlace = placeWas);
-            rig.evidence("cast.placeHeldOff", "浇的这一段关掉放置权（原值 " + placeWas
-                    + "）—— 垒塔的 hold 是 SWAP 走槽内容的那个作者，三个调用点都先短路 allowPlace");
+            rig.evidence("cast.placeHeldOff", "placement disabled for the duration of the pour"
+                    + " (previous value " + placeWas + "); the pillar hold is the code that SWAPs"
+                    + " the slot contents, and all three of its call sites short-circuit on"
+                    + " allowPlace first");
             boolean gripped = JourneyHands.regripBeforeUse(rig, Items.LAVA_BUCKET, "cast");
-            // BOTH BODIES AT THE INSTANT OF THE USE, unconditionally — the row ladder-12 needed and
+            // BOTH PLAYERS (CLIENT AND SERVER) AT THE INSTANT OF THE USE, unconditionally — the row ladder-12 needed and
             // did not have. `useItemInHand` is `MultiPlayerGameMode.useItem`, i.e. a CLIENT-side
-            // prediction over the CLIENT's stack, so its SUCCESS says only「the client held a
-            // bucket」. That run returned SUCCESS and read `lava_bucket.after = 1` off the server —
-            // a full bucket after a successful pour — and nothing on disk could say whether the
+            // prediction over the CLIENT's stack, so its SUCCESS says only "the client held a
+            // bucket". That run returned SUCCESS and read `lava_bucket.after = 1` off the server
+            // (a full bucket after a successful pour), and nothing on disk could say whether the
             // server had a bucket in that slot at all. regripBeforeUse checks `actingHolds`, which
-            // is also the client; so「re-gripped」and「the server agrees」are two claims and only one
-            // of them was ever recorded.
+            // is also the client; so "re-gripped" and "the server agrees" are two claims and both
+            // must be recorded.
             JourneyHands.handsAtUse(rig, "cast");
             if (!gripped) {
                 BotConfig.allowPlace = placeWas;
-                ctx.fail("开浇的那只手不是 minecraft:lava_bucket，重新拿过一次也没拿到："
-                        + JourneyHands.heldOnBoth(rig)
-                        + " —— 没有倒。空手 use 只会返回 PASS，"
-                        + "然后这一级会把失败写成「浇不出黑曜石」");
+                ctx.fail("the hand about to pour does not hold minecraft:lava_bucket, and one"
+                        + " re-grip did not fix it: " + JourneyHands.heldOnBoth(rig)
+                        + ". Not poured: a use without the lava bucket in hand only returns PASS,"
+                        + " and this rung would then report the failure as \"no obsidian cast\"");
                 return;
             }
-            // IS THE BODY STILL MOVING? `cast.atUse` shows both ends agreeing on the eye — but it
+            // IS THE BOT STILL MOVING? `cast.atUse` shows both ends agreeing on the eye — but it
             // samples HERE, and the server runs the ray when it processes the packet, one or more
             // movement packets later. The angle cannot drift (ServerboundUseItemPacket carries
             // yRot/xRot and handleUseItem absRotateTo's before useItem); the POSITION can, and
@@ -579,7 +603,7 @@ final class JourneyCast {
             // budget ended. Releasing the controls is not braking.
             var vel = rig.player().getDeltaMovement();
             rig.evidence("cast.motionAtUse", String.format(java.util.Locale.ROOT,
-                    "速度=(%.4f,%.4f,%.4f) |水平|=%.4f onGround=%s；goto 槽 end=%s",
+                    "velocity=(%.4f,%.4f,%.4f) |horizontal|=%.4f onGround=%s; goto slot end=%s",
                     vel.x, vel.y, vel.z, Math.hypot(vel.x, vel.z), rig.player().onGround(),
                     String.valueOf(rig.slotEnd("goto"))));
             // THE CALIBRATION ROW, in the watcher's own format and taken BEFORE the use. It reads
@@ -602,7 +626,7 @@ final class JourneyCast {
             // same thread boundary the defect is about, i.e. copy the bug into the instrument.
             //
             // A counter rather than the watcher's own tick number: TickWatcher takes no argument,
-            // and the window has to stop — 6 ticks × 2 bodies is 12 rows, and the rest of the
+            // and the window has to stop — 6 ticks × 2 players is 12 rows, and the rest of the
             // settle would add 8 more that answer nothing.
             int[] traced = {0};
             rig.settle(new HoldStill(10), 20, () -> {
@@ -615,16 +639,18 @@ final class JourneyCast {
                 BotConfig.allowPlace = placeWas;
                 // HOW MANY TICKS THE INSTRUMENT ACTUALLY SAW, so that silence can be read. Three
                 // outcomes have to look different on disk and this row is what separates them:
-                // this row missing entirely ⇒ the run never reached the pour (未触发, evidence for
-                // neither side); this row present with 0 ⇒ the settle was skipped (the body left
-                // the world) and the instrument never fired, so its silence is also not evidence;
-                // this row present with 6 ⇒ the trace rows above are the answer.
-                rig.evidence("cast.handTrace.samples", "采到 " + traced[0] + "/"
-                        + JourneyHands.TRACE_TICKS + " 个服务端 tick。t0 与 useItemInHand 落在同一个"
-                        + "服务端 tick（settle 的等待在加入它的那一次 advance() 里就被求值一次）——"
-                        + "以每行的 gameTime 为准，别以 tick 序号为准。"
-                        + "采到 0 ⇒ settle 被跳过（身体掉出世界），仪器没响，这一趟的沉默不算证据；"
-                        + "整组 cast.handTrace.* 都不存在 ⇒ 这一趟根本没走到这一浇，同样不算证据。");
+                // this row missing entirely ⇒ the run never reached the pour (not triggered,
+                // evidence for neither side); this row present with 0 ⇒ the settle was skipped (the
+                // bot left the world) and the instrument never fired, so its silence is also not
+                // evidence; this row present with 6 ⇒ the trace rows above are the answer.
+                rig.evidence("cast.handTrace.samples", "sampled " + traced[0] + "/"
+                        + JourneyHands.TRACE_TICKS + " server ticks. t0 and useItemInHand fall on"
+                        + " the same server tick (the settle's wait is evaluated once in the very"
+                        + " advance() call that registers it), so go by each row's gameTime, not by"
+                        + " the tick index. 0 sampled ⇒ the settle was skipped (the bot fell out of"
+                        + " the world) and the instrument never fired, so this run's silence is not"
+                        + " evidence; no cast.handTrace.* rows at all ⇒ this run never reached this"
+                        + " pour, which is not evidence either.");
                 var got = level.getBlockState(target).getBlock();
                 rig.evidence("cast.cellAfter", String.valueOf(got));
                 rig.evidence("lava_bucket.after", rig.carrying("minecraft:lava_bucket"));
@@ -633,28 +659,33 @@ final class JourneyCast {
                 // chosen cell is a misplacement; a full bucket is a refusal; and the two want
                 // opposite fixes.
                 BlockPos anywhere = rig.nearestBlock("minecraft:obsidian", 8, 4);
-                rig.evidence("obsidian.anywhere", anywhere == null ? "无" : anywhere.toShortString());
+                rig.evidence("obsidian.anywhere", anywhere == null ? "none" : anywhere.toShortString());
                 // A THIRD outcome the pair above cannot name: the client predicted the pour and the
                 // server never made it. `cast.result` comes from the client and this count comes
-                // from the server, so「SUCCESS ＋ 桶还是满的」is not a contradiction to explain away
-                // — it is the two ends disagreeing, and it reads exactly like a refusal until the
-                // two sources are named. Written whenever it happens, since the whole rung turns on
+                // from the server, so "SUCCESS + the bucket is still full" is not a contradiction to
+                // explain away; it is the two ends disagreeing, and it reads exactly like a refusal
+                // until the two sources are named. Written whenever it happens, since the whole rung turns on
                 // this one bucket.
                 if (rig.carrying("minecraft:lava_bucket") > 0)
                     rig.evidence("cast.stillFull",
-                            "服务端读到岩浆桶还有 " + rig.carrying("minecraft:lava_bucket")
-                            + " 个，而 cast.result 是客户端 MultiPlayerGameMode.useItem 的预测 —— "
-                            + "两个数来自两端。要判是「服务端那只手不对」还是「两端都拿着桶但这一浇被拒」，"
-                            // cast.atUse 只答得了「发包那一刻」；服务端读的是「处理包那一刻」的手，
-                            // 这两刻之间隔着几个 tick，而 cast.handTrace.* 是唯一采到了那几个 tick 的行。
-                            + "去读 cast.handTrace.t*.server 那一组（use 之后连采的服务端 tick，"
-                            + "先看 cast.handTrace.samples 确认仪器响了）；"
-                            + "cast.atUse 只是发包那一刻，答不了处理包那一刻。"
-                            // ⚠️ 这一段是 settle 之后 重新读的一次活状态，不是 cast.atUse 那一行。
-                            // 原文写的是「读 cast.atUse 那一行的服务端半边：」后面直接接这个值,
-                            // 于是一行自称在引用另一行、实际又量了一次，而且隔了 10 tick 的 settle
-                            // ——两者不同的那一趟，正是这行字最会骗人的那一趟。
-                            + "（下面这个是 settle 之后重新读的，隔了 10 tick，不是 use 那一刻）"
+                            "the server still counts " + rig.carrying("minecraft:lava_bucket")
+                            + " lava bucket(s), while cast.result is the client-side prediction of"
+                            + " MultiPlayerGameMode.useItem; the two numbers come from the two ends."
+                            + " To tell \"the server's hand was wrong\" from \"both ends held the"
+                            + " bucket but this pour was refused\", "
+                            // cast.atUse only answers for the moment the packet was sent; the server
+                            // reads the hand at the moment it handles the packet, several ticks later,
+                            // and cast.handTrace.* are the only rows that sample those ticks.
+                            + "read the cast.handTrace.t*.server rows (consecutive server ticks"
+                            + " after the use; check cast.handTrace.samples first to confirm the"
+                            + " instrument fired). cast.atUse only covers the moment the packet was"
+                            + " sent, not the moment it was handled."
+                            // ⚠️ What follows is live state read again after the settle, not the
+                            // cast.atUse row. Presenting it as a quote of that row would make one row
+                            // claim to cite another while measuring again 10 ticks later, which misleads
+                            // exactly on the runs where the two readings differ.
+                            + " (the following was read again after the settle, 10 ticks later,"
+                            + " not at the moment of the use) "
                             + JourneyHands.heldOnBoth(rig));
                 ctx.expect(got == Blocks.OBSIDIAN)
                         .as("lava poured into standing water casts obsidian in the chosen cell").isTrue();
@@ -664,9 +695,11 @@ final class JourneyCast {
                 // to prove never happened. Saying so on the green row is the difference between a
                 // ladder and a scoreboard.
                 String how = rig.player().blockPosition().getY() < 50
-                        ? "（在地下 y=" + rig.player().blockPosition().getY() + " 浇的，没能爬回地面）"
+                        ? " (poured underground at y=" + rig.player().blockPosition().getY()
+                          + "; the bot did not climb back to the surface)"
                         : "";
-                rig.reach("在 " + target.toShortString() + " 浇出黑曜石，桶已回到手上 ×"
+                rig.reach("cast obsidian at " + target.toShortString()
+                        + ", empty bucket back in the inventory ×"
                         + rig.carrying("minecraft:bucket") + how);
             });
         });

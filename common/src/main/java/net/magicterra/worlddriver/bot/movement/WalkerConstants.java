@@ -42,14 +42,14 @@ final class WalkerConstants {
      *  such a node, so once within ~a block of its XZ it orbits the column and atan2 sweeps
      *  the full 360° as it circles — the deep-water "spin in place" stall (step frozen on the
      *  climb node, pathChart maxYawErr ~179°, camera judder; archive replay-0002 tick3537 =
-     *  5.3 s). A 2-block dead-zone HOLDS the approach heading there so the body keeps pressing
+     *  5.3 s). A 2-block dead-zone HOLDS the approach heading there so the bot keeps pressing
      *  the bank face and the climb-out dig/pillar can anchor and lift it out, instead of
      *  chasing the node round in a circle. Only for an ABOVE node; flat swims / dives keep the
      *  tight {@link #YAW_DEADZONE_SQ}. */
     public static final double CLIMB_AIM_DEADZONE_SQ = 4.0;
     /** Descent camera/movement decouple: how far ahead (blocks) the CAMERA looks on a dry
      *  descent. On a steep grid descent the immediate-waypoint bearing sweeps ~180° as the bot
-     *  passes each close node, and chasing it winds the camera (the 下山转圈 — live yaw to 671°,
+     *  passes each close node, and chasing it winds the camera (the downhill spin — live yaw to 671°,
      *  replay 2953°). Fix: aim the CAMERA at the first path node ≥ this many blocks away (a far
      *  point's bearing is stable → no spin) while the MOVEMENT impulse keeps driving at the
      *  immediate node (precise foot-placement → still reaches). The two run on independent
@@ -58,12 +58,12 @@ final class WalkerConstants {
      *  low-pass) failed precisely because damping the aim also damped the navigation. */
     public static final double DESCENT_CAM_FAR_DIST = 5.0;
     /** Descent camera trend window: the CAMERA aims at the CENTROID of the next this-many path
-     *  nodes, spatially averaging a switchback staircase's alternating cardinal legs into the
+     *  nodes, spatially averaging a switchback staircase's alternating cardinal segments into the
      *  steady down-slope bearing. A single far node (DESCENT_CAM_FAR_DIST) SAMPLES the zigzag and
      *  itself swings ±50° as the bot descends — winding the camera ~9.7 turns on a steep slope
-     *  (the live 下山/下落转圈, ground-truthed via LookController WIND telemetry 2026-06-21). A
+     *  (the live downhill and falling spin, ground-truthed via LookController WIND telemetry 2026-06-21). A
      *  centroid does not swing. Wide enough to span ≥1 zigzag period (~2-3 nodes); the decoupled
-     *  drive (driveTargetYaw=node) keeps the body on every step so trend-aiming is nav-safe. */
+     *  drive (driveTargetYaw=node) keeps the bot on every step so trend-aiming is nav-safe. */
     public static final int DESCENT_CAM_LOOKAHEAD = 12;
     /** No-step-progress ticks before a FLAT in-water aim also widens to {@link
      *  #CLIMB_AIM_DEADZONE_SQ}. A buoyant bot can't stop precisely on a water carrot/node, so
@@ -85,16 +85,16 @@ final class WalkerConstants {
      *  normal ground walking — independent of the cosmetic {@code smoothLook}. A single
      *  degenerate aim vector (reCentre pointing back at the previous node, atan2 on a
      *  near-zero vector, a fall's transient carrot) can otherwise snap the heading 180°
-     *  in one tick — the "朝向反复跳变" the pathfinding charts surfaced. Capping the slew
+     *  in one tick — the repeated heading flips the pathfinding charts surfaced. Capping the slew
      *  turns any such transient into a small wobble the next (correct) tick undoes, so
-     *  the body holds its forward line; a stuck/reCentre limit-cycle can no longer spin
+     *  the bot holds its forward line; a stuck/reCentre limit-cycle can no longer spin
      *  it, so forward progress resumes and the bot escapes the stall. 30°/tick = 600°/s,
      *  far faster than any real turn needs, so legitimate corners are unaffected.
      *  Launches (parkour / MLG fall) bypass this and snap — you can't steer mid-air. */
     public static final float WALKER_MAX_YAW_SLEW_DEG = 30f;
     /** Forward impulse magnitude for the FREE-HANGING vine climb (camera-decoupled commandMove
      *  toward the climb target). vanilla clamps a climbable's horizontal velocity to ≤0.15/tick, so
-     *  this only needs to be firm enough to win the friction race and keep the body advancing toward
+     *  this only needs to be firm enough to win the friction race and keep the bot advancing toward
      *  the exit column (and re-centring off-axis drift) while it rides the jump up. Below 1.0 so it
      *  doesn't ram past the exit and shoot off the curtain top. See the onVine free-hang branch. */
     public static final float FREE_HANG_DRIVE = 0.6f;
@@ -108,11 +108,11 @@ final class WalkerConstants {
     /** Stronger low-pass for the DRY-DESCENT camera (~6-tick time constant vs the cruise 2-tick).
      *  Smooths the residual centroid-quantisation jitter (nodes shifting in/out of the look-ahead
      *  window nudge the trend bearing ~3°/tick) into a near-still heading. Safe to lag this hard
-     *  ONLY because the descent drive is camera-decoupled (driveTargetYaw=node) — the body keeps
+     *  ONLY because the descent drive is camera-decoupled (driveTargetYaw=node) — the bot keeps
      *  taking every step while the camera eases onto the trend. See DESCENT_CAM_LOOKAHEAD. */
     public static final float YAW_SMOOTH_ALPHA_DESCENT = 0.08f;
     /** The orbit signature the trend camera cannot converge out of: a heading error this wide, held
-     *  this long while the body keeps moving, means the bearing rotates as fast as the slow EMA
+     *  this long while the bot keeps moving, means the bearing rotates as fast as the slow EMA
      *  follows it (wd.clientGotoStartsMidAirOverWater: 300 ticks at ~90°, yaw wound 52→2453). Below
      *  the floor is ordinary tracking; above the ceiling is the per-repath ±180° flip that must stay
      *  damped (the antipode snap was tried and reverted). See BotConfig.walkerOrbitBreaksAimLag. */
@@ -120,10 +120,10 @@ final class WalkerConstants {
     public static final float ORBIT_ERR_MAX_DEG = 170f;
     public static final int ORBIT_TICKS = 12;
     public static final double ORBIT_MOVE_SQ = 0.05 * 0.05;
-    /** …and the body's own yaw must have wound this far in ONE direction meanwhile. A corridor
+    /** …and the bot's own yaw must have wound this far in ONE direction meanwhile. A corridor
      *  detour whose trend centroid points elsewhere also holds a steady 90° error while moving
-     *  (wd.bridgeStepTwoBypassNoPlace: centroid east, plan north), but its body turns at corners
-     *  and then stops; only a circling body keeps turning the same way.
+     *  (wd.bridgeStepTwoBypassNoPlace: centroid east, plan north), but there the bot turns at corners
+     *  and then stops; only a circling bot keeps turning the same way.
      *  <p>Ninety, down from 180: the trend alpha turns the yaw about 5° a tick, so 180° of winding
      *  was 36 ticks of circling before the break could fire (wd.clientTunnelsFarThroughStone: three
      *  breaks at 17-33 ticks, a full lap each around a node four cells out). One corner is at most
@@ -132,7 +132,7 @@ final class WalkerConstants {
     /** Surface sprint-swim cruise (walkerSurfaceSprintSwim): how long the dip keeps sinking after the
      *  pose appears so the server's lagging flag sync cannot knock it off (START_SPRINTING reaches the
      *  server a tick after the client's flip; its next flush of the shared-flags byte carries its own,
-     *  still-off swim bit, and a body already back at the waterline then loses the sprint to
+     *  still-off swim bit, and a bot already back at the waterline then loses the sprint to
      *  {@code LocalPlayer.aiStep}'s "in water, not under" cancel — so the eyes stay under at crouch
      *  height until that flush has come and gone), the air band it breathes in, how far ahead a bank
      *  ends the cruise, and how long a dip may try for the pose before backing off. The sink runs a few
@@ -146,7 +146,7 @@ final class WalkerConstants {
     public static final int CRUISE_DIP_MAX_TICKS = 40;
     public static final int CRUISE_COOLDOWN_TICKS = 100;
     /** Longest string-pulled edge over water (cells). The off-path test is a 3-block cell distance
-     *  that counts the sunk foot's extra y, so two cells keeps a cruising body on its path and
+     *  that counts the sunk foot's extra y, so two cells keeps a cruising bot on its path and
      *  passes a node every few strokes. */
     public static final int WATER_PULL_SPAN = 2;
     public static final float WATER_DRIVE_ALPHA = 0.3f;   // EMA on the water drive heading (damps ±180° node flip)
@@ -154,21 +154,21 @@ final class WalkerConstants {
      *  carrot rounding a corner — moves the heading gradually; a SUDDEN ±180° jump is a transient
      *  artifact (a node overshoot, a re-plan, or the carrot collapsing onto a wall/path-end and
      *  falling back to the flipping node bearing). Reject it — hold the forward heading — so the
-     *  body doesn't lurch backward and crawl (the open-water "绕node打转" churn). */
+     *  bot doesn't lurch backward and crawl (the open-water churn of circling around a node). */
     public static final float WATER_DRIVE_MAX_TURN = 120f;
     /** Consecutive flip-rejections after which the DRIVE SNAPS to the live source anyway. A genuine
      *  transient flip lasts 1–2 ticks (the carrot returns and tracking resumes); a PERSISTENT >120°
      *  disagreement means the route really did turn (or the carrot has collapsed for good at a wall)
      *  and the held heading is now stale — keep rejecting it and the swim strands itself pointing the
      *  wrong way (live -1648 / -1676: driveYaw froze ~ -99/103 while the node sat behind, totStuck
-     *  climbed 500+). Snapping after a few ticks turns the body toward the live target so it makes
+     *  climbed 500+). Snapping after a few ticks turns the bot toward the live target so it makes
      *  progress, `step` advances past the overshot node, and the carrot recovers. */
     public static final int WATER_DRIVE_MAX_REJECT = 4;
     /** Max drop (blocks) below the floating foot that a NON-dive submerged path node is floated
      *  over (crossed horizontally at the surface) instead of followed down. A* routes wide
      *  deep-water crossings along the riverbed, placing walk/parkour nodes many blocks under the
-     *  surface swimmer; following them dives the buoyant body and stalls it bobbing underwater (the
-     *  "潜底/挖墙" stall). A surface/land goal never needs to END deep underwater (real descents use
+     *  surface swimmer; following them dives the buoyant bot and stalls it bobbing underwater (the
+     *  stall where the bot sinks to the bottom and digs into the wall). A surface/land goal never needs to END deep underwater (real descents use
      *  fall/swimDown edges), so floating over any reasonable depth is safe; a swimDown dive keeps
      *  its own tight bound. */
     public static final double FLOATOVER_NONDIVE_MAX_DROP = 32.0;
@@ -188,7 +188,7 @@ final class WalkerConstants {
      *  the dry sibling of {@link #DEEP_WATER_DRIFT_LATCH}. steepDescentNear drops sprint when a
      *  survivable-but-deep (&gt;4) drop borders a planned descent, but it is gated onGround, so
      *  across the airborne sub-arcs of each step-down sprint RE-ARMS and the accumulated FORWARD
-     *  momentum walks the body off a survivable-deep lip into a fatal cumulative fall (live
+     *  momentum walks the bot off a survivable-deep lip into a fatal cumulative fall (live
      *  2026-07-11 Mountains massif, telemetry-confirmed: grounded sprint=false, but
      *  onG=false→sprint=true on every fall tick). 8 bridges a step-down's airborne arc and
      *  re-arms each grounded step; a genuine long free-fall decays past it harmlessly (nothing
@@ -198,7 +198,7 @@ final class WalkerConstants {
      *  CUMULATIVE deep descent (task#36, 2026-07-12). The single-edge {@code dropAdjacentExceeds}
      *  probe only sees a drop when ONE neighbour is a &gt;maxDryFall cliff; a mountain descent the
      *  planner routes as a run of individually-legal ≤maxDryFall steps (e.g. y79→77→73→72) has no
-     *  such neighbour at any grounded tick, so the raw brake never armed and the body sprint-sailed
+     *  such neighbour at any grounded tick, so the raw brake never armed and the bot sprint-sailed
      *  off the slope (live Mountains: hSpd rising 0.21→0.23, sprint=T, 6+ block continuous fall).
      *  Summing the drop over the next few nodes (foot.Y − min node.Y) catches the slope the way the
      *  planner laid it. 3 spans the ~2-node horizon where a &gt;4 cumulative drop first appears. */
@@ -208,7 +208,7 @@ final class WalkerConstants {
      *  ~1 tick, spuriously satisfying wp.y > foot.y and firing a "mount" that overrides the drive
      *  to the already-passed (→ ±180° flipped) column heading + a jump (the residual near-goal
      *  driveYaw flip-pairs, jump=true on every flipped tick). A REAL +1 bank climb keeps the node
-     *  above the foot EVERY tick (the body sits below the bank through the whole mount), so it
+     *  above the foot EVERY tick (the bot sits below the bank through the whole mount), so it
      *  satisfies the debounce immediately; the 1-tick bob never does. */
     public static final int CLIMB_PRESS_DEBOUNCE = 3;
     /** Per-tick smoothed-target change (deg) below which the aim target counts as STABLE.
@@ -222,7 +222,7 @@ final class WalkerConstants {
      *  while a stable bearing pointed ~150° away). */
     public static final int AIM_STABLE_TICKS = 10;
     /** Degrees past which a target-vs-smooth gap counts as a COURSE REVERSAL, not a turn
-     *  the EMA may chase. At the ±180° antipode angleDiff's sign flips on sub-pixel body
+     *  the EMA may chase. At the ±180° antipode angleDiff's sign flips on sub-pixel player
      *  jitter, so EMA-chasing oscillates forever and the stability gate never releases
      *  the anti-spin freeze (Mountains notch live: raw target steady 700 ticks, smooth
      *  never stable, heading pinned into a wall — the badlands-basin deadlock's true
@@ -232,16 +232,16 @@ final class WalkerConstants {
      *  rides out 1-2 tick transient flips (node overshoot sweep) exactly like
      *  {@link #WATER_DRIVE_MAX_REJECT} does for the water drive heading. */
     public static final int AIM_REVERSAL_SNAP_TICKS = 6;
-    /** Squared horizontal displacement (~0.15 b) under which a spin-frozen body counts as
+    /** Squared horizontal displacement (~0.15 b) under which a spin-frozen bot counts as
      *  PINNED — pressing a wall, not swimming/climbing. See the freeze deadlock valve. */
     public static final double FREEZE_PRESS_MOVE_SQ = 0.15 * 0.15;
     /** Consecutive pinned-while-frozen ticks (~3 s) before the valve releases the freeze
      *  and snaps the heading to the live target. Long enough that every legitimate freeze
-     *  use (bodies that move/bob) never trips it; short enough to break the notch
+     *  use (a player that moves or bobs) never trips it; short enough to break the notch
      *  deadlock ~200x faster than the 12000-tick goto budget it used to burn. */
     public static final int FREEZE_PRESS_STALL_TICKS = 60;
     /** Heading tolerance for committing to a +1 step climb. A step is climbed by
-     *  walking INTO the riser then jumping ONTO it, so the body must already FACE
+     *  walking INTO the riser then jumping ONTO it, so the bot must already FACE
      *  the step — if it arrived off the climb column or after a sharp path turn the
      *  bearing can be 90-150° off, and since smoothLook only turns
      *  {@link #WALKER_MAX_YAW_SLEW_DEG}°/tick the forward key would RAM the riser
@@ -249,7 +249,7 @@ final class WalkerConstants {
      *  several ticks it pivots — the bot bob-jams in place (measured: 36% of a
      *  jungle-hill climb was collision-stalled, sprint effective only 1% of ticks).
      *  While the step is still mis-aimed beyond this tolerance we PIVOT in place
-     *  (cut forward + jump) so the body turns cleanly to face the step, then climbs. */
+     *  (cut forward + jump) so the bot turns cleanly to face the step, then climbs. */
     public static final float STEPUP_AIM_TOLERANCE_DEG = 40f;
     /** Path-trend averaging window (nodes) for the dry +1 staircase aim. A ~45° goal makes A*
      *  emit a grid STAIRCASE whose immediate-node bearing alternates ±~30° around the true
@@ -262,17 +262,17 @@ final class WalkerConstants {
     public static final int STAIR_TREND_LOOKAHEAD = 5;
 
     public static final double REACH_DIST_SQ = 0.45;
-    /** Squared distance to the LAST node inside which the body walks instead of sprinting: two
+    /** Squared distance to the LAST node inside which the bot walks instead of sprinting: two
      *  blocks, one more than a sprint needs to bleed to walking speed under ground friction. */
     public static final double FINAL_APPROACH_WALK_SQ = 4.0;
-    /** How far under the surface a submerged body's search start may still be lifted to the
+    /** How far under the surface a submerged bot's search start may still be lifted to the
      *  surface cell: two cells, the depth a fresh drop into a pool sinks to before it floats. */
     public static final int SURFACE_SEARCH_LIFT_MAX = 2;
     /** How long the pointer may be held on a final node that is the goal while the foot is not
      *  yet in it: a landing plus a walk of a block, with room for one bounce. */
     public static final int FINAL_NODE_HOLD_TICKS = 30;
     public static final int STUCK_TICKS = 60;
-    /** Ticks a buoyant body may stay pinned ABOVE an in-water below-node before the
+    /** Ticks a buoyant bot may stay pinned ABOVE an in-water below-node before the
      *  step-advance gate surface-crosses past it. A* routes a deep-water crossing
      *  along the riverbed (nodes 1-2 below the floating foot); the executor can't
      *  sink onto them — a swimDown dive's buoyancy refuses the sink and a non-dive
@@ -298,19 +298,19 @@ final class WalkerConstants {
     public static final double OVERSHOOT_RESYNC_SQ = 4.0;
     /**
      * Horizontal distance² inside which a node whose NEXT node is stacked on it (same column:
-     * pillarUp, downBreak, swimUp) may count as passed: the body is on the column, only momentum
+     * pillarUp, downBreak, swimUp) may count as passed: the bot is on the column, only momentum
      * carried it off centre.
      *
      * <p>Why the stacked case needs its own rule: a stacked next node has {@code nd2 == cur2} from
      * every foot in the world, so the overshoot tie-break in the {@code passed} re-sync read
-     * "passed" for a node the body had not reached at all — {@code overshot} is only "far from the
+     * "passed" for a node the bot had not reached at all — {@code overshot} is only "far from the
      * node", it has no direction. Live (wd.clientTunnelsFarThroughStone): a 25-cell string-pulled
      * walk ending on a downBreak column; the pointer skipped the walk node from 25 cells out, the
      * actuator dug the column's block from there (the client breaks it locally, the server refuses
      * by reach and sends it back), the next plan stepped down through the phantom air, and the
-     * body orbited the column. From farther out than this the pointer holds unless the body is
+     * bot orbited the column. From farther out than this the pointer holds unless the bot is
      * actually BEYOND the node along the route ({@code PathSmoothing.beyondNode}): that keeps the
-     * overshoot relaxation for a buoyant body that drifted past its climb column, and refuses it
+     * overshoot relaxation for a buoyant bot that drifted past its climb column, and refuses it
      * for one that has not arrived.
      */
     public static final double STACKED_PASS_SQ = 1.0;
@@ -334,12 +334,12 @@ final class WalkerConstants {
      * edge pending, and the sticky-dig release just drops the claim; so after every plain dig the
      * latch (then the attack key itself) stayed down until the whole process ended. Two things
      * followed: with the window focused vanilla's {@code continueAttack} mined whatever the
-     * crosshair crossed while the body walked on — the key is gone now, that one cannot recur —
+     * crosshair crossed while the bot walked on — the key is gone now, that one cannot recur —
      * and {@code WalkerTickStallDetect} reads {@code breakHeld()} to decide {@code breakingEdge},
      * so every later edge with a break list got the {@link #WEDGE_TICKS}+breakTimeout leash and the
      * anti-stuck exemption even when its APPROACH was what wedged, the exact deadlock that reading
      * exists to refuse. Two ticks, not one: a phase that ends the tick early without reaching the
-     * actuator (a place-off re-search kickoff, a breath bail) must not cost a server body its
+     * actuator (a place-off re-search kickoff, a breath bail) must not cost a server-side player its
      * accumulated progress, which {@code ServerPlayerBody.breakHold(false)} zeroes. Only a hold
      * the walker set is released; AntiSuffocate and the processes keep their own.
      */
@@ -366,8 +366,8 @@ final class WalkerConstants {
      *  Widened 6→10 (2026-06-28): tall +2 walls (e.g. -722 boxed-pinch) have their nearest steppable
      *  +1/flat exit further along the bank; a 6-cell reach missed it → 3-min floating deadlock. */
     public static final int BANK_FOLLOW_SCAN = 10;
-    /** How little of the body's own sole may be on solid ground before the lethal-edge / bridge
-     *  gate brakes, out of the 0.36 blocks² a player's 0.6-wide box has. Half a sole: a body
+    /** How little of the bot's own sole may be on solid ground before the lethal-edge / bridge
+     *  gate brakes, out of the 0.36 blocks² a player's 0.6-wide box has. Half a sole: a bot
      *  centred on a one-wide ridge keeps the full 0.36 and one drifted more than 0.2 off that
      *  centre is past the point where an ordinary walk tick can recover. Measured on the nether
      *  crossing, where the two falls that ended runs launched from 0.118 and 0.000. */
@@ -445,7 +445,7 @@ final class WalkerConstants {
      *  buoyant bob-ram at the water surface. */
     public static final int WATER_STEPDOWN_STALL_TICKS = 14;
     /** Relaxed horizontal reach² for advancing a STALLED shallow water-surface step-down node
-     *  ({@link BotConfig#walkerWaterStepDownFloat}). The buoyant body grounds vertically AT the node
+     *  ({@link BotConfig#walkerWaterStepDownFloat}). The buoyant bot grounds vertically AT the node
      *  (|dY|≈0) but pins ~0.74 b short of centre (cur2≈0.55) against the surface ram, just over the
      *  tight {@link #REACH_DIST_SQ}=0.45. 1.2 (≈1.1 b) comfortably covers that pin yet stays well under
      *  {@link #OVERSHOOT_RESYNC_SQ}=4 so it can never skip a node the bot is still genuinely approaching
@@ -459,7 +459,7 @@ final class WalkerConstants {
     public static final int STEPUP_CREST_STALL_TICKS = 16;
     /** Relaxed horizontal reach² for advancing a STALLED +1 stepUp/diagUp crest node the bot has
      *  topped out on but ORBITS ({@link BotConfig#walkerStepUpCrestReach}). On a diagonal staircase
-     *  crest (a +2 plateau lip) the body reaches the node's Y at the bob crest (|dyNode|≈0) but the
+     *  crest (a +2 plateau lip) the bot reaches the node's Y at the bob crest (|dyNode|≈0) but the
      *  buoyancy-free apex bob + the ±0.5 b lateral orbit keep cur2 pinned at ~0.49-1.2 — just over
      *  the tight {@link #REACH_DIST_SQ}=0.45 — so `within` never fires and `passed` never reads the
      *  next node STRICTLY closer while circling, freezing the step ~25-51 ticks (live -633,80,318:
@@ -474,7 +474,7 @@ final class WalkerConstants {
      *  Walker:~1666, so the bob can't fake-reset it) stays low — and never trips it; only a turn / terminal /
      *  WALL-CORNER freeze where neither {@code within} nor {@code passed} can fire accumulates it. */
     public static final int WATER_WALK_STALL_TICKS = 24;
-    /** Relaxed horizontal reach² for advancing a STALLED flat {@code walk} water-surface node a buoyant body
+    /** Relaxed horizontal reach² for advancing a STALLED flat {@code walk} water-surface node a buoyant bot
      *  orbits ({@link BotConfig#walkerWaterWalkReach}). The surface swimmer sits ~0.67 b out (cur2 floor
      *  ~0.455, just over {@link #REACH_DIST_SQ}=0.45) and at a wall-corner freezes farther out still (live
      *  deep-water bay corner: cur2 1.142 frozen 321 t, within=0, aim swinging 403°). 1.3 (≈1.14 b) covers both
@@ -491,8 +491,8 @@ final class WalkerConstants {
     public static final double PARKOUR_PLACE_REACH = 4.0;
     /** stuckTicks before a FLAT-node carrot-orbit falls back to aiming at the IMMEDIATE node
      *  instead of the look-ahead carrot. On a flat walk aimAtWaypoint is false (wp.y==foot.y), so
-     *  the body follows the carrot; at a turn/corner node the carrot points ~60° off the close node
-     *  and the body orbits it at ~0.75 b (cur2 just outside the within-gate), never closing — stuckTicks
+     *  the bot follows the carrot; at a turn/corner node the carrot points ~60° off the close node
+     *  and the bot orbits it at ~0.75 b (cur2 just outside the within-gate), never closing — stuckTicks
      *  climbs (live 2026-06-24 FREEZE-DIAG at the -812/-813 pit approach: driveF=1, fwdComp>0, aimAtWp=
      *  false, ddeg≈-60, hSpd~0.07, cur2 frozen, 26-80 ticks). reCentre aims at the PREVIOUS node and the
      *  strafe only centres the cross-axis — neither pulls onto the IMMEDIATE node, so neither closes the
@@ -502,7 +502,7 @@ final class WalkerConstants {
      *  overshoot-advance so an actual overshoot still prefers the discrete step-skip. */
     public static final int APPROACH_NODE_AIM_TICKS = 12;
     /** noStepProgressTicks a floating bot must be RAMMED (in-water hCol) before the lateral-pad
-     *  break ({@link BotConfig#walkerPadRamBreak}) scans the body-overlap columns for a lily pad the
+     *  break ({@link BotConfig#walkerPadRamBreak}) scans the bot-overlap columns for a lily pad the
      *  head-on pad scan missed. Long enough that a normal swim through clean water — which advances its
      *  step every 1-2 ticks and resets noStepProgressTicks — never trips it (so a transient brush past
      *  a pad while still moving isn't broken), short enough to cut the ~270-tick (13.5 s) repath freeze
@@ -511,7 +511,7 @@ final class WalkerConstants {
     /** Anti-spin: consecutive in-water repaths with no goal-progress before the camera
      *  heading is FROZEN. A failed water climb-out makes every repath return a
      *  swim-back/circle best-effort; following each one U-turns the bot and the
-     *  repeated U-turns wind the camera (the water "转圈"). Past this count the heading
+     *  repeated U-turns wind the camera (the water spin). Past this count the heading
      *  is held steady (see the heading block) — MC movement follows body yaw, so a
      *  frozen heading also steadies the bot pressing toward the climb-out instead of
      *  whipping around. Small so the spin is killed within ~1-2s of churn. */
@@ -537,7 +537,7 @@ final class WalkerConstants {
     public static final int CHURN_WINDOW = 400;
     public static final int CHURN_MIN_MOVE_SQ = 64;
     /** Wall-corner fast-churn (walkerWallCornerFastChurn): consecutive sustained-hCol ticks before the
-     *  net-displacement churn window is SHORTENED to {@link #WALL_CHURN_WINDOW}. The §39 贴墙卡住 stall
+     *  net-displacement churn window is SHORTENED to {@link #WALL_CHURN_WINDOW}. The stuck-against-a-wall stall
      *  (rocky/dirt/water-boundary wall-corner) makes NO net XZ progress with hCol pinned true, but the
      *  node-relative stuck counters (totStuck, noStepProgressTicks) get RESET by the orbit's node-churn so
      *  the 20s window is the only thing that catches it — too slow (live journey-A: 20-45s per stall). A
@@ -559,7 +559,7 @@ final class WalkerConstants {
      *  planner escalation armed. Sticky so a couple of wandering windows that briefly
      *  show net progress mid-climb don't drop the escalation before the climb completes. */
     public static final long BOXED_ESCALATE_STICKY_TICKS = 1200;
-    /** PROACTIVE PINCH escalation (渐进式 pinch 预判, gated by {@link BotConfig#pathfinderProgressive}):
+    /** PROACTIVE PINCH escalation (progressive pinch prediction, gated by {@link BotConfig#pathfinderProgressive}):
      *  if a BIG search comes back best-effort having closed less than this many blocks of
      *  goal distance, the planner is wedged at a pinch and a low budget will keep
      *  re-committing the shallow scrap the bot churns on. Arm the deep-search escalation
@@ -634,7 +634,7 @@ final class WalkerConstants {
      *  down an open corridor (riverSheerBank: the low bank +5 EAST across open water, only +1
      *  up) and must be reached by SWIMMING to it, not by trenching the sheer wall the bot is
      *  merely passing. 2 admits a diagonal-adjacent bank / +2 staircase step while still
-     *  excluding the ≥5-cell lateral exits; the swim-drive carries the body along the corridor
+     *  excluding the ≥5-cell lateral exits; the swim-drive carries the bot along the corridor
      *  and the climb re-arms once it swims adjacent (self-healing). NOTE: 2 is a judgment
      *  floor, not an A/B-measured boundary — the task#91 wedge sits at Chebyshev 5 and any
      *  value in [2,4] passes the scene; the water family is byte-identical at 2. If a future
@@ -698,7 +698,7 @@ final class WalkerConstants {
      *  ±0.9..1.5; the once-only snap then points the fixed ray OFF the 1-tall riser face
      *  (eye rises → ray passes above it) so the break never lands and the bot bobs ~30 s.
      *  ~0.4 ≈ the drift that walks the ray off a 1-block face → re-snap to hold it on, while
-     *  staying far above the per-tick re-aim that judders the camera (不跳变视角). */
+     *  staying far above the per-tick re-aim that judders the camera (so the view does not jump). */
     public static final double DIG_REAIM_EYE_DY = 0.4;
     /** Ticks the pillar takeover may bob WITHOUT a successful place before it's judged
      *  futile here (a buoyant bot can't lift its feet above a surface fill cell) and the
@@ -706,15 +706,15 @@ final class WalkerConstants {
      *  last-resort window as WATER_CLIMB_DIG_STALL, so place-banks and dig-banks converge
      *  on the dig at the same patience. */
     public static final int PILLAR_FUTILE_TICKS = 50;
-    /** Ticks a body that swam INTO its own pending side foothold treads water for the server's
+    /** Ticks a bot that swam INTO its own pending side foothold treads water for the server's
      *  verdict on that click before the takeover asks for a rung elsewhere; the server judged the
-     *  click at its lagging copy of the body and often lands it (walkerShallowWaterSideFoothold). */
+     *  click at its lagging copy of the bot and often lands it (walkerShallowWaterSideFoothold). */
     public static final int PENDING_RUNG_WAIT_TICKS = 6;
-    /** Horizontal speed² under which a body standing dry on its rung may jump for the next one; a
-     *  jump taken with the swim's momentum still in it carries the body off a 1×1 rung. */
+    /** Horizontal speed² under which a bot standing dry on its rung may jump for the next one; a
+     *  jump taken with the swim's momentum still in it carries the bot off a 1×1 rung. */
     public static final double SETTLED_SPEED_SQ = 0.05 * 0.05;
-    /** Horizontal margin the body's box must keep from a candidate side foothold cell; vanilla
-     *  refuses a block that meets the body, and the body drifts a tick or two before the answer. */
+    /** Horizontal margin the bot's box must keep from a candidate side foothold cell; vanilla
+     *  refuses a block that meets the bot, and the bot drifts a tick or two before the answer. */
     public static final double SIDE_RUNG_CLEARANCE = 0.1;
     /** Grace ticks the "in a water climb-out" state stays LATCHED after the last
      *  water contact. A bob-cycling climb-out breaches the surface every cycle (head

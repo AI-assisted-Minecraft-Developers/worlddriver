@@ -60,8 +60,8 @@ public final class ItemSnap {
      * loop, byte-identical but for the local's declared type. The server one's comment states the
      * contract outright — "Shape is deliberately byte-identical to the client's — same verb, same
      * field, same rows — so an agent never has to know which side answered" — and a contract of
-     * the form「这两处必须逐字相同」that is maintained by hand is a drift waiting for its first
-     * one-sided edit. It is the same field, and gap #41 is what that costs.
+     * the form "these two places must be identical word for word" that is maintained by hand is a
+     * drift waiting for its first one-sided edit. It is the same field, so it has one writer.
      *
      * <p>Slot INDEXING is vanilla's and is the load-bearing part: {@code getItem(i)} maps the flat
      * index onto items/armor/offhand itself, so the total is the three list sizes summed rather

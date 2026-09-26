@@ -14,7 +14,7 @@ import java.util.Set;
  * {@code hurtTime > 0} for freshness: contact damage re-lands every ~10 ticks so
  * hurtTime stays hot for the whole episode, but decays to 0 within ≤10 ticks of
  * breaking contact (far tighter than the raw ~40-tick last-damager window, whose
- * stale tail is exactly what bit AntiSuffocate's fallback legs in final-review M1).
+ * stale tail is exactly what bit AntiSuffocate's fallback steps in final-review M1).
  */
 public final class ContactEscapeGate {
     private ContactEscapeGate() {}

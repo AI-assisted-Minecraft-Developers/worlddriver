@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * from the client tick thread only — no synchronization needed on {@link #current}.
  *
  * <p>A chain that gives up calls {@link #bail}: its bid is forced to 0 for the cooldown it
- * names, so the next chain down the ladder gets the body. Without it a chain whose priority
+ * names, so the next chain down the ladder gets control of the bot. Without it a chain whose priority
  * is a function of the situation re-bids the same band on the very next tick, because giving
  * up did not change the situation.
  */
@@ -132,8 +132,8 @@ public final class ProcessScheduler {
             bestP = currentP;
         }
         if (best != current) {
-            // One line per handover — the movement channel deciding who owns the
-            // body is THE thing post-mortems need (iron ep-018/019: a user smelt
+            // One line per handover — the movement channel deciding who controls the
+            // bot is THE thing post-mortems need (iron ep-018/019: a user smelt
             // froze for minutes with zero telemetry naming the chain that held
             // the channel). Cheap: only on transitions, never per tick.
             WorldDriverCommon.LOG.info(

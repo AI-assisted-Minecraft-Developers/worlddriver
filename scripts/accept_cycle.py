@@ -1,7 +1,8 @@
-"""#47 验收完整周期: 3x [随机 XZ journey + replay x3], 自动串联。
-用法: accept_cycle.py <cycle_label>
-每条 journey: 随机方向 110-170 格 XZ goal -> live 跟踪 -> 找最新档 -> replay x3。
-持续输出结果行; 死亡自动 respawn+re-give 后继续。
+"""One complete acceptance cycle: 3x [random XZ journey + replay x3], chained automatically.
+Usage: accept_cycle.py <cycle_label>
+Each journey: an XZ goal 110-170 blocks away in a random direction -> live tracking -> find the
+newest archive -> replay x3.
+Prints result lines as it goes; after a death it respawns, re-gives the items and continues.
 """
 import asyncio, sys, math, random, time, os, json
 sys.path.insert(0, '.')
@@ -33,7 +34,7 @@ def click_button(labels, gone_type=None, timeout=6.0):
     screen, so the next journey started from a corpse and its verdict was garbage.
 
     Nothing new is needed on the mod side. `mc.client.screen.tree` already reports
-    every widget's bbox, label, visible and active — its own comment says it exists
+    every widget's bbox, label, translation key, visible and active — its own comment says it exists
     so agents can pick a widget "by label/index without resorting to pixel-
     counting". Widget x/y are in the Screen's coordinate space, which is exactly
     what `mc.client.input.click` feeds to `Screen.mouseClicked`, so the centre of
@@ -56,7 +57,8 @@ def click_button(labels, gone_type=None, timeout=6.0):
     kids = tree.get('children') or []
     want = {s.strip().lower() for s in labels}
     hit = next((c for c in kids
-                if str(c.get('message', '')).strip().lower() in want
+                if (str(c.get('message', '')).strip().lower() in want
+                    or str(c.get('key', '')).lower() in want)
                 and c.get('visible') and c.get('active') and 'width' in c), None)
     if hit is None:
         seen = [c.get('message') for c in kids if c.get('message')]
@@ -79,8 +81,9 @@ def click_button(labels, gone_type=None, timeout=6.0):
                        f'after {timeout}s')
 
 
-# Vanilla's respawn button, by locale. Add yours if click_button reports it.
-RESPAWN_LABELS = ('Respawn', '重生', 'deathScreen.respawn')
+# The translation key finds vanilla's respawn button in any language; the label covers a
+# screen that sets a literal message.
+RESPAWN_LABELS = ('deathScreen.respawn', 'Respawn')
 
 
 def ensure_alive():
@@ -145,7 +148,7 @@ def preflight(label):
 def live_journey(label):
     ensure_alive()
     # §89 rig fix: the previous journey's 14-block arrive circle can end ON a jungle
-    # canopy, so the next leg starts treetop-airborne — jump-ram bounce there hops
+    # canopy, so the next journey starts airborne on the treetops — jump-ram bounce there hops
     # 3-4 blocks and resets the physical stall anchor, burning the whole timeout at
     # the start (C106-J3: churn 12 blocks from start). A real journey never starts
     # on a treetop; step down to solid ground before goto.
@@ -174,7 +177,7 @@ def live_journey(label):
     rpc('mc.client.chat.send', {'text': '/clear'}); time.sleep(0.3)
     for c in ['/give @p water_bucket', '/give @p diamond_pickaxe', '/give @p diamond_shovel', '/give @p cobblestone 192']:
         rpc('mc.client.chat.send', {'text': c}); time.sleep(0.3)
-    rpc('mc.client.chat.send', {'text': '/effect clear @p'}); time.sleep(0.2)   # live legs stay mortal (§76)
+    rpc('mc.client.chat.send', {'text': '/effect clear @p'}); time.sleep(0.2)   # live journeys stay mortal
     rpc('mc.client.chat.send', {'text': '/effect give @p minecraft:night_vision infinite 0 true'}); time.sleep(0.2)   # keep night vision through the clear (user directive; also de-noises the dark-cave video watcher)
     p = rpc('mc.client.player', {})['pos']
     sx, sz = p['x'], p['z']
@@ -352,7 +355,7 @@ if '--self-test' in sys.argv:
 # spreadplayers can drop the bot INSIDE a cave/ravine opening (C18: y37 start,
 # journey churned at y8 in the cave network) — retry until surfaced (y>=60).
 # PEACEFUL for the whole cycle (§75): pathfinding acceptance, not combat — hostiles
-# pinned the C63-J2 replay bot (spider, maxStuck 1200) and have bled hp in live legs.
+# pinned the C63-J2 replay bot (spider, maxStuck 1200) and have drained health in live journeys.
 rpc('mc.client.chat.send', {'text': '/difficulty peaceful'}); time.sleep(0.3)
 for _try in range(4):
     cx, cz = random.randint(-400, 400), random.randint(-400, 400)
@@ -383,12 +386,13 @@ for j in range(1, 4):
         if arc: break
     if arc is None:
         print(f'[{label}] NO matching archive — skip replays', flush=True); continue
-    # arrive 判据: 单轴触线取 journey 的主位移轴(§64续: C27-J3 南北向 journey 用 x 轴
-    # 在启程早期就触线,replay 被提前掐死 → maxStuck 9-10 + atGoal=False 的假失败)。
+    # Arrival criterion: the single-axis finish line uses the journey's main axis of travel. A
+    # north-south journey measured on the x axis crosses the line early in the run, which cuts the
+    # replay short and produces a false failure (maxStuck 9-10, atGoal=False).
     if abs(gx - jsx) >= abs(gz - jsz):
         axis, end_v, start_v = 'x', endx, jsx
     else:
-        axis, end_v, start_v = 'z', gz, jsz     # live 终点 z 未记录,用 goal z 近似(radius 3 内)
+        axis, end_v, start_v = 'z', gz, jsz     # the live end z is not recorded; goal z approximates it (within radius 3)
     cmp = 'ge' if end_v >= start_v else 'le'
     ax = round(end_v - 6) if cmp == 'ge' else round(end_v + 6)
     print(f'[{label}] archive={arc} arrive_{axis}={ax}({cmp})', flush=True)
@@ -408,7 +412,7 @@ for j in range(1, 4):
     rpc('mc.client.chat.send', {'text': '/difficulty peaceful'}); time.sleep(0.3)
     # Replays also run damage-immune (§76): a replan drifting off the archived corridor
     # walks the bot off a cliff / into lava (C70: three replay deaths — fall, lava x2),
-    # which is rig noise, not a pathfinding regression. Live legs stay mortal.
+    # which is rig noise, not a pathfinding regression. Live journeys stay mortal.
     rpc('mc.client.chat.send', {'text': '/effect give @p minecraft:resistance infinite 255 true'}); time.sleep(0.2)
     for i in range(3):
         ensure_alive()

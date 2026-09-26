@@ -38,8 +38,8 @@ public final class ClientPlayerBody implements Body, Hands, Containers {
     private AvatarInput ai() { return p != null && p.input instanceof AvatarInput a ? a : null; }
 
     @Override public LocalPlayer entity() { return p; }
-    /** The client this body lives on — what the reflex layer reaches for after the scheduler
-     *  hands it the body, since the chains read the local player, the client level and the
+    /** The client this player lives on — what the reflex layer reaches for after the scheduler
+     *  hands it this {@code Body}, since the chains read the local player, the client level and the
      *  client-only helpers through it. */
     public Minecraft mc() { return mc; }
     /** A player always has hands and menus; this class is both. */
@@ -119,10 +119,10 @@ public final class ClientPlayerBody implements Body, Hands, Containers {
         float before = mc.gameMode.destroyProgress;
         // The drive every client dig shares, so a break the bot completes is noted in one place.
         boolean ok = BotInteract.continueDestroy(mc, p, cell);
-        // UNCONDITIONAL (once a second while a dig is running). It was gated on walkerDebug, which no
-        // ladder and no gate ever sets, so the one reading that answers the user-reported「机器人挖矿
-        // 不挥手」was absent from every run that could have shown it: the swing above happens only when
-        // `ok`, so an armless dig and a dig that never lands are THE SAME EVENT, and `ok=` is the
+        // UNCONDITIONAL (once a second while a dig is running), not gated on walkerDebug, which no
+        // ladder and no gate ever sets: this is the one reading that answers "the bot mines without
+        // swinging its arm", and it must be present in every run that could show it. The swing
+        // above happens only when `ok`, so an armless dig and a dig that never lands are THE SAME EVENT, and `ok=` is the
         // column that says so. A row per second during a dig is cheaper than another run.
         if (p.tickCount % 20 == 0)
             WorldDriverCommon.LOG.info(

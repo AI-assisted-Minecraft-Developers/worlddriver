@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 /**
- * A quarry pacing in a pen the body cannot enter keeps the walker circling the pen: every lap moves the
- * body, so the walker's futile-search count never climbs, and the follow ran for as long as the caller
+ * A quarry pacing in a pen the bot cannot enter keeps the walker circling the pen: every lap moves the
+ * bot, so the walker's futile-search count never climbs, and the follow ran for as long as the caller
  * left it. The follow now judges the chase itself: no standoff reached and no block gained on the
  * closest approach for the give-up window ends it.
  */
@@ -33,7 +33,7 @@ class FollowGiveUpTest {
     void reachingTheStandoffKeepsTheChaseAlive() {
         FollowProcess.Chase chase = new FollowProcess.Chase(WINDOW);
         for (int t = 0; t < 10 * WINDOW; t++) {
-            boolean arrived = t % 200 == 0;   // the quarry wanders off and the body catches up again
+            boolean arrived = t % 200 == 0;   // the quarry wanders off and the bot catches up again
             assertFalse(chase.tick(arrived, arrived ? 2 : 8), "gave up at tick " + t);
         }
     }

@@ -39,7 +39,7 @@ public final class Walker {
     // ClutchController} (BotApiImpl#CLUTCH), so an unplanned fall self-rescues
     // whether or not a Walker is driving. The Walker only ARMS a planned fall
     // (CLUTCH.armPlanned) as it steps off a fallBucket lip and biases the
-    // step-off keys (walk-speed, no sprint) so the body drops near-vertically.
+    // step-off keys (walk-speed, no sprint) so the bot drops near-vertically.
     // Other tuning lives in BotConfig (mutable via mc.bot.setting).
 
     /** Snapshot of the most recent {@code findPath()} result across ALL
@@ -59,10 +59,10 @@ public final class Walker {
     public WalkerTallies tallies() { return tallies; }
 
     /** How many times {@code WalkerTickProgress}'s unwalked-descent refusal has held the step pointer
-     *  on a node below the body's feet, process-wide. Monotone, never reset by the walker — a caller
+     *  on a node below the bot's feet, process-wide. Monotone, never reset by the walker — a caller
      *  that wants a window takes the difference, the way {@link #lastStats} is read.
      *
-     *  <p>Exists so a scene can tell「the hold cost nothing」from「the hold never ran」, which are the
+     *  <p>Exists so a scene can tell "the hold cost nothing" from "the hold never ran", which are the
      *  same reading from outside and want opposite conclusions: a negative control over an ordinary
      *  staircase passes identically whether the guard is doing its job cheaply or is inert, and a
      *  guard that is inert on every descent this suite stages is a guard the suite cannot judge. */
@@ -101,7 +101,7 @@ public final class Walker {
      *  after a few thousand expansions, and grinding the full 50k/2s budget per
      *  candidate is pure waste — sliced at {@link BotConfig#pathfinderIdleSliceMs}
      *  it also chops the client to ~25 fps for seconds right after each block
-     *  break (the "挖完卡一下" report). The real gate for hopeless stands is the
+     *  break (a visible hitch after every mined block). The real gate for hopeless stands is the
      *  mine process's 100t no-approach blacklist; a small budget just reaches it
      *  sooner. Long-haul navigation (goto/escape) keeps the full defaults. */
     int searchMaxNodes = -1;
@@ -116,11 +116,11 @@ public final class Walker {
      *  alike (foot repath, commit-end continuation, place-suppressed re-plan). See {@link WalkerFinders}. */
     PathFinder newPathFinder(WorldView world) { return WalkerFinders.deep(this, world); }
 
-    /** The body the last {@link #tick(Body, WorldView)} drove, for the finders' scope source.
+    /** The bot the last {@link #tick(Body, WorldView)} drove, for the finders' scope source.
      *  Null until the first tick, which is also the first time a search can start. */
     LivingEntity body;
 
-    /** That body's hands, or {@link WalkerNoHands} when it has none — never null, so the
+    /** That bot's hands, or {@link WalkerNoHands} when it has none — never null, so the
      *  tick phases' dig and place sites read and drive it without a guard each. */
     Hands hands = WalkerNoHands.INSTANCE;
 
@@ -195,13 +195,12 @@ public final class Walker {
         BlockPos pos;         // walkerStickyDig: planned-break cell being mined
         int ticks;            // watchdog for pos
         // PROGRESS-AWARE release (2026-07-21, Mountains bank live + 23 RELEASE
-        // loops): the old fixed 150t cap assumed "any reachable block completes
-        // inside 150t", but vanilla stacks x5 (eye in water) and x5 (airborne)
-        // dig penalties MULTIPLICATIVELY — a swimAshoreClimb bank dig needs
-        // 450t (dirt) to 3750t (stone, wrong tool), so the cap released every
-        // dig at 151t with the block still solid, progress reset to zero, and
-        // the walker re-acquired the same cell forever. Track真实 destroy
-        // progress instead: hold while it climbs, release only on a true stall.
+        // loops): a fixed tick cap cannot work because vanilla stacks the x5 (eye in
+        // water) and x5 (airborne) dig penalties MULTIPLICATIVELY — a swimAshoreClimb
+        // bank dig needs 450t (dirt) to 3750t (stone, wrong tool). A 150t cap released
+        // every such dig with the block still solid, reset progress to zero, and the
+        // walker re-acquired the same cell forever. Tracking the actual destroy
+        // progress holds while it climbs and releases only on a true stall.
         float lastProgress;   // last observed vanilla destroyProgress (0..1)
         int stallTicks;       // consecutive ticks with no progress increase
         // The drive is on the exact cell and vanilla's crosshair-driven attack pass stands
@@ -285,13 +284,13 @@ public final class Walker {
         BlockPos gaveUpPos;       // where the pillar proved futile (walkerClimbGaveUpSticky) — while the foot stays within 3 blocks and the TTL runs, the gave-up latch survives climb-context resets (repath node swaps) so the proven-futile pillar can't re-engage in a loop
         int gaveUpTtl;            // ticks left on the sticky gave-up latch (walkerClimbGaveUpSticky); decremented per tick, 0 = expired
         int pillarNoPlaceTicks;   // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
-        BlockPos placeAttemptCell;   // the cell the last climb-out click aimed at, carried to the NEXT tick so the ledger above can ask whether it actually filled. Hands.place is void — the click has no verdict — and vanilla refuses any placement whose cell still intersects the body's AABB, so "clicked" and "placed" are different events and only the second one is progress. Cleared once read.
+        BlockPos placeAttemptCell;   // the cell the last climb-out click aimed at, carried to the NEXT tick so the ledger above can ask whether it actually filled. Hands.place is void — the click has no verdict — and vanilla refuses any placement whose cell still intersects the bot's AABB, so "clicked" and "placed" are different events and only the second one is progress. Cleared once read.
         int pillarHighWaterY = Integer.MIN_VALUE;   // highest foot.getY() this takeover has reached — the OTHER half of "successful place / height gain". A HIGH-WATER MARK, not a per-tick delta: a buoyant bob crosses a block boundary every cycle, so "higher than last tick" is true forever and would count buoyancy as progress; "higher than ever" stops refreshing the moment the bob settles between two cells. Re-based at engagePillar so a re-locked column cannot inherit the previous segment's height.
         int targetY;              // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
         int colX, colZ;           // LOCKED column the takeover pillars in (don't chase repathing nodes)
         float yaw;                // LOCKED heading toward the bank at engage (no horizontal chase → no wander)
         boolean sideRung;         // this takeover has placed a side foothold: keys are anticipatory from here (forward only while wet, jump only wet or settled on the ground) — see WalkerTickClimb; cleared at engage
-        final java.util.Set<BlockPos> placedRungs = new java.util.HashSet<>();   // every cell a climb-out click has aimed at; a rung of our own beside the body is not an exit, however dry (walkerShallowWaterSideFoothold)
+        final java.util.Set<BlockPos> placedRungs = new java.util.HashSet<>();   // every cell a climb-out click has aimed at; a rung of our own beside the bot is not an exit, however dry (walkerShallowWaterSideFoothold)
         int digGroundedStreak;    // consecutive grounded ticks during a committed bank dig — a bob bottom-blip (<=5) must not break the dig commit (walkerBankDigGroundBlip)
         void reset() {
             stall = 0;
@@ -391,7 +390,7 @@ public final class Walker {
     /** Water anti-spin governor (task#96 step B9): consumed by the search/stall gates.
      *  {@link GoalSpin#resetForNewGoal()} (setGoal only) clears the baselines;
      *  goalSpin.churnResets deliberately PERSISTS across goals (fresh-baseline grants are a
-     *  per-body budget, not per-journey — do NOT add it to the reset). */
+     *  per-bot budget, not per-journey — do NOT add it to the reset). */
     final GoalSpin goalSpin = new GoalSpin();
     static final class GoalSpin {
         double bestDistToGoal = Double.POSITIVE_INFINITY;
@@ -415,7 +414,7 @@ public final class Walker {
         BlockPos base;         // foot at the start of the current net-displacement window
         int windowTicks;       // ticks elapsed in the current window
         int escapes;           // consecutive windows that detected churn (escalates the charge radius)
-        int hColRamTicks;      // wall-corner: consecutive ticks of sustained horizontalCollision (the §39 贴墙卡住 ram signature)
+        int hColRamTicks;      // wall-corner: consecutive ticks of sustained horizontalCollision (the signature of the bot pinned against a wall)
         void resetForNewGoal() {
             base = null;
             windowTicks = 0;
@@ -515,7 +514,7 @@ public final class Walker {
         int progWindowTicks;          // ticks elapsed in the current arc-progress window
         boolean progStall;            // last completed window made < ARC_PROG_MIN net arc-s progress → stuck (consumed by fellOffPath)
     }
-    float freeHangDriveYaw = Float.NaN;             // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter ±180° flips that would circle the body off a narrow column — EdgeGuards-owned, self-resyncing (no journey reset)
+    float freeHangDriveYaw = Float.NaN;             // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter ±180° flips that would circle the bot off a narrow column — EdgeGuards-owned, self-resyncing (no journey reset)
     int surfaceWaterLatch = 0;                      // ticks the open-water swim stays latched after a surface bob lifts the foot out of the fluid (rides out the isInWater blink) — read across Aim/Climb/Progress; belongs to a future water-state family
     /** Aim/heading smoothing state — see {@link AimSmoothing}. */
     final AimSmoothing aimSmooth = new AimSmoothing();
@@ -526,7 +525,7 @@ public final class Walker {
     final DriveLatches driveLatch = new DriveLatches();
     static final class DriveLatches {
         int deepWaterDriftLatch = 0;                // ticks the deep-water drift sprint-brake stays latched after firing while grounded, so sprint stays OFF through the airborne sub-arcs of a step-down descent toward a deep pocket (otherwise sprint re-arms each airborne tick and the accumulated forward momentum still overshoots into the water)
-        int steepDescentLatch = 0;                  // DRY sibling of deepWaterDriftLatch (task#36): ticks the steep-descent sprint-brake stays latched across the airborne sub-arcs of a step-down, so sprint can't re-arm mid-fall and accumulate forward momentum off a survivable-deep lip (live 2026-07-11 Mountains massif: onG=false→sprint=true walked the body off a 19-block lip to death)
+        int steepDescentLatch = 0;                  // DRY sibling of deepWaterDriftLatch: ticks the steep-descent sprint-brake stays latched across the airborne sub-arcs of a step-down, so sprint can't re-arm mid-fall and accumulate forward momentum off a survivable-deep lip (live 2026-07-11 Mountains massif: onG=false→sprint=true walked the bot off a 19-block lip to death)
         int climbPressConsec = 0;                   // consecutive ticks the buoyant-climb-press raw condition has held (debounces the surface-bob false trigger)
         int descentDriveRejectStreak = 0;           // consecutive back-hop rejections on a dry diagDown slope (escape-hatch snaps to the real node after WATER_DRIVE_MAX_REJECT)
         int underwaterTicks;                        // consecutive eyes-under ticks → debounces the swim-up jump (surface bob ≠ sinking)
@@ -622,7 +621,7 @@ public final class Walker {
 
     /** The water climb-out's place-futility ledger, for scenes that assert on the FALLBACK rather
      *  than on the climb: {@code > PILLAR_FUTILE_TICKS} is what hands the bank over to the dig.
-     *  Exposed because the counter is the subject — a scene that could only watch the body would
+     *  Exposed because the counter is the subject — a scene that could only watch the bot would
      *  have to distinguish "never gave up" from "gave up and the dig also failed", which look the
      *  same from outside. */
     public int pillarNoPlaceTicks() { return waterClimb.pillarNoPlaceTicks; }
@@ -634,7 +633,7 @@ public final class Walker {
      *  must sample it per tick rather than read it at the end. */
     public boolean pillarPlaceFutile() { return waterClimb.pillarNoPlaceTicks > PILLAR_FUTILE_TICKS; }
 
-    /** Is the climb-out takeover still holding the body? Exposed because {@link #pillarNoPlaceTicks}
+    /** Is the climb-out takeover still holding the bot? Exposed because {@link #pillarNoPlaceTicks}
      *  reading zero is AMBIGUOUS on its own: the ledger is zeroed both by a landing (the thing a
      *  scene wants to prove) and by every bail path (WalkerTickClimb releases and resets). A scene
      *  asserting "a real place cleared the counter" has to be able to say the takeover was still
@@ -670,7 +669,7 @@ public final class Walker {
     }
 
     /** Read-only compact dump of the CURRENT plan (nodes + move labels) for the same
-     *  post-mortem channel as {@link #progressProbe}: "which edge flung the body" is
+     *  post-mortem channel as {@link #progressProbe}: "which edge flung the bot" is
      *  unanswerable from the step pointer alone once the plan has been replaced, and
      *  the [walker] path log line is droppable under end-of-suite load. */
     public String planProbe() {
@@ -689,57 +688,58 @@ public final class Walker {
     /**
      * {@link #planProbe}'s companion, read against the WORLD instead of against itself: for every
      * node of the CURRENT plan, the three cells that node's own geometry occupies — the node cell
-     * ({@code 本格}, where the feet go), its support ({@code 支撑} = {@code below}) and its head
-     * ({@code 头顶} = {@code above}) — each as {@code 实}/{@code 空} (the {@code blocksMotion}
+     * ({@code cell}, where the feet go), its support ({@code support} = {@code below}) and its head
+     * ({@code head} = {@code above}) — each as {@code solid}/{@code open} (the {@code blocksMotion}
      * predicate {@code ServerWorldView.isSolid} steers by) plus the block.
      *
      * <p><b>Why the coordinates must come from the plan and not from a scene's arithmetic.</b> A
      * scene that hand-derives cells from its own arena origin audits the cells its AUTHOR expects
-     * the body to use. {@code wd.buriedOre}'s fixed staircase audit did exactly that and read seven
-     * cells all at {@code z=cz}, while the node the body could not reach sat at {@code z=cz−1}: the
+     * the bot to use. {@code wd.buriedOre}'s fixed staircase audit did exactly that and read seven
+     * cells all at {@code z=cz}, while the node the bot could not reach sat at {@code z=cz−1}: the
      * reading was complete, consistent, and blind to the one column that mattered. Nodes come from
      * {@link #path}, so the audit follows the plan wherever the planner actually put it.
      *
-     * <p><b>The three outcomes this separates, for a body stalled before node {@code i}:</b>
+     * <p><b>The three outcomes this separates, for a bot stalled before node {@code i}:</b>
      * <ol>
-     *   <li>{@code 本格=实} — the plan wants the feet INSIDE a solid cell and the entering edge is
+     *   <li>{@code cell=solid} — the plan wants the feet INSIDE a solid cell and the entering edge is
      *       not a break move ({@code [stepUp]}, not {@code [stairUpBreak]}): a planning-side account.
      *       The node is not enterable by any execution, so no executor fix can reach it.</li>
-     *   <li>{@code 本格=空 且 支撑=实} — the node is legal and standable; the body simply fails to
-     *       GET there: an execution-side account (for the trail this was written from, the one-cell
-     *       lateral move in {@code z}). Look at the drive/jump gates, not at the planner.</li>
-     *   <li>{@code 支撑=空} — nothing under the node's feet, so the body could not stand there even
-     *       if it arrived: planning-side again, but a DIFFERENT mechanism from (1) — an edge whose
-     *       floor the plan assumed, or whose floor a later break removed.</li>
+     *   <li>{@code cell=open} and {@code support=solid} — the node is legal and standable; the bot
+     *       simply fails to GET there: an execution-side account (for the trail this was written
+     *       from, the one-cell lateral move in {@code z}). Look at the drive/jump gates, not at the
+     *       planner.</li>
+     *   <li>{@code support=open} — nothing under the node's feet, so the bot could not stand there
+     *       even if it arrived: planning-side again, but a DIFFERENT mechanism from (1) — an edge
+     *       whose floor the plan assumed, or whose floor a later break removed.</li>
      * </ol>
-     * {@code 头顶=实} on a node the body must stand in is a fourth, weaker signal (the head cell is
-     * occupied) and is printed rather than judged.
+     * {@code head=solid} on a node the bot must stand in is a fourth, weaker signal (the head cell
+     * is occupied) and is printed rather than judged.
      *
-     * <p>A plan that is absent must not read like a probe that never ran: {@code 节点=无(plan=null)}
-     * and {@code 节点=无(plan为空)} are distinct strings, and both are distinct from the absence of
+     * <p>A plan that is absent must not read like a probe that never ran: {@code nodes=none(plan=null)}
+     * and {@code nodes=none(plan empty)} are distinct strings, and both are distinct from the absence of
      * the fragment. Callers embed this in {@code ctx.fail} for the same reason as
      * {@link #progressProbe} — the log stream drops lines under end-of-suite load, {@code
      * results.jsonl} does not.
      *
      * <p>Read-only: takes a {@link BlockGetter}, touches no walker state, and must stay that way.
      * It also must be called BEFORE any scene cleanup — a cleanup that fills the arena with AIR
-     * makes every node read {@code 空} and the audit becomes a very convincing lie.
+     * makes every node read {@code open} and the audit becomes a very convincing lie.
      */
     public String planCellAudit(BlockGetter lvl) {
-        if (lvl == null) return "节点=无(level=null)";
-        if (path == null) return "节点=无(plan=null)";
-        if (path.isEmpty()) return "节点=无(plan为空)";
-        StringBuilder sb = new StringBuilder("节点数=").append(path.size()).append(" 指针=").append(step);
+        if (lvl == null) return "nodes=none(level=null)";
+        if (path == null) return "nodes=none(plan=null)";
+        if (path.isEmpty()) return "nodes=none(plan empty)";
+        StringBuilder sb = new StringBuilder("nodeCount=").append(path.size()).append(" step=").append(step);
         for (int i = 0; i < path.size(); i++) {
             BlockPos n = path.get(i);
-            sb.append(" 节点").append(i).append('=')
+            sb.append(" node").append(i).append('=')
               .append(n.getX()).append(',').append(n.getY()).append(',').append(n.getZ());
             String mv = (edges != null && i < edges.size() && edges.get(i) != null)
-                    ? String.valueOf(edges.get(i).move) : "无边";
+                    ? String.valueOf(edges.get(i).move) : "no edge";
             sb.append('[').append(mv).append(']');
-            appendCell(sb, lvl, " 本格=", n);
-            appendCell(sb, lvl, " 支撑=", n.below());
-            appendCell(sb, lvl, " 头顶=", n.above());
+            appendCell(sb, lvl, " cell=", n);
+            appendCell(sb, lvl, " support=", n.below());
+            appendCell(sb, lvl, " head=", n.above());
         }
         return sb.toString();
     }
@@ -748,13 +748,13 @@ public final class Walker {
         // A post-mortem must not MAKE world. On a ServerLevel, getBlockState on an unloaded chunk
         // loads/generates it on the calling thread — a probe that hangs the gate run it was added
         // to diagnose. Plan nodes are normally inside the arena the search just walked, but this
-        // is a public probe over an arbitrary plan, so 未加载 is a legal reading and a stall is not.
+        // is a public probe over an arbitrary plan, so "unloaded" is a legal reading and a stall is not.
         if (lvl instanceof net.minecraft.world.level.LevelReader lr && !lr.hasChunkAt(p)) {
-            sb.append(label).append("未加载");
+            sb.append(label).append("unloaded");
             return;
         }
         BlockState st = lvl.getBlockState(p);
-        sb.append(label).append(st.blocksMotion() ? "实" : "空").append(st.getBlock());
+        sb.append(label).append(st.blocksMotion() ? "solid" : "open").append(st.getBlock());
     }
 
     /**
@@ -762,7 +762,7 @@ public final class Walker {
      * a new journey. {@link #setGoal} clears the futile-search governor, which is right for a
      * fresh goto and wrong for a chase: a caller that re-goals every time its quarry changes
      * block zeroes the counter faster than the counter can reach its cap, so the guard that
-     * exists to stop a body burning a full A* per tick toward something it cannot reach never
+     * exists to stop a bot burning a full A* per tick toward something it cannot reach never
      * fires. Measured on a chase of a descending goal: 240 ticks produced 240 full searches and
      * a counter that never passed 1. Everything else about the goal genuinely IS new, so this
      * is {@code setGoal} plus the six fields that describe "how this pursuit has been going"
@@ -853,7 +853,7 @@ public final class Walker {
         // creates that floor, so the goal IS reachable. Snapping it to the highest currently-
         // standable cell makes the bot stop 1+ blocks short (live 2026-06-27 summitArena: goal
         // y233 → snapped to standable y232, bot pillars 2 then arrives at y232, never pillars the
-        // last block; "上坡跳不上高空目标"). Skip the snap so A* keeps the real goal and finds the
+        // last block, so an uphill goal in the air is never reached). Skip the snap so A* keeps the real goal and finds the
         // pillarUp path. Guard against a truly FLOATING void goal (no base to pillar from): require
         // the goal cell + head to be passable AND a solid base within a few blocks below.
         if (BotConfig.walkerPillarReachGoalNoSnap && BotConfig.allowPlace
@@ -950,18 +950,19 @@ public final class Walker {
     }
 
     /**
-     * How many NODES the current path holds, <b>including the one the body starts on</b>.
+     * How many NODES the current path holds, <b>including the one the bot starts on</b>.
      *
      * <p><b>Nodes, not steps.</b> {@link #edges} is index-aligned with {@link #path} — {@code edges
      * .get(i)} is the edge that ENTERS {@code path.get(i)} — so node 0 is where the walk began and
-     * carries no traversal of its own. A path of N nodes is <b>N−1 moves</b>, and reading it as「N 格」
-     * overstates the reach of every plan by one. It is also NOT a distance: a single {@code fall7}
-     * or a smoothed diagonal covers several blocks in one node.
+     * carries no traversal of its own. A path of N nodes is <b>N−1 moves</b>, and reading it as
+     * "N blocks" overstates the reach of every plan by one. It is also NOT a distance: a single
+     * {@code fall7} or a smoothed diagonal covers several blocks in one node.
      *
      * <p><b>The last node is the goal only when the search reached it.</b>
      * {@code seg.pathBestEffort = !res.goalReached()} — a best-effort partial ends at the closest
-     * node A* could get to, which for a body on a small island is its own edge. So「路的末节点」and
-     *「要去的地方」are different questions and {@link #planTally()} answers the first one.
+     * node A* could get to, which for a bot on a small island is its own edge. So "the last node
+     * of the path" and "the destination" are different questions and {@link #planTally()} answers
+     * the first one.
      */
     public int pathLen() { return path == null ? 0 : path.size(); }
     public int pathStep() { return step; }
@@ -972,7 +973,7 @@ public final class Walker {
      *
      * <p>Both produce the same plan. A {@code stepUp}/{@code walk} chain laid across empty space is
      * what you get when the support predicate forgot to ask, AND what you get when the predicate
-     * asked correctly and an ungenerated chunk answered「passable」— and the two want opposite fixes
+     * asked correctly and an ungenerated chunk answered "passable" — and the two want opposite fixes
      * (fix the predicate vs. load before planning / treat unknown as impassable). {@code isKnown} is
      * the only thing that tells them apart, so it is sampled beside every cell.
      *
@@ -981,7 +982,7 @@ public final class Walker {
      * decision under investigation did not consult.
      */
     public String planTerrain(WorldView w) {
-        if (path == null || path.isEmpty() || w == null) return "无路径";
+        if (path == null || path.isEmpty() || w == null) return "no path";
         StringBuilder sb = new StringBuilder();
         int n = path.size();
         int stride = Math.max(1, (n - 1) / 4);
@@ -997,8 +998,8 @@ public final class Walker {
         BlockPos c = path.get(i);
         BlockPos under = c.below();
         return "[" + i + "]" + c.toShortString()
-                + " 本格" + (w.isSolid(c) ? "实心" : w.isWater(c) ? "水" : "空")
-                + " 下方" + (w.isSolid(under) ? "实心" : w.isWater(under) ? "水" : "空")
+                + " cell=" + (w.isSolid(c) ? "solid" : w.isWater(c) ? "water" : "open")
+                + " below=" + (w.isSolid(under) ? "solid" : w.isWater(under) ? "water" : "open")
                 + " known=" + w.isKnown(c) + "/" + w.isKnown(under);
     }
 
@@ -1007,8 +1008,8 @@ public final class Walker {
      * entering the current node.
      *
      * <p>Reports the last node, whether the search actually reached the goal, and a count of every
-     * move name in the path. That last part is what separates「the planner routed a bridge and the
-     * body never executed it」from「the planner never planned one」— two diagnoses that
+     * move name in the path. That last part is what separates "the planner routed a bridge and the
+     * bot never executed it" from "the planner never planned one" — two diagnoses that
      * {@link #pathMove()} alone reports identically whenever the step pointer happens to sit on a
      * walk.
      *
@@ -1026,18 +1027,18 @@ public final class Walker {
      * rule they share: <b>ask what a path reading counts before dividing by it.</b>
      */
     public String planTally() {
-        return tallyOf(path, edges) + " 到得了目标=" + !seg.pathBestEffort;
+        return tallyOf(path, edges) + " reachesGoal=" + !seg.pathBestEffort;
     }
 
     private static String tallyOf(List<BlockPos> nodes, List<Move.Edge> es) {
-        if (nodes == null || nodes.isEmpty()) return "无路径";
+        if (nodes == null || nodes.isEmpty()) return "no path";
         java.util.Map<String, Integer> byMove = new java.util.LinkedHashMap<>();
         if (es != null)
             for (Move.Edge e : es)
                 if (e != null && e.move != null) byMove.merge(e.move, 1, Integer::sum);
-        return "节点=" + nodes.size() + "（即 " + (nodes.size() - 1) + " 步）"
-                + " 末节点=" + nodes.get(nodes.size() - 1).toShortString()
-                + " 各 move " + (byMove.isEmpty() ? "{}" : byMove.toString());
+        return "nodes=" + nodes.size() + " (" + (nodes.size() - 1) + " moves)"
+                + " lastNode=" + nodes.get(nodes.size() - 1).toShortString()
+                + " moveCounts " + (byMove.isEmpty() ? "{}" : byMove.toString());
     }
 
     /**
@@ -1051,23 +1052,23 @@ public final class Walker {
      * broke an invariant its own input satisfied. Without this row the smoothed path is the only
      * evidence and it cannot tell them apart.
      */
-    public String rawPlanTally() { return rawPlan == null ? "无" : rawPlan; }
+    public String rawPlanTally() { return rawPlan == null ? "none" : rawPlan; }
 
     /** What the first parkour leap of this walk was launched with. {@code Parkour3} is costed as the
      *  <b>sprint-jump maximum</b>, so {@code sprinting=false} at takeoff means the executor attempted
      *  a leap the planner priced for a run-up it was not allowed to take. Deliberately not read from
-     *  {@code onGround}: this body's is wrong in both directions. */
-    public String parkourTakeoff() { return parkourTakeoff == null ? "无" : parkourTakeoff; }
+     *  {@code onGround}: this bot's is wrong in both directions. */
+    public String parkourTakeoff() { return parkourTakeoff == null ? "none" : parkourTakeoff; }
 
     /** Latch the FIRST parkour takeoff of this walk. The sprint decision is taken a tick before the
      *  jump, so {@code isSprinting()} here is the state the leap actually launches with. Only the
-     *  first is kept: a body that has already fallen keeps producing these.
+     *  first is kept: a bot that has already fallen keeps producing these.
      *
      *  <p><b>The five samples are not guaranteed to be five CONSECUTIVE ticks.</b> This call sits in
      *  the drive tail, which a dozen branches (dig, pillar, escape, step-up) return before reaching,
      *  so "t+0..t+4" means "the first five ticks the drive got this far". A run of five with
-     *  {@code 站住=false} therefore does NOT by itself distinguish a body that was standing and
-     *  refused the jump from a body that was already falling when the parkour edge became current —
+     *  {@code onGround=false} therefore does NOT by itself distinguish a bot that was standing and
+     *  refused the jump from a bot that was already falling when the parkour edge became current —
      *  the exact y and the sole area are what separate them, which is why both are printed. */
     void noteParkourTakeoff(WorldView world, Body a, LivingEntity p, boolean jump, BlockPos foot) {
         if (parkourSamples >= 5) return;
@@ -1081,11 +1082,11 @@ public final class Walker {
                 // "t+2" is the third sample, not the third tick. Without the absolute tick the
                 // phrase "N ticks before takeoff" has no meaning to argue over.
                 .append("t+").append(parkourSamples).append("@").append(now)
-                // Ticks since the body last actually EMITTED an impulse (not since one was asked
-                // for). This is what separates a body that jumped ITSELF off the platform — the
+                // Ticks since the bot last actually EMITTED an impulse (not since one was asked
+                // for). This is what separates a bot that jumped ITSELF off the platform — the
                 // parkour edge became current mid-arc — from one that simply walked off the lip:
-                // the first has a small number here, the second has 无.
-                .append(" 距上次起跳=").append(lastJump < 0 ? "无" : String.valueOf(now - lastJump))
+                // the first has a small number here, the second has "none".
+                .append(" sinceLastJump=").append(lastJump < 0 ? "none" : String.valueOf(now - lastJump))
                 .append(" jump=").append(jump)
                 .append(" sprinting=").append(p.isSprinting())
                 .append(String.format(java.util.Locale.ROOT, " h=%.4f", h))
@@ -1094,22 +1095,22 @@ public final class Walker {
                 // ADD_MULTIPLIED_TOTAL), so 0.13 here means the channel works and 0.1 means the
                 // modifier never took. The expected steady-state cap is printed beside it so nobody
                 // has to redo the arithmetic.
-                .append(String.format(java.util.Locale.ROOT, " 属性=%.4f(稳态上限应为 %.4f)",
+                .append(String.format(java.util.Locale.ROOT, " speedAttr=%.4f(expected steady-state cap %.4f)",
                         p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED),
                         p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED) * 2.1585))
-                // THE QUANTITY THE JUMP BRANCHES ON (vanilla's gate, on both bodies), kept as an
+                // THE QUANTITY THE JUMP BRANCHES ON (vanilla's gate, on both bots), kept as an
                 // input rather than as truth: onGround IS vanilla's verticalCollisionBelow
                 // (Entity.move assigns one from the other in a single statement), so it describes the
-                // previous MOVE and is wrong in both directions about where the body is.
+                // previous MOVE and is wrong in both directions about where the bot is.
                 .append(" onGround=").append(p.onGround())
                 // THE SOLE READING the walker's own footing guards use. Printed beside onGround
                 // so a run says which of the two was lying, and printed with the EXACT y because
-                // that is the only thing that tells a standing body from a falling one when the
-                // block coordinate below is the same for both (a body falling from y=49.9 spends
-                // three ticks inside block y=49, exactly like a body resting on y=49.0).
-                .append(String.format(java.util.Locale.ROOT, " 脚底实心=%.4f y=%.4f",
+                // that is the only thing that tells a standing bot from a falling one when the
+                // block coordinate below is the same for both (a bot falling from y=49.9 spends
+                // three ticks inside block y=49, exactly like a bot resting on y=49.0).
+                .append(String.format(java.util.Locale.ROOT, " soleOnSolid=%.4f y=%.4f",
                         WalkerGeometry.soleOnSolid(world, p), p.getY()))
-                .append(" 身体=").append(foot.toShortString());
+                .append(" foot=").append(foot.toShortString());
         parkourSamples++;
         parkourTakeoff = parkourTakeoffBuf.toString();
     }
@@ -1132,31 +1133,30 @@ public final class Walker {
      *
      * <p>{@link #planTerrain} samples NODES, and after smoothing consecutive nodes can be nine blocks
      * apart. Measured 2026-08-17: node [0] {@code 100,49,0} and node [4] {@code 91,50,0} both sat on
-     * solid ground with their chunks loaded, and the body began falling at {@code 96,46,0} — inside
+     * solid ground with their chunks loaded, and the bot began falling at {@code 96,46,0} — inside
      * the span between them, where nothing had been sampled. A reading that only looks where the plan
      * stops cannot see what the plan crosses.
      *
      * <p>Reports each segment's cell count and lists the cells whose support is missing, so a healthy
-     * segment is still visible (「缺口无」) rather than merely absent — an all-clear that is only ever
-     * printed by silence cannot be told from a check that never ran.
+     * segment is still visible ({@code gaps=none}) rather than merely absent — an all-clear that is
+     * only ever printed by silence cannot be told from a check that never ran.
      *
-     * <h2>Which path this samples, and ⚠️ what a「缺口」does and does not mean</h2>
+     * <h2>Which path this samples, and what a gap does and does not mean</h2>
      *
      * <b>The CURRENT adopted path</b> — {@link #path}, the same list {@link #planTally()} and
      * {@link #planTerrain} read, in the same statement. There is no second copy: all three are called
-     * from one string concatenation in {@code IntentProcess}, so「发出全清」and「采纳有缺口」are
-     * statements about the same nodes and the contradiction between them is real rather than an
-     * artefact of comparing two plans.
+     * from one string concatenation in {@code IntentProcess}, so "the emitted plan is all clear" and
+     * "the adopted plan has gaps" are statements about the same nodes and the contradiction between
+     * them is real rather than an artefact of comparing two plans.
      *
-     * <p><b>But an unsupported cell is only a defect under an edge that walks.</b> This method判s
-     * support cell by cell and originally said nothing about the MOVE crossing them — and a
-     * {@code parkour3} or a {@code fall} is supposed to cross thin air; that is what it is for. A row
-     * reading「缺口2格」under a jump edge names a fault that does not exist, which is exactly the
-     * shape of evidence this rung has lost rounds to. The move entering each segment is therefore
-     * printed beside it, and the gap count must never be read without it.
+     * <p><b>But an unsupported cell is only a defect under an edge that walks.</b> This method judges
+     * support cell by cell, and a {@code parkour3} or a {@code fall} is supposed to cross thin air;
+     * that is what it is for. A row reading {@code gaps=2} under a jump edge names a fault that does
+     * not exist, and such rows have misled diagnosis before. The move entering each segment is
+     * therefore printed beside it, and the gap count must never be read without it.
      */
     public String planSpans(WorldView w, int segments) {
-        if (path == null || path.size() < 2 || w == null) return "无路径";
+        if (path == null || path.size() < 2 || w == null) return "no path";
         StringBuilder sb = new StringBuilder();
         int last = Math.min(segments, path.size() - 1);
         for (int i = 0; i < last; i++) {
@@ -1173,20 +1173,20 @@ public final class Walker {
                 if (w.isSolid(c.below())) continue;
                 nHoles++;
                 if (nHoles <= 6) holes.append(nHoles == 1 ? "" : ",").append(c.toShortString())
-                        .append(w.isKnown(c.below()) ? "" : "(未加载)");
+                        .append(w.isKnown(c.below()) ? "" : "(unloaded)");
             }
             Move.Edge into = edgeAt(i + 1);
             String move = into == null || into.move == null ? "?" : into.move;
-            sb.append(i == 0 ? "" : " ").append("段").append(i).append(' ')
+            sb.append(i == 0 ? "" : " ").append("segment").append(i).append(' ')
               .append(a.toShortString()).append("→").append(b.toShortString())
               .append(" move=").append(move)
-              .append(" 共").append(steps + 1).append("格 ")
-              .append(nHoles == 0 ? "缺口无"
-                      : "缺口" + nHoles + "格[" + holes + "]"
+              .append(" cells=").append(steps + 1).append(' ')
+              .append(nHoles == 0 ? "gaps=none"
+                      : "gaps=" + nHoles + "[" + holes + "]"
                         // A jump is SUPPOSED to cross thin air. Saying so here, beside the count, is
                         // what keeps the row from naming a fault that does not exist.
                         + (move.startsWith("parkour") || move.startsWith("fall")
-                                ? "（这是跳跃边，跨空是它的用途，不是缺陷）" : ""));
+                                ? " (a jump edge; crossing open air is its purpose, not a defect)" : ""));
         }
         return sb.toString();
     }
@@ -1199,7 +1199,7 @@ public final class Walker {
      *
      * <p>The node alone cannot say whether a drop was planned. Every {@code Fall} edge carries its
      * height in its own name, so this is the one reading that separates "the plan was to drop N"
-     * from "the body left a plan that never contained a drop at all" — and those two want opposite
+     * from "the bot left a plan that never contained a drop at all" — and those two want opposite
      * fixes (a planner budget vs. an executor that overshot).
      */
     public String pathMove() {
@@ -1251,13 +1251,13 @@ public final class Walker {
      * the stack cannot fall out of date when a twelfth site appears, and a site that never labelled
      * itself still names itself. {@code jumpTag} is printed beside it as the human-readable branch
      * when the site set one — {@code WalkerTickPrelude} clears it every tick, so a stale label cannot
-     * be attributed to this tick — and {@code 未标} when it did not.
+     * be attributed to this tick — and {@code untagged} when it did not.
      *
-     * <p>The drive's label chain now ends in {@code 其它} rather than a bare {@code "swim"}. That is
+     * <p>The drive's label chain ends in {@code other} rather than a bare {@code "swim"}. That is
      * not decoration: a chain whose last arm is a real branch name labels every unmatched case as
      * that branch, so it can never report that the labels have fallen behind the expression they
-     * describe. If {@code 支=其它} is ever printed, the chain is missing a term — fix the chain before
-     * believing any label it produced.
+     * describe. If {@code branch=other} is ever printed, the chain is missing a term — fix the chain
+     * before believing any label it produced.
      *
      * <p>One line per EVENT (entry to a run of held ticks), capped at {@link #JUMP_SRC_EVENTS}: the
      * walker holds jump for dozens of consecutive ticks and a per-tick line would be a hose. The
@@ -1265,7 +1265,7 @@ public final class Walker {
      *
      * <p><b>"Entry to a run" is measured against the PREVIOUS CALL, and must never be measured
      * against the clock.</b> It used to be {@code getGameTime() - jumpAskTick > 1}, and that is
-     * blind for a whole family of scenes: anything that pumps the body in a tight in-body loop
+     * blind for a whole family of scenes: anything that pumps the bot in a tight in-body loop
      * ({@code wd.buriedOre} runs 800 {@code ServerAvatarManager.tickAll()} iterations inside ONE
      * server tick, as do the {@code wd.serverMine*} family, {@code wd.selfShaftDigUp} and every
      * other synchronous scene body) advances the walker without advancing the clock, so {@code now}
@@ -1279,11 +1279,11 @@ public final class Walker {
      * run still yields exactly one line in a real world, which is the property the rehearsal and
      * ladder logs depend on.
      *
-     * <p>{@code 序=} is the event ordinal within the cap; when {@code t=} is frozen (the one-tick
-     * family) it is the only thing that orders the lines. {@code 序=6/6} says the cap was REACHED,
-     * which is not the same claim as "more happened" — the follow-on {@code 序=7+/6 已达上限} line
-     * is the one that says an event was actually swallowed, and its ABSENCE after a {@code 序=6/6}
-     * means the body really did stop asking.
+     * <p>{@code seq=} is the event ordinal within the cap; when {@code t=} is frozen (the one-tick
+     * family) it is the only thing that orders the lines. {@code seq=6/6} says the cap was REACHED,
+     * which is not the same claim as "more happened" — the follow-on {@code seq=7+/6 cap reached}
+     * line is the one that says an event was actually swallowed, and its ABSENCE after a
+     * {@code seq=6/6} means the bot really did stop asking.
      */
     void avatarJump(Body a, boolean v) {
         boolean newEvent = v && !lastJumpAsk;
@@ -1296,13 +1296,13 @@ public final class Walker {
         LivingEntity p = a.entity();
         if (p == null) return;
         if (jumpSrcEvents >= JUMP_SRC_EVENTS) {
-            // A silent cap and a body that genuinely jumped exactly JUMP_SRC_EVENTS times print
-            // IDENTICALLY — "序=6/6" is the last line in both worlds. Say it once, at the first
+            // A silent cap and a bot that genuinely jumped exactly JUMP_SRC_EVENTS times print
+            // IDENTICALLY — "seq=6/6" is the last line in both worlds. Say it once, at the first
             // event actually suppressed, so the difference is on the page. One-shot on purpose:
             // the whole reason the cap exists is that a hose of these lines is unreadable.
             if (!jumpSrcCapped) {
                 jumpSrcCapped = true;
-                LOG.info("[walker] 起跳来源: 序={}+/{} 已达上限，后续事件未记录（此行只印一次）",
+                LOG.info("[walker] jump source: seq={}+/{} cap reached, later events are not logged (printed once)",
                         JUMP_SRC_EVENTS + 1, JUMP_SRC_EVENTS);
             }
             return;
@@ -1314,15 +1314,15 @@ public final class Walker {
         String site = StackWalker.getInstance().walk(s -> s.skip(2)
                 .map(f -> f.getFileName() + ":" + f.getLineNumber()).findFirst().orElse("?"));
         // The water pair is here because a `swimColumn` tag on dry obsidian has three readings and
-        // the tag alone cannot separate them: the BODY's own flag (p.isInWater(), what the branch
+        // the tag alone cannot separate them: the BOT's own flag (p.isInWater(), what the branch
         // actually tests) and the WORLD's block at the foot are printed side by side, so a stale
         // flag, a genuinely wet cell, and a tag that disagrees with its own precondition are three
         // distinct rows instead of one ambiguous one.
-        LOG.info("[walker] 起跳来源: 序={}/{} t={} 支={} 处={} 身体={} 精确=({}) 路点={} wp.y-foot.y={} 水={} 没顶={} 脚格={} 脚上={}",
+        LOG.info("[walker] jump source: seq={}/{} t={} branch={} site={} foot={} exact=({}) waypoint={} wp.y-foot.y={} inWater={} underWater={} footBlock={} aboveFoot={}",
                 jumpSrcEvents, JUMP_SRC_EVENTS,
-                now, jumpTag == null ? "未标" : jumpTag, site, foot.toShortString(),
+                now, jumpTag == null ? "untagged" : jumpTag, site, foot.toShortString(),
                 String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
-                wp == null ? "无" : wp.toShortString(), wp == null ? "?" : String.valueOf(wp.getY() - foot.getY()),
+                wp == null ? "none" : wp.toShortString(), wp == null ? "?" : String.valueOf(wp.getY() - foot.getY()),
                 p.isInWater(), p.isUnderWater(),
                 p.level().getBlockState(foot).getBlock().toString(),
                 p.level().getBlockState(foot.above()).getBlock().toString());
@@ -1339,42 +1339,42 @@ public final class Walker {
     private boolean lastJumpAsk;
 
     /**
-     * One line per STEP ADVANCE — which gate consumed the node, and whether the body was standing
+     * One line per STEP ADVANCE — which gate consumed the node, and whether the bot was standing
      * on anything when it did.
      *
      * <p><b>The pair of readings that separates two step-advance stories.</b> A pointer that has
-     * moved past a node is consistent with the body having reached it and with the body having been
+     * moved past a node is consistent with the bot having reached it and with the bot having been
      * mid-jump over it, and the vertical distance alone cannot tell them apart: the {@code passed}
-     * gate's {@code |nx.y − p.y| < 1.2} reachability bar is evaluated against the body's y AT THIS
-     * INSTANT, and a 0.42 impulse lifts a grounded body ~1.25 blocks, so a node two above the
-     * FLOOR reads as within reach at the top of a jump the body cannot stay at. {@code onGround},
-     * {@code 脚底实心} and {@code 落速} therefore ride on the same line as the two |Δy| terms — a
-     * distance without a footing is the same row in both worlds, and the whole point of the line is
-     * that they be different rows.
+     * gate's {@code |nx.y − p.y| < 1.2} reachability bar is evaluated against the bot's y AT THIS
+     * INSTANT, and a 0.42 impulse lifts a grounded bot ~1.25 blocks, so a node two above the
+     * FLOOR reads as within reach at the top of a jump the bot cannot stay at. {@code onGround},
+     * {@code soleOnSolid} and {@code fallSpeed} therefore ride on the same line as the two |Δy|
+     * terms — a distance without a footing is the same row in both worlds, and the whole point of
+     * the line is that they be different rows.
      *
-     * <p>{@code 脚底实心} is {@link WalkerGeometry#soleOnSolid}, the predicate the walker's footing
-     * guards steer by, deliberately rather than a second opinion about what standing means: an
-     * executor and a reading that answer that question differently is how a diagnosis comes to
-     * describe a body that does not exist.
+     * <p>{@code soleOnSolid} is {@link WalkerGeometry#soleOnSolid}, the predicate the walker's
+     * footing guards steer by, deliberately rather than a second opinion about what standing means:
+     * an executor and a reading that answer that question differently is how a diagnosis comes to
+     * describe a bot that does not exist.
      *
-     * <p><b>{@code 因=} is the branch that FIRED, not a reconstruction.</b> The flags are passed in
+     * <p><b>{@code cause=} is the branch that FIRED, not a reconstruction.</b> The flags are passed in
      * from the decision site and joined, so two simultaneously-true gates print as {@code
      * within+passed} instead of the caller having to pick one, and an advance matching NONE of the
-     * named flags prints {@code 其它} — a chain whose last arm is a real gate name would label every
+     * named flags prints {@code other} — a chain whose last arm is a real gate name would label every
      * unmatched case as that gate and could never report that the labels had fallen behind the
      * expression. {@code cur2}/{@code nd2}/{@code overshot} come from the same site for the same
      * reason; {@code nd2=NaN} is the honest reading for a tick where {@code within} fired and the
      * {@code passed} arithmetic never ran.
      *
      * <p>Capped like {@link #noteJumpSource} and for the same reason, with the same one-shot
-     * {@code 已达上限} line — and, as there, the gate is an ORDINAL and never the clock:
+     * {@code cap reached} line — and, as there, the gate is an ORDINAL and never the clock:
      * {@code wd.buriedOre} pumps its whole body inside ONE server tick, so a game-time latch would
      * print the first line and go blind for the rest of the run. NOT gated on
      * {@code BotConfig.walkerDebug}, which that scene switches off.
      */
     void noteStepAdvance(WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx,
                          String cause, double cur2, double nd2, boolean overshot) {
-        if (seenLegEpoch != legEpoch) {                 // a new leg: fresh budget, see #newLeg
+        if (seenLegEpoch != legEpoch) {                 // a new walk: fresh budget, see #newLeg
             seenLegEpoch = legEpoch;
             stepAdvEvents = 0;
             stepAdvCapped = false;
@@ -1382,19 +1382,19 @@ public final class Walker {
         if (stepAdvEvents >= STEP_ADV_EVENTS) {
             if (!stepAdvCapped) {
                 stepAdvCapped = true;
-                LOG.info("[walker] 步进: 序={}+/{} 已达上限，后续事件未记录（此行只印一次）",
+                LOG.info("[walker] step advance: seq={}+/{} cap reached, later events are not logged (printed once)",
                         STEP_ADV_EVENTS + 1, STEP_ADV_EVENTS);
             }
             return;
         }
         stepAdvEvents++;
         stepAdvancesLogged++;
-        LOG.info("[walker] 步进: 序={}/{} 因={} 旧步={} 新步={} w={} nx={} 身体={} 精确=({}) "
-                        + "cur2={} nd2={} overshot={} |w.y-p.y|={} |nx.y-p.y|={} onGround={} 脚底实心={} 落速={}",
+        LOG.info("[walker] step advance: seq={}/{} cause={} oldStep={} newStep={} w={} nx={} foot={} exact=({}) "
+                        + "cur2={} nd2={} overshot={} |w.y-p.y|={} |nx.y-p.y|={} onGround={} soleOnSolid={} fallSpeed={}",
                 stepAdvEvents, STEP_ADV_EVENTS, cause, step, step + 1,
-                w == null ? "无" : w.toShortString(),
-                nx == null ? "无(末节点)" : nx.toShortString(),
-                foot == null ? "无" : foot.toShortString(),
+                w == null ? "none" : w.toShortString(),
+                nx == null ? "none(last node)" : nx.toShortString(),
+                foot == null ? "none" : foot.toShortString(),
                 String.format(Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
                 String.format(Locale.ROOT, "%.3f", cur2), String.format(Locale.ROOT, "%.3f", nd2), overshot,
                 w == null ? "?" : String.format(Locale.ROOT, "%.3f", Math.abs(w.getY() - p.getY())),
@@ -1405,36 +1405,36 @@ public final class Walker {
     }
 
     /**
-     * Step-advance lines emitted per LEG before the latch goes quiet.
+     * Step-advance lines emitted per WALK before the latch goes quiet.
      *
      * <p>Sixty-four, and the number is measured rather than chosen. It was 8 <b>per walker</b>, and
      * a walker outlives a whole rung: on the 2026-08-20 ladder the budget was spent in the first
      * seconds of a 5 209-tick crossing, so the four wedged hops that are the entire question —
      * 900 ticks each, 61 to 76 walk edges apiece — produced not one advance line between them. The
-     * reading those hops need is whether the pointer advanced through nodes the body never walked,
+     * reading those hops need is whether the pointer advanced through nodes the bot never walked,
      * and that is exactly what an exhausted latch cannot say. 64 covers the 61 edges the worst
      * measured hop walked, so a wedge can be read end to end instead of only its opening.
      *
-     * <p><b>Still bounded, and per leg rather than unbounded</b>: 24 hops x 64 lines of ~300 chars
+     * <p><b>Still bounded, and per walk rather than unbounded</b>: 24 hops x 64 lines of ~300 chars
      * is about 460 KB for a whole crossing, which is a log a human opens. An uncapped advance log
      * over a wedged hop is how a 40-minute run becomes an unreadable one.
      */
     private static final int STEP_ADV_EVENTS = 64;
     private int stepAdvEvents;
-    /** The leg this walker last refreshed its advance budget for — see {@link #newLeg}. */
+    /** The walk this walker last refreshed its advance budget for — see {@link #newLeg}. */
     private int seenLegEpoch = -1;
     /** One-shot latch for the "the cap swallowed an advance" line — see {@link #noteStepAdvance}. */
     private boolean stepAdvCapped;
 
     /**
-     * Which leg the per-leg log budgets belong to, and the one call that starts a new one.
+     * Which walk the per-walk log budgets belong to, and the one call that starts a new one.
      *
-     * <h2>One definition of「leg」, not a second one</h2>
+     * <h2>One definition of "walk", not a second one</h2>
      *
-     * A walker outlives every leg that uses it, so a per-walker budget is spent by whichever leg
-     * happens to run first. What the instruments mean by a leg is already defined — {@link
+     * A walker outlives every walk that uses it, so a per-walker budget is spent by whichever walk
+     * happens to run first. What the instruments mean by a walk is already defined — {@link
      * net.magicterra.worlddriver.bot.stagewright.journey.JourneyFlight JourneyFlight} is constructed
-     * once per leg and takes its {@code guardForcedRepaths} delta from exactly that moment — so this
+     * once per walk and takes its {@code guardForcedRepaths} delta from exactly that moment — so this
      * is bumped from the same constructor rather than being given a notion of its own. Two
      * definitions of one word is how the pin/streak confusion started, and it is not repeated here.
      *
@@ -1442,26 +1442,26 @@ public final class Walker {
      *
      * It gates a LOG BUDGET and nothing else, which is why a static is safe where {@link
      * #lastTickTrace}'s note says one would not be: every walker in the JVM refreshing its logging
-     * allowance on a new leg is the intended effect, and no decision the bot makes can observe it.
+     * allowance on a new walk is the intended effect, and no decision the bot makes can observe it.
      */
     public static volatile int legEpoch;
 
-    /** Start a new leg: every walker's per-leg log budget refreshes on its next line. */
+    /** Start a new walk: every walker's per-walk log budget refreshes on its next line. */
     public static void newLeg() { legEpoch++; }
 
     /**
-     * Advance lines actually emitted, so a leg can report whether its own log is COMPLETE.
+     * Advance lines actually emitted, so a walk can report whether its own log is COMPLETE.
      *
-     * <p>The budget above is worth nothing if a reader cannot tell「this hop advanced 61 times and
-     * all 61 are here」from「this hop advanced 300 times and you are looking at the first 64」. The
+     * <p>The budget above is worth nothing if a reader cannot tell "this hop advanced 61 times and
+     * all 61 are here" from "this hop advanced 300 times and you are looking at the first 64". The
      * landing allowance taught the same lesson one commit ago from the other side: an instrument
      * that costs nothing and an instrument that never ran are indistinguishable unless one of them
-     * says which. {@code JourneyFlight} prints this as a per-leg delta against
+     * says which. {@code JourneyFlight} prints this as a per-walk delta against
      * {@link #STEP_ADV_EVENTS}.
      */
     public static volatile int stepAdvancesLogged;
 
-    /** The per-leg advance budget, for the instrument that reports how much of it a leg spent. An
+    /** The per-walk advance budget, for the instrument that reports how much of it a walk spent. An
      *  accessor rather than a copied literal: a row that assumes 64 stops being a report about this
      *  budget the day the budget changes. */
     public static int stepAdvanceBudget() { return STEP_ADV_EVENTS; }
@@ -1485,22 +1485,22 @@ public final class Walker {
         Step s = tickInner(a, world);
         WalkerTickDrive.settleDigKey(this, a);   // a walker-held attack key outlives its dig by DIG_KEY_RELEASE_TICKS only
         LivingEntity tp = a.entity();
-        lastTickTrace = "step=" + s + " 跳标=" + (jumpTag == null ? "未标" : jumpTag)
-                + (tp == null ? "" : " 身体=" + String.format(java.util.Locale.ROOT, "%.2f,%.2f,%.2f",
+        lastTickTrace = "step=" + s + " jumpTag=" + (jumpTag == null ? "untagged" : jumpTag)
+                + (tp == null ? "" : " pos=" + String.format(java.util.Locale.ROOT, "%.2f,%.2f,%.2f",
                         tp.getX(), tp.getY(), tp.getZ())
-                    + String.format(java.util.Locale.ROOT, " 速度h=%.3f",
+                    + String.format(java.util.Locale.ROOT, " speedH=%.3f",
                         tp.getDeltaMovement().horizontalDistance())
-                    + " 脚底=" + String.format(java.util.Locale.ROOT, "%.3f",
+                    + " sole=" + String.format(java.util.Locale.ROOT, "%.3f",
                         WalkerGeometry.soleOnSolid(world, tp)))
-                + " 节点=" + (path == null || step < 0 || step >= path.size()
-                        ? "无" : path.get(step).toShortString());
+                + " node=" + (path == null || step < 0 || step >= path.size()
+                        ? "none" : path.get(step).toShortString());
         if (tp != null && WalkerGeometry.soleOnSolid(world, tp) > 0.0) lastSupportedTrace = lastTickTrace;
         boolean fired = strideFloorGuard(a, world);
         boolean footing = footingGuard(a, world);
         // Pin HYSTERESIS: the guard's fire predicate needs translation (h ≥ 0.03), so the
         // pin's own deceleration un-fires it the next tick — pin/release alternation. On a
         // spinning-drive arc at a lip that alternation is fatal twice over: the release
-        // ticks let the creep resume (bridge stop-family: body slid off between pins,
+        // ticks let the creep resume (bridge stop-family: the bot slid off between pins,
         // breach@t=94), and the streak reset below kept the ≥30 forced repath from ever
         // firing. Hold the pin for a short tail after the last fire; held ticks count
         // toward the streak. Parkour ticks stay exempt (a deliberate leap must launch).
@@ -1518,11 +1518,11 @@ public final class Walker {
                     && path.get(step).getY() < fc.getY();
             if (guardParkourTick || plannedDescent || hp == null) guardHoldTicks = 0;
             else {
-                // While the body OVERHANGS (grounded only by the epsilon face-contact of
+                // While the bot OVERHANGS (grounded only by the epsilon face-contact of
                 // a neighbouring block — sneak lets it balance on such a knife edge —
                 // with a passable column under its own foot cell) the countdown pauses:
-                // releasing there drops the body straight down (stop-family r9: pin
-                // walked the body back toward the deck at +0.04/tick but the tail
+                // releasing there drops the bot straight down (stop-family r9: pin
+                // walked the bot back toward the deck at +0.04/tick but the tail
                 // expired two blocks short). Gated on an ACTIVE hold so routine diagonal
                 // corner-crossing transients never stutter-sneak.
                 boolean overhang = hp.onGround() && !hp.isInWater()
@@ -1543,9 +1543,9 @@ public final class Walker {
         guardSneakLatch = pinned;
         if (fired) {
             // A pin is a deliberate hold, not a stall: revert this tick's stuck accounting so
-            // anti-stuck recovery bursts don't shove the body over the very lip the pin holds it
+            // anti-stuck recovery bursts don't shove the bot over the very lip the pin holds it
             // from (live 2026-07-13 death: 8 clean pins at the cliff, stuckT climbing 2→4, then a
-            // recovery nudge pushed the 2.5HP body over a 6-block drop — the guard's save undone
+            // recovery nudge pushed the 2.5HP bot over a 6-block drop — the guard's save undone
             // by the machinery around it).
             if (stuckTicks > 0) stuckTicks--;
             // Sustained pinning MAY be a planning fact — the current route leads over a lethal lip
@@ -1560,23 +1560,23 @@ public final class Walker {
             // used to reset it every other tick, so a livelocked lip approach never reached
             // the forced repath (stop-family creep: 10+ fires, streak never past 1). The
             // repath drops the PLAN only — the hold itself must survive it (r9: clearing
-            // the hold here released the sneak mid-overhang and dropped the body).
+            // the hold here released the sneak mid-overhang and dropped the bot).
             forcedRepathIfPinnedTooLong(a);
         } else { guardPinStreak = 0; guardStreakCells = 0; guardStreakCell = null; }
         return s;
     }
 
     /**
-     * Pin a body that is grounded on almost nothing, beside a drop that would kill it.
+     * Pin a bot that is grounded on almost nothing, beside a drop that would kill it.
      *
      * <h2>Why here and not in the drive</h2>
      *
      * The lethal-edge gate in {@code WalkerTickDrive} is the natural home and it cannot do this job,
      * for two measured reasons. It probes FORWARD — the cell 0.6 blocks toward the waypoint — so a
-     * body that has drifted off its floor sideways, or that is being steered at a node behind it,
+     * bot that has drifted off its floor sideways, or that is being steered at a node behind it,
      * reads perfectly clean: on the tick before an eleven-block drop into a nether lava lake,
      * {@code gapAhead} was false (the cell toward the waypoint was netherrack), {@code offCentre}
-     * was 0.17, and the body's own sole was on <b>0.0000 of 0.36</b>. And it lives in the drive
+     * was 0.17, and the bot's own sole was on <b>0.0000 of 0.36</b>. And it lives in the drive
      * TAIL, which dozens of branches — dig, pillar, escape, step-up — return before reaching: the
      * next rehearsal fell on exactly such a tick, {@code drive=null}, while the crossing was digging
      * its way along. That is the same lesson {@link #strideFloorGuard} was hoisted here for.
@@ -1584,14 +1584,14 @@ public final class Walker {
      * <h2>What it asks, in the order that makes it cheap</h2>
      *
      * The sole first ({@link WalkerGeometry#soleOnSolid}, four block reads, and on ordinary ground
-     * it answers 0.36 immediately), and only for a body already down to half a sole does it pay for
+     * it answers 0.36 immediately), and only for a bot already down to half a sole does it pay for
      * {@link WalkerGeometry#lethalDropAdjacent}'s eight columns. So a walk over solid ground costs
      * four reads a tick and nothing else.
      *
      * <h2>What the pin is, and what it is not</h2>
      *
      * Vanilla sneak: {@code Player.maybeBackOffFromEdge} refuses the part of a move that would take
-     * a shift-held body off its floor. It is a REFUSAL to step further out, not a rescue — a body
+     * a shift-held bot off its floor. It is a REFUSAL to step further out, not a rescue — a bot
      * already over the void falls whatever this does, which is why the sole threshold is half a sole
      * and not zero. Jump is cancelled with it, because sneak has never clamped a jump and the nether
      * crossing's first fatal launch was exactly that: sneak held, {@code diagUp} planned, +0.42 of
@@ -1608,18 +1608,18 @@ public final class Walker {
         // and this guard's worst ticks are exactly the ones with no informative last move — the tick
         // after a placement, after a jump, after a reposition. The sole read below is the same
         // question asked of the world, so the flag was never adding a fact, only a false negative:
-        // wd.serverWidensAThinFooting stages a body flush on obsidian with sole 0.168 and the guard
-        // returned on this line every tick while the body walked off the ledge in 18.
-        // A zero sole is still a return: nothing is under the body, it is falling, and sneak is a
+        // wd.serverWidensAThinFooting stages a bot flush on obsidian with sole 0.168 and the guard
+        // returned on this line every tick while the bot walked off the ledge in 18.
+        // A zero sole is still a return: nothing is under the bot, it is falling, and sneak is a
         // refusal to step further out rather than a rescue (see the note above).
         double sole = soleOnSolid(world, p);
         if (sole <= 0.0) return false;
         // Over the VOID the threshold is higher, because the two mistakes are not symmetric. Half a
-        // sole is the right bar beside an ordinary drop: a graze costs health the body walks off,
+        // sole is the right bar beside an ordinary drop: a graze costs health the bot walks off,
         // and pinning more often would make ridge walking crawl. Beside a bottomless column the
-        // same graze ends the run — this body cannot die, so it does not respawn, it falls forever.
+        // same graze ends the run — this bot cannot die, so it does not respawn, it falls forever.
         // Measured: the last tick that still had support before a rung-20 departure read
-        // 「身体=-31.05,82.75,25.49 速度h=0.000 脚底=0.212」 — stationary, so the stride guard (h ≥
+        // "pos=-31.05,82.75,25.49 speedH=0.000 sole=0.212" — stationary, so the stride guard (h ≥
         // 0.03) was silent, and 0.212 > 0.18, so this guard was silent too. Both guards off by
         // construction at exactly the reading that precedes the fall.
         double bar = FOOTING_MIN;
@@ -1634,7 +1634,7 @@ public final class Walker {
         // the descent instead of protecting it. Left out of the first cut, and the suite named the
         // cost in one run: wd.descent "crouch-deadlock: did not reach the bottom step",
         // wd.bridgeDescend "descending bridge wedged (sneak ledge-guard?)", wd.descentYaw thrashing
-        // to 2463°. Every fall this guard is for was a body walking or jumping at a node level with
+        // to 2463°. Every fall this guard is for was a bot walking or jumping at a node level with
         // it or above it, so nothing it protects is given up here.
         if (path != null && step >= 0 && step < path.size()
                 && path.get(step).getY() < foot.getY()) return false;
@@ -1643,7 +1643,7 @@ public final class Walker {
         a.commandJump(false);
         p.setSprinting(false);
         // Edge-triggered: a ridge walk pins for runs of ticks and a line per tick would bury the
-        // rest of the log. The entry is the event — "the body reached a cell it is barely on".
+        // rest of the log. The entry is the event — "the bot reached a cell it is barely on".
         if (!footingPinned) {
             LOG.info("[walker] footing guard: sole {} < {} at {},{},{} beside a lethal drop → sneak-pin",
                     String.format(java.util.Locale.ROOT, "%.4f", soleOnSolid(world, p)), FOOTING_MIN,
@@ -1655,12 +1655,12 @@ public final class Walker {
     }
 
     /**
-     * True when this body is on a graze with the void beside it — the state from which no jump can
+     * True when this bot is on a graze with the void beside it — the state from which no jump can
      * be allowed to leave the ground.
      *
      * <p>The planner's leap and diagonal gates cannot see this. They rule on EDGES, and the jump
      * that killed rung 20 here is the walker's own {@code stepUpFreeze}: measured
-     * 「跳标=stepUpFreeze 身体=-42.70,102.00,5.30 速度h=0.528 脚底=0.000 节点=-43,103,4」 —— a
+     * {@code jumpTag=stepUpFreeze pos=-42.70,102.00,5.30 speedH=0.528 sole=0.000 node=-43,103,4} — a
      * step-up fired at speed off a tower top with a sole that rounds to nothing. Six families of
      * departure have now been closed one at a time; this is the one that belongs to the executor
      * rather than to the plan, and it is why closing all seven planner moves did not end the falls.
@@ -1672,27 +1672,28 @@ public final class Walker {
         return voidBeside(world, BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ()));
     }
 
-    /** The footing guard's own threshold, for scenes that must stage a body it actually looks at.
+    /** The footing guard's own threshold, for scenes that must stage a bot it actually looks at.
      *  An accessor rather than a copied literal: a rig that assumes 0.18 stops being a test of this
      *  guard the day the guard changes its mind. */
     public static double footingMin() { return FOOTING_MIN; }
 
     /** The bar over a bottomless column: 5/6 of the 0.36 sole, against 1/2 beside an ordinary drop.
-     *  Not「be careful」as a number — it is the smallest reading that still leaves the body a whole
+     *  Not "be careful" as a number — it is the smallest reading that still leaves the bot a whole
      *  half-cell of margin on every axis, and the void gives no second attempt. */
     static final double VOID_FOOTING_MIN = 0.30;
 
     /**
      * True when any column NEXT TO {@code at} runs out of the world.
      *
-     * <p>Beside, not under — and the first cut got that backwards. A body with a sole to measure is
+     * <p>Beside, not under — and the first cut got that backwards. A bot with a sole to measure is
      * standing on something by definition, so the column under it is never bottomless; asking there
      * returns false every time and the raised bar could never arm. On a 1-wide tower it is the
      * pillar itself that answers, which is exactly the geometry the bar exists for: measured
-     * 「身体=-32.70,82.00,26.86 速度h=0.671 脚底=0.263」 — under the 0.30 bar, moving fast, and the
-     * guard silent because it had asked whether the tower it was standing on was made of air.
+     * {@code pos=-32.70,82.00,26.86 speedH=0.671 sole=0.263} — under the 0.30 bar, moving fast, and
+     * the guard silent because it had asked whether the tower it was standing on was made of air.
      *
-     * <p>Same floor as the stride guard's own bottomless test, so the two agree about「虚空」.
+     * <p>Same floor as the stride guard's own bottomless test, so the two agree about what counts
+     * as the void.
      */
     static boolean voidBeside(WorldView world, BlockPos at) {
         for (int dx = -1; dx <= 1; dx++)
@@ -1713,16 +1714,16 @@ public final class Walker {
     /**
      * Fill the empty column under the overhanging half of the sole.
      *
-     * <p>The stride guard plugs the cell AHEAD; nothing has ever plugged the cell the body is
+     * <p>The stride guard plugs the cell AHEAD; nothing has ever plugged the cell the bot is
      * already half off. That gap is what makes rung 20's lip a dead end: measured across two runs at
-     * the identical cell {@code (-32,85,27)}, the body stood on 16% of its sole beside the void with
+     * the identical cell {@code (-32,85,27)}, the bot stood on 16% of its sole beside the void with
      * 500+ cobblestone in the bag while the footing guard pinned it, the stride guard refused the
      * next step, the recovery hop refused to jump (a lethal drop one cell away) and the ascent
      * executor called the plan's own next node UNREACHABLE. Four correct refusals and no legal move.
-     * One block under the body turns the perch into a floor and every one of those guards releases.
+     * One block under the bot turns the perch into a floor and every one of those guards releases.
      *
      * <p>Only over a BOTTOMLESS column, for the same reason the stride guard's instant arming is:
-     * over an ordinary drop a thin sole is a graze the body walks off, and spending blocks on every
+     * over an ordinary drop a thin sole is a graze the bot walks off, and spending blocks on every
      * ridge walk is how a bridging contract gets eaten. Over the void it is the difference between
      * continuing and falling forever.
      */
@@ -1740,7 +1741,7 @@ public final class Walker {
                 if (!bottomless) continue;
                 hands.place(world, support);
                 exAlarms.notePlace(support);
-                LOG.info("[walker] footing guard: 垫脚 {},{},{}（脚底 {} < {}，该列直通虚空）",
+                LOG.info("[walker] footing guard: placed support at {},{},{} (sole {} < {}, the column drops into the void)",
                         support.getX(), support.getY(), support.getZ(),
                         String.format(java.util.Locale.ROOT, "%.4f", soleOnSolid(world, p)),
                         FOOTING_MIN);
@@ -1770,36 +1771,36 @@ public final class Walker {
      * ({@code precond && stuckTicks > 10 && stuckTicks < 18}), so the scan still runs only inside
      * it, exactly as the old short-circuit arranged; only the predicate after it moved.
      *
-     * <p>One line per EVENT, not per tick: the window is 7 ticks wide and a body sits in it for
+     * <p>One line per EVENT, not per tick: the window is 7 ticks wide and a bot sits in it for
      * runs of them, so a per-tick line would be a hose. Entry to the window is the event. Capped at
-     * {@link #WIGGLE_EVENTS} so a body that stalls repeatedly still cannot flood a rehearsal log.
+     * {@link #WIGGLE_EVENTS} so a bot that stalls repeatedly still cannot flood a rehearsal log.
      *
      * <p><b>"Entry" is adjacency of CALLS, never of game time.</b> The gate was
      * {@code getGameTime() - wiggleLastTick > 1}, which cannot see anything in a scene whose whole
-     * body runs inside one server tick — {@code wd.buriedOre}'s 800 {@code tickAll()} iterations,
+     * method runs inside one server tick — {@code wd.buriedOre}'s 800 {@code tickAll()} iterations,
      * the {@code wd.serverMine*} family, {@code wd.selfShaftDigUp}. There {@code now} never moves,
      * so after the first line the delta is 0 forever and one line is printed however many times the
-     * body entered the stall window. {@code wiggleCalls} is bumped on EVERY call, before the
+     * bot entered the stall window. {@code wiggleCalls} is bumped on EVERY call, before the
      * precondition, so {@code call - wiggleLastCall > 1} means exactly "the immediately preceding
      * call was not itself inside the window" — the same event in a per-tick world (this is called
-     * at most once per walker tick) and a working one in a one-tick world. {@code 序=} is the
+     * at most once per walker tick) and a working one in a one-tick world. {@code seq=} is the
      * ordinal within the cap, the only thing that orders lines whose {@code t=} is frozen; a
-     * trailing {@code 序=5+/4 已达上限} line (and only that line) means a further entry was
-     * swallowed, so {@code 序=4/4} alone still means "exactly four entries".
+     * trailing {@code seq=5+/4 cap reached} line (and only that line) means a further entry was
+     * swallowed, so {@code seq=4/4} alone still means "exactly four entries".
      *
-     * <p><b>And the bearing, measurement only.</b> The ring answered「is the reach shorter than the
-     * throw」— yes, by one — but the answer does NOT license widening it: one directed rehearsal
-     * caught both sides, ring 3 firing (a ladder body took that into a lava lake) and ring 2 holding
+     * <p><b>And the bearing, measurement only.</b> The ring answered "is the reach shorter than the
+     * throw" — yes, by one — but the answer does NOT license widening it: one directed rehearsal
+     * caught both sides, ring 3 firing (a ladder bot took that into a lava lake) and ring 2 holding
      * through a three-minute stall. Direction is what separates them, so {@link
-     * WalkerGeometry#hopBearingRow} prints where the body points against where the lethal cell is.
+     * WalkerGeometry#hopBearingRow} prints where the bot points against where the lethal cell is.
      * Nothing branches on it yet, by the same rule that turned this gate's boolean into a ring.
-     * ⚠️ That row prints the CAMERA; the body is pushed along {@code driveTargetYaw}, decoupled
+     * ⚠️ That row prints the CAMERA; the bot is pushed along {@code driveTargetYaw}, decoupled
      * from it by design, so it is NOT the gate. The gate is {@link WalkerGeometry#hopSuppressed} —
      * the arc's own landing columns along the DRIVE bearing, which subsumes the ring test rather
      * than joining it — and {@link WalkerGeometry#hopLandingRow} prints the cells it read.
      *
-     * <p>Why this earns a line at all: rung 20's takeoff samples showed the body already airborne
-     * with {@code 距上次起跳=7}, and eliminating the jump terms that need a riser or water leaves
+     * <p>Why this earns a line at all: rung 20's takeoff samples showed the bot already airborne
+     * with {@code sinceLastJump=7}, and eliminating the jump terms that need a riser or water leaves
      * {@code wiggle} as the only one that can fire on a flat dry level walk. That elimination is
      * REASONING, not a reading — the rehearsal log has no per-tick walker lines to check it against.
      * This is the reading.
@@ -1814,7 +1815,7 @@ public final class Walker {
         if (!gated && call - wiggleLastCall > 1) tallies.recoveryHops++;   // one per window entry, not per tick
         if (wiggleEvents < WIGGLE_EVENTS && call - wiggleLastCall > 1) {
             wiggleEvents++;
-            LOG.info("[walker] 恢复跳: 序={}/{} t={} 卡住={} 身体={} 精确=({}) 旧闸半径={} 最近致命格={} 闸={} 起跳={} {} | {}",
+            LOG.info("[walker] recovery hop: seq={}/{} t={} stuck={} foot={} exact=({}) ringGateRadius={} nearestLethalRing={} gate={} jump={} {} | {}",
                     wiggleEvents, WIGGLE_EVENTS,
                     p.level().getGameTime(), stuckTicks, foot.toShortString(),
                     String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
@@ -1823,11 +1824,11 @@ public final class Walker {
                     WalkerGeometry.hopBearingRow(p, foot, lethal),
                     WalkerGeometry.hopLandingRow(world, p, foot, driveYaw));
         } else if (wiggleEvents >= WIGGLE_EVENTS && !wiggleCapped && call - wiggleLastCall > 1) {
-            // Same blind spot as the jump-source cap: "序=4/4" is the last line both when the body
+            // Same blind spot as the jump-source cap: "seq=4/4" is the last line both when the bot
             // entered the stall window exactly WIGGLE_EVENTS times and when it entered it forty
             // times. One line, at the first entry the cap actually swallowed.
             wiggleCapped = true;
-            LOG.info("[walker] 恢复跳: 序={}+/{} 已达上限，后续事件未记录（此行只印一次）",
+            LOG.info("[walker] recovery hop: seq={}+/{} cap reached, later events are not logged (printed once)",
                     WIGGLE_EVENTS + 1, WIGGLE_EVENTS);
         }
         wiggleLastCall = call;
@@ -1840,13 +1841,13 @@ public final class Walker {
      * <p>Sixteen, not four. The budget is per WALKER INSTANCE — {@code wiggleEvents} is an instance
      * field with no reset, and every process carries its own {@code new Walker(…)} — so it is spent
      * per settle, not per run. That is not as generous as it sounds, because a single stall episode
-     * burns it: on 2026-08-26 rung 12's body stalled on a lava lake's rim, spent all four inside
-     * thirteen seconds, and printed 序=5+/4 for the hops that mattered — the ones between the last
-     * logged position and a corpse in the lake. A cap that runs out inside the one stall worth
-     * reading is not a hose guard, it is a blind spot with a budget. Sixteen is still bounded —
-     * the line is one per ENTRY to a 7-tick window, not one per tick — and the 序=N+/16 line still
-     * says when even that was not enough. Measured immediately after: one rehearsal stall printed
-     * six consecutive suppressed hops (ring 2, 闸=true, 起跳=false), of which the old cap would
+     * burns it: on 2026-08-26 rung 12's bot stalled on a lava lake's rim, spent all four inside
+     * thirteen seconds, and printed seq=5+/4 for the hops that mattered — the ones between the last
+     * logged position and the bot's death in the lake. A cap that runs out inside the one stall
+     * worth reading is not a hose guard, it is a blind spot with a budget. Sixteen is still bounded
+     * — the line is one per ENTRY to a 7-tick window, not one per tick — and the seq=N+/16 line
+     * still says when even that was not enough. Measured: one rehearsal stall printed six
+     * consecutive suppressed hops (ring 2, gate=true, jump=false), of which a cap of four would
      * have shown four.
      */
     private static final int WIGGLE_EVENTS = 16;
@@ -1882,46 +1883,46 @@ public final class Walker {
 
     /**
      * Throw the plan away when the pin has held for {@link #GUARD_PIN_REPATH} ticks —
-     * <b>unless the body is consuming that plan</b> — and SAY SO either way.
+     * <b>unless the bot is consuming that plan</b> — and SAY SO either way.
      *
      * <h2>Why this was worth a method</h2>
      *
      * The two call sites were identical two-line expressions and the event they perform — a plan
      * silently discarded — <b>was the only thing the walker does that left no trace at all</b>. The
      * 2026-08-20 ladder ended rung 14 in a shuttle: four hops of 900 ticks each, 61-76 walk edges
-     * apiece, net −8 to −28 blocks, over a lava sea the body had bridged itself. The stride guard
+     * apiece, net −8 to −28 blocks, over a lava sea the bot had bridged itself. The stride guard
      * fired 491 times in that crossing on 184 distinct cells, and with {@link #GUARD_PIN_HOLD} = 8
-     * a fire every eight ticks keeps this streak alive — so「the plan keeps being thrown away」and
-     * 「the plan is bad」were both consistent with every row the run produced, and nothing in the
+     * a fire every eight ticks keeps this streak alive — so "the plan keeps being thrown away" and
+     * "the plan is bad" were both consistent with every row the run produced, and nothing in the
      * log or the evidence map could separate them.
      *
      * <h2>The measurement that separated them</h2>
      *
      * The 2026-08-21 BLAZE_ROD rehearsal, walking the scripted Nether corridor. Between two
-     * waypoints 45 blocks apart the body was pinned to the threshold three times, and every
+     * waypoints 45 blocks apart the bot was pinned to the threshold three times, and every
      * discarded plan was <b>complete</b>:
      *
      * <pre>
-     * 第 43 次：连钉 30 tick，4 个不同的格子；丢掉的计划还剩 134 个节点，末节点 132,43,165；身体 103,41,135
-     * 第 44 次：连钉 30 tick，3 个不同的格子；丢掉的计划还剩 132 个节点，末节点 132,43,165；身体 102,41,131
-     * 第 45 次：连钉 30 tick，4 个不同的格子；丢掉的计划还剩 123 个节点，末节点 130,43,167；身体  97,41,115
+     * #43: pinned 30 ticks, 4 distinct cells; the discarded plan had 134 nodes left, last node 132,43,165; bot at 103,41,135
+     * #44: pinned 30 ticks, 3 distinct cells; the discarded plan had 132 nodes left, last node 132,43,165; bot at 102,41,131
+     * #45: pinned 30 ticks, 4 distinct cells; the discarded plan had 123 nodes left, last node 130,43,167; bot at  97,41,115
      * </pre>
      *
-     * {@code 132,43,165} was the leg's goal. The pathfinder kept solving the whole crossing — 132
+     * {@code 132,43,165} was the walk's goal. The pathfinder kept solving the whole crossing — 132
      * nodes for 45 blocks of straight-line distance is the long way around the lava sea, which is
-     * the correct route — and the body never got to walk it, because a rim walk pins every few
+     * the correct route — and the bot never got to walk it, because a rim walk pins every few
      * ticks and the 8-tick hold tail bridges the gaps. 45 forced repaths in one run. The escape
-     * hatch built for a livelock was firing on a body that was not stuck.
+     * hatch built for a livelock was firing on a bot that was not stuck.
      *
      * <h2>What it branches on, and what it does not</h2>
      *
      * <b>Whether {@link #step} advanced while the streak ran.</b> Sustained pinning is evidence
-     * against a <i>route</i>; a route the body is visibly consuming is not the thing to indict. The
+     * against a <i>route</i>; a route the bot is visibly consuming is not the thing to indict. The
      * livelock this hatch exists for (567 pins at ONE cell) has a frozen step, so it still escapes.
      *
      * <p><b>Not the cell count.</b> That was the obvious candidate and it is the wrong predicate: a
-     * body oscillating between two cells is livelocked and would read「一路换格」just as a rim walk
-     * does. The count stays for the reader; only {@code step} decides.
+     * bot oscillating between two cells is livelocked and would read "kept changing cells" just as
+     * a rim walk does. The count stays for the reader; only {@code step} decides.
      *
      * <p>A plan swapped out from under the streak (some other branch re-planned) rebases the streak
      * instead of being discarded: the pinned ticks were evidence against the plan they accrued
@@ -1929,7 +1930,7 @@ public final class Walker {
      *
      * <p>Keeping a plan is not unbounded — {@link BotConfig#walkerTotalTickBudget} and the caller's
      * own tick cap still convert a slow-but-progressing route into an actionable FAILED. That is
-     * deliberately the only backstop: a second threshold here (「enough progress」) would be a free
+     * deliberately the only backstop: a second threshold here ("enough progress") would be a free
      * parameter with no measurement behind it.
      */
     private void forcedRepathIfPinnedTooLong(Body a) {
@@ -1943,18 +1944,20 @@ public final class Walker {
         }
         if (++guardPinStreak < GUARD_PIN_REPATH) return;
         LivingEntity p = a.entity();
-        String where = "；身体 " + (p == null ? "无" : p.blockPosition().toShortString());
+        String where = "; bot at " + (p == null ? "none" : p.blockPosition().toShortString());
         // A COVERAGE COUNT, NOT A MOVE COUNT. guardStreakCells increments on every cell ENTRY and
-        // the first entry is the streak's own opening cell, so 1 means the body never left it. The
-        // first cut printed「点火过 1 次换格（一直是同一格）」, which contradicts itself in one clause.
-        String cells = "，其间钉过 " + guardStreakCells + " 个格位（含首格）"
-                + (guardStreakCells <= 1 ? "（没离开过那一格）" : "（换过格 —— 参考项，不是判据）");
+        // the first entry is the streak's own opening cell, so 1 means the bot never left it.
+        // JourneyCrossingScenes parses "pinned in N cells" out of this clause.
+        String cells = ", pinned in " + guardStreakCells + " cells (including the first)"
+                + (guardStreakCells <= 1 ? " (never left that cell)"
+                        : " (changed cells; for reference, not a criterion)");
 
         if (path != guardStreakPath) {
             guardStreakRebases++;
             if (guardStreakRebases <= GUARD_STREAK_EVENTS) {
-                LOG.info("[walker] guard pin streak rebased: 连钉 {} tick{} —— 期间计划被别处换过，"
-                        + "这 {} tick 是记在旧计划头上的，新计划还没走过一步，不丢{}",
+                LOG.info("[walker] guard pin streak rebased: pinned {} ticks{} — another branch replaced "
+                        + "the plan during the streak, so these {} ticks count against the old plan; the new "
+                        + "plan has not been walked yet and is not discarded{}",
                         guardPinStreak, cells, guardPinStreak, where);
             }
             guardPinStreak = 0;
@@ -1966,17 +1969,18 @@ public final class Walker {
         int consumed = step - guardStreakStartStep;
         if (consumed > 0) {
             guardKeptPlans++;
-            lastGuardKeep = "第 " + guardKeptPlans + " 次：连钉 " + guardPinStreak
-                    + " tick，但计划前进了 " + consumed + " 步（第 " + guardStreakStartStep
-                    + " → " + step + " 节点）—— 身体在沿岸走，不是卡死，计划保留" + cells
-                    + "；这条计划还剩 " + Math.max(0, path.size() - Math.max(step, 0))
-                    + " 个节点，末节点 "
-                    + (path.isEmpty() ? "无" : path.get(path.size() - 1).toShortString()) + where;
+            lastGuardKeep = "#" + guardKeptPlans + ": pinned " + guardPinStreak
+                    + " ticks, but the plan advanced " + consumed + " steps (node " + guardStreakStartStep
+                    + " → " + step + ") — the bot is walking along the edge, not stuck, so the plan is kept"
+                    + cells
+                    + "; the plan has " + Math.max(0, path.size() - Math.max(step, 0))
+                    + " nodes left, last node "
+                    + (path.isEmpty() ? "none" : path.get(path.size() - 1).toShortString()) + where;
             if (guardKeptPlans <= GUARD_STREAK_EVENTS) {
                 LOG.info("[walker] guard pin kept the plan: {}", lastGuardKeep);
             } else if (guardKeptPlans == GUARD_STREAK_EVENTS + 1) {
-                LOG.info("[walker] guard pin kept the plan: 已达上限，后续保留只计数不再逐条打印"
-                        + "（读 guardKeptPlans / lastGuardKeep）");
+                LOG.info("[walker] guard pin kept the plan: cap reached, later keeps are counted but not printed"
+                        + " (read guardKeptPlans / lastGuardKeep)");
             }
             guardPinStreak = 0;
             guardStreakCells = 0;
@@ -1986,15 +1990,15 @@ public final class Walker {
 
         if (path == null) {
             // NOTHING TO THROW AWAY, so this is not a discard and must not be counted as one. Ten of
-            // the 45 "forced repaths" in the 2026-08-21 rehearsal read「丢掉的计划还剩 0 个节点，
-            // 末节点 无」— a body pinned with empty hands. Left in the same counter they inflate it
+            // the 45 "forced repaths" in the 2026-08-21 rehearsal discarded a plan with 0 nodes left
+            // and no last node — a bot pinned with no plan. Left in the same counter they inflate it
             // by a fifth, and a before/after comparison of guardForcedRepaths silently compares two
             // different populations. safetyRepath already re-plans on a null path; nothing to do here
             // but let the clock start over.
             guardPinnedWithNoPlan++;
             if (guardPinnedWithNoPlan <= GUARD_STREAK_EVENTS) {
-                LOG.info("[walker] guard pin with no plan: 连钉 {} tick，而这段时间身上一直没有计划{}"
-                        + " —— 没有东西可丢，不计入丢弃数{}", guardPinStreak, cells, where);
+                LOG.info("[walker] guard pin with no plan: pinned {} ticks with no plan held the whole time{}"
+                        + " — nothing to discard, so it is not counted as a discard{}", guardPinStreak, cells, where);
             }
             guardPinStreak = 0;
             guardStreakCells = 0;
@@ -2003,12 +2007,13 @@ public final class Walker {
         }
 
         guardForcedRepaths++;
-        lastGuardRepath = "第 " + guardForcedRepaths + " 次：连钉 " + guardPinStreak
-                + " tick，计划一步都没前进（停在第 " + guardStreakStartStep + " 节点）—— 这是原地卡死"
+        lastGuardRepath = "#" + guardForcedRepaths + ": pinned " + guardPinStreak
+                + " ticks and the plan did not advance a single step (stopped at node " + guardStreakStartStep
+                + ") — stuck in place"
                 + cells
-                + "；丢掉的计划还剩 " + Math.max(0, path.size() - Math.max(step, 0))
-                + " 个节点，末节点 "
-                + (path.isEmpty() ? "无" : path.get(path.size() - 1).toShortString())
+                + "; the discarded plan had " + Math.max(0, path.size() - Math.max(step, 0))
+                + " nodes left, last node "
+                + (path.isEmpty() ? "none" : path.get(path.size() - 1).toShortString())
                 + where;
         LOG.info("[walker] guard pin forced a repath: {}", lastGuardRepath);
         path = null;
@@ -2026,23 +2031,23 @@ public final class Walker {
      *
      * <p>Write-only breadcrumbs on the same terms as {@link #lastTickTrace}: nothing branches on
      * them, they are read by instruments that hold no Walker instance — chiefly {@code
-     * JourneyFlight}, which needs a per-leg delta and has no channel to the walker driving it.
+     * JourneyFlight}, which needs a per-walk delta and has no channel to the walker driving it.
      *
      * <p><b>Read them together, never {@code guardForcedRepaths} alone.</b> Before 2026-08-21 a
-     * pinned streak had exactly one outcome, so one counter said everything; now「never reached the
-     * threshold」and「reached it 45 times and kept the plan every time」are different runs that both
-     * report zero forced repaths. A leg that reports 0/0 was never pinned; 0/45 walked a rim.
+     * pinned streak had exactly one outcome, so one counter said everything; now "never reached the
+     * threshold" and "reached it 45 times and kept the plan every time" are different runs that both
+     * report zero forced repaths. A walk that reports 0/0 was never pinned; 0/45 walked a rim.
      *
      * <p><b>And the old number was never one population to begin with.</b> Of the 45 discards in the
-     * run that motivated all this, 10 had no plan in hand at all (「还剩 0 个节点，末节点 无」), 25
-     * dropped a 7-node scrap, and <b>3</b> dropped a complete route to the leg's goal — the three
+     * run that motivated all this, 10 had no plan in hand at all (0 nodes left, no last node), 25
+     * dropped a 7-node scrap, and <b>3</b> dropped a complete route to the walk's goal — the three
      * that actually cost the crossing. Splitting them into four counters is what makes 45 → N a
      * comparison of the same thing twice instead of a headline.
      */
     public static volatile int guardForcedRepaths;
-    public static volatile String lastGuardRepath = "还没强制重规划过";
+    public static volatile String lastGuardRepath = "no forced repath yet";
     public static volatile int guardKeptPlans;
-    public static volatile String lastGuardKeep = "还没有过「钉满但计划仍在前进」";
+    public static volatile String lastGuardKeep = "no streak has reached the threshold while its plan was still advancing";
     /** Streaks whose plan was replaced by some other branch mid-streak, so the pinned ticks were
      *  evidence against a plan that no longer exists. Neither a discard nor a keep. */
     public static volatile int guardStreakRebases;
@@ -2057,7 +2062,7 @@ public final class Walker {
      * those are opposite findings: the first means the branch was never exercised at all — the
      * scene proved nothing about it — and the second means it was exercised and stayed in bounds.
      * {@link #waterPillarEngages} separates them, and {@link #waterPillarTopRise} says how close
-     * the run ever came to the ceiling, so「never fired」can be told from「never got near」.
+     * the run ever came to the ceiling, so "never fired" can be told from "never got near".
      *
      * <p>Written by {@code WalkerTickClimb.engagePillar} and the pillar branch beside it. This
      * exists because a A/B over the whole suite could not see a bail that was
@@ -2066,7 +2071,7 @@ public final class Walker {
     public static volatile int waterPillarEngages;
     /** Times the climb-out actually clicked — {@code crestClearOf} passed and {@code Hands#place}
      *  was called. The one bit neither the ledger nor the world can supply: a cell that stayed water
-     *  means「clicked and vanilla refused」and「never clicked at all」equally well, and those are
+     *  means "clicked and vanilla refused" and "never clicked at all" equally well, and those are
      *  opposite findings about the crest gate. {@code wd.pillarLedgerCountsRefusedPlaces} ran a full
      *  400 ticks against a threshold that made the second one true and reported the colour the first
      *  one would have — read it together with whether the cell turned solid. */
@@ -2086,15 +2091,16 @@ public final class Walker {
      *  from it: a bucket added to one and not the other then fails at the increment rather than
      *  silently landing in a neighbour's tally. */
     public static final String[] STRIDE_SKIP_REASONS = {
-            "关着/跑酷 tick", "没有身体", "在水里", "脚不在实心上", "没在平移 h<0.03",
-            "前方那格不可穿过（就是地）", "计划本来就要下到那一柱", "那一柱在危险之前就见底了"};
+            "off/parkour tick", "no player entity", "in water", "sole not on solid", "not translating h<0.03",
+            "stride cell impassable (it is ground)", "plan descends into that column",
+            "column floors out before the hazard"};
 
     /**
      * Why {@link #strideFloorGuard} said nothing this tick — one bucket per early return, plus the
      * fires, so a silent guard can be told apart from an absent one.
      *
      * <p><b>The reading a burn post-mortem could not get.</b> That guard's fire line is
-     * unconditional and it is the right guard for「about to stride into lava」, so「0 lines」looks
+     * unconditional and it is the right guard for "about to stride into lava", so "0 lines" looks
      * like a verdict. It is not: it collapses every one of these states into one number. The 2026-08-23
      * rehearsal walked into a source pool at −10,63,19 with the guard logging zero times, and
      * nothing on disk could say whether the flag was off, the sole was airborne, the stride cell
@@ -2109,8 +2115,8 @@ public final class Walker {
      * <p>{@link java.util.concurrent.atomic.AtomicLongArray}, not a bare {@code long[]}: every
      * counter around this one is {@code volatile} precisely because the instruments reading them
      * hold no Walker and sit on another thread. A plain array's ELEMENTS carry no such guarantee,
-     * so「every bucket is zero」would have had a second reading —「the writes are not visible
-     * yet」— on the one occasion the row exists to settle. A reading that cannot distinguish its
+     * so "every bucket is zero" would have had a second reading — "the writes are not visible
+     * yet" — on the one occasion the row exists to settle. A reading that cannot distinguish its
      * own staleness from its subject is not a reading.
      */
     public static final java.util.concurrent.atomic.AtomicLongArray strideGuardSkips =
@@ -2118,7 +2124,7 @@ public final class Walker {
     /** Ticks {@link #strideFloorGuard} actually pinned. Read beside the skips, never alone. */
     public static volatile int strideGuardFires;
 
-    /** Tally one skip bucket and report「the guard did not act」in a single expression, so every
+    /** Tally one skip bucket and report "the guard did not act" in a single expression, so every
      *  early return in {@link #strideFloorGuard} stays a one-liner and none can be added without
      *  naming which bucket it belongs to. */
     private static boolean skipStride(int reason) {
@@ -2135,7 +2141,7 @@ public final class Walker {
      * <p><b>Why counting was needed at all.</b> A run of 318 consecutive searches on one goal, over
      * two minutes, never tripped a cap of 5 — so five exclusions were suspects and the log named
      * none of them. It was settled that once from a DIFFERENT instrument's field (a {@code [place]}
-     * row's neighbour cell read {@code water} at the body's own foot), which is luck, not method.
+     * row's neighbour cell read {@code water} at the bot's own foot), which is luck, not method.
      * Nothing here changes behaviour; the gate is unchanged and this only says what it did.
      */
     public static final java.util.concurrent.atomic.AtomicLongArray futileGateBuckets =
@@ -2143,11 +2149,11 @@ public final class Walker {
     /** Names for {@link #futileGateBuckets}, in bucket order — buckets 0-5 are exclusions (the gate
      *  never ran), 6-9 are what it did when it did run. Bucket 9 is split OUT of 6 rather than
      *  folded into it: a first search after a reset has no baseline to beat, so counting it as
-     *  "got closer" made a reset look like progress the body had earned. */
+     *  "got closer" made a reset look like progress the bot had earned. */
     public static final String[] FUTILE_GATE_BUCKETS = {
-            "闸关着(cap<=0)", "搜索到达了目标", "正在挖(breakHeld)", "水中攀爬正在挖",
-            "脚格是水(让给水里的反转圈)", "无路且拉黑还没过期",
-            "清零:离目标更近了", "清零:身体挪了>2格", "计入", "复位后播种(不判)"};
+            "gate off(cap<=0)", "search reached the goal", "digging(breakHeld)", "water climb digging",
+            "foot cell is water(left to the water reversal loop)", "no path and blacklist not expired",
+            "reset:closer to goal", "reset:bot moved>2 cells", "counted", "seeded after reset(not judged)"};
 
     /** Remaining hold-tail ticks after the last guard fire (pin hysteresis). */
     int guardHoldTicks;
@@ -2161,7 +2167,7 @@ public final class Walker {
     boolean guardSneakLatch;
 
     /** Plug arming: the stride cell the guard last fired on + accumulated fires on it.
-     *  Resets only when the fired-on CELL changes (not on quiet ticks — a pinned body's
+     *  Resets only when the fired-on CELL changes (not on quiet ticks — a pinned bot's
      *  velocity decays under 0.03 so fires on one cell arrive in bursts between pin
      *  cycles, and a consecutive-streak would never accumulate). */
     BlockPos guardPlugCell;
@@ -2179,7 +2185,7 @@ public final class Walker {
      *  (r32: 7 fires accumulated before the recovery steered off the cell — 2 dirt).
      *  Construction plans (see canPlug) bypass this entirely. */
     static final int GUARD_PLUG_ARM_FIRES = 12;
-    /** How far down「no floor at all」is checked before a drop counts as bottomless. Below every
+    /** How far down "no floor at all" is checked before a drop counts as bottomless. Below every
      *  dimension's floor (the End starts at 0, the Overworld at -64), so a column clear to here is
      *  clear to the void. Scanned only on a tick the stride guard already fired — about 1% of them
      *  on the End island — so the cost is a rounding error next to being right about the void. */
@@ -2193,13 +2199,13 @@ public final class Walker {
     /** Which branch commanded THIS tick's jump (null = no jump commanded). Pure telemetry,
      *  reset each tick in the prelude: fall post-mortems keep needing "who launched the
      *  fatal arc?" (bridge battery: three different launchers over three rounds), and the
-     *  aggregated drive jump erases the answer by the time the body is airborne. */
+     *  aggregated drive jump erases the answer by the time the bot is airborne. */
     public String jumpTag;
 
     /**
      * Write-only breadcrumb: what the walker was doing on its most recent tick, for readers that
      * hold no Walker instance — chiefly the journey rig, which latches a fall long after the tick
-     * that caused it and until now could report only WHERE the body last stood.
+     * that caused it and until now could report only WHERE the bot last stood.
      *
      * <p>Four island-rim coordinates inside four blocks of each other survived five rounds of fixes
      * because the reading had a place and no action: every round guessed a mechanism, gated a move
@@ -2207,18 +2213,18 @@ public final class Walker {
      * fall path and printed; behaviour must never consult it, which is what keeps a static safe
      * here (a static another thread pathfinds against is how an A/B once measured nothing at all).
      */
-    public static volatile String lastTickTrace = "还没跑过";
+    public static volatile String lastTickTrace = "no tick has run yet";
 
     /**
      * The last trace taken while the sole was still on something — the crime scene, as opposed to
-     * {@link #lastTickTrace}, which is wherever the body had got to by the time anyone looked.
+     * {@link #lastTickTrace}, which is wherever the bot had got to by the time anyone looked.
      *
      * <p>Both are needed and neither substitutes for the other. The final tick of a fall reports a
-     * body at y=-64 chasing a node at y=-64: true, useless, and it reads like a planner defect when
-     * it is only the walker re-planning for a body that is already there. The interesting tick is
+     * bot at y=-64 chasing a node at y=-64: true, useless, and it reads like a planner defect when
+     * it is only the walker re-planning for a bot that is already there. The interesting tick is
      * the last one with support, which is the one that decided.
      */
-    public static volatile String lastSupportedTrace = "还没站稳过";
+    public static volatile String lastSupportedTrace = "no supported tick yet";
 
     /** This tick's aim-tree owner ({@code aimSrc}) — same telemetry channel as
      *  {@link #jumpTag}: wedge post-mortems need "who owned the heading". */
@@ -2226,18 +2232,18 @@ public final class Walker {
 
     /** This tick's drive command (target yaw + impulse) as a compact string; null when
      *  the tick never reached the drive tail (early-return branch) — which is itself
-     *  the answer a pinned-body autopsy is after. Reset each tick in the prelude. */
+     *  the answer a pinned-bot autopsy is after. Reset each tick in the prelude. */
     public String driveTag;
 
     /** Stride floor-guard (gap #53, the 2026-07-12 survival death; #51's stair-side void is
-     *  the same invariant): while GROUNDED and dry, project the body's actual horizontal
+     *  the same invariant): while GROUNDED and dry, project the bot's actual horizontal
      *  VELOCITY ~4 ticks ahead; if that cell is passable with NO floor within
      *  {@link BotConfig#pathfinderMaxDryFall}+1 below — a drop the planner can never have
      *  routed (Fall.valid caps at maxDryFall), so the exposure is always UNPLANNED — pin the
-     *  body with vanilla sneak (maybeBackOffFromEdge stops it at the edge), cancel any pending
+     *  bot with vanilla sneak (maybeBackOffFromEdge stops it at the edge), cancel any pending
      *  jump, and when a placeable is at hand + allowPlace, plug the mouth so the crossing
      *  becomes real (backfill-as-you-go). Velocity, not the commanded yaw, is used: the fatal
-     *  strides (live well-mouth crossing; arena pillar-top drift) moved the body along headings
+     *  strides (live well-mouth crossing; arena pillar-top drift) moved the bot along headings
      *  the drive variables did not predict. Planned descents (current waypoint below foot in
      *  the stride column) and parkour launches are exempt; water has its own physics.
      * <p><b>Recorded, not acted on: this guard is also an unplanned bridge-builder.</b>
@@ -2245,32 +2251,33 @@ public final class Walker {
      * <p>Rung 14's crossing of 2026-08-20 was read back out of its own region files, and the box it
      * shuttled in is a lava sea — 18 458 lava cells against 2 543 netherrack in the walk band. The
      * only ground in it beyond one netherrack shelf is a <b>127-block dirt causeway running from
-     * (74,86) to (96,110)</b>, and dirt does not generate in nether wastes. The body built it. Not
+     * (74,86) to (96,110)</b>, and dirt does not generate in nether wastes. The bot built it. Not
      * by plan either: the plans walked ONE {@code bridgePlace} edge per hop, while this guard fired
      * <b>491 times and plugged 142 blocks</b> across 184 distinct cells, of which only 5 ever
      * reached {@link #GUARD_PLUG_ARM_FIRES}. Thirty blocks of lava sea were bridged one safety
      * backfill at a time, and the crossing then shuttled up and down the bridge it had made.
      *
      * <p>That is a surprise worth having written down where the code is, and it is <b>deliberately
-     * not acted on</b>. The backfill may be load-bearing: without it the body may have no route
-     * across a lava sea at all, and「stop paving」could turn a slow crossing into an impossible one.
-     * Deciding that needs the readings the next ladder run will carry — {@code guardForcedRepaths}
-     * per leg, the distinct-cell count in the discard line, and {@code 计划最往回指}. Do not tune the
+     * not acted on</b>. The backfill may be load-bearing: without it the bot may have no route
+     * across a lava sea at all, and "stop paving" could turn a slow crossing into an impossible one.
+     * Deciding that needs the readings a ladder run carries — {@code guardForcedRepaths} per walk,
+     * the distinct-cell count in the discard line, and {@code JourneyFlight}'s reading of how far
+     * the plan points backwards. Do not tune the
      * plug on the strength of this paragraph; it is a measurement, not a verdict.
      */
     boolean strideFloorGuard(Body a, WorldView world) {
         if (!BotConfig.walkerStrideFloorGuard || guardParkourTick) return skipStride(0);
         LivingEntity p = a.entity();
         // soleOnSolid, NOT p.onGround(). `onGround` is `verticalCollisionBelow` — it describes the
-        // last move() and is wrong in BOTH directions: a body can be flush on stone while it reads
+        // last move() and is wrong in BOTH directions: a bot can be flush on stone while it reads
         // false. Every other reader of it has been converted one at a time; this one
         // is the most expensive to have left, because a stale false silently switches OFF the only
-        // guard whose job is to stop the body striding into a bottomless drop. Measured on journey
+        // guard whose job is to stop the bot striding into a bottomless drop. Measured on journey
         // rung 20 (2026-08-18): a whole run over the End island — void on every side — logged the
-        // guard ZERO times, and the body walked off the edge.
-        // THREE BUCKETS, not one. These were a single `||` until 2026-08-26, when a ladder rung
-        // reported 「脚不在实心上（或在水里）=395」 for all 395 ticks it ran and that number could not
-        // say which: a body afloat and a body over a drop read alike here and want opposite
+        // guard ZERO times, and the bot walked off the edge.
+        // THREE BUCKETS, not one. A single combined bucket reported "sole not on solid (or in
+        // water)=395" for all 395 ticks of a ladder rung, and that number could not say which:
+        // a bot afloat and a bot over a drop read alike here and want opposite
         // remedies (get ashore vs. stop striding). One bucket per condition costs nothing and the
         // sum is unchanged, so the contract above — exactly one bucket per tick — still holds.
         if (p == null) return skipStride(1);
@@ -2308,14 +2315,14 @@ public final class Walker {
             // A HAZARD anywhere in the column is lethal at whatever depth it sits at, and the test
             // has to come BEFORE the floor test because lava is `isPassable` — not solid, not water
             // — so this scan descended straight THROUGH a lake and stopped on its stone bed, reading
-            // 「a floor → safe」about a drop into fire. Measured on nether rung 14 (2026-08-19): the
-            // body strode off 80,42,81 over a bay whose lava starts 13 down and whose netherrack bed
+            // "a floor → safe" about a drop into fire. Measured on nether rung 14 (2026-08-19): the
+            // bot strode off 80,42,81 over a bay whose lava starts 13 down and whose netherrack bed
             // sits exactly 23 down — one cell inside this loop's own reach at full health — so the
             // loop found its floor on the last index and the guard stayed silent for the whole
             // run-up. {@link WalkerGeometry#dropAdjacentExceeds} learned this in round52 and carries
             // the same line; the two guards cannot be allowed to disagree about what a fall column
             // ends in. Break rather than return: everything above index i is passable by
-            // construction (the loop would have returned), so「open all the way down to lava」is
+            // construction (the loop would have returned), so "open all the way down to lava" is
             // exactly the stride this guard exists to refuse.
             if (world.isHazard(below)) break;
             if (!world.isPassable(below) || world.isWater(below))
@@ -2350,8 +2357,8 @@ public final class Walker {
         // BOTTOMLESS arms the plug at once. The dwell above exists so a transient corner-cut graze
         // over an ordinary drop does not spend blocks — a fall of 23 onto stone costs health the bot
         // can walk off. A column with NO floor at all is a different thing: in the End it is the
-        // void, and this body cannot even die of it (isInvulnerableTo is true on both fake players),
-        // so instead of a death there is a body falling forever and a rung spending its budget on
+        // void, and this bot cannot even die of it (isInvulnerableTo is true on both fake players),
+        // so instead of a death there is a bot falling forever and a rung spending its budget on
         // orders to it. Measured on journey rung 20 across seven runs, that was the dominant failure,
         // and the guard was sneak-pinning correctly at the lip every time while declining to place
         // the one block that would have made the lip a floor.
@@ -2362,14 +2369,14 @@ public final class Walker {
                 break;
             }
         }
-        // Over the void, BRAKE — do not merely stop asking the body to move. Vanilla's own edge
+        // Over the void, BRAKE — do not merely stop asking the bot to move. Vanilla's own edge
         // protection, Player.maybeBackOffFromEdge, is gated on p.onGround(), the flag this file has
         // documented as wrong in BOTH directions; on the tick it reads false the sneak above buys
-        // nothing and the body slides off carrying the momentum it already had. That is the whole
-        // gap between「守卫点了火」and「身体还是走下去了」: rung 20 logged the guard firing at the
+        // nothing and the bot slides off carrying the momentum it already had. That is the whole
+        // gap between "the guard fired" and "the bot still walked off": rung 20 logged the guard firing at the
         // lip and left the world anyway, from -15,60,36 / -16,61,34 / -18,61,36 — three cells
         // inside four blocks of each other on the same island rim. Only bottomless columns get
-        // this: over an ordinary drop a graze costs health the body walks off, and killing momentum
+        // this: over an ordinary drop a graze costs health the bot walks off, and killing momentum
         // on every ledge would make ridge walking crawl.
         if (bottomless) p.setDeltaMovement(0.0, dm.y, 0.0);
         boolean canPlug = BotConfig.allowPlace && !hands.breakHeld()
@@ -2381,7 +2388,7 @@ public final class Walker {
         // same signal; what matters is that repeated fires on one cell now read "plug FAILED"
         // instead of eight confident "plug" lines while nothing was ever placed.
         boolean plugged = held && !world.isPassable(strideCell.below());
-        // Unconditional: firing means the body was one stride from an unplanned lethal drop —
+        // Unconditional: firing means the bot was one stride from an unplanned lethal drop —
         // rare by design, and the one signal that matters when reconstructing a fall post-mortem.
         LOG.info("[walker] stride floor-guard: bottomless stride {},{},{} (vel {}, {}) → sneak-pin{}",
                     strideCell.getX(), strideCell.getY(), strideCell.getZ(),
@@ -2485,7 +2492,7 @@ public final class Walker {
                     String.format("%.1f", progress));
     }
 
-    /** PROGRESSIVE QUICK-START (渐进式寻路): the big re-plan is still slicing in
+    /** PROGRESSIVE QUICK-START (progressive pathfinding): the big re-plan is still slicing in
      *  the background and the bot has nothing to walk — that gap is the visible
      *  inter-segment freeze (several seconds standing still at every hard
      *  obstacle). Spend a tiny SYNCHRONOUS node budget on a short best-effort
@@ -2516,7 +2523,7 @@ public final class Walker {
         return true;
     }
 
-    /** PROGRESSIVE OPEN-WATER BEE-LINE (渐进式水面直线 stub): over a wide deep-water
+    /** PROGRESSIVE OPEN-WATER BEE-LINE stub: over a wide deep-water
      *  crossing the sliced A* re-plan is expensive — it expands the whole 3-D water
      *  volume (canStandAt accepts every depth), thousands of nodes over several
      *  seconds, and even a bounded {@link #tryQuickStart} can't progress 2 blocks. So
@@ -2571,7 +2578,7 @@ public final class Walker {
         return true;
     }
 
-    /** PROGRESSIVE LAND COARSE-DIRECTION stub (渐进式陆地直行 stub): the dry-land twin of
+    /** PROGRESSIVE LAND COARSE-DIRECTION stub: the dry-land twin of
      *  {@link #tryWaterBeeline}. Over open / gently-sloped land the big sliced A* re-plan
      *  can burn thousands of nodes before it commits, leaving the bot frozen at the
      *  start-of-segment gap (the visible startup / inter-segment churn). No search is
@@ -2672,7 +2679,7 @@ public final class Walker {
             // (d2≈2300). The reject drops the path, the foot-search returns the SAME swimUp+far-walk
             // best-effort, and it re-pins → 13 repaths, no progress, hSpd=0, anti-spin ends best-effort
             // (~6 s dead-stop; telemetry "reject mis-anchored: -812,62 (d2=2305) vs foot -860,58"). But
-            // that far node IS reachable: the buoyant body can swim a STRAIGHT line to it over open water
+            // that far node IS reachable: the buoyant bot can swim a STRAIGHT line to it over open water
             // (no wall, all water/air). Accepting the segment lets the carrot bee-line toward the far node
             // and make forward progress (the deep-water-float analog of the quick-start stub / water
             // bee-line). STRICTLY gated so it can NOT exempt a truly mis-anchored / walled / climb segment:
@@ -2680,7 +2687,7 @@ public final class Walker {
             //   • the straight line foot→anchor must be a CLEAR OPEN-WATER bee-line (losWalkable AND every
             //     sampled cell water/air — a bank, ledge or dry walkway fails it);
             //   • the anchor node must sit within ±4 Y of the floating foot — a SURFACE crossing the buoyant
-            //     body swims up+across to (the live foot bobs y58↔61 under a y62 surface node, dy up to 4),
+            //     bot swims up+across to (the live foot bobs y58↔61 under a y62 surface node, dy up to 4),
             //     never an impossible bank climb (a real climb-out has a solid bank IN the line → the
             //     open-water LOS already rejects it, so this band only bounds the swim-up reach).
             // A genuinely fumbled continuation (computed from a seg.commitEnd behind a wall / up a cliff the
@@ -2707,7 +2714,7 @@ public final class Walker {
                         raw.get(anchor).getX(), raw.get(anchor).getY(), raw.get(anchor).getZ(),
                         (int) anchorD, foot.getX(), foot.getY(), foot.getZ());
         }
-        if ((res = PathSmoothing.dropStalePrefix(world, res)).path().size() < 2) return false;   // the body dug while the search ran
+        if ((res = PathSmoothing.dropStalePrefix(world, res)).path().size() < 2) return false;   // the bot dug while the search ran
         // String-pull flat walk runs so the heading stays steady over the staircase (no left-right
         // camera wobble) and the bot walks straight; action/vertical/parkour nodes are preserved.
         SmoothResult sm = smoothAndRemember(world, res, profile.bias());
@@ -2881,7 +2888,7 @@ public final class Walker {
 
     /** Phase-0 SHADOW arc-length pursuit (walkerArcLengthShadow). Projects the continuous foot XZ onto the
      *  path polyline within a FORWARD window [step, step+W] (so it can't snap backward onto a self-overlapping
-     *  earlier leg — the dominant projection risk, §7), honouring the adoptPath overlap barriers (a submerged
+     *  earlier segment — the dominant projection risk), honouring the adoptPath overlap barriers (a submerged
      *  below-node is a hard dive barrier; a pending break/place edge stops the scan). Reports the projected
      *  segment, cumulative XZ arc-length s (from path[0]), horizontal perpendicular distance, and the tangent
      *  heading at s+lookahead — and counts backward-snap events (ds&lt;-0.5). DRIVES NOTHING; this only proves
@@ -2899,7 +2906,7 @@ public final class Walker {
         // non-ramming pauses (brakes, goal-dwell). EXCLUDES water: in water |ds|≈0 while hCol is the NORMAL state of
         // a swim-into-bank / climb-out, which owns its own dedicated recovery (waterCellTax / swimBankClimb / dig);
         // firing the wedge there repath-storms the climb-out and resets its aim every reroute (live -665 water-gap:
-        // 7× arc-wedge at step 1 in water, dYaw stuck 95°, 频繁回头/横跳). The targeted ram is the DRY mountain
+        // 7× arc-wedge at step 1 in water, dYaw stuck 95°, repeated turning back and side-to-side swerving). The targeted ram is the DRY mountain
         // wall-ram. Bob/jitter-immune: vertical motion doesn't move the XZ projection.
         if (reset || inW || arc.proj.barrierHit || !hCol || Math.abs(ds) > ARC_WEDGE_DS) arc.wedgeTicks = 0;
         else arc.wedgeTicks++;
@@ -2940,9 +2947,9 @@ public final class Walker {
      *  Returns {x, z} world coords. */
     double[] carrotPoint(WorldView world, BlockPos foot, double px, double pz) {
         double remaining = CARROT_DIST;
-        // Sustained wall collision → the far carrot is steering the body at a gap only
+        // Sustained wall collision → the far carrot is steering the bot at a gap only
         // the LOS ray fits (jungle trunks). Collapse pursuit to the immediate node —
-        // the A* chain is body-walkable by construction (walkerCarrotHColShrink).
+        // the A* chain is walkable at player width by construction (walkerCarrotHColShrink).
         if (BotConfig.walkerCarrotHColShrink && churn.hColRamTicks >= 8) remaining = 0.01;
         double cx = px, cz = pz, tx = px, tz = pz;
         for (int i = step; i < path.size() && i - step <= CARROT_MAX_NODES; i++) {

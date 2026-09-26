@@ -67,7 +67,7 @@ public final class JourneyRoute {
      * reading any failure above. Water is six blocks away and the ground is mostly at y=62-63, so
      * "the bot fell in" and "the bot is swimming" are live hypotheses here in a way they would not
      * be on a plains spawn. The shared spawn point sits at y=68 while the surface heightmap says 63
-     * — the body is placed on the surface, not on the spawn point.
+     * — the bot is placed on the surface, not on the spawn point.
      */
     public static BlockPos spawn = new BlockPos(64, 68, 60);
 
@@ -78,7 +78,7 @@ public final class JourneyRoute {
      * The nearest log the wood stage cuts — three blocks from spawn, and five blocks UP.
      *
      * <p>y=68 against a surface of 63 means this is canopy, not trunk: swamp oaks spread. That is
-     * the honest first test of the wood leg, and deliberately not corrected to a trunk block —
+     * the honest first test of the wood stage, and deliberately not corrected to a trunk block —
      * reaching a log that is above head height is the job.
      */
     public static BlockPos firstTree = new BlockPos(65, 68, 63);
@@ -86,12 +86,12 @@ public final class JourneyRoute {
     /**
      * A second tree, at least twelve blocks from the first — <b>surveyed per run, not baked</b>.
      *
-     * <p>One tree is not one tree's worth of wood. The body cannot climb, so it takes the trunk at
+     * <p>One tree is not one tree's worth of wood. The bot cannot climb, so it takes the trunk at
      * eye level and leaves the crown, and a swamp oak yields two to four that way — measured hauls
      * from {@link #firstTree} were 4, then 3, then 2 on consecutive runs. Three logs is twelve
      * planks, and the ladder's bill through the furnace is a table (4), sticks (2), a wooden pickaxe
      * (3) and a replacement table for each craft that finds itself without one. Runs died of exactly
-     * that arithmetic, a rung apart, reporting {@code 缺 1 个 oak_log}. So the wood rung walks to a
+     * that arithmetic, a rung apart, reporting a shortfall of one oak_log. So the wood rung walks to a
      * second trunk, which is what a player does.
      *
      * <p><b>This is the one landmark that could not be baked, and it is not for want of trying.</b>
@@ -161,7 +161,7 @@ public final class JourneyRoute {
      *
      * <p>Two veins are not four ingots either, and four is what the portal kit costs. Measured:
      * a run took {@code vein1.raw_iron=0} and {@code vein2.raw_iron=3}, smelted three, and the kit
-     * rung failed on {@code 缺 1 个 iron_ingot} holding a bucket and six flint it did not need. This
+     * rung failed on a shortfall of one iron_ingot, holding a bucket and six flint it did not need. This
      * seed's veins run one to three ore, so "how many veins" is the wrong question to answer once —
      * the rung digs until it has the bill or runs out of surveyed veins, and this is the third.
      *
@@ -248,7 +248,7 @@ public final class JourneyRoute {
      *
      * <p><b>Nether coordinates, not overworld ones.</b> This is the one landmark in this class that
      * lives in another world, and mixing the two is the exact failure {@code changeDimension}
-     * already produced once — a body that arrived 87 501 blocks out because a number meant for one
+     * already produced once — a bot that arrived 87 501 blocks out because a number meant for one
      * dimension was used in the other. {@link #netherwards} is the only conversion; a caller with
      * an overworld position uses {@link #surveyNetherFortress}, which applies it.
      */
@@ -584,7 +584,7 @@ public final class JourneyRoute {
     }
 
     /**
-     * The cell a body would stand in, given a heightmap {@code surface} that may be a treetop.
+     * The cell a player would stand in, given a heightmap {@code surface} that may be a treetop.
      *
      * <p>{@code MOTION_BLOCKING_NO_LEAVES} counts logs, so over a forested column it answers with
      * the top of the trunk — and the first survey duly reported {@code ironDescent} six blocks up
@@ -608,7 +608,7 @@ public final class JourneyRoute {
      *
      * <p>It was a cross once, sized for the staircase {@code DescendProcess} cuts. The scripted
      * shaft that replaced that verb is not a staircase and its footprint is wider than a cell: a
-     * player box is 0.6 wide, so a body standing near an edge is held up by a NEIGHBOURING cell and
+     * player box is 0.6 wide, so a player standing near an edge is held up by a NEIGHBOURING cell and
      * the digger has to break that one too. That makes the hole up to 2×2, whose walls are the
      * ring outside it — and a cross does not certify that ring. Measured: {@code 72,63,74} passed
      * the cross, the shaft broke its centre and then one corner, and groundwater from a column the
@@ -629,9 +629,9 @@ public final class JourneyRoute {
      *
      * <p>Public because the obsidian rung needs the same test and there must not be a second
      * definition of "dry". It picks its own shaft column at runtime rather than from a surveyed
-     * constant, and the first run that did so chose a column under a swamp pond: the body floated,
+     * constant, and the first run that did so chose a column under a swamp pond: the bot floated,
      * {@code supportUnder} answered "water" 122 times, and the rung reported "the block broke but
-     * the body did not sink" for a body that was swimming. That is the same failure the ore
+     * the bot did not sink" for a bot that was swimming. That is the same failure the ore
      * landmarks are surveyed to avoid — see {@link #nearestUnderDryGround} — so it uses the same
      * measurement rather than a fresh one.
      */
@@ -729,8 +729,9 @@ public final class JourneyRoute {
 
         /** What a record line should say — the answer and its price, never one without the other. */
         public String asRecord() {
-            return found.asRecord() + "（耗时 " + millis + " ms，最多搜 " + rings + " 圈放置区）"
-                    + (overBudget() ? " ⚠ 超出勘测预算 " + SURVEY_MS_BUDGET + " ms" : "");
+            return found.asRecord() + " (took " + millis + " ms, searched up to " + rings
+                    + " rings of placement regions)"
+                    + (overBudget() ? " ⚠ over the survey budget of " + SURVEY_MS_BUDGET + " ms" : "");
         }
     }
 
@@ -738,7 +739,7 @@ public final class JourneyRoute {
      * The nether cell an overworld cell maps onto — the 8:1 rule a portal obeys.
      *
      * <p>Public and named because the alternative is the conversion being written inline at each
-     * call site, and this ladder has already paid for that once: a body reached the Nether holding
+     * call site, and this ladder has already paid for that once: a bot reached the Nether holding
      * its raw overworld X and landed 87 501 blocks from where it should have been. A coordinate that
      * crosses a dimension boundary should cross it through one function.
      */
@@ -803,7 +804,7 @@ public final class JourneyRoute {
         long startedNs = System.nanoTime();
         ServerLevel level = ctx.level().getServer().getLevel(where);
         if (level == null) {
-            return new Located(new Found(label + " [维度 " + where.location() + " 没有加载]", null, -1),
+            return new Located(new Found(label + " [dimension " + where.location() + " is not loaded]", null, -1),
                     millisSince(startedNs), rings);
         }
         BlockPos at;
@@ -895,7 +896,7 @@ public final class JourneyRoute {
      * {@link #LAVA_SEARCH_RADIUS}, and both pools this seed offers are underground — so this is a
      * correction to the QUESTION rather than to any measurement. Ninety now, which is above any
      * overworld surface. The rung is written to the answer either way: the descent is however many
-     * blocks separate the body from the lava, and zero is a legal value.
+     * blocks separate the bot from the lava, and zero is a legal value.
      */
     private static final int LAVA_SEARCH_TOP = 90;
 
@@ -920,12 +921,12 @@ public final class JourneyRoute {
         Found tree = firstOf(level, spawnPos, LOG_IDS, 48, 8);
         out.put("firstTree", tree);
         // Measured from SPAWN like the first, not from the first tree: the wood rung walks from
-        // spawn to one trunk and then to the other, so what matters is that both are near the body's
+        // spawn to one trunk and then to the other, so what matters is that both are near the bot's
         // starting point, not that they are near each other.
         //
         // And restricted to the FIRST tree's own kind, which is not fussiness. A swamp mixes oak and
         // birch, so the nearest second tree is often the other species — and measured, a run that
-        // felled 7 logs still failed its next craft with `缺 1 个 oak_log` holding birch, because
+        // felled 7 logs still failed its next craft on a shortfall of one oak_log while holding birch, because
         // CraftProcess's resolver commits to one plank variant instead of treating the planks tag as
         // the recipe does. Two species is therefore two separate piles for planning purposes, and
         // seven logs in two piles buys less than five in one. Same-kind is the scripted way round
@@ -934,9 +935,9 @@ public final class JourneyRoute {
         out.put("secondTree", tree.where() == null ? new Found("log", null, -1)
                 : nearest(level, spawnPos, tree.what(), 48, 8, tree.where(), 12));
         // Not the NEAREST stone — the nearest stone a shaft can reach, same correction the iron
-        // rung already needed. A swamp puts water everywhere, and a body standing in it floats
-        // instead of dropping into the hole it just dug: measured, the first shaft leg broke the
-        // dirt clean through and the body stayed at the same y for twelve legs.
+        // rung already needed. A swamp puts water everywhere, and a bot standing in it floats
+        // instead of dropping into the hole it just dug: measured, the first shaft step broke the
+        // dirt clean through and the bot stayed at the same y for twelve steps.
         Found stone = nearestUnderDryGround(level, spawnPos, "minecraft:stone", 48, 4);
         out.put("firstStone", stone);
         out.put("stoneDescent", stone.where() == null

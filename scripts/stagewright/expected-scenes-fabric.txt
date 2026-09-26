@@ -32,7 +32,7 @@ wd.ledgeOvershoot
 wd.wallCollisionProbe
 wd.bridgeDescend
 wd.bareHandDigCadence
-# Bias family — route cost and intent bias. Planner-only: no scene here moves a body.
+# Bias family — route cost and intent bias. Planner-only: no scene here moves a bot.
 wd.avoidRegionDetour
 wd.digUpY
 wd.digDownY
@@ -147,7 +147,7 @@ wd.drownEscapePreempt
 wd.serverObserveAirSupply
 wd.antiSuffocateWaterNotSuffocating
 
-# Avatar family — regression guards on the server-side body, each pinned to a recorded baseline.
+# Avatar family — regression guards on the server-side player, each pinned to a recorded baseline.
 wd.serverAgentDistinctBodies
 wd.serverAvatarTickFidelity
 wd.serverAttackCooldown
@@ -295,8 +295,8 @@ cap.structuresRegistryReads
 # registers so a family that silently stopped registering shows up in a five-minute gate.
 wd.journeyArmed
 
-# The ground jump. The server body jumps through vanilla's aiStep, so its gate is `onGround`, as the
-# client body's is; these four hold it: no jump in mid-air, a refused press while onGround is false,
+# The ground jump. The server-side player jumps through vanilla's aiStep, so its gate is `onGround`, as the
+# client player's is; these four hold it: no jump in mid-air, a refused press while onGround is false,
 # a jump on a climbable, and the bob in deep water.
 wd.airborneJumpInert
 wd.jumpWaitsForOnGround
@@ -311,13 +311,13 @@ wd.parkourVoidLongRunway
 wd.parkourVoidRunwayGate
 
 # Breaking an end crystal destroys its own iron cage (resistance 6.0 vs a power-6 blast) and leaves
-# the obsidian pillar (1200). A body that climbed onto the cage to get in range loses its footing to
+# the obsidian pillar (1200). A bot that climbed onto the cage to get in range loses its footing to
 # its own swing — journey rung 20, 2026-08-18. Two arms, the stand is the only variable.
 wd.crystalBlastOnTheCage
 wd.crystalBlastOnThePillar
 
 # One TowerProcess call, many courses — the shape 253 scenes never executed: the only covered tower
-# (wd.serverTowersOutOfADeepShaft) drives ONE course per call, lands the body first, and stands in a
+# (wd.serverTowersOutOfADeepShaft) drives ONE course per call, lands the bot first, and stands in a
 # walled shaft, while the only multi-course production caller does none of the three. Five arms; the
 # walk and the already-at-target verdict are expected RED and say why.
 wd.serverTowersTwelveCourses
@@ -327,7 +327,7 @@ wd.serverTowersToWhereItStands
 wd.serverTowersWithAFullBackpack
 
 # The cell rung 20 died at twice, alone: 1-wide ledge, 16% sole, void, diagUp next.
-# RED BY DESIGN until the body widens its own footing — see the class note.
+# RED BY DESIGN until the bot widens its own footing — see the class note.
 wd.serverWidensAThinFooting
 wd.serverWidensFromTheBackpack
 # The planner's half of the same question: A* was counting the hotbar while the executor
@@ -338,7 +338,7 @@ wd.serverStopsAtTheBridgeHead
 wd.serverTurnsAtTheBridgeHead
 wd.serverDrawsABow
 
-# Rung 12's unwedge towered from wherever the body stood, and on 2026-08-19 that was step 7 of the
+# Rung 12's unwedge towered from wherever the bot stood, and on 2026-08-19 that was step 7 of the
 # staircase it had just cut — two steps walled up with its own cobblestone, and the mend could not
 # reach back through them. Two arms over one staged flight; the ledge is the only variable, and each
 # carries a control that breaks the flight on purpose first.
@@ -347,7 +347,7 @@ wd.unwedgeTowersBesideTheStaircase
 
 # A craft with nowhere to put its table. Ladder j47's furnace rung failed in three ticks holding a
 # table and sixteen cobblestone, because the bed rung's walk home stopped three blocks short and
-# left the body over deep water: `PlaceNearby` needs a candidate cell whose SUPPORT is solid, and
+# left the bot over deep water: `PlaceNearby` needs a candidate cell whose SUPPORT is solid, and
 # every one of its twenty-four probes had water underneath. Staged past the threshold, with a
 # control that asserts the staging really refuses a table before the recovery is asked for.
 wd.journeyCraftStepsAsideForRoom
@@ -361,10 +361,10 @@ wd.journeyCraftStepsAsideForRoom
 # once something has been seen to speak.
 wd.journeyNamesTheCellADigCouldNotOpen
 
-# Where a leg leaves the body. Two recoveries that were landed and then could not be judged, because
+# Where a walk leaves the bot. Two recoveries that were landed and then could not be judged, because
 # their occasions — a walk home that ends on top of the tower it built, a climb that ends still
 # swimming — appeared in none of five ladder runs. Each asserts the recovery's own evidence row is
-# PRESENT, not that the world ended up tidy: a body that was never on a tower also ends on ground.
+# PRESENT, not that the world ended up tidy: a bot that was never on a tower also ends on ground.
 # The pit arm is the other direction of the same guard, which no run had ever exercised.
 wd.journeyStepsDownOffItsOwnTower
 wd.journeyClimbsOutOfItsOwnPit
@@ -379,53 +379,53 @@ wd.journeyReseatsWhenItCanSeeNoWater
 # that stops the re-entry undoing the move has an occasion.
 wd.journeyKeepsTheSeatItMovedTo
 # Where the flight itself stops. The mould's own runoff floods the bottom step from the row the pour
-# is aimed at, and a waypoint whose cell and head room are both water cannot be walked to — the leg
+# is aimed at, and a waypoint whose cell and head room are both water cannot be walked to — the walk
 # stops four cells short, which the run reports as a failure to walk back into the mould cavity.
 # Two arms, asserting opposite
 # values, because the flight's cell list is process-wide.
 wd.journeyFlightEndsOnADryStep
-# And whether the body actually gets down onto it. Ending one step early puts the arrival tolerance's
-# ball half a row above what walkHome accepts, so the body stops balanced on the lip of the step above
+# And whether the bot actually gets down onto it. Ending one step early puts the arrival tolerance's
+# ball half a row above what walkHome accepts, so the bot stops balanced on the lip of the step above
 # — a tenth of a block of tread under a 0.6-wide box — and every cell-granular row says it arrived.
 # Staged to that exact pose, which the ladder only reaches about one return in three.
 wd.journeyWalksOffTheLipOntoTheDryStep
 # The airborne half. That arm asserts onGround, so the family rung 12 actually dies in — judged while
-# the body is still falling into the terminal — is outside it by construction, and its green can say
-# nothing about the branch that family reaches. Staged by pose: air under the body from tick one.
+# the bot is still falling into the terminal — is outside it by construction, and its green can say
+# nothing about the branch that family reaches. Staged by pose: air under the bot from tick one.
 wd.journeyJudgesTheLastStepAfterTheDropLands
 
 # The same flight, and the column NOBODY asked for. A pinned climb's column is left alone on the
 # flight on purpose — it came out of the pour's ray — and rung 12 then drifted, could not walk
 # back, and adopted a DIFFERENT staircase column that no chooser had ever seen. Two dirt went in,
-# the body stood on the second, and the tread audit cannot mine what a body is standing on.
+# the bot stood on the second, and the tread audit cannot mine what a bot is standing on.
 wd.unwedgePinnedDriftRefusesTheStaircase
 wd.unwedgePinnedDriftTowersBesideTheStaircase
 
 # The other way a tower gives up — not the staircase under it, the water around it. Rung 12's
 # rehearsal wrote 20+ wash-off retries at a flow that never varied by a digit, which is a fed flow
 # and not a draining one, so every retry asked a question whose answer could not change. This arm
-# stands a body in flowing water a source keeps feeding and asserts the climb asks upstream and
+# stands a bot in flowing water a source keeps feeding and asserts the climb asks upstream and
 # hands off at once. Staged because the branch lives in the stall path, which a healthy run may
 # never enter again now that the last step is judged after the drop lands.
 wd.unwedgeStopsToweringWhenASourceFeedsTheWater
 
-# Rung 13 lit its portal and then spent eight identical legs asking the pathfinder for a cell no
+# Rung 13 lit its portal and then spent eight identical walks asking the pathfinder for a cell no
 # route reached: the casting's own cobblestone slag walls the bottom two rows of the doorway, the
-# only row left open is too short for a 1.8-tall body, and the only cell A* accepts as a goal is the
+# only row left open is too short for a 1.8-block-tall player, and the only cell A* accepts as a goal is the
 # bottom one. One arm opens a single cell of that wall and steps in; the other surrounds the doorway
 # with the frame's own obsidian and requires the refusal — never mine the portal to get into it.
 wd.portalEntryDigsIntoTheRowItFits
 wd.portalEntryWillNotMineItsOwnFrame
-# Goal.XZ ignores Y, so a leg asking for a column the body already stands in reports arrival
-# without moving AND feeds the still-leg terminator. The control drives that goal and must not
+# Goal.XZ ignores Y, so a walk asking for a column the bot already stands in reports arrival
+# without moving AND feeds the stationary-walk terminator. The control drives that goal and must not
 # reach the doorstep; the last clause keeps the alternation from being deleted rather than fixed.
 wd.portalEntryWontAskForAColumnItStandsIn
 
 # The same row three times on 2026-08-19: "stuck (no Y gain in 60t: placed=0, holding=64,
-# phase=JUMPING)" over a body on the ground holding a stack. TowerProcess leaves JUMPING on
+# phase=JUMPING)" over a bot on the ground holding a stack. TowerProcess leaves JUMPING on
 # p.getY() >= jumpFromY + 1.0 and on nothing else, so one jump that does not clear a whole block
 # ends the ORDER. Two arms; each control is the arm with the fault, and the second one's only
-# variable is where the body stands inside its own cell.
+# variable is where the bot stands inside its own cell.
 wd.serverTowersUnderALowCeiling
 wd.serverTowersUnderTheNeighboursCeiling
 
@@ -438,7 +438,7 @@ wd.serverStopsAtALavaShore
 wd.serverWalksOffASurvivableLedge
 
 # The same guard's other half. The shore pair asks whether it refuses a stride INTO a lake; these
-# ask what the refusal costs a body walking PAST one — rung 12 logged 83 pins on two cells of a
+# ask what the refusal costs a bot walking PAST one — rung 12 logged 83 pins on two cells of a
 # lake's rim in one run, so "pins at every rim" is a live failure mode and not a hypothetical.
 # One trench, its fill the only variable, and each arm drives it twice with the guard as the only
 # difference between the drives.
@@ -446,21 +446,21 @@ wd.serverKeepsWalkingAtALavaRim
 wd.serverKeepsWalkingAtADryRim
 
 # Rung 14's terminal wedge: a verbatim copy of the Nether pocket the crossing stood in for its last
-# four hops. The plan that would have walked the body out was spent in one tick without a block of
-# movement — a waypoint one block under the feet read as reached — so the pair asks whether the body
+# four hops. The plan that would have walked the bot out was spent in one tick without a block of
+# movement — a waypoint one block under the feet read as reached — so the pair asks whether the bot
 # LEAVES the perch, not whether it survives it. The staircase arm is the other half: the same switch
 # over an ordinary descent, where both arms must agree.
 wd.serverStepsDownAPerchItPlanned
 wd.serverStillWalksDownAStaircase
 
 # Rung 13's doorway, one node later: the same defect at the LAST node of a plan, which the perch's
-# fix scoped out. A verbatim copy of the cells the body could not walk the last cell of, with the
-# stance that makes cur2=0.316 — the pair asks whether the body ends STANDING ON the doorstep, and
+# fix scoped out. A verbatim copy of the cells the bot could not walk the last cell of, with the
+# stance that makes cur2=0.316 — the pair asks whether the bot ends STANDING ON the doorstep, and
 # the control must end for the ladder's own reason (end=path-consumed).
 wd.serverStepsDownTheLastNodeOfItsPlan
 
 # The same defect through a TWO-node plan, which is why the first fix's pointer-index scope
-# (step == 1) did not hold it: A* routed sideways onto the standable cell beside the body and then
+# (step == 1) did not hold it: A* routed sideways onto the standable cell beside the bot and then
 # down, and the walker spent both nodes in one tick without moving. A second verbatim copy of the
 # same rung's doorway, from the run after.
 wd.serverStepsDownAPlanItSpentInOneTick
@@ -468,13 +468,13 @@ wd.serverStepsDownAPlanItSpentInOneTick
 # Rung 12's third failure family: the scoop's own flight fills the cell the lava cast has to
 # stand in AND shoot through, and clearPourLine then exempts it for being a step the rung laid
 # on purpose. One staged alcove at the instant the cast walks back in; the blocked shot, the
-# take-back and the arithmetic that says a refusal would only move the failure one leg earlier.
+# take-back and the arithmetic that says a refusal would only move the failure one walk earlier.
 wd.pourLineBlockedByTheStepTheScoopLeft
 wd.pourLineTakesBackTheStepItBorrowed
 wd.pourLineHasNoOtherWayUp
 
 # The fourth family on the same rung: a FINISHED ring cell in the way of an uncast one. It is
-# not an ordering problem and not the ring's shape — the shadow exists only for a body one rank
+# not an ordering problem and not the ring's shape — the shadow exists only for a bot one rank
 # over, and the hundred occupied stands are the alcove's own rock. Both established by
 # enumeration rather than argued.
 wd.pourLineRingOrderCannotShadowAPour
@@ -486,7 +486,7 @@ wd.pourLineOccupiedStandsAreOutsideTheAlcove
 wd.pourLineTopPairAimsAtItsSideNeighbour
 
 # Rung 14's crossing stopped 141 blocks short with 18 of 24 hops unspent, because a hop's verdict was
-# taken from a body one tick above netherrack, where the distance from feet to solid ground reads
+# taken from a bot one tick above netherrack, where the distance from feet to solid ground reads
 # as zero. One shelf, one bay, and how far it is to
 # the floor as the only variable: a survivable step-down must be waited out, a fall past the allowance
 # must still stop the crossing. The first arm judges the same fall twice, before and after the
@@ -497,8 +497,8 @@ wd.crossingStillStopsForALongFall
 wd.crossingRowSeparatesAPerchFromMidAir
 wd.guardRepathSeparatesARimWalkFromALivelock
 
-# The delivery half of rung 12's cast-9 death: the raise walks the body into the column it verified,
-# the planner's bottom course comes to rest on the very cell the body is standing in, and the loop
+# The delivery half of rung 12's cast-9 death: the raise walks the bot into the column it verified,
+# the planner's bottom course comes to rest on the very cell the bot is standing in, and the loop
 # answers "laid nothing" with the rule written for a refused placement — 0/3, silently. The arms drive
 # the production loop and its decision directly; the controls are a spent step-aside, a REFUSED pass
 # and an OUT_OF_REACH pass, all of which must still get nothing. The second arm settles that the
@@ -506,31 +506,31 @@ wd.guardRepathSeparatesARimWalkFromALivelock
 # defect: the column had one foothold because the staircase that would have given it three was never
 # built.
 wd.rampStepsAsideWhenTheBodyIsInItsOwnStep
-# The same remedy, reached through the door the cell-name test could not open: a body 0.18 of a
+# The same remedy, reached through the door the cell-name test could not open: a bot 0.18 of a
 # block over the line is in the way and blockPosition() does not say so. Its control moves the
-# same body back to its own centre and lays the course, so the refusal is pinned to the stand.
+# same bot back to its own centre and lays the course, so the refusal is pinned to the stand.
 wd.rampSeesABodyOnlyPartlyInTheCell
 wd.rampFootholdRisesWithTheFlightItLaid
 wd.rampNeverFoldsBackIntoItsOwnHeadroom
 wd.rampSeparatesAFaceThatExistsFromOneItCanHit
-# The staircase was complete and the body never got on it: `cast8.lift.laid = 3/3 … FINISHED`
+# The staircase was complete and the bot never got on it: `cast8.lift.laid = 3/3 … FINISHED`
 # then `cast8.lift.rampedY = 57/59`, stopped at 1, 57, 19 with the foothold it wanted at
 # 3, 59, 19. Judges the decision,
 # not the walk — a settle needs a JourneyRig and a scene cannot host one.
 wd.rampClimbsTheFlightItJustLaid
 # Calibration for the corridor fire census. Rung 14 burnt off ten hit points and the archive has
-# no column that separates "the fire was there when the leg was planned" from "it appeared after".
+# no column that separates "the fire was there when the segment was planned" from "it appeared after".
 # The census is that column; this pins that it can say yes (B) AND still say no (A, C, D).
 wd.netherCensusNamesTheFireInTheCorridorBox
 # An instrument rather than a test: it makes no assertions and only records. Permanently optional,
-# because it has no verdict to give. Its readings are what the body parity boundary table is built
+# because it has no verdict to give. Its readings are what the bot parity boundary table is built
 # from; the column for the retired fake player now records as unavailable. See
 # docs/dev/fake-player-parity.md.
 wd.bodyParityCensus
 # Also a ruler rather than a test, and its one assertion is about the INSTRUMENT: it measures how
 # far the server-side actuators (ServerPlayerBody.holdItem / aimAtBlock, which the ladder still
 # uses for 36 single-shot calls) drift from the LocalPlayer the client owns. SKIPs on every
-# dedicated topology — it needs one JVM holding both bodies. See its class note.
+# dedicated topology — it needs one JVM holding both bots. See its class note.
 wd.actuatorSplitOnAnAdoptedBody
 # The A0 twin: the same two writes taken through BotApi.clientAvatar(), i.e. the avatar the
 # rungs use after the fix. Kept as a SECOND scene so the one above stays a ruler for the raw
@@ -549,7 +549,7 @@ wd.drownEscapeClientBreaksTheLidWhenOpenWaterIsWalledOff
 # Same arm staged over water instead of rock: the control for the stand-up-to-dig guard's
 # negative side, whose lid-broken count must NOT move while its shallow twin's falls to about a fifth.
 wd.drownEscapeClientKeepsFloatingWhenThePocketIsDeep
-# Water legs driven on the client's real player (ClientHelm). Skip on the dedicated server by design.
+# Water walks driven on the client's real player (ClientHelm). Skip on the dedicated server by design.
 wd.clientFlushBankClimbOut
 wd.clientFlushBankClimbOutEmptyHanded
 wd.clientOneHighBankPlaceOut
@@ -572,7 +572,7 @@ wd.clientShallowPoolStepOut
 wd.clientShallowPoolStepOutEmptyHanded
 wd.clientOpenWaterCross
 # Route selection under language-model-supplied constraints (docs/design/route-selection.md). The constraint
-# layer runs on a headless body on every topology; the verb layer (goto route / plan / planId / the
+# layer runs on a headless bot on every topology; the verb layer (goto route / plan / planId / the
 # route.blocked event) lives in the client half and skips on a dedicated server.
 wd.routeAvoidsMobCluster
 wd.routeStaysOutOfSkeletonSight
@@ -590,7 +590,7 @@ wd.clientBunkerBailHandsToRetreat
 wd.clientDuskSecureBeachDoesNotRestart
 # Human verification — the testmod's marker block (docs/design/human-in-the-loop-verification.md)
 wd.markerBlockNeverBlocksMotion
-# The NPC body (a driven piglin) on five terrains, with the server player body on the same course
+# The NPC bot (a driven piglin) on five terrains, with the server-side player on the same course
 # where one may be minted, and refusing the work that needs hands.
 wd.npcWalksDownAStaircase
 wd.npcJumpsAOneBlockGap
@@ -598,9 +598,9 @@ wd.npcSwimsAcrossOpenWater
 wd.npcClimbsOutOfWater
 wd.npcClimbsALadder
 wd.npcRefusesWorkThatNeedsHands
-# A server player body and an NPC addressed by name through goto, cancel and status.
+# A server-side player and an NPC addressed by name through goto, cancel and status.
 wd.bodyRoutesWalkAPlayerAndAnNpcByName
-# The verbs that start a process or use the hands, ordered to a server player body and an NPC by name.
+# The verbs that start a process or use the hands, ordered to a server-side player and an NPC by name.
 wd.bodyRoutesStartProcessesByName
 # mc.query q=blocks holds its radius budget and reads only chunks that are already loaded.
 wd.queryBlocksStaysInLoadedChunks

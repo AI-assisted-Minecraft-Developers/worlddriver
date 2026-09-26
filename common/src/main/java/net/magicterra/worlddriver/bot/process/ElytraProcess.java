@@ -187,7 +187,7 @@ public final class ElytraProcess implements BotProcess {
             //     sim-lookahead controller (B), flare to land + fail safe (D) ---
             Vec3 goal = new Vec3(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5);
             Vec3 pos = p.position();
-            if (Double.isNaN(cruiseY)) cruiseY = pos.y;   // hold launch altitude over far/unknown legs
+            if (Double.isNaN(cruiseY)) cruiseY = pos.y;   // hold launch altitude over far/unknown segments
             double goalDist = goal.distanceTo(pos);
             double goalH = Math.hypot(goal.x - pos.x, goal.z - pos.z);
 

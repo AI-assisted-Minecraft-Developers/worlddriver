@@ -49,12 +49,12 @@ public final class BotInteract {
 
     private BotInteract() {}
 
-    /** {@link net.magicterra.worlddriver.model.Params#toHand}, which a body on the server reads too. */
+    /** {@link net.magicterra.worlddriver.model.Params#toHand}, which a bot on the server reads too. */
     public static InteractionHand parseHand(Object o) {
         return net.magicterra.worlddriver.model.Params.toHand(o);
     }
 
-    /** {@link net.magicterra.worlddriver.model.Params#toFace}, which a body on the server reads too. */
+    /** {@link net.magicterra.worlddriver.model.Params#toFace}, which a bot on the server reads too. */
     public static Direction parseFace(Object o) {
         return net.magicterra.worlddriver.model.Params.toFace(o);
     }
@@ -80,7 +80,7 @@ public final class BotInteract {
      *  player would naturally hit if they ray-cast at the block. Used when the
      *  caller didn't specify a face.
      *
-     *  <p>The body moved to {@link BotUtil#faceTowardEye} so the two PROCESSES that need the
+     *  <p>The implementation lives in {@link BotUtil#faceTowardEye} so the two PROCESSES that need the
      *  same answer can have it without naming this client-only class — see that method for why
      *  their private copies existed and why deleting them did not put a client type on a
      *  dedicated server's class path. This name stays because its callers are all
@@ -141,7 +141,7 @@ public final class BotInteract {
     }
 
     /**
-     * The lowest cell that would stop this body rising {@code rise} blocks, or null if none does.
+     * The lowest cell that would stop this bot rising {@code rise} blocks, or null if none does.
      *
      * <p><b>Here, not in the chain, because of the WIDENING.</b> The scan itself is
      * {@link net.magicterra.worlddriver.bot.movement.WalkerGeometry#riseBlockers}, which takes a
@@ -160,7 +160,7 @@ public final class BotInteract {
      * and never found the cause, <b>because the cause was not any of those</b>. One stack, printed
      * by fencing the scene's three matrices separately, named the line in seconds.
      *
-     * <p>The rule that survives, sharper than「must not call into a client type」:
+     * <p>The rule that survives, sharper than "must not call into a client type":
      * <b>a class the dedicated server has to load must not hand a client type to a parameter
      * declared as a wider type.</b> Holding it in a local and calling its own methods is fine.
      */
@@ -185,7 +185,7 @@ public final class BotInteract {
      *
      * <p>Every field separates exactly one candidate, so none is decoration:
      * <ul>
-     *   <li>{@code 跳读回} is read back off the player's own {@code Input} — what
+     *   <li>{@code jumpReadBack} is read back off the player's own {@code Input} — what
      *       {@code AvatarInput#tick} actually left there last tick, <b>not</b> what the chain asked
      *       for. That channel is last-writer-wins and heavily contended, so "we commanded it" is
      *       a different claim from "it landed". This said "nine writers", which is
@@ -196,15 +196,15 @@ public final class BotInteract {
      *       leaving ~36 writes across 14 behaviour classes. ⚠️ The same wrong nine was written
      *       into {@code DrownEscapeChain} as well, and both copies came from one memory rather
      *       than from two greps — which is the whole reason to re-run it here.</li>
-     *   <li>{@code 撞顶} ({@code verticalCollision}) is the one-row proof of "buoyancy IS applying
-     *       and something is in the way" — the state every column scan in the chain is blind to. A
-     *       body neither rising nor sinking is pinned, and only this says so without arithmetic on
-     *       two samples 200 ticks apart. It is true for a body standing on the FLOOR too, so the
-     *       pin signature needs {@code 着地=false} alongside it.</li>
-     *   <li>{@code 身体跨柱} prints the cells the box actually straddles at the lid's height, not
-     *       the one cell {@code blockPosition()} names. A body at x=-27.716 has its edge at
-     *       -28.016 — 0.016 inside the NEXT column, which every single-column scan ignores.</li>
-     *   <li>{@code 破盖中} makes the break arm visible at all.</li>
+     *   <li>{@code hitCeiling} ({@code verticalCollision}) is the one-row proof of "buoyancy IS
+     *       applying and something is in the way" — the state every column scan in the chain is
+     *       blind to. A bot neither rising nor sinking is pinned, and only this says so without
+     *       arithmetic on two samples 200 ticks apart. It is true for a bot standing on the FLOOR
+     *       too, so the pin signature needs {@code onGround=false} alongside it.</li>
+     *   <li>{@code straddledColumns} prints the cells the box actually straddles at the lid's
+     *       height, not the one cell {@code blockPosition()} names. A bot at x=-27.716 has its edge
+     *       at -28.016 — 0.016 inside the NEXT column, which every single-column scan ignores.</li>
+     *   <li>{@code breakingLid} makes the break arm visible at all.</li>
      * </ul>
      *
      * <p>Unconditional by design: gates never set {@code walkerDebug}, so a flag here would mean no
@@ -215,7 +215,7 @@ public final class BotInteract {
         if (mc.level == null) return;
         AABB box = p.getBoundingBox();
         // With nothing in the way `lid` is null, and the row still has to say WHICH cells were
-        // looked at — a reader diagnosing「没升」needs the neighbours named on the clear ticks too,
+        // looked at — a reader diagnosing "did not rise" needs the neighbours named on the clear ticks too,
         // otherwise the interesting rows have no baseline to differ from.
         int scanY = lid != null ? lid.getY() : p.blockPosition().getY() + 2;
         StringBuilder straddled = new StringBuilder();
@@ -225,20 +225,20 @@ public final class BotInteract {
             for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ - 1.0E-7); z++) {
                 BlockPos c = new BlockPos(x, scanY, z);
                 BlockState bs = mc.level.getBlockState(c);
-                if (straddled.length() > 0) straddled.append('，');
+                if (straddled.length() > 0) straddled.append(", ");
                 straddled.append(c.toShortString()).append('=')
                         .append(BuiltInRegistries.BLOCK.getKey(bs.getBlock()))
-                        .append(bs.getCollisionShape(mc.level, c).isEmpty() ? "" : "(实心)");
+                        .append(bs.getCollisionShape(mc.level, c).isEmpty() ? "" : "(solid)");
             }
         }
-        LOG.info("[drownEscape] 竖直支 y={} 落速={} 跳读回={} 着地={} 撞顶={} 水={} 没顶={} 水高={} 气={} "
-                        + "盖格={} 盖挡={} 破盖中={} 身体跨柱={}",
+        LOG.info("[drownEscape] vertical arm y={} fallSpeed={} jumpReadBack={} onGround={} hitCeiling={} inWater={} "
+                        + "underWater={} waterHeight={} air={} lidCell={} lidBlocks={} breakingLid={} straddledColumns={}",
                 String.format(Locale.ROOT, "%.3f", p.getY()),
                 String.format(Locale.ROOT, "%.4f", p.getDeltaMovement().y),
                 p.input != null && p.input.jumping, p.onGround(), p.verticalCollision,
                 p.isInWater(), p.isUnderWater(),
                 String.format(Locale.ROOT, "%.3f", p.getFluidHeight(FluidTags.WATER)),
-                p.getAirSupply(), lid == null ? "无（升路是通的）" : lid.toShortString(),
+                p.getAirSupply(), lid == null ? "none (the way up is clear)" : lid.toShortString(),
                 lidBlocksRise, breaking, straddled);
     }
 
@@ -281,12 +281,12 @@ public final class BotInteract {
     public static InteractionResult clientUseItemOn(Minecraft mc, LocalPlayer p, BlockPos clickBlock, Direction face) {
         if (!mc.isSameThread()) {
             // A DIFFERENT tag from the [place] row below, on purpose, for two reasons. The criterion
-            // that proves this fix is「zero [place] rows printed from the server thread」, so the
-            // deferral must not print one — a stub row with a fabricated 结果= would muddy the very
-            // instrument by construction. And counting 投递 against [place] turns a queue that
-            // silently drops work into a countable discrepancy instead of a placement that simply
-            // never happened.
-            LOG.info("[placeEnqueue] 投递到客户端线程 点击格={} 面={} 发起线程={}",
+            // that proves this fix is "zero [place] rows printed from the server thread", so the
+            // deferral must not print one — a stub row with a fabricated result= would muddy the very
+            // instrument by construction. And counting [placeEnqueue] rows against [place] turns a
+            // queue that silently drops work into a countable discrepancy instead of a placement that
+            // simply never happened.
+            LOG.info("[placeEnqueue] queued for the client thread clicked={} face={} fromThread={}",
                     clickBlock.toShortString(), face, Thread.currentThread().getName());
             mc.execute(() -> clientUseItemOn(mc, p, clickBlock, face));
             return InteractionResult.PASS;
@@ -305,22 +305,22 @@ public final class BotInteract {
         ItemStack held = p.getMainHandItem();
         InteractionResult r = mc.gameMode.useItemOn(p, InteractionHand.MAIN_HAND, hit);
         if (r.consumesAction()) p.swing(InteractionHand.MAIN_HAND);
-        // UNCONDITIONAL, and that is the point. This used to print nothing, and the 2026-08-23
-        // ladder could not answer「the run lost ten cobblestone between two rungs — where?」because
-        // the only placement path in the game logged nothing at the verbosity a ladder runs at.
-        // A reading that exists only under walkerDebug is a reading the ladder never takes, and a
-        // zero-row log then cannot tell「it never placed」from「it never printed」. Placements are
-        // rare enough (a tower course is one) that the volume is not worth the blind spot.
-        // The row says 邻格→<what is actually there now>, NOT「落点」. useItemOn is ONE verb for two
-        // different acts: placing a block, and interacting with one (opening a chest, using a table —
-        // those show up as 手持=minecraft:air 成功). Calling the neighbour cell a「落点」made the first
-        // reading of this log count twelve interactions as twelve placements. The cell's post-call
-        // state is the only thing that separates them, and the client predicts a placement in the same
-        // tick, so it is readable right here.
+        // UNCONDITIONAL, and that is the point. Without this row a ladder could not answer "the run
+        // lost ten cobblestone between two rungs — where?", because the only placement path in the
+        // game would log nothing at the verbosity a ladder runs at. A reading that exists only under
+        // walkerDebug is a reading the ladder never takes, and a zero-row log then cannot tell "it
+        // never placed" from "it never printed". Placements are rare enough (a tower course is one)
+        // that the volume is not worth the blind spot.
+        // The row says neighbour→<what is actually there now>, NOT "landing cell". useItemOn is ONE
+        // verb for two different acts: placing a block, and interacting with one (opening a chest,
+        // using a table — those show up as held=minecraft:air accepted). Calling the neighbour cell a
+        // landing cell makes a reader count interactions as placements. The cell's post-call state is
+        // the only thing that separates them, and the client predicts a placement in the same tick,
+        // so it is readable right here.
         BlockPos target = clickBlock.relative(face);
-        LOG.info("[place] {} 动作={} 手持={} 点击格={} 面={} 邻格={}→{} 身体y={} 结果={}",
-                r.consumesAction() ? "成功" : "拒绝",
-                held.getItem() instanceof BlockItem ? "放置" : "交互",
+        LOG.info("[place] {} action={} held={} clicked={} face={} neighbour={}→{} botY={} result={}",
+                r.consumesAction() ? "accepted" : "refused",
+                held.getItem() instanceof BlockItem ? "place" : "interact",
                 BuiltInRegistries.ITEM.getKey(held.getItem()) + "×" + held.getCount(),
                 clickBlock.toShortString(), face,
                 target.toShortString(),
@@ -423,8 +423,8 @@ public final class BotInteract {
      *  {@link #ensureHoldingPillarBlock}. Without the main-inventory reach a bot whose
      *  crafted pickaxes overflowed the hotbar mines stone BARE-HANDED (5× slower); the
      *  slow break trips the Walker's stall clock, which re-picks and re-aims at an
-     *  adjacent block before the first finishes — the "东挖一下西挖一下、不等挖完视角就
-     *  切走" churn (live 2026-07-11: two stone_pickaxes stranded in slots 33/34 while
+     *  adjacent block before the first finishes — the churn of digging a little here and a
+     *  little there, with the view moving away before any block breaks (live 2026-07-11: two stone_pickaxes stranded in slots 33/34 while
      *  the bot held cobblestone; the escape carve then timed out on bare-hand stone). */
     public static void selectBestToolFor(Minecraft mc, BlockPos pos) {
         LocalPlayer p = mc.player;
@@ -440,7 +440,7 @@ public final class BotInteract {
         // searches slots 0-8 AND menu slots 9-35 and swaps; ClientWorldView#breakCost
         // reads 0-8 only. Its baseline is bare hand (1f, not-correct); this one's is
         // whatever is currently held. So the planner's estimate is the pessimistic
-        // one, never the optimistic one, and a body with a bag pickaxe out-mines what
+        // one, never the optimistic one, and a bot with a bag pickaxe out-mines what
         // A* budgeted for it. The third member of this family, AutoTool#tick, drops
         // Efficiency entirely and adds a +0.01f anti-oscillation epsilon, so an
         // Efficiency-V wood pick wins here and loses there — deliberate there (it
@@ -547,7 +547,7 @@ public final class BotInteract {
      * bill was 8 — the walker was building its scaffolding out of the very thing the rung existed to
      * collect, and the rung then failed for being two short.
      *
-     * <p>Two passes rather than a ban, because a body holding nothing but logs must still be able to
+     * <p>Two passes rather than a ban, because a bot holding nothing but logs must still be able to
      * place: a fix for waste that can strand a bot on a ledge has bought one bug with another. The
      * hard refusal is still available and still correct where the caller wants it — that is what
      * {@code ensureHoldingPlaceableAny(mc, true)} is for.
@@ -601,7 +601,7 @@ public final class BotInteract {
      * survival {@code swapFromMainInv} tail sits inside the parameterised method, so pass 1 sees
      * cobble sitting in slot 9 exactly as pass 2 would. Its sibling
      * {@link #ensureHoldingPlaceableAny(Minecraft, boolean)} has no such tail at all — in survival
-     * it only ever looks at the nine hotbar slots — so a body whose hotbar holds nothing but logs
+     * it only ever looks at the nine hotbar slots — so a bot whose hotbar holds nothing but logs
      * will fail pass 1 there and spend a log on pass 2 even with cobble in the bag. That asymmetry
      * predates the two passes and is left alone deliberately: giving that method main-inventory
      * reach widens where a survival bot may place, which is a behaviour change wanting its own
@@ -645,7 +645,7 @@ public final class BotInteract {
         // Survival: a pillar block may sit in the MAIN INVENTORY (menu slots 9-35) while the hotbar
         // holds only non-pillar items — the creative pickSlot above is creative-only, so without this
         // a survival bot that mined cobble into the inventory could NEVER pillar-recover off a steep
-        // slide-back. THAT is the dominant steep-climb "上坡跳不上/贴墙" churn: the fellBelowRoute pillar
+        // slide-back. THAT is the dominant steep-climb churn (cannot jump up the slope, pinned against the wall): the fellBelowRoute pillar
         // gate (holdPillarBlock) silently no-op'd, so the bot foot-search-looped after sliding off the
         // climb (live replay 2026-06-24: ~28 drift-stalls/climb with the cobble stranded in slot 9 → 2
         // once it was reachable). Pull it to the hotbar via a SWAP click (mirrors AutoEquip's inv→hotbar

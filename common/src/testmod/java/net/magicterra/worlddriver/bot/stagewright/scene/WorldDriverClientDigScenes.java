@@ -18,10 +18,10 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * Legs the client's REAL player has to dig its way through. What these measure that a surface
- * leg cannot: every node the search expands inside rock is priced through {@code breakCost}, so
+ * Walks the client's REAL player has to dig its way through. What these measure that a surface
+ * walk cannot: every node the search expands inside rock is priced through {@code breakCost}, so
  * the planner's per-node cost, the slice cadence and the segment length all change shape the
- * moment the body is enclosed. The evidence rows carry the search totals for that reason.
+ * moment the player is enclosed. The evidence rows carry the search totals for that reason.
  */
 public final class WorldDriverClientDigScenes implements SceneProvider {
 
@@ -34,10 +34,10 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
     }
 
     /**
-     * {@code autoBackfill} puts back what the bot broke and nothing else. The body digs a five-cell
+     * {@code autoBackfill} puts back what the bot broke and nothing else. The bot digs a five-cell
      * tunnel out of a sealed stone pocket into a natural 3×3×2 room and walks across the room to its
      * far wall, then idles. The backfill must plug the tunnel's mouth — the two dug cells it can
-     * stand beside without digging — and leave every room cell air, although the body walked
+     * stand beside without digging — and leave every room cell air, although the bot walked
      * through three of them: a tracker fed the foot cell every tick filled those first, being
      * nearest. The cells deeper in the tunnel are reachable only by digging through the fill, so
      * they are given up, and the process must have ended by the close rather than trading the
@@ -56,8 +56,8 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
         BlockPos goal = ctx.rel(2, GROUND + 1, 0);
         BlockPos mouthFoot = ctx.rel(-1, GROUND + 1, 0);
         BlockPos mouthHead = ctx.rel(-1, GROUND + 2, 0);
-        ctx.record("布景", "实心石块，起点口袋 " + start.toShortString() + "，往东 5 格石头要挖，然后是天然空气房间 x0..2 z-1..1 两格高，目标 "
-                + goal.toShortString() + "；autoBackfill 开，铁镐在手，圆石 64");
+        ctx.record("test setup", "solid stone, start pocket " + start.toShortString() + ", 5 blocks of stone to dig to the east, then a natural two-high air room at x0..2 z-1..1, goal "
+                + goal.toShortString() + "; autoBackfill on, iron pickaxe in hand, 64 cobblestone");
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         // Cobblestone from the start: this scene is about which cells get filled, not about pickup.
         helm.hold(new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.COBBLESTONE, 64));
@@ -66,17 +66,17 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
         BotConfig.autoBackfill = true;
         BotConfig.autoBackfillBlock = "minecraft:cobblestone";
         helm.sync(30, () -> {
-            ctx.record("起点.同步后", helm.where());
+            ctx.record("start.afterSync", helm.where());
             helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, null, () -> {
                 double flat = helm.flatDistance(goal);
                 helm.sync(IDLE_TICKS, () -> {
                     Map<?, ?> builder = helm.slot("builder");
-                    ctx.record("空闲后", helm.where() + "；builder=" + builder);
-                    ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "A 腿末走到了房间远端：水平差 %.2f", flat)).isTrue();
+                    ctx.record("afterIdle", helm.where() + "; builder=" + builder);
+                    ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "A: at the end of the goto the bot reached the far side of the room: horizontal distance %.2f", flat)).isTrue();
                     ctx.check(ctx.level().getBlockState(mouthFoot).is(Blocks.COBBLESTONE)
                             && ctx.level().getBlockState(mouthHead).is(Blocks.COBBLESTONE))
-                            .as("B 自己挖开的隧道口两格被填回：脚 " + ctx.level().getBlockState(mouthFoot).getBlock()
-                                    + "，头 " + ctx.level().getBlockState(mouthHead).getBlock()).isTrue();
+                            .as("B: both cells of the tunnel mouth the bot dug are filled back in: feet " + ctx.level().getBlockState(mouthFoot).getBlock()
+                                    + ", head " + ctx.level().getBlockState(mouthHead).getBlock()).isTrue();
                     StringBuilder filled = new StringBuilder();
                     for (int dy = 1; dy <= 2; dy++)
                         for (int dx = 0; dx <= 2; dx++)
@@ -84,10 +84,10 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
                                 BlockPos cell = ctx.rel(dx, GROUND + dy, dz);
                                 if (!ctx.level().getBlockState(cell).isAir()) filled.append(' ').append(cell.toShortString());
                             }
-                    ctx.check(filled.length() == 0).as("C 天然空气房间一格都没被填（走过的也不算）：被填 ["
+                    ctx.check(filled.length() == 0).as("C: no cell of the natural air room is filled, including the ones the bot walked through: filled ["
                             + filled.toString().trim() + "]").isTrue();
                     ctx.check(!Boolean.TRUE.equals(builder.get("active")))
-                            .as("D 回填进程空闲窗口末已经结束，没有在填了又挖之间来回：builder.active="
+                            .as("D: the backfill process has ended by the end of the idle window instead of alternating between filling and digging: builder.active="
                                     + builder.get("active")).isTrue();
                 });
             });
@@ -95,15 +95,15 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
     }
 
     /**
-     * The body stands in a two-high pocket inside solid stone with a survival bag and an iron
+     * The bot stands in a two-high pocket inside solid stone with a survival bag and an iron
      * pickaxe in hand; the goal is {@code cells} away in the same rock, and every cell between is
      * stone. A traverse is two iron-pickaxe stone digs (about eight ticks a block plus vanilla's
      * five-tick destroy delay) and a step, near thirty ticks: ten cells are some 300 ticks of
-     * physics, and the budget is that plus one search, not a planner that freezes the body for
+     * physics, and the budget is that plus one search, not a planner that freezes the bot for
      * seconds at every segment end.
      *
      * <p>The far variant is the same rock forty cells long, the slab eight blocks thick over the
-     * goal: past the search horizon, so the leg is several best-effort segments, and the planner
+     * goal: past the search horizon, so the walk is several best-effort segments, and the planner
      * climbs out, walks the top and digs back down. Measured at 680 ticks once the stale-plan cut,
      * the stacked-node pointer hold and the full-cube fast path were in; before them it did not
      * arrive in 1500.
@@ -117,8 +117,8 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
         ctx.setBlock(sx, GROUND + 2, 0, Blocks.AIR);
         BlockPos start = ctx.rel(sx, GROUND + 1, 0);
         BlockPos goal = ctx.rel(sx + cells, GROUND + 1, 0);
-        ctx.record("布景", "实心石块 " + (2 * half + 1) + "×15×" + (2 * half + 1) + "，起点口袋 " + start.toShortString()
-                + "，目标 " + goal.toShortString() + "（石头里，" + cells + " 格），生存背包：六件工具加二十四格杂物，铁镐在手");
+        ctx.record("test setup", "solid stone " + (2 * half + 1) + "x15x" + (2 * half + 1) + ", start pocket " + start.toShortString()
+                + ", goal " + goal.toShortString() + " (inside the stone, " + cells + " blocks away), survival inventory: six tools plus twenty-four slots of filler, iron pickaxe in hand");
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         // A survival bag, not a lone pickaxe: every tool in it is a tag scan per breakCost ask, and a
         // bag with one stack measures nothing about the pricing a real journey pays.
@@ -137,7 +137,7 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
         ServerPlayer body = helm.player();
         Walker.lastStats = null;
         helm.sync(30, () -> {
-            ctx.record("起点.同步后", helm.where());
+            ctx.record("start.afterSync", helm.where());
             final int[] arrivedTick = { -1 };
             final int[] legTicks = { 0 };
             final Walker.PathStats[] seen = { null };
@@ -158,21 +158,21 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
                 }
             };
             helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, watch, () -> {
-                ctx.record("腿末", helm.where());
+                ctx.record("gotoEnd", helm.where());
                 helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
                     int cobble = body.getInventory().countItem(Items.COBBLESTONE);
-                    ctx.record("过程", String.format(Locale.ROOT, "到达目标在第 %s tick，挖出圆石 %d",
-                            arrivedTick[0] < 0 ? "从没" : String.valueOf(arrivedTick[0]), cobble));
-                    ctx.record("搜索", String.format(Locale.ROOT,
-                            "%d 次，共展开 %d 节点、%d ms CPU，%.1f 节点/ms，单次最长 %d ms",
+                    ctx.record("progress", String.format(Locale.ROOT, "reached the goal at tick %s, cobblestone mined %d",
+                            arrivedTick[0] < 0 ? "never" : String.valueOf(arrivedTick[0]), cobble));
+                    ctx.record("search", String.format(Locale.ROOT,
+                            "%d searches, %d nodes expanded in total, %d ms CPU, %.1f nodes/ms, longest single search %d ms",
                             searches[0], expanded[0], ms[0], ms[0] == 0 ? 0.0 : expanded[0] / (double) ms[0], maxMs[0]));
-                    ctx.record("终点", helm.where());
+                    ctx.record("end", helm.where());
                     double flat = helm.flatDistance(goal);
-                    ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "A 停在目标格 1.5 格以内：水平差 %.2f", flat)).isTrue();
-                    ctx.check(arrivedTick[0] >= 0 && arrivedTick[0] <= arriveBy).as("B 要在 " + arriveBy
-                            + " tick 内到达：到达在第 " + (arrivedTick[0] < 0 ? "从没" : String.valueOf(arrivedTick[0]))
-                            + " tick").isTrue();
-                    ctx.check(cobble >= cells).as("C 至少挖穿了 " + cells + " 格：圆石 " + cobble).isTrue();
+                    ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "A: the bot stops within 1.5 blocks of the goal cell: horizontal distance %.2f", flat)).isTrue();
+                    ctx.check(arrivedTick[0] >= 0 && arrivedTick[0] <= arriveBy).as("B: the bot arrives within " + arriveBy
+                            + " ticks (arrival tick: " + (arrivedTick[0] < 0 ? "never" : String.valueOf(arrivedTick[0]))
+                            + ")").isTrue();
+                    ctx.check(cobble >= cells).as("C: the bot dug through at least " + cells + " blocks: cobblestone " + cobble).isTrue();
                 });
             });
         });

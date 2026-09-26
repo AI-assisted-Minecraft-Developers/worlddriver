@@ -21,34 +21,36 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 
 /**
- * <b>A hop judged while the body was one tick above the floor.</b>
+ * <b>A hop judged while the bot was one tick above the floor.</b>
  *
  * <h2>The run this is a copy of</h2>
  *
  * Rung 14's Nether crossing is healthy — 11.4 tick/block, 1% of its ticks without a plan, 2 968 of
  * a 21 600-tick hop budget spent, 402 blocks to walk. It stopped 141 blocks short, and this is the
- * row that stopped it:
+ * row that stopped it (rendered in English):
  *
  * <pre>
- * fortress.crossing = 6 段，还差 141 格 …… 第 6 段之后停手：身体还在下坠
- *                     （179, 43, 198，落速 -0.38 格/tick，脚下到实心 0 格）
- * fortress.around.6 = 脚下=netherrack …… onGround=false 落速=-0.38 脚下到实心=0
+ * fortress.crossing = 6 hops, 141 blocks still to go … stopped after hop 6: the bot is still
+ *                     falling (179, 43, 198, fall speed -0.38 blocks/tick, 0 blocks down to solid)
+ * fortress.around.6 = below=netherrack … onGround=false fallSpeed=-0.38 dropToSolid=0
  * </pre>
  *
- * <p><b>脚下到实心 0.</b> The body was not in a chasm; it was a hair above netherrack, mid-landing,
- * and would have been standing on it on the next tick. {@code hazardBlockingARetry} is right that a
- * falling body is not somewhere a walk order can act on — it is wrong to take that reading from a
- * body it never let finish falling. Eighteen of twenty-four hops and 16 200 hop ticks went unspent
- * over one tick of patience.
+ * <p><b>Zero blocks down to solid.</b> The bot was not in a chasm; it was a hair above netherrack,
+ * mid-landing, and would have been standing on it on the next tick. {@code hazardBlockingARetry} is
+ * right that a falling bot is not somewhere a walk order can act on; it is wrong to take that
+ * reading from a bot it never let finish falling. Eighteen of twenty-four hops and 16 200 hop ticks
+ * went unspent over one tick of patience.
  *
- * <h2>What put the body in the air, and why the walker is not the defect</h2>
+ * <h2>What put the bot in the air, and why the walker is not the defect</h2>
  *
- * The same leg's own physics dumps, verbatim:
+ * The same hop's own physics dump (rendered in English):
  *
  * <pre>
- * fortress.ground.6.0 = 上一 tick：位置 (166.653, 57.0000, 177.409) 速度 (-0.007, -0.078, 0.111)
- *   onGround=true …… vanilla 自己那一问（脚下 0.0784 格内有碰撞吗）=没有（和 onGround 不一致）
- *   实心接触面积 0.0000/0.36 …… 致命边刹车照 level 重算 …… → 不该响
+ * fortress.ground.6.0 = previous tick: position (166.653, 57.0000, 177.409)
+ *   velocity (-0.007, -0.078, 0.111) onGround=true … vanilla's own check (any collision within
+ *   0.0784 blocks below the feet) = none (disagrees with onGround)
+ *   solid contact area 0.0000/0.36 … lethal edge brake recomputed against the level … → should
+ *   not fire
  * </pre>
  *
  * <p>{@code onGround} was indeed a tick stale — vanilla's own sweep disagreed with it. But nothing
@@ -59,7 +61,7 @@ import net.minecraft.world.phys.AABB;
  * fix, it is the failure {@code wd.serverWalksOffASurvivableLedge} was committed to catch: a guard
  * that pins at every lip turns a Nether crossing, which is nothing but lips, into a wall.
  *
- * <p>So this pair asks the walker for nothing at all. It walks a body off a survivable lip with the
+ * <p>So this pair asks the walker for nothing at all. It walks a bot off a survivable lip with the
  * guards at their live settings, records that they stayed out of the way (that reading is the
  * measurement, not an assertion — the shore pair owns that), and then asks the CROSSING's verdict
  * the two questions it gets wrong and right.
@@ -68,18 +70,18 @@ import net.minecraft.world.phys.AABB;
  *
  * <ul>
  *   <li>{@code wd.crossingWaitsOutASurvivableDrop} — a four-block step-down, the fall-#6 geometry.
- *       The body lands well inside {@link JourneyNetherRungs#LANDING_TICKS} and the verdict must
+ *       The bot lands well inside {@link JourneyNetherRungs#LANDING_TICKS} and the verdict must
  *       come back clean, so the crossing spends its remaining hops.</li>
  *   <li>{@code wd.crossingStillStopsForALongFall} — the same bay from thirty-nine blocks up. The
- *       allowance runs out with the body still in the air and the verdict must STILL stop the
- *       crossing. Without this arm,「the verdict now clears」would be satisfied by deleting the
- *       branch, and a rung that walks its next plan from a body in free fall is the retry that
+ *       allowance runs out with the bot still in the air and the verdict must STILL stop the
+ *       crossing. Without this arm, "the verdict now clears" would be satisfied by deleting the
+ *       branch, and a rung that walks its next plan from a bot in free fall is the retry that
  *       changes nothing this rung already has a name for.</li>
  * </ul>
  *
  * <h2>Each arm carries its own control</h2>
  *
- * The first arm takes the verdict TWICE over one fall: once at the instant the leg would have ended
+ * The first arm takes the verdict TWICE over one fall: once at the instant the hop would have ended
  * (the pre-fix reading) and once after the allowance. The first must come back non-null — an arm
  * whose control did not reproduce the stop has not earned the right to report that the allowance
  * fixed it, and it fails as THE RIG rather than passing quietly. The second arm's control is the
@@ -90,7 +92,7 @@ import net.minecraft.world.phys.AABB;
  * {@link JourneyNetherRungs#LANDING_TICKS}, {@code stillFalling} and {@code hazardBlockingARetry}
  * are the production constant, the production predicate and the production verdict, called here
  * directly — a copy of any of the three would be a scene measuring itself. What a scene cannot host
- * is a {@link JourneyRig}: it is entered against the ladder's own ledger and drives a static body,
+ * is a {@link JourneyRig}: it is entered against the ladder's own ledger and drives a static bot,
  * so {@code settleToGround}'s tick pump is stepped here instead, with the impulse released first,
  * which is what {@link HoldStill} does and the reason the crossing waits under it rather than under
  * the walk it just ended.
@@ -121,7 +123,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
                         JourneyCrossingScenes::repathSeparatesARimWalkFromALivelock));
     }
 
-    /** dy of the shelf's top block. The body's foot cell is one above it. */
+    /** dy of the shelf's top block. The bot's foot cell is one above it. */
     private static final int DECK = 6;
 
     /** Cells of shelf along +z, from {@code dz = -2}. The lip is the last of them. */
@@ -133,12 +135,12 @@ public final class JourneyCrossingScenes implements SceneProvider {
      *  arena by their own rules rather than by a switch. */
     private static final int BAY_BED = DECK - 4;
 
-    /** dy the long-fall arm starts its body at. Thirty-nine rows over the bay floor's standing cell,
-     *  so the body is still in the air when the allowance expires: 26 ticks of gravity cover 23.4
+    /** dy the long-fall arm starts its bot at. Thirty-nine rows over the bay floor's standing cell,
+     *  so the bot is still in the air when the allowance expires: 26 ticks of gravity cover 23.4
      *  blocks and the run-up to {@code stillFalling} costs four more. */
     private static final int DEEP_START = 42;
 
-    /** Idle ticks before a drive, so a body that vanilla itself cannot hold up says so before the
+    /** Idle ticks before a drive, so a bot that vanilla itself cannot hold up says so before the
      *  measurement rather than during it. */
     private static final int SETTLE_TICKS = 20;
 
@@ -147,7 +149,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
     private static final int WALK_TICKS = 160;
 
     /**
-     * A body walked off a four-block lip, judged twice: as the crossing used to, and as it does now.
+     * A bot walked off a four-block lip, judged twice: as the crossing used to, and as it does now.
      *
      * <p>See the class note. The control is the first verdict; if it comes back clean this arena
      * never reproduced the stop and the arm says so instead of passing.
@@ -157,52 +159,58 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         // The guards keep their live values — this arm is a claim about them staying out of the way,
         // and an arm that switched them off could not make it. Placement is off because a plug under
-        // the body would change the geometry the arms differ in; the shore pair owns that question.
+        // the bot would change the geometry the arms differ in; the shore pair owns that question.
         BotConfig.allowPlace = false;
         BotConfig.allowBreak = false;
         BotConfig.walkerDebug = false;
         ctx.cleanup(() -> clear(ctx));
 
         stage(ctx);
-        ctx.record("rig", "3 格宽下界岩台 dz=-2.." + (SHELF_CELLS - 2) + "，顶面 dy=" + DECK
-                + "；越过台缘落到 dy=" + BAY_BED + " 的湾底，落差 " + (DECK - BAY_BED)
-                + " 格 —— 满血能扛 22 格，所以这座场地里两个 walker 守卫都该按自己的规矩闭嘴，"
-                + "而不是被开关关掉");
+        ctx.record("rig", "3-block-wide netherrack shelf dz=-2.." + (SHELF_CELLS - 2) + ", top face dy="
+                + DECK + "; past the lip it drops to the bay floor at dy=" + BAY_BED + ", a drop of "
+                + (DECK - BAY_BED) + " blocks. A bot at full health survives 22 blocks, so both"
+                + " walker guards should stay silent in this arena by their own rules, not because"
+                + " a switch turned them off");
 
         ServerPlayerBody av = spawn(ctx, ctx.originZ() + 1.5, DECK + 1, true);
         ServerPlayer fp = av.fakePlayer();
         Walk walk = walkOffTheLip(ctx, av);
         ctx.record("walk", walk.line());
         if (!walk.leftTheGround())
-            ctx.fail("THE RIG, not the subject: 身体没走下台缘（" + walk.line()
-                    + "） —— 这一臂要判的是「离地之后怎么判决」，身体没离地就什么都没量到");
+            ctx.fail("THE RIG, not the subject: the bot did not walk off the lip (" + walk.line()
+                    + "). This arm judges how the verdict is taken after the bot leaves the ground;"
+                    + " if it never left the ground, nothing was measured");
         if (!JourneyNetherRungs.stillFalling(fp))
-            ctx.fail("THE RIG, not the subject: 走下去了但从来没进入「还在下坠」这个状态（"
-                    + walk.line() + "） —— 判决那一条分支根本没被触发");
+            ctx.fail("THE RIG, not the subject: the bot walked off but never entered the \"still"
+                    + " falling\" state (" + walk.line() + "), so the verdict branch under test was"
+                    + " never triggered");
 
-        // CONTROL: the verdict oneHop used to take, straight off a body still in the air.
+        // CONTROL: the verdict oneHop would take without the allowance, straight off a bot still in
+        // the air.
         BlockPos airborneAt = fp.blockPosition();
         String judgedNow = JourneyNetherRungs.hazardBlockingARetry(fp, airborneAt);
         ctx.record("control.judgedInMidAir", judgedNow == null
-                ? "没有障碍 —— 这一臂什么都没测到" : judgedNow);
+                ? "no hazard; this arm measured nothing" : judgedNow);
         if (judgedNow == null)
-            ctx.fail("THE RIG, not the subject: 身体还在半空中，判决却说没有障碍 —— "
-                    + "那么「等落地之后判决放行」这条判据分不清「等待起了作用」和"
-                    + "「这座场地本来就不会停手」：" + walk.line());
+            ctx.fail("THE RIG, not the subject: the bot is still in mid-air, yet the verdict reports"
+                    + " no hazard. The criterion \"the verdict clears after landing\" then cannot tell"
+                    + " \"the wait had an effect\" from \"this arena never stops the crossing\": "
+                    + walk.line());
 
         Allowance spent = allowanceToLand(ctx, av, "subject");
         String judgedAfter = JourneyNetherRungs.hazardBlockingARetry(fp, fp.blockPosition());
-        ctx.record("subject.judgedAfterLanding", judgedAfter == null ? "没有障碍（放行）" : judgedAfter);
+        ctx.record("subject.judgedAfterLanding", judgedAfter == null ? "no hazard (cleared)" : judgedAfter);
         ctx.record("subject.after", where(ctx, fp));
 
-        ctx.check(judgedAfter).as("A 给完落地余量之后，这一段必须可以被判决 —— 对照臂在半空中判到的是「"
-                + judgedNow + "」，落地前最后一 tick 判到的是「" + spent.lastMidAir() + "」").isNull();
+        ctx.check(judgedAfter).as("A after the landing allowance, this hop must be judged clear. The"
+                + " control's mid-air verdict was \"" + judgedNow + "\", and the verdict on the last"
+                + " tick before landing was \"" + spent.lastMidAir() + "\"").isNull();
         ctx.check(spent.landedAt() >= 1 && spent.landedAt() <= JourneyNetherRungs.LANDING_TICKS)
-                .as("B 而且余量必须够用：" + (DECK - BAY_BED) + " 格的落差应当在 "
-                        + JourneyNetherRungs.LANDING_TICKS + " tick 之内落地，实测第 "
-                        + spent.landedAt() + " tick（-1 = 一直没落地）").isTrue();
-        ctx.check(blockUnder(ctx, fp)).as("C 而且是站在湾底那层下界岩上，不是停在别的什么东西上："
-                + where(ctx, fp)).isEqualTo("netherrack");
+                .as("B and the allowance must be sufficient: a " + (DECK - BAY_BED) + "-block drop"
+                        + " should land within " + JourneyNetherRungs.LANDING_TICKS + " ticks; measured"
+                        + " landing on tick " + spent.landedAt() + " (-1 = never landed)").isTrue();
+        ctx.check(blockUnder(ctx, fp)).as("C and the bot must be standing on the bay floor's netherrack,"
+                + " not on anything else: " + where(ctx, fp)).isEqualTo("netherrack");
     }
 
     /**
@@ -222,10 +230,11 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ctx.cleanup(() -> clear(ctx));
 
         stage(ctx);
-        ctx.record("rig", "同一座湾（湾底 dy=" + BAY_BED + "），身体从 dy=" + DEEP_START
-                + " 开始下坠，共 " + (DEEP_START - (BAY_BED + 1)) + " 格；"
-                + JourneyNetherRungs.LANDING_TICKS + " tick 的余量只够掉 23.4 格，所以余量花完时"
-                + "身体还在空中 —— 这一臂问的是那时候判决还停不停手");
+        ctx.record("rig", "the same bay (floor at dy=" + BAY_BED + "); the bot starts falling from dy="
+                + DEEP_START + ", " + (DEEP_START - (BAY_BED + 1)) + " blocks in total; an allowance of "
+                + JourneyNetherRungs.LANDING_TICKS + " ticks only covers 23.4 blocks, so the bot is"
+                + " still in the air when the allowance is spent. This arm asks whether the verdict"
+                + " still stops the crossing at that point");
 
         // No idle settle: every tick of one is a tick of this arm's own fall, and twenty of them
         // spent 14 of the 39 blocks before the allowance ever started (measured — the first run of
@@ -234,21 +243,25 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ServerPlayer fp = av.fakePlayer();
         int t = 0;
         while (t < 20 && !JourneyNetherRungs.stillFalling(fp)) { step(av); t++; }
-        ctx.record("fall.began", "放下去 " + t + " tick 之后才算「在下坠」；" + where(ctx, fp));
+        ctx.record("fall.began", "counted as \"falling\" only " + t + " ticks after release; "
+                + where(ctx, fp));
         if (!JourneyNetherRungs.stillFalling(fp))
-            ctx.fail("THE RIG, not the subject: 放下去 " + t + " tick 之后身体还没算「在下坠」（"
-                    + where(ctx, fp) + "）");
+            ctx.fail("THE RIG, not the subject: " + t + " ticks after release the bot still does not"
+                    + " count as \"falling\" (" + where(ctx, fp) + ")");
 
         Allowance spent = allowanceToLand(ctx, av, "subject");
         String judgedAfter = JourneyNetherRungs.hazardBlockingARetry(fp, fp.blockPosition());
         ctx.record("subject.judgedAfterAllowance", judgedAfter == null
-                ? "没有障碍（放行）" : judgedAfter);
+                ? "no hazard (cleared)" : judgedAfter);
         ctx.record("subject.after", where(ctx, fp));
 
-        ctx.check(spent.landedAt()).as("A 这一臂的前提是余量不够用：身体不许在 "
-                + JourneyNetherRungs.LANDING_TICKS + " tick 内落地，" + where(ctx, fp)).isEqualTo(-1);
-        ctx.check(judgedAfter).as("B 余量花完身体还在下坠，判决必须照样停手 —— 否则下一段计划是"
-                + "对着一具还在半空中的身体下的令，那正是这一级早就命过名的「换汤不换药的重试」")
+        ctx.check(spent.landedAt()).as("A this arm's premise is that the allowance is insufficient: the"
+                + " bot must not land within " + JourneyNetherRungs.LANDING_TICKS + " ticks, "
+                + where(ctx, fp)).isEqualTo(-1);
+        ctx.check(judgedAfter).as("B the allowance is spent and the bot is still falling, so the verdict"
+                + " must still stop the crossing. Otherwise the next plan would be issued to a bot"
+                + " still in mid-air, which is the retry that changes nothing that this rung already"
+                + " names")
                 .isNotNull();
     }
 
@@ -262,13 +275,13 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * Rung 14's 2026-08-20 shuttle: four hops of 900 ticks each, 61–76 walk edges apiece, net −8 to
      * −28 blocks, all four inside one 27×31 box. The terrain, read out of that run's own region
      * files, is a lava sea — 18 458 lava cells against 2 543 netherrack in the walk band — and the
-     * only ground in it beyond one netherrack shelf is a <b>127-block dirt causeway the body built
+     * only ground in it beyond one netherrack shelf is a <b>127-block dirt causeway the bot built
      * itself</b>. The stride guard fired 491 times in that crossing across 184 distinct cells and
      * plugged 142 of them; only 5 cells ever reached the 12-fire plug dwell.
      *
      * <p>With {@link Walker#GUARD_PIN_HOLD} = 8, a fire every eight ticks keeps
      * {@code guardPinStreak} alive, and at ≥30 it throws the plan away. So two opposite diagnoses
-     * fit every row that run produced — the body was given plans that route backwards, or the body
+     * fit every row that run produced — the bot was given plans that route backwards, or the bot
      * was given good plans that kept being discarded under it — and <b>nothing in the log or the
      * evidence map could choose</b>, because the discard logged nothing and was counted nowhere.
      *
@@ -280,9 +293,9 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * two situations the counter was built for</b>:
      *
      * <ul>
-     *   <li>a LIVELOCK — the body held against one lip, pinning on the same cell, which is the
+     *   <li>a LIVELOCK — the bot held against one lip, pinning on the same cell, which is the
      *       567-pins-at-one-cell run the forced repath exists for;</li>
-     *   <li>a RIM WALK — the body travelling along a lava shore, pinning on a new cell every few
+     *   <li>a RIM WALK — the bot travelling along a lava shore, pinning on a new cell every few
      *       ticks, which is what a Nether crossing is made of.</li>
      * </ul>
      *
@@ -303,9 +316,10 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ctx.cleanup(() -> clearTrench(ctx));
 
         stageTrench(ctx);
-        ctx.record("rig", "一条沿 z 通到底的岩浆沟（沟面 dy=" + (TRENCH_DECK - 4) + "，" + TRENCH_ROWS
-                + " 层岩浆），东侧 dx≥" + TRENCH_EDGE + " 是一条 " + TRENCH_CELLS
-                + " 格长的石台。两条臂踩同一条岸，唯一的自变量是身体准不准往前走");
+        ctx.record("rig", "a lava trench running the full length along z (surface dy="
+                + (TRENCH_DECK - 4) + ", " + TRENCH_ROWS + " rows of lava); to the east, dx≥"
+                + TRENCH_EDGE + " is a stone deck " + TRENCH_CELLS + " blocks long. Both arms stand on"
+                + " the same shore, and the only variable is whether the bot is allowed to move forward");
 
         Pin walk = drivePin(ctx, "rimWalk", true);
         Pin lock = drivePin(ctx, "livelock", false);
@@ -315,36 +329,41 @@ public final class JourneyCrossingScenes implements SceneProvider {
         // THE CONTROL: both situations must actually reach the discard, or the arm has measured
         // nothing and must not report that the reading separated them.
         if (walk.repaths() < 1)
-            ctx.fail("THE RIG, not the subject: 沿岸走那一臂一次都没触发强制重规划（" + walk.line()
-                    + "） —— 没有事件就没有读数可比");
+            ctx.fail("THE RIG, not the subject: the rim-walk arm never triggered a forced repath ("
+                    + walk.line() + "); with no event there is no reading to compare");
         if (lock.repaths() < 1)
-            ctx.fail("THE RIG, not the subject: 原地卡死那一臂一次都没触发强制重规划（" + lock.line()
-                    + "） —— 那么「沿岸走报了很多格」就分不清是读数在起作用还是这一臂根本没跑到");
+            ctx.fail("THE RIG, not the subject: the livelock arm never triggered a forced repath ("
+                    + lock.line() + "); \"the rim walk reported many cells\" then cannot tell whether"
+                    + " the reading had an effect or this arm never ran far enough");
 
         // THE PARSER'S OWN CONTRACT, checked before the two readings are compared. cellsIn reads the
         // walker's WORDING, and that wording has silently changed twice under it (see cellsIn). A −1
-        // is not a measurement of the body — it is this scene failing to read the line — and left to
-        // flow into the checks below it arrives as「覆盖 -1 个不同格子」, which reads like a subject
-        // that misbehaved and sent the 2026-08-22 gate looking at the walker. It is the rig.
+        // is not a measurement of the bot; it is this scene failing to read the line. Left to flow
+        // into the checks below it would arrive as "covered -1 distinct cells", which reads like a
+        // subject that misbehaved and sent the 2026-08-22 gate looking at the walker. It is the rig.
         if (walk.cells() < 0 || lock.cells() < 0)
-            ctx.fail("THE RIG, not the subject: 读不懂 walker 的强制重规划行 —— cellsIn 的正则"
-                    + " CELLS_IN_LINE（" + CELLS_IN_LINE.pattern() + "）跟这行现在的措辞对不上，"
-                    + "沿岸走解析出 " + walk.cells() + "，原地解析出 " + lock.cells()
-                    + "。原文见证据行 rimWalk.lastLine / livelock.lastLine —— 先让正则跟上那行的"
-                    + "措辞，再谈这两条臂分不分得开；在那之前这个场景什么都没测到");
+            ctx.fail("THE RIG, not the subject: cannot parse the walker's forced-repath line; cellsIn's"
+                    + " pattern CELLS_IN_LINE (" + CELLS_IN_LINE.pattern() + ") does not match the"
+                    + " line's current wording. The rim walk parsed as " + walk.cells()
+                    + " and the livelock as " + lock.cells() + ". The raw lines are in the evidence"
+                    + " rows rimWalk.lastLine / livelock.lastLine. Update the pattern to the line's"
+                    + " wording before judging whether the two arms separate; until then this scene"
+                    + " has measured nothing");
 
-        ctx.check(lock.cells()).as("A 原地卡死必须报成一格 —— 这正是这个计数器当初为之而生的那种情形："
-                + lock.line()).isEqualTo(1);
-        ctx.check(walk.cells() > lock.cells()).as("B 沿岸走必须报出比它多的格子 —— 否则这条线还是"
-                + "把「走了九十格」和「卡在一格上」印成同一句话：沿岸走 " + walk.cells()
-                + " 格，原地 " + lock.cells() + " 格").isTrue();
+        ctx.check(lock.cells()).as("A the livelock must report exactly one cell, which is the situation"
+                + " this counter was built for: " + lock.line()).isEqualTo(1);
+        ctx.check(walk.cells() > lock.cells()).as("B the rim walk must report more cells than that;"
+                + " otherwise the line still prints \"walked ninety blocks\" and \"stuck on one cell\""
+                + " as the same sentence: rim walk " + walk.cells()
+                + " cells, livelock " + lock.cells() + " cells").isTrue();
     }
 
     /** What one drive against the trench produced. */
     private record Pin(int ticks, int repaths, int cells, int pinnedTicks, double travelled) {
         String line() {
             return String.format(Locale.ROOT,
-                    "%d tick，钉住 %d tick，强制重规划 %d 次，最后一次覆盖 %d 个不同格子，沿岸走了 %.2f 格",
+                    "%d ticks, pinned %d ticks, %d forced repaths, the last covering %d distinct cells,"
+                            + " travelled %.2f blocks along the shore",
                     ticks, pinnedTicks, repaths, cells, travelled);
         }
     }
@@ -352,7 +371,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
     /**
      * Drive the trench once and report the discard the pin forced.
      *
-     * <p>{@code travelling} is the arm's only variable. Both bodies stand on the same shore and
+     * <p>{@code travelling} is the arm's only variable. Both bots stand on the same shore and
      * both are steered at the lava; the travelling one is also pushed along +z, so its stride cell
      * sweeps, while the other is held against one lip and pins on the same cell for as long as it
      * takes. Sneak is not re-imposed — it is the channel the pin uses and the thing being measured.
@@ -366,7 +385,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         fp.getInventory().clearContent();
-        // Face into the trench (−x) for the livelock, and RIM_LEAN for the rim walk so the body
+        // Face into the trench (−x) for the livelock, and RIM_LEAN for the rim walk so the bot
         // also travels along +z — the heading the ladder's own rim pins were all measured on.
         fp.setYRot(travelling ? RIM_LEAN : 90f);
         fp.yHeadRot = fp.getYRot();
@@ -392,7 +411,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         }
         int repaths = Walker.guardForcedRepaths - before;
         int cells = cellsIn(Walker.lastGuardRepath);
-        ctx.record(arm + ".lastLine", repaths == 0 ? "（没有强制重规划）" : Walker.lastGuardRepath);
+        ctx.record(arm + ".lastLine", repaths == 0 ? "(no forced repath)" : Walker.lastGuardRepath);
         return new Pin(t, repaths, cells, pinned, Math.abs(fp.getZ() - z0));
     }
 
@@ -405,13 +424,13 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * would assert something no reader ever sees and leave the sentence itself untested.
      *
      * <p><b>⚠️ That couples this scene to the WORDING of a log line, and the coupling has already
-     * rotted twice unnoticed.</b> The pattern was written for「其间点火过 4 个不同的格子」; the walker
-     * then reworded it to「点火过 4 次换格」and again to「钉过 4 个格位（含首格）」, and this matcher
-     * went on returning −1 through both. The 2026-08-22 double-loader gate is what finally caught
-     * it, and only because −1 reached an assertion: <b>both loaders</b> reported「最后一次覆盖 -1
-     * 个不同格子」while the walker's own numbers were exactly right (rim 2, livelock 1) — the body,
-     * the scene's premise and the walker's arithmetic were all correct and the parser was the only
-     * broken part. A silent −1 that goes on to be compared as if it were a cell count is the entire
+     * rotted twice unnoticed.</b> The walker has reworded its distinct-cell clause twice since the
+     * pattern was first written, and each time this matcher went on returning −1. The 2026-08-22
+     * double-loader gate is what caught it, and only because −1 reached an assertion: <b>both
+     * loaders</b> reported "the last covering -1 distinct cells" while the walker's own numbers were
+     * exactly right (rim 2, livelock 1). The bot, the scene's premise and the walker's arithmetic
+     * were all correct and the parser was the only broken part. A silent −1 that goes on to be
+     * compared as if it were a cell count is the entire
      * defect, which is why this no longer gets to be quiet: see the caller, which fails the RIG
      * rather than the subject the moment this returns −1.
      *
@@ -424,15 +443,16 @@ public final class JourneyCrossingScenes implements SceneProvider {
         return m.find() ? Integer.parseInt(m.group(1)) : -1;
     }
 
-    /** The walker's CURRENT wording, deliberately not a union of every past phrasing: accepting the
-     *  dead ones would buy nothing and would hide the next rewording exactly the way the last two
-     *  were hidden. The caller turns a miss into a loud rig failure that names this constant. */
+    /** The walker's CURRENT wording of the pinned-cell count clause that {@code Walker} logs,
+     *  deliberately not a union of every past phrasing: accepting the dead ones would buy nothing and
+     *  would hide the next rewording. The caller turns a miss into a loud rig failure that names
+     *  this constant. */
     private static final java.util.regex.Pattern CELLS_IN_LINE =
-            java.util.regex.Pattern.compile("钉过 (\\d+) 个格位");
+            java.util.regex.Pattern.compile("pinned in (\\d+) cells");
 
     /** dy of the shore deck's top block. */
     private static final int TRENCH_DECK = 20;
-    /** Rows of lava in the trench. Four, so a body that goes in is in it. */
+    /** Rows of lava in the trench. Four, so a bot that goes in is in it. */
     private static final int TRENCH_ROWS = 4;
     /** Westmost deck cell: dx below this is open trench, so the rim runs the whole arena at one x. */
     private static final int TRENCH_EDGE = 1;
@@ -444,7 +464,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
     /** Heading for the travelling arm, in degrees; 0 is +z and 90 is −x (into the trench). 30°
      *  walks the shore while leaning at it — the same shape as {@code wd.serverKeepsWalkingAtALavaRim}'s
      *  own 25°, and the shape every one of rung 12's 83 rim pins was measured on. The first cut used
-     *  150°, which is mostly −z: the body walked backwards off the arena and pinned on one cell,
+     *  150°, which is mostly −z: the bot walked backwards off the arena and pinned on one cell,
      *  and the arm reported the livelock's own answer for the rim. */
     private static final float RIM_LEAN = 30f;
 
@@ -475,41 +495,43 @@ public final class JourneyCrossingScenes implements SceneProvider {
     // ── the row a wedged hop is read from ────────────────────────────────────────────────────
 
     /**
-     * <b>Two bodies, opposite situations, one identical evidence row.</b>
+     * <b>Two bots, opposite situations, one identical evidence row.</b>
      *
      * <h2>The reading this is a copy of</h2>
      *
      * The 2026-08-20 ladder ended rung 14 in a shuttle, and the rows a reader goes to first are the
-     * ones the crossing prints for each wedged hop. Two of the four were unreadable:
+     * ones the crossing prints for each wedged hop. Two of the four were unreadable (rendered in
+     * English):
      *
      * <pre>
-     * fortress.around.4 = 脚下=dirt …… onGround=true 落速=-0.08 血=20 脚下到实心=0
-     * fortress.around.8 = 脚下=air  …… onGround=true 落速=-0.08 血=20 脚下到实心=&gt;16
+     * fortress.around.4 = below=dirt … onGround=true fallSpeed=-0.08 health=20 dropToSolid=0
+     * fortress.around.8 = below=air  … onGround=true fallSpeed=-0.08 health=20 dropToSolid=&gt;16
      * </pre>
      *
-     * <p>{@code around.8} reads as a body hanging over a void. It was not: hop 9 started from that
-     * cell and its own flight row says {@code y 43→43（途中最高 44，最低 41）}, so the body was
-     * standing — balanced on the corner of a NEIGHBOURING block, with its own centre column open
+     * <p>{@code around.8} reads as a bot hanging over a void. It was not: hop 9 started from that
+     * cell and its own flight row says y 43→43 (highest 44, lowest 41 along the way), so the bot was
+     * standing, balanced on the corner of a NEIGHBOURING block, with its own centre column open
      * sixteen blocks down. Recovering that took cross-referencing a different row from a different
-     * hop, and the same three readings are also what a genuinely airborne body prints on the tick it
+     * hop, and the same three readings are also what a genuinely airborne bot prints on the tick it
      * walks off a lip: {@code onGround} is a tick stale there, so the flag says {@code true} while
      * the sole is on nothing.
      *
      * <p>{@link JourneyFlight}'s class note already names this — three different bugs all end with a
-     * body hanging in {@code cave_air} and the snapshot reporting it is the same line in all three —
+     * bot hanging in {@code cave_air} and the snapshot reporting it is the same line in all three —
      * and fixed it for the RECORDER by reading the footprint. {@code surroundings}, the row every
-     * wedged hop prints, never got that fix: it asks only the cell under the body's centre, and a
+     * wedged hop prints, never got that fix: it asks only the cell under the bot's centre, and a
      * player is 0.6 wide.
      *
      * <h2>What this arm measures</h2>
      *
-     * Both bodies stand over the same bottomless shaft and both must print {@code 脚下=air},
-     * {@code onGround=true} and {@code 脚下到实心=&gt;16} — that is the CONTROL, and it is a
-     * measurement rather than an assertion of intent: if the two situations do not produce those
-     * same three readings, this arena has not reproduced the ambiguity and the arm fails as THE RIG
-     * instead of reporting that the new clause separated them. What must then separate them is the
-     * sole, printed through {@link WalkerGeometry#soleRow} — this repo's single enumeration of
-     * 「身体站在哪一格上」, not a fourth opinion invented here.
+     * Both bots stand over the same bottomless shaft and both must print the same three readings:
+     * block below = air, {@code onGround=true}, and drop to solid = &gt;16. That is the CONTROL, and
+     * it is a measurement rather than an assertion of intent: if the two situations do not produce
+     * those same three readings, this arena has not reproduced the ambiguity and the arm fails as
+     * THE RIG instead of reporting that the new clause separated them. What must then separate them
+     * is the sole, printed through {@link WalkerGeometry#soleRow}, which is this repository's single
+     * definition of "which cell the player entity is standing on", not a fourth opinion invented
+     * here.
      *
      * <p><b>Red before the row learned to say it.</b> Without the sole clause the two rows are
      * byte-identical and the first check cannot pass.
@@ -523,12 +545,14 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ctx.cleanup(() -> clearShaft(ctx));
 
         stageShaft(ctx);
-        ctx.record("rig", "一口井：井底 dy=" + SHAFT_FLOOR + "，离脚下那一格 18 格 —— 比 surroundings"
-                + " 自己往下探的 16 格深（所以两具身体都读到「>16」），又比两个 walker 守卫拒绝的落差浅"
-                + "（所以走的那一半走得下去）；台面 dy=" + DECK + "，台缘外什么都没有；另有一块孤零零的"
-                + "下界岩在 dx=-1、dy=" + DECK + " —— 身体骑在它的边角上，自己那一格底下是空的");
+        ctx.record("rig", "a shaft: floor at dy=" + SHAFT_FLOOR + ", 18 blocks below the foot cell."
+                + " That is deeper than the 16 blocks surroundings probes (so both bots read \">16\")"
+                + " and shallower than the drop both walker guards refuse (so the walking half can"
+                + " walk off); deck at dy=" + DECK + ", with nothing beyond the lip; plus one lone"
+                + " netherrack block at dx=-1, dy=" + DECK + ". The perched bot stands on its corner"
+                + " with open air under its own cell");
 
-        // A: a body cornered on a neighbour. x = +0.05 puts its 0.6-wide box across the cell
+        // A: a bot cornered on a neighbour. x = +0.05 puts its 0.6-wide box across the cell
         // boundary, so 0.15 of the sole is on the lone block and its own centre column is air.
         ServerPlayerBody perch = SceneBody.avatar(ctx, ctx.level(),
                 ctx.originX() + 0.05, ctx.rel(0, DECK + 1, 0).getY(), ctx.originZ() + 0.5);
@@ -543,10 +567,11 @@ public final class JourneyCrossingScenes implements SceneProvider {
                 WalkerGeometry.soleOnSolid(new LevelWorldView(ctx.level(), pf), pf),
                 pf.getX(), pf.getY(), pf.getZ()));
         if (!pf.onGround())
-            ctx.fail("THE RIG, not the subject: 骑在邻格边角上的身体没站住（" + where(ctx, pf)
-                    + "） —— 这一臂的前提就是它 onGround=true 却不站在自己那一格上");
+            ctx.fail("THE RIG, not the subject: the bot perched on the neighbour's corner did not stay"
+                    + " put (" + where(ctx, pf) + "); this arm's premise is that it reports"
+                    + " onGround=true without standing on its own cell");
 
-        // B: the stale-flag tick. A body one tick past the lip still reports onGround=true with its
+        // B: the stale-flag tick. A bot one tick past the lip still reports onGround=true with its
         // whole sole on nothing — the same three readings, the opposite situation.
         ServerPlayerBody off = spawn(ctx, ctx.originZ() + 1.5, DECK + 1, true);
         ServerPlayer wf = off.fakePlayer();
@@ -556,36 +581,41 @@ public final class JourneyCrossingScenes implements SceneProvider {
                 WalkerGeometry.soleOnSolid(new LevelWorldView(ctx.level(), wf), wf),
                 wf.getX(), wf.getY(), wf.getZ()));
 
-        // THE CONTROL. Three readings, both bodies, or this arena is not the one that was confusing.
-        for (String must : List.of("脚下=air", "onGround=true", "脚下到实心=>16")) {
+        // THE CONTROL. Three readings, both bots, or this arena is not the one that was confusing.
+        // The tokens are JourneyNetherRungs.surroundings' own wording and must match it verbatim.
+        for (String must : List.of("below=air", "onGround=true", "dropToSolid=>16")) {
             if (!rowPerch.contains(must) || !rowAir.contains(must))
-                ctx.fail("THE RIG, not the subject: 两具身体本该给出同一句「" + must
-                        + "」，实测 骑边角=「" + rowPerch + "」／半空中=「" + rowAir
-                        + "」 —— 那么「新读数把它们分开了」就分不清是新读数起了作用，还是"
-                        + "这座场地本来就分得开");
+                ctx.fail("THE RIG, not the subject: both bots should print the same \"" + must
+                        + "\", measured perched=\"" + rowPerch + "\" / mid-air=\"" + rowAir
+                        + "\". \"The new reading separated them\" then cannot tell whether the new"
+                        + " reading had an effect or this arena was separable to begin with");
         }
 
-        // B and C read the NEW clause only. The old row already contains the character 实 inside
-        // 「脚下到实心」, so a whole-row contains() would be satisfied by the very sentence this arm
-        // exists to say is not enough — a check that passes on the pre-fix row is not a check.
+        // B and C read the sole clause only: a whole-row contains() would also see the rest of the
+        // row, which this arm exists to say is not enough. The marker is WalkerGeometry.soleRow's
+        // own wording.
         String soleOf = soleClause(rowPerch), soleOfAir = soleClause(rowAir);
-        ctx.record("perch.soleClause", soleOf.isEmpty() ? "（这一句里没有脚底那一段）" : soleOf);
-        ctx.record("midAir.soleClause", soleOfAir.isEmpty() ? "（这一句里没有脚底那一段）" : soleOfAir);
+        ctx.record("perch.soleClause", soleOf.isEmpty() ? "(this row has no sole clause)" : soleOf);
+        ctx.record("midAir.soleClause", soleOfAir.isEmpty() ? "(this row has no sole clause)" : soleOfAir);
 
-        ctx.check(rowPerch).as("A 两句必须不再一样 —— 旧读数只问身体正中那一格，而身体宽 0.6 格，"
-                + "所以「骑在邻格边角上」和「真的悬空」印出来是同一句话：" + rowPerch)
+        ctx.check(rowPerch).as("A the two rows must differ. The old reading only asks about the cell"
+                + " under the centre of the player entity, which is 0.6 blocks wide, so \"perched on"
+                + " a neighbour's corner\" and \"genuinely unsupported\" printed the same sentence: "
+                + rowPerch)
                 .isNotEqualTo(rowAir);
-        ctx.check(soleOf.contains("实")).as("B 骑边角的那一句，脚底那一段里必须有一格是实的："
-                + (soleOf.isEmpty() ? rowPerch : soleOf)).isTrue();
-        ctx.check(soleOfAir.contains("实")).as("C 半空中的那一句，脚底那一段里一格实的都不许有 —— "
-                + "否则 B 会被一句对两种情形都成立的话满足：" + (soleOfAir.isEmpty() ? rowAir : soleOfAir))
+        ctx.check(soleOf.contains("solid")).as("B in the perched row, the sole clause must contain at"
+                + " least one solid cell: " + (soleOf.isEmpty() ? rowPerch : soleOf)).isTrue();
+        ctx.check(soleOfAir.contains("solid")).as("C in the mid-air row, the sole clause must contain no"
+                + " solid cell at all; otherwise B would be satisfied by a sentence that holds in both"
+                + " situations: " + (soleOfAir.isEmpty() ? rowAir : soleOfAir))
                 .isFalse();
     }
 
     /** The tail of a {@code surroundings} row from its sole clause on, or empty when the row has no
-     *  such clause. Empty is the pre-fix answer and it must make B fail rather than throw. */
+     *  such clause. Empty is the pre-fix answer and it must make B fail rather than throw. The
+     *  marker is JourneyNetherRungs.surroundings' own wording and must match it verbatim. */
     private static String soleClause(String row) {
-        int i = row.indexOf("脚底=");
+        int i = row.indexOf(" sole=");
         return i < 0 ? "" : row.substring(i);
     }
 
@@ -593,11 +623,11 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * dy of the shaft's floor — eighteen rows under the foot cell, and the number is squeezed
      * between three constants rather than picked.
      *
-     * <p>It has to be deeper than {@code surroundings}' own 16-cell probe, or neither body reads
-     * {@code 脚下到实心=>16} and the control has nothing to be about. It has to be SHALLOWER than
+     * <p>It has to be deeper than {@code surroundings}' own 16-cell probe, or neither bot reads a
+     * drop to solid of {@code >16} and the control has nothing to be about. It has to be SHALLOWER than
      * what the walker's two guards refuse, or the walking half never happens: measured on the first
      * cut of this arena, over a bottomless shaft {@link Walker#strideFloorGuard} fired, killed the
-     * horizontal momentum and sneak-pinned the body on a 0.0001-wide sliver of the lip for all 160
+     * horizontal momentum and sneak-pinned the bot on a 0.0001-wide sliver of the lip for all 160
      * ticks — the guard doing exactly its job, and an arena that mistook it for a rig failure.
      * Eighteen clears both: the stride guard's fall scan reaches 23 at full health and finds this
      * floor, and {@code survivableFall(20) = 22} keeps {@link Walker#footingGuard} out too.
@@ -608,7 +638,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
     private static final int SHAFT_CLEAR = SHAFT_FLOOR + 1;
 
     /**
-     * Walk the deck until the body is ONE TICK past the lip, and take the row there.
+     * Walk the deck until the bot is ONE TICK past the lip, and take the row there.
      *
      * <p>Not the first {@code stillFalling} tick — that is four ticks later, by which time
      * {@code onGround} has caught up and the two rows would differ for a reason that has nothing to
@@ -631,9 +661,9 @@ public final class JourneyCrossingScenes implements SceneProvider {
                 return JourneyNetherRungs.surroundings(fp, fp.blockPosition());
             if (!fp.onGround()) break;                        // the stale tick was overshot
         }
-        ctx.fail("THE RIG, not the subject: 走完 " + WALK_TICKS
-                + " tick 也没抓到「脚底实心=0 而 onGround 还报 true」那一 tick（" + where(ctx, fp)
-                + "） —— 这一臂的另一半没有布出来");
+        ctx.fail("THE RIG, not the subject: after " + WALK_TICKS + " ticks of walking, no tick was"
+                + " caught where the solid sole area is 0 while onGround still reports true ("
+                + where(ctx, fp) + "); the other half of this arm's test setup was never produced");
         return "";
     }
 
@@ -646,8 +676,8 @@ public final class JourneyCrossingScenes implements SceneProvider {
                     ctx.setBlock(dx, dy, dz, Blocks.AIR);
     }
 
-    /** The deck, the lone block beside it that a body can corner on, and the floor eighteen rows
-     *  down. Nothing in between — the column under BOTH bodies has to be open past the row's own
+    /** The deck, the lone block beside it that a bot can corner on, and the floor eighteen rows
+     *  down. Nothing in between — the column under BOTH bots has to be open past the row's own
      *  16-cell probe, which is the whole premise of the control. */
     private static void stageShaft(SceneContext ctx) {
         clearShaft(ctx);
@@ -667,20 +697,21 @@ public final class JourneyCrossingScenes implements SceneProvider {
                         double soleAtLaunch, boolean onGroundAtLaunch, boolean sweptAtLaunch) {
         String line() {
             return String.format(Locale.ROOT,
-                    "%d tick，沿台面走了 %.2f 格，离地=%s，守卫钉住 %d tick；"
-                            + "离地前一 tick：脚底实心 %.4f/0.36，onGround=%s，"
-                            + "vanilla 自己那一问（脚下 0.0784 格内有碰撞吗）=%s",
-                    ticks, walked, leftTheGround ? "是" : "否", pinnedTicks,
-                    soleAtLaunch, onGroundAtLaunch, sweptAtLaunch ? "有" : "没有");
+                    "%d ticks, walked %.2f blocks along the deck, left the ground=%s, pinned by a"
+                            + " guard for %d ticks; on the tick before leaving the ground: solid"
+                            + " sole area %.4f/0.36, onGround=%s, vanilla's own check (any"
+                            + " collision within 0.0784 blocks below the feet)=%s",
+                    ticks, walked, leftTheGround ? "yes" : "no", pinnedTicks,
+                    soleAtLaunch, onGroundAtLaunch, sweptAtLaunch ? "yes" : "no");
         }
     }
 
     /**
-     * Walk the shelf until the body is in the state a leg gets judged in, and say what it cost.
+     * Walk the shelf until the bot is in the state a crossing hop is judged in, and say what it cost.
      *
      * <p>The walker is ticked so its guards run — they live in {@code Walker#tick}'s single-exit
      * wrapper, after every branch of {@code tickInner} — and the heading and impulse are re-imposed
-     * afterwards so the body walks one straight line whatever the walker would rather do. Sneak is
+     * afterwards so the bot walks one straight line whatever the walker would rather do. Sneak is
      * NOT re-imposed: it is the channel a guard pins on, and {@code pinnedTicks} is the reading that
      * says whether one did.
      *
@@ -725,35 +756,35 @@ public final class JourneyCrossingScenes implements SceneProvider {
         return new Walk(t, farZ - startZ, left, pinned, prevSole, prevOnGround, prevSwept);
     }
 
-    /** What spending the allowance cost, and the last verdict taken while the body was still in the
-     *  air — the live row's own reading ({@code 脚下到实心 0 格}) rather than the first one, which is
+    /** What spending the allowance cost, and the last verdict taken while the bot was still in the
+     *  air: the live row's own reading (0 blocks down to solid) rather than the first one, which is
      *  taken three blocks up and understates how close the crossing was to a landing. */
     private record Allowance(int landedAt, String lastMidAir) {}
 
     /**
-     * Spend the crossing's landing allowance and say which tick the body landed on, or −1.
+     * Spend the crossing's landing allowance and say which tick the bot landed on, or −1.
      *
      * <p>The impulse is released first, every tick, because that is what {@link HoldStill} does and
-     * the crossing waits under it: a leftover forward impulse would walk the body off whatever it
-     * lands on, which is「松手不是刹车」with the brake left off.
+     * the crossing waits under it: a leftover forward impulse would walk the bot off whatever it
+     * lands on. Releasing the controls is not braking, and here the brake would be left off.
      */
     private static Allowance allowanceToLand(SceneContext ctx, ServerPlayerBody av, String arm) {
         ServerPlayer fp = av.fakePlayer();
         int landedAt = -1;
-        String lastMidAir = "没有 —— 身体从来没进入过「还在下坠」";
+        String lastMidAir = "none; the bot never entered the \"still falling\" state";
         for (int i = 1; i <= JourneyNetherRungs.LANDING_TICKS; i++) {
             String verdict = JourneyNetherRungs.hazardBlockingARetry(fp, fp.blockPosition());
-            if (landedAt < 0 && verdict != null) lastMidAir = "第 " + i + " tick：" + verdict;
+            if (landedAt < 0 && verdict != null) lastMidAir = "tick " + i + ": " + verdict;
             step(av);
             if (landedAt < 0 && fp.onGround()) landedAt = i;
         }
-        ctx.record(arm + ".allowance", "余量 " + JourneyNetherRungs.LANDING_TICKS
-                + " tick，第 " + landedAt + " tick 落地（-1 = 没落地）；落地前最后一次判决 = "
-                + lastMidAir + "；" + where(ctx, fp));
+        ctx.record(arm + ".allowance", "allowance " + JourneyNetherRungs.LANDING_TICKS
+                + " ticks, landed on tick " + landedAt + " (-1 = never landed); last verdict before"
+                + " landing = " + lastMidAir + "; " + where(ctx, fp));
         return new Allowance(landedAt, lastMidAir);
     }
 
-    /** One idle physics tick with everything released — {@link HoldStill}'s own body. */
+    /** One idle physics tick with everything released, exactly what {@link HoldStill} does. */
     private static void step(ServerPlayerBody av) {
         av.commandMove(0f, 0f);
         av.commandJump(false);
@@ -761,7 +792,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         av.step();
     }
 
-    /** A body at {@code dy}, optionally left to stand for {@link #SETTLE_TICKS} first. The settle is
+    /** A bot at {@code dy}, optionally left to stand for {@link #SETTLE_TICKS} first. The settle is
      *  for an arm that starts ON something — it proves vanilla itself holds the stance up before the
      *  measurement rather than during it. An arm that starts in the air must NOT have it: those
      *  ticks are its own fall. */
@@ -775,8 +806,8 @@ public final class JourneyCrossingScenes implements SceneProvider {
         if (!settle) return av;
         for (int i = 0; i < SETTLE_TICKS; i++) step(av);
         if (fp.getY() < ctx.rel(0, dy, 0).getY() - 0.5)
-            ctx.fail("THE RIG, not the subject: vanilla 自己就没端住这个站位（" + SETTLE_TICKS
-                    + " 个空 tick 之后 " + where(ctx, fp) + "）");
+            ctx.fail("THE RIG, not the subject: vanilla physics alone did not hold this stance ("
+                    + where(ctx, fp) + " after " + SETTLE_TICKS + " idle ticks)");
         return av;
     }
 
@@ -796,7 +827,8 @@ public final class JourneyCrossingScenes implements SceneProvider {
     }
 
     private static String where(SceneContext ctx, ServerPlayer fp) {
-        return String.format(Locale.ROOT, "身体=(%.2f,%.2f,%.2f) onGround=%s 落速=%.3f 脚下=%s 脚下到实心=%s",
+        return String.format(Locale.ROOT,
+                "bot=(%.2f,%.2f,%.2f) onGround=%s fallSpeed=%.3f below=%s dropToSolid=%s",
                 fp.getX(), fp.getY(), fp.getZ(), fp.onGround(), fp.getDeltaMovement().y,
                 blockUnder(ctx, fp), dropBelow(ctx, fp.blockPosition()));
     }
@@ -807,11 +839,11 @@ public final class JourneyCrossingScenes implements SceneProvider {
     }
 
     /**
-     * How far it is straight down to the first block that would hold the body.
+     * How far it is straight down to the first block that would hold the bot.
      *
-     * <p><b>Not the same reading as the rung's own {@code dropBelow}</b>, which this comment used to
-     * claim it was. {@link JourneyNetherRungs}' probe stops at 16 and answers「虚空」below the build
-     * limit; this one looks 48 down and has no void case, because the arena's bay is deeper than a
+     * <p><b>Not the same reading as the rung's own {@code dropBelow}.</b> {@link JourneyNetherRungs}'
+     * probe stops at 16 and answers "void" below the build limit; this one looks 48 down and has no
+     * void case, because the arena's bay is deeper than a
      * nether cave and no scene here can fall out of the world. So a number printed by one and a
      * number printed by the other are comparable only up to 16 — say which probe produced a row
      * before reading them side by side.
@@ -837,7 +869,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
     /** The shelf, the lip, and the bay under it — the same terrain for both arms. */
     private static void stage(SceneContext ctx) {
         clear(ctx);
-        for (int dx = -1; dx <= 1; dx++)                       // the shelf the body walks out on
+        for (int dx = -1; dx <= 1; dx++)                       // the shelf the bot walks out on
             for (int dz = -2; dz <= SHELF_CELLS - 2; dz++)
                 for (int dy = 0; dy <= DECK; dy++)
                     ctx.setBlock(dx, dy, dz, Blocks.NETHERRACK);

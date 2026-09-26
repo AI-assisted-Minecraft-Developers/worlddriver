@@ -1,14 +1,15 @@
-"""解析 Walker 的 [walker] telemetry 行。
+"""Parse the Walker's [walker] telemetry lines.
 
-发射点是 WalkerTickClimb.java 里的 `LOG.info("[walker] t={} step=...")`
-——不再是 Walker.java(该类已按 docs/dev/movement-tick-phases.md 拆成 WalkerTick* 相
-位类),所以这里不再钉行号:行号会漂,类名不会。
+The emitter is `LOG.info("[walker] t={} step=...")` in WalkerTickClimb.java (the Walker is
+split into WalkerTick* phase classes, see docs/dev/movement-tick-phases.md). No line number is
+pinned here: line numbers drift, class names do not.
 
-下面的正则与发射端的格式字符串是一份**没有编译期约束**的契约。
-`scripts/check_log_contract.py` 是唯一把两端拴在一起的东西:它拿真跑出来的日志
-喂这些正则,任何一条解析不了就红。没有它,改个字段名照样编译、照样过全部场景,
-只是这里从此匹配不到任何行——而正则匹配失败不抛异常,只是返回空迭代器,工具会
-安静地报告"没有 tick",看起来就像机器人根本没动过。
+The regexes below and the emitter's format string form a contract with **no compile-time
+check**. `scripts/check_log_contract.py` is the only thing that ties the two ends together: it
+feeds real run logs to these regexes and fails if any line cannot be parsed. Without it, a
+renamed field still compiles and still passes every scene, but nothing here matches any more —
+and a failed regex match does not raise, it returns an empty iterator, so the tool quietly
+reports "no ticks", which looks exactly like a bot that never moved.
 """
 import re
 from dataclasses import dataclass
@@ -61,9 +62,9 @@ def _yaw_delta(a, b):
 
 
 def water_yaw_thrash(ticks):
-    """Mean |Δyaw| per tick across consecutive IN-WATER ticks = the "水中反复横跳" signature that
+    """Mean |Δyaw| per tick across consecutive IN-WATER ticks = the signature of repeated side-to-side swerving in water that
     totStuck is BLIND to (in-water progress is horizontal-only/bob-immune, so a thrashing-yaw swim
-    that drifts forward keeps totStuck low while the camera/body swings wildly — the dominant water
+    that drifts forward keeps totStuck low while the camera and the player's heading swing wildly — the dominant water
     jank on the 2026-06-29 journey, REGRESSION.md §14). Consecutive = adjacent ticks both inW with
     yaw present and t increasing by 1 (same uninterrupted swim). Returns (mean_abs_dyaw, samples)."""
     total, n = 0.0, 0

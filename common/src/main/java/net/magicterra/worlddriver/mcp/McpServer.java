@@ -193,7 +193,7 @@ public final class McpServer implements Closeable {
 
         if (method == null) { sendJson(ex, 400, jsonRpcError(id, -32600, "missing or non-string method")); return; }
 
-        // spec: 2025-06-18 §Transports — an accepted notification gets 202 with no body.
+        // spec: 2025-06-18 §Transports — an accepted notification gets 202 with no bot.
         // Nothing is dispatched: every client→server notification MCP defines is advisory
         // here, and an id-less tools/call would run a verb whose result nobody can read.
         if (id == null) { sendNoBody(ex, 202); return; }

@@ -55,7 +55,7 @@ read the client, which is how you detect a desynchronisation between the two.
 | `mc.observe.player` | The player snapshot: position, look, health, food, effects, world time and phase, game mode, hands, hotbar, armour and the whole inventory. `attack` carries the melee recharge of the held weapon; `items` aggregates the bag into the `{id: count}` shape the crafting planners take. | `name` picks the player server-side; ignored on the client fallback |
 | `mc.query` | Scans blocks or entities in a cube, with filters and a `select` projection. Entity rows carry the `id` that `mc.bot.attackEntity` wants. A block scan reads only loaded chunks and refuses, naming them, a cube that reaches into unloaded ones rather than loading them. | `q` (`blocks` or `entities`), `center`, `filter.in_radius` (max 15 for blocks, the 32,768-cell budget `mc.action.fill` uses; max 128 for entities), `filter.type` (accepts a `#tag`), `filter.is_hostile`, `filter.is_living`, `select` |
 | `mc.observe.map` | A compact ASCII spatial map: a top-down height map, or a vertical cross-section. Server-side, and works headless. | `plane` (`xz`, `xy`, `zy`), `center`, `radius` (max 24), `height` |
-| `mc.observe.scene` | A hazard read around a centre: how many cells would kill a full-health body, whether it is cornered, and the safest step away from a threat. Optional ASCII grid and height / sight / mob-density overlays. Server-side, works headless. | `center`, `radius`, `render`, `overlays`, `route` |
+| `mc.observe.scene` | A hazard read around a centre: how many cells would kill a player at full health, whether it is cornered, and the safest step away from a threat. Optional ASCII grid and height / sight / mob-density overlays. Server-side, works headless. | `center`, `radius`, `render`, `overlays`, `route` |
 | `mc.observe.container` | Reads a container's slots. With `pos`, the block entity there; without, whichever container menu is open on the client. | `pos` |
 | `mc.world.block` | Read-only single-cell inspection: type, block-state properties, block and sky light, optionally the block entity's NBT. The verify half of a build-then-verify loop. | `pos`, `nbt` |
 | `mc.observe.threats` | Scored hostiles and incoming projectiles: distance, line of sight, whether a creeper is swelling, and a 0-to-1 danger score. **Client-only**; returns empty lists rather than an error on a dedicated server. | `radius` (1–64, default 24) |
@@ -70,7 +70,7 @@ entities and 16 for blocks.
 
 ## Changing the world directly
 
-These write to the world without a body doing anything. They are the fast way to build a
+These write to the world without a player doing anything. They are the fast way to build a
 situation; they are not how a survival agent plays.
 
 | Method | What it does | Notable parameters |
@@ -95,7 +95,7 @@ relying on hardcoded recipes that go wrong in a modpack.
 | `mc.recipe.resolve` | Expands "I want N of this" into a dependency-ordered craft plan plus the raw materials still missing. It does the counts, yields, tag substitution and cycle detection that are easy to get wrong by hand. | `target`, `count`, `have` |
 | `mc.plan.acquire` | Goes further than `resolve`: routes every missing leaf to an action — mine, farm, smelt or craft — and orders the steps so you can execute them top to bottom. `unobtainable` lists the leaves that need mob drops, trading or structures. | `target`, `count`, `have` |
 
-Both planners read the body's real inventory by default, which is the same bag
+Both planners read the bot's real inventory by default, which is the same inventory
 `mc.bot.craft` consumes from, so a plan made from them is a plan that executes. Pass `have`
 only to plan a hypothesis; an explicit `{}` means "suppose I had nothing".
 
@@ -135,7 +135,7 @@ server-side verb to call.
 | Method | What it does | Notable parameters |
 |---|---|---|
 | `mc.client.screen.info` | A cheap probe of the current screen: whether a screen, world or player exists, the screen type and title, and `windowActive` / `mouseGrabbed`. Call it first as an availability check. | none |
-| `mc.client.screen.tree` | Walks the screen's widget tree and returns positions and labels. The canonical way to pick a click target without taking a screenshot, and it works for self-drawn modded screens. It reports structure, not paint. | none |
+| `mc.client.screen.tree` | Walks the screen's widget tree and returns positions and labels, plus the label's translation key when it has one, so a script can find a vanilla button whatever the player's language. The canonical way to pick a click target without taking a screenshot, and it works for self-drawn modded screens. It reports structure, not paint. | none |
 | `mc.client.screen.close` | Pops the current screen. Always succeeds. | none |
 | `mc.client.input.click` | Clicks at logical screen coordinates. | `x`, `y`, `button` |
 | `mc.client.input.slotClick` | Clicks a slot in the open container menu with an explicit click type — the only way to get shift-click, Q-drop, number-key swap, middle-click or double-click without spoofing keyboard modifiers. | `slot`, `button`, `type` (`pickup`, `quickMove`, `throw`, `swap`, `clone`, `pickupAll`, `quickCraft`) |
@@ -170,18 +170,18 @@ importantly — the fact that the class filter is off by default.
 ## The autonomous layer: `mc.bot.*`
 
 This is the part most readers came for. Everything above either observes or writes
-directly; `mc.bot.*` is a body that plays the game — an A\* pathfinder, a walker that
+directly; `mc.bot.*` is a bot that plays the game — an A\* pathfinder, a walker that
 executes the plan tick by tick, a scheduler that runs one user task at a time with reflexes
 that can pre-empt it, and a per-verb process for each thing it can be asked to do.
 
-**Which body, and therefore where it works.** By default the verbs drive `self`, the local
+**Which bot, and therefore where it works.** By default the verbs drive `self`, the local
 client's player, which makes them client-only. Most of them also take a `body` parameter
-naming a body from `mc.bot.status`; with a body that is not `self`, the call goes down a
+naming a bot from `mc.bot.status`; with a bot other than `self`, the call goes down a
 path that names no client class at all, which is why the same verbs answer for server-side
-bodies on a dedicated server. `mc.bot.status` itself works everywhere. The exceptions —
-`equip`, `setting`, `waypoint` and `playbook` — take no `body` and are client-only. A body
-that is not your own player has no reflexes, and a non-player body has no hands, so verbs
-that need them answer `no_hands`.
+players on a dedicated server. `mc.bot.status` itself works everywhere. The exceptions —
+`equip`, `setting`, `waypoint` and `playbook` — take no `body` and are client-only. A bot
+that is not your own player has no reflexes, and a bot that is not a player entity has no
+hands, so verbs that need them answer `no_hands`.
 
 ### Movement
 
@@ -226,7 +226,7 @@ into segments at each point where the risk changes, so you can read "the first t
 cells are safe, the next twenty-one are in a skeleton's line of sight". Passing that
 `planId` back to `goto` walks exactly that route; the reply says `adopted: true`, or
 `adopted: false` with a reason when it had to fall back to a fresh search, which happens if
-the preview is more than sixty seconds old, was a best-effort result, or the body has moved
+the preview is more than sixty seconds old, was a best-effort result, or the bot has moved
 away.
 
 #### Route conditions
@@ -288,7 +288,7 @@ is off.
 
 | Method | What it does | Notable parameters |
 |---|---|---|
-| `mc.bot.status` | The snapshot of every process slot, plus the list of addressable bodies. Available on a dedicated server. | `body` |
+| `mc.bot.status` | The snapshot of every process slot, plus the list of addressable bots. Available on a dedicated server. | `body` |
 | `mc.bot.cancel` | Cancels running processes, releases the held inputs, and names what it actually cancelled. `all` is a best-effort broadcast. | `process`, `body` |
 | `mc.bot.setting` | Reads or writes the tuning and toggle surface. Empty parameters reads; any key writes, applied on the next tick. | See below |
 
@@ -316,7 +316,7 @@ there (`"done (placed=12, skipped=0)"`, `"not needed (…)"`), and so does the a
 says why it stopped — a give-up (a goto that ended short of its goal, a build that skipped
 blocks, a follow that could not close in), an exception, or a cancel. A goto with `invert` or a
 strict `direction` has no goal to reach, so it is done when it stops. The auto-backfill is not a
-user task and leaves `lastProcessEnd` as it was. A named body's status (`body: "player:…"` or
+user task and leaves `lastProcessEnd` as it was. A named bot's status (`body: "player:…"` or
 `"npc:…"`) carries its own `lastProcessEnd` in the same shape. `lastPath` holds the
 statistics of the most recent search — how many nodes were expanded, how long it took, and
 whether the goal was reached — which is the first thing to read when the answer to "why is
@@ -371,7 +371,7 @@ creative mode; with an empty hotbar the capability is there and the move is not.
 
 Turning either off does not disable every form of the behaviour, and that is the part that
 surprises people. Several narrower flags are deliberately independent of the two master
-switches, because they exist for situations where the body is stuck rather than merely
+switches, because they exist for situations where the bot is stuck rather than merely
 inconvenienced:
 
 - `allowSwimEscapeBreak`, on by default, lets the search mine bank blocks to climb out of a
@@ -380,7 +380,7 @@ inconvenienced:
 - `allowSwimEscapePlace`, on by default, lets the walker place one block on the water
   surface when it is bobbing against a bank whose top is above the waterline, independently
   of `allowPlace`.
-- `antiSuffocate`, on by default, breaks the block choking the body's head — falling sand in
+- `antiSuffocate`, on by default, breaks the block suffocating the player at head height — falling sand in
   a dig pit — and needs `allowBreak`.
 - `autoDrownEscape`, on by default, breaks a solid lid overhead while floating up out of
   drowning water, and also needs `allowBreak`.

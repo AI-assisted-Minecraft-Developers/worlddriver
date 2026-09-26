@@ -43,7 +43,7 @@ final class WalkerTickRepath {
         // walkerBridgeHoldRepath (§82): a mid-bridge PERIODIC repath swaps the committed
         // bridgePlace chain for a fresh plan whose first node sits elsewhere (arena live:
         // new node at y+8), and the drive steers off the END of the placed deck into air —
-        // the "搭桥中途掉下" signature. Deck length decides the fate: a 19-block deck
+        // the signature of falling off partway through a bridge. Deck length decides the fate: a 19-block deck
         // finishes in 8-9s (inside one 10s repath period, 3/3 clean) while diagonal
         // zig-zag and 40-block decks straddle the period and fell every run. While the
         // current or next edge is a bridgePlace, hold the ROUTINE repath; safety repaths
@@ -160,7 +160,7 @@ final class WalkerTickRepath {
             wk.ticksSinceRepath = 0;
         }
         // ANTI-STUCK displacement burst: drive a fixed turned heading + jump for a
-        // few ticks so the body physically leaves the wedge cell. Path/edges stay
+        // few ticks so the bot physically leaves the wedge cell. Path/edges stay
         // as-is; once the burst ends the normal logic sees a NEW foot (offPath or
         // the in-flight re-search lands) and plans from genuinely new ground.
         // STEPUP BACKOFF-RETRY drive (walkerStepUpBackoffRetry): armed by the dryStepUp
@@ -183,7 +183,7 @@ final class WalkerTickRepath {
             // p.setYRot here wound the camera 8+ full turns in a water-cave wedge
             // cluster (bursts every ~6 s, each with a different escape bearing,
             // every one yanking the view — raw yaw hit -3109°). commandMove pushes
-            // the body along the escape bearing with ZERO camera motion: AvatarInput
+            // the bot along the escape bearing with ZERO camera motion: AvatarInput
             // pre-rotates the impulse by Δ = bearing − cameraYaw and vanilla
             // travel() rotates it back, so the net push is along unstuck.burstYaw exactly
             // as before — the same decoupling the main walk branch already uses.
@@ -213,7 +213,7 @@ final class WalkerTickRepath {
      * against an arc of 3.47 blocks; repairing only {@code Walker#wiggleHop} would have left the
      * identical hole open on the door beside it. This path is the easier of the two to reason
      * about, because a burst already carries an explicit escape bearing — {@code unstuck.burstYaw},
-     * the very heading {@code commandMove} pushes the body along two lines above — so it never had
+     * the very heading {@code commandMove} pushes the bot along two lines above — so it never had
      * to be handed the drive channel at all.
      *
      * <p><b>It logs because it never has</b> — and the first run that gave it a pen settled a
@@ -236,7 +236,7 @@ final class WalkerTickRepath {
             // Chebyshev-≤2 test would have held this hop, ">2" means it would have let it go. A row
             // that prints only the rule that won cannot tell a reader the two ever disagreed.
             int oldRing = nearestLethalHopRing(world, p, foot, HOP_RANGE);
-            LOG.info("[walker] 解卡突进跳: 起跳={} 身体={} 剩余={} 旧闸最近致命格={} | {}", allowed,
+            LOG.info("[walker] unstuck burst hop: jump={} foot={} remaining={} ringGateNearestLethal={} | {}", allowed,
                     foot.toShortString(), wk.unstuck.burstTicks,
                     oldRing < 0 ? ">" + HOP_RANGE : String.valueOf(oldRing),
                     hopLandingRow(world, p, foot, wk.unstuck.burstYaw));
@@ -245,7 +245,7 @@ final class WalkerTickRepath {
     }
 
     /**
-     * Price out the cells a wedged body keeps re-planning into, so the re-search that follows
+     * Price out the cells a wedged bot keeps re-planning into, so the re-search that follows
      * routes AROUND the obstruction instead of straight back at it.
      *
      * <p><b>Where the cut is, and why here.</b> Lifted verbatim out of {@link #run}, which had
@@ -299,7 +299,7 @@ final class WalkerTickRepath {
         // shifts A*'s cost — an adjacent equally-cheap water cell funnels
         // the next search straight back in, so the pocket only prices out
         // after a dozen slow over-water repaths (~27 s observed live,
-        // round76 NE leg at 2307,62,2579). The land-churn escape already
+        // round76 NE walk at 2307,62,2579). The land-churn escape already
         // ESCALATES its priced-out radius each repeat; the safety-repath
         // nose charge did not, the asymmetry IS the deep-water latency.
         // When the SAME foot wedges repeatedly IN WATER, widen the charge

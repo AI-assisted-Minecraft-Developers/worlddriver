@@ -20,8 +20,8 @@ final class WalkerTickCtx {
     final EdgeState edges = new EdgeState();
     final AimPlan aim = new AimPlan();
 
-    /** Produced by {@link WalkerTickPrelude}: the resolved body + anchor cells every
-     *  later phase keys off. {@code foot} is re-derived by phases that move the body. */
+    /** Produced by {@link WalkerTickPrelude}: the resolved bot + anchor cells every
+     *  later phase keys off. {@code foot} is re-derived by phases that move the bot. */
     static final class Frame {
         LivingEntity p;
         BlockPos foot;

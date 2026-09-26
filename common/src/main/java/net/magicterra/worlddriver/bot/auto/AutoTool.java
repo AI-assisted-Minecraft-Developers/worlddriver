@@ -15,7 +15,7 @@ import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
  * Baritone autoTool — when the crosshair points at a breakable block, swap the
  * selected hotbar slot to the item with the best destroy speed for that block
  * (preferring correct-tool-for-drops). Skipped while any process or chain drives the
- * body (they manage hotbar themselves; the host gates the call on {@link #mayRun}). Extracted from
+ * bot (they manage the hotbar themselves; the host gates the call on {@link #mayRun}). Extracted from
  * {@code BotApiImpl}; minimal cross-tick state for the manual-selection grace
  * (gap#68-⑪) — otherwise stateless.
  */

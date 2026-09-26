@@ -99,7 +99,7 @@ module layer refuses to build. Every package in the testmod has to be one the ma
 ### The scene file is two files
 
 Terrain is a vanilla `StructureTemplate` NBT, so any server can read it. Everything else — markers,
-inventory, configuration overrides, the legs of the journey, the accepted numeric expectations, and the
+inventory, configuration overrides, the segments of the journey, the accepted numeric expectations, and the
 chunk radius — is JSON beside it.
 
 The chunk radius is computed from the bounding box at save time rather than left at the default. A scene

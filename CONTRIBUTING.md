@@ -169,7 +169,7 @@ If you find a log or a screenshot at the repository root, it is a leftover. Dele
 
 ## Commit messages
 
-One line, no body, [Conventional Commits](https://www.conventionalcommits.org/):
+One line, no message body, [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 type(scope): what changed, in the imperative

@@ -96,7 +96,7 @@ public final class BotState {
      *
      * <p>Deliberately covers ALL slots — unlike the screen-watchdog's hand-listed subset
      * in {@code BotApiImpl}, which excludes craft/smelt because those legitimately hold a
-     * station screen. This one answers "is the bot driving the body at all?", so a
+     * station screen. This one answers "is the bot driving the player at all?", so a
      * crafting bot counts. Slot fields are volatile; no lock needed for this read.
      */
     public String activeName() {
@@ -196,11 +196,11 @@ public final class BotState {
          * edge that enters it ({@code walk} / {@code stepDown} / {@code fall7} / …).
          *
          * <p>On the slots where {@code pathLen}/{@code pathStep} really are a walker's (see their
-         * javadoc — on five other writers they are not), they say how far along a plan the body is
+         * javadoc — on five other writers they are not), they say how far along a plan the bot is
          * and nothing about what the plan asked for. That gap ended a diagnosis: a nether crossing
          * left the ground and fell eleven blocks into lava, and the only readings anyone had were
-         * about the cell under the body's FEET — which cannot distinguish "the next node really is
-         * across a gap" from "the node is fine and the body overshot it". Those want opposite fixes.
+         * about the cell under the player's FEET — which cannot distinguish "the next node really is
+         * across a gap" from "the node is fine and the bot overshot it". Those want opposite fixes.
          *
          * <p>Deliberately NOT in {@link #snapshot()}: every {@code mc.bot.status} poll ships every
          * slot's map to an LLM client, and this is a debugging reading for in-process consumers
@@ -215,7 +215,7 @@ public final class BotState {
          * fall could not be read without that one. {@code Walker.tickInner} has dozens of early
          * returns — pillar, dig, escape, step-up — and the drive TAIL, where the lethal-edge
          * sneak-pin and the sprint/jump decision live, runs only on the ticks that reach it. So
-         * "the body was not sneaking beside a lava drop" has two completely different causes: the
+         * "the bot was not sneaking beside a lava drop" has two completely different causes: the
          * pin evaluated false, or the tick never got to the pin. {@code Walker.driveTag} already
          * distinguishes them (it is null on an early return) and nothing outside the walker could
          * read it — the journey's crossing runs its own {@code IntentProcess} walker, not the
@@ -234,13 +234,13 @@ public final class BotState {
         public volatile String endReason;
         public volatile double finalDist = -1;
         /**
-         * The FIRST plan this run ever held, latched once and never overwritten — where the body was
+         * The FIRST plan this run ever held, latched once and never overwritten — where the bot was
          * standing, how long the path was, and which move entered its first node.
          *
-         * <p>{@code pathLen}/{@code pathMove} are live values, and a run that ends somewhere the body
+         * <p>{@code pathLen}/{@code pathMove} are live values, and a run that ends somewhere the bot
          * should never have been reports the planning of that somewhere. Measured 2026-08-17 on the
-         * End arrival platform: the leg's closing row read {@code pathLen=7 move=bridgePlace} while
-         * the body was 23 000 blocks down a void in which every {@code BridgePlace} premise trivially
+         * End arrival platform: the walk's closing row read {@code pathLen=7 move=bridgePlace} while
+         * the bot was 23 000 blocks down a void in which every {@code BridgePlace} premise trivially
          * holds — a true statement about a plan made in free fall, mistaken for the plan made on the
          * platform. This field is the sample taken while there was still ground under the question.
          *

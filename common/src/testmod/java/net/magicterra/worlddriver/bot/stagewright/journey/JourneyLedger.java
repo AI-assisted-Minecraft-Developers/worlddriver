@@ -16,7 +16,7 @@ import net.minecraft.core.BlockPos;
  * playthrough is <b>one continuous run</b>, so its stages are not independent tests that happen to
  * be adjacent — they are chapters of a single narrative, and each one only means anything given
  * everything before it. An {@code IRON} stage that ran in a freshly staged arena would be a test of
- * {@code SmeltProcess}; an {@code IRON} stage that ran on ore the same body mined with a pickaxe it
+ * {@code SmeltProcess}; an {@code IRON} stage that ran on ore the same bot mined with a pickaxe it
  * crafted from wood it cut is a test of the playthrough. The suite already has 222 scenes doing the
  * former.
  *
@@ -68,14 +68,14 @@ public final class JourneyLedger {
      * species, a crafting table re-bought every rung instead of carried, a craft attempted where
      * there was no room to place a table, a search wider than the loaded world, and a walk that
      * reported arrival 88 blocks short. Promoted on three consecutive green runs of the same code,
-     * ending 铁锭 ×4 / ×6 / ×6 with {@code stagingCalls=0}.
+     * ending with iron ingots ×4 / ×6 / ×6 and {@code stagingCalls=0}.
      *
      * <p><b>Raised to PORTAL_KIT on 2026-08-10.</b> It had been green six times before that and was
      * still held down here, because the greens were not on one code base and one of the reds was
      * real: the kit costs four ingots, the iron rung's vein loop was written to work three veins,
      * and only two were ever baked into {@link JourneyRoute}. A rung that passes because the terrain
      * was generous is not a rung that works. What made it promotable was finding that, not running
-     * more runs. Four consecutive greens, ending 铁锭 ×6 / ×6 / ×11 / ×6.
+     * more runs. Four consecutive greens, ending with iron ingots ×6 / ×6 / ×11 / ×6.
      *
      * <p><b>Counting greens is the wrong promotion criterion, and OBSIDIAN cost two round trips to
      * establish it.</b> Promoted on three, regressed next run. Bar raised to five on the reasoning
@@ -91,7 +91,7 @@ public final class JourneyLedger {
      *
      * <p>One bound rides along with this floor and is not hidden: every green row on this track
      * carries {@code body.invulnerable=true}. The ladder proves what the driver can DO, never that
-     * a body survives doing it.
+     * a bot survives doing it.
      */
     public static final JourneyStage FLOOR = JourneyStage.PORTAL_KIT;
 
@@ -124,8 +124,8 @@ public final class JourneyLedger {
      * cast and light it, and a fresh world puts it somewhere else.
      *
      * <p>It exists because the 2026-08-22 run needed it and only had it as prose: rung 13 printed
-     * 「落在 6, 41, 3」 into an evidence string, and rung 17 — which must walk back through that
-     * doorway — could not read a sentence. It searched 24 blocks around a body that rungs 14 and 15
+     * "landed at 6, 41, 3" into an evidence string, and rung 17 — which must walk back through that
+     * doorway — could not read a sentence. It searched 24 blocks around a bot that rungs 14 and 15
      * had carried 470 blocks away, found nothing, and failed. A landmark that is only printed is a
      * landmark nobody can use.
      */
@@ -170,7 +170,7 @@ public final class JourneyLedger {
     /** Record a rung as never attempted because {@code blockedBy} was not climbed. */
     public static synchronized void blocked(JourneyStage stage, JourneyStage blockedBy, long serverTick) {
         ENTRIES.put(stage, new Entry(stage, Outcome.BLOCKED,
-                "上游阶段 " + blockedBy.name() + "(" + blockedBy.label() + ") 未达成",
+                "prerequisite stage " + blockedBy.name() + "(" + blockedBy.label() + ") was not reached",
                 Map.of(), serverTick));
     }
 
@@ -210,7 +210,7 @@ public final class JourneyLedger {
         STAGING.add(what);
     }
 
-    /** Every staging call this run made — the measured version of "全程零布景". */
+    /** Every staging call this run made — the measured version of "no test setup at any point". */
     public static synchronized List<String> stagingCalls() {
         return List.copyOf(STAGING);
     }

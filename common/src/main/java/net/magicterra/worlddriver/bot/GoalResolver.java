@@ -22,11 +22,11 @@ import java.util.function.Predicate;
  * BotApiImpl; the impl's instance {@code resolveGoal}/{@code resolveBaseGoal}
  * (which also consult per-bot waypoints) call into these.
  *
- * <p><b>No client type anywhere in this class.</b> A server body resolves its {@code goto} through
- * these helpers too, and the verifier checks every method of a class when it links it: one
+ * <p><b>No client type anywhere in this class.</b> A server-side bot resolves its {@code goto}
+ * through these helpers too, and the verifier checks every method of a class when it links it: one
  * {@code LocalPlayer} passed where an {@code Entity} is expected would load that class and stop this
- * one linking on a dedicated server, whether or not the method ever runs. The body is an
- * {@link Entity} and the level is the body's own.
+ * one linking on a dedicated server, whether or not the method ever runs. The player is an
+ * {@link Entity} and the level is the player's own.
  */
 public final class GoalResolver {
 
@@ -42,7 +42,7 @@ public static Goal targetGoal(BlockPos target, String mode, int near) {
     };
 }
 
-/** Scan the body's level for the nearest matching block id within `radius`
+/** Scan the player's level for the nearest matching block id within `radius`
  *  (XZ Chebyshev, Y by BotConfig.mineSearchVerticalRadius) that has a
  *  standable adjacent, and return the stand position so the goto walker can
  *  target it.
@@ -177,7 +177,7 @@ public static int[] horizontalStep(Entity p, String d) {
  *  ({@code SchemaValidator} rejects an out-of-enum string before {@code DriverApi.route} runs) —
  *  but the two enums do not agree either: {@code mc.bot.goto} declares {@code "backward"} and
  *  {@code mc.bot.construct} declares {@code "back"} ({@code BotTools} 143 / 447). So the word an
- *  agent must type for「the way I came」changes between two verbs of the same API, and each
+ *  agent must type for "the way I came" changes between two verbs of the same API, and each
  *  resolver only understands its own half. Reconciling them means one enum, one accept-set and a
  *  validation script — not quietly widening one side. */
 public static Direction resolveCardinalDirection(Entity pl, String dir) {

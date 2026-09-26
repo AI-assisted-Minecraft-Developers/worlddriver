@@ -23,7 +23,7 @@ public final class Parkour2Diagonal extends Move {
         BlockPos to = apply(from);
         // Never leap a bottomless gap while a bridge is affordable: see Move.overTheVoid for why
         // this is a rule and not a price. When placement is off there is nothing better to do, so
-        // the leap stays available rather than leaving the body with no move at all.
+        // the leap stays available rather than leaving the bot with no move at all.
         if (BotConfig.pathfinderForbidParkourOverTheVoid && BotConfig.allowPlace
                 && Move.overTheVoid(w, from, to)) return false;
         if (!w.canStandAt(to)) return false;
@@ -36,7 +36,7 @@ public final class Parkour2Diagonal extends Move {
         if (!w.isPassable(from.offset(0, 2, 0))) return false;
         int sx = Integer.signum(dx), sz = Integer.signum(dz);
         // Diagonal midpoint (1,1) and the two cardinal half-steps must
-        // all be clear at foot+head — body sweeps that whole corner.
+        // all be clear at foot+head — the player sweeps that whole corner.
         BlockPos[] mids = {
             from.offset(sx, 0, sz),
             from.offset(sx, 0, 0),

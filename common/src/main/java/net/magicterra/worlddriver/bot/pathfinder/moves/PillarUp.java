@@ -30,11 +30,11 @@ import net.magicterra.worlddriver.bot.BotConfig;
  *       reaches 9..35 as well. (The server avatar takes {@code Hands}'s default, i.e. plain
  *       {@code holdPlaceable()}, so this axis is a client-side gap.)</li>
  * </ul>
- * On a client the planner is therefore STRICTER than the actuator on both axes at once: a body
+ * On a client the planner is therefore STRICTER than the actuator on both axes at once: a bot
  * carrying only sand and gravel, or with its cobble stranded in slot 9, makes {@code canPlace()}
  * false and A* emits no pillar edge at all — while {@code WalkerTickDrive} and
  * {@code WalkerTickStallDetect} pillar out of exactly that situation, which is why both gate on
- * {@code holdPillarBlock} and say「not world.canPlace」in as many words. Stricter is the safe
+ * {@code holdPillarBlock} and say "not world.canPlace" in as many words. Stricter is the safe
  * direction here (a route never found, rather than one that cannot be walked), so this is a note
  * and not a fix: closing it means handing the planner the executor's predicate, which changes what
  * A* plans and wants its own measurement.
@@ -49,7 +49,7 @@ public final class PillarUp extends Move {
         // ~from.y+0.1, but the place actuator needs feet clear of the fill cell (p.y >=
         // from.y+0.9 — a vanilla place constraint), so the FIRST rung can never be placed and
         // the bot bob-stalls at the waterline. This holds WITH or WITHOUT an adjacent solid:
-        // a side wall doesn't let the buoyant body rise above its own float line, so forbid
+        // a side wall does not let the buoyant player rise above its own float line, so forbid
         // ALL floating-water pillars (mirrors the stepUp/diagUp floating-water gate + the
         // isSubmergedAscent fiction guard). A* then climbs out via SwimBankClimbBreak / a
         // grounded-shallow pillar / a detour ramp it can actually execute. Live 2026-06-24 pit
@@ -61,8 +61,8 @@ public final class PillarUp extends Move {
         if (w.isFloatingWater(from)) return null;
         // Under the surface-node model every wet exit is SurfaceClimbOut's: a pillar planned from
         // grounded shallow water is executed by the dry pillar actuator, which waits for a landing
-        // the buoyant body never makes (wd.clientFlowingChannelPlaceOut went from 56 ticks to a
-        // failed leg on exactly that plan).
+        // the buoyant player never makes (wd.clientFlowingChannelPlaceOut went from 56 ticks to a
+        // failed walk on exactly that plan).
         if (w.surfaceWaterNodes() && w.isWater(from)) return null;
         // No world-solidity check on the support below: every standing node
         // A* reaches already has a real-or-placed solid block beneath it
@@ -98,8 +98,8 @@ public final class PillarUp extends Move {
         // oak_leaves canopy gap is the canonical case — caps the jump below the
         // place height (head jams on the neighbour leaf at +2), so the pillar
         // never reaches `place.y + 1` and bobs forever. Pre-list such breakables
-        // so the Walker clears a body-wide channel before jumping. A SOLID,
-        // UNBREAKABLE neighbour is left alone — a centred body clears it, and
+        // so the Walker clears a player-wide channel before jumping. A SOLID,
+        // UNBREAKABLE neighbour is left alone — a centred player clears it, and
         // breaking the whole world to insure against drift would explode the
         // search. Gated on allowBreak (demo-safe movement breaks nothing) and
         // unreachable in headless GameTest (canPlace=false short-circuits above).
@@ -110,7 +110,7 @@ public final class PillarUp extends Move {
             };
             for (BlockPos n : sides) {
                 if (!w.isSolid(n)) continue;                  // open / plant-with-no-collision → no clip
-                // A WALL beside the body on that side means the body cannot be off-centre toward
+                // A WALL beside the bot on that side means the bot cannot be off-centre toward
                 // it: the box is stopped at the wall, so the rising head never sweeps that cell's
                 // column. In a 1×1 shaft all four sides are walls, and listing them priced one rung
                 // at 150 + 4 × 971 (bare-hand stone ×3), which is how wd.clientPillarOutOfShaft got
@@ -118,7 +118,7 @@ public final class PillarUp extends Move {
                 BlockPos wallFoot = from.offset(n.getX() - ceiling.getX(), 0, n.getZ() - ceiling.getZ());
                 if (w.isSolid(wallFoot) || w.isSolid(wallFoot.above())) continue;
                 double c = w.breakCost(n, from);
-                if (Double.isInfinite(c)) continue;           // solid wall we can't break → centred body clears it
+                if (Double.isInfinite(c)) continue;           // solid wall we cannot break → a centred player clears it
                 toBreak.add(n);
                 cost += c;
             }

@@ -23,7 +23,7 @@ public final class Priorities {
      *  which while drowning is precisely lethal — and below PANIC/DODGE so a
      *  creeper-blast sprint or projectile sidestep still wins the tick. */
     public static final float DROWN_ESCAPE = 500f;
-    /** Emergency dig-in (BunkerChain "挖三填一") when cornered by a swarm — outranks
+    /** Emergency dig-in (BunkerChain's "dig three, fill one") when cornered by a swarm — outranks
      *  a plain low-HP retreat, because fleeing into more mobs is worse than sealing
      *  a hole. Below DODGE so a creeper/projectile reflex still wins. */
     public static final float BUNKER = 300f;

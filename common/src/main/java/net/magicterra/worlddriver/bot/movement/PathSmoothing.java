@@ -84,7 +84,7 @@ public final class PathSmoothing {
             }
             int j = next;
             // A surface swim keeps a node every few cells: the step pointer over water advances
-            // only by passing nodes (the buoyant body never closes the reach gate), so one long
+            // only by passing nodes (the buoyant bot never closes the reach gate), so one long
             // pulled edge reads as a wedge a hundred ticks in and the crossing is churned.
             boolean afloat = w.isWater(path.get(i));
             while (j + 1 < path.size()
@@ -102,7 +102,7 @@ public final class PathSmoothing {
                     && (path.get(j + 1).getX() == path.get(i).getX()
                         || path.get(j + 1).getZ() == path.get(i).getZ()
                         // §90: a DIAGONAL merge is admitted only under the honest
-                        // body-width corridor probe — the ray-only guard is what made
+                        // player-width corridor probe — the ray-only guard is what made
                         // diagonal collapsing fabricate unthreadable corner-cuts.
                         || (BotConfig.walkerDiagonalStringPull
                             && losWalkableBody(w, path.get(i), path.get(j + 1))))
@@ -146,7 +146,7 @@ public final class PathSmoothing {
      * <h2>Why this is a QUESTION and not a fix</h2>
      *
      * A rehearsal of rung 20 produced a smoothed segment {@code 98,49,0 → 95,49,0} whose middle two
-     * cells ({@code 97,49,0}, {@code 96,49,0}) have nothing under them, and the body began falling at
+     * cells ({@code 97,49,0}, {@code 96,49,0}) have nothing under them, and the bot began falling at
      * {@code 96,46,0}. The natural reading — "the string-pull only checked its endpoints" — is
      * <b>contradicted by this file</b>: the merge loop above extends {@code j} only while
      * {@link #losWalkable}{@code (w, path.get(i), path.get(j + 1))} holds, and {@code losWalkable}
@@ -185,8 +185,8 @@ public final class PathSmoothing {
     /** What {@link #auditEmit} has seen. A count of zero unwalkable emits is the load-bearing half:
      *  it says the smoother is not the source, which is the harder claim to establish. */
     public static String smoothingAudit() {
-        return "收段=" + emits + " 其中不可走=" + unwalkableEmits
-                + "（最后一条 " + (lastUnwalkableEmit == null ? "无" : lastUnwalkableEmit) + "）";
+        return "segmentsEmitted=" + emits + " unwalkable=" + unwalkableEmits
+                + " (last: " + (lastUnwalkableEmit == null ? "none" : lastUnwalkableEmit) + ")";
     }
 
     /** True if the straight horizontal line from {@code a} to {@code b} is
@@ -220,13 +220,13 @@ public final class PathSmoothing {
         return true;
     }
 
-    /** Body-width-aware variant of {@link #losWalkable}: samples the interpolated
+    /** Player-width-aware variant of {@link #losWalkable}: samples the interpolated
      *  CONTINUOUS line and requires foot+head passability for every cell the 0.6-wide
      *  hitbox overlaps (4-corner AABB probe, half-width 0.3), plus the centre cell's
-     *  floor support. Catches the "ray threads a slit the body can't" case (jungle
-     *  trunks: the centre line stays in passable cells while the body radius clips a
+     *  floor support. Catches the "ray threads a slit the bot can't" case (jungle
+     *  trunks: the centre line stays in passable cells while the bot radius clips a
      *  trunk column — the walkerCarrotHColShrink A/B showed the far carrot bearing is
-     *  the right detour, so the cure is to make the carrot's LOS honest about body
+     *  the right detour, so the cure is to make the carrot's LOS honest about the player's
      *  width instead of shrinking pursuit). Used by the Walker's carrotPoint behind
      *  {@code walkerCarrotBodyLos}; path smoothing keeps the cheaper ray test. */
     public static boolean losWalkableBody(WorldView w, BlockPos a, BlockPos b) {
@@ -324,18 +324,18 @@ public final class PathSmoothing {
 
     /** An edge still needs work iff a block it must break is still solid, or a
      *  block it must place isn't solid yet. */
-    /** How many leading edges {@link #dropStalePrefix} re-evaluates: the part of a segment the body
+    /** How many leading edges {@link #dropStalePrefix} re-evaluates: the part of a segment the bot
      *  executes before the next periodic search could correct it. */
     private static final int STALE_CHECK_EDGES = 12;
 
     /**
      * Cut a fresh search result at the first leading edge the CURRENT world no longer admits.
      *
-     * <p>A sliced search runs for seconds of wall-clock while the body keeps executing the plan
+     * <p>A sliced search runs for seconds of wall-clock while the bot keeps executing the plan
      * it already has, and inside rock that plan is digging. Live: the quick-start stub tunnelled
      * three cells forward while the 6000-node search ran; that search, launched from the old foot,
      * came back with a staircase whose first riser stood on the very cell the stub had just dug
-     * out. The body was walked back to a step with no floor under it, hopped, rammed, charged the
+     * out. The bot was walked back to a step with no floor under it, hopped, rammed, charged the
      * pocket with stuck penalties, and the next three searches each started one cell further back:
      * fifty seconds to climb eight blocks. Re-evaluating each leading edge with the move that made
      * it, against the world as it is now, is exactly the question the planner asked a few seconds
@@ -373,10 +373,10 @@ public final class PathSmoothing {
     }
 
     /**
-     * Is the body BEYOND node {@code step} along the route, i.e. past it in the direction the
+     * Is the bot BEYOND node {@code step} along the route, i.e. past it in the direction the
      * previous node approaches it from? The horizontal-distance tie-break in the step-pointer
      * re-sync cannot answer this for a next node stacked on the current one (same column), and a
-     * body 25 cells short of the node looks the same to it as one that drifted past. With no
+     * bot 25 cells short of the node looks the same to it as one that drifted past. With no
      * previous node the answer is no.
      */
     public static boolean beyondNode(List<BlockPos> path, int step, LivingEntity p) {

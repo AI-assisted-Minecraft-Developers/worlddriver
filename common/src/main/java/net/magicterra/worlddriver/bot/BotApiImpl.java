@@ -106,7 +106,7 @@ public final class BotApiImpl implements BotApi {
         // PREEMPT, like every other lethal-now reflex. Above bunker (digging DOWN
         // while drowning is precisely lethal), below panic/dodge.
         scheduler.register(new DrownEscapeChain()); // 500 — drowning under an active process (autoDrownEscape)
-        // 挖三填一 emergency dig-in, registered but DEFAULT-OFF (autoBunker=false):
+        // "Dig three, fill one" emergency dig-in, registered but DEFAULT-OFF (autoBunker=false):
         // an OPT-IN last-resort reflex for a no-gear bot a flee can't save (a skeleton
         // matches walking speed on open ground — fleeing just circles, HP bleeds out).
         // The two original "too uncontrollable" concerns are now structurally fixed:
@@ -168,8 +168,8 @@ public final class BotApiImpl implements BotApi {
 
     /**
      * The nearest entity of {@code typeId} this client has loaded, for {@code goto entity:}. It reads
-     * the client's render list, so it lives here and not in {@link GotoGoalResolver}, which a server
-     * body runs too.
+     * the client's render list, so it lives here and not in {@link GotoGoalResolver}, which a
+     * server-side bot runs too.
      */
     private static Entity nearestRenderedEntity(LocalPlayer self, String typeId) {
         Minecraft mc = Minecraft.getInstance();
@@ -277,11 +277,11 @@ public final class BotApiImpl implements BotApi {
 
     /**
      * {@code mc.bot.goto} with {@code planId}: walk the previewed route. The plan's own goals and
-     * conditions are used — the id names them — and its raw first-leg result is handed to the
-     * walker before the process starts, so no search precedes the first step. Falls back to an
+     * conditions are used — the id names them — and its raw result for the first goal is handed to
+     * the walker before the process starts, so no search precedes the first step. Falls back to an
      * ordinary search, saying why, when the plan is gone (60 s, last 8), was best-effort, or the
-     * walker refused it (the body is no longer near its start). Later legs of a via plan search
-     * as usual: adoption only ever guaranteed the route the body starts on.
+     * walker refused it (the bot is no longer near its start). Later segments of a via plan search
+     * as usual: adoption only ever guaranteed the route the bot starts on.
      */
     private Map<String, Object> adoptPlan(LocalPlayer player, String planId) {
         PreviewSearch.Plan plan = preview.take(planId);
@@ -297,7 +297,7 @@ public final class BotApiImpl implements BotApi {
         else if (System.currentTimeMillis() - plan.createdMs > PreviewSearch.TTL_MS) why = "the preview is older than 60 s";
         else {
             adopted = WalkerPlanAdoption.adopt(process.walker(), plan.legs.get(0), world, player.blockPosition());
-            if (!adopted) why = "the walker refused the route: the body is not near its start any more, or its first stretch is no longer walkable";
+            if (!adopted) why = "the walker refused the route: the bot is no longer near its start, or its first stretch is no longer walkable";
         }
         startProcess(process);
         Map<String, Object> out = new LinkedHashMap<>();
@@ -346,7 +346,7 @@ public final class BotApiImpl implements BotApi {
     }
 
     /**
-     * Starts a {@link VerbOrders} order on this client's body. {@code noPlayerSlot} names the slot a
+     * Starts a {@link VerbOrders} order on this client's player. {@code noPlayerSlot} names the slot a
      * missing player is recorded on, or null for the verbs that only answer it.
      */
     private Map<String, Object> order(Map<String, Object> params, String noPlayerSlot,
@@ -580,7 +580,7 @@ public final class BotApiImpl implements BotApi {
             // gap#72-②: a NAMED cancel routes through the shared resolver — user slot
             // by kind, chain episode by NAME, then any chain-HELD process by KIND
             // ("bunker" is both BunkerChain's name and BunkerProcess's kind; duskSecure's
-            // held BunkerProcess was unreachable by every leg while cancel said ok:true).
+            // held BunkerProcess was unreachable by every lookup step while cancel said ok:true).
             BotProcess c = userTask.process();
             CancelRouting.Plan plan =
                     CancelRouting.resolve(which, c != null ? c.kind() : null, scheduler.chains());
@@ -692,14 +692,15 @@ public final class BotApiImpl implements BotApi {
         List<String> reset = new ArrayList<>();
         // One client-thread hop for everything that touches scheduler or render state.
         // The look-cancel MUST be inside the hop: the scheduler (userTask) is ticked and
-        // mutated from clientTick(), and every sibling mutation (mc.bot.cancel's own leg
+        // mutated from clientTick(), and every sibling mutation (mc.bot.cancel's own path
         // included) marshals via onClient — an off-thread cancel here would race the tick
         // (P2a Task 3 review, Important). Cancelling FIRST, same-thread, also guarantees no
         // client tick can interleave between the cancel and the key release, so a live
         // LookProcess can never re-drive the keys we are about to release.
         // The look slot is the user-task slot (mc.bot.lookAt{smoothLook:true} starts a
         // LookProcess there); UserTaskChain.heldProcessKind() is deliberately null
-        // (cancel's own routing leg), so read the held process directly and cancel
+        // (cancel routes the user slot through a step of its own), so read the held process
+        // directly and cancel
         // through the same path mc.bot.cancel uses.
         onClient(() -> {
             BotProcess held = userTask.process();
@@ -887,8 +888,8 @@ public final class BotApiImpl implements BotApi {
         // active processes, THEN let autoRespawn skip past.
         eventDetector.detectDeath(mc, () -> {
             cancelAllProcesses("player-death");
-            scheduler.cancelAllEpisodes("player-death");   // gap#68-③⑦: 全链 episode 清零
-            backfillTracker.clear();                        // gap#68-⑧⑫: 孤儿回填队列清零
+            scheduler.cancelAllEpisodes("player-death");   // reset every chain's episode state
+            backfillTracker.clear();                        // drop the orphaned backfill queue
             combatChain.suppressAutoFor(BotConfig.respawnGraceTicks);
             respawnGraceLeft = BotConfig.respawnGraceTicks;
         });
@@ -1036,8 +1037,8 @@ public final class BotApiImpl implements BotApi {
         // them, or never took them), so it leaves nothing to clean up.
         Chain driving = scheduler.current();
         boolean schedulerDroveThisTick = driving != null && (driving != userTask || userTask.process() != null);
-        // The scheduler talks bodies; this tick chain is the client's, so the body is the local
-        // player's. Built fresh per tick, like every other ClientPlayerBody (see clientAvatar()).
+        // The scheduler works on Body instances; this tick chain is the client's, so the
+        // controlled player is the local player. Built fresh per tick, like every other ClientPlayerBody (see clientAvatar()).
         scheduler.tick(new net.magicterra.worlddriver.bot.body.ClientPlayerBody(mc), world, state);
         // Immediately after the chain has had its turn, so a caller polling on the next server
         // tick sees the ending rather than one tick of stale "still busy".
@@ -1127,12 +1128,12 @@ public final class BotApiImpl implements BotApi {
     // headless FakePlayer beside it.
 
     /**
-     * One leg's whole state, published as a single immutable value.
+     * One user task's whole state, published as a single immutable value.
      *
      * <p>A record rather than three volatile fields because the reader is on ANOTHER THREAD and
      * wants the three together: two independently-atomic reads do not compose into an atomic
-     * pair, and the torn pair「busy 已清，但 error 还是上一腿的」is indistinguishable from a
-     * leg that just finished cleanly. One reference, one read, one consistent answer.
+     * pair, and the torn pair "busy is already cleared, but error still belongs to the previous
+     * process run" is indistinguishable from a task that just finished cleanly. One reference, one read, one consistent answer.
      */
     private record Leg(long seq, boolean busy, String kind, String error) {}
 
@@ -1148,7 +1149,7 @@ public final class BotApiImpl implements BotApi {
         long seq = legSeq.incrementAndGet();
         // Published from the CALLER's thread, before the install is even enqueued. This is what
         // closes the window the caller polls in: between "enqueued" and "installed" the chain
-        // holds nothing, and a reader that asked the chain would conclude the leg had already
+        // holds nothing, and a reader that asked the chain would conclude the task had already
         // finished — so every drive would return instantly having moved nothing.
         leg = new Leg(seq, true, process.kind(), null);
         Runnable install = () -> {
@@ -1170,20 +1171,21 @@ public final class BotApiImpl implements BotApi {
     }
 
     /**
-     * Close out a leg whose process has left the chain. <b>Client thread only</b>, once per tick.
+     * Close out a user task whose process has left the chain. <b>Client thread only</b>, once per
+     * tick.
      *
-     * <p>The test is the process OBJECT, not「链子空不空」: the chain is empty during the whole
-     * window between enqueue and install too, and closing the leg there is the false-completion
+     * <p>The test is the process OBJECT, not "is the chain empty": the chain is empty during the whole
+     * window between enqueue and install too, and closing the task there is the false-completion
      * this seam exists to prevent.
      */
     private void settleLeg() {
         BotProcess mine = installedLeg;
         if (mine == null || userTask.process() == mine) return;
-        // A newer leg was published (runProcess from the caller's thread) while this one was still
+        // A newer task was published (runProcess from the caller's thread) while this one was still
         // installed — the next scene's goto enqueued behind the last scene's one-tick HoldStill.
-        // Its departure is not the new leg's ending: publishing busy=false here under the OLD seq
-        // overwrote the new leg's busy=true before its install ran, and the caller read "ended at
-        // tick 0" for a walk that never started. The new leg's own install re-points installedLeg.
+        // Its departure is not the new task's ending: publishing busy=false here under the OLD seq
+        // overwrote the new task's busy=true before its install ran, and the caller read "ended at
+        // tick 0" for a walk that never started. The new task's own install re-points installedLeg.
         if (leg.seq() > installedLegSeq) {
             installedLeg = null;
             return;
@@ -1207,8 +1209,8 @@ public final class BotApiImpl implements BotApi {
     /**
      * Built fresh per call rather than cached, because {@code ClientPlayerBody} binds
      * {@code mc.player} in its constructor and that reference dies on every respawn and dimension
-     * change. A cached one would keep actuating a stale body — the same「视图不跟着身体走」shape the
-     * driver has already paid for once, where a view built at construction planned over the old
+     * change. A cached one would keep actuating a stale player — the same "the world view does not
+     * follow the player entity" shape the driver has already paid for once, where a view built at construction planned over the old
      * dimension's terrain for every rung after the portal.
      */
     @Override public net.magicterra.worlddriver.bot.body.Body clientAvatar() {

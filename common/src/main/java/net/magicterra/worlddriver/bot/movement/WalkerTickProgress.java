@@ -62,14 +62,14 @@ final class WalkerTickProgress {
     }
 
     /**
-     * Every advance gate that was TRUE, joined with {@code +}; {@code 其它} when none was.
+     * Every advance gate that was TRUE, joined with {@code +}; {@code other} when none was.
      *
      * <p>Not a ternary chain. A chain ending in a real gate name labels every case its earlier arms
      * failed to match as that last gate, so it reports a confident branch name for a tick nobody
      * described and can never say that the labels have drifted from the expression they name. Two
      * gates firing on the same tick is a real state here (a node can be both reached and passed),
      * and it prints as the two of them rather than as whichever the author happened to test first.
-     * {@code 其它} is the reading that means this list is now short a term — believe nothing else on
+     * {@code other} is the reading that means this list is now short a term — believe nothing else on
      * that line's causal claim until the list is fixed.
      */
     private static String advanceCause(boolean... fired) {
@@ -79,7 +79,7 @@ final class WalkerTickProgress {
             if (sb.length() > 0) sb.append('+');
             sb.append(ADVANCE_NAMES[i]);
         }
-        return sb.length() == 0 ? "其它" : sb.toString();
+        return sb.length() == 0 ? "other" : sb.toString();
     }
 
     /** Ticks of stalled step progress after which a far-ahead best-effort tail stops being
@@ -102,23 +102,23 @@ final class WalkerTickProgress {
     }
 
     /**
-     * A body in mid-air must not spend a path node on a climb it has not made.
+     * A bot in mid-air must not spend a path node on a climb it has not made.
      *
-     * <p>The nine advance gates each answer "has the body reached node {@code w}?" with a horizontal
+     * <p>The nine advance gates each answer "has the bot reached node {@code w}?" with a horizontal
      * test plus a vertical one taken <b>at this instant's y</b>, and mid-jump this instant's y is a
-     * lie about where the body will be standing. Consuming {@code w} at the apex points the walker
-     * at {@code nx}; if {@code nx} is higher than {@code w} and the body then lands back on {@code
-     * w}'s floor, the pointer is now one step further AND one block higher than anything the body can
+     * lie about where the bot will be standing. Consuming {@code w} at the apex points the walker
+     * at {@code nx}; if {@code nx} is higher than {@code w} and the bot then lands back on {@code
+     * w}'s floor, the pointer is now one step further AND one block higher than anything the bot can
      * reach — a {@code +2} that {@code StepUp2}'s own gate says A* never plans. Measured on
      * {@code wd.buriedOre} (four consecutive advances, all airborne; this is advance 3 of them):
      *
      * <pre>
-     * 序=3 因=within 旧步=3 新步=4 w=106659,223,99999 nx=106660,224,100000
-     *      身体精确=(106659.527,223.252,100000.151) cur2=0.425 (&lt; REACH_DIST_SQ=0.45)
-     *      |w.y-p.y|=0.252 |nx.y-p.y|=0.748 onGround=false 脚底实心=0.0000
+     * seq=3 cause=within oldStep=3 newStep=4 w=106659,223,99999 nx=106660,224,100000
+     *      exact=(106659.527,223.252,100000.151) cur2=0.425 (&lt; REACH_DIST_SQ=0.45)
+     *      |w.y-p.y|=0.252 |nx.y-p.y|=0.748 onGround=false soleOnSolid=0.0000
      * </pre>
      *
-     * The body landed at y=222 and spent the rest of the scene jumping at a node it tops out one
+     * The bot landed at y=222 and spent the rest of the scene jumping at a node it tops out one
      * block under. Note the cause: {@code within}, whose vertical clause is {@code |dyNode| < 1.2}
      * and which has no ground test of any kind. Refuse at the ONE {@code step++} instead of inside
      * each gate, so {@code within}/{@code passed}/{@code tail}/{@code arc} are all covered by one
@@ -127,10 +127,10 @@ final class WalkerTickProgress {
      * <p>The three terms, and why each is exactly this and not something adjacent:
      *
      * <ul>
-     *   <li><b>{@code nx.y > w.y} only.</b> Flat and descending continuations are untouched — a body
+     *   <li><b>{@code nx.y > w.y} only.</b> Flat and descending continuations are untouched — a bot
      *       airborne over a walk or a drop is going where the pointer says regardless of when the
-     *       node is consumed. Only a RISING continuation can strand the pointer above the body.</li>
-     *   <li><b>{@code !p.isInWater()} is load-bearing, not defensive.</b> A buoyant body reads
+     *       node is consumed. Only a RISING continuation can strand the pointer above the bot.</li>
+     *   <li><b>{@code !p.isInWater()} is load-bearing, not defensive.</b> A buoyant bot reads
      *       {@code onGround=false} and {@code soleOnSolid=0} for the whole of every crossing, and a
      *       flat surface swim advances on {@code passed} every few ticks. Without this term the
      *       water family would not stall occasionally — it would never advance again.</li>
@@ -141,7 +141,7 @@ final class WalkerTickProgress {
      * </ul>
      *
      * <p><b>Part of what this does is move the failure, deliberately.</b> With the pointer held on
-     * {@code w} the walker keeps driving the body at a cell the arena's own audit says is standable;
+     * {@code w} the walker keeps driving the bot at a cell the arena's own audit says is standable;
      * if it genuinely cannot get there, {@code noStepProgressTicks} accumulates and the wedge/repath
      * machinery takes it from there. That is the entire gain: the old behaviour was a silent chase of
      * an unreachable target, silent precisely because every counter that could have complained sees a
@@ -151,7 +151,7 @@ final class WalkerTickProgress {
      * <p>Two siblings of the same defect are NOT fixed here, and both should be read as still
      * suspect: {@code within}'s {@code |dyNode| < 1.2} and {@code stepUpCrestReach}'s
      * {@code |dyNode| < 0.5} (default off, and the only relaxed-advance gate with no {@code nx}
-     * reachability clause at all). Both decide a vertical question from the y the body happens to
+     * reachability clause at all). Both decide a vertical question from the y the bot happens to
      * hold this tick. This guard sits at the advance OUTLET, so it covers them; their own criteria
      * remain wrong.
      */
@@ -162,32 +162,32 @@ final class WalkerTickProgress {
     }
 
     /**
-     * A body that is not standing must not spend a DRY final node — spending it reports an arrival
-     * for a body still in the air or still in the water.
+     * A bot that is not standing must not spend a DRY final node — spending it reports an arrival
+     * for a bot still in the air or still in the water.
      *
      * <p>Measured on the real client, {@code wd.clientFlushBankClimbOut} (2026-09-04): the stepUp out
      * of the pool consumed the bank node mid-jump —
      *
      * <pre>
-     * 步进 因=within 旧步=2 新步=3 w=102566,221,100000 nx=无(末节点) 精确=(102565.835,221.549,100000.500)
-     *      cur2=0.442 |w.y-p.y|=0.549 onGround=false 脚底实心=0.0000 落速=0.1012
+     * step advance: cause=within oldStep=2 newStep=3 w=102566,221,100000 nx=none(last node) exact=(102565.835,221.549,100000.500)
+     *      cur2=0.442 |w.y-p.y|=0.549 onGround=false soleOnSolid=0.0000 fallSpeed=0.1012
      * </pre>
      *
-     * and the leg ended {@code path-consumed} with the body hanging over the water's edge, which is
+     * and the walk ended {@code path-consumed} with the bot hanging over the water's edge, which is
      * the shape TODO J47 describes. {@link #airborneClimbConsume} cannot see it: that guard is scoped
      * to a RISING continuation and excludes water. This one is scoped the way
      * {@link #unwalkedDescentConsume}'s final-node arm is — only when spending the node would report
-     * an arrival ({@code goal.reached(w) && !goal.reached(foot)}) — so a best-effort tail and a body
+     * an arrival ({@code goal.reached(w) && !goal.reached(foot)}) — so a best-effort tail and a bot
      * already in its goal are untouched, and a water final node keeps the floating arrival it has
-     * always had. Holding costs nothing here: the body lands within a few ticks, on the bank or back
+     * always had. Holding costs nothing here: the bot lands within a few ticks, on the bank or back
      * in the water, and the stepUp drive simply continues.
      *
      * <p><b>Scoped to a hop OUT OF WATER</b> — the foot cell or the cell under it is water. The first
      * version held every dry final node whose sole read empty, and {@code wd.serverMineProcess} showed
-     * what that costs on land: a body stepping from one stone top across a one-cell gap to the next
+     * what that costs on land: a bot stepping from one stone top across a one-cell gap to the next
      * reads {@code onGround} true and a sole of 0 for three ticks while {@code within} is true, the
-     * hold ate those three ticks, the body overshot the node by a block and never came back —
-     * {@code no reachable target}. Over water the hold is cheap because the body cannot go anywhere
+     * hold ate those three ticks, the bot overshot the node by a block and never came back —
+     * {@code no reachable target}. Over water the hold is cheap because the bot cannot go anywhere
      * but down; over land the same hold turns a consumed node into a missed one.
      */
     private static boolean airborneDryArrival(Walker wk, WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx) {
@@ -198,16 +198,16 @@ final class WalkerTickProgress {
     }
 
     /**
-     * A body standing on a floor must not spend a path node that lies below that floor.
+     * A bot standing on a floor must not spend a path node that lies below that floor.
      *
      * <p>The descending twin of {@link #airborneClimbConsume}, and the sibling that helper's javadoc
      * names and declines to fix: {@code within}'s vertical clause is {@code |dyNode| < 1.2}, so a
      * waypoint a FULL BLOCK under the feet reads as reached. Climbing and descending fail the same
-     * way and cost differently — a stranded climb leaves the body jumping at a node it tops out under,
+     * way and cost differently — a stranded climb leaves the bot jumping at a node it tops out under,
      * a spent descent leaves it with no plan at all, because a descent is usually the last node or two
      * of a short segment and consuming it exhausts the path.
      *
-     * <p>Measured on nether rung 14 (2026-08-19), the crossing's terminal wedge. The body finished a
+     * <p>Measured on nether rung 14 (2026-08-19), the crossing's terminal wedge. The bot finished a
      * dug shaft perched on {@code 159,53,187} — a cell whose own floor is air, held up by 0.125 of
      * 0.36 of sole on the corner of {@code 158,52,187}, with a column three cells away that ends in
      * the lava lake at {@code y=50}. The footing guard sneak-pinned it, correctly. A* answered with
@@ -215,12 +215,12 @@ final class WalkerTickProgress {
      * standable; the walker consumed all three in ONE tick without moving:
      *
      * <pre>{@code
-     * 步进 序=1/8 因=within 旧步=1 新步=2 w=158,53,187 nx=159,52,187 身体=(159.092,53.000,187.700) cur2=0.390 |w.y-p.y|=0.000
-     * 步进 序=2/8 因=within 旧步=2 新步=3 w=159,52,187 nx=159,51,188 身体=(159.092,53.000,187.700) cur2=0.207 |w.y-p.y|=1.000
+     * step advance: seq=1/8 cause=within oldStep=1 newStep=2 w=158,53,187 nx=159,52,187 foot=(159.092,53.000,187.700) cur2=0.390 |w.y-p.y|=0.000
+     * step advance: seq=2/8 cause=within oldStep=2 newStep=3 w=159,52,187 nx=159,51,188 foot=(159.092,53.000,187.700) cur2=0.207 |w.y-p.y|=1.000
      * }</pre>
      *
      * The second line prints {@code |w.y-p.y|=1.000} and advances on it. The pointer descended, the
-     * body did not, and the plan was gone. What follows is all downstream: {@code path == null} makes
+     * bot did not, and the plan was gone. What follows is all downstream: {@code path == null} makes
      * every tick a safety repath, so A* is re-asked from the same cell ~3,500 times over four hops
      * (20 searches a second in {@code latest.log}), and 3,517 of the run's 3,551 no-plan ticks are
      * those four hops standing at that one coordinate.
@@ -235,36 +235,37 @@ final class WalkerTickProgress {
      *
      * <ul>
      *   <li><b>Cell comparison, not a y delta.</b> {@code w.getY() < foot.getY()} asks whether the
-     *       node is in a lower CELL than the body, which is the question a step-down is; a float
+     *       node is in a lower CELL than the bot, which is the question a step-down is; a float
      *       threshold would re-introduce the {@code |dyNode| &lt; 1.2} arbitrariness this exists to
      *       remove.</li>
-     *   <li><b>{@code soleOnSolid > 0}, not {@code onGround()}.</b> A body actually falling toward
-     *       the node is going there and must keep advancing; a body with anything under it has not
+     *   <li><b>{@code soleOnSolid > 0}, not {@code onGround()}.</b> A bot actually falling toward
+     *       the node is going there and must keep advancing; a bot with anything under it has not
      *       descended yet. Zero is the bar rather than {@code FOOTING_MIN} on purpose — the rung-14
-     *       body was on 0.125 of a sole, well under that threshold, and it was emphatically not
+     *       bot was on 0.125 of a sole, well under that threshold, and it was emphatically not
      *       falling. Same reading {@code footingGuard} opens with, so no fifth opinion about
      *       standing.</li>
-     *   <li><b>{@code !p.isInWater()}.</b> A buoyant body reads no sole for a whole crossing and
+     *   <li><b>{@code !p.isInWater()}.</b> A buoyant bot reads no sole for a whole crossing and
      *       descends by sinking; the water gates own that.</li>
-     *   <li><b>The LAST node counts too, but only when consuming it would declare an arrival the body
+     *   <li><b>The LAST node counts too, but only when consuming it would declare an arrival the bot
      *       has not made.</b> This shipped scoped {@code nx != null} — mid-path nodes only — on the
      *       reading that the pointer reaching {@code path.size()} merely hands the segment to the
-     *       walker's arrival handling. That is true when the body is already at the node and false
-     *       when the last node is a step DOWN it has not taken: then「arrival」is not the remaining
+     *       walker's arrival handling. That is true when the bot is already at the node and false
+     *       when the last node is a step DOWN it has not taken: then "arrival" is not the remaining
      *       work, the step across is. Journey rung 13 (2026-08-20) mined its one way into a lit portal
      *       and could not walk the last cell. A* answered {@code Goal.Block(3,58,19)} with the one-step
      *       plan {@code [3,59,18 → 3,58,19]}, its only node both first and last, and the walker spent
      *       it on the tick it was adopted:
      *
      *       <pre>{@code
-     *       步进 序=1/8 因=within 旧步=1 新步=2 w=3,58,19 nx=无(末节点) 身体=(3.463,59.000,18.939)
-     *            cur2=0.316 |w.y-p.y|=1.000 onGround=true 脚底实心=0.2168
+     *       step advance: seq=1/8 cause=within oldStep=1 newStep=2 w=3,58,19 nx=none(last node) foot=(3.463,59.000,18.939)
+     *            cur2=0.316 |w.y-p.y|=1.000 onGround=true soleOnSolid=0.2168
      *       }</pre>
      *
-     *       The segment ended {@code path-consumed} with the goal unreached and the body where it
-     *       started — 「连着两趟（XZ 和 3D 各一趟）一格没挪」— and re-asking got the identical plan.
-     *       Reproduced verbatim in {@code wd.serverStepsDownTheLastNodeOfItsPlan}, whose pre-fix arms
-     *       both read {@code 走了 0.00 格 … end=path-consumed}.
+     *       The segment ended {@code path-consumed} with the goal unreached and the bot where it
+     *       started — two consecutive goto runs (one XZ, one 3D) moved it by zero cells — and
+     *       re-asking got the identical plan. Reproduced verbatim in
+     *       {@code wd.serverStepsDownTheLastNodeOfItsPlan}, whose pre-fix arms both reported
+     *       0.00 blocks walked and {@code end=path-consumed}.
      *
      *       <p><b>The final-node case is scoped twice over, and each term was bought.</b> Both were
      *       measured on the dedicated-server gate rather than argued:
@@ -276,43 +277,43 @@ final class WalkerTickProgress {
      *             <b>60 seconds</b> and took a watchdog crash: that scene pumps ~3 000 walker ticks
      *             inside ONE server tick, so a held node that never resolves is a pathfinder search
      *             per iteration. The clause excludes it because a BEST-EFFORT segment's last node
-     *             does not satisfy the goal — it is a splice point, not an arrival — and a body
+     *             does not satisfy the goal — it is a splice point, not an arrival — and a bot
      *             already inside its goal has nothing left to walk. It is deliberately the same
      *             question the disk-goal hold below asks, extended from radius-{@code >0} goals.</li>
-     *         <li>{@code foot.getY() >= wk.path.get(0).getY()} — the body has not gone DOWN under
+     *         <li>{@code foot.getY() >= wk.path.get(0).getY()} — the bot has not gone DOWN under
      *             this plan, so the descent the plan ends in has not been taken. Without a term of
      *             this kind the hold reached every ordinary descent's last node — 299 firings inside
      *             {@code wd.descent} alone in one gate run — a blast radius this reading does not
      *             justify, and one that put {@code wd.serverMineHarvest} red across three runs.
      *
      *             <p><b>Two narrower terms were tried first and both were wrong, each measured.</b>
-     *             {@code wk.step == 1} — a POINTER index standing in for「the body has not walked
-     *             this plan」— died on rung 13's next run: A* answered {@code Goal.Block(3,57,20)}
+     *             {@code wk.step == 1} — a POINTER index standing in for "the bot has not walked
+     *             this plan" — failed on rung 13's next run: A* answered {@code Goal.Block(3,57,20)}
      *             from {@code 3,58,20} with a TWO-node plan, {@code [3,58,21 → 3,57,20]} (sideways
-     *             onto the standable cell beside the body, then down), and the walker spent BOTH in
-     *             one tick, at the same body coordinates to three decimals:
+     *             onto the standable cell beside the bot, then down), and the walker spent BOTH in
+     *             one tick, at the same bot coordinates to three decimals:
      *
      *             <pre>{@code
-     *             步进 序=1 因=passed 旧步=1 新步=2 w=3,58,21 nx=3,57,20 身体=(3.700,58.000,20.794) 脚底实心=0.0563
-     *             步进 序=2 因=within 旧步=2 新步=3 w=3,57,20 nx=无(末节点) 身体=(3.700,58.000,20.794) |w.y-p.y|=1.000
+     *             step advance: seq=1 cause=passed oldStep=1 newStep=2 w=3,58,21 nx=3,57,20 foot=(3.700,58.000,20.794) soleOnSolid=0.0563
+     *             step advance: seq=2 cause=within oldStep=2 newStep=3 w=3,57,20 nx=none(last node) foot=(3.700,58.000,20.794) |w.y-p.y|=1.000
      *             }</pre>
      *
-     *             {@code 旧步=2} on the deciding line, so no index test can see it. The replacement,
+     *             {@code oldStep=2} on the deciding line, so no index test can see it. The replacement,
      *             {@code foot.equals(path.get(0))}, held for two ticks and then released one step too
-     *             early — measured in the arena, {@code 拦1 拦2} and then the body took the plan's
+     *             early — measured in the arena, {@code held1 held2} and then the bot took the plan's
      *             LATERAL first node, changed cell, and the guard let the descent be spent:
      *
      *             <pre>
-     *             0:239776,211,100000 步2/3 点239776,210,100000 拦1
-     *             2:239776,211,100001 步3/3 点无            拦2   ← moved sideways, hold gone, plan gone
+     *             0:239776,211,100000 step2/3 node239776,210,100000 held1
+     *             2:239776,211,100001 step3/3 nodeNone           held2   ← moved sideways, hold gone, plan gone
      *             </pre>
      *
      *             Walking a plan's flat nodes is not taking its descent, so the reading is the ROW.
      *             Both arenas pin it: {@code wd.serverStepsDownTheLastNodeOfItsPlan} (one-node plan)
      *             and {@code wd.serverStepsDownAPlanItSpentInOneTick} (two-node).</li>
-     *         <li>{@code wk.stepProg.noStepProgressTicks == 0} — the body is still CLOSING on this
+     *         <li>{@code wk.stepProg.noStepProgressTicks == 0} — the bot is still CLOSING on this
      *             node <i>this tick</i>. The row term alone is not enough: it is a statement about
-     *             the plan, and a body can satisfy it forever while standing perfectly still.
+     *             the plan, and a bot can satisfy it forever while standing perfectly still.
      *
      *             <p><b>That is what widening the scope cost, and it was measured rather than
      *             guessed.</b> A temporary per-firing probe over a filtered gate run
@@ -321,14 +322,14 @@ final class WalkerTickProgress {
      *
      *             <pre>
      *             wd.serverMineHarvest   100 holds  stall 0→27 (a smooth ramp)  sole 0.0015..0.0041  y=222.000 at ALL 100
-     *             the two descent arenas   9 holds  stall 0 on 8 of 9, max 13   sole 0.0180..0.2631  the body shuffling and dropping
+     *             the two descent arenas   9 holds  stall 0 on 8 of 9, max 13   sole 0.0180..0.2631  the bot shuffling and dropping
      *             </pre>
      *
      *             Identical shape, opposite meaning. mineHarvest is the stride-floor-guard deadlock
      *             this javadoc already records, re-entered once per plan and now sat in for 27 ticks
-     *             instead of released: the body never moved a millimetre across a hundred holds, and
+     *             instead of released: the bot never moved a millimetre across a hundred holds, and
      *             the scene went from 113 ticks and green to 191 and {@code broke 2/4}. The arenas
-     *             are the opposite — the stall clock RESETS on eight of nine holds, i.e. the body got
+     *             are the opposite — the stall clock RESETS on eight of nine holds, i.e. the bot got
      *             closer to the node on that very tick, which is the hold doing its job.
      *
      *             <p>So the tail branch does not reuse {@link #TAIL_HOLD_STALL_TICKS}: over the same
@@ -343,9 +344,9 @@ final class WalkerTickProgress {
      *       insists on ({@code bottomless stride … plug FAILED}), so the two sat on each other and the
      *       sweep gave up with {@code broke 2/4}. A hold that outlives a guard's refusal of the same
      *       step is a deadlock by construction. Reusing the tail's own stall window rather than
-     *       inventing a second one: it is already the file's answer to「long enough to ride out a slow
+     *       inventing a second one: it is already the file's answer to "long enough to ride out a slow
      *       but real approach, short enough that walled pockets re-enter the repath machinery
-     *       promptly」, and the two arenas below need a small fraction of it (the staircase holds ~1
+     *       promptly", and the two arenas below need a small fraction of it (the staircase holds ~1
      *       tick per tread, the perch 20 ticks over a 260-tick drive).</li>
      * </ul>
      */
@@ -358,12 +359,12 @@ final class WalkerTickProgress {
                 && wk.stepProg.noStepProgressTicks <= TAIL_HOLD_STALL_TICKS;
         // Mid-path, hold outright: spending the node strands the pointer for the rest of the plan.
         // At the LAST node, three terms, each bought on the gate — see the javadoc:
-        //   · the body has not gone DOWN under this plan (its row is still at or above the row the
-        //     plan was searched from), because that is what「the descent has not happened」means and
+        //   · the bot has not gone DOWN under this plan (its row is still at or above the row the
+        //     plan was searched from), because that is what "the descent has not happened" means and
         //     lateral progress along the plan does not make it happen;
-        //   · the body is still CLOSING on the node this tick, so a hold can only ever extend an
+        //   · the bot is still CLOSING on the node this tick, so a hold can only ever extend an
         //     approach that is working, never outlive one that has stopped;
-        //   · and the plan's end satisfies the goal while the body does not.
+        //   · and the plan's end satisfies the goal while the bot does not.
         boolean held = unwalked && (nx != null
                 || (foot.getY() >= wk.path.get(0).getY()
                         && wk.stepProg.noStepProgressTicks == 0
@@ -373,13 +374,13 @@ final class WalkerTickProgress {
     }
 
     /**
-     * A node STRAIGHT ABOVE THE BODY'S OWN COLUMN as the next one. Both spend-gates admit a +1
-     * current node because a jump reaches a +1 beside the body; neither can tell that from a +1 the
-     * body has not climbed whose successor sits over its head, which nothing reaches without a
-     * block under the feet. wd.clientThreeHighBankPlaceOut: w was a +1 stepUp beside the body, nx
+     * A node STRAIGHT ABOVE THE BOT'S OWN COLUMN as the next one. Both spend-gates admit a +1
+     * current node because a jump reaches a +1 beside the bot; neither can tell that from a +1 the
+     * bot has not climbed whose successor sits over its head, which nothing reaches without a
+     * block under the feet. wd.clientThreeHighBankPlaceOut: w was a +1 stepUp beside the bot, nx
      * the goal one block straight up; `within` read the stepUp as reached at cur2 0.449 / |dY| 1.0
-     * with the body still below it, and the pointer sat on a bridgePlace whose support cell was the
-     * body's own foot cell — 400 ticks of placing into itself. The stacked-above-w tie-break in the
+     * with the bot still below it, and the pointer sat on a bridgePlace whose support cell was the
+     * bot's own foot cell — 400 ticks of placing into itself. The stacked-above-w tie-break in the
      * passed block protects the pillar BASE; this protects the pillar itself, in both gates.
      */
     private static boolean unclimbedUnderOverhead(Walker wk, BlockPos foot, BlockPos w) {
@@ -397,11 +398,11 @@ final class WalkerTickProgress {
      * STOPS the drive and declares ARRIVED a block short (live 2026-06-23: XZ -1700,900 r6 pinned
      * the bot at foot -1693, dx=7, OUTSIDE r6, then fake-ARRIVED). Exact goals, bounded
      * ({@code walkerHoldLastNodeUntilStanding}): spending the last node from 0.67 away or from the
-     * air ends the leg「path-consumed goalReached=false」with the body about to stand in the goal
+     * air ends the walk "path-consumed goalReached=false" with the bot about to stand in the goal
      * cell a few ticks later — a reading the ladder acts on. Either way the normal pure-pursuit
      * walks the foot ONTO the node and the goal.reached check at the top of the tick fires for
-     * real; the exact hold gives up after FINAL_NODE_HOLD_TICKS so a cell the body genuinely
-     * cannot stand in still ends the leg the honest way.
+     * real; the exact hold gives up after FINAL_NODE_HOLD_TICKS so a cell the bot genuinely
+     * cannot stand in still ends the walk the honest way.
      */
     private static boolean holdLastNode(Walker wk, BlockPos foot, BlockPos w) {
         if (wk.step + 1 < wk.path.size() || wk.goal.reached(foot)) return false;
@@ -444,7 +445,7 @@ final class WalkerTickProgress {
             // column. The swimDown*/depth-hold exemptions all key on the CURRENT
             // EDGE, which does not exist pre-path — this is the pre-path twin of
             // those gates. Planned climb-out EDGES from a real path still execute
-            // (a dive route may legitimately end with a bank exit); dry-land legs
+            // (a dive route may legitimately end with a bank exit); dry-land segments
             // of a dive-intent journey keep their stubs (gate requires isInWater).
             // No DIVE opt-in → allowsOptIn false → byte-identical.
             boolean diveIntentWaterHold = p.isInWater()
@@ -542,7 +543,7 @@ final class WalkerTickProgress {
             double wdx = (wn.getX() + 0.5) - p.getX();
             double wdy = wn.getY() - p.getY();
             double wdz = (wn.getZ() + 0.5) - p.getZ();
-            // A buoyant body bobs ±1.5 vertically; folding wdy² into the closest-approach
+            // A buoyant bot bobs ±1.5 vertically; folding wdy² into the closest-approach
             // progress test makes wd2 oscillate even while the bot creeps FORWARD toward a
             // water goal, so noStepProgressTicks falsely climbs → wedged → safetyRepath churn:
             // every bob tick a cheap goal-reaching search resets path+step and the aim chases
@@ -654,7 +655,7 @@ final class WalkerTickProgress {
             if (waterPillar) {
                 // A pillarUp begun from water does not treat its unfilled place cell as pending;
                 // only a still-solid ceiling is. This branch is NOT what protects the water-SURFACE
-                // case (waterPillar is true there too — the body is in water); the arrival gate
+                // case (waterPillar is true there too — the bot is in water); the arrival gate
                 // below is, via floodedShaft(). Neither alone explains why the step waits.
                 boolean ceilingPending = false;
                 for (BlockPos b : se.toBreak) if (world.isSolid(b)) { ceilingPending = true; break; }
@@ -673,7 +674,7 @@ final class WalkerTickProgress {
             // Same for a parkour-descend leap: don't advance off it until we've
             // actually landed, so the descend landing-brake keeps owning the arc
             // (otherwise the next edge fires mid-air and the bot sails past).
-            // EXEMPT in water: a buoyant body never grounds on a water-side landing
+            // EXEMPT in water: a buoyant bot never grounds on a water-side landing
             // (A* exits a shore DOWN into water with a parkourDescend, or a leap
             // falls short into a water gap), so the !onGround hold would pin the
             // step on the parkour node forever while the bot bobs at the surface —
@@ -702,7 +703,7 @@ final class WalkerTickProgress {
             // bank corner), node 6 `passed` (node 7 horizontally closer + both |Δy|<1.2 gates met)
             // — so the +2 climb-out leap was skipped and the bot was left pointed at node 7, a flat
             // `walk` node sitting +2 ABOVE the water. It then sank into the y62 pocket and bob-stalled
-            // for ~14 s (a buoyant body can't WALK up a +2 bank; the toolless underwater bank-dig is
+            // for ~14 s (a buoyant bot can't WALK up a +2 bank; the toolless underwater bank-dig is
             // ~25× slow) until a repath happened to find a gentler exit. HOLD the step on the rising
             // parkour node until the feet have actually RISEN to it (grounded at its Y, ±0.5) so the
             // parkour actuator (sprint+jump, aimed at the destination — line ~3946) owns the launch and
@@ -731,7 +732,7 @@ final class WalkerTickProgress {
             // node y64). For an upward node while in water, don't advance until the
             // feet have actually risen to it.
             double dyNode = w.getY() - p.getY();
-            // In WATER the buoyant body rides the surface; a path node BELOW it
+            // In WATER the buoyant bot rides the surface; a path node BELOW it
             // (A* routed a wide crossing along the riverbed) can never be reached
             // by Y — the bot floats over it forever (trace: rode y61.78 above a y60
             // diagDown node, |dY|=1.78 > 1.2, never advanced → a ~50-block river was
@@ -741,7 +742,7 @@ final class WalkerTickProgress {
             // descent); a climb-up node (dyNode>0) stays gated by the clause below
             // so a buoyant bob can't skip an intermediate +1 climb node.
             boolean diveEdge = se != null && se.move != null && se.move.startsWith("swimDown");
-            // A buoyant body rides 1-2 blocks ABOVE the in-water below-nodes of a
+            // A buoyant bot rides 1-2 blocks ABOVE the in-water below-nodes of a
             // riverbed crossing and can never close the Y gap — the flatWaterWalk
             // actuator already sprint-swims it flat at the surface, so horizontal
             // alignment ALONE must advance the step. The old gate also required
@@ -759,7 +760,7 @@ final class WalkerTickProgress {
             // crossing along the riverbed (live 2026-06-23: walk/parkour nodes placed at y58, FOUR
             // below the floating foot in 9-deep water), and the surface swimmer must cross
             // horizontally ABOVE them — never follow them down. The old -2.5 floor let the bot dive
-            // to and bob at deep crossing nodes (totStuck 100+, the "潜底/挖墙" stall). A deliberate
+            // to and bob at deep crossing nodes (totStuck 100+, the stall where the bot sinks to the bottom and digs into the wall). A deliberate
             // swimDown dive (diveEdge) keeps the tight -2.5 + give-up so a real descent isn't skipped.
             double floatOverFloor = diveEdge ? -2.5 : -FLOATOVER_NONDIVE_MAX_DROP;
             boolean floatOverSubmerged = p.isInWater() && dyNode < -0.5 && dyNode > floatOverFloor
@@ -768,8 +769,8 @@ final class WalkerTickProgress {
             // A surface sprint-swim cruise (WalkerTickDrive.surfaceCruise) rides 1-2 blocks UNDER its
             // surface nodes on purpose, so the vertical gates here and in `passed` read every node as an
             // unclimbed rise and the pointer only crawls after the arc projection — one node BEHIND the
-            // body, whose bearing then drives it backward (the impulse goes negative and vanilla drops
-            // the sprint for "no forward impulse"). Under the cruise, reach is horizontal: the body is
+            // bot, whose bearing then drives it backward (the impulse goes negative and vanilla drops
+            // the sprint for "no forward impulse"). Under the cruise, reach is horizontal: the bot is
             // at the surface for every purpose the gates protect.
             boolean cruiseUnder = wk.driveLatch.cruiseOn && p.isInWater() && dyNode > 0 && dyNode <= 3.0;
             boolean within = cur2 < REACH_DIST_SQ
@@ -783,7 +784,7 @@ final class WalkerTickProgress {
             // pointing at a node BEHIND the player, so the aim flips ~180°.
             boolean passed = false;
             // Hoisted for the advance reading below, so it prints the numbers the decision USED
-            // rather than re-deriving them after the body moved. They stay NaN/false when `within`
+            // rather than re-deriving them after the bot moved. They stay NaN/false when `within`
             // fired and this block never ran — the honest reading for "never computed", not a zero.
             double nd2 = Double.NaN;
             boolean overshot = false;
@@ -805,7 +806,7 @@ final class WalkerTickProgress {
                 // mining an offset trunk, bot jumped at x=16.7 chasing a pillar at
                 // x=15, never placing). A real overshoot makes next STRICTLY closer,
                 // so '<' still resyncs those. The 1.2 gate matches a jump's climb.
-                // Same in-water climb gate as `within` above: the buoyant body bobs
+                // Same in-water climb gate as `within` above: the buoyant bot bobs
                 // y±0.9, so at the bob's crest |nx.y−p.y| can dip under 1.2 for a
                 // node it never actually climbed to — passing skips the climb base
                 // and leaves an impossible +2 target (stuck at y62 vs node y64).
@@ -834,7 +835,7 @@ final class WalkerTickProgress {
                 // behind+above, a dropped-past descend node, not a climb target — and the
                 // nx reachability gate below (|nx.y - p.y| < 1.2) still bars locking onto
                 // an impossible climb.
-                // Dry land only: a buoyant body in water legitimately rides above/below
+                // Dry land only: a buoyant bot in water legitimately rides above/below
                 // its nodes (floatOverSubmerged / dive own that), so "foot below the node"
                 // is normal there and must NOT skip a climb/parkour node — the live wedge
                 // is a grounded terrace landing (inW=false, onG=true throughout).
@@ -879,10 +880,10 @@ final class WalkerTickProgress {
             boolean tailOvershot = cur2 > OVERSHOOT_RESYNC_SQ && !tailStillAhead(wk, p, w);
             boolean tailConsumed = !within && wk.step + 1 == wk.path.size() && wk.seg.pathBestEffort
                     && (tailOvershot || tailDroppedPast);
-            // DESCENT OVERSHOOT-ADVANCE (the 原地后跳 back-hop fix the in-place-hop comment
-            // points to): on a dry descent step the body drives the IMMEDIATE node
+            // DESCENT OVERSHOOT-ADVANCE (the in-place back-hop fix the in-place-hop comment
+            // points to): on a dry descent step the bot drives the IMMEDIATE node
             // (driveTargetYaw = descentNodeYaw). The instant the foot crosses PAST that node
-            // toward the next one, the node sits behind the body and the decoupled drive
+            // toward the next one, the node sits behind the bot and the decoupled drive
             // reverses — the ~0.1-0.25/tick backward hop seen on every slope / stepDown
             // (descentYawArena backSteps=42, worstBack=-0.25). `passed` only advances at the
             // w→nx MIDPOINT (nd2<cur2), leaving a 2-3 tick window where the drive rides the
@@ -890,7 +891,7 @@ final class WalkerTickProgress {
             // the FORWARD side of node w along the w→nx segment (projection of w→foot onto w→nx
             // positive) — so the drive never rides a node behind it. Dry + descend-edge gated
             // (water/climb keep their own gates); the |Δy|<1.2 bar keeps it off an impossible
-            // climb, and the forward-projection test means a switchback leg (foot past w but NOT
+            // climb, and the forward-projection test means a switchback segment (foot past w but NOT
             // toward nx) never trips it.
             // DISCRETE descents only (fall off a lip / a single stepDown): a continuous diagDown
             // SLOPE legitimately rides the immediate node for trend-camera smoothing, and advancing
@@ -930,7 +931,7 @@ final class WalkerTickProgress {
             }
             // WATER-SURFACE STEP-DOWN float-and-advance: a stepDown (or short discrete descent) whose
             // node is a SHALLOW water-surface foothold (water at the node, SOLID floor one below, head
-            // not water) lands a buoyant body that grounds vertically AT the node (|dyNode|≈0) but pins
+            // not water) lands a buoyant bot that grounds vertically AT the node (|dyNode|≈0) but pins
             // ~0.74 b short of centre (cur2≈0.55) — just over the tight REACH_DIST_SQ=0.45 — because
             // buoyancy + the water-climb jump keep lifting/ramming the foot and the prone swim can't
             // nudge the last 0.1 b in. `within` (cur2<0.45) never fires and the step freezes (live #47
@@ -958,7 +959,7 @@ final class WalkerTickProgress {
                             String.format(Locale.ROOT, "%.2f", dyNode), wk.stepProg.noStepProgressTicks);
             }
             // STEPUP-CREST float-and-advance: a +1 stepUp/diagUp CREST node (a diagonal-staircase plateau
-            // lip) that the buoyancy-free body has TOPPED OUT on but ORBITS — it reaches the node's Y at
+            // lip) that the buoyancy-free bot has TOPPED OUT on but ORBITS — it reaches the node's Y at
             // the apex bob (|dyNode|≈0) yet the small lateral orbit (±0.5 b) keeps cur2 pinned at
             // ~0.49-1.2, just over the tight REACH_DIST_SQ=0.45, so `within` never fires, and while
             // circling the next node never reads STRICTLY closer so `passed` never fires either — the
@@ -980,7 +981,7 @@ final class WalkerTickProgress {
             // 3D-low (Walker:1669), and a DRY topped-out crest's vertical bob folds wdy into wd2 and
             // manufactures a new low each bob cycle, so on a WIDE bob orbit the gate is never reached and the
             // crest never advances (live -677,80: cur2 0.5→8.6, ADVANCE never fired, 120-173 t orbit). Count
-            // raw ticks the body dwells on the SAME dry stepUp/diagUp crest step without within/passed
+            // raw ticks the bot dwells on the SAME dry stepUp/diagUp crest step without within/passed
             // advancing, reset ONLY on a step-advance/path-change — the bob can't zero it, so a genuine orbit
             // accumulates past the gate. The crest-reach's |dyNode|<0.5 topped-out guard still picks the firing
             // tick, so this never advances a node the foot hasn't risen to (no skip-node strand).
@@ -1008,12 +1009,12 @@ final class WalkerTickProgress {
                             String.format(Locale.ROOT, "%.2f", dyNode), wk.stepProg.crestOrbitTicks, wk.stepProg.noStepProgressTicks);
             }
             // WATER-SURFACE WALK relaxed-advance (the turn / wall-corner FREEZE breaker): a flat `walk`
-            // water-surface node the buoyant body sits ~0.67 b out from (cur2 floor ~0.455, just over
+            // water-surface node the buoyant bot sits ~0.67 b out from (cur2 floor ~0.455, just over
             // REACH_DIST_SQ=0.45) so `within` never closes. On a straight crossing forward momentum fires
             // `passed`, but at a TURN / terminal / WALL-CORNER node the bot isn't crossing toward the next node
             // so `passed` can't fire either — the flat water walk node then has NO relaxed-advance and the bot
             // orbits / freezes against the corner (live deep-water bay corner: cur2 1.142 FROZEN 321 ticks,
-            // within=0, aim swinging 403° — the "贴墙/水里卡住" jank; attack=0, NOT digging). Mirror
+            // within=0, aim swinging 403° — the stuck-against-a-wall or stuck-in-water jank; attack=0, NOT digging). Mirror
             // waterStepDownFloat / stepUpCrestReach: on a CONFIRMED in-water stall at a flat walk water node
             // within a relaxed reach, advance so the segment continues / repaths from here. In water
             // noStepProgressTicks is HORIZONTAL-only (Walker:~1666) so the bob can't fake-reset it — only a
@@ -1048,11 +1049,11 @@ final class WalkerTickProgress {
             boolean legacyAdvance = within || passed || tailConsumed || crossedDescendNode || crossedWalkNode
                     || waterStepDownFloat || stepUpCrestReach || waterWalkReach;
             boolean doAdvance = (legacyAdvance || (BotConfig.walkerArcLengthAdvance && wk.arc.proj.segIdx > wk.step))
-                    && !airborneClimbConsume(world, p, w, wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null)   // ONE outlet for all nine gates — an airborne body must not spend a node on a climb; see the helper's javadoc for the wd.buriedOre reading
+                    && !airborneClimbConsume(world, p, w, wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null)   // ONE outlet for all nine gates — an airborne bot must not spend a node on a climb; see the helper's javadoc for the wd.buriedOre reading
                     && !unwalkedDescentConsume(wk, world, p, foot, w,
-                            wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null)                                                           // …and a standing body must not spend one on a descent — the LAST node too when spending it would fake an arrival; see that helper for the rung-14 and rung-13 readings
+                            wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null)                                                           // …and a standing bot must not spend one on a descent — the LAST node too when spending it would fake an arrival; see that helper for the rung-14 and rung-13 readings
                     && !airborneDryArrival(wk, world, p, foot, w,
-                            wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null);                                                          // …and a body that is not standing must not spend a dry LAST node — the flush-bank reading on the real client
+                            wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null);                                                          // …and a bot that is not standing must not spend a dry LAST node — the flush-bank reading on the real client
             if (doAdvance) {
                 if (holdLastNode(wk, foot, w)) break;
                 // The step-advance reading, at the ONE `step++` in the walker (so within/passed/tail

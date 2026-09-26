@@ -42,13 +42,13 @@ public final class WorldDriverPortalScenes {
         out.addAll(List.of(
                 // Shipped optional as the capability probe for a rung nobody had written, and
                 // promoted in the run that first saw it green — the whole cast works on a
-                // server-side body with no engine change, so from here a red row means N4's
+                // server-side player with no engine change, so from here a red row means N4's
                 // foundation moved rather than that it was never there.
                 Scene.of("wd.serverCastsObsidian", 400,
                         WorldDriverPortalScenes::serverCastsObsidian),
                 // N5's capability probe, written before the rung for the same reason the cast's was:
                 // the rung that needs this stands at the bottom of a 36-block shaft with ten blocks
-                // of obsidian it spent an hour casting, and "can the body work a flint-and-steel" is
+                // of obsidian it spent an hour casting, and "can the bot work a flint-and-steel" is
                 // a question worth answering in 200ms instead.
                 Scene.of("wd.serverLightsPortal", 400,
                         WorldDriverPortalScenes::serverLightsPortal),
@@ -59,7 +59,7 @@ public final class WorldDriverPortalScenes {
                 Scene.of("wd.serverCastsAPortalFrame", 1_200,
                         WorldDriverPortalScenes::serverCastsAPortalFrame),
                 // N6's first question, and the one the ladder cannot ask cheaply: a lit portal is
-                // worth nothing if the body that lit it cannot walk through. Required as of the
+                // worth nothing if the bot that lit it cannot walk through. Required as of the
                 // teleport fix — it was written as a frontier sensor, went red on BOTH loaders for
                 // the same reason, and is kept required so that reason cannot come back quietly.
                 Scene.of("wd.serverEntersTheNether", 4_000,
@@ -81,14 +81,14 @@ public final class WorldDriverPortalScenes {
      *
      * <p>The capability probe for ROADMAP N4, written before the rung rather than after it, because
      * the rung is a ~77-block descent to this seed's nearest lava and that would be an expensive
-     * place to discover that the body cannot work a bucket. Everything the cast needs fits in eight
+     * place to discover that the bot cannot work a bucket. Everything the cast needs fits in eight
      * blocks of arena: fill an empty bucket from a lava source, empty it into a chosen cell, and let
      * water convert that cell to obsidian.
      *
      * <p><b>Why a cast and not a mine.</b> Obsidian that already exists — the crust of a lava lake —
      * needs a diamond pickaxe to take, and diamonds are several rungs above anything this route
      * holds. A portal is therefore not found but MADE: a mould, then lava placed into it one bucket
-     * at a time, then water. That is why this asserts the block at a cell the body CHOSE, rather
+     * at a time, then water. That is why this asserts the block at a cell the bot CHOSE, rather
      * than anywhere obsidian happens to appear.
      *
      * <p><b>One bucket, three uses.</b> The cast is scripted the way the ladder can actually afford
@@ -147,7 +147,7 @@ public final class WorldDriverPortalScenes {
         // gets carried to the site, and the bucket is empty from then on except while it is holding
         // the lava it is about to pour.
         // And the bucket is deliberately NOT the selected slot. `useItemInHand` uses whatever the
-        // hotbar has selected, so a body that just mined its way down holds a PICKAXE when it
+        // hotbar has selected, so a bot that just mined its way down holds a PICKAXE when it
         // reaches the lava — and a pickaxe's `use` returns PASS and changes nothing, which is
         // byte-identical to a bucket whose ray missed. The journey lost a whole run to that shape
         // (fill.result=PASS, lava_bucket=0, source untouched, aim dead on at 2.5 m). So this arena
@@ -158,7 +158,7 @@ public final class WorldDriverPortalScenes {
 
         // 1. Set the water down, against the wall, so it stands one cell above the mould. This is the
         //    verb the first version of this probe never asked about: it staged the water with
-        //    setBlockAndUpdate, which proved the CONVERSION and left "can the body put water where it
+        //    setBlockAndUpdate, which proved the CONVERSION and left "can the bot put water where it
         //    wants it" unanswered — and that question is the one a 77-block descent would have been
         //    an expensive place to fail.
         ctx.expect(driver.avatar().holdItem(Items.WATER_BUCKET))
@@ -178,12 +178,12 @@ public final class WorldDriverPortalScenes {
         //    block. The first version of this used useBlock and came back bucket.filled=0 with the
         //    source untouched, which is correct behaviour and the wrong verb: useItemOn is the
         //    block-targeted path, and a bucket has no useOn. BucketItem does its work in `use`,
-        //    which ray-traces from the eyes for a fluid — so where the body is LOOKING is the whole
+        //    which ray-traces from the eyes for a fluid — so where the player is LOOKING is the whole
         //    input, and aiming is not decoration here the way it is for a place.
         ctx.expect(driver.avatar().holdItem(Items.BUCKET))
                 .as("the now-empty bucket is back in the main hand before the fill").isTrue();
         driver.avatar().aimAtBlock(source);
-        // A tick between aiming and using, because the aim is state the body carries and the ray
+        // A tick between aiming and using, because the aim is state the player carries and the ray
         // trace reads it — and because a use that fails for want of a tick and a use that fails for
         // want of reach are the same FAIL from outside.
         ServerAvatarManager.tickAll();
@@ -191,7 +191,7 @@ public final class WorldDriverPortalScenes {
                 fp.getYRot(), fp.getXRot()));
         ctx.record("aim.eyeToSource", String.format(java.util.Locale.ROOT, "%.2f",
                 fp.getEyePosition().distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(source))));
-        // What vanilla's own pick would hit from where the body is looking. If this is not the
+        // What vanilla's own pick would hit from where the player is looking. If this is not the
         // source, the aim is the problem; if it IS and the use still fails, the problem is the use.
         // Clipped the way BucketItem clips, not with Entity.pick, and the difference is not
         // cosmetic. `pick` calls getViewYRot, which LivingEntity overrides to return yHeadRot —
@@ -210,10 +210,10 @@ public final class WorldDriverPortalScenes {
         ctx.record("source.after", String.valueOf(level.getBlockState(source).getBlock()));
         ctx.expect(filled).as("lava bucket held after right-clicking a lava source").isAtLeast(1);
 
-        // 3. Pour into the cell the body chose. Same verb and the same reason: emptying is also
+        // 3. Pour into the cell the bot chose. Same verb and the same reason: emptying is also
         //    BucketItem.use, ray-traced. Aimed at the floor BENEATH the mould, because the fluid
         //    lands in the cell in FRONT of the face that was hit, not in the block that was hit —
-        //    and the mould is ADJACENT to the body for that aim to be possible at all. Two cells
+        //    and the mould is ADJACENT to the player for that aim to be possible at all. Two cells
         //    away it was not: a ray toward a cell below floor level clips the floor's lip first, the
         //    bucket emptied onto whatever it did hit, and the mould stayed air while the use
         //    reported CONSUME.
@@ -268,9 +268,9 @@ public final class WorldDriverPortalScenes {
      *       bucket full, so cell two reported "no empty bucket" and the real fault was two steps
      *       upstream — a cascade that hides its own cause.</li>
      *   <li><b>One source in the interior, let it flow to all ten.</b> It cannot, for two independent
-     *       reasons. A scene ticks BODIES, not the level, so no fluid tick ever runs; and even under
-     *       a live tick a source cannot wet the two cells <i>above</i> it, because water does not
-     *       flow up.</li>
+     *       reasons. A scene ticks the BOT PLAYERS, not the level, so no fluid tick ever runs; and
+     *       even under a live tick a source cannot wet the two cells <i>above</i> it, because water
+     *       does not flow up.</li>
      * </ol>
      *
      * <p><b>What works is to move the water.</b> Placing a source in the interior cell adjacent to
@@ -356,7 +356,7 @@ public final class WorldDriverPortalScenes {
 
         // The ledge every pour is made from. One block up, and hard against the wall: from feet at
         // floorY+2 and z=cz-1.5 the eyes reach both the top row and the bottom row of the ring, and
-        // a body one block further back reaches neither — 4.53 against a ~4.5-block ray.
+        // a player one block further back reaches neither — 4.53 against a ~4.5-block ray.
         for (int dx = -4; dx <= 5; dx++)
             level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz - 2), Blocks.STONE.defaultBlockState());
 
@@ -386,22 +386,22 @@ public final class WorldDriverPortalScenes {
             BlockPos cell = plan.get(i)[0], wet = plan.get(i)[1];
 
             if (!pourInto(driver, fp, wet, floorY, Items.WATER_BUCKET, Blocks.WATER, level)) {
-                ctx.record("water.stuckAt", label(cell, x0, y0) + " 想放水到 " + label(wet, x0, y0)
-                        + "，那格现在是 " + level.getBlockState(wet).getBlock());
+                ctx.record("water.stuckAt", label(cell, x0, y0) + " tried to pour water into " + label(wet, x0, y0)
+                        + ", which is now " + level.getBlockState(wet).getBlock());
                 break;
             }
             moves++;
 
             if (!scoopSource(driver, fp, lake.get(i), floorY, Items.LAVA_BUCKET)) {
                 ctx.record("lava.stuckAt", label(cell, x0, y0)
-                        + "（湖格 " + lake.get(i).toShortString() + " = " + level.getBlockState(lake.get(i)).getBlock() + "）");
+                        + " (lake cell " + lake.get(i).toShortString() + " = " + level.getBlockState(lake.get(i)).getBlock() + ")");
                 break;
             }
             pourInto(driver, fp, cell, floorY, Items.LAVA_BUCKET, Blocks.OBSIDIAN, level);
 
             if (level.getBlockState(cell).getBlock() == Blocks.OBSIDIAN) cast++;
             else ctx.record("cast.missed." + label(cell, x0, y0), level.getBlockState(cell).getBlock()
-                    + "（旁边 " + label(wet, x0, y0) + " 是 " + level.getBlockState(wet).getBlock() + "）");
+                    + " (neighbour " + label(wet, x0, y0) + " is " + level.getBlockState(wet).getBlock() + ")");
 
             // The bucket is empty again, which is exactly what taking the water back needs. This is
             // the step that makes ONE bucket enough, and it is also the step that leaves the interior
@@ -412,8 +412,8 @@ public final class WorldDriverPortalScenes {
         }
         ctx.record("frame.cast", cast + "/" + plan.size());
         ctx.record("water.moves", moves + "");
-        ctx.record("bucket.after", WorldDriverProcessScenes.countItem(fp, Items.BUCKET) + " 空 / "
-                + WorldDriverProcessScenes.countItem(fp, Items.LAVA_BUCKET) + " 岩浆 / " + WorldDriverProcessScenes.countItem(fp, Items.WATER_BUCKET) + " 水");
+        ctx.record("bucket.after", WorldDriverProcessScenes.countItem(fp, Items.BUCKET) + " empty / "
+                + WorldDriverProcessScenes.countItem(fp, Items.LAVA_BUCKET) + " lava / " + WorldDriverProcessScenes.countItem(fp, Items.WATER_BUCKET) + " water");
         ctx.expect(cast).as("obsidian cast into every frame cell from one bucket")
                 .isEqualTo(plan.size());
 
@@ -437,7 +437,7 @@ public final class WorldDriverPortalScenes {
     }
 
     /**
-     * Put the body where the wall cell it is about to work on is at EYE LEVEL, on a block of its own.
+     * Put the bot where the wall cell it is about to work on is at EYE LEVEL, on a block of its own.
      *
      * <p>Aiming at the backing behind a cell only reaches that cell if the ray is close to
      * horizontal. From one fixed ledge the ray to a cell five blocks up is steep enough to enter the
@@ -486,20 +486,20 @@ public final class WorldDriverPortalScenes {
     }
 
     /**
-     * Walk a server-driven body through a lit portal and out the other side, into the Nether.
+     * Walk a server-side player through a lit portal and out the other side, into the Nether.
      *
      * <p>The first question of ROADMAP N6, and it is asked here rather than on the ladder because
      * the rung that asks it in the field has just spent an hour of wall-clock casting ten obsidian
      * at the bottom of a shaft. A portal that lights and does not transit would invalidate that
-     * whole rung, and it would do so silently: the body would stand in purple fog forever and the
+     * whole rung, and it would do so silently: the bot would stand in purple fog forever and the
      * budget would run out, which reads as a slow walk.
      *
      * <p><b>Why it was genuinely in doubt.</b> {@code JoinedPlayerBodies.JoinedBody} keeps
-     * {@code tick()} empty for the level's entity loop, so the body is ticked only when its driver
+     * {@code tick()} empty for the level's entity loop, so the player is ticked only when its driver
      * steps it. Vanilla's portal handling lives in {@code Entity.baseTick()}, which each step reaches
      * through {@code JoinedBody.pump}'s {@code doTick()}, and {@code checkInsideBlocks()} rides
      * {@code move()}. So the machinery is present — but "present"
-     * and "works for a body with a connection that discards every packet it is given" are different
+     * and "works for a player with a connection that discards every packet it is given" are different
      * claims, and only one of them can be tested.
      *
      * <p><b>Frontier, not required.</b> If this is red the finding is engine-shaped and belongs in
@@ -516,7 +516,7 @@ public final class WorldDriverPortalScenes {
 
         ServerLevel nether = level.getServer().getLevel(Level.NETHER);
         if (nether == null) {
-            ctx.skip("这个运行时没有下界维度（数据包移除了 minecraft:the_nether），没有可去的地方");
+            ctx.skip("this runtime has no Nether dimension (a data pack removed minecraft:the_nether), so there is nowhere to go");
             return;
         }
 
@@ -566,8 +566,8 @@ public final class WorldDriverPortalScenes {
                 .as("the frame lights before anything is asked about walking through it").isTrue();
 
         // Standing in it is what starts vanilla's portal timer; a player's is ~80 ticks, so the
-        // budget below is generous by design — a run that spends it all has found a body the timer
-        // never starts for, which is a different finding from a body it never fires for.
+        // budget below is generous by design — a run that spends it all has found a player the timer
+        // never starts for, which is a different finding from a player it never fires for.
         driver.runProcess(new HoldStill(4_000));
         ServerAvatarManager.register(driver);
         fp.setPos(doorway.getX() + 0.5, doorway.getY(), doorway.getZ() + 0.5);
@@ -576,22 +576,22 @@ public final class WorldDriverPortalScenes {
         int ticked = 0;
         while (ticked < budget && fp.level() == level) { ServerAvatarManager.tickAll(); ticked++; }
 
-        ctx.record("transit.ticks", ticked + (ticked >= budget ? "（用尽）" : ""));
+        ctx.record("transit.ticks", ticked + (ticked >= budget ? " (budget exhausted)" : ""));
         ctx.record("transit.dimension", fp.level().dimension().location().toString());
         ctx.record("transit.pos", fp.blockPosition().toShortString());
         ctx.record("transit.standingIn", String.valueOf(fp.level().getBlockState(fp.blockPosition()).getBlock()));
-        // Two readings, because they want opposite fixes: a body that never entered the portal's
-        // own block is a POSITIONING fault, and a body that stood in it for six hundred ticks
+        // Two readings, because they want opposite fixes: a bot that never entered the portal's
+        // own block is a POSITIONING fault, and a bot that stood in it for six hundred ticks
         // without moving is a TICK fault.
         ctx.record("transit.everInPortal",
-                level.getBlockState(doorway).getBlock() == Blocks.NETHER_PORTAL ? "门还在" : "门没了");
+                level.getBlockState(doorway).getBlock() == Blocks.NETHER_PORTAL ? "portal still present" : "portal gone");
 
-        ctx.expect(fp.level().dimension()).as("the driven body arrives in the Nether through its own portal")
+        ctx.expect(fp.level().dimension()).as("the driven bot arrives in the Nether through its own portal")
                 .isEqualTo(Level.NETHER);
 
         // WHERE it landed, and this is not a detail. Vanilla scales the destination by the ratio of
         // the two dimensions' coordinate_scale — 8:1 — so an overworld portal at x=100001 belongs at
-        // nether x≈12500. A body that arrives at the UNSCALED coordinate is in the Nether and is also
+        // nether x≈12500. A bot that arrives at the UNSCALED coordinate is in the Nether and is also
         // 87 000 blocks from the fortress the blaze rod rung will look for, and every rung above this
         // one would search the wrong world while this scene reported green.
         double scale = net.minecraft.world.level.dimension.DimensionType.getTeleportationScale(
@@ -601,7 +601,7 @@ public final class WorldDriverPortalScenes {
         int drift = Math.max(Math.abs(fp.blockPosition().getX() - want.getX()),
                 Math.abs(fp.blockPosition().getZ() - want.getZ()));
         ctx.record("transit.scale", String.valueOf(scale));
-        ctx.record("transit.expectedXZ", want.getX() + "," + want.getZ() + "（漂移 " + drift + " 格）");
+        ctx.record("transit.expectedXZ", want.getX() + "," + want.getZ() + " (drift " + drift + " blocks)");
         ctx.record("transit.arrivalPortal", String.valueOf(
                 fp.level().getBlockState(fp.blockPosition()).getBlock()));
         ctx.record("transit.underfoot", String.valueOf(
@@ -609,13 +609,13 @@ public final class WorldDriverPortalScenes {
         // The dimension's own ceiling: a nether arrival above logical height is standing where the
         // roof is, which no portal search should ever return.
         ctx.record("transit.logicalHeight", nether.dimensionType().logicalHeight()
-                + "（落点 y=" + fp.blockPosition().getY() + "）");
+                + " (arrival y=" + fp.blockPosition().getY() + ")");
         ctx.expect(drift).as("the arrival is at the 8:1-scaled coordinate, not the raw one")
                 .isAtMost(128);
         ctx.expect(fp.blockPosition().getY()).as("the arrival is under the Nether's own roof")
                 .isAtMost(nether.dimensionType().logicalHeight());
-        ctx.passNote("穿过自己点燃的传送门到达下界，用了 " + ticked + " tick，落在 "
-                + fp.blockPosition().toShortString() + "（期望附近 " + want.getX() + "," + want.getZ() + "）");
+        ctx.passNote("reached the Nether through the portal the bot lit itself in " + ticked + " ticks, landing at "
+                + fp.blockPosition().toShortString() + " (expected near " + want.getX() + "," + want.getZ() + ")");
     }
 
     /**
@@ -626,14 +626,14 @@ public final class WorldDriverPortalScenes {
      * {@code wd.serverCastsAPortalFrame} the ten-from-one-bucket shuttle,
      * {@code wd.serverLightsPortal} the ignition. What none of them covers is the step the rung
      * actually spends its blocks on: those three all work a wall that was <b>staged</b>, and in the
-     * field there is no two-thick wall waiting beside the lava. The body has to build the mould.
+     * field there is no two-thick wall waiting beside the lava. The bot has to build the mould.
      *
      * <p><b>Placement is exact and reach-free, which is why this is affordable.</b>
      * {@code ServerPlayerBody.useBlock} constructs its own {@code BlockHitResult} from the cell
      * and face it is given rather than ray-tracing for one, and vanilla's distance check lives in
-     * {@code ServerGamePacketListenerImpl.handleUseItemOn} — a packet this body never sends. So a
-     * driven body can place a block in a named cell from wherever it is standing, and the mould is
-     * bookkeeping rather than a navigation problem. The body is parked clear of the mould for the
+     * {@code ServerGamePacketListenerImpl.handleUseItemOn} — a packet this player never sends. So a
+     * driven bot can place a block in a named cell from wherever it is standing, and the mould is
+     * bookkeeping rather than a navigation problem. The bot is parked clear of the mould for the
      * whole build for the one reason that does still bite: a block cannot be placed into a cell the
      * placer is standing in ({@code isUnobstructed}).
      *
@@ -644,7 +644,7 @@ public final class WorldDriverPortalScenes {
      * no support of its own. Building the front layer first would strand every cell whose lower
      * neighbour is one of the sixteen that must stay air.
      *
-     * <p>Staged: the floor, the lava lake, the reservoir, and the block the body stands on to pour
+     * <p>Staged: the floor, the lava lake, the reservoir, and the block the bot stands on to pour
      * from. That is terrain and a pillar — the terrain the seed provides, and a climb
      * {@code ascendByTowering} owns on the ladder. Everything the rung must MAKE is made here.
      */
@@ -755,7 +755,7 @@ public final class WorldDriverPortalScenes {
             scoopSource(driver, fp, wet, floorY, Items.WATER_BUCKET);
         }
         ctx.record("frame.cast", cast + "/" + plan.size());
-        ctx.expect(cast).as("ten obsidian cast into a mould the body built itself")
+        ctx.expect(cast).as("ten obsidian cast into a mould the bot built itself")
                 .isEqualTo(plan.size());
 
         // ---- 4. light it ----
@@ -773,15 +773,15 @@ public final class WorldDriverPortalScenes {
             if (level.getBlockState(c).getBlock() == Blocks.NETHER_PORTAL) lit++;
         ctx.record("portal.cells", lit + "/" + interior.size());
         ctx.record("interior.after", String.valueOf(level.getBlockState(interior.get(0)).getBlock()));
-        ctx.expect(lit).as("the portal the body built and cast is lit end to end")
+        ctx.expect(lit).as("the portal the bot built and cast is lit end to end")
                 .isEqualTo(interior.size());
-        ctx.passNote("平地起门: 铺 " + (wanted + wallWanted) + " 块模具, 一只桶浇 " + cast
-                + " 块黑曜石, 点亮 " + lit + " 格");
+        ctx.passNote("portal built on flat ground: laid " + (wanted + wallWanted) + " mould blocks, cast " + cast
+                + " obsidian blocks with one bucket, lit " + lit + " portal cells");
     }
 
     /** Place a held cobblestone in {@code target} by clicking {@code face} of {@code support}.
      *  No aim and no walk: {@code useBlock} builds its own hit result, and the reach check the
-     *  server applies lives on a packet path this body never uses. */
+     *  server applies lives on a packet path this player never uses. */
     private static boolean placeAt(ServerWorldDriver driver, ServerLevel level, BlockPos target,
                                    BlockPos support, Direction face) {
         if (!driver.avatar().holdItem(Items.COBBLESTONE)) return false;
@@ -795,19 +795,19 @@ public final class WorldDriverPortalScenes {
      *
      * <p>Two verbs, both on the critical path and neither exercised anywhere else. Inserting an eye
      * is {@code EnderEyeItem.useOn} — the same {@code useOn}-only shape as the flint-and-steel, so a
-     * body that reaches for {@code useItemInHand} gets {@code PASS} and a frame that never fills.
+     * bot that reaches for {@code useItemInHand} gets {@code PASS} and a frame that never fills.
      * Stepping through is {@code EndPortalBlock}, which reaches {@code changeDimension} by a
      * different road than the Nether's and lands on a fixed point rather than a searched one.
      *
      * <p><b>Why this is worth its own scene given the Nether already passes.</b> The teleport that
      * was swallowed is delivered the same way here, but the destination is
-     * {@code ServerLevel.END_SPAWN_POINT} rather than a scaled coordinate, so a body that arrived
+     * {@code ServerLevel.END_SPAWN_POINT} rather than a scaled coordinate, so a bot that arrived
      * "somewhere in the End" would look correct on a dimension check while standing in the void
      * beside the island. The assertion is on the platform.
      *
      * <p>Staged: the frame and the twelve eyes. Where eyes come from is
      * {@code ENDER_PEARL}/{@code EYE_OF_ENDER}'s question and finding the stronghold is
-     * {@code STRONGHOLD}'s; what this owns is that a driven body can spend them and survive the
+     * {@code STRONGHOLD}'s; what this owns is that a driven bot can spend them and survive the
      * crossing.
      */
     private static void serverOpensTheEndPortal(SceneContext ctx) {
@@ -816,7 +816,7 @@ public final class WorldDriverPortalScenes {
 
         ServerLevel end = level.getServer().getLevel(Level.END);
         if (end == null) {
-            ctx.skip("这个运行时没有末地维度（数据包移除了 minecraft:the_end），没有可去的地方");
+            ctx.skip("this runtime has no End dimension (a data pack removed minecraft:the_end), so there is nowhere to go");
             return;
         }
 
@@ -863,7 +863,7 @@ public final class WorldDriverPortalScenes {
         }
         ctx.record("eyes.set", set + "/" + frames.size());
         ctx.record("eyes.left", WorldDriverProcessScenes.countItem(fp, Items.ENDER_EYE) + "");
-        ctx.expect(set).as("all twelve eyes go into the frame from a driven body's hand")
+        ctx.expect(set).as("all twelve eyes go into the frame from a driven bot's hand")
                 .isEqualTo(frames.size());
 
         BlockPos doorway = new BlockPos(cx, y, cz);
@@ -878,10 +878,10 @@ public final class WorldDriverPortalScenes {
         final int budget = 400;
         int ticked = 0;
         while (ticked < budget && fp.level() == level) { ServerAvatarManager.tickAll(); ticked++; }
-        ctx.record("transit.ticks", ticked + (ticked >= budget ? "（用尽）" : ""));
+        ctx.record("transit.ticks", ticked + (ticked >= budget ? " (budget exhausted)" : ""));
         ctx.record("transit.dimension", fp.level().dimension().location().toString());
         ctx.record("transit.pos", fp.blockPosition().toShortString());
-        ctx.expect(fp.level().dimension()).as("the driven body crosses into the End").isEqualTo(Level.END);
+        ctx.expect(fp.level().dimension()).as("the driven bot crosses into the End").isEqualTo(Level.END);
 
         // The platform, not merely the dimension. END_SPAWN_POINT is fixed, so "somewhere in the
         // End" and "on the obsidian island vanilla builds for arrivals" are different claims and
@@ -889,11 +889,11 @@ public final class WorldDriverPortalScenes {
         BlockPos want = net.minecraft.server.level.ServerLevel.END_SPAWN_POINT;
         int drift = Math.max(Math.abs(fp.blockPosition().getX() - want.getX()),
                 Math.abs(fp.blockPosition().getZ() - want.getZ()));
-        ctx.record("transit.spawnPoint", want.toShortString() + "（漂移 " + drift + " 格）");
+        ctx.record("transit.spawnPoint", want.toShortString() + " (drift " + drift + " blocks)");
         ctx.record("transit.underfoot", String.valueOf(
                 fp.level().getBlockState(fp.blockPosition().below()).getBlock()));
         ctx.expect(drift).as("the arrival is on the End's own spawn platform").isAtMost(16);
-        ctx.passNote("十二只眼开门, " + ticked + " tick 过到末地, 落在 "
+        ctx.passNote("twelve eyes opened the portal, crossed into the End in " + ticked + " ticks, landing at "
                 + fp.blockPosition().toShortString());
     }
 
@@ -905,7 +905,7 @@ public final class WorldDriverPortalScenes {
     }
 
     /**
-     * Light a nether portal with a flint-and-steel, on a server-side body.
+     * Light a nether portal with a flint-and-steel, on a server-side player.
      *
      * <p>The capability probe for ROADMAP N5, and the frame here is <b>staged on purpose</b>. This
      * arena is not asking whether the ladder can cast ten obsidian — {@code wd.serverCastsObsidian}

@@ -10,17 +10,17 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 
 /**
- * The {@link Hands} the walker drives when the body has none: nothing is held, nothing places,
+ * The {@link Hands} the walker drives when the bot has none: nothing is held, nothing places,
  * nothing breaks, and every reading says so.
  *
  * <p>The walker is not a verb — it cannot refuse an order the way a process does at the top of
  * its tick — and its dig/place sites are already gated on {@code BotConfig.allowBreak} /
- * {@code allowPlace} and on {@code holdPlaceable()} answering true. So a handless body is driven
+ * {@code allowPlace} and on {@code holdPlaceable()} answering true. So a handless bot is driven
  * with these hands rather than a null the fifty sites would each have to guard: the gates fall
  * closed on their own, and the readings ({@code breakHeld()} false, {@code destroyProgress()}
- * −1) are the same ones a client body reports between digs. What this does NOT do is keep the
- * pathfinder from planning a dig for a body that cannot dig — that is {@code BodyCapabilities}'
- * job and lands with the first non-player body. Walker-private on purpose: a process reaching
+ * −1) are the same ones a client player reports between digs. What this does NOT do is keep the
+ * pathfinder from planning a dig for a bot that cannot dig — that is {@code BodyCapabilities}'
+ * job and lands with the first non-player. Walker-private on purpose: a process reaching
  * for a null-object here to make an order "succeed" without hands is the failure the split
  * exists to make impossible.
  */

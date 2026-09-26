@@ -77,14 +77,14 @@ import net.minecraft.world.phys.Vec3;
  *       from two rungs that are still unscripted. It therefore SKIPS rather than fails when the bag
  *       is empty: "nobody has written rung 14 yet" is not a finding about crafting.</li>
  *   <li><b>17 STRONGHOLD</b> — the longest walk in the game. 1745 blocks of real terrain from world
- *       spawn to {@link JourneyRoute#stronghold}, in legs, re-planning from wherever the walker
+ *       spawn to {@link JourneyRoute#stronghold}, in segments, re-planning from wherever the walker
  *       actually stopped. Then a scan for the frame, then a shaft down to it.</li>
  *   <li><b>18 END_PORTAL</b> — twelve {@code useOn}-only interactions. {@code EnderEyeItem} overrides
- *       {@code useOn} and nothing else, so it must go through {@code Body.useBlock}; a body that
+ *       {@code useOn} and nothing else, so it must go through {@code Body.useBlock}; a bot that
  *       reaches for {@code useItemInHand} gets {@code PASS} and a frame that never fills. That is the
  *       same trap the flint-and-steel set, and the mirror image of the bucket's.</li>
  *   <li><b>19 END</b> — the crossing, asserted on POSITION and not merely on dimension. An earlier
- *       bug delivered a body to the Nether 87 501 blocks off while a dimension check passed, because
+ *       bug delivered a bot to the Nether 87 501 blocks off while a dimension check passed, because
  *       {@code ServerPlayer.changeDimension} hands the destination to {@code connection.teleport}
  *       and both loaders' fake players used to swallow it. The End's destination is the fixed
  *       {@code ServerLevel.END_SPAWN_POINT}, so the drift is exactly measurable.</li>
@@ -125,8 +125,9 @@ public final class JourneyEndRungs {
         out.add(stage("wd.journey16EyeOfEnder", JourneyStage.EYE_OF_ENDER, 20_000,
                 JourneyEndRungs::eyeOfEnder));
         // 500 000, and the number is a trip bill rather than caution. The walk alone is 1745 blocks
-        // over generated-on-arrival terrain; at MARCH_LEG_TICKS per leg the march can spend 200 000
-        // before the shaft is even started, and a body that has to sidestep a wedge spends more.
+        // over generated-on-arrival terrain; at MARCH_LEG_TICKS per segment the march can spend
+        // 200 000 before the shaft is even started, and a bot that has to sidestep a wedge spends
+        // more.
         // A budget smaller than the plan turns "this seed's stronghold is a long way off" into a
         // timeout — the wrong sentence about the right world.
         out.add(stage("wd.journey17Stronghold", JourneyStage.STRONGHOLD, 500_000,
@@ -163,20 +164,22 @@ public final class JourneyEndRungs {
     /** What one blaze rod grinds into. */
     private static final int BLAZE_POWDER_PER_ROD = 2;
 
-    /** How far a leg of the long march aims. Ninety-six blocks is three chunks and change: far
-     *  enough that 1745 blocks is a couple of dozen legs, short enough that the pathfinder is being
-     *  asked a question it can answer over terrain that is being generated as the body arrives. */
+    /** How far one segment of the long march aims. Ninety-six blocks is slightly more than three
+     *  chunks: far enough that 1745 blocks is a couple of dozen segments, short enough that the
+     *  pathfinder is being asked a question it can answer over terrain that is being generated as
+     *  the bot arrives. */
     private static final int MARCH_LEG_BLOCKS = 96;
 
-    /** Ticks one leg may take. Ninety-six blocks at a walk is ~440 ticks; the rest is for the
+    /** Ticks one segment may take. Ninety-six blocks at a walk is ~440 ticks; the rest is for the
      *  detours real ground imposes and for chunk generation stalling the search. */
     private static final int MARCH_LEG_TICKS = 4_000;
 
-    /** How many legs before the march is called off. Forty-eight legs is 4600 blocks of progress
-     *  against 1745 blocks of distance — the margin is for terrain that does not run straight. */
+    /** How many segments before the march is called off. Forty-eight segments is 4600 blocks of
+     *  progress against 1745 blocks of distance — the margin is for terrain that does not run
+     *  straight. */
     private static final int MAX_MARCH_LEGS = 48;
 
-    /** How close a leg has to land to count as having reached its waypoint. */
+    /** How close a segment has to end to count as having reached its waypoint. */
     private static final int MARCH_LEG_TOLERANCE = 6;
 
     /** How close to the baked stronghold coordinate the march stops. {@code /locate} answers with
@@ -189,9 +192,9 @@ public final class JourneyEndRungs {
      *  than that would put the doorway outside the very search this walk exists to feed. */
     private static final int RETURN_ARRIVED_WITHIN = 12;
 
-    /** How far a leg must move for the next one to be a different question. Four blocks: a body that
-     *  shuffled inside its own cell has found no new vantage point, and asking the same pathfinder
-     *  the same question from it spends a whole leg to learn nothing. */
+    /** How far a segment must move for the next one to be a different question. Four blocks: a bot
+     *  that shuffled inside its own cell has found no new vantage point, and asking the same
+     *  pathfinder the same question from it spends a whole segment to learn nothing. */
     private static final int WEDGED_UNDER = 4;
 
     /** How far sideways a wedged march steps before trying again — perpendicular to the goal, so the
@@ -209,18 +212,18 @@ public final class JourneyEndRungs {
 
     /** …and how far it must stay CLEAR of that centre. The frames sit at |d| = 2 and the portal's own
      *  interior is inside them, with vanilla's lava pool below it. Three keeps the shaft outside both:
-     *  a hole punched into the interior drops the body into lava, and a hole punched into a frame
+     *  a hole punched into the interior drops the bot into lava, and a hole punched into a frame
      *  destroys the thing the next rung came for. */
     private static final int ROOM_STAND_MIN = 3;
 
-    /** How near a frame the body has to end up for STRONGHOLD to claim the room. */
+    /** How near a frame the bot has to end up for STRONGHOLD to claim the room. */
     private static final int REACHED_ROOM_WITHIN = 8;
 
-    /** Cube radius rung 18 scans around the body for frames. The body is standing in the room, so
+    /** Cube radius rung 18 scans around the bot for frames. The bot is standing in the room, so
      *  this is a short look rather than a search. */
     private static final int FRAME_SEARCH = 16;
 
-    /** How near a frame the body walks before setting its eye. {@code Body.useBlock} would accept
+    /** How near a frame the bot walks before setting its eye. {@code Body.useBlock} would accept
      *  the click from anywhere — see the class note on why this file refuses to let it. */
     private static final int EYE_REACH = 3;
 
@@ -235,7 +238,7 @@ public final class JourneyEndRungs {
     private static final int PORTAL_WALK_TICKS = 1_200;
 
     /** Ticks to stand in it afterwards. A player's own portal timer is ~80; this is generous on
-     *  purpose, because a run that spends it all has found a body the timer never STARTS for, which
+     *  purpose, because a run that spends it all has found a player the timer never STARTS for, which
      *  is a different finding from one it never fires for. */
     private static final int PORTAL_TRANSIT_TICKS = 600;
 
@@ -249,23 +252,23 @@ public final class JourneyEndRungs {
      * How far the End arrival may sit from {@code END_SPAWN_POINT} <b>vertically</b>. Four, and the
      * tightness is the point.
      *
-     * <p><b>Measured 2026-08-17, this rung passed with the body 4426 blocks below the platform.</b>
+     * <p><b>Measured 2026-08-17, this rung passed with the bot 4426 blocks below the platform.</b>
      * {@code arrived.at = 87,-4376,-1} against {@code END_SPAWN_POINT = 100,50,0}: the dimension was
      * right, {@link #END_ARRIVAL_DRIFT} is a horizontal quantity and 13 ≤ 16 satisfied it, and
-     * nothing in the judgement looked at Y at all — so a body in free fall through the void reported
-     * 「进入末地」. A criterion that can be fully satisfied by a run that achieved nothing is missing a
+     * nothing in the judgement looked at Y at all — so a bot in free fall through the void reported
+     * "entered the End". A criterion that can be fully satisfied by a run that achieved nothing is missing a
      * dimension of the thing it claims to measure.
      *
      * <p>Four is what vanilla's own geometry allows: {@code EndPlatformFeature.createEndPlatform}
      * lays obsidian at {@code y = 48} and air at 49–51, and {@code EndPortalBlock} puts a
      * {@code ServerPlayer} at {@code END_SPAWN_POINT.getBottomCenter().subtract(0, 1, 0)}, i.e. y=49
-     * — one row below {@code END_SPAWN_POINT} before anything moves. So 48..52 is「on the platform」
+     * — one row below {@code END_SPAWN_POINT} before anything moves. So 48..52 is "on the platform"
      * and ±4 covers it with a row to spare, while still catching a 4426-block fall by three orders
      * of magnitude.
      */
     private static final int END_ARRIVAL_FALL = 4;
 
-    /** Chunks pinned around the body in the End. The obsidian pillars stand ~43 blocks from the
+    /** Chunks pinned around the bot in the End. The obsidian pillars stand ~43 blocks from the
      *  centre and the walking radius of 2 (32 blocks) cannot see them — an entity search over
      *  unloaded chunks does not report that it was blind, it reports that there are no crystals. */
     private static final int END_SIGHT_CHUNKS = 5;
@@ -275,14 +278,14 @@ public final class JourneyEndRungs {
      *
      *  <p>Was 128, and 128 is why the bow never fired once across five runs holding it: the dragon
      *  circles the End far wider than that, the {@code dragon == null} branch returns before the
-     *  draw, and the give-up counter then ran to 20000 consecutive ticks 「够不着」 while the body
-     *  stood on the fountain with 256 arrows in the bag. A search radius that decides whether the
+     *  draw, and the give-up counter then ran to 20000 consecutive ticks of "out of reach" while the
+     *  bot stood on the fountain with 256 arrows in the bag. A search radius that decides whether the
      *  fight can SEE its target must be wider than the arena the target flies in — the ranged half
      *  of this fight is worth nothing if the dragon is invisible for the whole circling phase. */
     private static final int DRAGON_SEARCH = 320;
 
     /** Melee reach the script holds itself to. Vanilla's own attack range is 3; four and a half is
-     *  forgiving about where in its cell the body stopped without being a different game. */
+     *  forgiving about where in its cell the bot stopped without being a different game. */
     private static final double MELEE_REACH = 4.5;
 
     /** Ticks between swings. Twenty, because that is {@code LivingEntity.invulnerableTime} — a
@@ -307,14 +310,15 @@ public final class JourneyEndRungs {
      *  reachable, and a long budget here only delays the crystal after it. */
     private static final int CRYSTAL_RESEAT_TICKS = 400;
     /** Budget for that walk. Small on purpose — it is closing a few blocks, not crossing the island,
-     *  and a body that cannot close them has a finding to report rather than a budget to spend. */
+     *  and a bot that cannot close them has a finding to report rather than a budget to spend. */
     private static final int CRYSTAL_APPROACH_TICKS = 600;
     /** Passes over the crystal list. Every survivor heals the dragon, so one pass that leaves five
-     *  of them alive has not「基本完成」— it has made the fight unwinnable. */
+     *  of them alive has not "mostly finished" the job — it has made the fight unwinnable. */
     private static final int CRYSTAL_SWEEPS = 3;
 
-    /** The End main island's walking band. A body that has sunk below this is not going to walk
-     *  anywhere useful — every stalled leg measured this run ended at y=52 with the island at 58+. */
+    /** The End main island's walking band. A bot that has sunk below this is not going to walk
+     *  anywhere useful — every stalled walk measured this run ended at y=52 with the island at
+     *  58+. */
     private static final int ISLAND_WALK_Y = 60;
     /** Which pass over the crystal list is running. Static because the rung is one scene at a time
      *  and the recursion that walks the list cannot carry it without threading it through every
@@ -328,31 +332,32 @@ public final class JourneyEndRungs {
      *  ticks is ~680 ticks of CONTACT; the rest of this number is the waiting, because a dragon that
      *  is flying is not a dragon that can be hit. */
     private static final int DUEL_TICKS = 200_000;
-    /** Budget for walking back to (0,0) before the duel. Generous next to a crystal leg (3 000)
-     *  because the body starts this walk on top of whatever tower the last crystal needed. */
+    /** Budget for walking back to (0,0) before the duel. Generous next to a crystal walk (3 000)
+     *  because the bot starts this walk on top of whatever tower the last crystal needed. */
     private static final int DUEL_MARCH_TICKS = 6_000;
-    /** Attempts at the podium walk before the fight starts wherever the body got to. */
+    /** Attempts at the podium walk before the fight starts wherever the bot got to. */
     private static final int DUEL_MARCH_ROUNDS = 6;
-    /** How close to the podium counts as「在中央」. A 3D radius, unlike the old {@code Goal.XZ}.
+    /** How close to the podium counts as "at the centre". A 3D radius, unlike {@code Goal.XZ}.
      *
-     *  <p>Was 6, and 6 is what lost a fight that had already earned itself: with every crystal down
-     *  the body took the stand {@code 5,58,-1} —— 5.5 格 off-centre and TWO BELOW the platform ——
-     *  and the run's own verdict was 「连续 4000 tick 龙一次都没进过 4.5 格 —— 这不是打不动，是没在
-     *  架里」. A perched dragon's head sits over the fountain, so a radius wider than melee reach
-     *  admits stands from which the fight is unwinnable while reporting 「到了」. The radius that
+     *  <p>A radius of 6 lost a fight that had already been earned: with every crystal down the bot
+     *  took the stand {@code 5,58,-1} — 5.5 blocks off-centre and TWO BELOW the platform — and the
+     *  run's own result message was "for 4000 consecutive ticks the dragon never came within 4.5
+     *  blocks; the fight was not too hard, the bot was not in position". A perched dragon's head
+     *  sits over the fountain, so a radius wider than melee reach admits stands from which the fight
+     *  is unwinnable while reporting "arrived". The radius that
      *  decides where to fight must be smaller than the reach that decides whether a hit lands. */
     private static final int DUEL_STAND_RADIUS = 2;
     /** Ticks the duel tolerates with the dragon never once inside reach before it stops waiting.
      *
      *  <p>{@link #DUEL_TICKS} is 200 000 — 2.8 hours at the server's own rate — and it is spent
-     *  standing still. That is the right budget for a fight the body is IN; it is the wrong one for a
-     *  body whose position the dragon's circle never passes, which is what a duel started off-centre
+     *  standing still. That is the right budget for a fight the bot is IN; it is the wrong one for a
+     *  bot whose position the dragon's circle never passes, which is what a duel started off-centre
      *  is. Measured: 11 400 ticks off-centre with `closest` never falling to reach. Any approach
      *  resets it, so a long fight with lulls is unaffected. */
     private static final int DUEL_OUT_OF_REACH_TICKS = 20_000;
 
     /** Everything a shaft yields that a tower can stand on, commonest first — copied from the
-     *  overworld rungs, where the lesson was learned that a tower asked for a block the body does not
+     *  overworld rungs, where the lesson was learned that a tower asked for a block the bot does not
      *  hold reports "out of blocks?" while the inventory is full. */
     private static final List<String> PILLAR_BLOCKS = List.of(
             "minecraft:cobblestone", "minecraft:cobbled_deepslate", "minecraft:dirt",
@@ -370,13 +375,13 @@ public final class JourneyEndRungs {
      * Grind the rods, then marry powder to pearls.
      *
      * <p>Both recipes are shapeless two-ingredient jobs, so both fit the player's own 2x2 grid and
-     * neither needs a crafting table — which matters, because the body arrives here from the Nether
+     * neither needs a crafting table — which matters, because the bot arrives here from the Nether
      * where the ladder's table has been through several rungs of best-effort reclaim.
      *
      * <p><b>This rung skips rather than fails when the bag is empty, and that is the deliberate
      * part.</b> The wording here used to be "{@code BLAZE_ROD} and {@code ENDER_PEARL} are still
      * {@code unscripted}", which stopped being true — both are written, and {@code BLAZE_ROD} was
-     * measured green on 2026-08-22 ({@code 烈焰棒 ×2 到手}). The reason survives the correction: a
+     * measured green on 2026-08-22 (two blaze rods obtained). The reason survives the correction: a
      * rung below that FAILS makes this one BLOCKED via {@link JourneyRig#enter}, so the only way to
      * arrive here empty-handed is a rung below that PASSED and still banked nothing. When that
      * happens the honest report is "the rungs below owe this one its materials", not "the driver
@@ -405,16 +410,19 @@ public final class JourneyEndRungs {
         int powderCeiling = powder + rods * BLAZE_POWDER_PER_ROD;
         int couldMake = Math.min(pearls, powderCeiling);
         if (couldMake < 1 && already < 1) {
-            rig.attempting("原料没送到：下面两级判为通过却没有攒下东西，这一级手上是空的");
-            ctx.skip("MISSING_INPUTS: 末影之眼 = 烈焰粉 + 末影珍珠。当前 blaze_rod=" + rods
+            rig.attempting("inputs not delivered: the two rungs below passed but banked nothing,"
+                    + " so this rung starts empty-handed");
+            ctx.skip("MISSING_INPUTS: eye of ender = blaze powder + ender pearl. Currently blaze_rod=" + rods
                     + " blaze_powder=" + powder + " ender_pearl=" + pearls
-                    + " —— 缺的是上面两级的产出，不是合成这条路走不通");
+                    + " — what is missing is the output of the two rungs before this one;"
+                    + " the crafting route itself is not blocked");
             return;
         }
 
         int want = Math.max(0, EYES_A_PORTAL_COSTS - already);
         want = Math.min(want, couldMake);
-        rig.evidence("ender_eye.want", want + "（一套门 " + EYES_A_PORTAL_COSTS + " 只，已有 " + already + "）");
+        rig.evidence("ender_eye.want", want + " (a full portal takes " + EYES_A_PORTAL_COSTS
+                + ", already carrying " + already + ")");
         final int target = want;
         grindBlazePowder(rig, target, () -> craftTheEyes(ctx, rig, target));
     }
@@ -427,7 +435,7 @@ public final class JourneyEndRungs {
             then.run();
             return;
         }
-        rig.attempting("把烈焰棒磨成烈焰粉（2×2 配方，不需要工作台）");
+        rig.attempting("craft blaze rods into blaze powder (2x2 recipe, no crafting table needed)");
         rig.drive(new CraftProcess("minecraft:blaze_powder", wantPowder), 8_000, () -> {
             rig.evidence("blaze_powder.after", rig.carrying("minecraft:blaze_powder"));
             rig.evidence("blaze_powder.craftError", String.valueOf(rig.slotError("craft")));
@@ -437,7 +445,7 @@ public final class JourneyEndRungs {
 
     private static void craftTheEyes(SceneContext ctx, JourneyRig rig, int want) {
         if (want <= 0) { judgeTheEyes(ctx, rig); return; }
-        rig.attempting("合成末影之眼：烈焰粉 + 末影珍珠");
+        rig.attempting("craft eyes of ender: blaze powder + ender pearl");
         rig.drive(new CraftProcess("minecraft:ender_eye", want), 12_000, () -> {
             rig.evidence("ender_eye.craftError", String.valueOf(rig.slotError("craft")));
             judgeTheEyes(ctx, rig);
@@ -453,8 +461,8 @@ public final class JourneyEndRungs {
         rig.evidence("ender_eye.shortfall", shortfall);
         ctx.expect(eyes).as("eyes of ender in the bag, crafted from blaze powder and ender pearls")
                 .isAtLeast(1);
-        rig.reach("末影之眼 ×" + eyes + (shortfall == 0 ? "（够一套门）"
-                : "（一套门要 " + EYES_A_PORTAL_COSTS + " 只，还差 " + shortfall + "）"));
+        rig.reach("eyes of ender x" + eyes + (shortfall == 0 ? " (enough for a full portal)"
+                : " (a full portal takes " + EYES_A_PORTAL_COSTS + ", " + shortfall + " short)"));
     }
 
     // =====================================================================================
@@ -471,15 +479,16 @@ public final class JourneyEndRungs {
      * world spawn, which is the real subject of this rung: nothing below it has walked further than
      * a hundred.
      *
-     * <p>Three legs, in order, and each has its own way of going wrong:
+     * <p>Three stages, in order, and each has its own way of going wrong:
      *
      * <ol>
      *   <li><b>Get back to the overworld.</b> The rung above this one ends in the Nether, and there
      *       are no strongholds there. The way back is the portal the run lit itself.</li>
-     *   <li><b>March.</b> In legs, re-planning from wherever the walker actually stopped —
+     *   <li><b>March.</b> In segments, re-planning from wherever the walker actually stopped —
      *       {@code IntentProcess} reports its goal reached for a partial path, so one drive can come
-     *       back "done" with the body eighty blocks short. A leg that moves nothing is not repeated:
-     *       it sidesteps first, because three identical questions get three identical answers.</li>
+     *       back "done" with the bot eighty blocks short. A segment that moves nothing is not
+     *       repeated: it sidesteps first, because three identical questions get three identical
+     *       answers.</li>
      *   <li><b>Find the room and sink a shaft to it.</b> The frames are scanned out of the loaded
      *       chunks rather than guessed at, and the shaft is deliberately aimed <em>beside</em> the
      *       frame ring — see {@link #ROOM_STAND_MIN}.</li>
@@ -494,28 +503,30 @@ public final class JourneyEndRungs {
         rig.evidence("start.dimension", rig.dimension());
         rig.evidence("start.at", xyz(rig.player().blockPosition()));
         rig.evidence("ender_eye.carried", rig.carrying("minecraft:ender_eye"));
-        // Only meaningful once the body is HOME. Measured from the Nether it compares a nether
-        // coordinate with an overworld one across a 1:8 scale change — on 2026-08-22 it printed
-        // 「1774 格」 for a body that was ~470 nether blocks from its door and 1731 overworld blocks
-        // from the stronghold, i.e. a number that is neither. So it is recorded after the return.
+        // Only meaningful once the bot is back in the overworld. Measured from the Nether it compares
+        // a nether coordinate with an overworld one across a 1:8 scale change — on 2026-08-22 it
+        // printed "1774 blocks" for a bot that was ~470 nether blocks from its portal and 1731
+        // overworld blocks from the stronghold, i.e. a number that is neither. So it is recorded
+        // after the return.
         rig.evidence("start.dimension.awayNote",
-                OVERWORLD.equals(rig.dimension()) ? "在主世界，下面的距离可比"
-                        : "还在" + rig.dimension() + "，跨维度的直线距离没有意义，等回去再量");
+                OVERWORLD.equals(rig.dimension()) ? "in the overworld; the distance below is comparable"
+                        : "still in " + rig.dimension() + "; a straight-line distance across dimensions"
+                                + " is meaningless, so it is measured after the return");
 
         backToTheOverworld(ctx, rig, () -> {
             rig.evidence("stronghold.away", Math.round(flatDistance(rig.player().blockPosition(),
-                    JourneyRoute.stronghold)) + " 格（回到主世界之后量的）");
+                    JourneyRoute.stronghold)) + " blocks (measured after returning to the overworld)");
             march(ctx, rig, new Trek(JourneyRoute.stronghold, STRONGHOLD_ARRIVED_WITHIN,
-                    "march", "要塞", () -> surveyThePortalRoom(ctx, rig)), 0);
+                    "march", "the stronghold", () -> surveyThePortalRoom(ctx, rig)), 0);
         });
     }
 
     /**
-     * Walk back through the portal the run lit, if the body is not already home.
+     * Walk back through the portal the run lit, if the bot is not already home.
      *
      * <p>Deliberately not a search for a NEW portal and deliberately not a fresh cast: the run
      * already owns one, it is the thing {@code PORTAL_LIT} claimed, and stepping back through it is
-     * the cheapest honest route. A body that cannot find it is a real finding — it means the rungs
+     * the cheapest honest route. A bot that cannot find it is a real finding — it means the rungs
      * in the Nether wandered further from the doorway than they can navigate back.
      */
     private static void backToTheOverworld(SceneContext ctx, JourneyRig rig, Runnable then) {
@@ -530,20 +541,23 @@ public final class JourneyEndRungs {
         if (portal == null) {
             // Not beside it — which is the NORMAL case, not a broken one. The rungs between the
             // doorway and here hunt blazes at a fortress and endermen in a warped forest, and on
-            // 2026-08-22 that left the body 470 blocks from its own portal. The local scan is only
+            // 2026-08-22 that left the bot 470 blocks from its own portal. The local scan is only
             // the fast path; the way home is the coordinate the entry rung banked.
             BlockPos home = JourneyLedger.netherPortal();
             rig.evidence("return.banked", xyz(home));
             if (home == null) {
-                ctx.fail("回不去主世界：身边 24 格内没有 nether_portal 方块，而这一趟也没有记下"
-                        + "自己是从哪儿进来的（身体在 " + rig.dimension() + " "
-                        + rig.player().blockPosition() + "）——要塞在主世界，这一级必须先走回去。"
-                        + "落点本该由 13 级 JourneyLedger.noteNetherPortal 记下");
+                ctx.fail("cannot return to the overworld: no nether_portal block within 24 blocks,"
+                        + " and this run did not record where it entered the Nether (bot at "
+                        + rig.dimension() + " " + rig.player().blockPosition() + ") — the"
+                        + " stronghold is in the overworld, so this rung has to walk back first."
+                        + " The arrival point should have been recorded by rung 13's"
+                        + " JourneyLedger.noteNetherPortal");
                 return;
             }
             long away = Math.round(flatDistance(rig.player().blockPosition(), home));
-            rig.attempting("走回 " + xyz(home) + " 那道自己点亮的门（还有 " + away + " 格）");
-            march(ctx, rig, new Trek(home, RETURN_ARRIVED_WITHIN, "home", "自己点亮的门",
+            rig.attempting("walk back to the portal this run lit at " + xyz(home) + " (" + away
+                    + " blocks left)");
+            march(ctx, rig, new Trek(home, RETURN_ARRIVED_WITHIN, "home", "the portal this run lit",
                     () -> stepBackThrough(ctx, rig, then)), 0);
             return;
         }
@@ -554,7 +568,7 @@ public final class JourneyEndRungs {
      * Arrived at the banked doorway — now the portal itself has to actually still be there.
      *
      * <p>A second local scan rather than trusting the coordinate, because the banked position is
-     * where the body CAME OUT, which is beside the portal rather than inside it, and because a
+     * where the bot CAME OUT, which is beside the portal rather than inside it, and because a
      * doorway can be gone by the time a run walks back to it (a ghast fireball, or the run's own
      * pathfinding breaking a frame block on the way past). Failing here says something different
      * from failing above, so it gets its own sentence.
@@ -580,13 +594,14 @@ public final class JourneyEndRungs {
      * rehearsal:
      *
      * <pre>{@code
-     * return.banked   104, 93, 7      home.3   99, 41, 11   距门 6 格
-     * return.portalAfterWalk 无
+     * return.banked   104, 93, 7      home.3   99, 41, 11   6 blocks from the portal
+     * return.portalAfterWalk none
      * }</pre>
      *
-     * <p>Six blocks away and fifty-two below. The old message here said 「门被毁了，或者落点记的位置
-     * 离门太远」— every word true, neither cause correct, and it named the two things a reader would
-     * then go and check. A body that has walked to the right column has not walked to the door.
+     * <p>Six blocks away and fifty-two below. A message of "the portal was destroyed, or the recorded
+     * arrival point is too far from it" would be true in every word with neither cause correct, and
+     * it names the two things a reader would then go and check. A bot that has walked to the right
+     * column has not walked to the portal.
      *
      * <p>So the flat march gets a 3D finish: one settle on {@code Goal.Near}, which is a sphere and
      * therefore does include y, letting the pathfinder close a gap it already knows how to close.
@@ -597,10 +612,11 @@ public final class JourneyEndRungs {
         BlockPos home = JourneyLedger.netherPortal();
         BlockPos at = rig.player().blockPosition();
         int dy = home.getY() - at.getY();
-        rig.evidence("return.verticalGap", "水平已到（" + Math.round(flatDistance(at, home))
-                + " 格），但门在 y=" + home.getY() + " 而身体在 y=" + at.getY()
-                + "，差 " + dy + " 格 —— 行军判的是平面距离，确认门用的是 24 格球形半径，"
-                + "两者不一致时就会出现「走到了却没有门」");
+        rig.evidence("return.verticalGap", "horizontally arrived (" + Math.round(flatDistance(at, home))
+                + " blocks), but the portal is at y=" + home.getY() + " and the bot at y=" + at.getY()
+                + ", " + dy + " blocks apart — the march judges horizontal distance while the portal"
+                + " check uses a 24-block sphere, and when the two disagree the result is"
+                + " 'arrived but no portal'");
         climbLeg(ctx, rig, home, 1, (int) Math.round(Math.sqrt(at.distSqr(home))), then);
     }
 
@@ -611,24 +627,24 @@ public final class JourneyEndRungs {
      * One try at the last stretch, then a different try, until the door is in scan range.
      *
      * <p><b>Why this is not a single settle.</b> It was, and two rehearsals off the same staged
-     * world, from a byte-identical body position, went opposite ways:
+     * world, from a byte-identical bot position, went opposite ways:
      *
      * <pre>{@code
-     * 起点 99,41,11 门 104,93,7   第二趟 → 121, 75, 10  （升 34，扫到了门）
-     * 起点 99,41,11 门 104,93,7   第三趟 → 100, 23, 20  （降 18，扫不到）
+     * start 99,41,11 portal 104,93,7   second run → 121, 75, 10  (up 34, portal found by the scan)
+     * start 99,41,11 portal 104,93,7   third run  → 100, 23, 20  (down 18, not found by the scan)
      * }</pre>
      *
      * <p>Same state, same goal, opposite outcome — the walker's per-tick search budget is spent
      * against a wall-clock slice, so the route it has found when the settle ends is not a function
      * of the world alone. A stretch that gets exactly one attempt against a nondeterministic search
-     * is a coin flip, and reporting a coin flip as「爬不上去」names the wrong thing.
+     * is a coin flip, and reporting a coin flip as "cannot climb up" names the wrong thing.
      *
-     * <p><b>And the legs have to differ, or it is the same refused question five times</b> — the
+     * <p><b>And the attempts have to differ, or it is the same refused question five times</b> — the
      * shape {@code a-retry-that-changes-nothing} is about. Two things vary. The scan happens after
-     * EVERY leg rather than only the last, which matters more than it looks: the radius is 24 and
-     * the second rehearsal found the door from 24.3 blocks away, so a body that passes through
-     * range mid-climb and drifts out again used to throw that away. And a leg that ends no closer
-     * than it began, with the door overhead, stops asking the pathfinder and pillars up instead —
+     * EVERY attempt rather than only the last, which matters more than it looks: the radius is 24 and
+     * the second rehearsal found the door from 24.3 blocks away, so a bot that passes through
+     * range mid-climb and drifts out again used to throw that away. And an attempt that ends no
+     * closer than it began, with the door overhead, stops asking the pathfinder and pillars up instead —
      * {@code TowerProcess} builds the route rather than searching for one, which is the answer when
      * the terrain genuinely has no way up.
      */
@@ -638,27 +654,31 @@ public final class JourneyEndRungs {
         BlockPos found = rig.nearestBlock("minecraft:nether_portal", 24);
         int away = (int) Math.round(Math.sqrt(at.distSqr(home)));
         if (found != null) {
-            rig.evidence("return.portalAfterClimb", xyz(found) + "（第 " + leg + " 段扫到，身体在 "
-                    + xyz(at) + "，距门 " + away + " 格）");
+            rig.evidence("return.portalAfterClimb", xyz(found) + " (found by the scan after attempt "
+                    + leg + ", bot at " + xyz(at) + ", " + away + " blocks from the portal)");
             stepThroughPortal(ctx, rig, found, then);
             return;
         }
         if (leg > CLIMB_LEGS) {
-            rig.evidence("return.portalAfterClimb", "无（" + CLIMB_LEGS + " 段之后身体在 " + xyz(at)
-                    + "，距门 " + away + " 格，最近一次到过 " + best + " 格）");
+            rig.evidence("return.portalAfterClimb", "none (after " + CLIMB_LEGS + " attempts the bot is at "
+                    + xyz(at) + ", " + away + " blocks from the portal; closest reached was " + best
+                    + " blocks)");
             if (Math.abs(home.getY() - at.getY()) > RETURN_ARRIVED_WITHIN) {
-                ctx.fail("走回了记下的那一柱，但够不着门本身：门在 " + xyz(home) + "，身体停在 "
-                        + xyz(at) + "，垂直还差 " + Math.abs(home.getY() - at.getY())
-                        + " 格，" + CLIMB_LEGS + " 段（含垒柱）都没贴上。这不是「门被毁了」，"
-                        + "也不是「走不回来」——是最后这一段爬不上/下去，逐段落点见 return.climb.*");
+                ctx.fail("walked back to the recorded column but cannot reach the portal itself: the"
+                        + " portal is at " + xyz(home) + ", the bot stopped at " + xyz(at) + ", still "
+                        + Math.abs(home.getY() - at.getY()) + " blocks apart vertically, and none of the "
+                        + CLIMB_LEGS + " attempts (pillaring included) closed the gap. The portal was not"
+                        + " destroyed and the walk back did not fail — the final stretch could not be"
+                        + " climbed or descended; the position after each attempt is in return.climb.*");
                 return;
             }
-            ctx.fail("站到了记下的落点 " + xyz(home) + " 跟前（身体在 " + xyz(at)
-                    + "，垂直已经贴上），24 格内仍然没有 nether_portal 方块 —— 这一次是真的没门了："
-                    + "要么被毁，要么 13 级记下的坐标就不对");
+            ctx.fail("stood next to the recorded arrival point " + xyz(home) + " (bot at " + xyz(at)
+                    + ", vertical gap already closed), and there is still no nether_portal block within"
+                    + " 24 blocks — the portal is genuinely gone: either it was destroyed, or the"
+                    + " coordinate rung 13 recorded is wrong");
             return;
         }
-        // A leg that gained nothing and a door overhead is the one case where asking again is
+        // An attempt that gained nothing and a door overhead is the one case where asking again is
         // pointless and building is not. Below the door only: TowerProcess climbs, it cannot descend.
         boolean stalled = leg > 1 && away >= best;
         boolean overhead = home.getY() - at.getY() > RETURN_ARRIVED_WITHIN;
@@ -667,17 +687,19 @@ public final class JourneyEndRungs {
         if (stalled && overhead) {
             String pillar = pillarBlock(rig);
             run = new TowerProcess(home.getY(), pillar, true);   // reachIntoBag — see JourneyShaft's note
-            what = "上一段没拉近，改垒柱上到 y=" + home.getY() + "（用 " + pillar + "）";
+            what = "the previous attempt got no closer; pillar up to y=" + home.getY() + " (using "
+                    + pillar + ")";
         } else {
             run = new IntentProcess(new Intent(new Goal.Near(home, RETURN_ARRIVED_WITHIN)));
-            what = "贴到门那一格上（3D 目标，行军只管平面）";
+            what = "close in on the portal cell (3D goal; the march only handles the horizontal plane)";
         }
-        rig.attempting("第 " + leg + "/" + CLIMB_LEGS + " 段：" + what + " → " + xyz(home));
+        rig.attempting("attempt " + leg + "/" + CLIMB_LEGS + ": " + what + " → " + xyz(home));
         rig.settle(run, MARCH_LEG_TICKS, () -> {
             BlockPos now = rig.player().blockPosition();
             int ended = (int) Math.round(Math.sqrt(now.distSqr(home)));
-            rig.evidence("return.climb." + leg, what + "：" + xyz(at) + " → " + xyz(now)
-                    + "（距门 " + away + " → " + ended + " 格）" + JourneyLeg.walkerEnd(rig));
+            rig.evidence("return.climb." + leg, what + ": " + xyz(at) + " → " + xyz(now)
+                    + " (distance to the portal " + away + " → " + ended + " blocks)"
+                    + JourneyLeg.walkerEnd(rig));
             climbLeg(ctx, rig, home, leg + 1, Math.min(best, ended), then);
         });
     }
@@ -690,37 +712,38 @@ public final class JourneyEndRungs {
      * cell followed by an {@code await} for the dimension to change. Both halves look right and the
      * pair is inert: {@code settle} ends — and unregisters the driver — the instant its process
      * reports finished, and an {@code IntentProcess} already at its goal finishes on tick one. So
-     * the body was placed in the doorway and then stopped being ticked, and vanilla only notices a
+     * the bot was placed in the doorway and then stopped being ticked, and vanilla only notices a
      * portal through {@code Entity.move → checkInsideBlocks → NetherPortalBlock.entityInside}, a
      * one-tick flag that nothing but a {@code move()} re-arms. Measured on rung 17's first two
-     * rehearsals — the body stood INSIDE a {@code nether_portal} block for the entire 1600-tick
+     * rehearsals — the bot stood INSIDE a {@code nether_portal} block for the entire 1600-tick
      * wait and was never taken:
      *
      * <pre>{@code
-     * return.portalAfterClimb = 105, 93, 7   （收工时身体在 121, 75, 10，距门 25 格）
-     * return.at               = 105, 93, 7   站的格子是 Block{minecraft:nether_portal}
+     * return.portalAfterClimb = 105, 93, 7   (at the end the bot was at 121, 75, 10, 25 blocks away)
+     * return.at               = 105, 93, 7   the cell it stood in is Block{minecraft:nether_portal}
      * }</pre>
      *
      * <p>Rung 13 hit exactly this, diagnosed it, and fixed it with {@link HoldStill} — a process
      * that does nothing and <em>keeps being ticked</em>. Writing the wait a second time meant
      * writing the bug a second time, so the second copy is gone and both directions share one
      * driver. The departure world is read here rather than named, which is what the crossing
-     * actually needs to watch: {@code changeDimension} has put a body somewhere unexpected before,
-     * and 「is it still where it started」 stays true wherever it lands.
+     * actually needs to watch: {@code changeDimension} has put a player somewhere unexpected before,
+     * and "is it still where it started" stays answerable wherever it lands.
      */
     private static void stepThroughPortal(SceneContext ctx, JourneyRig rig, BlockPos portal,
                                           Runnable then) {
-        rig.attempting("走回自己点亮的那道门，回主世界");
+        rig.attempting("step back through the portal this run lit, to the overworld");
         final String leaving = rig.dimension();
         JourneyPortalEntry.crossThrough(ctx, rig, portal,
                 new JourneyPortalEntry.Crossing(leaving, () -> {
             rig.evidence("return.dimension", rig.dimension());
             BlockPos now = rig.player().blockPosition();
             rig.evidence("return.at", xyz(now));
-            // The crossing only promises the body LEFT. Where it landed is this rung's problem: the
-            // stronghold is in the overworld, and a body that came out somewhere else would go on
+            // The crossing only promises the bot LEFT. Where it landed is this rung's problem: the
+            // stronghold is in the overworld, and a bot that came out somewhere else would go on
             // to march hundreds of blocks through the wrong world before anything noticed.
-            ctx.expect(rig.dimension()).as("从自己点亮的门走出来之后，身体必须落在主世界")
+            ctx.expect(rig.dimension()).as("after stepping through the portal this run lit, the bot"
+                            + " must arrive in the overworld")
                     .isEqualTo(OVERWORLD);
             // The mirror of rung 13's check, and this direction MULTIPLIES by 8 where that one
             // divides. Asserting only the dimension is what let a run report a clean crossing while
@@ -730,8 +753,9 @@ public final class JourneyEndRungs {
             // landing up to 128 away is vanilla doing its job, further is a different doorway.
             int wantX = portal.getX() * 8, wantZ = portal.getZ() * 8;
             int drift = Math.max(Math.abs(now.getX() - wantX), Math.abs(now.getZ() - wantZ));
-            rig.evidence("return.scaledXZ", wantX + "," + wantZ + "（漂移 " + drift + " 格）");
-            ctx.expect(drift).as("回程也要落在 8:1 折算过去的那一点附近，不是随便一道门")
+            rig.evidence("return.scaledXZ", wantX + "," + wantZ + " (drift " + drift + " blocks)");
+            ctx.expect(drift).as("the return trip must also land near the 8:1 scaled point, not at"
+                            + " an arbitrary portal")
                     .isAtMost(128);
             then.run();
         }));
@@ -742,58 +766,60 @@ public final class JourneyEndRungs {
      *
      * <p>Parameterised because there are two of these and they were one hardcoded route. The march
      * to the stronghold and the walk back to the run's own portal are the same problem — cross
-     * hundreds of blocks in bounded legs, notice when a leg goes nowhere, step sideways rather than
-     * ask the same refused question again — and the second one arrived when rung 17 turned out to
-     * need the doorway it came in through.
+     * hundreds of blocks in bounded segments, notice when a segment goes nowhere, step sideways
+     * rather than ask the same refused question again — and the second one arrived when rung 17
+     * turned out to need the doorway it came in through.
      */
     private record Trek(BlockPos goal, int arriveWithin, String key, String what, Runnable onArrive) {}
 
     /**
-     * One leg of the march, then the next, until the stronghold's column is underfoot.
+     * One segment of the march, then the next, until the stronghold's column is underfoot.
      *
-     * <p>Recursive rather than looped, and that is not a style choice: each leg is its own
+     * <p>Recursive rather than looped, and that is not a style choice: each segment is its own
      * {@code await} step, so the recursion queues a step and returns rather than nesting a stack.
-     * The body has to actually walk between legs, and a loop inside one scene tick would plan
+     * The bot has to actually walk between segments, and a loop inside one scene tick would plan
      * twenty-eight routes in a world that never advanced.
      */
     private static void march(SceneContext ctx, JourneyRig rig, Trek trek, int leg) {
         march(ctx, rig, trek, leg, 0);
     }
 
-    /** @param stuck how many legs in a row have gone nowhere — see {@link #sidestep}, which needs it
-     *               to ask a DIFFERENT question each time rather than the same one again. */
+    /** @param stuck how many segments in a row have gone nowhere — see {@link #sidestep}, which needs
+     *               it to ask a DIFFERENT question each time rather than the same one again. */
     private static void march(SceneContext ctx, JourneyRig rig, Trek trek, int leg, int stuck) {
         BlockPos goal = trek.goal();
         BlockPos at = rig.player().blockPosition();
         double away = flatDistance(at, goal);
-        rig.evidence(trek.key() + "." + leg, xyz(at) + " 距" + trek.what() + " "
-                + Math.round(away) + " 格");
+        rig.evidence(trek.key() + "." + leg, xyz(at) + ", " + Math.round(away) + " blocks from "
+                + trek.what());
         if (away <= trek.arriveWithin()) {
             rig.evidence(trek.key() + ".legs", leg);
             trek.onArrive().run();
             return;
         }
         if (leg >= MAX_MARCH_LEGS) {
-            ctx.fail("走不到" + trek.what() + "：" + MAX_MARCH_LEGS + " 段行军之后仍在 " + at
-                    + "，距 " + xyz(goal) + " 还有 " + Math.round(away) + " 格（每段 "
-                    + MARCH_LEG_BLOCKS + " 格 / " + MARCH_LEG_TICKS + " tick，逐段落点见 "
-                    + trek.key() + ".*）");
+            ctx.fail("cannot reach " + trek.what() + ": after " + MAX_MARCH_LEGS + " march segments"
+                    + " the bot is still at " + at + ", " + Math.round(away) + " blocks from "
+                    + xyz(goal) + " (each segment is " + MARCH_LEG_BLOCKS + " blocks / "
+                    + MARCH_LEG_TICKS + " ticks; the position after each segment is in "
+                    + trek.key() + ".*)");
             return;
         }
         double f = Math.min(1.0, MARCH_LEG_BLOCKS / away);
         int wx = (int) Math.round(at.getX() + (goal.getX() - at.getX()) * f);
         int wz = (int) Math.round(at.getZ() + (goal.getZ() - at.getZ()) * f);
-        rig.attempting("向" + trek.what() + "行军：第 " + leg + " 段，走向 " + wx + "," + wz);
+        rig.attempting("march toward " + trek.what() + ": segment " + leg + ", heading for " + wx + ","
+                + wz);
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(wx, wz, MARCH_LEG_TOLERANCE))),
                 MARCH_LEG_TICKS, () -> {
             BlockPos now = rig.player().blockPosition();
             // MOVED decides whether to sidestep; CLOSED decides whether the wedge streak is over.
             // They are not the same question, and conflating them made the escalation below dead
             // code. Measured 2026-08-22: `stuck` reset on "moved ≥ 4 blocks", and a sidestep MOVES
-            // THE BODY 24 BLOCKS by construction — so the recovery satisfied its own counter's
+            // THE BOT 24 BLOCKS by construction — so the recovery satisfied its own counter's
             // reset condition every time, no streak ever reached 3, and the ±135°/±45° turns and
-            // the widening reach never once executed. The body oscillated inside a 20-block pocket
-            // (x −794…−816, z 1060…1097) for 22 legs and the march died 412 blocks out.
+            // the widening reach never once executed. The bot oscillated inside a 20-block pocket
+            // (x −794…−816, z 1060…1097) for 22 segments and the march failed 412 blocks out.
             // Closing on the goal is the only movement that proves the wedge was escaped.
             boolean closed = away - flatDistance(now, goal) >= WEDGED_UNDER;
             if (flatDistance(at, now) >= WEDGED_UNDER) {
@@ -805,26 +831,27 @@ public final class JourneyEndRungs {
     }
 
     /**
-     * A leg that went nowhere does not simply repeat.
+     * A segment that went nowhere does not simply repeat.
      *
-     * <p>The re-plan assumes each attempt starts somewhere better, and usually it does — but a body
+     * <p>The re-plan assumes each attempt starts somewhere better, and usually it does — but a bot
      * can also be WEDGED, and then three attempts are three identical searches with three identical
-     * refusals, each burning a leg's whole budget. Stepping sideways asks the pathfinder a question
-     * it has not already answered. That is what a player does when a route will not come, and it
+     * refusals, each burning a segment's whole budget. Stepping sideways asks the pathfinder a
+     * question it has not already answered. That is what a player does when a route will not come, and it
      * needs nothing from the engine.
      *
      * <p><b>Which is why the offset has to depend on how many times this has already failed.</b> It
      * used to be a fixed perpendicular computed from {@code at} and {@code goal} alone — and both of
-     * those are unchanged precisely when the body has not moved, so every retry produced the
-     * identical target. Measured 2026-08-22, rung 17: legs 37 through 48 all sat at
+     * those are unchanged precisely when the bot has not moved, so every retry produced the
+     * identical target. Measured 2026-08-22, rung 17: segments 37 through 48 all sat at
      * {@code -1076,67,1260} and all stepped to {@code -1085,1238}, twelve times, with the identical
-     * {@code best dist=970} refusal, until the march ran out of legs 99 blocks short of the
-     * stronghold. The paragraph above claimed the sidestep 「asks a question it has not already
-     * answered」, and that was true of the first one and false of the eleven after it.
+     * {@code best dist=970} refusal, until the march ran out of segments 99 blocks short of the
+     * stronghold. The paragraph above claims the sidestep "asks a question it has not already
+     * answered", and with a fixed offset that is true of the first one and false of the eleven
+     * after it.
      *
      * <p>{@code stuck} therefore turns the offset: 90° off the goal bearing, then −90°, then ±135°,
      * then ±45°, widening by {@link #SIDESTEP_BLOCKS} each full cycle. The FIRST attempt is
-     * arithmetically identical to what it always was, so a body that used to escape on its first
+     * arithmetically identical to what it always was, so a bot that used to escape on its first
      * sidestep still does, on the same cell, by the same route.
      */
     private static final int[] SIDESTEP_TURNS = {90, -90, 135, -135, 45, -45};
@@ -838,9 +865,9 @@ public final class JourneyEndRungs {
         double aim = bearing + Math.toRadians(turn);
         int sx = (int) Math.round(at.getX() + Math.cos(aim) * reach);
         int sz = (int) Math.round(at.getZ() + Math.sin(aim) * reach);
-        rig.evidence(trek.key() + "." + leg + ".wedged", xyz(at) + " 一段没挪动（连续第 "
-                + (stuck + 1) + " 次），转 " + turn + "° 横走 " + reach + " 格到 " + sx + "," + sz
-                + "（goto " + JourneyLeg.walkerEnd(rig) + "）");
+        rig.evidence(trek.key() + "." + leg + ".wedged", xyz(at) + " did not move this segment ("
+                + (stuck + 1) + " in a row); turn " + turn + "° and step " + reach + " blocks sideways to "
+                + sx + "," + sz + " (goto " + JourneyLeg.walkerEnd(rig) + ")");
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(sx, sz, 3))), MARCH_LEG_TICKS / 2,
                 () -> march(ctx, rig, trek, leg + 1, stuck + 1));
     }
@@ -853,33 +880,37 @@ public final class JourneyEndRungs {
      * it. The block-by-block alternative over the same volume is about ten million lookups in one
      * server tick; this is a few hundred palette probes and then a handful of sections.
      *
-     * <p>It scans around the BAKED coordinate rather than around the body, because that is the claim
+     * <p>It scans around the BAKED coordinate rather than around the bot, because that is the claim
      * being tested — a run that walked to the right place and found no frame there has learned that
-     * the constant is stale, and a scan centred on the body could not tell that apart from a march
+     * the constant is stale, and a scan centred on the bot could not tell that apart from a march
      * that stopped somewhere else.
      */
     private static void surveyThePortalRoom(SceneContext ctx, JourneyRig rig) {
         ServerLevel level = levelOf(rig);
-        rig.attempting("在要塞里找到传送门房间");
+        rig.attempting("find the portal room in the stronghold");
         List<BlockPos> frames = framesAround(level, JourneyRoute.stronghold, ROOM_SCAN_CHUNKS);
         rig.evidence("frames.found", frames.size());
         if (frames.isEmpty()) {
-            ctx.fail("到了要塞坐标却扫不到末地传送门框架：以 " + xyz(JourneyRoute.stronghold) + " 为心、"
-                    + ROOM_SCAN_CHUNKS + " 区块见方内 end_portal_frame = 0。要么烘死的坐标过期了"
-                    + "（重跑 wd.journey01Recon 看 stronghold 一行），要么这颗种子的要塞不在这里");
+            ctx.fail("reached the stronghold coordinate but the scan finds no end portal frame:"
+                    + " end_portal_frame = 0 within " + ROOM_SCAN_CHUNKS + " chunks of "
+                    + xyz(JourneyRoute.stronghold) + ". Either the hard-coded coordinate is stale"
+                    + " (rerun wd.journey01Recon and read its stronghold row), or this seed's"
+                    + " stronghold is not here");
             return;
         }
         BlockPos centre = centreOf(frames);
         int withEye = 0;
         for (BlockPos f : frames) if (hasEye(level, f)) withEye++;
         rig.evidence("frames.centre", xyz(centre));
-        rig.evidence("frames.withEye", withEye + "/" + frames.size() + "（世界自带的，不是这次放的）");
+        rig.evidence("frames.withEye", withEye + "/" + frames.size()
+                + " (generated with the world, not placed by this run)");
 
         BlockPos stand = standingCellInTheRoom(level, centre);
         rig.evidence("room.standing", xyz(stand));
         if (stand == null) {
-            ctx.fail("找到了框架（" + xyz(centre) + "）却没有能落脚的格子：房间里 " + ROOM_STAND_MIN + "–"
-                    + ROOM_STAND_SEARCH + " 格范围内没有一格是「空、头顶空、脚下实心且不是流体」的");
+            ctx.fail("found the frames (" + xyz(centre) + ") but no cell to stand in: no cell "
+                    + ROOM_STAND_MIN + "–" + ROOM_STAND_SEARCH + " blocks from the centre of the room is"
+                    + " 'empty, with empty headroom and a solid, non-fluid floor'");
             return;
         }
         digToTheRoom(ctx, rig, stand, centre);
@@ -890,29 +921,30 @@ public final class JourneyEndRungs {
         int surface = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                 new BlockPos(stand.getX(), 0, stand.getZ())).getY();
         rig.evidence("shaft.top", stand.getX() + "," + surface + "," + stand.getZ()
-                + " → 房间 y=" + stand.getY());
+                + " → room y=" + stand.getY());
         WorldDriverJourneyScenes.walkToColumn(rig, "shaftTop", stand.getX(), stand.getZ(), 2,
                 12_000, WorldDriverJourneyScenes.MAX_WALK_ATTEMPTS, () -> {
             // The shaft must not be bridged over. A walker allowed to place while descending fills
-            // in the hole it is standing in, which reads as "the block broke but the body did not
+            // in the hole it is standing in, which reads as "the block broke but the bot did not
             // sink" — the same confusion the overworld shafts already had to disarm.
             BotConfig.allowPlace = false;
             int depth = Math.max(0, rig.player().blockPosition().getY() - stand.getY());
             int cap = depth * 4 + 40;
-            rig.evidence("shaft.depth", depth + " 格，给 " + cap + " 次尝试");
+            rig.evidence("shaft.depth", depth + " blocks, allowed " + cap + " attempts");
             digDownTo(ctx, rig, stand.getY(), cap, cap, () -> {
                 BotConfig.allowPlace = true;
                 judgeTheRoom(ctx, rig, centre);
             });
-        }, () -> ctx.fail("走不到传送门房间正上方：想去 " + stand.getX() + "," + stand.getZ()
-                + "（地表 y=" + surface + "），停在 " + rig.player().blockPosition()));
+        }, () -> ctx.fail("cannot reach the surface directly above the portal room: target "
+                + stand.getX() + "," + stand.getZ() + " (surface y=" + surface + "), stopped at "
+                + rig.player().blockPosition()));
     }
 
     /**
      * The outcome, and it is a POSITION rather than a discovery.
      *
      * <p>"The scan found twelve frames" is true from anywhere on the surface — the rung has to say
-     * the body is standing next to them, because everything above it works at arm's length.
+     * the bot is standing next to them, because everything above it works at arm's length.
      */
     private static void judgeTheRoom(SceneContext ctx, JourneyRig rig, BlockPos centre) {
         ServerLevel level = levelOf(rig);
@@ -921,14 +953,15 @@ public final class JourneyEndRungs {
         double away = nearest == null ? -1 : Math.sqrt(at.distSqr(nearest));
         rig.evidence("room.landedAt", xyz(at));
         rig.evidence("room.underfoot", blockAt(rig, at.below()));
-        rig.evidence("room.nearestFrame", nearest == null ? "无"
-                : xyz(nearest) + " 距 " + Math.round(away) + " 格");
+        rig.evidence("room.nearestFrame", nearest == null ? "none"
+                : xyz(nearest) + ", " + Math.round(away) + " blocks away");
         rig.evidence("room.frameCentre", xyz(centre));
         rig.noteAdvancement("minecraft:story/follow_ender_eye");
         ctx.expect(nearest != null && away <= REACHED_ROOM_WITHIN)
-                .as("the body is standing in the portal room, within reach of the frame").isTrue();
-        rig.reach("走到 " + xyz(JourneyRoute.stronghold) + " 的要塞并下到传送门房间，落在 " + xyz(at)
-                + "，最近的框架 " + Math.round(away) + " 格");
+                .as("the bot is standing in the portal room, within reach of the frame").isTrue();
+        rig.reach("walked to the stronghold at " + xyz(JourneyRoute.stronghold) + " and descended into"
+                + " the portal room, landing at " + xyz(at) + ", nearest frame " + Math.round(away)
+                + " blocks away");
     }
 
     // =====================================================================================
@@ -945,10 +978,10 @@ public final class JourneyEndRungs {
      * the flint-and-steel set two chapters ago and the mirror image of the bucket's — a bucket has no
      * {@code useOn} and must go through {@code useItemInHand}.
      *
-     * <p>Frames are re-derived from the body's surroundings rather than carried over from
+     * <p>Frames are re-derived from the bot's surroundings rather than carried over from
      * {@link #stronghold}. That is deliberate: two dogfood passes share one JVM, so a static holding
      * the last run's coordinates would be read by the next as its own, and a rung whose subject came
-     * from a previous world is not testing anything. Scanning a cube around a body that is standing
+     * from a previous world is not testing anything. Scanning a cube around a bot that is standing
      * in the room costs nothing worth saving.
      */
     private static void endPortal(SceneContext ctx) {
@@ -960,11 +993,12 @@ public final class JourneyEndRungs {
         List<BlockPos> frames = framesNearBody(level, at, FRAME_SEARCH);
         int eyes = rig.carrying("minecraft:ender_eye");
         rig.evidence("body.at", xyz(at));
-        rig.evidence("frames.inReach", frames.size() + " 个（" + FRAME_SEARCH + " 格立方内）");
+        rig.evidence("frames.inReach", frames.size() + " (within a cube of radius " + FRAME_SEARCH + ")");
         rig.evidence("ender_eye.before", eyes);
         if (frames.isEmpty()) {
-            ctx.fail("身边 " + FRAME_SEARCH + " 格内没有 end_portal_frame —— STRONGHOLD 说进了传送门房间，"
-                    + "这里却一个框架都扫不到（身体在 " + at + "，脚下 " + blockAt(rig, at.below()) + "）");
+            ctx.fail("no end_portal_frame within " + FRAME_SEARCH + " blocks — STRONGHOLD reported"
+                    + " reaching the portal room, but the scan here finds no frame at all (bot at " + at
+                    + ", standing on " + blockAt(rig, at.below()) + ")");
             return;
         }
 
@@ -973,10 +1007,11 @@ public final class JourneyEndRungs {
         empty.sort(Comparator.comparingDouble(at::distSqr));
         rig.evidence("frames.empty", empty.size());
         if (eyes < empty.size()) {
-            rig.evidence("eyes.short", "缺 " + (empty.size() - eyes) + " 只 —— EYE_OF_ENDER 只交了 "
-                    + eyes + "，空框架有 " + empty.size() + " 个");
+            rig.evidence("eyes.short", (empty.size() - eyes) + " short — EYE_OF_ENDER delivered only "
+                    + eyes + ", and there are " + empty.size() + " empty frames");
         }
-        rig.attempting("往 " + empty.size() + " 个空框架里各放一只末影之眼（useBlock，不是 useItemInHand）");
+        rig.attempting("place one eye of ender into each of the " + empty.size() + " empty frames"
+                + " (useBlock, not useItemInHand)");
         setOneEye(ctx, rig, empty, 0, frames);
     }
 
@@ -985,7 +1020,7 @@ public final class JourneyEndRungs {
         if (i >= todo.size()) { judgeThePortal(ctx, rig, all); return; }
         BlockPos frame = todo.get(i);
         if (rig.carrying("minecraft:ender_eye") < 1) {
-            rig.evidence("eyes.ranOutAt", xyz(frame) + "（第 " + i + " 个空框架）");
+            rig.evidence("eyes.ranOutAt", xyz(frame) + " (empty frame index " + i + ")");
             judgeThePortal(ctx, rig, all);
             return;
         }
@@ -993,19 +1028,19 @@ public final class JourneyEndRungs {
         // note on why this file will not let it.
         rig.settle(new IntentProcess(new Intent(new Goal.Near(frame, EYE_REACH))), 600, () -> {
             ServerLevel level = levelOf(rig);
-            // Both bodies: `useBlock` reaches the frame through `handleUseItemOn`, which reads the
-            // SERVER's hand. See JourneyHands.holdBoth.
+            // Both the client player and the server-side player: `useBlock` reaches the frame
+            // through `handleUseItemOn`, which reads the SERVER's hand. See JourneyHands.holdBoth.
             boolean held = JourneyHands.holdBoth(rig, Items.ENDER_EYE);
             if (!held) {
-                rig.evidence("eye." + i + ".hand", "拿不到 ender_eye，手上是 " + heldItem(rig));
+                rig.evidence("eye." + i + ".hand", "could not hold ender_eye; holding " + heldItem(rig));
             }
             double reach = Math.sqrt(rig.player().blockPosition().distSqr(frame));
             rig.hands().useBlock(frame, Direction.UP);
             rig.settle(new HoldStill(2), 10, () -> {
                 if (!hasEye(level, frame)) {
-                    rig.evidence("eye." + i + ".missed", xyz(frame) + " 仍是 "
-                            + level.getBlockState(frame) + "（手上 " + heldItem(rig)
-                            + "，距 " + String.format(Locale.ROOT, "%.1f", reach) + " 格）");
+                    rig.evidence("eye." + i + ".missed", xyz(frame) + " is still "
+                            + level.getBlockState(frame) + " (holding " + heldItem(rig)
+                            + ", " + String.format(Locale.ROOT, "%.1f", reach) + " blocks away)");
                 }
                 setOneEye(ctx, rig, todo, i + 1, all);
             });
@@ -1041,23 +1076,23 @@ public final class JourneyEndRungs {
         rig.evidence("portal.at", xyz(doorway));
         ctx.expect(cells).as("the twelfth eye opens the portal (end_portal blocks in the frame)")
                 .isAtLeast(1);
-        rig.reach("框架填到 " + filled + "/" + frames.size() + "，末地门开了 " + cells + " 格，门口在 "
-                + xyz(doorway));
+        rig.reach("frames filled " + filled + "/" + frames.size() + ", end portal opened with " + cells
+                + " cells, entrance at " + xyz(doorway));
     }
 
     // =====================================================================================
-    // 19 — the End. The crossing, judged on where the body landed.
+    // 19 — the End. The crossing, judged on where the bot landed.
     // =====================================================================================
 
     /**
      * Step into the portal and come out on the End's own platform.
      *
-     * <p>A dimension check alone would pass for a body standing in the void beside the island, and
+     * <p>A dimension check alone would pass for a bot standing in the void beside the island, and
      * that is not a hypothetical: {@code ServerPlayer.changeDimension} delivers the destination
      * through {@code connection.teleport}, both loaders' fake players used to swallow it, and the
      * Nether rung once arrived 87 501 blocks from where it should have. The End's destination is the
      * fixed {@code ServerLevel.END_SPAWN_POINT}, so the drift is exactly measurable — and it is
-     * asserted, because a body that is not on the platform cannot fight anything.
+     * asserted, because a bot that is not on the platform cannot fight anything.
      *
      * <p>Up to {@link #MAX_PORTAL_STEPS} cells are tried. Vanilla opens nine, they sit over the
      * stronghold's lava pool, and a walker that refuses to path onto one may well take another —
@@ -1068,8 +1103,9 @@ public final class JourneyEndRungs {
         rig.generousPathfinding();
 
         if (ctx.level().getServer().getLevel(Level.END) == null) {
-            rig.attempting("这个运行时没有末地维度");
-            ctx.skip("NO_END_DIMENSION: 这个运行时没有 minecraft:the_end（数据包移除了），没有可去的地方");
+            rig.attempting("this runtime has no End dimension");
+            ctx.skip("NO_END_DIMENSION: this runtime has no minecraft:the_end (removed by a data pack),"
+                    + " so there is nowhere to go");
             return;
         }
         ServerLevel level = levelOf(rig);
@@ -1078,11 +1114,11 @@ public final class JourneyEndRungs {
         rig.evidence("from", xyz(at));
         rig.evidence("portal.cells", doorways.size());
         if (doorways.isEmpty()) {
-            ctx.fail("身边 " + PORTAL_SEARCH + " 格内没有 end_portal 方块 —— END_PORTAL 说门开了，"
-                    + "这里却找不到门（身体在 " + at + "）");
+            ctx.fail("no end_portal block within " + PORTAL_SEARCH + " blocks — END_PORTAL reported the"
+                    + " portal open, but none can be found here (bot at " + at + ")");
             return;
         }
-        rig.attempting("走进末地传送门并等它把身体送过去");
+        rig.attempting("walk into the end portal and wait for it to transfer the bot");
         stepIn(ctx, rig, doorways, 0);
     }
 
@@ -1093,13 +1129,15 @@ public final class JourneyEndRungs {
             rig.evidence("stand.at", xyz(at));
             rig.evidence("stand.in", blockAt(rig, at));
             rig.evidence("stand.goto", JourneyLeg.walkerEnd(rig));
-            ctx.fail("走不进末地传送门：试了 " + attempt + " 格门，身体还在 " + rig.dimension() + " " + at
-                    + "。逐次落点见 step.*（要塞的门开在熔岩池上方，走进去和站到旁边是两码事）");
+            ctx.fail("cannot walk into the end portal: tried " + attempt + " portal cells, the bot is"
+                    + " still at " + rig.dimension() + " " + at + ". The position after each attempt is"
+                    + " in step.* (the stronghold portal sits over a lava pool, so walking into it and"
+                    + " standing beside it are different outcomes)");
             return;
         }
         BlockPos cell = doorways.get(attempt);
         // WHY THIS ONE MAY WAIT UNDRIVEN AND THE NETHER ONE MAY NOT. `waitFor` is `rig.await`, which
-        // ticks the SCENE and not the BODY — no process is registered, so no `move()`, so vanilla's
+        // ticks the SCENE and not the BOT — no process is registered, so no `move()`, so vanilla's
         // one-tick portal flag is never re-armed. An End portal survives that only because its
         // transition time is ZERO: the flag is armed by the walk's own last `move()` and consumed on
         // that same tick, before `settle` unregisters anything. A nether portal's is 80, which is
@@ -1108,8 +1146,8 @@ public final class JourneyEndRungs {
         // copy: the thing that makes it safe here is a constant nothing in this file controls.
         rig.settle(new IntentProcess(new Intent(new Goal.Block(cell))), PORTAL_WALK_TICKS,
                 () -> waitFor(rig, () -> THE_END.equals(rig.dimension()), PORTAL_TRANSIT_TICKS, () -> {
-                    rig.evidence("step." + attempt, "瞄 " + xyz(cell) + " → 停在 "
-                            + xyz(rig.player().blockPosition()) + "（" + rig.dimension() + "）");
+                    rig.evidence("step." + attempt, "aimed at " + xyz(cell) + " → stopped at "
+                            + xyz(rig.player().blockPosition()) + " (" + rig.dimension() + ")");
                     stepIn(ctx, rig, doorways, attempt + 1);
                 }));
     }
@@ -1120,20 +1158,21 @@ public final class JourneyEndRungs {
      *
      * <p><b>The horizontal / vertical split is not pedantry, it is the bug this method shipped
      * with.</b> See {@link #END_ARRIVAL_FALL}: {@code dimension} and a 13-block horizontal drift both
-     * held for a body 4426 blocks down the void.
+     * held for a bot 4426 blocks down the void.
      *
-     * <p><b>And Y alone would not have been enough either.</b>「y 对了」and「脚下有东西」are different
-     * claims: a body can be at y=49 in the instant it steps off the platform's edge, and a body can
-     * be at y=49 over a hole. So the third quantity is the block underfoot, read through
-     * {@code blocksMotion()} rather than {@code onGround} — this body's {@code onGround} is wrong in
-     * both directions, and {@code void_air} is what {@code getBlockState} returns for anything below
-     * the build limit, so it cannot be told from「no platform」by name alone.
+     * <p><b>And Y alone would not have been enough either.</b> "Y is correct" and "something is
+     * underfoot" are different claims: the bot can be at y=49 in the instant it steps off the
+     * platform's edge, and it can be at y=49 over a hole. So the third quantity is the block
+     * underfoot, read through {@code blocksMotion()} rather than {@code onGround} — this bot's
+     * {@code onGround} is wrong in both directions, and {@code void_air} is what
+     * {@code getBlockState} returns for anything below the build limit, so it cannot be told from
+     * "no platform" by name alone.
      *
      * <h2>The reading that separates the two ways this fails</h2>
      *
-     * A body that ends in the void got there one of two ways, and they need opposite fixes:
-     * <b>(a)</b> vanilla never built the arrival platform, or <b>(b)</b> it did and the body left it.
-     * Nothing about the body can tell them apart after the fall — but the platform is world state and
+     * A bot that ends in the void got there one of two ways, and they need opposite fixes:
+     * <b>(a)</b> vanilla never built the arrival platform, or <b>(b)</b> it did and the bot left it.
+     * Nothing about the bot can tell them apart after the fall — but the platform is world state and
      * <b>stays</b>, so {@code platform.obsidian} counts the 5×5 that
      * {@code EndPlatformFeature.createEndPlatform} lays at {@code y = 48} and answers it outright, for
      * the cost of twenty-five block reads. It is recorded on every crossing, pass or fail, because a
@@ -1156,13 +1195,15 @@ public final class JourneyEndRungs {
         boolean standing = end.getBlockState(now.below()).blocksMotion();
         rig.evidence("dimension", rig.dimension());
         rig.evidence("arrived.at", xyz(now));
-        rig.evidence("underfoot", blockAt(rig, now.below()) + "（挡得住 " + standing + "）");
-        rig.evidence("spawnPoint", xyz(want) + "（水平漂移 " + drift + " 格，垂直差 " + off + " 格）");
-        rig.evidence("platform.obsidian", obsidian + "/25 格黑曜石在 " + xyz(floor)
-                + " 那一层 —— 25 = 台子建好了（那么身体是自己离开的），0 = 台子根本没建"
-                + "（那么这是驱动的过界缺陷，不是走路问题）");
+        rig.evidence("underfoot", blockAt(rig, now.below()) + " (blocks motion: " + standing + ")");
+        rig.evidence("spawnPoint", xyz(want) + " (horizontal drift " + drift + " blocks, vertical offset "
+                + off + " blocks)");
+        rig.evidence("platform.obsidian", obsidian + "/25 obsidian blocks in the layer at " + xyz(floor)
+                + " — 25 = the platform was built (so the bot left it on its own), 0 = the platform"
+                + " was never built (so this is a dimension-transfer defect in the driver, not a"
+                + " walking problem)");
         rig.noteAdvancement("minecraft:story/enter_the_end");
-        ctx.expect(rig.dimension()).as("the body is in the End").isEqualTo(THE_END);
+        ctx.expect(rig.dimension()).as("the bot is in the End").isEqualTo(THE_END);
         // Three quantities, three claims. "somewhere in the End", "over the platform", "on the
         // platform" and "standing on anything at all" are different things, and this rung passed once
         // on the first two alone.
@@ -1170,10 +1211,10 @@ public final class JourneyEndRungs {
                 .isAtMost(END_ARRIVAL_DRIFT);
         ctx.expect(off).as("the arrival is at the platform's own height, not falling past it")
                 .isAtMost(END_ARRIVAL_FALL);
-        ctx.expect(standing).as("the body has something under it, not void").isTrue();
-        rig.reach("从要塞的门过到末地，落在 " + xyz(now) + "（END_SPAWN_POINT " + xyz(want)
-                + "，水平 " + drift + " 格、垂直 " + off + " 格，脚下 " + blockAt(rig, now.below())
-                + "，台子 " + obsidian + "/25）");
+        ctx.expect(standing).as("the bot has something under it, not void").isTrue();
+        rig.reach("crossed from the stronghold portal to the End, landing at " + xyz(now)
+                + " (END_SPAWN_POINT " + xyz(want) + ", horizontal " + drift + " blocks, vertical " + off
+                + " blocks, standing on " + blockAt(rig, now.below()) + ", platform " + obsidian + "/25)");
     }
 
     // =====================================================================================
@@ -1188,7 +1229,7 @@ public final class JourneyEndRungs {
      * <p><b>The island has to be reached at all.</b> Vanilla drops an arrival on a 5x5 obsidian
      * platform at {@code (100, 50, 0)}, roughly forty blocks of void short of the main island. A
      * player bridges. So does this — with the spoil the overworld rungs left in the bag, which is
-     * why {@code blocks.forBridging} is recorded before anything else: a body that arrives here with
+     * why {@code blocks.forBridging} is recorded before anything else: a bot that arrives here with
      * an empty inventory has already lost, and it should say so rather than walk into the void.
      *
      * <p><b>A crystal heals the dragon, so the crystals come first</b>, and each sits twenty to forty
@@ -1213,8 +1254,8 @@ public final class JourneyEndRungs {
         ctx.cleanup(JourneyRig::seeNormally);
 
         if (!THE_END.equals(rig.dimension())) {
-            ctx.fail("不在末地：END 说进来了，这里读到 " + rig.dimension() + "（身体在 "
-                    + rig.player().blockPosition() + "）");
+            ctx.fail("not in the End: END reported arriving, but the dimension here reads "
+                    + rig.dimension() + " (bot at " + rig.player().blockPosition() + ")");
             return;
         }
         ServerLevel end = levelOf(rig);
@@ -1223,7 +1264,7 @@ public final class JourneyEndRungs {
         rig.evidence("blocks.forBridging", pillarBlock(rig) + " ×" + rig.carrying(pillarBlock(rig)));
         recordTheFight(rig, end);
 
-        rig.attempting("从降落台架桥走到主岛中央");
+        rig.attempting("bridge from the arrival platform to the centre of the main island");
         marchInTheEnd(ctx, rig, 0);
     }
 
@@ -1237,10 +1278,10 @@ public final class JourneyEndRungs {
      * {@code updateCrystalCount} <i>only</i> while {@code dragonEvent.getPlayers()} is non-empty, and
      * that set is refilled every twenty ticks from {@code level.getPlayers(validPlayer)}. So
      * {@code crystalsAlive = 0} and {@code dragonUUID = null} here are the <b>healthy</b> reading —
-     * 「还没数过、还没建过」, not「没有水晶、没有龙」. Measured 2026-08-17: this ran at 10:49:07 and
-     * vanilla logged「Scanning for legacy world dragon fight…」in the same second, i.e. immediately
-     * after it, and by the end of that run the same fight held {@code crystalsAlive = 5} and a real
-     * {@code dragonUUID}.
+     * "not counted yet, not created yet", not "no crystals, no dragon". Measured 2026-08-17: this ran
+     * at 10:49:07 and vanilla logged "Scanning for legacy world dragon fight…" in the same second,
+     * i.e. immediately after it, and by the end of that run the same fight held
+     * {@code crystalsAlive = 5} and a real {@code dragonUUID}.
      *
      * <p>The failure-time half is {@link #recordTheFightNow}, under {@code dragonFight.now.*}. The
      * two moments must keep <b>separate keys</b>: {@link JourneyRig#evidence} is a map put, so one
@@ -1249,76 +1290,80 @@ public final class JourneyEndRungs {
      */
     private static void recordTheFight(JourneyRig rig, ServerLevel end) {
         rig.evidence("level.realPlayers", end.players().size());
-        recordTheFight(rig, end, "起跑时刻", "");
+        recordTheFight(rig, end, "at rung start", "");
     }
 
     /** The same three readings taken again at the moment of the failure, under {@code now.} keys. */
     private static void recordTheFightNow(JourneyRig rig, ServerLevel end) {
-        recordTheFight(rig, end, "失败时刻", "now.");
+        recordTheFight(rig, end, "at failure", "now.");
     }
 
     private static void recordTheFight(JourneyRig rig, ServerLevel end, String when, String key) {
-        String at = "【" + when + "】";
+        String at = "[" + when + "] ";
         var fight = end.getDragonFight();
         if (fight == null) {
-            rig.evidence("dragonFight." + key + "absent", at + "无 —— 这个末地没有 EndDragonFight");
+            rig.evidence("dragonFight." + key + "absent", at + "none — this End has no EndDragonFight");
             return;
         }
         rig.evidence("dragonFight." + key + "crystalsAlive", at + fight.getCrystalsAlive()
-                + "（只有 EndDragonFight.updateCrystalCount 写这个数，而它只在龙战 tick 到有效玩家、"
-                + "竞技场已加载时每 100 tick 跑一次 —— 0 可能是「还没数过」，不等于「没有水晶」）");
+                + " (only EndDragonFight.updateCrystalCount writes this number, and it runs once every"
+                + " 100 ticks, only while the fight ticks with a valid player and the arena loaded —"
+                + " 0 can mean 'not counted yet', which is not the same as 'no crystals')");
         rig.evidence("dragonFight." + key + "previouslyKilled", at + fight.hasPreviouslyKilledDragon()
-                + "（scanState 写的，同样要先有有效玩家）");
+                + " (written by scanState, which likewise needs a valid player first)");
         rig.evidence("dragonFight." + key + "dragonUUID", at + fight.getDragonUUID()
-                + "（非 null = createNewDragon 已经跑过，龙被建出来了）");
+                + " (non-null = createNewDragon has run and the dragon exists)");
     }
 
     /**
-     * The End's own build floor. Its dimension type is {@code min_y = 0}, so a body below this is not
-     *「low」— it is outside the world, in free fall, and every further leg is an order issued to
+     * The End's own build floor. Its dimension type is {@code min_y = 0}, so a bot below this is not
+     * "low" — it is outside the world, in free fall, and every further segment is an order issued to
      * something that cannot obey it. <b>Not a tuned threshold</b>: it is the build limit, so it needs
      * no calibration and cannot drift.
      */
     private static final int END_VOID_BELOW = 0;
 
     /**
-     * The walk from the arrival platform to the middle of the island, in the same re-planning legs
-     * the overworld march uses — shorter, because forty blocks of bridging is not a kilometre.
+     * The walk from the arrival platform to the middle of the island, in the same re-planning
+     * segments the overworld march uses — shorter, because forty blocks of bridging is not a
+     * kilometre.
      *
-     * <h2>Why every leg carries a stock count and a plan</h2>
+     * <h2>Why every segment carries a stock count and a plan</h2>
      *
-     * Measured 2026-08-17, a rehearsal of this rung fell out of the world on leg 0 and then issued
-     * six more legs to a body dropping 23 500 blocks each: {@code island.1 = 145,-23228,0} …
+     * Measured 2026-08-17, a rehearsal of this rung fell out of the world on segment 0 and then
+     * issued six more segments to a bot dropping 23 500 blocks each: {@code island.1 = 145,-23228,0} …
      * {@code island.6 = 383,-140809,8}. It carried 1024 cobblestone and the bridge never happened.
      * <b>Three different mechanisms produce exactly that trace</b> and the rung recorded nothing that
      * could tell them apart:
      *
      * <ul>
-     *   <li><b>The placement never happened</b> — the body stepped out before putting a block down.
+     *   <li><b>The placement never happened</b> — the bot stepped out before putting a block down.
      *       An execution-order fault.</li>
-     *   <li><b>It happened and the body did not end up on it</b> — a footing fault.</li>
+     *   <li><b>It happened and the bot did not end up on it</b> — a footing fault.</li>
      *   <li><b>The planner never intended to bridge</b> — it treated the void as walkable, or gave up
-     *       and the executor pushed the body anyway. A cost/passability fault.</li>
+     *       and the executor pushed the bot anyway. A cost/passability fault.</li>
      * </ul>
      *
-     * So each leg now records what a climb SPENT and what the walker was actually holding:
-     * {@code island.N.plan} carries {@code 放了 K 块}, {@code pathLen}, the name of the move entering
+     * So each segment now records what a climb SPENT and what the walker was actually holding:
+     * {@code island.N.plan} carries {@code placed K blocks}, {@code pathLen}, the name of the move entering
      * the current node, and the run's own verdict. The three read differently — {@code K > 0} is the
      * footing fault; {@code K = 0} with a bridge move planned is the ordering fault; {@code K = 0}
-     * with {@code move=walk} over void, or with no path at all while the body still moved, is the
+     * with {@code move=walk} over void, or with no path at all while the bot still moved, is the
      * planner fault.
      *
-     * <p><b>And the march now stops at the first leg that starts in the void.</b> Six wasted legs cost
+     * <p><b>And the march now stops at the first segment that starts in the void.</b> Six wasted
+     * segments cost
      * this run 33 minutes and produced six copies of one fact. The guard cannot rescue anything — it
-     * only fails sooner, in words that name the void rather than「走不到主岛中央」.
+     * only fails sooner, in words that name the void rather than "cannot reach the centre of the
+     * main island".
      */
     private static void marchInTheEnd(SceneContext ctx, JourneyRig rig, int leg) {
         BlockPos at = rig.player().blockPosition();
         double away = Math.hypot(at.getX(), at.getZ());
         String pillar = pillarBlock(rig);
         int stock = rig.carrying(pillar);
-        rig.evidence("island." + leg, xyz(at) + " 距中心 " + Math.round(away) + " 格，脚下 "
-                + blockAt(rig, at.below()) + "，" + pillar + " ×" + stock);
+        rig.evidence("island." + leg, xyz(at) + ", " + Math.round(away) + " blocks from the centre,"
+                + " standing on " + blockAt(rig, at.below()) + ", " + pillar + " x" + stock);
         if (at.getY() < END_VOID_BELOW) { fellOffTheIsland(ctx, rig, leg, at, pillar, stock); return; }
         if (away <= 8) {
             rig.evidence("island.legs", leg);
@@ -1327,10 +1372,12 @@ public final class JourneyEndRungs {
         }
         if (leg >= 8) {
             rig.evidence("island.reached", false);
-            ctx.fail("走不到主岛中央：" + leg + " 段之后仍在 " + at + "，距中心 " + Math.round(away)
-                    + " 格。降落台和主岛之间是虚空，过去要架桥 —— 身上有 " + pillar + " ×"
-                    + stock + "，allowPlace=" + BotConfig.allowPlace
-                    + "。哪一段花掉了方块、哪一段根本没有计划，见 island.*.plan");
+            ctx.fail("cannot reach the centre of the main island: after " + leg + " segments the bot"
+                    + " is still at " + at + ", " + Math.round(away) + " blocks from the centre. There"
+                    + " is void between the arrival platform and the main island, so crossing it needs"
+                    + " a bridge — the bot carries " + pillar + " x" + stock + ", allowPlace="
+                    + BotConfig.allowPlace + ". Which segment spent blocks and which had no plan at"
+                    + " all is in island.*.plan");
             return;
         }
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(0, 0, 6))), 6_000, () -> {
@@ -1338,32 +1385,32 @@ public final class JourneyEndRungs {
             rig.evidence("island." + leg + ".plan", planOf(rig, pillar, stock));
             if (flatDistance(at, now) >= WEDGED_UNDER) { marchInTheEnd(ctx, rig, leg + 1); return; }
             rig.evidence("island." + leg + ".wedged",
-                    xyz(now) + " 一段没挪动（goto " + JourneyLeg.walkerEnd(rig) + "）");
+                    xyz(now) + " did not move this segment (goto " + JourneyLeg.walkerEnd(rig) + ")");
             marchInTheEnd(ctx, rig, leg + 1);
         });
     }
 
     /**
-     * What the leg spent and what the walker was holding — the row that separates the three ways a
-     * bridge fails to happen.
+     * What the segment spent and what the walker was holding — the row that separates the three ways
+     * a bridge fails to happen.
      *
-     * <p><b>{@code active} is printed because {@code pathLen}/{@code move} lie without it.</b>
-     * {@code ProcessSlot.reset()} clears both at every terminal exit while keeping {@code endReason}
-     * and {@code lastError}, so a leg whose process FINISHED reports {@code pathLen=0 move=null}
-     * — indistinguishable, without {@code active}, from a planner that never produced a path. A leg
-     * that merely ran out of ticks still holds live values.
+     * <p><b>{@code active} is printed because {@code pathLen}/{@code move} are misleading without
+     * it.</b> {@code ProcessSlot.reset()} clears both at every terminal exit while keeping
+     * {@code endReason} and {@code lastError}, so a segment whose process FINISHED reports
+     * {@code pathLen=0 move=null} — indistinguishable, without {@code active}, from a planner that
+     * never produced a path. A segment that merely ran out of ticks still holds live values.
      *
      * <p><b>{@code canPlace}/{@code placeableBlockCount} are printed because they are the only pair
      * that separates the two ways a bridge fails to be PLANNED.</b> Every other row here describes
-     * what the body did; these two describe what the search was allowed to consider.
+     * what the bot did; these two describe what the search was allowed to consider.
      * {@code BridgePlace.eval} opens with {@code if (!w.canPlace()) return null}, and
      * {@link net.magicterra.worlddriver.bot.world.LevelWorldView#placeableBlockCount} counts only
-     * the HOTBAR, and only items {@code BotConfig.isUsableBuildBlock} accepts — so a body carrying
+     * the HOTBAR, and only items {@code BotConfig.isUsableBuildBlock} accepts — so a bot carrying
      * 1024 cobblestone in its backpack reads {@code canPlace=false} and no bridge edge is ever
      * generated. That is a different defect from a bridge edge that IS generated and then loses on
      * price: a {@code parkour3} across the same two cells costs 32, while the bridge chain costs
      * {@code 20+20+10}-ish per cell and lands near 170, so the leap wins by more than five to one
-     * and「the planner never intended to bridge」is true for two unrelated reasons. Without this
+     * and "the planner never intended to bridge" is true for two unrelated reasons. Without this
      * pair the two are one row.
      */
     private static String planOf(JourneyRig rig, String pillar, int stockBefore) {
@@ -1372,65 +1419,73 @@ public final class JourneyEndRungs {
         // nothing writes when the process was handed to the client (JourneyRig.slot says why). The
         // three fields taken from it — pathMove, parkourTakeoff, firstPlan — are excluded from
         // ProcessSlot.snapshot() by design, so there is no routed reading to take instead. Read
-        // `move=` / `首次起跳` / `首个计划` as「这一半读不到」there, never as「没有」. They come back
-        // the day status() carries them; the other four are correct now.
+        // `move=` / `first takeoff` / `first plan` as "this half cannot read it" there, never as
+        // "there was none". They become readable once status() carries them; the other four are
+        // correct now.
         var routed = rig.slot("goto");
         boolean active = Boolean.TRUE.equals(routed.get("active"));
         var slot = rig.body().botState().mc_goto;
         var view = rig.body().world();
-        return "放了 " + blocksSpent(rig, pillar, stockBefore) + " 块 " + pillar
-                + "；active=" + active
+        return "placed " + blocksSpent(rig, pillar, stockBefore) + " blocks of " + pillar
+                + "; active=" + active
                 + " pathLen=" + routed.get("pathLen") + " move=" + slot.pathMove
                 + " end=" + routed.get("endReason") + " err=" + routed.get("lastError")
-                + (active ? "" : "（进程已终止，pathLen/move 是 reset 之后的空值，"
-                        + "不要读成「压根没有计划」）")
-                // ⚠️ pathLen/move above are the state at the END of the leg, and a leg that fell out
-                // of the world spends most of itself in the void — where BridgePlace.eval's every
-                // premise holds, because it deliberately does not check for support underfoot. So
-                // that half describes the planning of a falling body. The place tally's FIRST rows
+                + (active ? "" : " (the process has ended, so pathLen/move are the empty values left"
+                        + " by reset; do not read them as 'there was no plan at all')")
+                // ⚠️ pathLen/move above are the state at the END of the segment, and a segment that
+                // fell out of the world spends most of itself in the void — where BridgePlace.eval's
+                // every premise holds, because it deliberately does not check for support underfoot.
+                // So that half describes the planning of a falling bot. The place tally's FIRST rows
                 // are the ones taken while there was still ground under the question.
-                + "；首次起跳 " + slot.parkourTakeoff
-                + "；首个计划 " + slot.firstPlan
-                + "；place " + rig.body().avatar().placeTally()
-                + "；canPlace=" + view.canPlace()
+                + "; first takeoff " + slot.parkourTakeoff
+                + "; first plan " + slot.firstPlan
+                + "; place " + rig.body().avatar().placeTally()
+                + "; canPlace=" + view.canPlace()
                 + " placeableBlockCount=" + view.placeableBlockCount()
-                + "（只数快捷栏里的可建造方块 —— 背包里的不算，所以 0 说明这一段压根生成不出"
-                + " bridge 边，与「生成了但被 parkour3 的 32 比价比下去」是两回事）";
+                + " (counts only buildable blocks in the hotbar — the backpack does not count, so 0"
+                + " means this segment could not generate a bridge edge at all, which is a different"
+                + " defect from 'generated, but outpriced by parkour3 at 32')";
     }
 
     /**
-     * The body is under the End's build floor: stop, and hand the reader the fork rather than a
+     * The bot is under the End's build floor: stop, and hand the reader the fork rather than a
      * distance.
      *
-     * <p>The failure this replaces said「走不到主岛中央」after eight legs. That sentence is true and
-     * useless — it names the goal instead of naming that the body left the only ground there was, and
-     * it arrives half an hour late.
+     * <p>Without this check the failure would read "cannot reach the centre of the main island"
+     * after eight segments. That sentence is true and useless — it names the goal instead of naming that
+     * the bot left the only ground there was, and it arrives half an hour late.
      */
     private static void fellOffTheIsland(SceneContext ctx, JourneyRig rig, int leg, BlockPos at,
                                          String pillar, int stock) {
-        rig.evidence("island.fellAt", xyz(at) + "（末地建筑下限 y=" + END_VOID_BELOW
-                + "，所以这是虚空，不是「低」）");
+        rig.evidence("island.fellAt", xyz(at) + " (the End's build floor is y=" + END_VOID_BELOW
+                + ", so this is the void, not merely 'low')");
         // The staging measured this once, before anything moved. It is wrong by now and the whole
         // point of re-reading it here is that the stale one reads like an all-clear.
         rig.evidence("dragon.rangeNow", fightRangeNow(rig));
-        ctx.fail("掉出末地：第 " + leg + " 段开始时身体已在 " + xyz(at) + "，低于末地的建筑下限 y="
-                + END_VOID_BELOW + " —— 这是虚空，不是走得慢。降落台是 5×5，主岛在 "
-                + Math.round(Math.hypot(at.getX(), at.getZ())) + " 格外，中间要架桥；"
-                + "身上还有 " + pillar + " ×" + stock + "，allowPlace=" + BotConfig.allowPlace
-                + "。哪一种失败看 island.*.plan：放了>0 块 = 放下了却没踩上（落脚判据）；"
-                + "放了 0 块且计划里有 bridge = 没放就迈出去（执行顺序）；"
-                + "放了 0 块且 move=walk 或压根没有路 = 寻路没打算架桥（代价/可通行判据）。"
-                + "⚠️ rehearsal.fightRange 是布景时刻测的，此刻的距离见 dragon.rangeNow");
+        ctx.fail("fell out of the End: at the start of segment " + leg + " the bot was already at "
+                + xyz(at) + ", below the End's build floor y=" + END_VOID_BELOW + " — this is the void,"
+                + " not slow walking. The arrival platform is 5x5 and the main island is "
+                + Math.round(Math.hypot(at.getX(), at.getZ())) + " blocks away, so the gap needs a"
+                + " bridge; the bot still carries " + pillar + " x" + stock + ", allowPlace="
+                + BotConfig.allowPlace + ". island.*.plan tells which failure it was: placed >0"
+                + " blocks = placed but not stepped onto (footing criterion); placed 0 blocks with a"
+                + " bridge in the plan = stepped out without placing (execution order); placed 0"
+                + " blocks with move=walk or no path at all = the pathfinder never intended to bridge"
+                + " (cost/passability criterion). ⚠️ rehearsal.fightRange was measured during test"
+                + " setup; the current distance is in dragon.rangeNow");
     }
 
-    /** How far the body is from the dragon fight's own centre, <b>right now</b>. {@code EndDragonFight}
+    /** How far the bot is from the dragon fight's own centre, <b>right now</b>. {@code EndDragonFight}
      *  builds {@code validPlayer} as {@code EntitySelector.withinDistance(0, 128, 0, 192.0)} and its
      *  {@code tick()} does nothing at all while no valid player is in range — so this number, taken at
-     *  the moment of the failure, is the difference between「打不过」and「没有对手，因为身体不在场」. */
+     *  the moment of the failure, is the difference between "cannot win the fight" and "there is no
+     *  opponent, because the bot is not in the arena". */
     private static String fightRangeNow(JourneyRig rig) {
         double away = Math.sqrt(rig.player().distanceToSqr(0.0, 128.0, 0.0));
-        return String.format(Locale.ROOT, "距 (0,128,0) %.1f 格（EndDragonFight.validPlayer 门限 192）—— %s",
-                away, away <= 192.0 ? "在范围内" : "超出：updatePlayers 看不到这具身体，龙不会被创建");
+        return String.format(Locale.ROOT,
+                "%.1f blocks from (0,128,0) (EndDragonFight.validPlayer threshold 192) — %s", away,
+                away <= 192.0 ? "in range"
+                        : "out of range: updatePlayers cannot see this bot, so no dragon will be created");
     }
 
     /** Snapshot the crystals once, nearest first, then work the list by index — re-taking "the
@@ -1450,14 +1505,17 @@ public final class JourneyEndRungs {
 
     private static void smashCrystal(SceneContext ctx, JourneyRig rig, List<EndCrystal> crystals, int i) {
         // BEFORE the size check, so a fall during the island march — which leaves no crystals to
-        // find — still fails with the fall rather than with「一座水晶都没找到」. The loop is where
-        // this rung spends its budget, so it is where a body that can no longer act must stop it.
+        // find — still fails with the fall rather than with "not a single crystal found". The loop
+        // is where this rung spends its budget, so it is where a bot that can no longer act must
+        // stop it.
         if (rig.lostTheWorld() != null) {
-            ctx.fail("屠龙中断于第 " + i + " 座水晶之前 —— " + rig.lostTheWorld()
-                    + " 已砸碎 " + smashedSoFar(crystals) + "/" + crystals.size() + " 座。"
-                    + "⚠️ 这一行取代的旧判词是「打不到龙」，那是这次坠落的后果而不是它的死因："
-                    + "身体离开世界之后，龙、水晶、塔、行走段的读数全部作废，"
-                    + "要查的是坠落发生在哪一段的 crystal.N.leg 里。");
+            ctx.fail("the dragon fight was interrupted before crystal " + i + " — " + rig.lostTheWorld()
+                    + " " + smashedSoFar(crystals) + "/" + crystals.size() + " crystals smashed so far."
+                    + " ⚠️ The result message this line replaces would be 'cannot hit the dragon',"
+                    + " which is a consequence of this fall and not its cause: once the bot has left"
+                    + " the world, every reading of the dragon, crystals, pillars and walking segments"
+                    + " is void, and what to check is which segment's crystal.N.leg the fall happened"
+                    + " in.");
             return;
         }
         if (i >= crystals.size()) {
@@ -1466,33 +1524,33 @@ public final class JourneyEndRungs {
             // SWEEP AGAIN before fighting. Every surviving crystal heals the dragon, so a duel begun
             // with any of them alive is a duel that cannot be won — and the first pass has been
             // leaving 2 to 8 of them (measured 3→3→2→2→8→1→5 smashed across seven runs). A crystal
-            // is skipped for reasons that are usually LOCAL and transient — the leg timed out, the
-            // tower stopped short, the body was one block out of reach — and the pass that follows
-            // starts from somewhere else entirely, so「再走一遍」is a genuinely different attempt
-            // rather than the retry-that-changes-nothing this repo has been bitten by.
+            // is skipped for reasons that are usually LOCAL and transient — the walk timed out, the
+            // tower stopped short, the bot was one block out of reach — and the pass that follows
+            // starts from somewhere else entirely, so "go through the list again" is a genuinely
+            // different attempt rather than the retry-that-changes-nothing this repo has been bitten by.
             rig.evidence("crystals.left" + (sweep == 0 ? ".pass1" : ""),
-                    left + "/" + crystals.size() + (sweep == 0 && left > 0 ? " —— 再扫一遍" : ""));
+                    left + "/" + crystals.size() + (sweep == 0 && left > 0 ? " — sweeping again" : ""));
             if (left > 0 && sweep + 1 < CRYSTAL_SWEEPS) {
                 sweep++;
                 // Unwedge before re-asking, for the reason the podium march already proved: the
-                // legs that lose a crystal end 「no progress for 1200 ticks」 with the body sunk
+                // walks that lose a crystal end "no progress for 1200 ticks" with the bot sunk
                 // below the island band, and a fresh sweep from down there asks the identical
                 // question that already failed. One tower back to walking height changed six
                 // straight march failures into an arrival on the next round.
-                // ...to the island BAND, never relative to where the body happens to be now.
+                // ...to the island BAND, never relative to where the bot happens to be now.
                 // The old form (max(now + 8, ISLAND_WALK_Y)) escalated: a sweep ending on a
                 // 103-high tower re-swept from 111, the next from 119, and a tower only goes
                 // UP, so each re-sweep started structurally further from a y=80 crystal than
                 // the one before it. Measured 2026-08-19: crystal 0 was missed three times,
-                // its climb row reading 「not needed (feetY=119 already ≥ targetY=78)」 while the
-                // body sat 41 blocks ABOVE the thing it was trying to reach. Below the band,
-                // lift to it; at or above it, the tower reports 「not needed」 in one tick and
+                // its climb row reading "not needed (feetY=119 already ≥ targetY=78)" while the
+                // bot sat 41 blocks ABOVE the thing it was trying to reach. Below the band,
+                // lift to it; at or above it, the tower reports "not needed" in one tick and
                 // costs nothing.
                 int back = ISLAND_WALK_Y;
                 rig.settle(new TowerProcess(back, pillarBlock(rig), true), 2_000, () -> {
-                    rig.evidence("crystals.sweep" + sweep + ".unwedge", "重扫前先垒回 y=" + back
-                            + " → 脚在 y=" + rig.player().blockPosition().getY() + "，"
-                            + rig.slotError("builder"));
+                    rig.evidence("crystals.sweep" + sweep + ".unwedge", "pillar back up to y=" + back
+                            + " before sweeping again → feet at y=" + rig.player().blockPosition().getY()
+                            + ", " + rig.slotError("builder"));
                     smashCrystal(ctx, rig, crystals, 0);
                 });
                 return;
@@ -1504,11 +1562,11 @@ public final class JourneyEndRungs {
         if (!crystal.isAlive()) { smashCrystal(ctx, rig, crystals, i + 1); return; }
         BlockPos base = crystal.blockPosition();
         int top = Mth.floor(crystal.getY()) - 2;
-        rig.attempting("砸掉第 " + i + " 座柱子上的末影水晶（" + xyz(base) + "）");
+        rig.attempting("smash the end crystal on pillar " + i + " (" + xyz(base) + ")");
         rig.evidence("crystal." + i + ".at", xyz(base));
-        // Read the leg's STARTING state before the leg, not after it. The body mines and places as
+        // Read the walk's STARTING state before the walk, not after it. The bot mines and places as
         // it walks, so `blockAt(from.below())` asked in the continuation describes the world at the
-        // END of the leg while claiming to describe its start.
+        // END of the walk while claiming to describe its start.
         BlockPos from = rig.player().blockPosition();
         String fromUnder = blockAt(rig, from.below());
         String legItem = pillarBlock(rig);
@@ -1518,10 +1576,10 @@ public final class JourneyEndRungs {
                 CRYSTAL_WALK_TICKS, walk, () -> {
             rig.evidence("crystal." + i + ".leg", legRow(rig, from, fromUnder, legItem, legStock, walk));
             String pillar = pillarBlock(rig);
-            // Put the block in the HAND first: TowerProcess can only look in the hotbar, so a body
+            // Put the block in the HAND first: TowerProcess can only look in the hotbar, so a bot
             // whose hotbar is tools reports "no placeable block" while carrying a stack of stone.
-            // Both bodies — the tower places through the server. See
-            // JourneyHands.holdBoth.
+            // Both the client player and the server-side player — the tower places through the
+            // server. See JourneyHands.holdBoth.
             JourneyHands.holdBoth(rig, itemOf(pillar));
             stockHotbar(rig, pillar);
             int climbStock = rig.carrying(pillar);
@@ -1532,51 +1590,54 @@ public final class JourneyEndRungs {
             // what it achieved. One key for both would be the silent overwrite JourneyRig.evidence
             // exists to shout about, and the two rows answer different questions.
             rig.evidence("crystal." + i + ".climb.plan",
-                    "爬到 y=" + top + "，用 " + pillar + " ×" + climbStock);
+                    "climb to y=" + top + " using " + pillar + " x" + climbStock);
             LegWatch climb = new LegWatch(rig);
             rig.settle(new TowerProcess(top, pillar, true), CRYSTAL_CLIMB_TICKS, climb, () -> {
                 rig.evidence("crystal." + i + ".climb",
                         climbRow(rig, crystal, top, pillar, climbStock, climbFromY, climb));
-                // 「feetY already ≥ targetY」 is the tower's success wording, and it is the WRONG
-                // wording when the body is above the target rather than at it: a tower cannot
+                // "feetY already ≥ targetY" is the tower's success wording, and it is the WRONG
+                // wording when the bot is above the target rather than at it: a tower cannot
                 // descend, so being 41 up is exactly as unreachable as being 41 down, and the row
                 // read like an accomplishment for three straight sweeps. Say so in its own key.
                 if (climbFromY > top + 3) {
                     rig.evidence("crystal." + i + ".climb.tooHigh",
-                            "起塔时脚在 y=" + climbFromY + "，比目标 y=" + top + " 高 "
-                                    + (climbFromY - top) + " 格。塔只会向上，所以它报的"
-                                    + "「not needed」不是到位而是叠得太高；"
-                                    + "接下来能不能够着完全取决于走位能不能自己降下去");
+                            "feet at y=" + climbFromY + " when the pillar started, " + (climbFromY - top)
+                                    + " blocks above the target y=" + top + ". A pillar only goes up, so"
+                                    + " its 'not needed' means stacked too high, not in position;"
+                                    + " whether the crystal comes within reach now depends entirely on"
+                                    + " the approach walk descending on its own");
                 }
                 rig.evidence("weapon", rig.holdBestWeapon());
                 // CLOSE THE LAST FEW BLOCKS. SwingAt's first statement is `commandMove(0,0)` — it
                 // stands still and swings whatever comes within reach, and a crystal never moves. So
                 // the whole rung rested on the walk and the tower happening to land inside 4.5, and
                 // when they did not, nothing tried: measured 2026-08-18, crystal 0 ended
-                // 「最近 5.2 格，挥 0 刀」and crystal 4「最近 7.4 格，挥 0 刀」— both a short step from a
+                // "closest 5.2 blocks, 0 swings" and crystal 4 "closest 7.4 blocks, 0 swings" — both a
+                // short step from a
                 // hit that was never attempted. Radius 3 rather than MELEE_REACH so arriving at the
                 // goal is comfortably inside reach instead of exactly on its edge.
                 // ONLY when out of reach. Measured on the run that introduced this walk: crystal 0
                 // started at 3.6 — already a hit — and the walk left it at 13.3, costing a crystal
                 // that needed no walking at all. A remedy must not run where there is nothing to
-                // remedy; the goal cell here is the pillar the crystal sits on, so「go nearer」can
-                // mean「come down off the tower you are standing on」.
+                // remedy; the goal cell here is the pillar the crystal sits on, so "go nearer" can
+                // mean "come down off the tower you are standing on".
                 double beforeApproach = rig.player().distanceTo(crystal);
                 BotProcess approach = beforeApproach <= MELEE_REACH - 0.5
                         ? new HoldStill(1)
                         : new IntentProcess(new Intent(new Goal.Near(base, CRYSTAL_APPROACH)));
                 rig.settle(approach, CRYSTAL_APPROACH_TICKS, () -> {
                 rig.evidence("crystal." + i + ".approach", String.format(Locale.ROOT,
-                        "砸之前收尾走位：%.1f 格 → %.1f 格（门限 %.1f）%s%s", beforeApproach,
-                        rig.player().distanceTo(crystal), MELEE_REACH,
-                        beforeApproach <= MELEE_REACH - 0.5 ? "（本来就够得着，没走）" : "",
-                        rig.player().distanceTo(crystal) <= MELEE_REACH ? "" : " —— 仍够不着"));
-                // 「先站到炸不掉的落脚上再砍」— the two-step the guard's javadoc says attackEntity
+                        "final approach before the swing: %.1f blocks → %.1f blocks (threshold %.1f)%s%s",
+                        beforeApproach, rig.player().distanceTo(crystal), MELEE_REACH,
+                        beforeApproach <= MELEE_REACH - 0.5 ? " (already within reach, did not move)" : "",
+                        rig.player().distanceTo(crystal) <= MELEE_REACH ? "" : " — still out of reach"));
+                // "First stand on blast-proof footing, then swing" — the two-step the guard's javadoc
+                // says attackEntity
                 // cannot do, done here because this rung owns both steps. The tower is raised
                 // BESIDE the spike, so its top is cobblestone (R=6.0) however high it goes and no
                 // change to the climb target can fix that; the blast-proof cells are the spike's
                 // own obsidian and the bedrock under the crystal, a step away.
-                // The stand list is candidates to WALK to, never「可以站」: reachability is unverified
+                // The stand list is candidates to WALK to, never "can stand here": reachability is unverified
                 // by construction (vanilla's cage lid is a solid 5x5 of iron bars over the only
                 // qualifying floor), so the walk is the test. A candidate must also be within reach
                 // of the crystal — a perfect stand 4 cells away that cannot swing is not a remedy.
@@ -1594,22 +1655,22 @@ public final class JourneyEndRungs {
                         : new IntentProcess(new Intent(new Goal.Block(chosen)));
                 rig.settle(reseat, CRYSTAL_RESEAT_TICKS, () -> {
                 rig.evidence("crystal." + i + ".reseat", chosen != null
-                        ? "落脚炸得掉，挪到 " + chosen.toShortString() + "（脚下 "
-                          + blockAt(rig, chosen.below()) + "）→ 挪完站在 "
-                          + xyz(rig.player().blockPosition()) + "，"
+                        ? "footing would be destroyed by the blast; moving to " + chosen.toShortString()
+                          + " (standing on " + blockAt(rig, chosen.below()) + ") → after the move at "
+                          + xyz(rig.player().blockPosition()) + ", "
                           + (BlastFooting.refuseSwing(rig.player(), crystal) == null
-                                  ? "不再被拒" : "仍被拒")
-                        : refusal == null ? "落脚本来就抗得住这一炸，没挪"
-                        : "拒绝挥刀，但半径 " + BlastFooting.STAND_SURVEY_RADIUS
-                          + " 内没有既抗得住这一炸、又够得着水晶的落脚");
+                                  ? "no longer refused" : "still refused")
+                        : refusal == null ? "footing already withstands this blast; did not move"
+                        : "swing refused, but no footing within radius " + BlastFooting.STAND_SURVEY_RADIUS
+                          + " both withstands this blast and reaches the crystal");
                 SwingAt swing = new SwingAt(crystal, CRYSTAL_SWING_TICKS, MELEE_REACH);
                 rig.settle(swing, CRYSTAL_SWING_TICKS + 50, () -> {
-                    rig.evidence("crystal." + i + ".result", (crystal.isAlive() ? "还在" : "碎了")
-                            + "（站到 y=" + rig.player().blockPosition().getY() + "，最近 "
-                            + String.format(Locale.ROOT, "%.1f", swing.closest()) + " 格，挥 "
-                            + swing.swings() + " 刀"
-                            + (swing.refused() == 0 ? "" : "，被拒 " + swing.refused() + " 次：»"
-                                    + swing.refusal() + "«") + "）");
+                    rig.evidence("crystal." + i + ".result", (crystal.isAlive() ? "still alive" : "smashed")
+                            + " (standing at y=" + rig.player().blockPosition().getY() + ", closest "
+                            + String.format(Locale.ROOT, "%.1f", swing.closest()) + " blocks, "
+                            + swing.swings() + " swings"
+                            + (swing.refused() == 0 ? "" : ", refused " + swing.refused() + " times: »"
+                                    + swing.refusal() + "«") + ")");
                     smashCrystal(ctx, rig, crystals, i + 1);
                 });
                 });
@@ -1619,7 +1680,7 @@ public final class JourneyEndRungs {
     }
 
     /** How many of this rung's crystals are already gone — the only part of the tally that stays
-     *  true after the body has left the world, since everything else it could report is a reading
+     *  true after the bot has left the world, since everything else it could report is a reading
      *  taken in the void. */
     private static int smashedSoFar(List<EndCrystal> crystals) {
         int gone = 0;
@@ -1628,26 +1689,26 @@ public final class JourneyEndRungs {
     }
 
     /**
-     * One settle's worth of tick-by-tick bookkeeping: how long it ran, and how low the body got
+     * One settle's worth of tick-by-tick bookkeeping: how long it ran, and how low the bot got
      * <b>inside</b> it.
      *
      * <h2>Why the first sample is thrown away</h2>
      *
      * {@code SceneContext.advance} drains steps greedily — the tick that registers a settle also
      * evaluates its wait condition once, before the world has moved — so sample 0 is taken at the
-     * STARTING position. A {@code 最低y} that includes its own start is a reading that can never
+     * STARTING position. A {@code lowestY} that includes its own start is a reading that can never
      * contradict the start, and this ladder has already been misled by exactly that shape once: a
-     * healthy arm was judged red because its minimum was polluted by the spawn point the leg began
-     * on. Dropping sample 0 is what makes this a property of the leg.
+     * healthy arm was judged red because its minimum was polluted by the spawn point the walk began
+     * on. Dropping sample 0 is what makes this a property of the walk.
      *
-     * <p>It follows that a leg which finished before its second sample reports {@code 未采样} rather
+     * <p>It follows that a walk which finished before its second sample reports {@code not sampled} rather
      * than a number. That is the honest answer: nothing between the start and the end was observed,
      * because there was nothing between them.
      *
      * <h2>What it does not do</h2>
      *
      * It never steers, never fails and never touches the world — {@link JourneyFlight} is the full
-     * trajectory recorder and this is the two-number version, for legs that want a cost and a floor
+     * trajectory recorder and this is the two-number version, for walks that want a cost and a floor
      * without a per-tick narrative.
      */
     private static final class LegWatch implements JourneyRig.TickWatcher {
@@ -1663,27 +1724,28 @@ public final class JourneyEndRungs {
             lowest = Math.min(lowest, rig.player().blockPosition().getY());
         }
 
-        /** Ticks this leg actually ran. Sample 0 costs no tick of the world, so it does not count. */
+        /** Ticks this walk actually ran. Sample 0 costs no tick of the world, so it does not count. */
         int ticks() { return Math.max(0, samples - 1); }
 
-        /** The lowest y reached after the start, or 未采样 when the leg never got a second sample. */
-        String lowestY() { return lowest == Integer.MAX_VALUE ? "未采样" : String.valueOf(lowest); }
+        /** The lowest y reached after the start, or "not sampled" when the walk never got a second
+         *  sample. */
+        String lowestY() { return lowest == Integer.MAX_VALUE ? "not sampled" : String.valueOf(lowest); }
     }
 
     /**
-     * What one crystal-to-crystal move cost and where it left the body — the row {@code island.*}
+     * What one crystal-to-crystal move cost and where it left the bot — the row {@code island.*}
      * has for the march and the crystal phase had for nothing at all.
      *
-     * <p>Measured 2026-08-17: after the sixth crystal the body stood on its own tower at
+     * <p>Measured 2026-08-17: after the sixth crystal the bot stood on its own tower at
      * {@code 31,100,24} with crystal 7 at {@code (-34,-25)}, did not come down, and ended at
      * {@code -43,94,20} before falling to {@code y=-32453}. Every number in that sentence was
      * RECONSTRUCTED — from an inventory delta, a handful of guard log lines and the two coordinates
      * that happen to be recorded. The crystal phase recorded no start, no end, no cost and no floor
-     * for any of its moves, so「it bridged about eighty blocks through the sky」was an inference,
+     * for any of its moves, so "it bridged about eighty blocks through the sky" was an inference,
      * and the next failure would have had to be inferred again.
      *
-     * <p><b>Same 数法 as {@code island.*.plan}</b> — {@link #blocksSpent}, called from both — so a
-     * crystal leg and a march leg can be compared without first asking which counter each used.
+     * <p><b>Same counting method as {@code island.*.plan}</b> — {@link #blocksSpent}, called from
+     * both — so a crystal walk and a march segment can be compared without first asking which counter each used.
      *
      * <p><b>{@code end}/{@code err} are the walker's own words</b>: {@code IntentProcess} copies
      * {@code Walker.lastEndReason} into {@code mc_goto.endReason} and {@code Walker.lastError} into
@@ -1697,29 +1759,29 @@ public final class JourneyEndRungs {
         // twice asks two moments (JourneyRig.slot; the same reason BotApi.userTaskLeg publishes its
         // whole reading as one snapshot).
         var slot = rig.slot("goto");
-        return "起点=" + xyz(from) + " 脚下=" + fromUnder
-                + " → 终点=" + xyz(to) + " 脚下=" + blockAt(rig, to.below())
-                + "  放了 " + blocksSpent(rig, item, stockBefore) + " 块 " + item
-                + "  最低y=" + watch.lowestY() + "（不含起点 y=" + from.getY() + "）"
-                + "  用了 " + watch.ticks() + " tick"
+        return "start=" + xyz(from) + " underfoot=" + fromUnder
+                + " → end=" + xyz(to) + " underfoot=" + blockAt(rig, to.below())
+                + "  placed " + blocksSpent(rig, item, stockBefore) + " blocks of " + item
+                + "  lowestY=" + watch.lowestY() + " (excluding the start y=" + from.getY() + ")"
+                + "  took " + watch.ticks() + " ticks"
                 + "  end=" + slot.get("endReason") + " err=" + slot.get("lastError");
     }
 
     /**
      * Whether the tower got where it was sent — stated, not left to be subtracted.
      *
-     * <p>Crystals 1 and 2 of the 2026-08-17 run ended with the body at {@code y=56} and {@code y=59}
+     * <p>Crystals 1 and 2 of the 2026-08-17 run ended with the bot at {@code y=56} and {@code y=59}
      * under crystals 20.8 and 38.0 blocks away, and zero swings. All of that was readable only by
      * taking {@code crystal.N.at}, subtracting {@code crystal.N.result}'s parenthesised y and
      * knowing that {@code TowerProcess} aims two blocks under the crystal. A row that says
-     * {@code 结论=没到顶} needs none of that.
+     * {@code result=did not reach the top} needs none of that.
      *
-     * <p>{@code 差} is {@code 目标y − 实到y}: positive is how far short it stopped. <b>Negative does
-     * NOT mean it overshot</b> — this line claimed so for months and it was wrong. It means the body
-     * was already above the target when the tower was ordered, so nothing was built; the walk to the
-     * previous crystal left it up there and {@code Goal.XZ.ignoresY()} gives that walk no reason to
-     * come down. Four consecutive climbs of the 2026-08-18 run read {@code 差=-1 放了 0 块 结论=到顶},
-     * which is what「垒完了」looks like, and the tower had in fact never once been exercised.
+     * <p>{@code gap} is {@code targetY − reachedY}: positive is how far short it stopped. <b>Negative
+     * does NOT mean it overshot</b>. It means the bot was already above the target when the tower
+     * was ordered, so nothing was built; the walk to the previous crystal left it up there and
+     * {@code Goal.XZ.ignoresY()} gives that walk no reason to come down. Four consecutive climbs of
+     * the 2026-08-18 run read {@code gap=-1, placed 0 blocks, result=reached the top}, which is what
+     * "finished building" looks like, and the tower had in fact never once been exercised.
      *
      * <p>Hence three outcomes, not two, and the starting height stated on the row rather than left to
      * be inferred from the previous crystal's block: a climb that built and a climb that was never
@@ -1729,28 +1791,28 @@ public final class JourneyEndRungs {
                                    int stockBefore, int fromY, LegWatch watch) {
         int y = rig.player().blockPosition().getY();
         String verdict = fromY >= top
-                ? "不需要垒（起塔时脚格已在 y=" + fromY + " ≥ 目标 " + top + "）"
-                : (y >= top ? "到顶（从 y=" + fromY + " 垒到 y=" + y + "）"
-                            : "没到顶（从 y=" + fromY + " 只到 y=" + y + "）");
-        return "目标y=" + top + "（水晶在 y=" + Mth.floor(crystal.getY()) + "，塔停在它下面 2 格）"
-                + " 起塔y=" + fromY + " 实到y=" + y + " 差=" + (top - y)
-                + " 放了 " + blocksSpent(rig, pillar, stockBefore) + " 块 " + pillar
-                + " 用了 " + watch.ticks() + " tick"
+                ? "no pillar needed (feet already at y=" + fromY + " ≥ target " + top + " when it started)"
+                : (y >= top ? "reached the top (built from y=" + fromY + " to y=" + y + ")"
+                            : "did not reach the top (from y=" + fromY + ", only to y=" + y + ")");
+        return "targetY=" + top + " (crystal at y=" + Mth.floor(crystal.getY()) + ", the pillar stops 2"
+                + " blocks below it) startY=" + fromY + " reachedY=" + y + " gap=" + (top - y)
+                + " placed " + blocksSpent(rig, pillar, stockBefore) + " blocks of " + pillar
+                + " took " + watch.ticks() + " ticks"
                 // The tower's OWN account of why it stopped. It carries placed / holding / phase /
-                // apexFeetY, which separate「没东西可放」from「跳没能离开自己那一格」from「身体被带离
-                // 了自己那一列」— and none of that is derivable from the heights on this row. It was
-                // being written and thrown away: the process reported it, the rung never read it.
-                + " 自述=" + rig.slotError("builder")
-                + " 结论=" + verdict;
+                // apexFeetY, which separate "nothing to place" from "the jump never left its own
+                // cell" from "the bot was carried off its own column" — and none of that is
+                // derivable from the heights on this row, so it must be read from the process.
+                + " ownReport=" + rig.slotError("builder")
+                + " result=" + verdict;
     }
 
     /**
      * Move more of the pillar block into the hotbar before a climb.
      *
      * <p>{@code TowerProcess.ensureHoldingPlaceable} scans hotbar slots 0..8 only (9..35 are read in
-     * creative alone), so a survival body stops the moment the ONE stack it was handed runs out —
-     * measured 2026-08-18, {@code crystal.4.climb} stopped short with
-     * {@code 自述=no placeable block in hotbar} and 542 cobblestone still in the bag.
+     * creative alone), so a survival-mode bot stops the moment the ONE stack it was handed runs
+     * out — measured 2026-08-18, {@code crystal.4.climb} stopped short with
+     * {@code ownReport=no placeable block in hotbar} and 542 cobblestone still in the bag.
      *
      * <p>This is staging around a product limit, not a fix for it: a bot that has to be handed a
      * pre-arranged hotbar will stall the same way on a live run. It is done here because widening
@@ -1776,19 +1838,19 @@ public final class JourneyEndRungs {
     /** Top of the central bedrock fountain — where the dragon perches, and therefore the only cell
      *  a stand-still melee fight can be won from. Scanned rather than hard-coded so a world whose
      *  podium sits at a different height still answers correctly.
-     *  <p>A cell on the fountain a body can actually STAND on.
+     *  <p>A cell on the fountain a player can actually STAND on.
      *
      * <p>The first cut scanned the column at exactly {@code x=0,z=0} and returned the first non-air
      * cell's {@code above()}. That column is the exit portal's own hole: it is not floor, and the
-     * cell above whatever the scan hits is not supported. The march then walked the body to it, the
-     * walker reported {@code ARRIVED}, and the departure trace caught it red-handed —
-     * {@code step=ARRIVED 身体=-0.75,59.00,-0.76 速度h=0.007 脚底=0.000}: standing still, at the
+     * cell above whatever the scan hits is not supported. The march then walked the bot to it, the
+     * walker reported {@code ARRIVED}, and the departure trace caught it: a step of ARRIVED with the
+     * bot at -0.75,59.00,-0.76, horizontal speed 0.007 and sole support 0.000 — standing still, at the
      * podium, with nothing whatsoever under the sole. Five rounds of gating leap and diagonal
      * families had been chasing island-rim coordinates while the fall was happening at the target.
      *
      * <p>So require support: scan the 5x5 around the centre and take the highest cell whose floor
-     * is solid and whose own two body cells are clear. Nearest-to-centre breaks ties, because the
-     * perched head hovers over the middle and every block outward is reach spent.
+     * is solid and whose two cells a standing player occupies are clear. Nearest-to-centre breaks
+     * ties, because the perched head hovers over the middle and every block outward is reach spent.
      */
     private static BlockPos podiumTop(ServerLevel end) {
         BlockPos best = null;
@@ -1809,23 +1871,24 @@ public final class JourneyEndRungs {
         return best != null ? best : new BlockPos(0, 65, 0);
     }
 
-    /** Walk to the podium, retrying: one stall on ground the body broke and bridged itself is not
+    /** Walk to the podium, retrying: one stall on ground the bot broke and bridged itself is not
      *  proof the centre cannot be reached. Runs {@code then} either way — the duel's evidence row
      *  says where it actually ended up, and a fight from the wrong cell is a finding, not a crash. */
     private static void marchToPodium(JourneyRig rig, BlockPos podium, int left, Runnable then) {
-        // A body in the void gets no more orders. settle() already refuses to run a process for one,
+        // A bot in the void gets no more orders. settle() already refuses to run a process for one,
         // but a recursion that keeps calling settle() turns that refusal into SILENCE: the six rows
-        // this produced all reported 「停在 -47,-66,23 没到」 with end=null, and each tower row read
-        // 「not needed (feetY=111 already ≥ targetY=90)」—— a targetY nobody asked for this run,
-        // left in builder.lastError by the crystal sweep's tower because the new one never ran.
-        // Every one of those rows described a body that had already left the world 126 格 earlier.
+        // this produced all reported "stopped at -47,-66,23, not arrived" with end=null, and each
+        // tower row read "not needed (feetY=111 already ≥ targetY=90)" — a targetY nobody asked for
+        // this run, left in builder.lastError by the crystal sweep's tower because the new one never
+        // ran. Every one of those rows described a bot that had already left the world 126 blocks
+        // earlier.
         if (rig.lostTheWorld() != null) { then.run(); return; }
         if (left <= 0) { then.run(); return; }
         // Alternate the goal SHAPE between rounds, because a retry that asks the identical question
         // gets the identical answer: this rung has already spent a run watching ninety repeats of
-        // one 22-block query. The body finishes the crystals on top of whatever tower the last one
-        // needed (measured: -32,91,-24 — 39.4 格 off-centre and 31 up), and a 3D goal at the podium
-        // has to solve「come down 31」and「cross 39」at once. Goal.XZ ignores Y, so the odd rounds
+        // one 22-block query. The bot finishes the crystals on top of whatever tower the last one
+        // needed (measured: -32,91,-24 — 39.4 blocks off-centre and 31 up), and a 3D goal at the
+        // podium has to solve "come down 31" and "cross 39" at once. Goal.XZ ignores Y, so the odd rounds
         // ask only for the horizontal half and let the descent fall out of it; the even rounds then
         // finish the last cells in 3D. Either shape alone has been observed to stall.
         boolean flat = (left % 2) == 0;
@@ -1837,38 +1900,38 @@ public final class JourneyEndRungs {
             // head hovers ABOVE the fountain and every block down is a block of reach spent.
             BlockPos me = rig.player().blockPosition();
             // ...and it must be STANDING there. ARRIVED is not the same as supported: the trace
-            // that found this bug reads 脚底=0.000 on an ARRIVED tick at the podium.
-            // Radius and height, and NOTHING else. Two attempts to add a support clause here both
-            // made things worse and for opposite reasons: `!getBlockState(me.below()).isAir()`
-            // rejected a body held by its footprint overlapping the next cell (five rounds of
-            // 「停在 0,60,-1 距 1.0 格 没到 end=arrived」, then a 41-格 wander), and sampling
-            // soleOnSolid rejected a body that was airborne for the one tick the walk happened to
-            // finish on (six rounds of 「停在 -1,59,-1 没到」). A gate on an instantaneous reading of
+            // that found this bug reports a sole support of 0.000 on an ARRIVED tick at the podium.
+            // Radius and height, and NOTHING else. A support clause here fails in two opposite
+            // ways: `!getBlockState(me.below()).isAir()` rejected a bot held by its footprint
+            // overlapping the next cell (five rounds of "stopped at 0,60,-1, 1.0 blocks away, not
+            // arrived, end=arrived", then a 41-block wander), and sampling soleOnSolid rejected a
+            // bot that was airborne for the one tick the walk happened to finish on (six rounds of
+            // "stopped at -1,59,-1, not arrived"). A gate on an instantaneous reading of
             // a quantity that blinks is not a stricter gate, it is a random one.
             //
             // The portal hole — the thing those clauses were reaching for — is already handled
             // where it belongs: podiumTop() only ever returns a cell whose floor is solid and whose
-            // body cells are clear. Guard the TARGET once, not the arrival every round.
+            // two player-height cells are clear. Guard the TARGET once, not the arrival every round.
             boolean close = me.distSqr(podium) <= DUEL_STAND_RADIUS * DUEL_STAND_RADIUS
                     && me.getY() >= podium.getY() - 1;
-            rig.evidence("duel.march." + left, (flat ? "XZ" : "3D") + " 目标 "
-                    + podium.toShortString() + " → 停在 " + me.toShortString() + "（距 "
+            rig.evidence("duel.march." + left, (flat ? "XZ" : "3D") + " target "
+                    + podium.toShortString() + " → stopped at " + me.toShortString() + " ("
                     + String.format(Locale.ROOT, "%.1f", Math.sqrt(me.distSqr(podium)))
-                    + " 格，高差 " + (me.getY() - podium.getY()) + "）"
-                    + (close ? " 到了" : " 没到 " + JourneyLeg.walkerEnd(rig)));
+                    + " blocks away, height difference " + (me.getY() - podium.getY()) + ")"
+                    + (close ? " arrived" : " not arrived " + JourneyLeg.walkerEnd(rig)));
             if (close) { then.run(); return; }
-            // Six rounds of the same stall at (43,52,13) — 46 格 out and EIGHT BELOW the podium —
-            // is not bad luck a seventh round fixes. Below the target the walk has to solve「climb
-            // back onto the island」and「cross 46」at once, and the climb is a different verb: the
-            // crystal legs already tower when they need height. Do that here before re-asking, so
+            // Six rounds of the same stall at (43,52,13) — 46 blocks out and EIGHT BELOW the podium —
+            // is not bad luck a seventh round fixes. Below the target the walk has to solve "climb
+            // back onto the island" and "cross 46" at once, and the climb is a different verb: the
+            // crystal walks already tower when they need height. Do that here before re-asking, so
             // the retry differs from the attempt it repeats by more than its serial number.
             if (rig.lostTheWorld() != null) { then.run(); return; }
             if (me.getY() < podium.getY() - 2) {
                 rig.settle(new TowerProcess(podium.getY(), pillarBlock(rig), true), DUEL_MARCH_TICKS / 3,
                         () -> {
-                    rig.evidence("duel.march." + left + ".tower", "先垒到台面高度 y=" + podium.getY()
-                            + " → 脚在 y=" + rig.player().blockPosition().getY() + "，"
-                            + rig.slotError("builder"));
+                    rig.evidence("duel.march." + left + ".tower", "pillar up to the podium height y="
+                            + podium.getY() + " first → feet at y=" + rig.player().blockPosition().getY()
+                            + ", " + rig.slotError("builder"));
                     marchToPodium(rig, podium, left - 1, then);
                 });
                 return;
@@ -1878,15 +1941,15 @@ public final class JourneyEndRungs {
     }
 
     /**
-     * How many of {@code item} a leg put into the world, as a NET inventory difference.
+     * How many of {@code item} a walk put into the world, as a NET inventory difference.
      *
      * <p>The one place this file counts placements, called by {@code island.*.plan} and by both
-     * crystal rows, because two counters that disagree are worse than either alone. Net, so a leg
+     * crystal rows, because two counters that disagree are worse than either alone. Net, so a walk
      * that mined more of the item than it placed reports a negative number — that is a fact about
-     * the leg and not a reason to clamp it to zero.
+     * the walk and not a reason to clamp it to zero.
      *
      * <p>Distinct from {@code ServerPlayerBody.placeTally()}, which is a lifetime counter of the
-     * ACTUATOR's calls and refusals and cannot be differenced per leg. The two answer different
+     * ACTUATOR's calls and refusals and cannot be differenced per walk. The two answer different
      * questions and {@code island.*.plan} prints both.
      */
     private static int blocksSpent(JourneyRig rig, String item, int stockBefore) {
@@ -1898,7 +1961,7 @@ public final class JourneyEndRungs {
         EnderDragon dragon = nearestDragon(end, rig.player().position());
         if (dragon == null) {
             if (round == 0) {
-                rig.attempting("等末地龙出现");
+                rig.attempting("wait for the ender dragon to appear");
                 waitFor(rig, () -> nearestDragon(end, rig.player().position()) != null,
                         DRAGON_WAIT_TICKS, () -> duel(ctx, rig, 1));
                 return;
@@ -1910,36 +1973,37 @@ public final class JourneyEndRungs {
         rig.evidence("dragon.at", xyz(dragon.blockPosition()));
         rig.evidence("weapon", rig.holdBestWeapon());
         // WALK TO THE CENTRE FIRST. DuelTheDragon's first statement is `commandMove(0,0)` — it stands
-        // still and lets the dragon come to it — and the line below has always said「在中央」while
-        // nothing ever put the body there. Measured 2026-08-18: the duel began wherever the last
-        // crystal left the body, 42 blocks off-centre on a pillar top at y=103, and burned 11 400 of
+        // still and lets the dragon come to it — so a duel's "at the centre" is only true if a
+        // walk put the bot there first. Measured 2026-08-18: the duel began wherever the last
+        // crystal left the bot, 42 blocks off-centre on a pillar top at y=103, and burned 11 400 of
         // its 200 000 ticks without the dragon once coming within reach. The dragon circles (0,y,0);
-        // a body that is not there is not in the fight.
-        // A Y-AWARE goal, and retried. `Goal.XZ.ignoresY()` is true, so「走到中心」was satisfied on
+        // a bot that is not there is not in the fight.
+        // A Y-AWARE goal, and retried. `Goal.XZ.ignoresY()` is true, so "walk to the centre" was satisfied on
         // top of whatever tower the last crystal needed — measured, the duel began at y=103 while
         // the dragon perches on the bedrock fountain near y=63, six blocks away horizontally and
-        // forty vertically. Vanilla's melee window IS the perch; a body above it never gets one.
-        // Three attempts because the walk crosses ground the body itself broke and bridged, and one
+        // forty vertically. Vanilla's melee window IS the perch; a bot above it never gets one.
+        // Three attempts because the walk crosses ground the bot itself broke and bridged, and one
         // stall there is not evidence that the centre is unreachable.
         BlockPos podium = podiumTop(end);
-        rig.attempting("走回竞技场中心的基岩台（" + xyz(podium) + "），龙落在那里才够得着");
+        rig.attempting("walk back to the bedrock podium at the arena centre (" + xyz(podium)
+                + "); the dragon is only within reach when it perches there");
         marchToPodium(rig, podium, DUEL_MARCH_ROUNDS, () -> {
-        rig.evidence("duel.stand", xyz(rig.player().blockPosition()) + " 距中心 "
+        rig.evidence("duel.stand", xyz(rig.player().blockPosition()) + ", "
                 + String.format(Locale.ROOT, "%.1f",
-                        Math.hypot(rig.player().getX(), rig.player().getZ())) + " 格，"
-                + "高出基岩台 " + (rig.player().blockPosition().getY() - podium.getY()) + " 格"
-                + "（DuelTheDragon 原地不动，所以这一格就是整场架的位置）");
-        rig.attempting("在中央等龙够得着，够得着就打头（头部不分摊伤害，其余部位除以四）");
+                        Math.hypot(rig.player().getX(), rig.player().getZ())) + " blocks from the centre, "
+                + (rig.player().blockPosition().getY() - podium.getY()) + " blocks above the podium"
+                + " (DuelTheDragon does not move, so this cell is where the whole fight takes place)");
+        rig.attempting("wait at the centre until the dragon is within reach, then hit the head (the"
+                + " head takes full damage, every other part divides it by four)");
         DuelTheDragon fight = new DuelTheDragon(DUEL_TICKS, MELEE_REACH);
         rig.settle(fight, DUEL_TICKS + 200, () -> {
             EnderDragon still = nearestDragon(end, rig.player().position());
-            // `still == null` is NOT death. nearestDragon is a box search around the body over the
+            // `still == null` is NOT death. nearestDragon is a box search around the bot over the
             // LOADED entity index, and this rung's own failure path carries a paragraph about exactly
-            // that ambiguity — an unloaded arena answers null for a dragon in perfect health. The
-            // success path used to collapse the two, and on 2026-08-18 it declared「屠龙成功」on a run
-            // with 8 of 10 crystals still healing the dragon, ZERO swings, and
-            // `advancement.kill_dragon = not-earned`. Three independent readings said no kill and the
-            // criterion said yes.
+            // that ambiguity — an unloaded arena answers null for a dragon in perfect health. Treating
+            // null as death declared "dragon killed" on a 2026-08-18 run with 8 of 10 crystals still
+            // healing the dragon, ZERO swings, and `advancement.kill_dragon = not-earned`. Three
+            // independent readings said no kill and the criterion said yes.
             //
             // vanilla's own record is the authority: EndDragonFight.setDragonKilled writes
             // `previouslyKilled`, and it survives the arena unloading. A dragon SEEN dying also
@@ -1949,23 +2013,27 @@ public final class JourneyEndRungs {
                     && end.getDragonFight().hasPreviouslyKilledDragon();
             boolean dead = seenDying || fightSaysKilled;
             rig.evidence("duel.bow", fight.bowRow(rig.player()));
-            rig.evidence("duel.end", fight.why() + "（打了 " + fight.elapsedTicks() + " tick）");
-            rig.evidence("duel.swings", fight.swings() + "（其中打到头 " + fight.headHits()
-                    + " 次）；射出 " + fight.arrows() + " 箭（近战只在龙俯冲落座那几秒有效，"
-                    + "非头部命中被 vanilla 打四折，所以盘旋期的伤害全靠箭）");
-            rig.evidence("duel.closest", String.format(Locale.ROOT, "%.1f 格（%s）",
+            rig.evidence("duel.end", fight.why() + " (fought for " + fight.elapsedTicks() + " ticks)");
+            rig.evidence("duel.swings", fight.swings() + " (" + fight.headHits() + " of them hit the"
+                    + " head); " + fight.arrows() + " arrows shot (melee only works during the few"
+                    + " seconds the dragon dives and perches, and vanilla divides non-head hits by four,"
+                    + " so all damage during the circling phase has to come from arrows)");
+            rig.evidence("duel.closest", String.format(Locale.ROOT, "%.1f blocks (%s)",
                     fight.closest(), fight.closestPart())
-                    + (fight.gaveUp() ? "；⚠️ 放弃：连续 " + DUEL_OUT_OF_REACH_TICKS
-                        + " tick 龙一次都没进过 " + MELEE_REACH + " 格 —— 这不是打不动，是没在架里" : ""));
-            rig.evidence("dragon.hp", still == null ? "盒子里没有 —— 这不等于死了，见 dragon.dead"
+                    + (fight.gaveUp() ? "; ⚠️ gave up: for " + DUEL_OUT_OF_REACH_TICKS
+                        + " consecutive ticks the dragon never came within " + MELEE_REACH + " blocks"
+                        + " — the fight was not too hard, the bot was not in position" : ""));
+            rig.evidence("dragon.hp", still == null
+                    ? "not in the search box — this does not mean it is dead, see dragon.dead"
                     : String.format(Locale.ROOT, "%.1f", still.getHealth()));
-            rig.evidence("dragon.dead", dead + "（看见它在死=" + seenDying
-                    + "，EndDragonFight.hasPreviouslyKilledDragon=" + fightSaysKilled
-                    + "；盒子里查不到本身不算数）");
+            rig.evidence("dragon.dead", dead + " (seen dying=" + seenDying
+                    + ", EndDragonFight.hasPreviouslyKilledDragon=" + fightSaysKilled
+                    + "; absence from the search box does not count on its own)");
             rig.noteAdvancement("minecraft:end/kill_dragon");
             ctx.expect(dead).as("the ender dragon is dead — seen dying, or EndDragonFight says it was"
                     + " killed; a dragon merely absent from the search box does not count").isTrue();
-            rig.reach("屠龙成功：挥 " + fight.swings() + " 刀（打到头 " + fight.headHits() + " 次）");
+            rig.reach("dragon killed: " + fight.swings() + " swings (" + fight.headHits()
+                    + " hit the head)");
         });
         });
     }
@@ -1976,13 +2044,13 @@ public final class JourneyEndRungs {
      * <p>It used to know more, and it was wrong. The old text asserted one mechanism:
      * {@code EndDragonFight.tick} rescans {@code ServerLevel.getPlayers(validPlayer)} every twenty
      * ticks and does nothing at all while that set is empty — no arena ticket, no {@code scanState},
-     * no {@code createNewDragon} — and this track's body is a {@code FakePlayer} that never went
+     * no {@code createNewDragon} — and this track's bot is a {@code FakePlayer} that never went
      * through {@code PlayerList.placeNewPlayer}. Every clause of that is a real vanilla fact and the
-     * conclusion was still false: measured 2026-08-17 the body WAS in {@code level.players()} (it was a
+     * conclusion was still false: measured 2026-08-17 the bot WAS in {@code level.players()} (it was a
      * {@code JoinedBody}, which joins), the fight
      * HAD run — {@code dragonUUID = 967f837e-…}, {@code crystalsAlive = 5} — and the search still
-     * found nothing, because the body had fallen 32 500 blocks out of the world and
-     * {@code nearestDragon} centres its box on the body.
+     * found nothing, because the bot had fallen 32 500 blocks out of the world and
+     * {@code nearestDragon} centres its box on the bot.
      *
      * <p>So the readings come first and the sentence is assembled from them in {@link #whyNoDragon}.
      * The rows this writes are the failure-time half of a pair; the start-of-rung half is
@@ -1996,16 +2064,16 @@ public final class JourneyEndRungs {
         rig.evidence("body.inPlayerList", inList);
         // BEFORE blaming the player list, read the distance AGAIN. The list and the range are two
         // independent halves of `validPlayer`, a rehearsal records the range once at staging time,
-        // and a body that has since moved makes that stale row read as an all-clear for the one
+        // and a bot that has since moved makes that stale row read as an all-clear for the one
         // cause that is actually in play. Measured 2026-08-17: staged at 127.8 blocks (in range),
-        // failed 23 000 blocks below the island, and `dragonUUID = null` was read as「没有对手」
-        // rather than as「身体不在场」.
+        // failed 23 000 blocks below the island, and `dragonUUID = null` was read as "there is no
+        // opponent" rather than as "the bot is not in the arena".
         rig.evidence("dragon.rangeNow", fightRangeNow(rig));
         recordTheFightNow(rig, end);
         // BEFORE the UUID lookup, not after it: `dragon.byUuid` cannot interpret its own miss, and
         // this is the row that interprets it. Printing them in this order is the whole fix — a
-        // reader who meets「查不到」first has already formed the conclusion the next row exists to
-        // forbid.
+        // reader who meets "not found" first has already formed the conclusion the next row exists
+        // to forbid.
         rig.evidence("dragon.arenaLoaded", arenaLoaded(end));
         rig.evidence("dragon.byUuid", dragonByUuid(end, fight));
         ctx.fail(whyNoDragon(rig, end, fight, inList));
@@ -2015,24 +2083,24 @@ public final class JourneyEndRungs {
      * Ask the LEVEL for the dragon by the fight's own UUID — the reading that splits the two worlds
      * {@code dragon.present=false} otherwise prints identically.
      *
-     * <p>{@link #nearestDragon} builds its box around <b>the body</b>, so it can only ever answer
-     * 「盒子里有没有龙」. A body that has fallen to {@code y=-32453} is guaranteed an empty box
+     * <p>{@link #nearestDragon} builds its box around <b>the bot</b>, so it can only ever answer
+     * "is there a dragon in the box". A bot that has fallen to {@code y=-32453} is guaranteed an empty box
      * whatever the End contains — and on 2026-08-17 that is exactly what it reported, beside a
      * {@code dragonFight.now.dragonUUID=967f837e-…} that says vanilla had built one.
      * {@code ServerLevel.getEntity(UUID)} goes to the level's entity index instead, so its answer
-     * does not depend on where the body is.
+     * does not depend on where the bot is.
      *
      * <h2>What this row is NOT allowed to conclude</h2>
      *
-     * It used to end its miss branch on「即龙被移除了」, and <b>that is one claim past what the call
-     * can support</b>. {@code ServerLevel.getEntity(UUID)} reads the level's <i>loaded</i> entity
-     * index — the same index an unloaded chunk's entities are absent from — so 「查不到」 covers two
+     * Its miss branch must not end on "so the dragon was removed": <b>that is one claim past what the
+     * call can support</b>. {@code ServerLevel.getEntity(UUID)} reads the level's <i>loaded</i> entity
+     * index — the same index an unloaded chunk's entities are absent from — so "not found" covers two
      * different worlds and this call cannot tell them apart:
      *
      * <ul>
      *   <li>the dragon was genuinely removed; or</li>
      *   <li>the dragon is alive in a chunk that is no longer loaded, and the index simply does not
-     *       hold it. This is not hypothetical on this rung: a body more than 192 blocks from
+     *       hold it. This is not hypothetical on this rung: a bot more than 192 blocks from
      *       {@code (0,128,0)} fails {@code EndDragonFight.validPlayer}, so {@code updatePlayers}
      *       empties {@code dragonEvent}, so {@code tick()} takes its {@code else} branch and calls
      *       {@code removeRegionTicket(TicketType.DRAGON, ChunkPos(0,0), 9, …)} — the arena's only
@@ -2043,18 +2111,18 @@ public final class JourneyEndRungs {
      * <h2>How to read it — all four of these print {@code dragon.present=false}</h2>
      *
      * <ul>
-     *   <li><b>查到</b> ⇒ <b>the dragon IS there and the body is not with it.</b> A hit is
+     *   <li><b>found</b> ⇒ <b>the dragon IS there and the bot is not with it.</b> A hit is
      *       conclusive in a way a miss is not: an entity in the index exists. The rung's problem is
-     *       the body's position, not the fight. The coordinates, health and {@code isRemoved}
+     *       the bot's position, not the fight. The coordinates, health and {@code isRemoved}
      *       printed beside it say whether it is also still where it was born.</li>
-     *   <li><b>查不到, UUID non-null, {@code dragon.arenaLoaded} = 全加载</b> ⇒ <b>the dragon was
-     *       removed.</b> Vanilla built one — only {@code createNewDragon}/{@code findOrCreateDragon}
+     *   <li><b>not found, UUID non-null, {@code dragon.arenaLoaded} = fully loaded</b> ⇒ <b>the dragon
+     *       was removed.</b> Vanilla built one — only {@code createNewDragon}/{@code findOrCreateDragon}
      *       write that field — the arena chunks are loaded, and the index still does not hold it.
-     *       This is the only combination that supports「被移除」.</li>
-     *   <li><b>查不到, UUID non-null, {@code dragon.arenaLoaded} = anything else</b> ⇒ <b>no
+     *       This is the only combination that supports "removed".</li>
+     *   <li><b>not found, UUID non-null, {@code dragon.arenaLoaded} = anything else</b> ⇒ <b>no
      *       verdict.</b> Alive-but-unloaded and removed print the same {@code null} here. Say so
      *       rather than pick one.</li>
-     *   <li><b>无UUID</b> ⇒ this row has NO opinion: nothing was ever built, and that fork belongs to
+     *   <li><b>no UUID</b> ⇒ this row has NO opinion: nothing was ever built, and that fork belongs to
      *       {@code dragonFight.now.dragonUUID} and {@link #whyNoDragon}. Printed as a word rather
      *       than left blank, because an empty row reads like a lookup that came back empty.</li>
      * </ul>
@@ -2064,24 +2132,28 @@ public final class JourneyEndRungs {
     private static String dragonByUuid(ServerLevel end, EndDragonFight fight) {
         UUID id = fight == null ? null : fight.getDragonUUID();
         if (id == null) {
-            return "无UUID —— " + (fight == null ? "这个末地没有 EndDragonFight" : "龙战没记过 dragonUUID")
-                    + "，所以这一行不做判断（是「龙在不在」之外的第三种情况）";
+            return "no UUID — " + (fight == null ? "this End has no EndDragonFight"
+                            : "the dragon fight never recorded a dragonUUID")
+                    + ", so this row makes no judgement (a third case, outside 'is the dragon there')";
         }
         Entity e = end.getEntity(id);
         if (e == null) {
-            return "查不到：level.getEntity(" + id + ")=null —— 龙战建过龙（dragonUUID 非空），"
-                    + "而这个末地的【已加载实体索引】里现在没有这个实体。⚠️ 这只有两种可能，"
-                    + "而这一行分不开它们：(a) 龙已被移除；(b) 龙还活着，但它所在的区块没加载 —— "
-                    + "getEntity(UUID) 查的就是已加载实体索引，卸载了的区块里的实体不在其中。"
-                    + "分叉要看 dragon.arenaLoaded：竞技场全加载还查不到 ⇒ 真的被移除；"
-                    + "没全加载 ⇒ 这一问无从判断，别把它当成「龙没了」";
+            return "not found: level.getEntity(" + id + ")=null — the dragon fight has built a dragon"
+                    + " (dragonUUID is non-null), and this End's loaded entity index does not hold that"
+                    + " entity now. ⚠️ There are only two possibilities and this row cannot separate"
+                    + " them: (a) the dragon was removed; (b) the dragon is alive but its chunk is not"
+                    + " loaded — getEntity(UUID) reads the loaded entity index, which excludes entities"
+                    + " in unloaded chunks. dragon.arenaLoaded decides: arena fully loaded and still not"
+                    + " found ⇒ genuinely removed; not fully loaded ⇒ this lookup cannot tell, so do"
+                    + " not read it as 'the dragon is gone'";
         }
         String hp = e instanceof LivingEntity le
                 ? String.format(Locale.ROOT, "%.1f/%.1f", le.getHealth(), le.getMaxHealth())
-                : "非 LivingEntity（" + e.getClass().getSimpleName() + "）";
-        return "查到：" + BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()) + " 在 "
-                + xyz(e.blockPosition()) + "，血 " + hp + "，isRemoved=" + e.isRemoved()
-                + " —— 龙还在，是身体没跟它在一起（dragon.present=false 说的是盒子，不是世界）";
+                : "not a LivingEntity (" + e.getClass().getSimpleName() + ")";
+        return "found: " + BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()) + " at "
+                + xyz(e.blockPosition()) + ", health " + hp + ", isRemoved=" + e.isRemoved()
+                + " — the dragon is still there and the bot is not with it (dragon.present=false"
+                + " describes the search box, not the world)";
     }
 
     /** Half-width, in chunks, of the square {@code EndDragonFight} calls the arena — vanilla's own
@@ -2093,12 +2165,12 @@ public final class JourneyEndRungs {
      * Is the End's dragon arena still loaded? — <b>the reading that makes {@link #dragonByUuid}'s
      * miss mean something.</b>
      *
-     * <p>{@code getEntity(UUID)} answers「已加载实体里有没有它」. On its own that is not a statement
-     * about the world, because vanilla itself takes the arena's loading away on this exact rung:
+     * <p>{@code getEntity(UUID)} answers "is it among the loaded entities". On its own that is not a
+     * statement about the world, because vanilla itself takes the arena's loading away on this exact rung:
      * {@code EndDragonFight.tick()} keeps {@code TicketType.DRAGON} on {@code ChunkPos(0,0)} only
      * while {@code dragonEvent} has players, and {@code updatePlayers} refills that set from
-     * {@code level.getPlayers(validPlayer)} — a body 192+ blocks from {@code (0,128,0)} is not in it.
-     * So a fallen body drops the ticket for the very chunks the dragon lives in, and the resulting
+     * {@code level.getPlayers(validPlayer)} — a bot 192+ blocks from {@code (0,128,0)} is not in it.
+     * So a fallen bot drops the ticket for the very chunks the dragon lives in, and the resulting
      * empty lookup says nothing about whether there is a dragon.
      *
      * <p>This reproduces vanilla's own private {@code EndDragonFight.isArenaLoaded()} rather than
@@ -2109,10 +2181,10 @@ public final class JourneyEndRungs {
      * because that would block the server thread on worldgen and because a reading that changes what
      * it measures is not a reading.
      *
-     * <h2>判读</h2>
+     * <h2>How to read it</h2>
      *
      * <ul>
-     *   <li><b>全加载 (289/289)</b> — the arena is there. A {@code dragon.byUuid} miss beside this
+     *   <li><b>fully loaded (289/289)</b> — the arena is there. A {@code dragon.byUuid} miss beside this
      *       DOES mean the dragon was removed: the index covers the chunks it would be in.</li>
      *   <li><b>anything less</b> — part or all of the arena is unloaded. {@code dragon.byUuid} has
      *       no verdict at all in this state, and neither does anything else that queries entities
@@ -2120,8 +2192,9 @@ public final class JourneyEndRungs {
      *       {@code dragon.rangeNow}'s 192-block half.</li>
      * </ul>
      *
-     * <p>Note the asymmetry, because it is easy to state backwards: 全加载 lets a miss become a
-     * verdict, but 没全加载 does <b>not</b> turn a miss into「龙还活着」. It turns it into no answer.
+     * <p>Note the asymmetry, because it is easy to state backwards: "fully loaded" lets a miss become
+     * a verdict, but "not fully loaded" does <b>not</b> turn a miss into "the dragon is alive". It
+     * turns it into no answer.
      */
     private static String arenaLoaded(ServerLevel end) {
         int loaded = 0, total = 0;
@@ -2132,16 +2205,18 @@ public final class JourneyEndRungs {
             }
         }
         boolean all = loaded == total;
-        return (all ? "全加载" : "没全加载") + "：" + loaded + "/" + total
-                + " 个区块达到 FULL+BLOCK_TICKING（EndDragonFight.isArenaLoaded 的原判据，"
-                + "chunk [-" + ARENA_CHUNKS + "," + ARENA_CHUNKS + "]^2 绕 ChunkPos(0,0)）；"
-                + "龙出生的 (0,128,0) 那一格 level.isLoaded="
+        return (all ? "fully loaded" : "not fully loaded") + ": " + loaded + "/" + total
+                + " chunks at FULL+BLOCK_TICKING (the criterion of EndDragonFight.isArenaLoaded,"
+                + " chunks [-" + ARENA_CHUNKS + "," + ARENA_CHUNKS + "]^2 around ChunkPos(0,0));"
+                + " the dragon's spawn cell (0,128,0) has level.isLoaded="
                 + end.isLoaded(new BlockPos(0, 128, 0))
-                + " —— " + (all
-                        ? "所以 dragon.byUuid 的「查不到」这一次是有效结论：龙确实被移除了"
-                        : "所以 dragon.byUuid 的「查不到」这一次什么都不能证明：龙就算活着也不在"
-                                + "已加载实体索引里。⚠️ 反过来也不成立——这不等于「龙还活着」，"
-                                + "而是这一问没有答案");
+                + " — " + (all
+                        ? "so a 'not found' from dragon.byUuid is a valid conclusion this time: the"
+                                + " dragon really was removed"
+                        : "so a 'not found' from dragon.byUuid proves nothing this time: even a living"
+                                + " dragon would not be in the loaded entity index. ⚠️ The converse does"
+                                + " not hold either — this does not mean 'the dragon is alive', it means"
+                                + " the lookup has no answer");
     }
 
     /** One chunk of {@link #arenaLoaded}'s square, by vanilla's own two-part test. Non-generating:
@@ -2157,80 +2232,97 @@ public final class JourneyEndRungs {
      * The sentence {@link #noDragonHere} ends on — <b>derived from the readings beside it, never
      * asserted ahead of them.</b>
      *
-     * <p>The message this replaces named one mechanism unconditionally:「这条赛道的身体是 FakePlayer，
-     * 从没走过 PlayerList.placeNewPlayer，所以永远不在那张表里」. On 2026-08-17 it printed that beside
+     * <p>A fixed message would name one mechanism unconditionally: "this track's bot is a FakePlayer
+     * that never went through PlayerList.placeNewPlayer, so it is never in that list". On 2026-08-17
+     * such a message was printed beside
      * its own interpolated {@code dragonUUID=967f837e-…}, {@code crystalsAlive=5} and an evidence row
      * reading {@code body.inPlayerList=true} — three values that each refute it — and cost a round of
      * investigation. Two rules follow, and they are the whole reason this method exists rather than a
      * string literal:
      *
      * <ul>
-     *   <li><b>{@code dragonUUID != null} forbids「没有龙」.</b> Only {@code createNewDragon} and
+     *   <li><b>{@code dragonUUID != null} forbids "there is no dragon".</b> Only {@code createNewDragon} and
      *       {@code scanState}/{@code findOrCreateDragon} write that field, so a non-null value is
      *       vanilla saying the dragon was built.</li>
-     *   <li><b>{@code inPlayerList == true} forbids「身体从没走过 placeNewPlayer」.</b> That half of
+     *   <li><b>{@code inPlayerList == true} forbids "the bot never went through placeNewPlayer".</b>
+     *       That half of
      *       {@code validPlayer} is satisfied; whatever is wrong is the other half.</li>
      * </ul>
      *
      * <p>And {@code dragon.present=false} is stated as what it measures: {@link #nearestDragon}
-     * builds its box around <b>the body</b>, so it answers「盒子里有没有龙」, never「世界里有没有龙」.
+     * builds its box around <b>the bot</b>, so it answers "is there a dragon in the box", never "is
+     * there a dragon in the world".
      */
     private static String whyNoDragon(JourneyRig rig, ServerLevel end,
                                       EndDragonFight fight, boolean inList) {
         UUID dragon = fight == null ? null : fight.getDragonUUID();
         double away = Math.sqrt(rig.player().distanceToSqr(0.0, 128.0, 0.0));
         StringBuilder s = new StringBuilder();
-        s.append("打不到龙：nearestDragon 在以身体为中心 ±").append(DRAGON_SEARCH)
-                .append(" 的盒子里没找到 EnderDragon（身体 ").append(xyz(rig.player().blockPosition()))
-                .append("，距龙战中心 (0,128,0) ").append(String.format(Locale.ROOT, "%.1f", away))
-                .append(" 格）。⚠️ 这一行说的是「盒子里没有」，不是「世界里没有」—— 盒子跟着身体走。");
+        s.append("cannot hit the dragon: nearestDragon found no EnderDragon in the ±").append(DRAGON_SEARCH)
+                .append(" box centred on the bot (bot at ").append(xyz(rig.player().blockPosition()))
+                .append(", ").append(String.format(Locale.ROOT, "%.1f", away))
+                .append(" blocks from the fight centre (0,128,0)). ⚠️ This line means 'not in the box',"
+                        + " not 'not in the world' — the box moves with the bot. ");
         if (fight == null) {
-            s.append("这个末地没有 EndDragonFight（dragonFight.now.absent），所以确实不会有龙。");
+            s.append("This End has no EndDragonFight (dragonFight.now.absent), so there really will be"
+                    + " no dragon.");
             return s.toString();
         }
         if (dragon != null) {
             // The branch the old text could not say: the fight HAS a dragon and the search still
             // came back empty. Naming the missing reading is the point — the rung records the UUID
             // and the box, and nothing that resolves one against the other.
-            s.append("而龙战自己说龙已经建出来了：dragonFight.now.dragonUUID=").append(dragon)
-                    .append("，crystalsAlive=").append(fight.getCrystalsAlive())
-                    .append("（起跑时刻是 dragonFight.dragonUUID / dragonFight.crystalsAlive，对照着读）。")
-                    .append("所以这一级的问题不是「没有对手」，是身体和对手不在一起：龙生在 (0,128,0)，"
-                            + "身体在 ").append(String.format(Locale.ROOT, "%.1f", away))
-                    .append(" 格外。这一分叉由 dragon.byUuid 和 dragon.arenaLoaded 两行合判："
-                            + "byUuid 拿 dragonUUID 直接问 level.getEntity()，那是【已加载实体索引】——"
-                            + "查到 = 龙还在、只是盒子没罩到；查不到只说明「已加载实体里没有它」，"
-                            + "既可能是被移除，也可能是它所在的区块已经卸载。只有 arenaLoaded=全加载 时，"
-                            + "「查不到」才等于「被移除」。");
+            s.append("Yet the dragon fight itself says a dragon has been built: dragonFight.now.dragonUUID=")
+                    .append(dragon)
+                    .append(", crystalsAlive=").append(fight.getCrystalsAlive())
+                    .append(" (compare with the start-of-rung dragonFight.dragonUUID /"
+                            + " dragonFight.crystalsAlive). ")
+                    .append("So this rung's problem is not 'no opponent'; the bot and the opponent are"
+                            + " not together: the dragon spawns at (0,128,0) and the bot is ")
+                    .append(String.format(Locale.ROOT, "%.1f", away))
+                    .append(" blocks away. dragon.byUuid and dragon.arenaLoaded decide this fork"
+                            + " together: byUuid asks level.getEntity() for the dragonUUID directly,"
+                            + " which reads the loaded entity index — found = the dragon is still there"
+                            + " and the box simply missed it; not found only means 'not among the loaded"
+                            + " entities', which can be removal or an unloaded chunk. Only when"
+                            + " arenaLoaded=fully loaded does 'not found' mean 'removed'. ");
             if (away > 192.0) {
-                s.append("另外 validPlayer 的 192 格这一半此刻不成立，龙战已经不 tick 了"
-                        + "（dragonEvent 空 ⇒ tick() 走 else 分支，连 arena ticket 都退掉），"
-                        + "所以龙多半也停在原地不动 —— 而且退掉 ticket 正是竞技场可能卸载的原因，"
-                        + "这一趟的 dragon.byUuid 是不是有效结论，要先看 dragon.arenaLoaded。");
+                s.append("In addition, the 192-block half of validPlayer does not hold right now, so the"
+                        + " dragon fight has stopped ticking (empty dragonEvent ⇒ tick() takes the else"
+                        + " branch and even releases the arena ticket), so the dragon has most likely"
+                        + " stopped moving as well — and releasing the ticket is exactly what can unload"
+                        + " the arena, so check dragon.arenaLoaded before treating this run's"
+                        + " dragon.byUuid as a valid conclusion. ");
             }
             return s.toString();
         }
-        s.append("龙战也没有 dragonUUID（dragonFight.now.dragonUUID=null），createNewDragon 还没跑过。"
-                + "EndDragonFight.tick 只有在 dragonEvent 非空时才占 arena ticket、scanState、"
-                + "findOrCreateDragon，而 dragonEvent 每 20 tick 由 updatePlayers 从 "
-                + "level.getPlayers(validPlayer) 重填；validPlayer = ENTITY_STILL_ALIVE.and("
-                + "withinDistance(0,128,0,192)) 是两半，缺哪一半结果都一样。");
+        s.append("The dragon fight has no dragonUUID either (dragonFight.now.dragonUUID=null), so"
+                + " createNewDragon has not run. EndDragonFight.tick only holds the arena ticket, runs"
+                + " scanState and findOrCreateDragon while dragonEvent is non-empty, and dragonEvent is"
+                + " refilled every 20 ticks by updatePlayers from level.getPlayers(validPlayer);"
+                + " validPlayer = ENTITY_STILL_ALIVE.and(withinDistance(0,128,0,192)) has two halves,"
+                + " and missing either one gives the same result. ");
         if (!inList) {
-            s.append("这一趟缺的是玩家表那一半：body.inPlayerList=false，level.realPlayers=")
+            s.append("This run is missing the player-list half: body.inPlayerList=false,"
+                            + " level.realPlayers=")
                     .append(end.players().size())
-                    .append(" —— 服务端铸的身体都走过 PlayerList.placeNewPlayer，不在这一维的 "
-                            + "level.players() 里，说明它已经被移除，或者停在别的维度。");
+                    .append(" — every server-created bot goes through PlayerList.placeNewPlayer, so"
+                            + " being absent from this dimension's level.players() means it has been"
+                            + " removed or is in another dimension. ");
         } else if (away > 192.0) {
-            s.append("玩家表那一半是成立的：body.inPlayerList=true，level.players() 有 ")
+            s.append("The player-list half holds: body.inPlayerList=true, level.players() has ")
                     .append(end.players().size())
-                    .append(" 人 —— 所以不要再怪 placeNewPlayer。不成立的是距离那一半，见 dragon.rangeNow。");
+                    .append(" players — so placeNewPlayer is not the cause. The distance half does not"
+                            + " hold; see dragon.rangeNow. ");
         } else {
-            s.append("两半都成立（body.inPlayerList=true，距中心 ")
+            s.append("Both halves hold (body.inPlayerList=true, ")
                     .append(String.format(Locale.ROOT, "%.1f", away))
-                    .append(" 格 ≤ 192），龙却仍未被建出来 —— 那么可疑的是 tick() 里 findOrCreateDragon "
-                            + "前面的 isArenaLoaded()，或者 dragonKilled 已经是 true。这两项都还没有读数。");
+                    .append(" blocks from the centre ≤ 192), yet no dragon has been built — the suspects"
+                            + " are then isArenaLoaded() ahead of findOrCreateDragon in tick(), or"
+                            + " dragonKilled already being true. Neither has a reading yet. ");
         }
-        s.append("⚠️ rehearsal.fightRange 是布景时刻测的，别拿它给此刻的距离开脱。");
+        s.append("⚠️ rehearsal.fightRange was measured during test setup; do not use it to explain away"
+                + " the current distance.");
         return s.toString();
     }
 
@@ -2285,9 +2377,9 @@ public final class JourneyEndRungs {
                 h.attackEntity(target);
                 sinceSwing = 0;
                 // A swing the driver DECLINED is not a swing. Rung 20 broke because a crystal took
-                // the cage lid out from under the body, and BlastFooting now refuses that hit — so
+                // the cage lid out from under the bot, and BlastFooting now refuses that hit — so
                 // this loop can legitimately run its whole budget without the sword ever moving,
-                // and「挥 60 刀，水晶还在」would describe that as a damage problem. Count what
+                // and "60 swings, crystal still alive" would describe that as a damage problem. Count what
                 // happened, and carry the reason out: a refusal nobody prints is the silent failure
                 // this rung has already been bitten by.
                 String why = h.lastAttackRefusal();
@@ -2315,8 +2407,8 @@ public final class JourneyEndRungs {
      * only ever clipping a wing is winning four times slower than its swing count suggests, and
      * {@code duel.swings} beside {@code headHits} is what says which happened.
      *
-     * <p>It does not chase. A flying dragon cannot be caught by a walking body, and the fight vanilla
-     * designs is one of waiting: the boss perches on the fountain, lowers its head, and that is the
+     * <p>It does not chase. A flying dragon cannot be caught by a walking player, and the fight
+     * vanilla designs is one of waiting: the boss perches on the fountain, lowers its head, and that is the
      * window. Steering during that window is worse than standing still, which is why every input is
      * released on every tick — the same reason {@link HoldStill} exists.
      */
@@ -2339,9 +2431,9 @@ public final class JourneyEndRungs {
         private int arrowsAtLastReach;
         private boolean gaveUp;
         /** Why this fight stopped. Four exits produce the identical outside view — a live dragon and
-         *  a body standing still — and guessing between them has already cost a round. */
-        private String why = "还在打";
-        private String closestPart = "无";
+         *  a bot standing still — and guessing between them has already cost a round. */
+        private String why = "still fighting";
+        private String closestPart = "none";
 
         DuelTheDragon(int maxTicks, double reach) {
             this.maxTicks = maxTicks;
@@ -2359,27 +2451,32 @@ public final class JourneyEndRungs {
             a.commandJump(false);
             Hands h = a.hands().orElse(null);
             Player p = a.asPlayer();
-            if (p == null || h == null) { why = "身体没了（a.asPlayer()==null 或没有手）"; return true; }
+            if (p == null || h == null) {
+                why = "the bot's player entity is gone (a.asPlayer()==null or no hands)"; return true;
+            }
             h.breakHold(false);
             EnderDragon dragon = nearestDragon(p.level(), p.position());
-            if (dragon != null && dragon.isDeadOrDying()) { why = "龙在死"; return true; }
+            if (dragon != null && dragon.isDeadOrDying()) { why = "the dragon is dying"; return true; }
             if (dragon == null) {
-                // 「盒子里查不到」不等于死了 —— this file's own death criterion says exactly that,
-                // and the fight loop was not applying it: a dragon that merely flew past the search
-                // box ended the duel as if it were finished. Measured: 5 swings, 5 of them on the
-                // head, then the dragon crossed to -66,87,26 and the fight stopped there with the
-                // body standing on the fountain doing nothing wrong. A circling dragon leaving and
-                // returning is the NORMAL shape of this fight; only death or the budget ends it.
+                // "Not in the search box" does not mean dead — this file's own death criterion says
+                // exactly that, and the fight loop has to apply it too: a dragon that merely flew
+                // past the search box would otherwise end the duel as if it were finished. Measured:
+                // 5 swings, 5 of them on the head, then the dragon crossed to -66,87,26 and the fight
+                // stopped there with the bot standing on the fountain doing nothing wrong. A circling
+                // dragon leaving and returning is the NORMAL shape of this fight; only death or the
+                // budget ends it.
                 if (++outOfReach >= DUEL_OUT_OF_REACH_TICKS) {
-                    gaveUp = true; why = "放弃：盒子里连续 " + outOfReach + " tick 没有龙"; return true;
+                    gaveUp = true;
+                    why = "gave up: no dragon in the search box for " + outOfReach + " consecutive ticks";
+                    return true;
                 }
-                if (++elapsed >= maxTicks) { why = "预算用完（" + maxTicks + " tick）"; return true; }
+                if (++elapsed >= maxTicks) { why = "budget exhausted (" + maxTicks + " ticks)"; return true; }
                 return false;
             }
 
             Entity head = null;
             Entity nearest = null;
-            String nearestName = "无";
+            String nearestName = "none";
             float headAway = Float.MAX_VALUE;
             float nearestAway = Float.MAX_VALUE;
             for (var part : dragon.getSubEntities()) {
@@ -2406,23 +2503,23 @@ public final class JourneyEndRungs {
             // bow earns the fight, and the engine has had the draw all along — CombatProcess.
             // rangedTick draws for BOW_FULL_DRAW ticks and releases on the up-edge. This is the
             // same mechanism, aimed at the head rather than at whatever part is nearest: an arrow
-            // into the body is worth a quarter of one into the head, and the dragon presents its
+            // into the dragon's body is worth a quarter of one into the head, and the dragon presents its
             // body far more often.
             // A process that throws dies silently: the driver marks it finished and the rig's settle
-            // returns as if it had completed, so the evidence row still reads 「还在打」 while the
+            // returns as if it had completed, so the evidence row still reads "still fighting" while the
             // fight has in fact stopped. That is exactly what 14594 ticks of a 200000-tick budget
             // looked like. Name it instead of letting it read as a healthy fight that ran out.
             try {
             if (aim == null && head != null && holdBow(p)) {
                 aimAtPart(p, head, headAway * 0.12);      // lead high for arrow drop
-                // Vanilla's own draw, on vanilla's own counter. An earlier cut counted ticks here
-                // and called releaseUsing by hand, on the theory that getTicksUsingItem() is frozen
-                // for this body. It is NOT: the server body runs LivingEntity.tick, whose
-                // updatingUsingItem() advances the timer exactly as it does for a real player. That workaround routed around a defect that did not
-                // exist — and a test that drives an engine path by hand stops testing it, which is
-                // the worst possible trade for a rung whose whole job is to exercise the engine.
-                // The two real causes of 「射出 0 箭」 were the HAND (the bow sat in the bag) and the
-                // SEARCH BOX (128 was narrower than the arena the dragon flies in).
+                // Vanilla's own draw, on vanilla's own counter. getTicksUsingItem() is not frozen for
+                // this bot: the server-side player runs LivingEntity.tick, whose updatingUsingItem()
+                // advances the timer exactly as it does for a real player. Counting ticks and calling
+                // releaseUsing by hand would route around a defect that does not exist — and a test
+                // that drives an engine path by hand stops testing it, which is the worst possible
+                // trade for a rung whose whole job is to exercise the engine. The two real causes of
+                // "0 arrows shot" were the HAND (the bow sat in the bag) and the SEARCH BOX (128 was
+                // narrower than the arena the dragon flies in).
                 bowTicks++;
                 if (bowBroken) { /* one failure is enough; melee still works */ }
                 else {
@@ -2444,10 +2541,10 @@ public final class JourneyEndRungs {
                     // once vanilla stops the use by itself — which the melee branch's release does
                     // every time the dragon comes into reach — isUsingItem() goes false while
                     // useHeld stays true, and every later commandUseItem(true) is a no-op. The draw
-                    // is then dead for the rest of the fight. Measured: 「进入远程分支 21982 tick，
-                    // 拉弓计数 7，箭存量 256」 —— it reached 7, was stopped once, and never drew
-                    // again in the remaining 21975 ticks. The down-edge resets the flag; the up-edge
-                    // starts a real draw.
+                    // is then dead for the rest of the fight. Measured: "ranged branch entered for
+                    // 21982 ticks, draw count 7, arrows in stock 256" — it reached 7, was stopped
+                    // once, and never drew again in the remaining 21975 ticks. The down-edge resets
+                    // the flag; the up-edge starts a real draw.
                     // The down-edge is safe here and does NOT waste an arrow: we only reach this
                     // branch when isUsingItem() is false, i.e. useItem is already EMPTY, and
                     // releaseUsingItem() skips the fire on an empty stack and just resets.
@@ -2457,25 +2554,27 @@ public final class JourneyEndRungs {
                 }
             }
             } catch (RuntimeException e) {
-                // Its OWN key. Writing this into `why` let the later give-up message overwrite it,
-                // so an exception on tick 30 vanished behind 「放弃」 on tick 21102 — one key, two
+                // Its OWN key. Writing this into `why` would let the later give-up message overwrite
+                // it, so an exception on tick 30 vanished behind "gave up" on tick 21102 — one key, two
                 // writers, last one wins, and the first write was the interesting one.
                 bowError = String.valueOf(e);
                 bowBroken = true;
             }
             // Never once in reach for DUEL_OUT_OF_REACH_TICKS: stop waiting. Reset by any approach,
-            // so this ends a duel the body is not in, not a fight with lulls. An arrow in flight
-            // counts as being in the fight — giving up while landing hits would report「没在架里」
-            // about a body that is winning.
+            // so this ends a duel the bot is not in, not a fight with lulls. An arrow in flight
+            // counts as being in the fight — giving up while landing hits would report "not in
+            // position" about a bot that is winning.
             if (aim == null && arrows == arrowsAtLastReach) {
                 if (++outOfReach >= DUEL_OUT_OF_REACH_TICKS) {
-                    gaveUp = true; why = "放弃：连续 " + outOfReach + " tick 够不着"; return true;
+                    gaveUp = true;
+                    why = "gave up: out of reach for " + outOfReach + " consecutive ticks";
+                    return true;
                 }
             } else {
                 outOfReach = 0;
                 arrowsAtLastReach = arrows;
             }
-            if (++elapsed >= maxTicks) { why = "预算用完（" + maxTicks + " tick）"; return true; }
+            if (++elapsed >= maxTicks) { why = "budget exhausted (" + maxTicks + " ticks)"; return true; }
             return false;
         }
 
@@ -2487,15 +2586,15 @@ public final class JourneyEndRungs {
 
         String why() { return why; }
 
-        /** Everything about the ranged half, as one row. Five runs reported 「射出 0 箭」 and each
-         *  time the cause was somewhere else entirely — wrong hand, a frozen use-timer, a search box
-         *  narrower than the arena. A count of zero says nothing about which. */
+        /** Everything about the ranged half, as one row. Five runs reported "0 arrows shot" and each
+         *  time the cause was somewhere else entirely — wrong hand, a suspected frozen use-timer, a
+         *  search box narrower than the arena. A count of zero says nothing about which. */
         String bowRow(Player p) {
-            return "进入远程分支 " + bowTicks + " tick，拉弓计数 " + drawTicks
-                    + "，箭存量 " + (p == null ? -1
+            return "ranged branch entered for " + bowTicks + " ticks, draw count " + drawTicks
+                    + ", arrows in stock " + (p == null ? -1
                         : p.getInventory().countItem(net.minecraft.world.item.Items.ARROW))
-                    + "，手上=" + (p == null ? "?" : p.getMainHandItem().getItem())
-                    + (bowError == null ? "" : "，异常=" + bowError);
+                    + ", main hand=" + (p == null ? "?" : p.getMainHandItem().getItem())
+                    + (bowError == null ? "" : ", exception=" + bowError);
         }
 
         int arrows() { return arrows; }
@@ -2506,8 +2605,8 @@ public final class JourneyEndRungs {
         private static final int BOW_FULL_DRAW = 20;
 
         /** Put the wanted item in the main hand, swapping up from the bag if need be, or say it is
-         *  not carried. Reading the main hand alone was worth exactly zero arrows: the body walks
-         *  this rung holding a sword or a stack of cobblestone, so a draw gated on「弓在手上」never
+         *  not carried. Reading the main hand alone was worth exactly zero arrows: the bot walks
+         *  this rung holding a sword or a stack of cobblestone, so a draw gated on "bow in hand" never
          *  ran once in a whole fight while 256 arrows sat in the bag. Owning is not holding —
          *  the same shape that cost this rung its buckets. */
         private static boolean select(Player p, java.util.function.Predicate<ItemStack> want) {
@@ -2557,8 +2656,8 @@ public final class JourneyEndRungs {
     // Reading the world.
     //
     // Four of these are package-private rather than private, for JourneyRehearsal: a rehearsal of
-    // rung 18 or 19 has to put the body in the room the RUNG would find, and two scans that
-    // disagree put「where the staging thinks the room is」and「where the rung thinks it is」in
+    // rung 18 or 19 has to put the bot in the room the RUNG would find, and two scans that
+    // disagree put "where the staging thinks the room is" and "where the rung thinks it is" in
     // different places, with no reading afterwards that tells them apart. Duplicating a CONSTANT
     // across with a stated reason is licensed here (see PORTAL_FRAME_CELLS over there);
     // duplicating an ALGORITHM is not.
@@ -2589,7 +2688,7 @@ public final class JourneyEndRungs {
         return out;
     }
 
-    /** The frames within a cube of the body — the short look rung 18 takes when it is already
+    /** The frames within a cube of the bot — the short look rung 18 takes when it is already
      *  standing in the room, as opposed to the chunk sweep rung 17 needs to FIND the room. */
     private static List<BlockPos> framesNearBody(ServerLevel level, BlockPos at, int radius) {
         List<BlockPos> out = new ArrayList<>();
@@ -2643,7 +2742,7 @@ public final class JourneyEndRungs {
     }
 
     /**
-     * A cell in the portal room the body could actually stand in — and land in, from above.
+     * A cell in the portal room the bot could actually stand in — and land in, from above.
      *
      * <p>The four conditions are the four ways a shaft into somebody else's building goes wrong:
      * the cell is solid, its head room is solid, there is nothing under it, or it is the lava vanilla
@@ -2651,12 +2750,12 @@ public final class JourneyEndRungs {
      * the frame ring, because a shaft that lands on a frame destroys the thing the next rung came for.
      *
      * <p><b>Not {@code JourneyPortalEntry.standable}, and not interchangeable with it.</b> This is
-     * the only「站得住」in the package that refuses a cell whose FLOOR is fluid — which is the whole
-     * point here, since that fluid is the lava pool under the end portal — and the only one that
-     * asks nothing about fire. {@code standable} is the A*-matching predicate for choosing a
-     * doorstep to WALK to; this one chooses a cell to DIG DOWN INTO, so it refuses things a walk
-     * would happily accept and accepts hazards a walk would refuse. See that method's note for the
-     * three-way comparison.
+     * the only "can stand here" predicate in the package that refuses a cell whose FLOOR is fluid —
+     * which is the whole point here, since that fluid is the lava pool under the end portal — and
+     * the only one that asks nothing about fire. {@code standable} is the A*-matching predicate for
+     * choosing a doorstep to WALK to; this one chooses a cell to DIG DOWN INTO, so it refuses things a
+     * walk would happily accept and accepts hazards a walk would refuse. See that method's note for
+     * the three-way comparison.
      */
     static BlockPos standingCellInTheRoom(ServerLevel level, BlockPos centre) {
         BlockPos best = null;
@@ -2701,10 +2800,10 @@ public final class JourneyEndRungs {
     // shared one has since received — because a copy does not receive fixes:
     //
     //   * `<what>.arrivedY`. `Goal.XZ` has no y term, so `arrivedDistance=0` is equally true of a
-    //     body standing in the right column and thirteen blocks up its own pillar. Every rung
-    //     after a walk is planned as if the body were on the ground.
+    //     bot standing in the right column and thirteen blocks up its own pillar. Every rung
+    //     after a walk is planned as if the bot were on the ground.
     //   * `<what>.gotoEnd.<attempt>` on the ARRIVAL branch. `arrivedDistance=4, walkAttempts=1`
-    //     is the same two digits for a body that walked here and stopped, and one the walker GAVE
+    //     is the same two digits for a bot that walked here and stopped, and one the walker GAVE
     //     UP on four blocks out — and the tolerance accepts both.
     //
     // Neither had reached this file. The one call site passed `tolerance=2`, where the old test
@@ -2714,11 +2813,11 @@ public final class JourneyEndRungs {
     // untidy, it is a place fixes do not arrive.)
 
     /**
-     * Dig the block under the body, let it fall in, repeat until its feet reach {@code targetY}.
+     * Dig the block under the bot, let it fall in, repeat until its feet reach {@code targetY}.
      *
-     * <p>Recursive because each block is its own await leg — the body has to actually fall between
+     * <p>Recursive because each block is its own await step — the bot has to actually fall between
      * them, and a loop inside one scene tick would break forty blocks in a world that never advanced
-     * and leave the body standing on air.
+     * and leave the bot standing on air.
      *
      * <p>Each cell is a {@link JourneyRig#mineCellOrGiveUp} rather than a {@code mineBlock}, and that
      * distinction is worth restating: {@code mineBlock}'s timeout IS the failure, which is right for
@@ -2732,8 +2831,8 @@ public final class JourneyEndRungs {
         BlockPos at = rig.player().blockPosition();
         if (at.getY() <= targetY) { then.run(); return; }
         if (budget <= 0) {
-            ctx.fail("竖井挖不到传送门房间：目标 y=" + targetY + "，试了 " + cap + " 次仍停在 " + at
-                    + "（逐格读数见 shaft.*）");
+            ctx.fail("the shaft cannot reach the portal room: target y=" + targetY + ", still at " + at
+                    + " after " + cap + " attempts (per-block readings are in shaft.*)");
             return;
         }
         ServerLevel level = levelOf(rig);
@@ -2741,7 +2840,7 @@ public final class JourneyEndRungs {
         int step = cap - budget;
         rig.evidence("shaft." + step, at.getX() + "," + at.getY() + "," + at.getZ()
                 + " below=" + level.getBlockState(below).getBlock());
-        // Already open — the previous pass broke it and the body has not dropped in yet. Mining air
+        // Already open — the previous pass broke it and the bot has not dropped in yet. Mining air
         // is a no-op that still costs an attempt, and three of those in a row is how a shaft with
         // budget for four blocks runs out after one.
         if (!level.getBlockState(below).blocksMotion()) {
@@ -2750,29 +2849,29 @@ public final class JourneyEndRungs {
         }
         rig.mineCellOrGiveUp(below, 600, () -> {
             rig.evidence("shaft." + step + ".broke", level.getBlockState(below).getBlock()
-                    + " body=" + xyz(rig.player().blockPosition()));
-            // Breaking the floor is not falling through it: this body is stepped only while a driver
+                    + " bot=" + xyz(rig.player().blockPosition()));
+            // Breaking the floor is not falling through it: this bot is stepped only while a driver
             // is ticking it, and the single-block mine ends on the tick the block turns to air —
             // one avatar step, a tenth of a block of gravity. HoldStill is the settle that does not
-            // steer; every process that DOES steer walks the body off its own hole.
+            // steer; every process that DOES steer walks the bot off its own hole.
             rig.settle(new HoldStill(40), 60,
                     () -> digDownTo(ctx, rig, targetY, budget - 1, cap, then));
         });
     }
 
     /**
-     * The still-solid cell under the body's footprint — the one actually holding it up.
+     * The still-solid cell under the player's footprint — the one actually holding it up.
      *
-     * <p>A player box is 0.6 wide, so a body standing near a cell edge is supported by TWO cells and
-     * breaking only the centre one leaves it resting on the neighbour. {@code blocksMotion}, not
+     * <p>A player box is 0.6 wide, so a player standing near a cell edge is supported by TWO cells
+     * and breaking only the centre one leaves it resting on the neighbour. {@code blocksMotion}, not
      * {@code !isAir}: fluid is not air and it is not a floor either, and a support test that accepted
-     * it once cost a whole run of "the block broke but the body did not sink" about a body that was
+     * it once cost a whole run of "the block broke but the bot did not sink" about a bot that was
      * swimming.
      *
      * <p><b>Twin of {@code JourneyShaft.supportUnder}, and the one line that differs is the whole
      * reason both exist.</b> That one reads {@code JourneyShaft.sceneLevel} — the scene's arena —
-     * while this one reads {@link #levelOf}, the level the BODY is in, because after rung 19 the
-     * body is in the end and the scene is not. Merging them onto either rule breaks the other
+     * while this one reads {@link #levelOf}, the level the BOT is in, because after rung 19 the
+     * bot is in the End and the scene is not. Merging them onto either rule breaks the other
      * caller: this one would scan overworld terrain at end coordinates, that one would change
      * behaviour for callers that are correct today. Fix a bug in the SHARED part — the corner
      * fallback, the {@code blocksMotion} rule — in both. */
@@ -2808,15 +2907,15 @@ public final class JourneyEndRungs {
     // Small readings.
     // =====================================================================================
 
-    /** The level the BODY is in, which after rung 19 is not {@code ctx.level()}. Every read in this
+    /** The level the BOT is in, which after rung 19 is not {@code ctx.level()}. Every read in this
      *  file goes through here for that reason — a scan of the overworld for an end crystal finds
      *  nothing and does not say it looked in the wrong world. */
     private static ServerLevel levelOf(JourneyRig rig) {
         return (ServerLevel) rig.player().level();
     }
 
-    /** What to pillar with: whichever spoil the body is actually carrying most of. A tower asked for
-     *  a block the body does not hold reports "stuck (no Y gain — out of blocks?)" while the
+    /** What to pillar with: whichever spoil the bot is actually carrying most of. A tower asked for
+     *  a block the bot does not hold reports "stuck (no Y gain — out of blocks?)" while the
      *  inventory is full, which names the wrong problem convincingly enough to cost a round.
      *
      *  <p>The argmax is {@link JourneyShaft}'s; only {@link #PILLAR_BLOCKS} is this family's, and it
@@ -2846,9 +2945,9 @@ public final class JourneyEndRungs {
         return Math.hypot(a.getX() - b.getX(), a.getZ() - b.getZ());
     }
 
-    /** A position for a record line, or 无 — every evidence key in this file may be asked about
+    /** A position for a record line, or "none" — every evidence key in this file may be asked about
      *  something that was not found, and "null" is a worse answer than a word. */
     private static String xyz(BlockPos at) {
-        return at == null ? "无" : at.toShortString();
+        return at == null ? "none" : at.toShortString();
     }
 }

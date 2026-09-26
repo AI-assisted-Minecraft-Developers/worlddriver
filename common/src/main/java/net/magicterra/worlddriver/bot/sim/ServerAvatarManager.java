@@ -18,7 +18,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * the same list that {@code WorldDriverEvents}' server-tick handler drives.
  *
  * <p>The list holds {@link BodyDriver}s rather than {@link ServerWorldDriver}s, so a driver over a
- * body that is not a player rides the same tick and the same crash guard.
+ * controlled entity that is not a player rides the same tick and the same crash guard.
  */
 public final class ServerAvatarManager {
     private ServerAvatarManager() {}

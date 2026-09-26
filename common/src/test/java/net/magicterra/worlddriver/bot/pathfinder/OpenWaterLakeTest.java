@@ -14,7 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * The lake of {@code wd.clientOpenWaterCross}, planned offline: a body on one bank, a cell on the far
+ * The lake of {@code wd.clientOpenWaterCross}, planned offline: the bot on one bank, a cell on the far
  * bank flush with the water, deep open water between. Under the surface water model the plan is the
  * straight swim along the surface layer — every node on the goal's z, x never turning back, one node per
  * block — at both the default horizon and with the horizon off. The rim is two cells wider than the lake

@@ -31,18 +31,18 @@ import net.minecraft.world.phys.Vec3;
  *
  * <h2>The problem this exists for</h2>
  *
- * The ladder is one body climbing twenty rungs in sequence, and that is the whole point of it — but
+ * The ladder is one bot climbing twenty rungs in sequence, and that is the whole point of it — but
  * it makes the upper rungs almost untestable. To exercise rung 12 you must replay rungs 1–11 and be
  * lucky: measured, about half of runs reach it at all, and a run costs twenty-five minutes. The
  * consequence is not theoretical. <b>Two committed fixes to rung 12 had never once executed.</b> A
  * change you cannot run is not a fix, it is a guess with a commit hash.
  *
- * <p>So this mode exists to make one rung reproducible: put the body where that rung starts, give it
+ * <p>So this mode exists to make one rung reproducible: put the bot where that rung starts, give it
  * what the rungs below would have given it, and run the rung's own code — unmodified — against it.
  *
  * <h2>What a green rehearsal is worth, and what it is not</h2>
  *
- * <b>It is not a climb.</b> The ladder's entire claim is {@code staging.calls=0}: the body really
+ * <b>It is not a climb.</b> The ladder's entire claim is {@code staging.calls=0}: the bot really
  * played, and nothing was arranged for it. A rehearsal arranges everything, so it can never support
  * that claim and must never be mistaken for it. Four things keep the two apart, deliberately more
  * than one because the failure mode here is a human misreading a log six months from now:
@@ -64,7 +64,7 @@ import net.minecraft.world.phys.Vec3;
  * ferrying, the reach of every verb the rung calls — all of that is the rung's real code running
  * against real terrain, and a failure in it is the same failure the ladder would hit. What it cannot
  * see is anything the rungs below would have handed over in a shape this staging got wrong (a worn
- * tool, an inventory laid out differently, a body standing somewhere else), which is why a rehearsal
+ * tool, an inventory laid out differently, a bot standing somewhere else), which is why a rehearsal
  * green is a reason to run the ladder, not a substitute for having run it.
  */
 public final class JourneyRehearsal {
@@ -105,8 +105,8 @@ public final class JourneyRehearsal {
     /**
      * Whether the rung being rehearsed needs {@link JourneyRoute#lavaLake} to have been surveyed.
      *
-     * <p><b>The question this answers is not「is this rung about lava」but「does this rung's own
-     * staging read {@code JourneyRoute.lavaLake}」</b>, and that is deliberate, because the second
+     * <p><b>The question this answers is not "is this rung about lava" but "does this rung's own
+     * staging read {@code JourneyRoute.lavaLake}"</b>, and that is deliberate, because the second
      * question can be checked with one grep of this file while the first is a judgement about the
      * game. Today exactly one does: {@link #stagePortalLit} at the {@code UNSURVEYED} check, which
      * is why the list has one entry. {@code stageObsidian} reads {@code firstLava} — a different,
@@ -120,8 +120,8 @@ public final class JourneyRehearsal {
      * <p><b>Wrong in either direction is safe, which is the point of putting it here.</b> An extra
      * entry costs one survey. A MISSING entry leaves {@code JourneyRoute.lavaLake} at
      * {@code UNSURVEYED} — its declared initial value — rather than at a wrong-but-plausible
-     * coordinate, so the consumer reports「没有岩浆湖坐标 —— wd.rehearse01Recon 没有跑成功」and
-     * names the fix instead of casting into the wrong pool.
+     * coordinate, so the consumer reports "no lava lake coordinate: wd.rehearse01Recon did not
+     * succeed" and names the fix instead of casting into the wrong pool.
      */
     private static boolean needsTheLavaLake(JourneyStage target) {
         return target == JourneyStage.PORTAL_LIT;
@@ -189,27 +189,28 @@ public final class JourneyRehearsal {
             return bare(name, budget, ctx -> {
                 // SAY IT WHEN THE FIXTURE SHORTENED THE RUNG, and say it in words no rung ever uses
                 // about itself. A run clipped here dies as a timeout, and a timeout on rung 20 reads
-                // as「龙没打死」— a failure message naming the wrong mechanism, which is the family
-                // this rung's investigation has lost the most rounds to. The row appears only when
-                // the cap actually bit, so its ABSENCE is a reading too.
+                // as "the dragon was not killed" — a failure message naming the wrong mechanism, which
+                // is the family this rung's investigation has lost the most rounds to. The row appears
+                // only when the cap actually bit, so its ABSENCE is a reading too.
                 if (budget < declared) {
-                    ctx.record("rehearse.budgetCapped", budget + "（scene 自己声明 " + declared
-                            + "，被排练的预算帽砍掉 " + (declared - budget) + "）—— "
-                            + "⚠️ 这一趟如果超时，先看这一行：是夹具把预算砍短了，不是这一级判负。"
-                            + "要跑满就 -PrehearseBudget=" + declared);
+                    ctx.record("rehearse.budgetCapped", budget + " (the scene declares " + declared
+                            + "; the rehearsal budget cap removed " + (declared - budget) + ") — "
+                            + "⚠️ if this run times out, read this row first: the fixture shortened the"
+                            + " budget, the rung did not fail. For the full budget use -PrehearseBudget="
+                            + declared);
                 }
                 stageFor(ctx, target);
                 real.accept(ctx);
             });
         }
         if (rung.ordinal() > target.ordinal()) {
-            return bare(name, 100, ctx -> ctx.skip("REHEARSAL：本次只排练 " + target.name()
-                    + "(" + target.label() + ")，它上面的 " + rung.name() + " 不跑"));
+            return bare(name, 100, ctx -> ctx.skip("REHEARSAL: this run rehearses only " + target.name()
+                    + "(" + target.label() + "); " + rung.name() + ", above it, does not run"));
         }
         if (rung == JourneyStage.RECON) return bare(name, 1_200, JourneyRehearsal::recon);
-        // SPAWN is the one rung below the target that is played for real: it is the only place a body
-        // may be created, and its "empty-handed at spawn" assertion is what makes everything this
-        // class then hands over visible AS staging rather than as inventory that was always there.
+        // SPAWN is the one rung below the target that is played for real: it is the only place a bot
+        // player may be created, and its "empty-handed at spawn" assertion is what makes everything
+        // this class then hands over visible AS staging rather than as inventory that was always there.
         if (rung == JourneyStage.SPAWN) return bare(name, original.budgetTicks(), original.body());
         return bare(name, 100, ctx -> placeholder(ctx, rung, target));
     }
@@ -256,25 +257,25 @@ public final class JourneyRehearsal {
     }
 
     /**
-     * The tick floor below which capping this rung stops being「a shorter rehearsal」.
+     * The tick floor below which capping this rung stops being "a shorter rehearsal".
      *
      * <p><b>Zero for every rung but one, and that is what keeps this invisible to the rungs already
      * being measured.</b> {@code PORTAL_LIT} declares 250 000 of its own and has been rehearsed at
-     * 40 000 all along, so a blanket「never cap below the scene's own budget」would raise it and
+     * 40 000 all along, so a blanket "never cap below the scene's own budget" would raise it and
      * change a path that is currently a regression gate. The list is explicit for that reason and
      * must stay explicit: the next rung added to it has to be argued for, not inherited.
      *
-     * <p><b>{@code DRAGON} gets its own DECLARED budget, and the middle number it used to get was a
-     * mistake I made against my own rule.</b> The first version returned {@code DUEL_TICKS + 2 000}
-     * = 202 000, on the reasoning that the duel is what does not fit in 40 000. But the duel is
-     * 200 000 of that, which leaves two thousand ticks for reaching the End, building the platform,
-     * bridging to the island and finding the dragon — and「just barely enough」is precisely the shape
-     * this suite forbids in staging (see {@code stagedEyes}: an amount fitted to the requirement makes
-     * the reading a tautology, and here it would make every over-run report「龙没打死」when the truth
-     * is「预算到顶」). Worse, 202 000 was MY number, invented with no measurement behind it, standing
-     * in front of a number the rung's own author chose. No climb has ever reached rung 20, so I have
-     * nothing to justify a middle value with; the scene's declared 500 000 is at least a considered
-     * ceiling and it is still a ceiling, not「无限跑」.
+     * <p><b>{@code DRAGON} gets its own DECLARED budget, not a middle number.</b> A floor of
+     * {@code DUEL_TICKS + 2 000} = 202 000 would cover the duel, which is what does not fit in
+     * 40 000, but the duel is 200 000 of that, which leaves two thousand ticks for reaching the End,
+     * building the platform, bridging to the island and finding the dragon — and "just barely
+     * enough" is precisely the shape this suite forbids in staging (see {@code stagedEyes}: an amount
+     * fitted to the requirement makes the reading a tautology, and here it would make every over-run
+     * report "the dragon was not killed" when the truth is "the budget ran out"). Such a number
+     * would also have no measurement behind it while overriding the one the rung's own author chose.
+     * No climb has ever reached rung 20, so nothing justifies a middle value; the scene's declared
+     * 500 000 is at least a considered ceiling, and it is still a ceiling rather than an unbounded
+     * run.
      *
      * <p>So the floor here is the declaration itself, which makes the default cap a no-op for this
      * one rung. An explicit {@code -PrehearseBudget=N} still wins outright — that is the brake, and a
@@ -283,13 +284,13 @@ public final class JourneyRehearsal {
      * <p><b>{@code STRONGHOLD} joined the list on 2026-08-22, and here is its argument.</b> The rule
      * above is that a rung added here must be argued for rather than inherit the exemption, and the
      * argument has two halves. First, it does not fit, by the same order of magnitude the dragon does
-     * not: the rung is「the longest walk in the game」— a march home across the Nether and then 1745
-     * blocks of overworld terrain, at {@code MARCH_LEG_TICKS} = 4 000 a leg and up to
-     * {@code MAX_MARCH_LEGS} = 48 legs, so the walk ALONE can want 192 000. Second — and this is what
-     * separates it from {@code PORTAL_LIT}, which declares 250 000 and is deliberately left capped —
-     * <b>no rehearsal of this rung has ever run</b>, because it had no staging recipe until the same
-     * day. There is therefore no existing measurement for the floor to move, which is the exact
-     * objection that keeps PORTAL_LIT capped.
+     * not: the rung is "the longest walk in the game" — a march home across the Nether and then 1745
+     * blocks of overworld terrain, at {@code MARCH_LEG_TICKS} = 4 000 per march segment and up to
+     * {@code MAX_MARCH_LEGS} = 48 segments, so the walk ALONE can want 192 000. Second — and this is
+     * what separates it from {@code PORTAL_LIT}, which declares 250 000 and is deliberately left
+     * capped — <b>no rehearsal of this rung has ever run</b>, because it had no staging recipe until
+     * the same day. There is therefore no existing measurement for the floor to move, which is the
+     * exact objection that keeps PORTAL_LIT capped.
      *
      * <p>Its first run is why this is not theoretical: capped at 40 000 it recorded
      * {@code rehearse.budgetCapped} and then failed on the return, and the two readings would have
@@ -311,19 +312,19 @@ public final class JourneyRehearsal {
      * {@link JourneyRig#enter} turns a rung away when the one below it was not climbed — correct, and
      * exactly what has to be defeated to run rung 12 alone. Defeating it by writing REACHED into the
      * ledger is a lie the ledger cannot detect, so every call is counted as staging and the skip text
-     * says the word 未攀爬 rather than anything that reads like a pass.
+     * says "NOT CLIMBED" rather than anything that reads like a pass.
      *
      * <p>The harness renders a skip as {@code PASS (0 ticks) — skipped: …}, so the reason string is
      * the only signal there is. It gets to say the whole thing.
      */
     private static void placeholder(SceneContext ctx, JourneyStage rung, JourneyStage target) {
         JourneyLedger.staged("rehearsal: marked " + rung.name() + " REACHED without climbing it");
-        JourneyLedger.reached(rung, "REHEARSAL 占位 —— 本次并未攀爬这一级",
+        JourneyLedger.reached(rung, "REHEARSAL placeholder — this rung was not climbed in this run",
                 Map.of("rehearsal.placeholder", true), ctx.level().getGameTime());
         ctx.record("rehearsal.placeholder", rung.name());
-        ctx.skip("REHEARSAL 占位：" + rung.name() + "(" + rung.label() + ") 本次【未攀爬】，"
-                + "只是被写进账本好让 " + target.name() + " 能起跑。这不是通过 —— "
-                + "真正的攀爬是 ./gradlew :fabric:runJourneyServer");
+        ctx.skip("REHEARSAL placeholder: " + rung.name() + "(" + rung.label() + ") was NOT CLIMBED in"
+                + " this run; it was only written into the ledger so that " + target.name()
+                + " can start. This is not a pass — the real climb is ./gradlew :fabric:runJourneyServer");
     }
 
     // =====================================================================================
@@ -334,7 +335,7 @@ public final class JourneyRehearsal {
      * Reset the ledger, assert the seed, and adopt the lake without paying for the full survey.
      *
      * <p>The seed assertion is not ceremony: every coordinate this class bakes is a statement about
-     * seed 5471, and a rehearsal booted on another world would move the body into terrain that has
+     * seed 5471, and a rehearsal booted on another world would move the bot into terrain that has
      * never been looked at and report the rung failing there.
      */
     private static void recon(SceneContext ctx) {
@@ -342,7 +343,7 @@ public final class JourneyRehearsal {
         JourneyLedger.reset(level.getGameTime());
         JourneyStage target = target();
 
-        ctx.record("REHEARSAL", "这是排练，不是攀爬 —— 见 wd.rehearse99Verdict");
+        ctx.record("REHEARSAL", "this is a rehearsal, not a climb — see wd.rehearse99Verdict");
         ctx.record("rehearsal.target", target == null ? "?" : target.name());
         ctx.record("seed", level.getSeed());
         ctx.expect(level.getSeed()).as("world seed (the rehearsal's baked coordinates are this seed's)")
@@ -355,12 +356,13 @@ public final class JourneyRehearsal {
         // `target == null` keeps the old path on purpose — that is the un-targeted start-up, and a
         // change that only bites when a target was named is a change with a smaller blast radius.
         if (target != null && !needsTheLavaLake(target)) {
-            ctx.record("rehearsal.lake", "未勘测 —— " + target.name() + "(" + target.label()
-                    + ") 的布景不读 JourneyRoute.lavaLake（见 needsTheLavaLake）");
-            JourneyLedger.reached(JourneyStage.RECON, "REHEARSAL：只做了排练需要的最小勘测（未勘岩浆湖）",
+            ctx.record("rehearsal.lake", "not surveyed — the test setup for " + target.name() + "("
+                    + target.label() + ") does not read JourneyRoute.lavaLake (see needsTheLavaLake)");
+            JourneyLedger.reached(JourneyStage.RECON, "REHEARSAL: only the minimum survey a rehearsal"
+                            + " needs (lava lake not surveyed)",
                     Map.of("rehearsal.lake", "skipped"), level.getGameTime());
-            ctx.passNote("REHEARSAL 勘测 — 种子 " + level.getSeed() + "，未勘岩浆湖（"
-                    + target.name() + " 用不到）。这不是攀爬。");
+            ctx.passNote("REHEARSAL survey — seed " + level.getSeed() + ", lava lake not surveyed ("
+                    + target.name() + " does not use it). This is not a climb.");
             WorldDriverCommon.LOG.info("[rehearsal] lake=skipped target={}", target);
             return;
         }
@@ -377,18 +379,20 @@ public final class JourneyRehearsal {
             // that is not there, and only the second is worth a human's time.
             var found = JourneyRoute.surveyLavaLake(level, BAKED_LAVA_LAKE, 24);
             ctx.record("rehearsal.lake.rebaked", found.getKey().toShortString()
-                    + " 有 " + found.getValue() + " 格源块（烘入的 " + BAKED_LAVA_LAKE.toShortString()
-                    + " 只剩 " + sources + " 格）");
+                    + " has " + found.getValue() + " source blocks (the baked " + BAKED_LAVA_LAKE.toShortString()
+                    + " has only " + sources + " left)");
             if (found.getValue() >= PORTAL_FRAME_CELLS) {
                 lake = found.getKey();
                 sources = found.getValue();
             }
         }
-        ctx.record("rehearsal.lake", lake.toShortString() + " 有 " + sources + " 格岩浆源块（浇十块要十格）");
+        ctx.record("rehearsal.lake", lake.toShortString() + " has " + sources
+                + " lava source blocks (casting ten obsidian blocks needs ten)");
         if (sources < PORTAL_FRAME_CELLS) {
-            ctx.fail("排练用的岩浆湖不成立：" + lake.toShortString() + " 附近只有 " + sources
-                    + " 格源块，浇十块要 " + PORTAL_FRAME_CELLS + " 格 —— "
-                    + "跑一次完整的 wd.journey01Recon，把 lake.chosen 的坐标烘回 BAKED_LAVA_LAKE");
+            ctx.fail("The rehearsal's lava lake is not usable: " + lake.toShortString() + " has only "
+                    + sources + " source blocks nearby, and casting ten obsidian blocks needs "
+                    + PORTAL_FRAME_CELLS + " — run a full wd.journey01Recon and bake the coordinate of"
+                    + " lake.chosen back into BAKED_LAVA_LAKE");
             return;
         }
         JourneyLedger.staged("rehearsal: adopted lavaLake " + lake.toShortString()
@@ -396,11 +400,11 @@ public final class JourneyRehearsal {
         JourneyRoute.lavaLake = lake;
         JourneyRoute.lavaLakeSources = sources;
 
-        JourneyLedger.reached(JourneyStage.RECON, "REHEARSAL：只做了排练需要的最小勘测",
+        JourneyLedger.reached(JourneyStage.RECON, "REHEARSAL: only the minimum survey a rehearsal needs",
                 Map.of("rehearsal.lake", lake.toShortString(), "rehearsal.lakeSources", sources),
                 level.getGameTime());
-        ctx.passNote("REHEARSAL 勘测 — 种子 " + level.getSeed() + "，岩浆湖 " + lake.toShortString()
-                + "（" + sources + " 格源块）。这不是攀爬。");
+        ctx.passNote("REHEARSAL survey — seed " + level.getSeed() + ", lava lake " + lake.toShortString()
+                + " (" + sources + " source blocks). This is not a climb.");
         WorldDriverCommon.LOG.info("[rehearsal] lake={} sources={} target={}", lake, sources, target);
     }
 
@@ -410,7 +414,8 @@ public final class JourneyRehearsal {
 
     /** Put the rehearsed rung's preconditions into the world, loudly. */
     private static void stageFor(SceneContext ctx, JourneyStage target) {
-        ctx.record("REHEARSAL", "这是排练，不是攀爬：下面各级并未真正爬过，本级的前置条件是布景摆出来的");
+        ctx.record("REHEARSAL", "this is a rehearsal, not a climb: the rungs below were not actually"
+                + " climbed, and this rung's preconditions were put in place by the test setup");
         if (target == JourneyStage.FOOD) {
             stageFood(ctx);
             return;
@@ -456,11 +461,12 @@ public final class JourneyRehearsal {
             return;
         }
         // No recipe. Say so rather than starting the rung on whatever the placeholder rungs left
-        // behind — which is an empty body at world spawn, and a rung that fails on that reports a
-        // missing recipe as a driver bug.
+        // behind — which is an empty-handed bot at world spawn, and a rung that fails on that
+        // reports a missing recipe as a driver bug.
         JourneyLedger.staged("rehearsal: no staging recipe for " + target.name());
-        ctx.record("rehearsal.recipe", "无 —— " + target.name()
-                + " 还没有写布景配方，身体将以出生态起跑（多半会失败，而那不是引擎的错）");
+        ctx.record("rehearsal.recipe", "none — " + target.name()
+                + " has no staging recipe yet, so the bot starts in its freshly spawned state (the rung"
+                + " will most likely fail, and that failure is not an engine defect)");
     }
 
     /**
@@ -474,31 +480,32 @@ public final class JourneyRehearsal {
      * {@code weapon=minecraft:stone_sword}, so that is what a climb arrives holding and that is what
      * this hands over. Everything else a climb would also be carrying — a stone pickaxe, a stack of
      * cobblestone, a crafting table — is <b>deliberately not given</b>: none of it is consumed by a
-     * hunt, and each extra item is a second variable in the one leg under investigation. If a future
+     * hunt, and each extra item is a second variable in the one step under investigation. If a future
      * failure turns out to need one of them, hand it over then, with the row that showed it.
      *
      * <p><b>The walk is NOT staged.</b> Ladder-10 read {@code prey.distance=54}, and getting there is
-     * half of what the rung does — dropping the body next to a cow would skip the leg the user
+     * half of what the rung does — dropping the bot next to a cow would skip the walk the user
      * explicitly asked to keep under test. What the rehearsal buys here is only the forty minutes of
      * rungs 1–5, not the rung itself.
      */
     private static void stageFood(SceneContext ctx) {
         ServerWorldDriver body = JourneyRig.bodyOrNull();
         if (body == null) {
-            ctx.fail("排练：没有身体 —— wd.rehearse02Spawn 没有创建 avatar");
+            ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
         }
         give(body.fakePlayer(), "minecraft:stone_sword", 1);
         JourneyLedger.staged("rehearsal: gave stone_sword×1");
-        ctx.record("rehearsal.gave", "stone_sword×1（照 ladder-10 那趟 6 级实测的 "
-                + "weapon=minecraft:stone_sword 对齐；镐、圆石、工作台一概不给——打猎不消耗它们，"
-                + "多给一件就是被查那条腿上多一个变量）");
-        ctx.record("rehearsal.notStaged", "猎物的位置和去它那儿的路 —— ladder-10 实测 prey.distance=54，"
-                + "那段走路正是本级要测的一半");
+        ctx.record("rehearsal.gave", "stone_sword×1 (matches weapon=minecraft:stone_sword as measured"
+                + " on rung 6 of the ladder-10 run; no pickaxe, cobblestone or crafting table is given —"
+                + " hunting consumes none of them, and each extra item is one more variable in the step"
+                + " under investigation)");
+        ctx.record("rehearsal.notStaged", "the prey's position and the route to it — ladder-10 measured"
+                + " prey.distance=54, and that walk is half of what this rung tests");
     }
 
     /**
-     * Rung 12's starting conditions: the portal toolkit, and a body standing beside the lake.
+     * Rung 12's starting conditions: the portal toolkit, and the bot standing beside the lake.
      *
      * <p>What is handed over is what rungs 1–11 would have handed over, at the tier they reach it
      * at — a STONE pickaxe, because the ladder's iron pays for the bucket and the flint-and-steel and
@@ -508,14 +515,14 @@ public final class JourneyRehearsal {
     private static void stagePortalLit(SceneContext ctx) {
         ServerWorldDriver body = JourneyRig.bodyOrNull();
         if (body == null) {
-            ctx.fail("排练：没有身体 —— wd.rehearse02Spawn 没有创建 avatar");
+            ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
         }
         ServerLevel level = ctx.level();
         ServerPlayer fp = body.fakePlayer();
         BlockPos lake = JourneyRoute.lavaLake;
         if (lake.equals(JourneyRoute.UNSURVEYED)) {
-            ctx.fail("排练：没有岩浆湖坐标 —— wd.rehearse01Recon 没有跑成功");
+            ctx.fail("rehearsal: no lava lake coordinate — wd.rehearse01Recon did not succeed");
             return;
         }
 
@@ -523,9 +530,9 @@ public final class JourneyRehearsal {
         // Two pickaxes, not one. A stone pickaxe has 131 uses and this rung breaks about a hundred
         // (Aside on tools: the climb of 2026-08-16 arrived with `stone_pickaxe 131/131` AND
         //  `wooden_pickaxe 59/59`, so its stone head was full too — durability was not what stopped
-        //  it, and both bodies carve holding `minecraft:stone_pickaxe`. Left as two stone heads on
+        //  it, and both bots carve holding `minecraft:stone_pickaxe`. Left as two stone heads on
         //  purpose; changing it would be a second variable with no measurement behind it.)
-        // cells; one tool makes durability a hidden variable in exactly the leg under investigation,
+        // cells; one tool makes durability a hidden variable in exactly the step under investigation,
         // and a mine that silently stops because the head snapped looks identical to a mine that
         // could not reach.
         kit.put("minecraft:stone_pickaxe", 2);
@@ -533,10 +540,10 @@ public final class JourneyRehearsal {
         // reasoning that rung 12's walk to water re-tests a rung-10 capability at rung 12's expense.
         // That reasoning is sound about COST and wrong about FIDELITY, and the difference cost a round:
         // the climb of 2026-08-16 fills its own bucket here (`waterFill.hand = minecraft:bucket`,
-        // `waterFill.result = CONSUME`), and where that trip leaves the body is what decides where it
+        // `waterFill.result = CONSUME`), and where that trip leaves the bot is what decides where it
         // is standing when the carve begins — which is exactly the quantity under investigation, since
-        // the rehearsal's carve fails with the body up on the surface (`cell.0.standMissed 停在
-        // 3,64,20，脚下 grass_block`) while the climb's on the same geometry carved 67/67.
+        // the rehearsal's carve fails with the bot up on the surface (`cell.0.standMissed` reported
+        // it stopped at 3,64,20 on grass_block) while the climb's on the same geometry carved 67/67.
         //
         // A staging shortcut may skip a walk; it may not skip a walk that DECIDES the thing being
         // measured. The cost is real — the trip to `firstWater 64,62,60` is its own long-standing
@@ -554,12 +561,13 @@ public final class JourneyRehearsal {
             gave.append(e.getKey().substring(e.getKey().indexOf(':') + 1)).append('×').append(e.getValue());
         }
         JourneyLedger.staged("rehearsal: gave " + gave);
-        // THE NUMBER, not「对齐了」. A give is a claim about what a climb arrives holding, and the only
+        // THE NUMBER, not "matched". A give is a claim about what a climb arrives holding, and the only
         // way to judge it later is against the climb's own measured row — so both go on the record.
         ctx.record("rehearsal.gave", gave.toString()
-                + "（圆石 " + PORTAL_LIT_COBBLESTONE + " 与水桶为空，都照真 ladder 2026-08-16 那趟实测的 "
-                + "cobblestone.before=111 / bucket.before=1 对齐；仍然故意不同的只剩「镐给两把」，"
-                + "理由见 stagePortalLit 里那处注释）");
+                + " (cobblestone " + PORTAL_LIT_COBBLESTONE + " and an empty bucket both match what the"
+                + " real ladder run of 2026-08-16 measured, cobblestone.before=111 / bucket.before=1;"
+                + " the only deliberate difference left is 'two pickaxes', for the reason given in the"
+                + " comment in stagePortalLit)");
 
         // Beside the lake, not on it. The rung walks the last few blocks itself, which keeps its own
         // approach under test; what is skipped is the eighty-block crossing from world spawn that
@@ -568,37 +576,40 @@ public final class JourneyRehearsal {
         Direction side = forcedSide(ctx);
         BlockPos stand = dryStandNear(level, lake, 8, 20, side);
         if (stand == null) {
-            ctx.fail("排练：岩浆湖 " + lake.toShortString() + " 周围 8..20 格内"
-                    + (side == null ? "" : "的 " + side + " 侧") + "找不到一处干燥落脚点"
-                    + (side == null ? "" : " —— 这颗种子在这一侧摆不出这个朝向"));
+            ctx.fail("rehearsal: no dry standing cell within 8..20 blocks of the lava lake "
+                    + lake.toShortString() + (side == null ? "" : " on its " + side + " side")
+                    + (side == null ? "" : " — this seed cannot stage this orientation on that side"));
             return;
         }
-        // NOT「摆在这一侧就朝这一侧」—— that is what this row used to promise and it was false. Rung 12
-        // opens by walking to the lava, which discards the staged stand entirely; the orientation is
-        // decided later by pickDigColumn. Measured 2026-08-16: east / south / west staged three
-        // different stands and all three came out `shaft.standingOn = -9,21`, `forge.face … 朝 south`.
-        // So the side is PUBLISHED for that choice to honour, and this row now says which of the two
-        // things it is claiming.
+        // NOT "stood on this side, therefore facing this side": standing there does not decide the
+        // orientation. Rung 12 opens by walking to the lava, which discards the staged stand entirely;
+        // the orientation is decided later by pickDigColumn. Measured 2026-08-16: east / south / west
+        // staged three different stands and all three came out `shaft.standingOn = -9,21` with
+        // `forge.face` facing south. So the side is PUBLISHED for that choice to honour, and this row
+        // says which of the two things it is claiming.
         stagedForgeSide = side;
         stagedShaftColumn = forcedShaftColumn(ctx);
         ctx.record("rehearsal.forgeAway", side == null
-                ? "自然朝向 " + JourneyPortalRung.awayFrom(lake, stand) + "（没有指定 -PforgeAway）"
-                : "指定 " + side + "：落脚点摆在湖的这一侧，并且下挖柱也只在这一侧挑"
-                        + "（这一侧挑不出合格柱就退回四周找，看 forge.away 与否决计数）");
+                ? "natural orientation " + JourneyPortalRung.awayFrom(lake, stand)
+                        + " (-PforgeAway not specified)"
+                : "specified " + side + ": the standing cell is placed on this side of the lake, and"
+                        + " the dig column is chosen only on this side (if no qualifying column exists"
+                        + " on this side, the search falls back to all sides; see forge.away and the"
+                        + " rejection counts)");
         loadAround(level, stand, 2);
-        JourneyLedger.staged("rehearsal: moved the body to " + stand.toShortString()
+        JourneyLedger.staged("rehearsal: moved the bot to " + stand.toShortString()
                 + " beside the lake instead of walking there");
         fp.setDeltaMovement(Vec3.ZERO);
         fp.moveTo(stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5, fp.getYRot(), fp.getXRot());
         fp.setOnGround(true);
-        ctx.record("rehearsal.stand", stand.toShortString() + "，距湖 "
-                + Math.round(Math.sqrt(stand.distSqr(lake))) + " 格");
-        WorldDriverCommon.LOG.info("[rehearsal] staged PORTAL_LIT: gave {} and stood the body at {}",
+        ctx.record("rehearsal.stand", stand.toShortString() + ", "
+                + Math.round(Math.sqrt(stand.distSqr(lake))) + " blocks from the lake");
+        WorldDriverCommon.LOG.info("[rehearsal] staged PORTAL_LIT: gave {} and stood the bot at {}",
                 gave, stand);
     }
 
     /**
-     * Rung 11's starting conditions: an empty bucket, a pickaxe, and a body beside the lava column.
+     * Rung 11's starting conditions: an empty bucket, a pickaxe, and the bot beside the lava column.
      *
      * <p>Written for one subject and it is worth naming, because a rehearsal without a subject drifts
      * into being a second ladder: <b>the shaft</b>. Rung 11 sinks the deepest hole the ladder digs —
@@ -615,21 +626,21 @@ public final class JourneyRehearsal {
      * shaft plus a tunnel is around a hundred breaks against a stone head's 131, and a mine that
      * stops because the tool snapped looks exactly like a mine that could not reach.
      *
-     * <p>The body is stood a few blocks from the lava's own column at the SURFACE. Not on it: the
-     * step onto a checked column is part of what the shaft does, and staging the body onto the
+     * <p>The bot is placed a few blocks from the lava's own column at the SURFACE. Not on it: the
+     * step onto a checked column is part of what the shaft does, and staging the bot onto the
      * chosen column would stage the very check the descent depends on.
      */
     private static void stageObsidian(SceneContext ctx) {
         ServerWorldDriver body = JourneyRig.bodyOrNull();
         if (body == null) {
-            ctx.fail("排练：没有身体 —— wd.rehearse02Spawn 没有创建 avatar");
+            ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
         }
         ServerLevel level = ctx.level();
         ServerPlayer fp = body.fakePlayer();
         BlockPos lava = JourneyRoute.firstLava;
         if (lava.equals(JourneyRoute.UNSURVEYED)) {
-            ctx.fail("排练：JourneyRoute.firstLava 还是 UNSURVEYED —— 这一级没有目标可去");
+            ctx.fail("rehearsal: JourneyRoute.firstLava is still UNSURVEYED — this rung has no target");
             return;
         }
 
@@ -649,29 +660,30 @@ public final class JourneyRehearsal {
         loadAround(level, lava, 2);
         BlockPos stand = dryStandNear(level, lava, 4, 16);
         if (stand == null) {
-            ctx.fail("排练：岩浆柱 " + lava.toShortString() + " 上方 4..16 格内找不到一处干燥落脚点");
+            ctx.fail("rehearsal: no dry standing cell within 4..16 blocks above the lava column "
+                    + lava.toShortString());
             return;
         }
         loadAround(level, stand, 2);
-        JourneyLedger.staged("rehearsal: moved the body to " + stand.toShortString()
+        JourneyLedger.staged("rehearsal: moved the bot to " + stand.toShortString()
                 + " beside the lava column instead of walking there");
         fp.setDeltaMovement(Vec3.ZERO);
         fp.moveTo(stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5, fp.getYRot(), fp.getXRot());
         fp.setOnGround(true);
-        ctx.record("rehearsal.stand", stand.toShortString() + "，岩浆柱 "
-                + lava.getX() + "," + lava.getZ() + " 在 " + Math.round(Math.hypot(
-                        stand.getX() - lava.getX(), stand.getZ() - lava.getZ())) + " 格外，下挖 "
-                + (stand.getY() - lava.getY()) + " 格");
-        WorldDriverCommon.LOG.info("[rehearsal] staged OBSIDIAN: gave {} and stood the body at {}",
+        ctx.record("rehearsal.stand", stand.toShortString() + ", lava column "
+                + lava.getX() + "," + lava.getZ() + " is " + Math.round(Math.hypot(
+                        stand.getX() - lava.getX(), stand.getZ() - lava.getZ())) + " blocks away, "
+                + (stand.getY() - lava.getY()) + " blocks to dig down");
+        WorldDriverCommon.LOG.info("[rehearsal] staged OBSIDIAN: gave {} and stood the bot at {}",
                 gave, stand);
     }
 
     /**
-     * Rung 13's starting conditions: a LIT portal, and a body standing in front of it.
+     * Rung 13's starting conditions: a LIT portal, and the bot standing in front of it.
      *
      * <p>Rung 13 is the first rung that had no recipe, which is why it had never executed a single
-     * tick: without one the rehearsal starts an empty body at world spawn, {@code nether} looks for a
-     * portal block within 24 and finds none, and the rung reports rung 12's absence rather than
+     * tick: without one the rehearsal starts an empty-handed bot at world spawn, {@code nether} looks
+     * for a portal block within 24 and finds none, and the rung reports rung 12's absence rather than
      * anything about itself.
      *
      * <p>Built and lit the way the world builds one, not by writing {@code nether_portal} blocks
@@ -680,14 +692,14 @@ public final class JourneyRehearsal {
      * accepts is a frame vanilla accepts — and if the shape were wrong the staging would say so here
      * instead of handing the rung an inert box of obsidian to walk into.
      *
-     * <p>The body is put three blocks in FRONT of the doorway, not in it. What rung 13 is for is the
+     * <p>The bot is put three blocks in FRONT of the doorway, not in it. What rung 13 is for is the
      * walk in and the dimension change; standing it in the portal would stage the very thing under
      * test.
      */
     private static void stageNether(SceneContext ctx) {
         ServerWorldDriver body = JourneyRig.bodyOrNull();
         if (body == null) {
-            ctx.fail("排练：没有身体 —— wd.rehearse02Spawn 没有创建 avatar");
+            ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
         }
         ServerLevel level = ctx.level();
@@ -696,11 +708,11 @@ public final class JourneyRehearsal {
         loadAround(level, at, 2);
         BlockPos stand = dryStandNear(level, at, 6, 24);
         if (stand == null) {
-            ctx.fail("排练：身体周围 6..24 格内找不到一处干燥落脚点来搭传送门");
+            ctx.fail("rehearsal: no dry standing cell within 6..24 blocks of the bot to build the portal on");
             return;
         }
         loadAround(level, stand, 2);
-        // The doorway's bottom-left interior cell. The frame is in the X-Y plane, so the body walks
+        // The doorway's bottom-left interior cell. The frame is in the X-Y plane, so the bot walks
         // into it along Z — the same orientation rung 12 casts.
         BlockPos door = stand.above();
         // Clear the box the frame and its doorway occupy, and floor it, so nothing of the terrain
@@ -727,37 +739,39 @@ public final class JourneyRehearsal {
         for (int dx = 0; dx <= 1; dx++)
             for (int dy = 0; dy <= 2; dy++)
                 if (level.getBlockState(door.offset(dx, dy, 0)).is(Blocks.NETHER_PORTAL)) lit++;
-        ctx.record("rehearsal.portal", door.toShortString() + " 门洞左下角，六格中 " + lit + " 格已点亮");
+        ctx.record("rehearsal.portal", door.toShortString() + " is the doorway's bottom-left cell; "
+                + lit + " of its six cells are lit");
         if (lit < 6) {
-            ctx.fail("排练：布景摆的传送门没点着（" + lit + "/6）—— 这是布景的问题，不是 NETHER 这一级的问题");
+            ctx.fail("rehearsal: the portal built by the test setup did not light (" + lit + "/6) — this"
+                    + " is a test setup problem, not a failure of the NETHER rung");
             return;
         }
         JourneyLedger.staged("rehearsal: built and lit a portal at " + door.toShortString()
                 + " instead of casting one");
         BlockPos front = door.offset(0, 0, 3);
         loadAround(level, front, 1);
-        JourneyLedger.staged("rehearsal: moved the body to " + front.toShortString()
+        JourneyLedger.staged("rehearsal: moved the bot to " + front.toShortString()
                 + " in front of the portal instead of walking there");
         fp.setDeltaMovement(Vec3.ZERO);
         fp.moveTo(front.getX() + 0.5, front.getY(), front.getZ() + 0.5, fp.getYRot(), fp.getXRot());
         fp.setOnGround(true);
-        ctx.record("rehearsal.stand", front.toShortString() + "，距门 3 格");
-        WorldDriverCommon.LOG.info("[rehearsal] staged NETHER: lit a portal at {} and stood the body at {}",
+        ctx.record("rehearsal.stand", front.toShortString() + ", 3 blocks from the doorway");
+        WorldDriverCommon.LOG.info("[rehearsal] staged NETHER: lit a portal at {} and stood the bot at {}",
                 door, front);
     }
 
     /**
-     * Rung 14's starting conditions: a body standing in the Nether, with the kit, and NOTHING else.
+     * Rung 14's starting conditions: the bot standing in the Nether, with the kit, and NOTHING else.
      *
      * <p>The line this recipe is careful about is the one that makes a rehearsal worthless. Rung 14
      * is "walk to the fortress, wall the spawner in, fight inside", and the walk is most of it — so
      * the fortress is <b>not</b> staged, not searched for here, and not hinted at. What is handed
-     * over is what rungs 1–13 would have handed over: a body on the other side of a portal, a sword,
+     * over is what rungs 1–13 would have handed over: the bot on the other side of a portal, a sword,
      * food, and blocks to build the room with. Finding the fortress stays the rung's own problem.
      *
      * <p>Crossed with {@code teleportTo}, which is a real cross-level move for a {@code ServerPlayer}
-     * rather than a coordinate write — the driver's own view has to follow the body across, and if it
-     * does not, that is a finding this rung should surface rather than one the staging should hide.
+     * rather than a coordinate write — the driver's own view has to follow the player across, and if
+     * it does not, that is a finding this rung should surface rather than one the staging should hide.
      */
     private static void stageBlazeRod(SceneContext ctx) {
         Map<String, Integer> kit = new LinkedHashMap<>();
@@ -773,28 +787,30 @@ public final class JourneyRehearsal {
         // What it buys is a MEASUREMENT nothing else can produce. On 2026-08-21 the corridor reached
         // waypoint 9 of 17 and then reported `expanded=100000` — which reads as a pathfinding
         // failure, and was read as one for four rounds. The causeway note said what was actually
-        // true: 「直段已经放了 73 格，身上还剩 0 个可放置方块」. A bridge edge needs something to
-        // place; with an empty bag there are no bridge edges at all, so the search over open sky has
-        // nothing to expand and burns its node cap. 缺料 wearing a search failure's uniform.
+        // true: 73 blocks had been placed on the straight section and 0 placeable blocks were left.
+        // A bridge edge needs something to place; with an empty bag there are no bridge edges at
+        // all, so the search over open sky has nothing to expand and burns its node cap. A material
+        // shortage presenting as a search failure.
         //
         // The corridor's second half is not ground — six of its seventeen waypoints have no floor
         // under them at all, and the three that do have one twenty blocks down under LAVA — so the
-        // bridging is intrinsic, not a symptom. The open question is therefore「这条走廊要多少石
-        // 头」, and it cannot be answered by a run that runs out: a body that stops at zero measures
-        // the allowance, not the requirement. Give it more than it can need, and the number it
+        // bridging is intrinsic, not a symptom. The open question is therefore "how much stone does
+        // this corridor need", and it cannot be answered by a run that runs out: a bot that stops at
+        // zero measures the allowance, not the requirement. Give it more than it can need, and the number it
         // actually spends is the requirement — which then becomes a claim on rungs 9-13, that the
         // climb must ARRIVE holding that many.
         kit.put("minecraft:cobblestone", 384);
         kit.put("minecraft:cooked_beef", 16);
-        crossToTheNether(ctx, "BLAZE_ROD", kit, "要塞没有布景，得这一级自己找");
+        crossToTheNether(ctx, "BLAZE_ROD", kit,
+                "the fortress is not part of the test setup; this rung has to find it itself");
     }
 
     /**
-     * Rung 15's starting conditions: the same body in the same Nether, one fortress richer.
+     * Rung 15's starting conditions: the same bot in the same Nether, one fortress richer.
      *
      * <p>Rung 15 hunts endermen, so the line to be careful about is a different one from rung 14's:
      * what must NOT be staged here is a mob or the ground that spawns them. No warped forest is
-     * searched for, no enderman is summoned, and the body is put where a portal would have put it —
+     * searched for, no enderman is summoned, and the bot is put where a portal would have put it —
      * exactly where rung 14 would have left it, give or take the walk to the fortress. Whether there
      * are endermen within reach of that spot is the rung's problem and one of the things it is for.
      *
@@ -812,7 +828,8 @@ public final class JourneyRehearsal {
         // own rung asserts a handful, so a rehearsal that started with a dozen would be rehearsing a
         // run the ladder has never had.
         kit.put("minecraft:blaze_rod", RODS_A_FORTRESS_PAYS);
-        crossToTheNether(ctx, "ENDER_PEARL", kit, "末影人和它们的林地都没有布景，得这一级自己找");
+        crossToTheNether(ctx, "ENDER_PEARL", kit, "neither endermen nor their forest are part of the"
+                + " test setup; this rung has to find them itself");
     }
 
     /**
@@ -836,29 +853,30 @@ public final class JourneyRehearsal {
         // fell over and not because the staging was mean.
         kit.put("minecraft:blaze_rod", EYES_A_PORTAL_COSTS / 2);
         kit.put("minecraft:ender_pearl", EYES_A_PORTAL_COSTS);
-        crossToTheNether(ctx, "EYE_OF_ENDER", kit, "一只末影之眼都没给 —— 合成本身就是这一级要证明的事");
+        crossToTheNether(ctx, "EYE_OF_ENDER", kit, "no eye of ender is given — the craft itself is what"
+                + " this rung has to prove");
     }
 
     /**
-     * Rung 17's starting conditions: eyes in the bag, a body deep in the Nether, and a doorway home
+     * Rung 17's starting conditions: eyes in the bag, the bot deep in the Nether, and a doorway home
      * that it has to WALK to rather than see.
      *
      * <p>This recipe exists because rung 17's return path had no way to run. The rung's first act is
      * {@code backToTheOverworld}, and on the real ladder it has only ever been reached once, before
      * the return was rewritten — so the march home, {@code stepBackThrough}, and the ledger's banked
      * doorway are all code that has never executed. Without a recipe here, {@code -Prehearse=STRONGHOLD}
-     * started the rung on an empty body at world spawn: already in the overworld, so
+     * started the rung on an empty-handed bot at world spawn: already in the overworld, so
      * {@code backToTheOverworld} returns on its FIRST branch and the whole return stays untested
      * while the scene reports a pass.
      *
      * <p><b>The doorway is put {@link #STAGED_DOOR_AWAY} blocks away on purpose.</b> Rung 17 scans 24
      * blocks for a portal first and only falls back to the banked coordinate when that misses. A
-     * doorway placed next to the body would take the fast path — the one branch that already worked —
-     * and the rehearsal would prove nothing about the branch it was built for.
+     * doorway placed next to the bot would take the fast path — the one branch that already
+     * worked — and the rehearsal would prove nothing about the branch it was built for.
      *
      * <p>Blocks are handed over for the same reason the fortress corridor needs them: the march runs
-     * under {@code generousPathfinding}, which leaves {@code allowPlace} on, and a body with nothing
-     * to bridge with reports「架不起桥」as「走不到」.
+     * under {@code generousPathfinding}, which leaves {@code allowPlace} on, and a bot with nothing
+     * to bridge with reports "cannot build a bridge" as "cannot reach the destination".
      */
     private static void stageStronghold(SceneContext ctx) {
         Map<String, Integer> kit = new LinkedHashMap<>();
@@ -867,11 +885,12 @@ public final class JourneyRehearsal {
         kit.put("minecraft:ender_eye", EYES_A_CLIMB_ARRIVES_WITH);
         kit.put("minecraft:cobblestone", 128);
         crossToTheNether(ctx, "STRONGHOLD", kit,
-                "要塞、回程的路、以及那道门在哪儿，都不告诉这一级 —— 门只记进账本");
+                "this rung is not told where the stronghold, the return route or the doorway is — the"
+                        + " doorway is only recorded in the ledger");
         buildTheDoorwayAndBankIt(ctx);
     }
 
-    /** How far the staged doorway sits from the body. Past rung 17's 24-block local scan, so the
+    /** How far the staged doorway sits from the bot. Past rung 17's 24-block local scan, so the
      *  return is forced down the BANKED route — see {@link #stageStronghold}. */
     private static final int STAGED_DOOR_AWAY = 96;
 
@@ -885,8 +904,8 @@ public final class JourneyRehearsal {
      * licence {@code openTheDoorLikeVanilla} takes and for the same reason — lighting is rung 12's
      * subject, not this one's — but it carries a risk that one does not: {@code NetherPortalBlock}
      * pops itself off when its frame does not hold, so a frame built wrong yields a portal that is
-     * gone by the time the rung walks back to it, and rung 17 would then report
-     * {@code 门被毁了}, a true sentence about a world nobody staged correctly.
+     * gone by the time the rung walks back to it, and rung 17 would then report that the doorway
+     * was destroyed, a true sentence about a world nobody staged correctly.
      *
      * <p><b>So it asserts on the cells after the fact</b>, which is the only reading that can tell
      * "the staging built a portal" from "the staging built something portal-shaped".
@@ -894,7 +913,7 @@ public final class JourneyRehearsal {
     private static void buildTheDoorwayAndBankIt(SceneContext ctx) {
         ServerWorldDriver body = JourneyRig.bodyOrNull();
         if (body == null) {
-            ctx.fail("排练：没有身体 —— 摆不了回程的门");
+            ctx.fail("rehearsal: no bot player entity — cannot stage the return doorway");
             return;
         }
         ServerPlayer fp = body.fakePlayer();
@@ -904,8 +923,8 @@ public final class JourneyRehearsal {
         loadAround(nether, want, 2);
         BlockPos foot = netherStandNear(nether, want);
         if (foot == null) {
-            ctx.fail("排练：身体东边 " + STAGED_DOOR_AWAY + " 格附近找不到能立门的落脚点"
-                    + "（想放在 " + want.toShortString() + "）");
+            ctx.fail("rehearsal: no standing cell for the doorway near " + STAGED_DOOR_AWAY
+                    + " blocks east of the bot (wanted " + want.toShortString() + ")");
             return;
         }
         int cells = raiseAPortal(nether, foot);
@@ -914,32 +933,36 @@ public final class JourneyRehearsal {
         JourneyLedger.noteNetherPortal(foot);
         long away = Math.round(Math.sqrt(foot.distSqr(from)));
         int rise = foot.getY() - from.getY();
-        ctx.record("rehearsal.doorway", foot.toShortString() + " 起 " + DOOR_WIDTH + "×" + DOOR_HEIGHT
-                + "，成了 " + cells + " 格 nether_portal；离身体 " + away + " 格、垂直差 " + rise + " 格"
-                + "（17 级先扫 24 格，扫不到才走账本记下的那条路 —— 这里要的就是后者）");
+        ctx.record("rehearsal.doorway", DOOR_WIDTH + "×" + DOOR_HEIGHT + " from " + foot.toShortString()
+                + ", " + cells + " nether_portal cells formed; " + away + " blocks from the bot, vertical"
+                + " offset " + rise + " blocks (rung 17 scans 24 blocks first and follows the route"
+                + " recorded in the ledger only when that scan misses — the latter is what this tests)");
         if (cells < DOOR_WIDTH * DOOR_HEIGHT) {
-            ctx.fail("排练立不起门：" + DOOR_WIDTH + "×" + DOOR_HEIGHT + " 只成了 " + cells
-                    + " 格 nether_portal —— 这是布景的问题，不是 STRONGHOLD 这一级的问题"
-                    + "（多半是框架不闭合，NetherPortalBlock 自己弹掉了）");
+            ctx.fail("rehearsal could not raise the doorway: the " + DOOR_WIDTH + "×" + DOOR_HEIGHT
+                    + " formed only " + cells + " nether_portal cells — this is a test setup problem,"
+                    + " not a failure of the STRONGHOLD rung (most likely the frame is not closed and"
+                    + " NetherPortalBlock removed itself)");
             return;
         }
         if (away <= 24) {
-            ctx.fail("排练把门放得太近了（" + away + " 格）：17 级的 24 格局部扫描会直接扫到它，"
-                    + "走的是快路径，而这套布景存在的意义正是逼它走账本那条路");
+            ctx.fail("rehearsal placed the doorway too close (" + away + " blocks): rung 17's 24-block"
+                    + " local scan would find it directly and take the fast path, while this test setup"
+                    + " exists precisely to force the route recorded in the ledger");
             return;
         }
-        // A doorway the body has to climb to is not the doorway rung 17 will meet. On the real
-        // ladder the banked cell is where the body CAME OUT, so it is at the body's own level by
+        // A doorway the bot has to climb to is not the doorway rung 17 will meet. On the real
+        // ladder the banked cell is where the bot CAME OUT, so it is at the bot's own level by
         // construction. Two rehearsals were spent on a 52-block vertical that no run will ever
         // face, and both died on the climb without reaching the crossing this staging exists to
         // exercise. Named as a STAGING failure, because that is what it is — see
         // staging-for-rungs-nobody-has-climbed for the opposite error, staging so gentle the
         // assertion is trivially true.
         if (Math.abs(rise) > STAGED_DOOR_RISE) {
-            ctx.fail("排练把门放到了另一个高度上（垂直差 " + rise + " 格，上限 " + STAGED_DOOR_RISE
-                    + "）：真梯记下的那一格是身体自己走出来的地方，跟身体同层。这样摆出来的是一段"
-                    + "「爬 " + Math.abs(rise) + " 格」的考题，不是 17 级的回程 —— 布景的问题，"
-                    + "不是 STRONGHOLD 这一级的问题");
+            ctx.fail("rehearsal placed the doorway at a different height (vertical offset " + rise
+                    + " blocks, limit " + STAGED_DOOR_RISE + "): the cell the real ladder records is"
+                    + " where the bot itself walked out, on the bot's own level. A doorway placed like"
+                    + " this tests a " + Math.abs(rise) + "-block climb, not rung 17's return — a test"
+                    + " setup problem, not a failure of the STRONGHOLD rung");
             return;
         }
         raiseTheOverworldHalf(ctx, nether, foot);
@@ -948,10 +971,10 @@ public final class JourneyRehearsal {
     /**
      * Light the OTHER half of the pair — the surface portal rung 12 would have left in the overworld.
      *
-     * <p><b>A portal is not one doorway, it is two, and staging only the far one is what put a body
-     * in an aquifer.</b> Rehearsal of 2026-08-22: the crossing itself finally worked, the body left
+     * <p><b>A portal is not one doorway, it is two, and staging only the far one is what put the bot
+     * in an aquifer.</b> Rehearsal of 2026-08-22: the crossing itself finally worked, the bot left
      * the Nether and arrived {@code @minecraft:overworld} — and then stood at {@code 825,10,83}
-     * bobbing between two y values while the march burned 4238 searches on one leg, jumping on the
+     * bobbing between two y values while the march burned 4238 searches on one segment, jumping on the
      * {@code swimUp} branch. Nether y is <b>not</b> scaled by the 8:1 rule, only x and z, so a
      * doorway staged at nether y=33 asks vanilla for an overworld exit at y=33 — and with no
      * existing portal within the forcer's search radius to land on, it carved a fresh one there,
@@ -964,15 +987,16 @@ public final class JourneyRehearsal {
      *
      * <p>Placed on the heightmap at the 8:1 coordinate so the forcer finds it rather than digging:
      * its search is horizontal, so being tens of blocks higher than the requested y costs nothing,
-     * and being the nearest portal is what decides that the body comes out here.
+     * and being the nearest portal is what decides that the bot comes out here.
      *
-     * <p>Failures here are STAGING failures and say so — a body that cannot get out of the Nether
+     * <p>Failures here are STAGING failures and say so — a bot that cannot get out of the Nether
      * because this half is missing would otherwise be read as rung 17 failing to walk home.
      */
     private static void raiseTheOverworldHalf(SceneContext ctx, ServerLevel nether, BlockPos foot) {
         ServerLevel overworld = nether.getServer().getLevel(net.minecraft.world.level.Level.OVERWORLD);
         if (overworld == null) {
-            ctx.fail("排练：这台服务器没有主世界 —— 摆不出回程门的另一半");
+            ctx.fail("rehearsal: this server has no overworld — cannot stage the other half of the"
+                    + " return doorway");
             return;
         }
         double scale = net.minecraft.world.level.dimension.DimensionType.getTeleportationScale(
@@ -983,23 +1007,26 @@ public final class JourneyRehearsal {
         BlockPos surface = overworld.getHeightmapPos(
                 net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, want);
         int cells = raiseAPortal(overworld, surface);
-        // scale is 8.0 — it is already the ratio, so the row prints it directly. Writing
-        // `1 / scale` here made the row say 「按 0:1 折算」 next to a pair of coordinates that
+        // scale is 8.0 — it is already the ratio, so the row prints it directly. Printing
+        // `1 / scale` would make the row claim a 0:1 conversion next to a pair of coordinates that
         // plainly differ by a factor of eight, which is the shape of an evidence row that
         // discredits itself: a reader who trusts the number distrusts the whole staging.
-        ctx.record("rehearsal.overworldHalf", surface.toShortString() + " 成了 " + cells
-                + " 格 nether_portal（下界那道门在 " + foot.toShortString() + "，按 "
-                + Math.round(scale) + ":1 折算过来是 " + want.getX() + "," + want.getZ()
-                + "，抬到地表 y=" + surface.getY() + "）—— 12 级本来会留下的就是这一道");
+        ctx.record("rehearsal.overworldHalf", surface.toShortString() + ": " + cells
+                + " nether_portal cells formed (the Nether doorway is at " + foot.toShortString()
+                + ", which converts at " + Math.round(scale) + ":1 to " + want.getX() + "," + want.getZ()
+                + ", raised to the surface at y=" + surface.getY() + ") — this is the doorway rung 12"
+                + " would have left");
         if (cells < DOOR_WIDTH * DOOR_HEIGHT) {
-            ctx.fail("排练立不起回程门的主世界那一半：只成了 " + cells + " 格 nether_portal —— "
-                    + "这是布景的问题。少了它，身体出下界时 vanilla 会就地现挖一道门，"
-                    + "而下界的 y 不参与 8:1 折算，于是它挖在 y=" + foot.getY() + " 的地下");
+            ctx.fail("rehearsal could not raise the overworld half of the return doorway: only " + cells
+                    + " nether_portal cells formed — this is a test setup problem. Without it, vanilla"
+                    + " creates a new portal on the spot when the bot leaves the Nether, and because"
+                    + " Nether y does not take part in the 8:1 conversion, that portal is dug"
+                    + " underground at y=" + foot.getY());
         }
     }
 
-    /** How far above or below the body the staged doorway may sit. The real ladder's banked cell is
-     *  the one the body walked out of, so the honest number is 0; this is the slack that lets
+    /** How far above or below the bot the staged doorway may sit. The real ladder's banked cell is
+     *  the one the bot walked out of, so the honest number is 0; this is the slack that lets
      *  {@link #netherStandNear} step off a wall of netherrack without changing what is measured. */
     private static final int STAGED_DOOR_RISE = 24;
 
@@ -1030,7 +1057,7 @@ public final class JourneyRehearsal {
         // This clear used to run from dy=-1, taking the ground out from under the entire pocket,
         // and only one 4×1 strip of it was put back. Everything else the clear touched became a
         // hole — so the frame stood on a ledge over a void, which is a shape no nether portal has
-        // and which rung 17 therefore had no business being asked about. The body walked in on the
+        // and which rung 17 therefore had no business being asked about. The bot walked in on the
         // surrounding rock, arrived on top of the FRAME (the only solid thing at that height), and
         // then could not get off it: the walker's own guards refused every step, correctly —
         //
@@ -1075,7 +1102,7 @@ public final class JourneyRehearsal {
 
     /** How many frames one stronghold portal room has — the ring
      *  {@code EndPortalFrameBlock.getOrCreatePortalShape()} matches. The staging asserts on this
-     *  before it claims to have put the body「in the room」: eleven frames is not a room, it is a
+     *  before it claims to have put the bot "in the room": eleven frames is not a room, it is a
      *  scan whose box clipped one. */
     private static final int FRAMES_A_ROOM_HAS = 12;
 
@@ -1087,7 +1114,7 @@ public final class JourneyRehearsal {
     private static final int EYES_A_CLIMB_ARRIVES_WITH = 12;
 
     /**
-     * Rung 18's starting conditions: a body standing in the stronghold's portal room, holding eyes.
+     * Rung 18's starting conditions: the bot standing in the stronghold's portal room, holding eyes.
      *
      * <p>Rung 18 is twelve {@code useOn}-only interactions and nothing else. Everything ELSE about
      * the rung is somebody else's: finding the stronghold is rung 17's, making the eyes is rung
@@ -1100,7 +1127,7 @@ public final class JourneyRehearsal {
      *
      * <p><b>No cobblestone, deliberately.</b> {@code generousPathfinding} leaves
      * {@code allowPlace = true} and rung 18 never turns it off, so a bag of blocks lets the walker
-     * pillar to a frame — which replaces「walk to within EYE_REACH」, the thing under test, with
+     * pillar to a frame — which replaces "walk to within EYE_REACH", the thing under test, with
      * something else. What a climb actually arrives here carrying is unknown: rung 17 records no
      * inventory at all, so there is no key to calibrate against yet. Adding a {@code stock.*}
      * evidence row to rung 17 is the fix, and it belongs to whoever writes rung 17's recipe.
@@ -1118,22 +1145,25 @@ public final class JourneyRehearsal {
         kit.put("minecraft:stone_pickaxe", 2);
         kit.put("minecraft:iron_sword", 1);
         kit.put("minecraft:cooked_beef", 16);
-        ctx.record("rehearsal.noBlocks", "没给圆石 —— 这一级不放置任何方块，而 allowPlace 是开着的；"
-                + "给了石料就等于允许 walker 垒到框架跟前，把「走进 EYE_REACH」换成别的事。"
-                + "真梯到这一级带多少石料今天查不到（17 级没记库存）—— 校准要先给 17 级加 stock.* 行");
+        ctx.record("rehearsal.noBlocks", "no cobblestone given — this rung places no blocks, but"
+                + " allowPlace is on; giving stone would let the walker pillar up to the frame and"
+                + " replace 'walk to within EYE_REACH' with something else. How much stone the real"
+                + " ladder carries to this rung is not known yet (rung 17 records no inventory) —"
+                + " calibration first needs a stock.* row on rung 17");
         standInThePortalRoom(ctx, "END_PORTAL", kit,
-                "框架一格没补、门也没开 —— 那两件正是这一级要证明的事");
+                "no frame cell was filled and the door was not opened — those two are exactly what"
+                        + " this rung has to prove");
     }
 
     /**
-     * Put the body in the stronghold's portal room, with a bag, and arrange nothing else.
+     * Put the bot in the stronghold's portal room, with a bag, and arrange nothing else.
      *
      * <p>Shared the way {@code crossToTheNether} is shared by rungs 14/15/16: what differs between
-     * rung 18 and rung 19 is the bag and what the room already contains, not how a body gets there.
+     * rung 18 and rung 19 is the bag and what the room already contains, not how the bot gets there.
      *
      * <p><b>The frames are read through {@link JourneyEndRungs#framesAround} rather than through a
-     * second scan written here.</b> Two scans that disagree put「the room the staging found」and
-     *「the room the rung found」in different places, and there is no reading that tells them apart
+     * second scan written here.</b> Two scans that disagree put "the room the staging found" and
+     * "the room the rung found" in different places, and there is no reading that tells them apart
      * afterwards. This file is licensed to duplicate CONSTANTS with a stated reason (see
      * {@link #PORTAL_FRAME_CELLS}); an algorithm is not the same licence.
      *
@@ -1143,7 +1173,7 @@ public final class JourneyRehearsal {
                                                  Map<String, Integer> kit, String notStaged) {
         ServerWorldDriver body = JourneyRig.bodyOrNull();
         if (body == null) {
-            ctx.fail("排练：没有身体 —— wd.rehearse02Spawn 没有创建 avatar");
+            ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return null;
         }
         ServerLevel level = ctx.level();
@@ -1159,34 +1189,37 @@ public final class JourneyRehearsal {
         loadAround(level, baked, scan);
         List<BlockPos> frames = JourneyEndRungs.framesAround(level, baked, scan);
         long ms = (System.nanoTime() - startedNs) / 1_000_000L;
-        ctx.record("rehearsal.roomScanMs", ms + " ms（" + (2 * scan + 1) + "×" + (2 * scan + 1)
-                + " 区块，全新世界）");
-        ctx.record("rehearsal.frames", frames.size() + " 格 end_portal_frame（以烘入的 stronghold "
-                + baked.toShortString() + " 为心，±" + (scan * 16) + " 格）");
+        ctx.record("rehearsal.roomScanMs", ms + " ms (" + (2 * scan + 1) + "×" + (2 * scan + 1)
+                + " chunks, freshly generated world)");
+        ctx.record("rehearsal.frames", frames.size() + " end_portal_frame blocks (centred on the baked"
+                + " stronghold " + baked.toShortString() + ", ±" + (scan * 16) + " blocks)");
         if (frames.size() < FRAMES_A_ROOM_HAS) {
-            ctx.fail("排练摆不出传送门房间：以 " + baked.toShortString() + " 为心 ±" + (scan * 16)
-                    + " 格内只有 " + frames.size() + " 格 end_portal_frame，一间房要 "
-                    + FRAMES_A_ROOM_HAS + " 格 —— 这是布景的问题，不是 " + what + " 这一级的问题。"
-                    + "0 格 = 烘入的坐标过期，或半径远不够；1..11 格 = 半径把房间切了。"
-                    + "用 -ProomScanChunks=12 再跑一次分辨这两者");
+            ctx.fail("rehearsal could not stage the portal room: within ±" + (scan * 16) + " blocks of "
+                    + baked.toShortString() + " there are only " + frames.size() + " end_portal_frame"
+                    + " blocks, and a room has " + FRAMES_A_ROOM_HAS + " — this is a test setup"
+                    + " problem, not a failure of the " + what + " rung. 0 blocks = the baked coordinate"
+                    + " is stale or the radius is far too small; 1..11 blocks = the radius cuts through"
+                    + " the room. Run again with -ProomScanChunks=12 to tell the two apart");
             return null;
         }
         BlockPos centre = JourneyEndRungs.centreOf(frames);
         int away = Math.max(Math.abs(centre.getX() - baked.getX()),
                             Math.abs(centre.getZ() - baked.getZ()));
-        ctx.record("rehearsal.frameCentre", centre.toShortString() + "，距烘入的 stronghold "
-                + away + " 格（切比雪夫）—— rung 17 的 ROOM_SCAN_CHUNKS 至少要 " + (away / 16 + 1)
-                + " 才扫得到，它现在是 " + STRONGHOLD_ROOM_SCAN_CHUNKS);
+        ctx.record("rehearsal.frameCentre", centre.toShortString() + ", " + away + " blocks (Chebyshev)"
+                + " from the baked stronghold — rung 17's ROOM_SCAN_CHUNKS must be at least "
+                + (away / 16 + 1) + " to reach it, and it is currently " + STRONGHOLD_ROOM_SCAN_CHUNKS);
         BlockPos stand = JourneyEndRungs.standingCellInTheRoom(level, centre);
         if (stand == null) {
-            ctx.fail("排练：扫到了 " + frames.size() + " 格框架（中心 " + centre.toShortString()
-                    + "）却没有能落脚的格子 —— 这是布景的问题，不是 " + what + " 这一级的问题");
+            ctx.fail("rehearsal: found " + frames.size() + " frame blocks (centre " + centre.toShortString()
+                    + ") but no cell to stand on — this is a test setup problem, not a failure of the "
+                    + what + " rung");
             return null;
         }
         int withEye = 0;
         for (BlockPos f : frames) if (JourneyEndRungs.hasEye(level, f)) withEye++;
         ctx.record("rehearsal.framesWithEye", withEye + "/" + frames.size()
-                + "（世界自带的，一格都没补 —— 收尾时 ender_eye.left 应该等于这个数）");
+                + " (placed by world generation, none added — ender_eye.left at the end should equal"
+                + " this number)");
 
         StringBuilder gave = new StringBuilder();
         for (var e : kit.entrySet()) {
@@ -1198,19 +1231,22 @@ public final class JourneyRehearsal {
         // THE NUMBERS AND WHERE THEY CAME FROM. Every one is PROVISIONAL: no climb has ever reached
         // rung 16, so none has a ladder measurement behind it and the record must not read as if it
         // did — see the ladder-calibration table in TODO.md for which key replaces which number.
-        ctx.record("rehearsal.gave", gave + "（全部 PROVISIONAL：真梯从未爬到 12 级以上，"
-                + "这些数没有 ladder 实测。ender_eye 照 16 级排练实测的 " + EYES_A_CLIMB_ARRIVES_WITH
-                + "；镐 2 把是故意与真梯不同，理由见 stageEndPortal 里那处注释）");
+        ctx.record("rehearsal.gave", gave + " (all PROVISIONAL: the real ladder has never climbed past"
+                + " rung 12, so none of these numbers has a ladder measurement. ender_eye follows the "
+                + EYES_A_CLIMB_ARRIVES_WITH + " measured in the rung 16 rehearsal; the 2 pickaxes"
+                + " deliberately differ from the real ladder, for the reason given in the comment in"
+                + " stageEndPortal)");
 
         loadAround(level, stand, 2);
-        JourneyLedger.staged("rehearsal: put the body in the stronghold portal room at "
+        JourneyLedger.staged("rehearsal: put the bot in the stronghold portal room at "
                 + stand.toShortString() + " instead of marching there and sinking a shaft");
         fp.setDeltaMovement(Vec3.ZERO);
         fp.moveTo(stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5, fp.getYRot(), fp.getXRot());
         fp.setOnGround(true);
-        ctx.record("rehearsal.stand", stand.toShortString() + "，距框架中心 "
-                + Math.round(Math.sqrt(stand.distSqr(centre))) + " 格（" + notStaged + "）");
-        WorldDriverCommon.LOG.info("[rehearsal] staged {}: gave {} and stood the body at {} ({} frames)",
+        ctx.record("rehearsal.stand", stand.toShortString() + ", "
+                + Math.round(Math.sqrt(stand.distSqr(centre))) + " blocks from the frame centre ("
+                + notStaged + ")");
+        WorldDriverCommon.LOG.info("[rehearsal] staged {}: gave {} and stood the bot at {} ({} frames)",
                 what, gave, stand, frames.size());
         return centre;
     }
@@ -1223,17 +1259,18 @@ public final class JourneyRehearsal {
     /**
      * Rung 19's starting conditions: the same room as rung 18, with the door already open.
      *
-     * <p>Rung 19 is「step into an open end portal and come out on the End's arrival platform」. So
+     * <p>Rung 19 is "step into an open end portal and come out on the End's arrival platform". So
      * what this stages is exactly the one thing rung 18 produces — an open door — and it stages it
      * <b>through vanilla's own code path, not through the verb rung 18 is tested on</b>. See
      * {@link #openTheDoorLikeVanilla} for why that distinction is the whole recipe.
      *
      * <p><b>No cobblestone, for the same reason rung 18 gets none, and it costs more here.</b> The
      * stronghold's nine portal cells sit over the room's lava pool, and rung 19's own failure message
-     *（{@code 要塞的门开在熔岩池上方，走进去和站到旁边是两码事}）is a finding it must be able to
-     * report. {@code generousPathfinding} leaves {@code allowPlace = true}, so a bag of blocks lets
-     * the walker bridge over that pool — which would silently convert「the walker can reach a portal
-     * cell」into「the walker can build a path to one」and make the rung permanently unable to report
+     * (that the stronghold's door opens over the lava pool, and stepping into it is not the same as
+     * standing beside it) is a finding it must be able to report. {@code generousPathfinding} leaves
+     * {@code allowPlace = true}, so a bag of blocks lets the walker bridge over that pool — which
+     * would silently convert "the walker can reach a portal cell" into "the walker can build a path
+     * to one" and make the rung permanently unable to report
      * the thing it exists to catch. What a climb actually arrives with is unknown: rung 19 records no
      * inventory, so there is no key to calibrate against and the fix is a {@code stock.*} row on rung
      * 19, exactly as for rung 17.
@@ -1248,12 +1285,15 @@ public final class JourneyRehearsal {
         kit.put("minecraft:stone_pickaxe", 2);
         kit.put("minecraft:iron_sword", 1);
         kit.put("minecraft:cooked_beef", 16);
-        ctx.record("rehearsal.noBlocks", "没给圆石 —— 门开在熔岩池上方，而 allowPlace 是开着的；"
-                + "给了石料就等于允许 walker 在池子上架桥，把「走得到门格」换成「造得出通往门格的路」，"
-                + "这一级最该报的那个发现就永远报不出来了。真梯到这一级带多少石料今天查不到"
-                + "（19 级没记库存）—— 校准要先给 19 级加 stock.* 行");
+        ctx.record("rehearsal.noBlocks", "no cobblestone given — the door opens over the lava pool, and"
+                + " allowPlace is on; giving stone would let the walker bridge over the pool, replacing"
+                + " 'can reach a door cell' with 'can build a path to a door cell', and the finding this"
+                + " rung most needs to report could never be reported. How much stone the real ladder"
+                + " carries to this rung is not known yet (rung 19 records no inventory) — calibration"
+                + " first needs a stock.* row on rung 19");
         BlockPos centre = standInThePortalRoom(ctx, "END", kit,
-                "门是布景开的，走进去、活着到达降落台是这一级自己的事");
+                "the door was opened by the test setup; stepping in and arriving alive on the landing"
+                        + " platform is this rung's own task");
         if (centre == null) return;
         openTheDoorLikeVanilla(ctx, centre);
     }
@@ -1265,17 +1305,17 @@ public final class JourneyRehearsal {
      * <h2>Why the path matters more than the result</h2>
      *
      * Rung 18's entire subject is {@code Body.useBlock} → {@code EnderEyeItem.useOn}: that a DRIVEN
-     * BODY can spend an eye into a frame. If this staging opened the door by driving the avatar, then
+     * PLAYER can spend an eye into a frame. If this staging opened the door by driving the avatar, then
      * a rehearsal of rung 19 would be running rung 18's tested verb as scenery — and a staging that
      * performs the thing another rung is judged on has stopped being staging. Worse, it would be
      * silently load-bearing in the wrong direction: a regression in {@code useBlock} would fail rung
-     * 19's SETUP, which reads as「rung 19 is broken」.
+     * 19's SETUP, which reads as "rung 19 is broken".
      *
      * <p>So the eyes go in as block state and the door is opened by the <b>tail of
      * {@code EnderEyeItem.useOn} itself</b> — {@code EndPortalFrameBlock.getOrCreatePortalShape()
      * .find(...)}, then vanilla's own {@code getFrontTopLeft().offset(-3, 0, -3)} 3×3 of
      * {@code END_PORTAL}. Copying the tail rather than re-deriving where the door goes is deliberate:
-     * a hand-rolled「the door is the 3×3 inside the ring」puts it in the right place for a ring the
+     * a hand-rolled "the door is the 3×3 inside the ring" puts it in the right place for a ring the
      * staging laid itself and in the WRONG place for a ring worldgen laid, and no reading afterwards
      * tells the two apart.
      *
@@ -1285,7 +1325,7 @@ public final class JourneyRehearsal {
      * <p><b>It asserts, because a door that did not open is a staging failure and must not reach the
      * rung as one of its own.</b> If the pattern does not match, or fewer than
      * {@link #PORTAL_CELLS_A_DOOR_HAS} cells came out, this fails naming the staging — otherwise rung
-     * 19 reports {@code 身边 12 格内没有 end_portal 方块}, which is a true sentence about a world
+     * 19 reports that there is no end_portal block within 12 blocks, which is a true sentence about a world
      * nobody staged correctly and reads as a bug in rung 18.
      */
     private static void openTheDoorLikeVanilla(SceneContext ctx, BlockPos centre) {
@@ -1309,14 +1349,15 @@ public final class JourneyRehearsal {
         }
         JourneyLedger.staged("rehearsal: set " + lit + " eyes as block state and ran the tail of "
                 + "EnderEyeItem.useOn, instead of driving the avatar's useBlock (that is rung 18)");
-        ctx.record("rehearsal.eyesSet", lit + " 只（直接写 HAS_EYE，没走 Hands.useBlock —— "
-                + "那是 18 级的被测动作，布景不许替它做）");
+        ctx.record("rehearsal.eyesSet", lit + " (HAS_EYE written directly, not through Hands.useBlock —"
+                + " that is the action under test on rung 18, and the test setup must not perform it)");
         BlockPattern.BlockPatternMatch match = last == null ? null
                 : EndPortalFrameBlock.getOrCreatePortalShape().find(level, last);
         if (match == null) {
-            ctx.fail("排练开不了门：" + frames.size() + " 格框架全填了眼，"
-                    + "EndPortalFrameBlock.getOrCreatePortalShape().find(" + xyzOf(last) + ") 仍不匹配"
-                    + " —— 这是布景的问题，不是 END 这一级的问题（多半是扫到的框架不属于同一个环）");
+            ctx.fail("rehearsal could not open the door: all " + frames.size() + " frame blocks hold an"
+                    + " eye, but EndPortalFrameBlock.getOrCreatePortalShape().find(" + xyzOf(last)
+                    + ") still does not match — this is a test setup problem, not a failure of the END"
+                    + " rung (most likely the scanned frames do not belong to one ring)");
             return;
         }
         BlockPos topLeft = match.getFrontTopLeft().offset(-3, 0, -3);
@@ -1329,31 +1370,32 @@ public final class JourneyRehearsal {
                 if (level.getBlockState(topLeft.offset(i, 0, j)).is(Blocks.END_PORTAL)) cells++;
         JourneyLedger.staged("rehearsal: opened the end portal at " + topLeft.toShortString()
                 + " instead of walking the stronghold and spending twelve eyes");
-        ctx.record("rehearsal.doorway", topLeft.toShortString() + " 起 3×3，开出 " + cells + " 格 "
-                + "end_portal（vanilla 的 getFrontTopLeft().offset(-3,0,-3)，不是自己算的中心）");
+        ctx.record("rehearsal.doorway", "3×3 from " + topLeft.toShortString() + ", " + cells + " end_portal"
+                + " cells opened (vanilla's getFrontTopLeft().offset(-3,0,-3), not a self-computed centre)");
         if (cells < PORTAL_CELLS_A_DOOR_HAS) {
-            ctx.fail("排练开不全门：3×3 只成了 " + cells + "/" + PORTAL_CELLS_A_DOOR_HAS
-                    + " 格 end_portal —— 这是布景的问题，不是 END 这一级的问题");
+            ctx.fail("rehearsal could not fully open the door: the 3×3 formed only " + cells + "/"
+                    + PORTAL_CELLS_A_DOOR_HAS + " end_portal cells — this is a test setup problem, not a"
+                    + " failure of the END rung");
         }
     }
 
     /** {@code toShortString} that survives a null, for a failure message whose whole job is to be
      *  readable when something upstream returned nothing. */
-    private static String xyzOf(BlockPos pos) { return pos == null ? "无框架" : pos.toShortString(); }
+    private static String xyzOf(BlockPos pos) { return pos == null ? "no frame" : pos.toShortString(); }
 
     /** How many blocks rung 20 starts with. See {@link #stageDragon} for the arithmetic; the point of
-     *  the number is that it is roughly TWICE the worst case, so that「跑到一半没方块了」can never be
-     *  the thing that decides a rehearsal of the bridge and the towers. */
+     *  the number is that it is roughly TWICE the worst case, so that running out of blocks halfway
+     *  can never be the thing that decides a rehearsal of the bridge and the towers. */
     private static final int BLOCKS_A_DRAGON_TRIP_NEEDS = 3_072;
 
     /**
-     * Rung 20's starting conditions: a body on the End's arrival platform, with something to bridge
+     * Rung 20's starting conditions: the bot on the End's arrival platform, with something to bridge
      * with.
      *
      * <h2>The platform is built by vanilla's own feature, not by a teleport</h2>
      *
-     * {@code EndPortalBlock.getPortalDestination} does two things when it sends a body to the End,
-     * and a staging that copies only the second one drops the body into the void:
+     * {@code EndPortalBlock.getPortalDestination} does two things when it sends a player to the End,
+     * and a staging that copies only the second one drops the bot into the void:
      *
      * <pre>
      * EndPlatformFeature.createEndPlatform(end, BlockPos.containing(END_SPAWN_POINT.getBottomCenter()).below(), true);
@@ -1365,13 +1407,13 @@ public final class JourneyRehearsal {
      * that <b>does not exist in a freshly generated End</b> — vanilla builds it at arrival time.
      *
      * <p><b>⚠️ THE PLATFORM THIS BUILDS IS RUNG 20'S PRECONDITION, NEVER RUNG 19'S OUTPUT.</b> The two
-     * read identically in a results file — a body standing on obsidian at (100, 49, 0) — and they
+     * read identically in a results file — a bot standing on obsidian at (100, 49, 0) — and they
      * mean opposite things. Rung 19 is judged on whether the CROSSING put it there; this staging puts
-     * it there so that rung 20 can start. On 2026-08-17 rung 19 passed with the body 4426 blocks down
+     * it there so that rung 20 can start. On 2026-08-17 rung 19 passed with the bot 4426 blocks down
      * the void, and a rehearsal of rung 20 would have been green over that same defect on the same
      * afternoon, because it never asks the question — it lays the floor itself. So a green
      * {@code wd.rehearse20Dragon} is evidence about the dragon and about nothing upstream of it, and
-     * anyone reading「20 级过了，所以进末地是好的」has read this row backwards.
+     * anyone reading "rung 20 passed, so entering the End works" has read this row backwards.
      *
      * <h2>The landing cell is pinned, and that is a correctness requirement rather than tidiness</h2>
      *
@@ -1379,44 +1421,45 @@ public final class JourneyRehearsal {
      * {@code EntitySelector.withinDistance(0, 128, 0, 192.0)}, and {@code tick()} does <b>nothing at
      * all</b> — no arena ticket, no {@code scanState}, no {@code createNewDragon} — while no valid
      * player is in range. {@code END_SPAWN_POINT} (100, 50, 0) is 126.8 blocks from (0, 128, 0), so a
-     * body that lands there counts. Move it a few dozen blocks out「for a shorter bridge」and the
-     * dragon is never created — at which point rung 20 prints its {@code FakePlayer 不在玩家表里}
-     * diagnostic, <b>which would then be a false statement</b>: the body would be in the list and
+     * bot that lands there counts. Move it a few dozen blocks out "for a shorter bridge" and the
+     * dragon is never created — at which point rung 20 prints its "FakePlayer is not in the player
+     * list" diagnostic, <b>which would then be a false statement</b>: the bot would be in the list and
      * merely out of range. A staging that can make an existing diagnostic lie is worse than no
      * staging, so the cell is fixed and the distance is recorded next to its own threshold.
      *
      * <h2>The player list is read, not fixed</h2>
      *
-     * The other half of the same mechanism is that the body must be in {@code level.players()} at
-     * all, which every body the server seam mints is, because it joins. This records the answer
-     * rather than asserting it, on purpose: when the body is not in the list, rung 20's own
+     * The other half of the same mechanism is that the bot must be in {@code level.players()} at
+     * all, which every server-side player the driver creates is, because it joins. This records the
+     * answer rather than asserting it, on purpose: when the bot is not in the list, rung 20's own
      * {@code noDragonHere} is <b>correct</b> and costs only {@link JourneyEndRungs}
      * {@code DRAGON_WAIT_TICKS} to reach, and exercising a true diagnostic is worth more than
      * short-circuiting it here.
      *
      * <h2>⚠️ The bridge may not be the mechanism under test at all</h2>
      *
-     * This recipe's own note used to say「架桥和爬塔是这一级自己的事」, and the first half of that was
-     * an assumption nobody had measured. Sampled 2026-08-17 along the plan the walker actually made
-     * from the arrival platform: <b>every node had solid ground under it and every chunk was
-     * loaded</b> — {@code [0]100,49,0 下方实心 … [16]51,57,0 下方实心}, with eight {@code stepUp}
-     * edges climbing y 49→57. The planner was not routing over the void; it was routing up a real
-     * slope toward the island.
+     * "Bridging and climbing the towers are this rung's own task" is only half established: the
+     * bridging half is an assumption nobody had measured. Sampled 2026-08-17 along the plan the
+     * walker actually made from the arrival platform: <b>every node had solid ground under it and
+     * every chunk was loaded</b> — nodes [0] 100,49,0 through [16] 51,57,0 all had a solid block
+     * below, with eight {@code stepUp} edges climbing y 49→57. The planner was not routing over the
+     * void; it was routing up a real slope toward the island.
      *
-     * <p>So「从降落台到主岛之间是虚空,过去要架桥」is not established for this seed and this
-     * platform. If the ground is in fact continuous, the CORRECT outcome of this leg is that the body
-     * <b>walks</b> there, and a run that bridges would be doing unnecessary work rather than passing.
+     * <p>So "there is void between the landing platform and the main island, and crossing it needs a
+     * bridge" is not established for this seed and this platform. If the ground is in fact
+     * continuous, the CORRECT outcome of this walk is that the bot <b>walks</b> there, and a run that
+     * bridges would be doing unnecessary work rather than passing.
      * The blocks below are therefore stock against a gap that may or may not exist — not a
      * declaration that one does.
      *
      * <h2>Why 1024 blocks, and why not fewer</h2>
      *
      * Worst case is about 60 blocks of bridge from x=100 to the island's edge plus ten spikes at
-     * roughly 40 blocks of tower each — call it 460. The rule against staging「just barely enough」
+     * roughly 40 blocks of tower each — call it 460. The rule against staging "just barely enough"
      * bites hardest here, because a shortfall does not report itself as a shortfall: it reports as
-     * {@code 走不到主岛中央} or a tower that stops early, i.e. as a bug in the two mechanisms this
+     * "cannot reach the centre of the main island" or a tower that stops early, i.e. as a bug in the two mechanisms this
      * rung exists to exercise. Only cobblestone is handed over so that {@code pillarBlock} is
-     * deterministic — it picks whichever of {@code PILLAR_BLOCKS} the body carries most of.
+     * deterministic — it picks whichever of {@code PILLAR_BLOCKS} the bot carries most of.
      *
      * <p><b>Every number here is PROVISIONAL and the shape of the bag is a guess</b>: no climb has
      * reached rung 16. The calibration key is a {@code stock.*} row on rung 19, which does not exist
@@ -1425,21 +1468,21 @@ public final class JourneyRehearsal {
     private static void stageDragon(SceneContext ctx) {
         ServerWorldDriver body = JourneyRig.bodyOrNull();
         if (body == null) {
-            ctx.fail("排练：没有身体 —— wd.rehearse02Spawn 没有创建 avatar");
+            ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
         }
         ServerPlayer fp = body.fakePlayer();
         ServerLevel end = ctx.level().getServer().getLevel(net.minecraft.world.level.Level.END);
         if (end == null) {
-            ctx.fail("排练：这个运行时没有末地维度（数据包移除了 minecraft:the_end）—— "
-                    + "布景摆不出 DRAGON 的起点");
+            ctx.fail("rehearsal: this runtime has no End dimension (a data pack removed minecraft:the_end)"
+                    + " — the test setup cannot stage the DRAGON starting point");
             return;
         }
 
         BlockPos platform = BlockPos.containing(ServerLevel.END_SPAWN_POINT.getBottomCenter()).below();
         loadAround(end, platform, 2);
         // Vanilla's own call, arguments included. A fresh End has no arrival platform: the 5x5 of
-        // obsidian is built at arrival time by EndPortalBlock, so a body teleported to the same
+        // obsidian is built at arrival time by EndPortalBlock, so a bot teleported to the same
         // coordinates without this falls through the void and the rung reports a walk that failed.
         EndPlatformFeature.createEndPlatform(end, platform, true);
         JourneyLedger.staged("rehearsal: built the End arrival platform at " + platform.toShortString()
@@ -1449,17 +1492,17 @@ public final class JourneyRehearsal {
         // budget alone is BLOCKS_A_DRAGON_TRIP_NEEDS/64 stacks, so anything handed over AFTER it has
         // nowhere to go and is silently dropped on the floor. Raising the budget to 3072 (48 stacks)
         // did exactly that: the bow and 256 arrows never entered the bag, and the fight reported
-        // 「进入远程分支 0 tick，箭存量 0，手上=minecraft:iron_sword」 — a ranged half that had been
-        // fixed three times and could not have worked whatever the code said. The tools go in first
+        // 0 ticks in the ranged branch, 0 arrows in stock and minecraft:iron_sword in hand — a ranged
+        // half that had been fixed three times and could not have worked whatever the code said. The tools go in first
         // and the bulk last, so an overflow can only ever cost blocks, which the run counts.
         Map<String, Integer> kit = new LinkedHashMap<>();
         kit.put("minecraft:iron_sword", 1);
-        // Carried for parity with the recipes below, not for a reading: this body is invulnerable and
+        // Carried for parity with the recipes below, not for a reading: this bot is invulnerable and
         // never hungers, so nothing in rung 20 consumes it.
         kit.put("minecraft:cooked_beef", 16);
         // A bow, because the dragon spends almost all of this fight out of melee reach and vanilla
         // quarters every hit that is not on the head. Measured without one: 4000 consecutive ticks
-        // with the head never inside 4.5, and the single body hit that did land moved 200.0 -> 198.8.
+        // with the head never inside 4.5, and the single hit on the dragon's body that did land moved 200.0 -> 198.8.
         // PROVISIONAL like everything else here — the real ladder would have to earn string from
         // spiders — and listed in rehearsal.gave so it can never be mistaken for something climbed.
         kit.put("minecraft:bow", 1);
@@ -1476,48 +1519,52 @@ public final class JourneyRehearsal {
             gave.append(e.getKey().substring(e.getKey().indexOf(':') + 1)).append('×').append(e.getValue());
         }
         JourneyLedger.staged("rehearsal: gave " + gave);
-        ctx.record("rehearsal.gave", gave + "（全部 PROVISIONAL：真梯从未爬到 12 级以上。"
-                + "圆石 " + BLOCKS_A_DRAGON_TRIP_NEEDS + " —— 原本是 1024，按「约 60 格架桥 + 10 座塔"
-                + " × 约 40」的两倍估的，2026-08-18 起不再成立：路径规划现在拒绝在可架桥时跨越虚空"
-                + "（Move.overTheVoid）与两角皆空的对角线，于是每一道过去靠跳过去的缺口都改成了架桥。"
-                + "实测一趟打完水晶后 holding=11，塔因此报 stuck 而不是报缺料 —— 缺料不会说自己缺料，"
-                + "它会伪装成走不动或塔停住，那正是这一级要考的两个机制"
-                + "的两倍上下 —— 缺料不会报成缺料，会报成「走不到主岛」或塔提前停，"
-                + "那正是这一级要考的两个机制；只给圆石是为了让 pillarBlock 的选择确定）");
+        ctx.record("rehearsal.gave", gave + " (all PROVISIONAL: the real ladder has never climbed past"
+                + " rung 12. Cobblestone " + BLOCKS_A_DRAGON_TRIP_NEEDS + " — 1024 was twice the estimate"
+                + " of 'about 60 blocks of bridge + 10 towers × about 40', which no longer holds since"
+                + " 2026-08-18: path planning now refuses to cross the void where it can bridge"
+                + " (Move.overTheVoid) and refuses diagonals with both corners empty, so every gap that"
+                + " used to be jumped is now bridged. One measured run had holding=11 after destroying"
+                + " the crystals, and the tower therefore reported stuck rather than out of material —"
+                + " a material shortage does not report itself as a shortage; it presents as 'cannot"
+                + " reach the main island' or a tower that stops early, which are exactly the two"
+                + " mechanisms this rung tests. Only cobblestone is given so that pillarBlock's choice"
+                + " is deterministic)");
 
         Vec3 land = ServerLevel.END_SPAWN_POINT.getBottomCenter().subtract(0, 1, 0);
         fp.setDeltaMovement(Vec3.ZERO);
-        // Where the body was standing WHEN IT LEFT, in the terms the swim branches read. A cross-
+        // Where the bot was standing WHEN IT LEFT, in the terms the swim branches read. A cross-
         // dimension teleport does not recompute the fluid flags — those are written by baseTick, and
         // the walker ticks BEFORE the avatar's step — so whatever is true here is what WalkerTickDrive
-        // sees on its first tick in the End. Measured 2026-08-17: `支=swimColumn 水=true 没顶=true`
-        // fired a jump on the dry obsidian platform, and the flags read false again seven ticks later.
+        // sees on its first tick in the End. Measured 2026-08-17: the swimColumn branch, with in-water
+        // and under-water both true, fired a jump on the dry obsidian platform, and the flags read
+        // false again seven ticks later.
         // Recorded on BOTH sides of the teleport, because a flag that was already false before it
         // moves the question somewhere else entirely.
-        String wetBefore = fp.level().dimension().location() + " 水=" + fp.isInWater()
-                + " 没顶=" + fp.isUnderWater() + " 脚格="
+        String wetBefore = fp.level().dimension().location() + " inWater=" + fp.isInWater()
+                + " underWater=" + fp.isUnderWater() + " feetBlock="
                 + fp.level().getBlockState(fp.blockPosition()).getBlock();
         fp.teleportTo(end, land.x, land.y, land.z, java.util.Set.of(),
                 Direction.WEST.toYRot(), fp.getXRot());
         fp.setOnGround(true);
-        String wetOnArrival = "水=" + fp.isInWater() + " 没顶=" + fp.isUnderWater();
+        String wetOnArrival = "inWater=" + fp.isInWater() + " underWater=" + fp.isUnderWater();
         loadAround(end, fp.blockPosition(), 2);
         // MAKE THE FIXTURE DO WHAT THE PORTAL DOES. On the real ladder the crossing happens inside
         // Entity.baseTick() — handlePortal() first, then updateInWaterStateAndDoFluidPushing() and
-        // updateFluidOnEyes() a few lines later — so a body that walks through the End portal has its
-        // fluid flags recomputed AT THE DESTINATION, in the same tick. Those two calls are the ONLY
-        // writers of wasTouchingWater/wasEyeInWater, and baseTick reaches this body only through
+        // updateFluidOnEyes() a few lines later — so a player that walks through the End portal has
+        // its fluid flags recomputed AT THE DESTINATION, in the same tick. Those two calls are the ONLY
+        // writers of wasTouchingWater/wasEyeInWater, and baseTick reaches this player only through
         // ServerPlayerBody.step(), which does not run while the driver is unregistered — which is
-        // exactly when staging runs. So a fixture teleport left the flags frozen at whatever the body
+        // exactly when staging runs. So a fixture teleport left the flags frozen at whatever the player
         // last saw: measured 2026-08-17, rung 20 arrived on the dry obsidian platform still reading
-        // 水=true 没顶=true from an overworld pool, and WalkerTickDrive's `swimColumn` (both of whose
-        // terms are body flags, so it never reads the world when isUnderWater is set) fired a 0.42 on
-        // the platform. The body was still airborne seven ticks later when the parkour edge came up,
-        // the ground gate correctly refused it, and it walked into the void.
+        // in-water and under-water true from an overworld pool, and WalkerTickDrive's `swimColumn` (both of whose
+        // terms are player entity flags, so it never reads the world when isUnderWater is set) fired
+        // a 0.42 on the platform. The bot was still airborne seven ticks later when the parkour edge
+        // came up, the ground gate correctly refused it, and it walked into the void.
         //
         // This is a FIXTURE bug, not a product one — the portal path recomputes and rung 20 is not
         // supposed to be testing a teleport. Refreshing here removes the artefact without hiding it:
-        // rehearsal.wetOnDeparture still records what the body carried out of the world it left.
+        // rehearsal.wetOnDeparture still records what the bot carried out of the world it left.
         // AFTER loadAround, deliberately: updateFluidHeightAndDoFluidPushing returns early on an
         // unloaded chunk, which would report "in no fluid at all" and re-freeze a wrong answer.
         //
@@ -1525,29 +1572,31 @@ public final class JourneyRehearsal {
         // and reaching them would mean widening product visibility to fix a fixture. baseTick is also
         // the FAITHFUL call — it is the one the portal crossing itself runs, and the one
         // ServerPlayerBody.step() runs every tick, so this stages no behaviour the driver does not
-        // already perform on the body once a tick.
+        // already perform on the player once a tick.
         fp.baseTick();
-        ctx.record("rehearsal.wetOnDeparture", wetBefore + " → 落地时 " + wetOnArrival
-                + " → 重算后 水=" + fp.isInWater() + " 没顶=" + fp.isUnderWater() + " 脚格="
-                + end.getBlockState(fp.blockPosition()).getBlock());
-        // The record above is not an assertion, so make the fixture refuse to hand rung 20 a body
+        ctx.record("rehearsal.wetOnDeparture", wetBefore + " → on arrival " + wetOnArrival
+                + " → after recomputing inWater=" + fp.isInWater() + " underWater=" + fp.isUnderWater()
+                + " feetBlock=" + end.getBlockState(fp.blockPosition()).getBlock());
+        // The record above is not an assertion, so make the fixture refuse to hand rung 20 a bot
         // whose flags disagree with the world it is standing in. A rehearsal that stages a defect
         // reports it as the rung's, and this one cost a full round of investigation before the two
         // readings sat side by side.
         if (fp.isInWater() || fp.isUnderWater())
-            ctx.fail("rehearsal staging: the body reached the End platform still reporting 水="
-                    + fp.isInWater() + " 没顶=" + fp.isUnderWater() + " while standing in "
+            ctx.fail("rehearsal staging: the bot reached the End platform still reporting inWater="
+                    + fp.isInWater() + " underWater=" + fp.isUnderWater() + " while standing in "
                     + end.getBlockState(fp.blockPosition()).getBlock()
                     + ". The fixture's teleport left the fluid flags frozen — rung 20 would be"
                     + " judging a staging artefact, not the rung.");
-        JourneyLedger.staged("rehearsal: put the body on the End arrival platform at "
+        JourneyLedger.staged("rehearsal: put the bot on the End arrival platform at "
                 + fp.blockPosition().toShortString() + " instead of stepping through a portal");
         ctx.record("rehearsal.stand", fp.blockPosition().toShortString() + " @ "
-                + fp.level().dimension().location() + "（脚下 "
-                + end.getBlockState(fp.blockPosition().below()).getBlock() + "，"
-                + "水晶、龙、主岛一律没有布景 —— 走过去（或架桥过去）和爬塔都是这一级自己的事。"
-                + "⚠️「中间是虚空、必须架桥」未经证实：2026-08-17 沿计划采样，每个节点下方都是实心地面，"
-                + "地面若真是连的，这一段的正确结局是走过去，不是架桥）");
+                + fp.level().dimension().location() + " (standing on "
+                + end.getBlockState(fp.blockPosition().below()).getBlock() + "; the crystals, the"
+                + " dragon and the main island are not part of the test setup — walking there (or"
+                + " bridging there) and climbing the towers are this rung's own task. ⚠️ 'there is"
+                + " void in between and a bridge is required' is unconfirmed: sampled along the plan"
+                + " on 2026-08-17, every node had solid ground below it, and if the ground really is"
+                + " continuous, the correct outcome of this walk is to walk across, not to bridge)");
 
         // THE TWO READINGS THAT DECIDE WHETHER THIS RUNG HAS AN OPPONENT AT ALL. Neither is asserted:
         // both failure modes have a correct diagnostic inside rung 20 already, and both are cheap to
@@ -1555,27 +1604,29 @@ public final class JourneyRehearsal {
         // look identical in the results file.
         double away = Math.sqrt(fp.distanceToSqr(0.0, 128.0, 0.0));
         // ⚠️ A STAGING-TIME MEASUREMENT, and it says so in its own text. Nothing keeps it true: the
-        // body moves, and on 2026-08-17 it moved 23 000 blocks below the island, at which point this
-        // row still read「在范围内，龙会被创建」while the range was the actual cause of
+        // bot moves, and on 2026-08-17 it moved 23 000 blocks below the island, at which point this
+        // row still read "in range, the dragon will be created" while the range was the actual cause of
         // dragonUUID=null. The failure-time re-read is JourneyEndRungs.fightRangeNow, published as
         // dragon.rangeNow — this row must never be the one a reader uses to rule the distance out.
         ctx.record("rehearsal.fightRange", String.format(java.util.Locale.ROOT,
-                "【布景时刻测的，之后不再成立 —— 失败时看 dragon.rangeNow】"
-                        + "距 (0,128,0) %.1f 格，EndDragonFight.validPlayer 的门限是 192 —— %s", away,
-                away <= 192.0 ? "在范围内，龙会被创建" : "超了：龙永远不会出现，"
-                        + "缺的是距离那一半，不是玩家表那一半"));
-        ctx.record("rehearsal.inPlayerList", end.players().contains(fp) + "（level.players() 有 "
-                + end.players().size() + " 人）—— false 时 EndDragonFight.tick 每 20 tick 扫一次"
-                + "空表、什么都不做；服务端铸的身体都走过 placeNewPlayer，false 说明它被移除了或不在末地");
-        WorldDriverCommon.LOG.info("[rehearsal] staged DRAGON: gave {}, platform {}, body {} inList={}",
+                "[measured at staging time and not kept up to date — on failure read dragon.rangeNow] "
+                        + "%.1f blocks from (0,128,0); the EndDragonFight.validPlayer threshold is 192 — %s",
+                away, away <= 192.0 ? "in range, the dragon will be created" : "out of range: the"
+                        + " dragon will never appear; the missing half is the distance, not the player list"));
+        ctx.record("rehearsal.inPlayerList", end.players().contains(fp) + " (level.players() has "
+                + end.players().size() + " players) — when false, EndDragonFight.tick scans an empty"
+                + " list every 20 ticks and does nothing; every bot the server creates goes through"
+                + " placeNewPlayer, so false means it was removed or is not in the End");
+        WorldDriverCommon.LOG.info("[rehearsal] staged DRAGON: gave {}, platform {}, bot {} inList={}",
                 gave, platform, fp.blockPosition(), end.players().contains(fp));
     }
 
     /**
      * How many eyes rung 18 starts with — twelve, and twelve is a MEASUREMENT, not a fit.
      *
-     * <p>Rung 16's rehearsal ended {@code 末影之眼 ×12（够一套门）}, so twelve is what the rung below
-     * actually hands over. It is emphatically <b>not</b>「as many as there are empty frames」and must
+     * <p>Rung 16's rehearsal ended with twelve eyes of ender, enough for one portal, so twelve is what
+     * the rung below actually hands over. It is emphatically <b>not</b> "as many as there are empty
+     * frames" and must
      * never become that: vanilla pre-fills each of the twelve with probability 0.1, so a staging that
      * matched the empty count would make {@code ender_eye.left} unreadable. Left at twelve,
      * {@code ender_eye.left} measures what the WORLD pre-filled and can be checked against
@@ -1606,16 +1657,16 @@ public final class JourneyRehearsal {
         try {
             n = Integer.parseInt(raw);
         } catch (NumberFormatException e) {
-            ctx.record("rehearsal.eyes", raw + " 不是数字 —— 按 " + EYES_A_CLIMB_ARRIVES_WITH
-                    + " 只摆（16 级排练实测的数）");
+            ctx.record("rehearsal.eyes", raw + " is not a number — staging " + EYES_A_CLIMB_ARRIVES_WITH
+                    + " eyes (the number measured in the rung 16 rehearsal)");
             return EYES_A_CLIMB_ARRIVES_WITH;
         }
         if (n == EYES_A_CLIMB_ARRIVES_WITH) return n;
         JourneyLedger.staged("rehearsal: gave " + n + " eyes instead of the " + EYES_A_CLIMB_ARRIVES_WITH
                 + " rung 16 measured, to reach the short-stock branch");
-        ctx.record("rehearsal.eyes", n + " 只（16 级排练实测是 " + EYES_A_CLIMB_ARRIVES_WITH
-                + "）—— 这是为了跑到「眼不够」那条分支；判据是 eyes.ranOutAt 出现且 frames.filled < 12，"
-                + "不是颜色");
+        ctx.record("rehearsal.eyes", n + " eyes (the rung 16 rehearsal measured " + EYES_A_CLIMB_ARRIVES_WITH
+                + ") — this reaches the 'not enough eyes' branch; the criterion is that eyes.ranOutAt"
+                + " appears and frames.filled < 12, not the result colour");
         return Math.max(0, n);
     }
 
@@ -1630,7 +1681,7 @@ public final class JourneyRehearsal {
      * in minutes instead of in an hour of marching.
      *
      * <p><b>The lever widens the STAGING scan only; rung 17 keeps its constant untouched.</b> If it
-     * raised the rung's radius too, that question could never be answered「no」— the widening would
+     * raised the rung's radius too, that question could never be answered "no" — the widening would
      * hide the very shortfall it was raised to measure.
      *
      * <pre>./gradlew :fabric:runRehearsalServer -Prehearse=END_PORTAL -ProomScanChunks=12</pre>
@@ -1642,43 +1693,46 @@ public final class JourneyRehearsal {
         try {
             n = Integer.parseInt(raw);
         } catch (NumberFormatException e) {
-            ctx.record("rehearsal.roomScanChunks", raw + " 不是数字 —— 按 "
-                    + STRONGHOLD_ROOM_SCAN_CHUNKS + " 区块扫（和 rung 17 一样）");
+            ctx.record("rehearsal.roomScanChunks", raw + " is not a number — scanning "
+                    + STRONGHOLD_ROOM_SCAN_CHUNKS + " chunks (the same as rung 17)");
             return STRONGHOLD_ROOM_SCAN_CHUNKS;
         }
         if (n == STRONGHOLD_ROOM_SCAN_CHUNKS) return n;
         JourneyLedger.staged("rehearsal: widened the STAGING's frame scan to " + n
                 + " chunks (rung 17 still uses " + STRONGHOLD_ROOM_SCAN_CHUNKS + ")");
-        ctx.record("rehearsal.roomScanChunks", n + " 区块（±" + (n * 16) + " 格）—— "
-                + "只放宽布景这一侧的扫描，rung 17 的 ROOM_SCAN_CHUNKS 仍是 "
-                + STRONGHOLD_ROOM_SCAN_CHUNKS + "，否则「6 够不够」这个问题永远不可能答「不够」");
+        ctx.record("rehearsal.roomScanChunks", n + " chunks (±" + (n * 16) + " blocks) — only the test"
+                + " setup's own scan is widened; rung 17's ROOM_SCAN_CHUNKS is still "
+                + STRONGHOLD_ROOM_SCAN_CHUNKS + ", otherwise the question 'is 6 enough' could never be"
+                + " answered 'no'");
         return Math.max(1, n);
     }
 
     /**
-     * Hand over a bag and put the body where a portal would have put it.
+     * Hand over a bag and put the bot where a portal would have put it.
      *
      * <p>Shared by all three Nether rungs, because their starting condition differs only in what is
-     * in the bag. The coordinate is the overworld body's divided by eight, which is the same
+     * in the bag. The coordinate is the bot's overworld position divided by eight, which is the same
      * arithmetic rung 13 asserts — staging it anywhere else would quietly change which part of the
      * Nether the rung has to search.
      *
      * <p>Crossed with {@code teleportTo}, which is a real cross-level move for a {@code ServerPlayer}
-     * rather than a coordinate write — the driver's own view has to follow the body across, and if it
-     * does not, that is a finding these rungs should surface rather than one the staging should hide.
+     * rather than a coordinate write — the driver's own view has to follow the player across, and if
+     * it does not, that is a finding these rungs should surface rather than one the staging should
+     * hide.
      */
     private static void crossToTheNether(SceneContext ctx, String what, Map<String, Integer> kit,
                                          String notStaged) {
         ServerWorldDriver body = JourneyRig.bodyOrNull();
         if (body == null) {
-            ctx.fail("排练：没有身体 —— wd.rehearse02Spawn 没有创建 avatar");
+            ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
         }
         ServerPlayer fp = body.fakePlayer();
         ServerLevel nether = ctx.level().getServer()
                 .getLevel(net.minecraft.world.level.Level.NETHER);
         if (nether == null) {
-            ctx.fail("排练：这台服务器没有下界（allow-nether?）—— 布景摆不出 " + what + " 的起点");
+            ctx.fail("rehearsal: this server has no Nether (allow-nether?) — the test setup cannot stage"
+                    + " the " + what + " starting point");
             return;
         }
         BlockPos want = new BlockPos(Math.floorDiv(fp.blockPosition().getX(), 8), 64,
@@ -1686,7 +1740,8 @@ public final class JourneyRehearsal {
         loadAround(nether, want, 2);
         BlockPos stand = netherStandNear(nether, want);
         if (stand == null) {
-            ctx.fail("排练：下界 " + want.toShortString() + " 附近找不到一处站得住又不挨岩浆的落脚点");
+            ctx.fail("rehearsal: no standing cell near " + want.toShortString() + " in the Nether that"
+                    + " has a floor and does not touch lava");
             return;
         }
         StringBuilder gave = new StringBuilder();
@@ -1697,7 +1752,7 @@ public final class JourneyRehearsal {
         }
         JourneyLedger.staged("rehearsal: gave " + gave);
         ctx.record("rehearsal.gave", gave.toString());
-        JourneyLedger.staged("rehearsal: crossed the body to the Nether at " + stand.toShortString()
+        JourneyLedger.staged("rehearsal: crossed the bot to the Nether at " + stand.toShortString()
                 + " instead of walking through a portal it lit");
         fp.setDeltaMovement(Vec3.ZERO);
         fp.teleportTo(nether, stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5,
@@ -1705,8 +1760,8 @@ public final class JourneyRehearsal {
         fp.setOnGround(true);
         loadAround(nether, stand, 2);
         ctx.record("rehearsal.stand", stand.toShortString() + " @ " + fp.level().dimension().location()
-                + "（" + notStaged + "）");
-        WorldDriverCommon.LOG.info("[rehearsal] staged {}: gave {} and crossed the body to {}",
+                + " (" + notStaged + ")");
+        WorldDriverCommon.LOG.info("[rehearsal] staged {}: gave {} and crossed the bot to {}",
                 what, gave, stand);
     }
 
@@ -1722,11 +1777,11 @@ public final class JourneyRehearsal {
      * The original reason is still sound and is still honoured below: a fixed y is as likely to be
      * inside the netherrack as on it, so the y has to be searched, not assumed. But searching it
      * downward from the roof answers a different question from the one the parameter asks, and
-     * silently: {@link #buildTheDoorwayAndBankIt} passes the BODY's own y precisely so the staged
-     * doorway sits at the body's level, and got a shelf at y=93 for a body at y=41.
+     * silently: {@link #buildTheDoorwayAndBankIt} passes the BOT's own y precisely so the staged
+     * doorway sits at the bot's level, and got a shelf at y=93 for a bot at y=41.
      *
      * <p>That is not a harder test, it is a different one. Rung 17's real return walks back to a
-     * doorway the body itself came out of, which is at the body's level by construction — so a
+     * doorway the bot itself came out of, which is at the bot's level by construction — so a
      * 52-block vertical was a staging artifact standing in for the thing being measured, and the two
      * rehearsals it produced both died on the climb without ever reaching the crossing.
      *
@@ -1779,7 +1834,8 @@ public final class JourneyRehearsal {
             List<String> staging = JourneyLedger.stagingCalls();
             JourneyLedger.Entry entry = target == null ? null : JourneyLedger.entry(target);
 
-            ctx.record("REHEARSAL", "not a climb — 本次不是攀爬，下面各级是占位，不能当作 journey 结果");
+            ctx.record("REHEARSAL", "not a climb — this run is not a climb; the rungs below are"
+                    + " placeholders and must not be taken as a journey result");
             ctx.record("rehearsal.target", target == null ? "?" : target.name());
             ctx.record("rehearsal.stagingCalls", staging.size());
             for (int i = 0; i < staging.size(); i++) ctx.record("staged." + i, staging.get(i));
@@ -1788,14 +1844,15 @@ public final class JourneyRehearsal {
             if (entry != null) entry.evidence().forEach((k, v) -> ctx.record("ev." + k, v));
 
             if (entry == null || entry.outcome() != JourneyLedger.Outcome.REACHED) {
-                ctx.fail("REHEARSAL 失败：" + (target == null ? "?" : target.name())
-                        + " 没有达成 —— " + (entry == null ? "这一级根本没跑" : entry.detail())
-                        + "（staging.calls=" + staging.size() + "，这一行不是 journey 的成绩）");
+                ctx.fail("REHEARSAL failed: " + (target == null ? "?" : target.name())
+                        + " was not reached — " + (entry == null ? "the rung did not run at all" : entry.detail())
+                        + " (staging.calls=" + staging.size() + "; this row is not a journey result)");
                 return;
             }
             ctx.passNote("REHEARSAL — not a climb, staging.calls=" + staging.size()
-                    + "；只排练了 " + target.name() + "(" + target.label() + ")，"
-                    + "它下面的每一级都是占位，未攀爬。真正的成绩来自 :fabric:runJourneyServer。");
+                    + "; only " + target.name() + "(" + target.label() + ") was rehearsed, and every"
+                    + " rung below it is a placeholder that was not climbed. The real result comes from"
+                    + " :fabric:runJourneyServer.");
             WorldDriverCommon.LOG.info("[rehearsal] {} REACHED with staging.calls={} — NOT a climb",
                     target, staging.size());
         } finally {
@@ -1804,7 +1861,7 @@ public final class JourneyRehearsal {
     }
 
     // =====================================================================================
-    // Small world helpers. Reading terrain is not staging; moving the body is, and is counted.
+    // Small world helpers. Reading terrain is not staging; moving the bot is, and is counted.
     // =====================================================================================
 
     private static void give(ServerPlayer fp, String itemId, int count) {
@@ -1845,8 +1902,8 @@ public final class JourneyRehearsal {
      * line sitting right beside the one that prompted it:
      *
      * <pre>
-     * ladder    lava.landmark = lavaLake -9, 63, 19（勘测到 72 格源块）  shaft.standingOn = -8,19 (就近合格柱)
-     * rehearsal lava.landmark = lavaLake -9, 63, 19（勘测到 72 格源块）  shaft.standingOn = -9,21 (选定柱)
+     * ladder    lava.landmark = lavaLake -9, 63, 19 (72 source blocks surveyed)  shaft.standingOn = -8,19 (nearest qualifying column)
+     * rehearsal lava.landmark = lavaLake -9, 63, 19 (72 source blocks surveyed)  shaft.standingOn = -9,21 (chosen column)
      * </pre>
      *
      * <b>The same pool.</b> The whole difference is the shaft column — and {@code -8,19} is
@@ -1881,7 +1938,7 @@ public final class JourneyRehearsal {
      * <p>Two differences REMAIN deliberate and are named in the evidence row rather than quietly
      * lived with: the bucket is handed over full (rung 12's water walk is a rung-10 capability, see
      * {@code fillWaterAtTheSurface}) and there are two pickaxes (durability must not be a hidden
-     * variable in the leg under investigation).
+     * variable in the step under investigation).
      */
     private static final int PORTAL_LIT_COBBLESTONE = 111;
 
@@ -1897,7 +1954,8 @@ public final class JourneyRehearsal {
         if (raw.isEmpty()) return null;
         String[] parts = raw.split(",");
         if (parts.length != 2) {
-            ctx.record("rehearsal.shaftColumn", raw + " 不是 x,z 形式 —— 忽略，按自然选柱");
+            ctx.record("rehearsal.shaftColumn", raw + " is not in x,z form — ignored; the column is"
+                    + " chosen normally");
             return null;
         }
         try {
@@ -1906,11 +1964,13 @@ public final class JourneyRehearsal {
             JourneyLedger.staged("rehearsal: pinned the shaft column to "
                     + col.getX() + "," + col.getZ());
             ctx.record("rehearsal.shaftColumn", col.getX() + "," + col.getZ()
-                    + "：井柱被钉死（pickDigColumn 不参与，就地采纳也只认这一柱）"
-                    + " —— 这是复现某一趟 ladder 模腔的办法，比指定方位精确");
+                    + ": the shaft column is pinned (pickDigColumn is bypassed, and adopting the column"
+                    + " the bot stands on accepts only this one) — this reproduces the mould of a"
+                    + " specific ladder run, more precisely than specifying a side");
             return col;
         } catch (NumberFormatException e) {
-            ctx.record("rehearsal.shaftColumn", raw + " 解析不了 —— 忽略，按自然选柱");
+            ctx.record("rehearsal.shaftColumn", raw + " cannot be parsed — ignored; the column is"
+                    + " chosen normally");
             return null;
         }
     }
@@ -1919,17 +1979,17 @@ public final class JourneyRehearsal {
      * Which side of the lake this rehearsal must stand on, or null for whichever comes first.
      *
      * <p><b>A rehearsal that always stands in one place tests one geometry.</b> The real ladder picks
-     * its forge orientation from wherever eleven rungs left the body relative to the pool, and it is
+     * its forge orientation from wherever eleven rungs left the bot relative to the pool, and it is
      * a different one nearly every run: two consecutive ladder runs carved {@code forge.away=east}
      * and {@code forge.away=south}, and the second failed in a way the first could not reach — the
-     * body could not walk back out of the alcove to the staircase. Thirty rehearsals had never once
+     * bot could not walk back out of the alcove to the staircase. Thirty rehearsals had never once
      * been in that geometry, so the rehearsal was structurally blind to it, which is the same
      * blindness the inventory difference had (cobblestone here, dirt on the climb).
      *
      * <p><b>The side is staged, not the direction.</b> Forcing {@code stairDir} outright would let
      * the mould be carved TOWARD the lake — the one mistake that ends a run rather than costing it a
      * retry, and a state the real ladder can never be in, so anything found that way would not be a
-     * finding. Standing the body on the requested side makes {@link JourneyPortalRung#awayFrom} return
+     * finding. Standing the bot on the requested side makes {@link JourneyPortalRung#awayFrom} return
      * that direction on its own, and every geometric invariant the rung relies on still holds. A seed
      * with no dry ground on one side simply cannot rehearse that orientation, and says so.
      *
@@ -1941,12 +2001,13 @@ public final class JourneyRehearsal {
         if (want.isEmpty()) return null;
         for (Direction d : Direction.Plane.HORIZONTAL)
             if (d.getName().equalsIgnoreCase(want)) {
-                JourneyLedger.staged("rehearsal: stood the body on the " + d
+                JourneyLedger.staged("rehearsal: stood the bot on the " + d
                         + " side of the lake so the forge faces " + d);
                 return d;
             }
         ctx.record("rehearsal.forgeAway", want
-                + " 不是 north/south/east/west 之一 —— 按自然朝向摆，没有强制");
+                + " is not one of north/south/east/west — staged with the natural orientation, nothing"
+                + " forced");
         return null;
     }
 
@@ -1977,24 +2038,26 @@ public final class JourneyRehearsal {
         try {
             n = Integer.parseInt(raw);
         } catch (NumberFormatException e) {
-            ctx.record("rehearsal.buckets", raw + " 不是数字 —— 按 1 个桶摆（和真实爬升一样）");
+            ctx.record("rehearsal.buckets", raw + " is not a number — staging 1 bucket (the same as a"
+                    + " real climb)");
             return 1;
         }
         if (n <= 1) return 1;
-        JourneyLedger.staged("rehearsal: gave the body " + n + " buckets (" + (n - 1)
+        JourneyLedger.staged("rehearsal: gave the bot " + n + " buckets (" + (n - 1)
                 + " empty + 1 of water) so the pool trips become ceil(10/" + (n - 1) + ")"
                 + " — the real ladder can only afford one");
-        ctx.record("rehearsal.buckets", n + " 个桶（" + (n - 1) + " 个空桶 + 1 桶水）—— "
-                + "真实爬升只买得起 1 个，这是为了跑到多桶那条分支；判据是上楼趟数下降，不是绿");
+        ctx.record("rehearsal.buckets", n + " buckets (" + (n - 1) + " empty + 1 of water) — a real"
+                + " climb can afford only 1; this reaches the multi-bucket branch, and the criterion is"
+                + " a drop in the number of trips up the staircase, not a green result");
         return n;
     }
 
     /**
-     * Somewhere beside the lake a body can be set down: solid floor, two cells of air, no fluid.
+     * Somewhere beside the lake the bot can be set down: solid floor, two cells of air, no fluid.
      *
-     * <p>Rings outward from {@code min} so the body lands close enough for the rung's own walk to be
+     * <p>Rings outward from {@code min} so the bot lands close enough for the rung's own walk to be
      * short and far enough that it is not standing in the pool. The fluid checks are the whole point:
-     * dropping a body into a surface lava lake is invisible on an invulnerable avatar and turns every
+     * dropping the bot into a surface lava lake is invisible on an invulnerable avatar and turns every
      * later reading into nonsense.
      */
     private static BlockPos dryStandNear(ServerLevel level, BlockPos lake, int min, int max) {

@@ -5,13 +5,13 @@ import java.util.function.BooleanSupplier;
 import net.magicterra.worlddriver.bot.BotConfig;
 
 /**
- * Where one {@link PathFinder} gets its three planner tunables — <b>read live, owned per body</b>.
+ * Where one {@link PathFinder} gets its three planner tunables — <b>read live, owned per bot</b>.
  *
  * <p>These used to be read straight off {@code BotConfig} inside the search loop, through
  * {@code pfHorizonBlocks() / pfSoftCommitNodes() / pfDepthPenalty()}. Those getters consult
- * {@code BotConfig.pathfinderBoxedEscalate}, which is per-body, per-tick state that
+ * {@code BotConfig.pathfinderBoxedEscalate}, which is per-bot, per-tick state that
  * {@code WalkerTickPrelude} writes on every walker tick — into a process-global. One JVM with two
- * bodies in it therefore had them editing each other's planner, and that is not hypothetical: on the
+ * bots in it therefore had them editing each other's planner, and that is not hypothetical: on the
  * integrated topology a client Walker churning on an unreachable goal held the flag true, so a
  * server-thread {@code HorizonArena.run(48)} planned with the horizon switched OFF and returned
  * numbers byte-identical to {@code run(0)}. The scene measured nothing and still reported a colour.
@@ -25,8 +25,8 @@ import net.magicterra.worlddriver.bot.BotConfig;
  * never does — it grinds. That regression showed up immediately as a stall watchdog killing the
  * dedicated-Fabric suite with the server thread burning CPU inside a search.
  *
- * <p>So liveness is required and sharing is not. Reading the OWNING BODY's current escalation is
- * coherent — the body is the thing whose situation changed. Reading ANOTHER body's escalation is
+ * <p>So liveness is required and sharing is not. Reading the OWNING BOT's current escalation is
+ * coherent — the bot is the one whose situation changed. Reading ANOTHER bot's escalation is
  * what was incoherent all along.
  */
 public interface PathTuning {
@@ -38,11 +38,11 @@ public interface PathTuning {
     double depthPenalty();
 
     /**
-     * The legacy process-global source, for finders with no body behind them (tools, arenas that
+     * The legacy process-global source, for finders with no bot behind them (tools, arenas that
      * genuinely want ambient settings, direct API callers).
      *
      * <p>Still live, and still shared — this is the compatibility path, not the good one. Anything
-     * that owns a body should hand in {@link #escalatedWhen}; anything measuring the planner should
+     * that drives a bot should hand in {@link #escalatedWhen}; anything measuring the planner should
      * hand in {@link #fixed}.
      */
     PathTuning GLOBAL = new PathTuning() {
@@ -53,9 +53,9 @@ public interface PathTuning {
     };
 
     /**
-     * A body's own tuning: configured defaults, escalated while THAT body's boxed-churn clock is
+     * A bot's own tuning: configured defaults, escalated while THAT bot's boxed-churn clock is
      * armed. Live on both counts — the settings may be retuned at runtime and the clock lapses on
-     * its own — and it consults no shared flag, so a second body churning cannot reach it.
+     * its own — and it consults no shared flag, so a second bot churning cannot reach it.
      */
     static PathTuning escalatedWhen(BooleanSupplier armed) {
         return new PathTuning() {
@@ -73,14 +73,14 @@ public interface PathTuning {
                         : BotConfig.pathfinderDepthPenalty;
             }
             @Override public String toString() {
-                return "body(escalated=" + armed.getAsBoolean() + ")";
+                return "bot(escalated=" + armed.getAsBoolean() + ")";
             }
         };
     }
 
     /**
      * Fixed values that nothing can override — for a caller MEASURING the planner rather than
-     * driving a body.
+     * driving a bot.
      *
      * <p>This is what a debug arena wants. Such a caller used to write the globals and put them back
      * in a finally, which is unsound the moment anything else in the JVM is planning and is what

@@ -134,7 +134,7 @@ final class WalkerTickStallDetect {
         // hangs on noStepProgressTicks, which a slide-back's re-approach / vertical bob zeroes on every 3D
         // new-low — so on a WIDE steep ram the gate never fills and the bot bob-rams 150+ ticks before the
         // slow WEDGE_TICKS(100) burst (live J3b -877,75,241: diagUp node 3 above the grounded/airborne foot,
-        // cur2 3.2-4.1, 反复横跳, 156 t / 7.8 s). Mirror crestOrbitTicks: a stepUp/diagUp edge (a PLANNED +1
+        // cur2 3.2-4.1, repeated side-to-side hopping, 156 t / 7.8 s). Mirror crestOrbitTicks: a stepUp/diagUp edge (a PLANNED +1
         // the bot has slid 2-3 BELOW, so its node now sits >=2 above the foot) that has DWELT rawStepDwellTicks
         // past the bar — bob-immune, and NO onGround requirement so it ALSO catches the airborne-bob ram the
         // grounded ascentRamSlide misses — folds into fellOffPath so the fresh foot-search blacklists the
@@ -424,13 +424,13 @@ final class WalkerTickStallDetect {
      *  cruise. Under the cruise the distance is horizontal.
      *
      *  <p>The node, deliberately, not the edge {@code path[step-1] → path[step]}. {@code adoptPath}
-     *  string-pulls a flat run into one long edge whose tracked node is its far end, so a body that
+     *  string-pulls a flat run into one long edge whose tracked node is its far end, so a bot that
      *  has just started a 12-cell lane reads as 12 cells off, and this fires a safety re-search from
      *  the foot every tick until the last three cells — the search string-pulls to the same edge, so
      *  the walk goes on, at a full A* per tick (client lane 2026-09-06: search-begin on each of
      *  t=2..20). Measuring to the edge instead removes those searches and is what a {@code planId}
      *  goto would want, and it was tried: four scenes then failed on the Fabric gate —
-     *  {@code wd.entityLeash}, {@code wd.entityLeashLowY} (the hard leash no longer held the body
+     *  {@code wd.entityLeash}, {@code wd.entityLeashLowY} (the hard leash no longer held the bot
      *  back) and the two {@code wd.pillarLedger*} (the water climb-out takeover never engaged) —
      *  i.e. the per-tick re-search on a long edge is load-bearing for the leash and the bank takeover
      *  in ways this file does not own. Until those are re-homed, the node stays the reference. */

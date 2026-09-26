@@ -24,10 +24,10 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
- * The one set of answers to「can a body pass this cell, stand on it, and what does digging it
- * cost」. Every planner-facing {@code WorldView} that reads a real level delegates here —
- * {@code ClientWorldView} for the shipped client body, {@link LevelWorldView} for the server
- * body and the {@code wd.*} suite, {@link ServerWorldView} for read-only analysis — so a route
+ * The one set of answers to "can a player pass this cell, stand on it, and what does digging it
+ * cost". Every planner-facing {@code WorldView} that reads a real level delegates here —
+ * {@code ClientWorldView} for the shipped client player, {@link LevelWorldView} for the
+ * server-side player and the {@code wd.*} suite, {@link ServerWorldView} for read-only analysis — so a route
  * one of them validates is a route the others would plan. {@code wd.clientWorldViewParity} asks
  * two of them the same questions over a palette of terrain and fails on the first disagreement.
  *
@@ -42,8 +42,9 @@ public final class CellRules {
      *  20/4.317 ≈ 4.63 ticks per cell, so one mining tick prices at 10 / 4.63. */
     public static final double COST_PER_TICK = 10.0 / (20.0 / 4.317); // ≈ 2.158
 
-    /** The standing body, cell-local: 0.6 wide, full cell height. A shape that misses this
-     *  column (cocoa pod, one-axis pane, wall nub) leaves the body room; one that meets it does not. */
+    /** The standing player's hitbox, cell-local: 0.6 wide, full cell height. A shape that misses
+     *  this column (cocoa pod, one-axis pane, wall nub) leaves the player room; one that meets it
+     *  does not. */
     public static final VoxelShape PLAYER_COLUMN = Shapes.box(0.2, 0.0, 0.2, 0.8, 1.0, 0.8);
 
     /** Digging with a tool the block does not accept is priced ×3 on top of vanilla's slower
@@ -52,8 +53,8 @@ public final class CellRules {
     private static final double WRONG_TOOL_TAX = 3.0;
 
     /** Passable: air, water, and — under {@code collisionAwarePathing} — a colliding block whose
-     *  real shape misses the body column, or a floor-resting shape no taller than
-     *  {@code pathfinderThinObstacleHeight} that the body steps over (pressure plate, carpet,
+     *  real shape misses the player column, or a floor-resting shape no taller than
+     *  {@code pathfinderThinObstacleHeight} that the player steps over (pressure plate, carpet,
      *  lily pad, a closed bottom trapdoor). */
     public static boolean isPassable(BlockGetter lvl, BlockPos p, BlockState s) {
         if (!s.blocksMotion() || s.getFluidState().is(FluidTags.WATER)) return true;
@@ -69,10 +70,10 @@ public final class CellRules {
     }
 
     /**
-     * A floor: a colliding shape the body column lands on, whose top is within this cell. That
+     * A floor: a colliding shape the player column lands on, whose top is within this cell. That
      * admits the 14/16 and 15/16 family (soul sand, mud, farmland, dirt path, honey), bottom slabs,
-     * chests and tables, because a body really does stand on them; it refuses fences and walls
-     * (top at 1.5, the feet would be in the cell above) and thin decorations (the body stands in
+     * chests and tables, because a player really does stand on them; it refuses fences and walls
+     * (top at 1.5, the feet would be in the cell above) and thin decorations (the player stands in
      * that cell, not on it — see {@link #isPassable}). Without {@code collisionAwarePathing} it is
      * plain {@code blocksMotion}.
      */
@@ -144,15 +145,15 @@ public final class CellRules {
     }
 
     /**
-     * The price of digging {@code s} at {@code p} with the best tool anywhere in the body's
+     * The price of digging {@code s} at {@code p} with the best tool anywhere in the bot's
      * inventory — all 36 slots, because both executors ({@code BotInteract.selectBestToolFor},
      * {@code ServerPlayerBody.selectTool}) swap a bag tool up before they dig. Follows vanilla
-     * {@code BlockState.getDestroyProgress}: a block that needs no tool is「correct」bare-handed,
+     * {@code BlockState.getDestroyProgress}: a block that needs no tool is "correct" bare-handed,
      * a block that needs one and does not get it digs at the ÷100 rate and then pays
      * {@link #WRONG_TOOL_TAX}; logs pay {@code pathfinderLogBreakTax} unless the current mine
      * goal is a log; everything is scaled by {@code pathfinderBreakCostMultiplier}. The
      * stance-dependent slowdowns (eyes in water, airborne) are deliberately not here — they
-     * describe where the body is now, not where this future dig happens.
+     * describe where the bot is now, not where this future dig happens.
      */
     public static double breakCost(Level lvl, BlockPos p, BlockState s, Player pl, DigSnapshot snap) {
         if (s.isAir()) return 0;

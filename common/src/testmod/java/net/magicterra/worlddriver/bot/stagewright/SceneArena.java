@@ -6,7 +6,7 @@ import net.minecraft.world.level.block.Blocks;
 
 /**
  * Terrain staging shared by every scene file — the sibling of {@link SceneBody}, which stages the
- * body. A scene that needs a floor to stand on should not have to own one.
+ * bot. A scene that needs a floor to stand on should not have to own one.
  *
  * <p>This exists because it was copied instead. Six scene files each carried a byte-identical
  * {@code buildFloor} (five {@code private}, one package-private, differing only in that keyword)

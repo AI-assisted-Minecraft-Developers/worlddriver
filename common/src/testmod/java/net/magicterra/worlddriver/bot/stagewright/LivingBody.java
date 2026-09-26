@@ -18,7 +18,7 @@ import net.minecraft.world.phys.Vec3;
 /**
  * A {@link Body} over a mob: the same walker and pathfinder, driving the mob's own input fields.
  *
- * <p><b>The channel is the one both player bodies use.</b> Each step writes {@code xxa}/{@code zza},
+ * <p><b>The channel is the one both player bots use.</b> Each step writes {@code xxa}/{@code zza},
  * {@code jumping} and the sneak flag, then vanilla's {@code aiStep} and {@code travel} move the
  * entity. What a mob adds is speed. A player's {@code getSpeed()} reads its movement attribute; a
  * mob's reads a field its {@code MoveControl} fills on every walk. So each step writes that field from
@@ -27,10 +27,10 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p><b>No hands, no menus.</b> A process that needs either refuses with {@code no_hands}, and the
  * walker drives its handless stand-in. The planner is kept from pricing digs and placements by the
- * view: {@code LevelWorldView} over a body that is not a player prices every break as impossible and
- * counts no placeable blocks.
+ * view: {@code LevelWorldView} over an entity that is not a player prices every break as impossible
+ * and counts no placeable blocks.
  *
- * <p>The mob has to be a {@link DrivenMob}, because nothing else keeps its own AI off the legs; see
+ * <p>The mob has to be a {@link DrivenMob}, because nothing else keeps its own AI from moving it; see
  * {@link net.magicterra.worlddriver.testcontent.DrivenPiglin}.
  */
 public final class LivingBody implements Body {

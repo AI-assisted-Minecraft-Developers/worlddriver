@@ -16,16 +16,17 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * Where a leg leaves the body, and the two recoveries that put it back on ground it can work from.
+ * Where a movement task leaves the bot, and the two recoveries that put it back on ground it can
+ * work from.
  *
  * <p>Both fixes here were landed and then could not be judged. Their occasions are rare — a walk
  * home that ends on top of the tower it built, a climb out of a lava dive that ends still
  * swimming — and five consecutive ladder runs produced neither. Each run costs a quarter of an
- * hour and answers「did it happen this time」; what has to be answered is「when it happens, does the
- * recovery work」. That question needs the occasion staged, which is what these two scenes are.
+ * hour and answers "did it happen this time"; what has to be answered is "when it happens, does
+ * the recovery work". That question needs the occasion staged, which is what these two scenes are.
  *
  * <p><b>Both assert that the recovery was OBSERVED to run</b> — the evidence row it writes must be
- * present — rather than that the world ended up tidy. A body that was never on a tower also ends on
+ * present — rather than that the world ended up tidy. A bot that was never on a tower also ends on
  * the ground; counting that as a pass is how a fix gets signed off without ever executing
  * (see the ladder's own history of exactly this).
  *
@@ -45,10 +46,10 @@ public final class JourneyLandingScenes implements SceneProvider {
                 // NOT REQUIRED, and standing RED on purpose — the same shelf `wd.vineOverWaterClimb`
                 // and `wd.serverEscapeSealedShelter` sit on. It is not waiting on its own staging:
                 // it has already driven two real fixes into the recovery (the tolerance that let
-                // 「arrived」mean one cell out in the water, and `afloat` answering「no」for a body
+                // "arrived" mean one cell out in the water, and `afloat` answering "no" for a bot
                 // treading water with no floor). What it is waiting on is TODO J47 — the pathfinder
                 // returns `end=path-consumed` one cell short of a bank that is flush with the water,
-                // so no amount of asking moves the body the last step. When J47 lands this flips to
+                // so no amount of asking moves the bot the last step. When J47 lands this flips to
                 // PASS by itself, which is the whole reason it stays in the suite red rather than
                 // being softened into something a broken walker can satisfy.
                 Scene.of("wd.journeyGetsAshoreBeforePouring", 6_000,
@@ -64,14 +65,14 @@ public final class JourneyLandingScenes implements SceneProvider {
                 Scene.of("wd.journeyFlightEndsOnADryStep", 6_000,
                         JourneyLandingScenes::flightEndsOnADryStep),
                 // REQUIRED. It spent one afternoon on the optional shelf and came off it: first it
-                // REFUTED the fix it was written to validate (a second leg aimed one step further
-                // down walked the body two cells BACK and one row UP), then it named the real one.
+                // REFUTED the fix it was written to validate (a second walk aimed one step further
+                // down moved the bot two cells BACK and one row UP), then it named the real one.
                 //
                 // What it pins now is the turn before the last step. Its three readings, in order,
                 // are the whole argument and none of them is an inference:
                 //   two-cell staircase   → `end=failed:no path (expanded=2)`   (this arena's own bug)
-                //   three-cell, no turn  → `end=path-consumed`, body 0.10 b short, `descentHolds=3`
-                //   three-cell, turned   → `end=arrived`, `yawErr` 0, body in the terminal
+                //   three-cell, no turn  → `end=path-consumed`, bot 0.10 b short, `descentHolds=3`
+                //   three-cell, turned   → `end=arrived`, `yawErr` 0, bot in the terminal
                 // Ten seconds a run under `-Pstagewright.scenes=`, and every one of those readings
                 // came out of this arena rather than off a 50-minute ladder.
                 Scene.of("wd.journeyWalksOffTheLipOntoTheDryStep", 6_000,
@@ -85,7 +86,7 @@ public final class JourneyLandingScenes implements SceneProvider {
     /** Natural ground level inside the arena box. */
     private static final int GROUND = 20;
 
-    /** Courses of tower under the body. Twelve where the guard trips at eight. */
+    /** Courses of tower under the bot. Twelve where the guard trips at eight. */
     private static final int TOWER = 12;
 
     /** How deep the pit is. Twelve, for the same reason. */
@@ -99,8 +100,8 @@ public final class JourneyLandingScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         ctx.cleanup(() -> clearBox(ctx));
         flatGround(ctx);
-        // The tower, at the body's own column and NOT at the home column — the fix reads the home
-        // column's heightmap precisely because the body's own reports the tower top.
+        // The tower, at the bot's own column and NOT at the home column — the fix reads the home
+        // column's heightmap precisely because the bot's own reports the tower top.
         for (int dy = 1; dy <= TOWER; dy++) ctx.setBlock(0, GROUND + dy, 0, Blocks.COBBLESTONE);
 
         BlockPos home = ctx.rel(3, GROUND + 1, 0);
@@ -114,11 +115,12 @@ public final class JourneyLandingScenes implements SceneProvider {
         BlockPos foot = fp.blockPosition();
         int ground = JourneyTerrain.daylightAt(level, home);
         int off = foot.getY() - ground;
-        ctx.record("staged.foot", foot.toShortString() + "，脚下="
+        ctx.record("staged.foot", foot.toShortString() + ", block below="
                 + level.getBlockState(foot.below()).getBlock());
-        ctx.record("staged.off", "身体 y=" + foot.getY() + "，出生柱地面 y=" + ground + "，差 " + off);
-        ctx.check(off >= TOWER - 1).as("控制组：身体必须真的高在塔顶上，且远超守卫的 8 格阈值，"
-                + "否则「补救跑了」测的是别的东西：差 " + off + " 格").isTrue();
+        ctx.record("staged.off", "bot y=" + foot.getY() + ", spawn column ground y=" + ground + ", difference " + off);
+        ctx.check(off >= TOWER - 1).as("control: the bot must really be up on the tower top, well past the guard's"
+                + " 8-block threshold, otherwise \"the recovery ran\" measures something else: difference "
+                + off + " blocks").isTrue();
 
         int cobbleBefore = countOf(fp, Items.COBBLESTONE);
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.BED, driver);
@@ -128,18 +130,21 @@ public final class JourneyLandingScenes implements SceneProvider {
             Object recovered = rig.evidenceOf("bed.towerRecovered");
             ctx.record("subject.homeElevation", String.valueOf(elev));
             ctx.record("subject.towerRecovered", String.valueOf(recovered));
-            ctx.record("subject.endedAt", ended.toShortString() + "，脚下="
+            ctx.record("subject.endedAt", ended.toShortString() + ", block below="
                     + level.getBlockState(ended.below()).getBlock());
             ctx.record("subject.cobble", cobbleBefore + " → " + countOf(fp, Items.COBBLESTONE));
 
-            ctx.check(elev).as("A 高差这一行**每条路径都要写**，否则「它是平的」和「没人量过」"
-                    + "分不开：" + elev).isNotNull();
-            ctx.check(recovered).as("B 拆塔这一支**被观察到跑完** —— `bed.towerRecovered` 必须写了。"
-                    + "只有 A 没有 B，说明守卫看见了高差却没动：" + recovered).isNotNull();
-            ctx.check(ended.getY() - ground <= 2).as("C 身体最后真的落回地面附近（判终点，不是判"
-                    + "走了几步）：终点 y=" + ended.getY() + "，地面 y=" + ground).isTrue();
+            ctx.check(elev).as("A the elevation row must be written **on every path**, otherwise \"it is flat\""
+                    + " and \"nobody measured\" cannot be told apart: " + elev).isNotNull();
+            ctx.check(recovered).as("B the tower-removal branch must be **observed to complete** -"
+                    + " `bed.towerRecovered` must be written. A without B means the guard saw the elevation"
+                    + " difference and did nothing: " + recovered).isNotNull();
+            ctx.check(ended.getY() - ground <= 2).as("C the bot really ended near the ground (judged by the"
+                    + " end position, not by the number of steps): end y=" + ended.getY() + ", ground y="
+                    + ground).isTrue();
             ctx.check(countOf(fp, Items.COBBLESTONE) > cobbleBefore).as(
-                    "D 塔被挖回了包里 —— 每一级都是走行器花掉的一块，这是拆塔的**目的**而不是副作用："
+                    "D the tower was mined back into the inventory - every course is a block the walker spent,"
+                    + " and recovering them is the **purpose** of removing the tower, not a side effect: "
                     + cobbleBefore + " → " + countOf(fp, Items.COBBLESTONE)).isTrue();
         });
     }
@@ -150,7 +155,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         ctx.cleanup(() -> clearBox(ctx));
         flatGround(ctx);
-        // A dry shaft under the body: the OTHER direction of the same guard, which had never been
+        // A dry shaft under the bot: the OTHER direction of the same guard, which had never been
         // exercised either. Dug one wide, as the ladder's own shafts are.
         for (int dy = 0; dy > -PIT; dy--) ctx.setBlock(0, GROUND + dy, 0, Blocks.AIR);
 
@@ -167,9 +172,9 @@ public final class JourneyLandingScenes implements SceneProvider {
         int ground = JourneyTerrain.daylightAt(level, home);
         int off = foot.getY() - ground;
         ctx.record("staged.foot", foot.toShortString());
-        ctx.record("staged.off", "身体 y=" + foot.getY() + "，出生柱地面 y=" + ground + "，差 " + off);
-        ctx.check(off <= -(PIT - 2)).as("控制组：身体必须真的深在坑底，且远超阈值：差 " + off
-                + " 格").isTrue();
+        ctx.record("staged.off", "bot y=" + foot.getY() + ", spawn column ground y=" + ground + ", difference " + off);
+        ctx.check(off <= -(PIT - 2)).as("control: the bot must really be deep at the pit bottom, well past the"
+                + " threshold: difference " + off + " blocks").isTrue();
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.BED, driver);
         WorldDriverJourneyScenes.settleOntoHomeGround(rig, "bed", home, () -> {
@@ -177,14 +182,15 @@ public final class JourneyLandingScenes implements SceneProvider {
             Object climbed = rig.evidenceOf("bed.climbedBackTo");
             ctx.record("subject.homeElevation", String.valueOf(rig.evidenceOf("bed.homeElevation")));
             ctx.record("subject.climbedBackTo", String.valueOf(climbed));
-            ctx.record("subject.endedAt", ended.toShortString() + "，脚下="
+            ctx.record("subject.endedAt", ended.toShortString() + ", block below="
                     + level.getBlockState(ended.below()).getBlock());
 
-            ctx.check(rig.evidenceOf("bed.homeElevation")).as("A 高差这一行每条路径都要写").isNotNull();
-            ctx.check(climbed).as("B 爬出这一支**被观察到跑完** —— `bed.climbedBackTo` 必须写了："
-                    + climbed).isNotNull();
-            ctx.check(ended.getY() >= ground - 2).as("C 身体真的回到了地面高度：终点 y="
-                    + ended.getY() + "，地面 y=" + ground).isTrue();
+            ctx.check(rig.evidenceOf("bed.homeElevation")).as("A the elevation row must be written on every path")
+                    .isNotNull();
+            ctx.check(climbed).as("B the climb-out branch must be **observed to complete** -"
+                    + " `bed.climbedBackTo` must be written: " + climbed).isNotNull();
+            ctx.check(ended.getY() >= ground - 2).as("C the bot really returned to ground level: end y="
+                    + ended.getY() + ", ground y=" + ground).isTrue();
         });
     }
 
@@ -196,7 +202,7 @@ public final class JourneyLandingScenes implements SceneProvider {
     private static final int POOL_DEPTH = 6;
     private static final int POOL_HALF = 4;
 
-    /** How far under the surface the body starts. Two, so a body that bobs up a cell while the three
+    /** How far under the surface the bot starts. Two, so a bot that bobs up a cell while the three
      *  settling steps run is still in water when the recovery reads it. */
     private static final int SUBMERGED = 2;
 
@@ -212,27 +218,28 @@ public final class JourneyLandingScenes implements SceneProvider {
         ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, GROUND - SUBMERGED, 0));
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.LAVA_BUCKET));
-        // AND BLOCKS, because the real body has them. The first staging carried only the bucket and
-        // the body could not get out of the pool at all: `end=path-consumed` one cell from the bank,
-        // every run. `WalkerTickClimb:557` gates the swim escape on `holdPlaceable()`, so a body
-        // with nothing to place has no way up out of water — and the ladder's body always has
+        // AND BLOCKS, because the real bot has them. The first staging carried only the bucket and
+        // the bot could not get out of the pool at all: `end=path-consumed` one cell from the bank,
+        // every run. `WalkerTickClimb:557` gates the swim escape on `holdPlaceable()`, so a bot
+        // with nothing to place has no way up out of water — and the ladder's bot always has
         // something (the run this scene is about recorded `pillarStock = minecraft:dirt ×30`).
-        // Staging it empty-handed was testing a body the ladder never has.
+        // Staging it empty-handed was testing a bot the ladder never has.
         fp.getInventory().items.set(1, new ItemStack(Items.COBBLESTONE, 32));
         fp.getInventory().selected = 0;
         ServerPlayerBody av = driver.avatar();
         for (int i = 0; i < 3; i++) av.step();
 
         BlockPos foot = fp.blockPosition();
-        ctx.record("staged.foot", foot.toShortString() + "，脚格="
-                + level.getBlockState(foot).getBlock() + "，脚下="
+        ctx.record("staged.foot", foot.toShortString() + ", foot cell="
+                + level.getBlockState(foot).getBlock() + ", block below="
                 + level.getBlockState(foot.below()).getBlock());
         ctx.check(JourneyShaft.afloat(level, foot)).as(
-                "控制组 A 身体必须真的浮着（脚格与脚下都是流体），否则补救不会被触发，"
-                + "「上岸了」是 0==0：脚格=" + level.getBlockState(foot).getBlock()
-                + "，脚下=" + level.getBlockState(foot.below()).getBlock()).isTrue();
+                "control A: the bot must really be afloat (foot cell and the cell below are both fluid),"
+                + " otherwise the recovery is never triggered and \"got ashore\" is 0==0: foot cell="
+                + level.getBlockState(foot).getBlock()
+                + ", block below=" + level.getBlockState(foot.below()).getBlock()).isTrue();
         BlockPos bank = JourneyTerrain.nearestDryColumn(level, foot, 16);
-        ctx.check(bank).as("控制组 B 岸必须够得着，否则补救无路可走").isNotNull();
+        ctx.check(bank).as("control B: the bank must be in reach, otherwise the recovery has no route").isNotNull();
         // WHAT THE CHOSEN COLUMN ACTUALLY IS, spelled out. The first two arena runs both ended one
         // cell short of it and no row on disk could say whether that was the walker refusing a step
         // or the target being a cell nothing can stand in. Reasoning about the staging arithmetic
@@ -247,15 +254,17 @@ public final class JourneyLandingScenes implements SceneProvider {
             Object dry = rig.evidenceOf("lava.exit.dryLand");
             ctx.record("subject.afloat", String.valueOf(afloat));
             ctx.record("subject.dryLand", String.valueOf(dry));
-            ctx.record("subject.endedAt", ended.toShortString() + "，脚下="
+            ctx.record("subject.endedAt", ended.toShortString() + ", block below="
                     + level.getBlockState(ended.below()).getBlock());
 
-            ctx.check(String.valueOf(afloat).startsWith("是")).as(
-                    "A 补救**被观察到进入** —— `lava.exit.afloat` 必须读作「是」：" + afloat).isTrue();
-            ctx.check(dry).as("B 而且真的挑中了一柱岸：" + dry).isNotNull();
+            ctx.check(String.valueOf(afloat).startsWith("yes")).as(
+                    "A the recovery must be **observed to start** - `lava.exit.afloat` must read as yes: "
+                    + afloat).isTrue();
+            ctx.check(dry).as("B and it really chose a bank column: " + dry).isNotNull();
             ctx.check(level.getFluidState(ended.below()).isEmpty()).as(
-                    "C 身体最后脚下是固体，不是水（判终点，不是判走了几格）：" + ended.toShortString()
-                    + "，脚下=" + level.getBlockState(ended.below()).getBlock()).isTrue();
+                    "C the bot ended with a solid block below its feet, not water (judged by the end position,"
+                    + " not by the number of blocks walked): " + ended.toShortString()
+                    + ", block below=" + level.getBlockState(ended.below()).getBlock()).isTrue();
         });
     }
 
@@ -266,15 +275,15 @@ public final class JourneyLandingScenes implements SceneProvider {
      *
      * <p><b>The occasion, and why it needs staging.</b> Rung 12 opens by scooping water, standing
      * where rung 11 just cast obsidian — and rung 11 casts it into the very pond rung 12 drinks
-     * from. On ladder j50 the body happened to stand at y=62 and the fresh obsidian sat on the
+     * from. On ladder j50 the bot happened to stand at y=62 and the fresh obsidian sat on the
      * diagonal to the nearest source: {@code waterFill.result = FAIL}, rung 12 dead at tick 7.
-     * On j48 and j51 the body happened to stand at y=63, its ray cleared the obsidian's top face,
+     * On j48 and j51 the bot happened to stand at y=63, its ray cleared the obsidian's top face,
      * and the same code filled. Same coordinate, same 1.4 blocks, opposite outcomes — the seat
      * decided it, so no number of ladder runs decides anything. This stages the bad seat.
      *
      * <p><b>Why a lid rather than a wall.</b> A wall has to be placed on the exact line the ray
      * takes, which is arithmetic this scene would then be testing instead of the fix. A lid
-     * directly ABOVE the near source blocks every ray from every body standing higher than it, so
+     * directly ABOVE the near source blocks every ray from every bot standing higher than it, so
      * the staging cannot quietly stop reproducing the trap when an unrelated constant moves.
      *
      * <p><b>What it asserts, in order.</b> First that the trap is real (the distance-ranked finder
@@ -311,25 +320,28 @@ public final class JourneyLandingScenes implements SceneProvider {
         BlockPos foot = fp.blockPosition();
         BlockPos nearest = JourneyTerrain.shallowWaterNear(rig, 8);
         BlockPos visible = JourneyFill.visibleSourceNear(rig, false, JourneyFill.FILL_RESEARCH);
-        ctx.record("staged.foot", foot.toShortString() + "，眼睛 y=" + fp.getEyePosition().y);
-        ctx.record("staged.lidded", lidded.toShortString() + "，其上="
+        ctx.record("staged.foot", foot.toShortString() + ", eye y=" + fp.getEyePosition().y);
+        ctx.record("staged.lidded", lidded.toShortString() + ", block above="
                 + level.getBlockState(lidded.above()).getBlock());
-        ctx.record("staged.open", open.toShortString() + "，其上="
+        ctx.record("staged.open", open.toShortString() + ", block above="
                 + level.getBlockState(open.above()).getBlock());
         ctx.record("subject.nearest", String.valueOf(nearest));
         ctx.record("subject.visible", String.valueOf(visible));
 
-        ctx.check(lidded.equals(nearest)).as("控制组 A 按距离的最近**必须**是被盖住的那一格，"
-                + "否则这个布景根本没造出那个陷阱，后面每一条都是 0==0：按距离取到的是 "
-                + nearest).isTrue();
+        ctx.check(lidded.equals(nearest)).as("control A: the nearest source by distance **must** be the lidded"
+                + " cell, otherwise this test setup never built the trap and every later check is 0==0:"
+                + " the distance-ranked choice is " + nearest).isTrue();
         ctx.check(JourneyFill.bucketLineLandsOn(rig, lidded, true)).as(
-                "控制组 B 先校准尺子：引擎自己的 clip 必须**同意**盖子挡住了那一格 —— "
-                + "这一条要求它返回 false。返回 true 说明盖子没挡住，那么 A 造出的不是陷阱").isFalse();
+                "control B: calibrate the ruler first - the engine's own clip must **agree** that the lid"
+                + " blocks that cell, so this check requires false. True means the lid does not block it,"
+                + " and A did not build a trap").isFalse();
 
-        ctx.check(visible).as("C 通视 finder 必须给得出一格 —— 给不出就说明它把两格都否了").isNotNull();
-        ctx.check(!lidded.equals(visible)).as("D 而且**不是**被盖住的那一格：它选了 " + visible).isTrue();
-        ctx.check(open.equals(visible)).as("E 选中的正是那格露天的水源：期望 " + open
-                + "，实到 " + visible).isTrue();
+        ctx.check(visible).as("C the line-of-sight finder must return a cell - if it returns none, it rejected"
+                + " both").isNotNull();
+        ctx.check(!lidded.equals(visible)).as("D and it must **not** be the lidded cell: it chose " + visible)
+                .isTrue();
+        ctx.check(open.equals(visible)).as("E the chosen cell is exactly the open water source: expected " + open
+                + ", actual " + visible).isTrue();
 
         // END TO END. Everything above is about choosing; this is the bucket. `waterFill.result`
         // is the same key the rung writes, on purpose — a reader comparing this scene against a
@@ -344,10 +356,11 @@ public final class JourneyLandingScenes implements SceneProvider {
                 ctx.record("subject.waterBucket", before + " → " + after);
                 ctx.record("subject.result", String.valueOf(rig.evidenceOf("waterFill.result")));
                 ctx.record("subject.atUse", String.valueOf(rig.evidenceOf("waterFill.atUse")));
-                ctx.check(after > before).as("F 桶真的装上了水（判存量，不是判 use 的返回值 —— "
-                        + "空桶 use 在射线落到非 BucketPickup 方块上时返回 FAIL，落空时返回 PASS，"
-                        + "两者都不动存量）：" + before + " → " + after
-                        + "；那一刻的手与两条射线：" + rig.evidenceOf("waterFill.atUse")).isTrue();
+                ctx.check(after > before).as("F the bucket really filled with water (judged by stock, not by"
+                        + " the use's return value - an empty-bucket use returns FAIL when the ray lands on a"
+                        + " block that is not a BucketPickup and PASS when it hits nothing, and neither changes"
+                        + " the stock): " + before + " → " + after
+                        + "; the hands and both rays at that moment: " + rig.evidenceOf("waterFill.atUse")).isTrue();
             });
         });
     }
@@ -359,8 +372,9 @@ public final class JourneyLandingScenes implements SceneProvider {
      * {@link #scoopsPastItsOwnObsidian} calls {@link JourneyHands#handsAtUse} ITSELF, two lines
      * before its own {@code useItemInHand} — so it stays green whether or not the production path
      * takes that reading, and the production path did not. Ladder-18 paid for the gap:
-     * {@code recover6.miss.3 = minecraft:water_bucket 0→0 …射线停在 4, 59, 19
-     * Block{minecraft:water}} has three authors and no row could separate them — the acting hand was
+     * {@code recover6.miss.3 = minecraft:water_bucket 0→0 …}, with the ray stopping on
+     * {@code Block{minecraft:water}} at {@code 4, 59, 19}, has three authors and no row could
+     * separate them — the acting hand was
      * not the bucket ({@code recover6.hand = minecraft:cobblestone}, {@code hand#2} the bucket, one
      * settle apart), the cell was water and not a source, or {@code BucketItem}'s own
      * {@code SOURCE_ONLY} clip is simply not the ray this file's instrument fires.
@@ -369,7 +383,7 @@ public final class JourneyLandingScenes implements SceneProvider {
      * the EVIDENCE what it recorded, not the world what it looks like. The world looks the same
      * either way; that is the whole point of an instrument.
      *
-     * <p>Every assertion carries its own value in the message. A row that merely「exists」would go
+     * <p>Every assertion carries its own value in the message. A row that merely "exists" would go
      * green on an empty string, and the field that answers the third author is the PAIR of rays:
      * an empty bucket clips {@code SOURCE_ONLY} and a full one clips {@code NONE}, and over water
      * the two answers differ.
@@ -393,9 +407,9 @@ public final class JourneyLandingScenes implements SceneProvider {
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.OBSIDIAN, driver);
         int before = fp.getInventory().countItem(Items.WATER_BUCKET);
-        ctx.record("staged", "水源 " + open.toShortString() + "，源块="
-                + ctx.level().getFluidState(open).isSource() + "；身体 "
-                + fp.blockPosition().toShortString() + "，手里 minecraft:bucket ×"
+        ctx.record("staged", "water source " + open.toShortString() + ", source="
+                + ctx.level().getFluidState(open).isSource() + "; bot at "
+                + fp.blockPosition().toShortString() + ", carrying minecraft:bucket ×"
                 + fp.getInventory().countItem(Items.BUCKET));
 
         JourneyFill.fillFrom(ctx, rig, open, "probe", Items.WATER_BUCKET, () -> {
@@ -409,34 +423,39 @@ public final class JourneyLandingScenes implements SceneProvider {
             // A FIRST, because everything below reads rows this path writes. If the production path
             // never reached its own use, B–D would be asking an empty transcript and would fail for
             // a reason that has nothing to do with the instrument.
-            ctx.check(!"null".equals(result)).as("A 控制组：生产路径真的走到了自己那一枪 —— "
-                    + "probe.result 实到 " + result).isTrue();
-            ctx.check(after > before).as("B 而且那一枪真的装上了水（判存量，不判 use 的返回值：空桶 use "
-                    + "落到非 BucketPickup 方块上返 FAIL、落空返 PASS，两者都不动存量）："
+            ctx.check(!"null".equals(result)).as("A control: the production path really reached its own use -"
+                    + " probe.result actual " + result).isTrue();
+            ctx.check(after > before).as("B and that use really filled the bucket with water (judged by stock,"
+                    + " not by the use's return value: an empty-bucket use returns FAIL on a block that is not a"
+                    + " BucketPickup and PASS when it hits nothing, and neither changes the stock): "
                     + before + " → " + after).isTrue();
 
-            ctx.check(!"null".equals(atUse)).as("C 收水这一枪印出了 use 那一刻的读数 —— "
-                    + "补仪器之前这一行根本不存在，浇筑侧却一直有（cast6.atUse）。实到 "
-                    + atUse).isTrue();
-            ctx.check(atUse.contains("minecraft:bucket")).as("D 而且它读的是**动手那只手**、在**动手之前**："
-                    + "这一刻手里该是空桶 minecraft:bucket，装完之后才是 minecraft:water_bucket —— "
-                    + "读到 water_bucket 就说明这一行取晚了。实到 " + atUse).isTrue();
-            ctx.check(atUse.contains("满桶线") && atUse.contains("空桶线")).as(
-                    "E 两种流体模式的射线都在（这一对正是分开「桶自己的 SOURCE_ONLY 射线」和"
-                    + "「场景仪器那条射线」的字段，少一条就分不开）。实到 " + atUse).isTrue();
+            ctx.check(!"null".equals(atUse)).as("C the water-collecting use printed the reading taken at the"
+                    + " moment of the use - before this instrument was added the row did not exist, while the"
+                    + " pour side always had it (cast6.atUse). Actual " + atUse).isTrue();
+            ctx.check(atUse.contains("minecraft:bucket")).as("D and it reads **the acting hand**, **before the use**:"
+                    + " at this moment the hand must hold the empty minecraft:bucket, which only becomes"
+                    + " minecraft:water_bucket after filling - reading water_bucket means this row was taken too"
+                    + " late. Actual " + atUse).isTrue();
+            ctx.check(atUse.contains("full-bucket ray") && atUse.contains("empty-bucket ray")).as(
+                    "E the rays for both fluid modes are present (this pair is exactly the field that separates"
+                    + " \"the bucket's own SOURCE_ONLY ray\" from \"the scene instrument's ray\", and with one"
+                    + " missing they cannot be told apart). Actual " + atUse).isTrue();
 
             // F/G — the OTHER reading ladder-18 needed and did not have. Same scene rather than a
-            // second one: both are「这一枪的现场读数够不够判因」, and this arena already produces
-            // the aim row for free.
+            // second one: both ask whether the readings taken at this use are enough to determine the
+            // cause, and this arena already produces the aim row for free.
             String aimsAt = String.valueOf(rig.evidenceOf("probe.aimsAt"));
             ctx.record("probe.aimsAt", aimsAt);
-            ctx.check(aimsAt.contains("脚 y=") && aimsAt.contains("onGround=")).as(
-                    "F 瞄准那一行说得出身体落地没有 —— 补这个字段之前它只印眼睛，而一具还在坠的身体"
-                    + "打出去的射线不是验过的那条（ladder-18 recover6：眼睛 60.48 ⇒ 脚 58.86，"
-                    + "而 blockPosition() 报 58）。实到 " + aimsAt).isTrue();
-            ctx.check(aimsAt.contains("落在整数排上")).as(
-                    "G 而且这一趟它答的是「落地了」—— 本场景的身体站在实地上，若印出 ★ 那一支，"
-                    + "说明这个判据恒真或恒假，而不是在读身体。实到 " + aimsAt).isTrue();
+            ctx.check(aimsAt.contains("feet y=") && aimsAt.contains("onGround=")).as(
+                    "F the aim row states whether the bot has landed - before this field was added it printed"
+                    + " only the eye, and a ray fired by a bot that is still falling is not the ray that was"
+                    + " verified (ladder-18 recover6: eye 60.48 ⇒ feet 58.86, while blockPosition() reported 58)."
+                    + " Actual " + aimsAt).isTrue();
+            ctx.check(aimsAt.contains("resting on an integer row")).as(
+                    "G and this time it answers \"landed\" - the bot in this scene stands on solid ground, so"
+                    + " printing the ★ branch means the criterion is always true or always false instead of"
+                    + " reading the bot's position. Actual " + aimsAt).isTrue();
         });
     }
 
@@ -449,19 +468,21 @@ public final class JourneyLandingScenes implements SceneProvider {
      * it.</b> That one stages a blocked source next to an open one, so the chooser has a right
      * answer to find and never enters the re-seat at all. This one stages a pond with <i>no</i>
      * seat-visible source, which is the other branch: {@code visibleSourceNear} returns null and the
-     * only thing left to change is the body's own cell. Ladder j52 measured exactly that
-     * ({@code waterFill.aim = 没有一格水源是这只眼睛看得见的}) and then aimed anyway.
+     * only thing left to change is the bot's own cell. Ladder j52 measured exactly that
+     * ({@code waterFill.aim} reported that no water source was visible from this eye) and then aimed
+     * anyway.
      *
      * <p><b>Why a bank and not a lid.</b> A lid over the only source blocks the ray from every cell
      * — including the one the re-seat would move to — so {@code standToScoop} returns null too and
      * the branch has nowhere to go. The trap has to be <i>directional</i>, and the ladder's real one
-     * was: {@code 空桶线 -5,62,55 minecraft:grass_block（1.05 格）} is a bank one block above the
-     * body's feet, and the same pond filled a bucket on the first try from one block higher (j48,
+     * was: {@code empty-bucket ray -5,62,55 minecraft:grass_block (1.05 blocks)} is a bank one
+     * block above the
+     * bot's feet, and the same pond filled a bucket on the first try from one block higher (j48,
      * j51). So the staging is a seat cut one below the bank, with the pond behind it.
      *
-     * <p><b>The body is staged exactly {@code Goal.Near}'s radius from the pond</b> (distSqr 4 for
+     * <p><b>The bot is staged exactly {@code Goal.Near}'s radius from the pond</b> (distSqr 4 for
      * radius 2, and {@code reached} is {@code <=}), so the approach the scoop opens with is already
-     * satisfied and cannot quietly walk the body out of the trap before the branch is reached. That
+     * satisfied and cannot quietly walk the bot out of the trap before the branch is reached. That
      * is asserted, not assumed — control A asks the engine, after the settle.
      */
     private static void reseatsWhenItCanSeeNoWater(SceneContext ctx) {
@@ -474,7 +495,7 @@ public final class JourneyLandingScenes implements SceneProvider {
      * <p><b>Why this is not the same scene twice.</b> The first run of the scene above chose the
      * bank top as its seat, {@code distSqr} 2 from the pond, i.e. already inside
      * {@code Goal.Near(water, 2)} — so the re-entry's second approach had nothing to do and the
-     * guard against it undoing the move <b>never executed</b>. Recorded as I5 未触发, not passed.
+     * guard against it undoing the move <b>never executed</b>. Recorded as not triggered, not passed.
      *
      * <p><b>And raising the bank would not have fixed that.</b> {@code standToFill} only ever
      * returns cells in a source's own 3×3 neighbourhood ({@code dy ∈ [-2,1]}), so the seat is at
@@ -487,16 +508,16 @@ public final class JourneyLandingScenes implements SceneProvider {
      * seven blocks away contributes its own rim cells — and a seat there is seven blocks from the
      * {@code water} the re-entry would walk back to. So: ring the near pond at head height, which
      * kills every seat around it while leaving it open above (still the distance-nearest); and put
-     * the far pond outside {@code visibleSourceNear}'s radius <i>of the body</i> but inside
+     * the far pond outside {@code visibleSourceNear}'s radius <i>of the bot</i> but inside
      * {@code standToScoop}'s radius <i>of the near pond</i>. Without the guard, the re-entry walks
-     * the body all the way back to the ringed pond it cannot drink from, and the scene says so.
+     * the bot all the way back to the ringed pond it cannot drink from, and the scene says so.
      */
     private static void keepsTheSeatItMovedTo(SceneContext ctx) {
         bankedPondScoop(ctx, true);
     }
 
     /** How far west the second pond sits. Nine: outside {@code visibleSourceNear}'s radius 8 of a
-     *  body two blocks east of the first pond, and seven from that pond, so it is inside
+     *  bot two blocks east of the first pond, and seven from that pond, so it is inside
      *  {@code standToScoop}'s radius 8 of it. Both halves of that sentence are asserted. */
     private static final int FAR_POND_DX = -9;
 
@@ -542,49 +563,52 @@ public final class JourneyLandingScenes implements SceneProvider {
         BlockPos nearest = JourneyTerrain.shallowWaterNear(rig, 8);
         BlockPos seat = nearest == null ? null : JourneyFill.standToScoop(rig, nearest);
         // ABSOLUTE, not the arena-relative constant. `GROUND` is an offset handed to `ctx.rel`; the
-        // first run of this scene printed 「岸顶 y=21」 beside a body at y=220, which is the kind of
-        // row that costs an hour to a reader who trusts it.
+        // first run of this scene printed "bank top y=21" beside a bot at y=220, which is the kind
+        // of row that costs an hour to a reader who trusts it.
         BlockPos bank = ctx.rel(-1, GROUND, 0);
-        ctx.record("staged.foot", seated.toShortString() + "，眼睛 y=" + fp.getEyePosition().y
-                + "，岸 " + bank.toShortString() + " 顶 y=" + (bank.getY() + 1 + (farSeat ? 1 : 0))
-                + (farSeat ? "（近塘四周已围栏，另有远塘）" : "（原生岸，没加高）"));
-        ctx.record("staged.pond", pond.toShortString() + "，其上="
-                + level.getBlockState(pond.above()).getBlock() + "，与身体 distSqr="
+        ctx.record("staged.foot", seated.toShortString() + ", eye y=" + fp.getEyePosition().y
+                + ", bank " + bank.toShortString() + " top y=" + (bank.getY() + 1 + (farSeat ? 1 : 0))
+                + (farSeat ? " (near pond ringed on all sides, with a separate far pond)"
+                           : " (natural bank, not raised)"));
+        ctx.record("staged.pond", pond.toShortString() + ", block above="
+                + level.getBlockState(pond.above()).getBlock() + ", distSqr to the bot="
                 + seated.distSqr(pond));
         ctx.record("staged.visible", String.valueOf(visible));
         ctx.record("staged.nearest", String.valueOf(nearest));
         ctx.record("staged.seat", String.valueOf(seat));
 
-        ctx.check(visible).as("控制组 A 从这个座位**必须**一格水源都看不见 —— 看得见就说明岸没挡住，"
-                + "换座位这一支根本不会跑，后面每一条都是 0==0：通视 finder 给出的是 "
-                + visible).isNull();
-        ctx.check(nearest).as("控制组 B 按距离的 finder 仍要找得到这口塘，否则 `pool` 是 null，"
-                + "走的是另一条路").isNotNull();
-        ctx.check(seat).as("控制组 C 换座位必须**有地方可去** —— `standToScoop` 返回 null 时这一支"
-                + "只会印「换不了座位」，那不是这个场景要判的东西").isNotNull();
-        ctx.check(!seated.equals(seat)).as("控制组 D 而且那个落脚点不是脚下这一格：挑出来的是 "
-                + seat + "，身体在 " + seated).isTrue();
+        ctx.check(visible).as("control A: from this seat **no** water source may be visible - if one is,"
+                + " the bank does not block the ray, the re-seat branch never runs, and every later check is"
+                + " 0==0: the line-of-sight finder returned " + visible).isNull();
+        ctx.check(nearest).as("control B: the distance-ranked finder must still find this pond, otherwise"
+                + " `pool` is null and a different branch runs").isNotNull();
+        ctx.check(seat).as("control C: the re-seat must **have somewhere to go** - when `standToScoop` returns"
+                + " null this branch only prints \"cannot re-seat\", which is not what this scene judges")
+                .isNotNull();
+        ctx.check(!seated.equals(seat)).as("control D: and that stand is not the current cell: the chosen"
+                + " stand is " + seat + ", the bot is at " + seated).isTrue();
         if (farSeat) {
             // THE CONTROL THAT MAKES THIS VARIANT A DIFFERENT TEST. Without it a run whose seat
             // landed inside the approach would pass exactly as the near-pond scene does, and G
             // below would once again be judging nothing.
             ctx.check(seat != null && seat.distSqr(pond) > 4).as(
-                    "控制组 D' 这一版**必须**把座位逼到 `Goal.Near(water,2)` 半径之外 —— "
-                    + "落在半径内的话再入时那次接近无事可做，G 就又是 0==0："
-                    + "座位 " + seat + " 距塘 distSqr="
+                    "control D': this variant **must** force the seat outside the `Goal.Near(water,2)`"
+                    + " radius - inside it, the approach on re-entry has nothing to do and G is 0==0 again:"
+                    + " seat " + seat + " distSqr to the pond="
                     + (seat == null ? "—" : String.valueOf(seat.distSqr(pond)))).isTrue();
-            // And that the two radii really do separate: the far pond must be OUT of the body's
+            // And that the two radii really do separate: the far pond must be OUT of the bot's
             // reach (else A above would have found it and there is no trap) and IN the near pond's
             // (else `standToScoop` never sees it and there is no seat). Both are staged by one
             // number, so one row proves or kills the whole geometry.
             BlockPos far = ctx.rel(FAR_POND_DX, GROUND, 0);
-            ctx.record("staged.far", far.toShortString() + "，距身体 distSqr=" + seated.distSqr(far)
-                    + "，距近塘 distSqr=" + pond.distSqr(far));
+            ctx.record("staged.far", far.toShortString() + ", distSqr to the bot=" + seated.distSqr(far)
+                    + ", distSqr to the near pond=" + pond.distSqr(far));
             ctx.check(seat != null && seat.distSqr(far) < seat.distSqr(pond)).as(
-                    "控制组 D'' 而且挑中的座位属于**远塘**而不是近塘：座位 " + seat
-                    + " 距远塘 distSqr=" + (seat == null ? "—" : String.valueOf(seat.distSqr(far)))
-                    + "，距近塘 distSqr=" + (seat == null ? "—" : String.valueOf(seat.distSqr(pond)))
-                    + " —— 若它仍属近塘，说明围栏没把近塘的落脚点全封掉").isTrue();
+                    "control D'': and the chosen seat belongs to the **far pond**, not the near pond: seat " + seat
+                    + " distSqr to the far pond=" + (seat == null ? "—" : String.valueOf(seat.distSqr(far)))
+                    + ", distSqr to the near pond=" + (seat == null ? "—" : String.valueOf(seat.distSqr(pond)))
+                    + " - if it still belongs to the near pond, the ring did not seal off every stand around"
+                    + " the near pond").isTrue();
         }
 
         int before = fp.getInventory().countItem(Items.WATER_BUCKET);
@@ -601,12 +625,13 @@ public final class JourneyLandingScenes implements SceneProvider {
             // E FIRST, because `then` only runs when the fill already succeeded — so without this
             // the scene would sign off a fill that happened to work from the bad seat and never
             // moved. The row must be present AND must read as a move: the same key carries the
-            // 「换不了座位」 refusals, and a refusal is not a re-seat.
-            ctx.check(reseat).as("E 换座位这一支**被观察到跑过** —— `waterFill.reseat` 必须写了。"
-                    + "没写就说明装上水的是坏座位自己，这一支还是没被执行过").isNotNull();
-            ctx.check(!String.valueOf(reseat).startsWith("换不了座位")).as(
-                    "F 而且它真的换了，不是印了一行拒绝：" + reseat).isTrue();
-            // G — the concern that the re-entry re-runs `Goal.Near(water,2)` and can walk the body
+            // "cannot re-seat" refusals, and a refusal is not a re-seat.
+            ctx.check(reseat).as("E the re-seat branch must be **observed to run** - `waterFill.reseat` must be"
+                    + " written. If it is not, the bucket was filled from the bad seat itself and this branch"
+                    + " still has never executed").isNotNull();
+            ctx.check(!String.valueOf(reseat).startsWith("cannot re-seat")).as(
+                    "F and it really moved, rather than printing a refusal: " + reseat).isTrue();
+            // G — the concern that the re-entry re-runs `Goal.Near(water,2)` and can walk the bot
             // off the seat it just paid for. One pond cannot make that fail, so this is a guard for
             // the day a second source is within `FILL_RESEARCH` of the first, not a measurement of
             // it today.
@@ -614,27 +639,30 @@ public final class JourneyLandingScenes implements SceneProvider {
             //
             // The near-pond variant asks for the exact cell, which it reaches: its re-seat is one
             // step onto the bank. The far variant cannot ask that — the walk is a dozen blocks and
-            // `Goal.Block` reports「arrived」one cell out (the first staging of it measured
-            // `期望 …382,221,99999，实到 …381,221,99999`, which is arrival tolerance and not a
-            // body that got dragged anywhere). Asking for cell identity there would red the scene
-            // for the walker's tolerance while the thing under test was fine.
+            // `Goal.Block` reports "arrived" one cell out (the first staging of it measured expected
+            // `…382,221,99999`, actual `…381,221,99999`, which is arrival tolerance and not a bot
+            // that got dragged anywhere). Asking for cell identity there would red the scene for the
+            // walker's tolerance while the thing under test was fine.
             //
-            // What the guard actually promises is「the re-entry did not walk the body back to
-            // `water`」, so that is what the far variant asks: still OUTSIDE the approach radius.
-            // It is not a weaker question — a regression walks the body to within 2 of the pond by
+            // What the guard actually promises is "the re-entry did not walk the bot back to
+            // `water`", so that is what the far variant asks: still OUTSIDE the approach radius.
+            // It is not a weaker question — a regression walks the bot to within 2 of the pond by
             // construction, which is exactly what this refuses.
             if (farSeat) {
-                ctx.check(ended.distSqr(pond) > 4).as("G 用桶的那一刻身体**仍在 `Goal.Near(近塘,2)` "
-                        + "半径之外** —— 再入若还跑一次接近，就会把它拽回那口它喝不到的塘："
-                        + "终点 " + ended + " 距近塘 distSqr=" + ended.distSqr(pond)
-                        + "，换到的座位是 " + seat).isTrue();
+                ctx.check(ended.distSqr(pond) > 4).as("G at the moment of the bucket use the bot is **still"
+                        + " outside the `Goal.Near(near pond,2)` radius** - if the re-entry ran the approach again,"
+                        + " it would drag the bot back to the pond it cannot drink from: end " + ended
+                        + " distSqr to the near pond=" + ended.distSqr(pond)
+                        + ", the seat it moved to is " + seat).isTrue();
             } else {
-                ctx.check(ended.equals(seat)).as("G 用桶的那一刻身体站在换到的那个座位上，"
-                        + "没有被第二次 `Goal.Near` 又带走：期望 " + seat + "，实到 " + ended
-                        + " —— 近塘这一版座位本来就在半径内，这一条只是回归守卫").isTrue();
+                ctx.check(ended.equals(seat)).as("G at the moment of the bucket use the bot stands on the seat"
+                        + " it moved to and was not carried off again by a second `Goal.Near`: expected " + seat
+                        + ", actual " + ended
+                        + " - in the near-pond variant the seat is already inside the radius, so this is only a"
+                        + " regression guard").isTrue();
             }
-            ctx.check(after > before).as("H 桶真的装上了水（判存量，不是判 use 的返回值）："
-                    + before + " → " + after).isTrue();
+            ctx.check(after > before).as("H the bucket really filled with water (judged by stock, not by the"
+                    + " use's return value): " + before + " → " + after).isTrue();
         });
     }
 
@@ -646,7 +674,7 @@ public final class JourneyLandingScenes implements SceneProvider {
     private static final int STEPS = 5;
 
     /**
-     * The flight stops on the lowest step a body can stand on, and that is the bottom only while the
+     * The flight stops on the lowest step a bot can stand on, and that is the bottom only while the
      * bottom is dry.
      *
      * <p>Staged rather than waited for, because the occasion arrives exactly once per ladder run and
@@ -678,7 +706,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         // stays, because that is what holds the step up.
         // THREE CELLS PER STEP, the same three `digStairsDown` cuts — the step, its head room, and
         // the one above that. Cutting two gave these arenas a staircase the rung never digs, and the
-        // lip scene paid for it on its first reading: `end=failed:no path (expanded=2)` on BOTH legs,
+        // lip scene paid for it on its first reading: `end=failed:no path (expanded=2)` on BOTH walks,
         // an artifact of this staging rather than anything the ladder does. `StepDown` requires the
         // PASSTHROUGH column's head to be clear (`moves/StepDown.java:23`), and on the way down that
         // passthrough is exactly the cell whose head is the third cut — so omitting it breaks the
@@ -694,18 +722,20 @@ public final class JourneyLandingScenes implements SceneProvider {
         for (int i = 1; i < STEPS; i++) JourneyStairs.cut(cut.get(i));
         BlockPos bottom = cut.get(STEPS - 1);
         ctx.record("staged.flight", cut.get(0).toShortString() + " → " + bottom.toShortString()
-                + "（" + JourneyStairs.steps() + " 级）");
+                + " (" + JourneyStairs.steps() + " steps)");
 
         // ---- arm A: dry. The terminal must be the bottom, i.e. nothing changed for a healthy run.
         List<BlockPos> dry = JourneyStairwell.stairRoute(level, true);
         ctx.record("dry.route", dry.toString());
         ctx.check(dry.get(dry.size() - 1).equals(bottom))
-                .as("A 楼梯底是干的时候，末路点仍然是楼梯底 " + bottom.toShortString()
-                        + " —— 实到 " + dry.get(dry.size() - 1)
-                        + "；这一臂是控制组，它一红就说明修法改了健康路线").isTrue();
+                .as("A when the bottom of the stairs is dry, the final waypoint is still the bottom step "
+                        + bottom.toShortString() + " - actual " + dry.get(dry.size() - 1)
+                        + "; this arm is the control, and if it fails the fix has changed the healthy route")
+                .isTrue();
         ctx.check(dry.size() >= 2)
-                .as("A2 路线必须真的有中间路点（不然测的是「只有一个终点」而不是「终点选对了」）："
-                        + dry.size() + " 个").isTrue();
+                .as("A2 the route must really have intermediate waypoints (otherwise this tests \"there is only"
+                        + " one endpoint\" rather than \"the right endpoint was chosen\"): "
+                        + dry.size() + " waypoint(s)").isTrue();
 
         // ---- arm B: the bottom step and its head room under water, as cast8 found them.
         ctx.setBlock(-4 + STEPS - 1, GROUND - STEPS + 1, 0, Blocks.WATER);
@@ -715,10 +745,11 @@ public final class JourneyLandingScenes implements SceneProvider {
         ctx.record("wet.route", wet.toString());
         ctx.record("wet.cells", story(level, cut));
         ctx.check(!ends.equals(bottom))
-                .as("B 楼梯底泡在水里时，末路点不能还是它：" + ends.toShortString()
-                        + "（楼梯底 " + bottom.toShortString() + "）").isTrue();
+                .as("B when the bottom step is under water, the final waypoint must not still be the bottom step: "
+                        + ends.toShortString() + " (bottom step " + bottom.toShortString() + ")").isTrue();
         ctx.check(level.getFluidState(ends).isEmpty() && level.getFluidState(ends.above()).isEmpty())
-                .as("C 选中的那一级自身格与头顶格都必须没有流体 —— 站不住的落点跟没换一样："
+                .as("C the chosen step's own cell and head cell must both be free of fluid - a landing that"
+                        + " cannot be stood on is no better than not changing it: "
                         + story(level, List.of(ends))).isTrue();
         int end = cut.indexOf(ends);
         boolean allBelowWet = true;
@@ -726,12 +757,13 @@ public final class JourneyLandingScenes implements SceneProvider {
             if (level.getFluidState(cut.get(s)).isEmpty()
                     && level.getFluidState(cut.get(s).above()).isEmpty()) allBelowWet = false;
         ctx.check(allBelowWet)
-                .as("D 选中的是最低的干台阶，不是随便一级更高的：它下面每一级都必须有流体 —— "
-                        + story(level, cut)).isTrue();
+                .as("D the chosen step is the lowest dry step, not an arbitrary higher one: every step below it"
+                        + " must contain fluid - " + story(level, cut)).isTrue();
         for (BlockPos w : wet)
             ctx.check(cut.indexOf(w) <= end)
-                    .as("E 没有路点落在终点下方（stride 会跨过终点，跨过去就是又走回水里）：" + w
-                            + " 在第 " + cut.indexOf(w) + " 级，终点在第 " + end + " 级").isTrue();
+                    .as("E no waypoint lies below the endpoint (the stride would step past the endpoint and walk"
+                            + " back into the water): " + w + " is at step " + cut.indexOf(w)
+                            + ", the endpoint is at step " + end).isTrue();
     }
 
     /**
@@ -740,7 +772,7 @@ public final class JourneyLandingScenes implements SceneProvider {
      * <p>THREE CELLS PER STEP, the same three {@code digStairsDown} cuts — the step, its head room,
      * and the one above that. Cutting two gave these arenas a staircase the rung never digs, and the
      * lip scene paid for it on its first reading: {@code end=failed:no path (expanded=2)} on BOTH
-     * legs, an artifact of this staging rather than anything the ladder does. {@code StepDown}
+     * walks, an artifact of this staging rather than anything the ladder does. {@code StepDown}
      * requires the PASSTHROUGH column's head to be clear ({@code moves/StepDown.java:23}), and on the
      * way down that passthrough is exactly the cell whose head is the third cut — so omitting it
      * breaks the descent search too, not only the climb back up that {@code digStairsDown}'s javadoc
@@ -751,8 +783,8 @@ public final class JourneyLandingScenes implements SceneProvider {
      * {@code stairBottom} unconditionally, so a scene that cuts a flight without naming its ends hands
      * the production path a null. Cleared with the cells for the same reason they are.
      *
-     * <p>WALKER ROWS, unconditionally. {@code walkerDebug} is off in every gate run, so its 步进 /
-     * guard lines can never explain a run that did not set it — and these scenes' whole subject is
+     * <p>WALKER ROWS, unconditionally. {@code walkerDebug} is off in every gate run, so its step-trace
+     * and guard lines can never explain a run that did not set it — and these scenes' whole subject is
      * which tick-phase refuses the last tenth of a block. Five ticks of rows is not a volume worth
      * throttling for, so it is not put behind a second flag of its own.
      */
@@ -788,53 +820,55 @@ public final class JourneyLandingScenes implements SceneProvider {
         List<BlockPos> route = JourneyStairwell.stairRoute(level, true);
         BlockPos ends = route.get(route.size() - 1);
         BlockPos beyond = JourneyStairs.nextDown(ends);
-        ctx.record("staged.terminal", ends.toShortString() + "，下一级=" + String.valueOf(beyond));
+        ctx.record("staged.terminal", ends.toShortString() + ", next step down=" + String.valueOf(beyond));
         // `check(beyond)`, NOT `check(beyond != null)`: the latter hands the assertion a boolean, and
         // a boolean is never null, so `isNotNull()` on it passes no matter what the staging did. This
         // precondition was written that way and could only ever say PASS.
-        ctx.check(beyond).as("前提：末路点被抬升过，所以它下面还有一级可以改瞄 —— "
-                + "没有下一级就说明这一臂根本没摆成，后面的判据全无意义").isNotNull();
+        ctx.check(beyond).as("precondition: the final waypoint was raised, so there is still a step below it"
+                + " to retarget to - no next step means this arm was never set up and the later checks are"
+                + " meaningless").isNotNull();
         return ends;
     }
 
     /**
-     * The other half of {@link #walksOffTheLipOntoTheDryStep}: the body is FALLING into the terminal
+     * The other half of {@link #walksOffTheLipOntoTheDryStep}: the bot is FALLING into the terminal
      * when the last step is judged.
      *
-     * <p>That arm's control B asserts {@code onGround} — 「身体必须是**站着**的，不是正在下坠」 —
+     * <p>That arm's control B asserts {@code onGround} — "the bot must be **standing**, not falling" —
      * so the whole airborne family is deliberately outside it, and no green run of it can say anything
      * about the branch that family reaches. The rung-12 rehearsal of 2026-08-25 is what that family
-     * looks like: the walker's last row was {@code 精确=(1.454,58.000,20.500) cur2=0.002
-     * 脚底实心=0.0000}, horizontally on the terminal's centre with nothing under the feet, and the
+     * looks like: the walker's last row reported an exact position of (1.454,58.000,20.500),
+     * {@code cur2=0.002} and a solid-footing fraction of 0.0000, horizontally on the terminal's
+     * centre with nothing under the feet, and the
      * judgment fired a tick or two before the drop landed. Same shape as the blaze fight's fall guard
      * — a branch a healthy arm never executes has to be staged, or its green is worth nothing.
      *
-     * <p>Staged by POSE, not by clock: the body is put in the terminal's own head room with air below
-     * it, so it is falling from the first tick, and the one-node leg is consumed long before the drop
-     * lands. Nothing about the healthy arm changes.
+     * <p>Staged by POSE, not by clock: the bot is put in the terminal's own head room with air below
+     * it, so it is falling from the first tick, and the one-node movement task is consumed long
+     * before the drop lands. Nothing about the healthy arm changes.
      */
     private static void judgesTheLastStepAfterTheDropLands(SceneContext ctx) {
         BlockPos ends = stageLipArena(ctx);
 
         // IN THE AIR OVER THE TERMINAL, dead centre — not a fifth of a cell into it like the lip arm.
-        // The lip pose exists to keep the body supported by the tread above; this one exists to take
-        // that support away, so the only thing between the body and the terminal is the fall.
+        // The lip pose exists to keep the bot supported by the tread above; this one exists to take
+        // that support away, so the only thing between the bot and the terminal is the fall.
         //
         // SLOW FALLING, AND IT IS A CLOCK CONTROL, NOT THE SUBJECT. `blockPosition()` flips the
         // moment the feet cross the cell boundary, and a free fall crosses a one-block cell in about
-        // four ticks — less than the one-node leg takes to be consumed. Both measured, on this arena,
+        // four ticks — less than the one-node walk takes to be consumed. Both measured, on this arena,
         // before the effect went in:
         //
-        //   posed at ends+1.0 → `subject.endedAt … 精确 …/217.92/…`, settled=null
-        //   posed at ends+1.6 → `subject.endedAt … 精确 …/217.83/…`, settled=null
+        //   posed at ends+1.0 → `subject.endedAt … exact …/217.92/…`, settled=null
+        //   posed at ends+1.6 → `subject.endedAt … exact …/217.83/…`, settled=null
         //
-        // Both times `down()` was already true when the leg's callback ran and the branch under test
+        // Both times `down()` was already true when the walk's callback ran and the branch under test
         // was never entered — there is no height inside a one-block cell that survives four ticks of
-        // gravity. The effect slows the descent by an order of magnitude so the body is STILL in the
+        // gravity. The effect slows the descent by an order of magnitude so the bot is STILL in the
         // terminal's head room, still unsupported, and still going to land, when the callback fires.
         // That is the branch's entry condition exactly; what the effect changes is how long it lasts,
-        // and the ladder held it open by a different route — a body at `精确=(1.454,58.000,20.500)`
-        // whose support had just gone, fall distance zero, one tick from the flip.
+        // and the ladder held it open by a different route — a bot at exact position
+        // (1.454,58.000,20.500) whose support had just gone, fall distance zero, one tick from the flip.
         ServerWorldDriver driver = SceneBody.managed(ctx, ends.above());
         ServerPlayer fp = driver.fakePlayer();
         ServerPlayerBody av = driver.avatar();
@@ -842,26 +876,28 @@ public final class JourneyLandingScenes implements SceneProvider {
                 net.minecraft.world.effect.MobEffects.SLOW_FALLING, 400, 0));
         // +1.15, so the head stays under the stairwell's three-high cut (top at +2.95). This was +1.4,
         // which put the head 0.2 into the solid block over the terminal. The client's
-        // moveTowardsClosestSpace, which the pumped body runs, answers that with 0.1/tick toward the
-        // nearest free column — the tread above — and the body was shoved onto the lip it is meant to
-        // be falling past (`staged.pose … 247967.40`, then resting at `.15/218.00`). The hand-
-        // integrated body had no push-out and fell straight. The ladder's own pose was +1.0 with the
-        // head clear; +1.15 still reads about +0.8 when the leg calls back, well past SETTLED_SLACK.
+        // moveTowardsClosestSpace, which the stepped player runs, answers that with 0.1/tick toward
+        // the nearest free column — the tread above — and the bot was shoved onto the lip it is meant
+        // to be falling past (`staged.pose … 247967.40`, then resting at `.15/218.00`). The hand-
+        // integrated player had no push-out and fell straight. The ladder's own pose was +1.0 with
+        // the head clear; +1.15 still reads about +0.8 when the walk calls back, well past
+        // SETTLED_SLACK.
         fp.moveTo(ends.getX() + 0.5, ends.getY() + 1.15, ends.getZ() + 0.5);
         av.step();
         ctx.check(fp.hasEffect(net.minecraft.world.effect.MobEffects.SLOW_FALLING))
-                .as("控制组 C：缓降必须真的挂上了 —— 没挂上，身体四 tick 就穿过格边界，"
-                        + "判据那一刻已经在末路点里，这一臂又什么都没测到").isTrue();
+                .as("control C: slow falling must really be applied - without it the bot crosses the cell"
+                        + " boundary in four ticks, is already in the final waypoint when the check runs, and"
+                        + " this arm again measures nothing").isTrue();
 
         BlockPos posed = fp.blockPosition();
         ctx.record("staged.pose", String.format(java.util.Locale.ROOT,
-                "%s 精确 %.2f/%.2f/%.2f，onGround=%s", posed.toShortString(),
+                "%s exact %.2f/%.2f/%.2f, onGround=%s", posed.toShortString(),
                 fp.getX(), fp.getY(), fp.getZ(), fp.onGround()));
-        ctx.check(posed.equals(ends.above())).as("控制组 A：身体必须正在末路点的头顶格里 —— "
-                + "这是新分支唯一的入口条件，不在这一格就根本没测到它："
-                + posed + "，末路点头顶 " + ends.above()).isTrue();
-        ctx.check(fp.onGround()).as("控制组 B：身体必须**正在下坠**，不是站着 —— "
-                + "站着的身体等多久都不会落进去，那是另一条臂测的东西：onGround="
+        ctx.check(posed.equals(ends.above())).as("control A: the bot must be in the head cell of the final"
+                + " waypoint - that is the new branch's only entry condition, and outside this cell it is never"
+                + " tested: " + posed + ", head cell of the final waypoint " + ends.above()).isTrue();
+        ctx.check(fp.onGround()).as("control B: the bot must be **falling**, not standing - a standing bot"
+                + " never drops in however long it waits, which is what the other arm tests: onGround="
                 + fp.onGround()).isFalse();
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
@@ -870,54 +906,56 @@ public final class JourneyLandingScenes implements SceneProvider {
             Object settled = rig.evidenceOf("drop.flightLastStepSettled");
             Object missed = rig.evidenceOf("drop.flightLastStepMissed");
             ctx.record("subject.endedAt", String.format(java.util.Locale.ROOT,
-                    "%s 精确 %.2f/%.2f/%.2f，onGround=%s", got.toShortString(),
+                    "%s exact %.2f/%.2f/%.2f, onGround=%s", got.toShortString(),
                     fp.getX(), fp.getY(), fp.getZ(), fp.onGround()));
             ctx.record("subject.settled", String.valueOf(settled));
             ctx.record("subject.missed", String.valueOf(missed));
             ctx.record("subject.walkerEnd", String.valueOf(rig.evidenceOf("drop.flightLastStepEnd")));
 
             // A IS THE WHOLE POINT, and it is asked first because the other two are 0==0 without it.
-            // No settled row means the callback never saw the body in the head room — either the drop
-            // landed before the leg ended (then this arm staged nothing) or the branch is not being
-            // reached at all. Both want to be told apart from a pass.
+            // No settled row means the callback never saw the bot in the head room — either the drop
+            // landed before the movement task ended (then this arm staged nothing) or the branch is
+            // not being reached at all. Both want to be told apart from a pass.
             // THE OBJECT, not `settled != null`. The first version asked `ctx.check(settled != null)
             // … isNotNull()`, and a boolean is never null — so criterion A could only ever pass, and
             // it did, on a run whose `subject.settled` was null. A criterion success cannot fail is
             // worth exactly as much as one success cannot satisfy.
-            ctx.check(settled).as("A 新分支必须真的开过火并留下判词 —— "
-                    + "没有 flightLastStepSettled 就说明判据那一刻身体不在末路点头顶格，"
-                    + "这一臂什么都没测到，B/C 是 0==0。endedAt=" + got).isNotNull();
-            ctx.check(got.getY() <= ends.getY()).as("B 等过之后身体必须真的在末路点那一排或更低 —— "
-                    + "这就是 walkHome 判的那个量：终点 " + got + "，末路点 " + ends).isTrue();
-            ctx.check(missed).as("C 判词不能还写着「没到」 —— "
-                    + "身体已经落进末路点了却仍留下 flightLastStepMissed，"
-                    + "就是这条链拿去买 returnStuck 的那一行：" + missed).isNull();
+            ctx.check(settled).as("A the new branch must really have run and left a result message - no"
+                    + " flightLastStepSettled means the bot was not in the head cell of the final waypoint when"
+                    + " the check ran, so this arm measured nothing and B/C are 0==0. endedAt=" + got).isNotNull();
+            ctx.check(got.getY() <= ends.getY()).as("B after waiting, the bot must really be on the final"
+                    + " waypoint's row or lower - this is the quantity walkHome judges: end " + got
+                    + ", final waypoint " + ends).isTrue();
+            ctx.check(missed).as("C the result message must not still say \"not reached\" - a"
+                    + " flightLastStepMissed left behind after the bot has already dropped into the final waypoint"
+                    + " is exactly the row this chain uses to trigger returnStuck: " + missed).isNull();
         });
     }
 
     /**
-     * The body balanced on the lip above the terminal, and whether the last-step leg gets it off.
+     * The bot balanced on the lip above the terminal, and whether the last-step movement task gets
+     * it off.
      *
      * <p><b>The pose is the whole scene.</b> The ladder of 2026-08-25 died twice in it and both
-     * readings agree to the centimetre: {@code cast0.landing = 精确 1.20/58.00/19.49，onGround=true}
-     * with the terminal at {@code 1,57,19}. A 0.6-wide box centred a fifth of a cell past the
+     * readings agree to the centimetre: {@code cast0.landing} reported the exact position
+     * 1.20/58.00/19.49 with {@code onGround=true}, with the terminal at {@code 1,57,19}. A 0.6-wide box centred a fifth of a cell past the
      * boundary overlaps the previous step's tread by a tenth of a block — enough to stand on, three
      * tenths short of falling in. {@code blockPosition()} rounds into the terminal's column, so every
-     * cell-granular row in the run says the body is where it needs to be.
+     * cell-granular row in the run says the bot is where it needs to be.
      *
      * <p>That pose turns up about one return in three on the ladder and costs forty minutes to reach.
-     * Staged here it is deterministic, which is the only reason the second leg can be judged at all —
+     * Staged here it is deterministic, which is the only reason the second walk can be judged at all —
      * see {@code landOnFloor}, the rehearsal lever written when this coin was first noticed.
      *
      * <p><b>Staged to the losing side, and checked that it IS the losing side before anything else.</b>
-     * A body that simply falls into the terminal on its own would satisfy the outcome check while
+     * A bot that simply falls into the terminal on its own would satisfy the outcome check while
      * testing nothing, so the control asserts the pose held: above the terminal's row, on the ground,
      * in the terminal's column.
      *
-     * <p><b>The outcome is asserted; which leg bought it is recorded.</b> An isolated arena is not the
-     * ladder and the walker may well land it in one leg here — demanding two would be a red that says
-     * nothing about the production path. What IS asserted is the implication: if the first leg missed,
-     * the second must have fired. That is the branch the ladder never had.
+     * <p><b>The outcome is asserted; which walk achieved it is recorded.</b> An isolated arena is not
+     * the ladder and the walker may well land it in one walk here — demanding two would be a red that
+     * says nothing about the production path. What IS asserted is the implication: if the first walk
+     * missed, the second must have fired. That is the branch the ladder never had.
      */
     private static void walksOffTheLipOntoTheDryStep(SceneContext ctx) {
         BlockPos ends = stageLipArena(ctx);
@@ -931,18 +969,19 @@ public final class JourneyLandingScenes implements SceneProvider {
         for (int i = 0; i < 3; i++) av.step();
 
         BlockPos posed = fp.blockPosition();
-        ctx.record("staged.pose", String.format(java.util.Locale.ROOT, "%s 精确 %.2f/%.2f/%.2f，onGround=%s",
+        ctx.record("staged.pose", String.format(java.util.Locale.ROOT, "%s exact %.2f/%.2f/%.2f, onGround=%s",
                 posed.toShortString(), fp.getX(), fp.getY(), fp.getZ(), fp.onGround()));
-        ctx.check(posed.getY() > ends.getY()).as("控制组 A：身体必须真的还在末路点上方一排 —— "
-                + "自己掉下去的身体会让下面的判据变成 0==0：身体 " + posed + "，末路点 " + ends).isTrue();
-        ctx.check(fp.onGround()).as("控制组 B：身体必须是**站着**的，不是正在下坠 —— "
-                + "下坠中的身体过一会儿自己就落进去了，那测的不是修法：" + fp.onGround()).isTrue();
+        ctx.check(posed.getY() > ends.getY()).as("control A: the bot must really still be one row above the"
+                + " final waypoint - a bot that drops in on its own turns the checks below into 0==0: bot at "
+                + posed + ", final waypoint " + ends).isTrue();
+        ctx.check(fp.onGround()).as("control B: the bot must be **standing**, not falling - a falling bot"
+                + " drops in on its own after a moment, and that does not test the fix: " + fp.onGround()).isTrue();
 
         // DID THE GUARD THAT ALREADY EXISTS FIRE? `WalkerTickProgress.unwalkedDescentConsume` was
         // written for this exact shape — journey rung 13, a last node one row DOWN that the walker
         // spends on the tick it adopts it — and it bumps `Walker.descentHolds` every time it holds.
         // A counter is the honest instrument here: `walkerDebug` is behind a flag no gate turns on,
-        // so its 步进 rows prove nothing about a run that did not set it, while a counter delta is a
+        // so its step-trace rows prove nothing about a run that did not set it, while a counter delta is a
         // state change that happened or did not.
         long holdsBefore = net.magicterra.worlddriver.bot.movement.Walker.descentHolds;
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
@@ -951,27 +990,30 @@ public final class JourneyLandingScenes implements SceneProvider {
             Object missed = rig.evidenceOf("lip.flightLastStepMissed");
             Object end = rig.evidenceOf("lip.flightLastStepEnd");
             ctx.record("subject.descentHolds", (net.magicterra.worlddriver.bot.movement.Walker.descentHolds
-                    - holdsBefore) + "（末节点保持支开火次数；0 = 守卫在这一族上是哑的，"
-                    + "非 0 = 它开了火而身体照样没下去，两条完全不同的路）");
+                    - holdsBefore) + " (times the last-node hold branch fired; 0 = the guard is inert for this"
+                    + " failure family, non-zero = it fired and the bot still did not descend; these are two"
+                    + " entirely different paths)");
             ctx.record("subject.endedAt", String.format(java.util.Locale.ROOT,
-                    "%s 精确 %.2f/%.2f/%.2f", got.toShortString(), fp.getX(), fp.getY(), fp.getZ()));
+                    "%s exact %.2f/%.2f/%.2f", got.toShortString(), fp.getX(), fp.getY(), fp.getZ()));
             ctx.record("subject.missed", String.valueOf(missed));
             ctx.record("subject.walkerEnd", String.valueOf(end));
             ctx.record("subject.rowsAbove", String.valueOf(got.getY() - ends.getY()));
-            ctx.record("subject.movedBy", String.format(java.util.Locale.ROOT, "%.2f 格（起 %.2f/%.2f，止 %.2f/%.2f）",
+            ctx.record("subject.movedBy", String.format(java.util.Locale.ROOT,
+                    "%.2f blocks (from %.2f/%.2f to %.2f/%.2f)",
                     Math.hypot(fp.getX() - (ends.getX() + 0.20), fp.getZ() - (ends.getZ() + 0.5)),
                     ends.getX() + 0.20, ends.getZ() + 0.5, fp.getX(), fp.getZ()));
 
-            ctx.check(got.getY() <= ends.getY()).as("A 身体最后必须下到末路点那一排或更低 —— "
-                    + "这就是 walkHome 判的那个量（`here.getY() > floorY + 1` 才算走不回）："
-                    + "终点 " + got + "，末路点 " + ends).isTrue();
-            // B IS NOT「did the leg fire」ANY MORE. It fires; what it does not do is arrive. The leg
-            // must at least have been asked and answered — a run where `flightLastStepEnd` is absent
-            // means `finishTheFlight` returned down the「already low enough」branch and criterion A
-            // above is 0==0, which is the one way this scene can go green while testing nothing.
-            ctx.check(end != null).as("B 这一腿必须真的开过火并留下判词 —— "
-                    + "没有 flightLastStepEnd 就说明 finishTheFlight 走的是「本来就够低」那一支，"
-                    + "判据 A 于是变成 0==0。walkerEnd=" + end).isTrue();
+            ctx.check(got.getY() <= ends.getY()).as("A the bot must finally get down to the final waypoint's row"
+                    + " or lower - this is the quantity walkHome judges (only `here.getY() > floorY + 1` counts"
+                    + " as unable to walk back): end " + got + ", final waypoint " + ends).isTrue();
+            // B IS NOT "did the movement task fire" ANY MORE. It fires; what it does not do is arrive.
+            // The task must at least have been issued and answered — a run where `flightLastStepEnd`
+            // is absent means `finishTheFlight` returned down the "already low enough" branch and
+            // criterion A above is 0==0, which is the one way this scene can go green while testing
+            // nothing.
+            ctx.check(end != null).as("B the last-step movement task must really have run and left a result"
+                    + " message - no flightLastStepEnd means finishTheFlight took the \"already low enough\""
+                    + " branch, and criterion A becomes 0==0. walkerEnd=" + end).isTrue();
         });
     }
 
@@ -979,16 +1021,16 @@ public final class JourneyLandingScenes implements SceneProvider {
     private static String story(ServerLevel level, List<BlockPos> steps) {
         StringBuilder sb = new StringBuilder();
         for (BlockPos s : steps) {
-            if (sb.length() > 0) sb.append("；");
+            if (sb.length() > 0) sb.append("; ");
             sb.append(s.toShortString()).append("=").append(fluid(level, s))
-              .append("，头顶=").append(fluid(level, s.above()));
+              .append(", head=").append(fluid(level, s.above()));
         }
         return sb.toString();
     }
 
     private static String fluid(ServerLevel level, BlockPos c) {
         var fs = level.getFluidState(c);
-        return fs.isEmpty() ? "干" : (fs.isSource() ? "水(源)" : "水(流 level=" + fs.getAmount() + ")");
+        return fs.isEmpty() ? "dry" : (fs.isSource() ? "water(source)" : "water(flowing level=" + fs.getAmount() + ")");
     }
 
     // ------------------------------------------------------------- plumbing ----
@@ -999,14 +1041,14 @@ public final class JourneyLandingScenes implements SceneProvider {
 
     /** Five rows of one column, bottom-marked, plus what the heightmap says the surface is. */
     private static String column(ServerLevel level, BlockPos at) {
-        StringBuilder sb = new StringBuilder(at.getX() + "," + at.getZ() + "：");
+        StringBuilder sb = new StringBuilder(at.getX() + "," + at.getZ() + ":");
         for (int dy = -2; dy <= 2; dy++) {
             BlockPos c = at.above(dy);
             sb.append(' ').append(c.getY()).append('=')
               .append(level.getBlockState(c).getBlock().toString()
                       .replace("Block{minecraft:", "").replace("}", ""));
         }
-        return sb + "；daylightAt=" + JourneyTerrain.daylightAt(level, at);
+        return sb + "; daylightAt=" + JourneyTerrain.daylightAt(level, at);
     }
 
     private static void flatGround(SceneContext ctx) {

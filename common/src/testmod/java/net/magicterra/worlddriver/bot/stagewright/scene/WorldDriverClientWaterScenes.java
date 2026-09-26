@@ -17,12 +17,12 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * Water legs driven on the client's REAL player — the walker, the physics and the reflexes that
+ * Water walks driven on the client's REAL player — the walker, the physics and the reflexes that
  * actually ship. Every scene here is red until the engine can do the thing; none is softened to
  * what the walker can already satisfy.
  *
  * <p>Each arena is a flat slab with a pool cut INTO it (water piled above the surface flows away
- * between staging and measuring), a body in the water, and one leg to a cell on dry ground.
+ * between staging and measuring), the bot in the water, and one walk to a cell on dry ground.
  */
 public final class WorldDriverClientWaterScenes implements SceneProvider {
 
@@ -59,8 +59,8 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     private static final int LEG_TICKS = 1_200;
 
     /**
-     * A body floating in a pool whose rim is FLUSH with the water surface walks the leg to a cell on
-     * the rim and ends standing on it. Staged with dirt in hand, as the ladder's body always has.
+     * A bot floating in a pool whose rim is FLUSH with the water surface walks to a cell on the rim
+     * and ends standing on it. Staged with dirt in hand, as the ladder's bot always has.
      *
      * <p>This is TODO J47 on the real client: the headless twin ends {@code end=path-consumed} one
      * cell short with water under its feet, and the ladder's landing scene stands red on it.
@@ -69,14 +69,14 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         climbOut(ctx, "dirt", 0, Blocks.STONE, 400, new ItemStack(Items.DIRT, 30));
     }
 
-    /** The same leg with nothing to place: the bank is flush, so nothing should NEED placing. */
+    /** The same walk with nothing to place: the bank is flush, so nothing should NEED placing. */
     private static void flushBankClimbOutEmptyHanded(SceneContext ctx) {
         climbOut(ctx, "empty", 0, Blocks.STONE, 400);
     }
 
     /**
      * The rim stands ONE block above the water surface: vanilla's swim-out boost cannot mount it, so
-     * the body must place a foothold (it holds dirt). Digging the dirt rim instead is not a failure
+     * the bot must place a foothold (it holds dirt). Digging the dirt rim instead is not a failure
      * of geometry but of judgment, and the budget is what says so: a swim to the wall, thirty ticks
      * of stall, one placement and one hop fit in 150 ticks; the shortest floating dig does not.
      */
@@ -86,7 +86,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
 
     /**
      * The same rim with nothing to place: the only way up is to dig the DIRT rim down to flush. A
-     * floating body mines at a fifth of a fifth of its grounded speed (vanilla: off the ground, eyes
+     * floating player mines at a fifth of a fifth of its grounded speed (vanilla: off the ground, eyes
      * in water), which is exactly why this arm has a budget of its own.
      */
     private static void oneHighBankDigOut(SceneContext ctx) {
@@ -116,11 +116,11 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     }
 
     /**
-     * A ONE-DEEP pool with a dirt rim one above the surface, dirt in hand. The body stands on the
+     * A ONE-DEEP pool with a dirt rim one above the surface, dirt in hand. The player stands on the
      * floor with its eyes out of the water, yet vanilla still swims it (fluid over 0.4 high), so a
      * ground jump onto the rim is not available; the exit is the swim boost against the rim or a
-     * foothold. The old planner called this cell a floor and jumped; this leg measures what the
-     * real body does with the honest plan.
+     * foothold. The old planner called this cell a floor and jumped; this walk measures what the
+     * real player does with the honest plan.
      */
     private static void shallowPoolStepOut(SceneContext ctx) {
         climbOut(ctx, "dirt", 1, Blocks.DIRT, 1, 200, new ItemStack(Items.DIRT, 30));
@@ -134,16 +134,16 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     /**
      * A STONE rim one above the surface and an iron pickaxe in the hand: the dig must pick the
      * tool and still finish afloat. Bare-handed this rim is hopeless (the walker poisons it), so
-     * a body that ends up digging by hand has not selected its tool.
+     * a bot that ends up digging by hand has not selected its tool.
      */
     private static void oneHighStoneBankPickaxeOut(SceneContext ctx) {
         climbOut(ctx, "pickaxe", 1, Blocks.STONE, 400, new ItemStack(Items.IRON_PICKAXE));
     }
 
     /**
-     * A one-deep channel fed by a single source, so the water the body stands in is FLOWING toward
-     * the far end; the east bank is one course above the water. The body holds dirt. Getting out
-     * means placing a block into a flowing cell while the current pushes the body off its column,
+     * A one-deep channel fed by a single source, so the water the bot stands in is FLOWING toward
+     * the far end; the east bank is one course above the water. The bot holds dirt. Getting out
+     * means placing a block into a flowing cell while the current pushes the bot off its column,
      * which is the river-edge shape the ladder's towers kept losing blocks to.
      */
     private static void flowingChannelPlaceOut(SceneContext ctx) {
@@ -151,7 +151,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     }
 
     /**
-     * The same current at the bottom of a trench two deep: the body stands on the trench floor in
+     * The same current at the bottom of a trench two deep: the bot stands on the trench floor in
      * one block of flowing water (a deeper FLOWING river is not a vanilla shape — water over water
      * does not spread), and the east bank is three above its feet. Three rungs in a current, or a
      * staircase dug wet; the budget is the rungs.
@@ -174,8 +174,10 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         int goalY = GROUND + 2;
         BlockPos start = ctx.rel(0, GROUND + 1 - depth, 0);
         BlockPos goal = ctx.rel(4, goalY, 0);
-        ctx.record("布景", "沟底 y=" + (GROUND - depth) + "、一层流水，源头在 z=" + (-CHANNEL_HALF) + " 往 +z 流；东岸脚格 y=" + goalY
-                + "（土），比脚高 " + (goal.getY() - start.getY()) + "；起点 " + start.toShortString() + "，目标 " + goal.toShortString() + "，手里=dirt");
+        ctx.record("test setup", "trench floor y=" + (GROUND - depth) + " with one layer of flowing water, source at z="
+                + (-CHANNEL_HALF) + " flowing toward +z; east bank foot level y=" + goalY + " (dirt), "
+                + (goal.getY() - start.getY()) + " above the bot's feet; start " + start.toShortString() + ", goal "
+                + goal.toShortString() + ", in hand=dirt");
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         helm.hold(new ItemStack(Items.DIRT, 30));
@@ -195,9 +197,9 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         // The source needs ~5 ticks per cell to reach the far end; wait for the current to exist.
         helm.sync(FLOW_SYNC_TICKS, () -> {
             var flow = ctx.level().getFluidState(start).getFlow(ctx.level(), start);
-            ctx.record("起点.同步后", helm.where() + String.format(Locale.ROOT, "，脚格水流 (%.2f, %.2f)", flow.x, flow.z));
-            if (!body.isInWater()) ctx.fail("布景没成立：同步后身体不在水里 —— " + helm.where());
-            if (flow.length() < 0.01) ctx.fail("布景没成立：脚格没有水流 —— " + flow);
+            ctx.record("start after sync", helm.where() + String.format(Locale.ROOT, ", water flow at the foot cell (%.2f, %.2f)", flow.x, flow.z));
+            if (!body.isInWater()) ctx.fail("test setup invalid: the bot is not in water after the sync: " + helm.where());
+            if (flow.length() < 0.01) ctx.fail("test setup invalid: there is no water flow at the foot cell: " + flow);
             final int[] inWaterTicks = { 0 };
             final int[] firstDryTick = { -1 };
             final int[] legTicks = { 0 };
@@ -206,26 +208,26 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
                 legTicks[0] = t;
                 if (body.isInWater()) inWaterTicks[0]++;
                 // Ashore = standing at the bank's level. `isInWater` reads false in a shallow flowing
-                // layer far from its source, so「not in water and on the ground」is true on the floor
-                // of the trench itself, which is where the leg starts.
+                // layer far from its source, so "not in water and on the ground" is true on the floor
+                // of the trench itself, which is where the goto starts.
                 if (firstDryTick[0] < 0 && body.onGround() && !body.isInWater() && body.getY() >= goalY - 0.05)
                     firstDryTick[0] = t;
                 maxDrift[0] = Math.max(maxDrift[0], Math.abs(body.getZ() - (start.getZ() + 0.5)));
             };
             helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, watch, () -> {
-                ctx.record("腿末", helm.where());
+                ctx.record("end of goto", helm.where());
                 helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
-                    ctx.record("过程", String.format(Locale.ROOT,
-                            "水里 %d tick，第一次干地着地在第 %s tick，顺流最远漂了 %.2f 格",
-                            inWaterTicks[0], firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0]), maxDrift[0]));
+                    ctx.record("progress", String.format(Locale.ROOT,
+                            "%d ticks in water, first landed on dry ground at tick %s, drifted at most %.2f blocks downstream",
+                            inWaterTicks[0], firstDryTick[0] < 0 ? "never" : String.valueOf(firstDryTick[0]), maxDrift[0]));
                     double flat = helm.flatDistance(goal);
                     boolean ashore = body.onGround() && !body.isInWater() && body.getY() >= goalY - 0.05;
-                    ctx.record("终点", helm.where());
-                    ctx.check(ashore).as("A 身体最后站在干地上：" + helm.where()).isTrue();
-                    ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "B 停在目标格 1.5 格以内：水平差 %.2f", flat)).isTrue();
-                    ctx.check(firstDryTick[0] >= 0 && firstDryTick[0] <= dryBy).as("C 上岸要在 " + dryBy
-                            + " tick 内：第一次干地着地在第 " + (firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0]))
-                            + " tick").isTrue();
+                    ctx.record("final position", helm.where());
+                    ctx.check(ashore).as("A: the bot ends standing on dry ground: " + helm.where()).isTrue();
+                    ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "B: stops within 1.5 blocks of the goal cell: horizontal distance %.2f", flat)).isTrue();
+                    ctx.check(firstDryTick[0] >= 0 && firstDryTick[0] <= dryBy).as("C: gets ashore within " + dryBy
+                            + " ticks: first landed on dry ground at tick "
+                            + (firstDryTick[0] < 0 ? "never" : String.valueOf(firstDryTick[0]))).isTrue();
                 });
             });
         });
@@ -236,8 +238,8 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     private static final int FLOW_DRY_BY = 200;
 
     /**
-     * A body in a long, deep lake swims its whole length to a cell on the far bank, flush with the
-     * water. Nothing to climb, nothing to avoid: the leg measures how the planner and the walker
+     * A bot in a long, deep lake swims its whole length to a cell on the far bank, flush with the
+     * water. Nothing to climb, nothing to avoid: the walk measures how the planner and the walker
      * handle open water by itself — how many ticks a straight crossing costs and how many times the
      * plan is redone on the way.
      */
@@ -252,8 +254,9 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
                 for (int dy = 0; dy > -POOL_DEPTH; dy--) ctx.setBlock(dx, GROUND + dy, dz, Blocks.WATER);
         BlockPos start = ctx.rel(0, GROUND - 1, 0);
         BlockPos goal = ctx.rel(LAKE_LEN + 4, GROUND + 1, 0);
-        ctx.record("布景", "湖 x∈[-2," + (LAKE_LEN + 2) + "] z∈±" + LAKE_HALF + " 深 " + POOL_DEPTH + "，水面格 y=" + GROUND
-                + "，两岸与水面齐平；起点 " + start.toShortString() + "，目标 " + goal.toShortString());
+        ctx.record("test setup", "lake at x in [-2," + (LAKE_LEN + 2) + "], z within +/-" + LAKE_HALF + ", " + POOL_DEPTH
+                + " deep, water surface cell y=" + GROUND + ", both banks flush with the surface; start "
+                + start.toShortString() + ", goal " + goal.toShortString());
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         helm.hold(new ItemStack(Items.DIRT, 16));
@@ -271,9 +274,9 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         ServerPlayer body = helm.player();
 
         helm.sync(SYNC_TICKS, () -> {
-            ctx.record("起点.同步后", helm.where());
+            ctx.record("start after sync", helm.where());
             if (!body.isInWater()) {
-                ctx.fail("布景没成立：同步 " + SYNC_TICKS + " tick 后身体不在水里 —— " + helm.where());
+                ctx.fail("test setup invalid: the bot is not in water after a " + SYNC_TICKS + "-tick sync: " + helm.where());
             }
             final int[] legTicks = { 0 };
             final int[] firstDryTick = { -1 };
@@ -286,20 +289,20 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
                 maxSide[0] = Math.max(maxSide[0], Math.abs(body.getZ() - (goal.getZ() + 0.5)));
             };
             helm.goTo("leg", new Goal.Block(goal), goal, 2 * LEG_TICKS, watch, () -> {
-                ctx.record("腿末", helm.where());
+                ctx.record("end of goto", helm.where());
                 helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
-                    ctx.record("过程", String.format(Locale.ROOT,
-                            "第一次干地着地在第 %s tick，离目标最近 %.2f 格，偏离直线最多 %.2f 格",
-                            firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0]), minGap[0], maxSide[0]));
+                    ctx.record("progress", String.format(Locale.ROOT,
+                            "first landed on dry ground at tick %s, closest approach to the goal %.2f blocks, largest deviation from the straight line %.2f blocks",
+                            firstDryTick[0] < 0 ? "never" : String.valueOf(firstDryTick[0]), minGap[0], maxSide[0]));
                     double flat = helm.flatDistance(goal);
                     boolean ashore = body.onGround() && !body.isInWater() && body.getY() >= GROUND + 1 - 0.05;
-                    ctx.record("终点", helm.where());
-                    ctx.check(ashore).as("A 身体最后站在对岸干地上：" + helm.where()).isTrue();
+                    ctx.record("final position", helm.where());
+                    ctx.check(ashore).as("A: the bot ends standing on dry ground on the far bank: " + helm.where()).isTrue();
                     ctx.check(flat <= 1.5).as(String.format(Locale.ROOT,
-                            "B 身体停在目标格 1.5 格以内：水平差 %.2f", flat)).isTrue();
+                            "B: the bot stops within 1.5 blocks of the goal cell: horizontal distance %.2f", flat)).isTrue();
                     ctx.check(firstDryTick[0] >= 0 && firstDryTick[0] <= LAKE_DRY_BY).as(
-                            "C 上岸要在 " + LAKE_DRY_BY + " tick 内：第一次干地着地在第 "
-                            + (firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0])) + " tick").isTrue();
+                            "C: gets ashore within " + LAKE_DRY_BY + " ticks: first landed on dry ground at tick "
+                            + (firstDryTick[0] < 0 ? "never" : String.valueOf(firstDryTick[0]))).isTrue();
                 });
             });
         });
@@ -314,13 +317,13 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     /**
      * @param rimRaise how many blocks the slab around the pool rises above the water surface cell
      * @param rim      the block the slab's top course is made of (what a dig arm has to chew)
-     * @param dryBy    tick by which the body must first stand on dry ground
+     * @param dryBy    tick by which the bot must first stand on dry ground
      */
     private static void climbOut(SceneContext ctx, String arm, int rimRaise, Block rim, int dryBy, ItemStack... hand) {
         climbOut(ctx, arm, rimRaise, rim, POOL_DEPTH, dryBy, hand);
     }
 
-    /** As above with the pool {@code poolDepth} cells deep; a one-deep pool stands the body on
+    /** As above with the pool {@code poolDepth} cells deep; a one-deep pool stands the bot on
      *  the floor with its eyes out of the water, the shape the planner used to treat as a floor
      *  it could jump off. */
     private static void climbOut(SceneContext ctx, String arm, int rimRaise, Block rim, int poolDepth, int dryBy, ItemStack... hand) {
@@ -331,12 +334,13 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
                 for (int dy = 1; dy <= rimRaise; dy++) ctx.setBlock(dx, GROUND + dy, dz, Blocks.AIR);
             }
         int goalY = GROUND + 1 + rimRaise;
-        // One cell under the surface where the pool allows it, so the body starts wet either way.
+        // One cell under the surface where the pool allows it, so the bot starts wet either way.
         BlockPos start = ctx.rel(0, GROUND - Math.min(poolDepth - 1, 1), 0);
         BlockPos goal = ctx.rel(POOL_HALF + 2, goalY, 0);
-        ctx.record("布景", "水面格 y=" + GROUND + "，岸顶比水面高 " + rimRaise + " 格（岸脚格 y=" + goalY + "，岸材质 "
-                + rim + "）；池 ±" + POOL_HALF + " 深 " + poolDepth + "；起点 " + start.toShortString()
-                + "，目标 " + goal.toShortString() + "，手里=" + arm);
+        ctx.record("test setup", "water surface cell y=" + GROUND + ", bank top " + rimRaise
+                + " blocks above the surface (bank foot level y=" + goalY + ", bank material " + rim + "); pool +/-"
+                + POOL_HALF + ", " + poolDepth + " deep; start " + start.toShortString() + ", goal "
+                + goal.toShortString() + ", in hand=" + arm);
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         if (hand.length > 0) helm.hold(hand);
@@ -356,9 +360,9 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         ServerPlayer body = helm.player();
 
         helm.sync(SYNC_TICKS, () -> {
-            ctx.record("起点.同步后", helm.where());
+            ctx.record("start after sync", helm.where());
             if (!body.isInWater()) {
-                ctx.fail("布景没成立：同步 " + SYNC_TICKS + " tick 后身体不在水里 —— " + helm.where());
+                ctx.fail("test setup invalid: the bot is not in water after a " + SYNC_TICKS + "-tick sync: " + helm.where());
             }
             final int[] inWaterTicks = { 0 };
             final int[] firstDryTick = { -1 };
@@ -373,25 +377,25 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
                 minGap[0] = Math.min(minGap[0], helm.flatDistance(goal));
             };
             helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, watch, () -> {
-                ctx.record("腿末", helm.where());
-                // Judged once the body has come to rest, and SAMPLED until then: a leg that ends on
+                ctx.record("end of goto", helm.where());
+                // Judged once the bot has come to rest, and SAMPLED until then: a goto that ends on
                 // the last hop of a step-up is still in the air for a few ticks, the server's copy
-                // of the body can trail the client by several more, and「arrived」is about where
+                // of the bot can trail the client by several more, and "arrived" is about where
                 // it lands. The watcher keeps counting so the landing tick is not lost to the gap.
                 helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
-                    ctx.record("过程", String.format(Locale.ROOT,
-                            "水里 %d tick，第一次干地着地在第 %s tick，最高 y=%.2f，离目标最近 %.2f 格",
-                            inWaterTicks[0], firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0]),
+                    ctx.record("progress", String.format(Locale.ROOT,
+                            "%d ticks in water, first landed on dry ground at tick %s, highest y=%.2f, closest approach to the goal %.2f blocks",
+                            inWaterTicks[0], firstDryTick[0] < 0 ? "never" : String.valueOf(firstDryTick[0]),
                             maxY[0], minGap[0]));
                     double flat = helm.flatDistance(goal);
                     boolean ashore = body.onGround() && !body.isInWater() && body.getY() >= goalY - 0.05;
-                    ctx.record("终点", helm.where());
-                    ctx.check(ashore).as("A 身体最后站在干地上（onGround、不在水里、脚在岸脚格高度）：" + helm.where()).isTrue();
+                    ctx.record("final position", helm.where());
+                    ctx.check(ashore).as("A: the bot ends standing on dry ground (onGround, not in water, feet at bank foot level): " + helm.where()).isTrue();
                     ctx.check(flat <= 1.5).as(String.format(Locale.ROOT,
-                            "B 身体停在目标格 1.5 格以内：水平差 %.2f", flat)).isTrue();
+                            "B: the bot stops within 1.5 blocks of the goal cell: horizontal distance %.2f", flat)).isTrue();
                     ctx.check(firstDryTick[0] >= 0 && firstDryTick[0] <= dryBy).as(
-                            "C 上岸要在 " + dryBy + " tick 内：第一次干地着地在第 "
-                            + (firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0])) + " tick").isTrue();
+                            "C: gets ashore within " + dryBy + " ticks: first landed on dry ground at tick "
+                            + (firstDryTick[0] < 0 ? "never" : String.valueOf(firstDryTick[0]))).isTrue();
                 });
             });
         });

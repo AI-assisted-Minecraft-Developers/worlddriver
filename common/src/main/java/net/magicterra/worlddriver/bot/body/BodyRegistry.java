@@ -8,7 +8,8 @@ import java.util.Map;
 import net.magicterra.worlddriver.bot.BodyReady;
 
 /**
- * The bodies the API can address by name, beside the client's own. {@code self} is never in here.
+ * The controlled entities the API can address by name, besides the client's own player.
+ * {@code self} is never in here.
  *
  * <p>Whoever creates a host registers it: {@code /worlddriver server spawn <name>} registers
  * {@code player:<name>}, the testmod registers {@code npc:<name>}, and a third-party mod registers
@@ -16,11 +17,11 @@ import net.magicterra.worlddriver.bot.BodyReady;
  * entity of that server.
  *
  * <p>Transport threads read it and the server thread writes it, so every method synchronizes on the
- * map. Iteration is in registration order, which is the order {@code mc.bot.status} lists bodies in.
+ * map. Iteration is in registration order, which is the order {@code mc.bot.status} lists them in.
  */
 public final class BodyRegistry {
 
-    /** The id that names this client's own body. */
+    /** The id that names this client's own player. */
     public static final String SELF = "self";
 
     private static final Map<String, BodyHost> HOSTS = new LinkedHashMap<>();
@@ -50,7 +51,7 @@ public final class BodyRegistry {
         synchronized (HOSTS) { HOSTS.clear(); }
     }
 
-    /** Whether a {@code body} param names this client's own body: absent, blank or {@code self}. */
+    /** Whether a {@code body} param names this client's own player: absent, blank or {@code self}. */
     public static boolean isSelf(String id) {
         return id == null || id.isBlank() || SELF.equals(id);
     }
@@ -58,6 +59,6 @@ public final class BodyRegistry {
     /** The refusal for an id nothing is registered under. */
     public static Map<String, Object> unknown(String id) {
         return BodyHost.refuse(BodyReady.Reason.UNKNOWN_BODY,
-                "no body named '" + id + "'; mc.bot.status lists the bodies");
+                "no bot named '" + id + "'; mc.bot.status lists the bots");
     }
 }

@@ -134,7 +134,7 @@ public final class FixtureBuilder {
 
     /**
      * The marker that stands for the scene: the origin marker, or the start marker when there is
-     * none — one cell holds one marker, and a scene whose origin is where the body starts is the
+     * none — one cell holds one marker, and a scene whose origin is where the bot starts is the
      * common case. Its label is the scene's name, the way a structure block carries one, so
      * {@code save}, {@code place} and {@code run} can find the scene in the world by name.
      */
@@ -162,8 +162,8 @@ public final class FixtureBuilder {
      * at save time (the marker itself sits there, so the caller looks one cell in the direction the
      * label names, or simply records the block under it — see {@link FixtureIO}).
      *
-     * @param verb the verb of the goal legs, {@code goto} unless the tester said otherwise
-     * @param budget the tick budget of each leg
+     * @param verb the verb of the walks to the goals, {@code goto} unless the tester said otherwise
+     * @param budget the tick budget of each walk
      */
     public static SceneFixture fixture(String name, String author, String created, List<Placed> markers,
             String verb, int budget, Function<BlockPos, String> blockIdAt) {

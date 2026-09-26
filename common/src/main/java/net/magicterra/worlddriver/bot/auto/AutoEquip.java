@@ -20,7 +20,7 @@ import java.util.Map;
 
 /**
  * Phase F equipment manager — the armor/weapon sibling of {@link AutoTool} (which
- * manages the held tool). Scans the inventory and puts the best armor on each body
+ * manages the held tool). Scans the inventory and puts the best armor in each armor
  * slot and the best weapon in the main hand, scoring by material tier first then
  * enchantments. Operates on the always-present {@code inventoryMenu} (containerId 0)
  * via slot clicks, the same mechanism as {@link AutoTotem}, so it works headless
@@ -60,7 +60,7 @@ public final class AutoEquip {
         equipBest(mc, p, true, durabilityThreshold);
     }
 
-    /** Equip the best armor on every body slot (and, if {@code weaponToo}, the best
+    /** Equip the best armor in every armor slot (and, if {@code weaponToo}, the best
      *  main-hand weapon), reporting the resulting loadout. */
     public static Result equipBest(Minecraft mc, LocalPlayer p, boolean weaponToo, double durabilityThreshold) {
         List<String> equipped = new ArrayList<>();
@@ -164,7 +164,7 @@ public final class AutoEquip {
     }
 
     /** Score this stack as a weapon; -1 if it isn't one. Swords are preferred over
-     *  axes/tridents (design "剑优先"), then material tier, then enchantments. */
+     *  axes/tridents (the design is "swords first"), then material tier, then enchantments. */
     private static double weaponScore(ItemStack stack) {
         if (stack.isEmpty()) return -1;
         double base;

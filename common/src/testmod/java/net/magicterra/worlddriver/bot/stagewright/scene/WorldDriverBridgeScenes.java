@@ -21,13 +21,13 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * Single-width plank-bridge (独木桥) battery: a systematic sweep of 1-wide elevated
+ * Single-width plank-bridge battery: a systematic sweep of 1-wide elevated
  * walkways — flat runs, hurdles, bypass routing, dead ends, stairs, broken descents,
  * foothold placement and dig-vs-detour economics. The family-wide contract is
- * <b>"traverse (or stop) WITHOUT falling off"</b>: every scene tracks the body's
+ * <b>"traverse (or stop) WITHOUT falling off"</b>: every scene tracks the player's
  * minimum Y through the whole run and fails if it ever dropped below the lowest
  * legitimate deck level, and every rig hangs a catch floor 10 blocks under the deck
- * so a shed body lands inside the slot instead of leaving the arena (void-fall rig
+ * so a player that falls off lands inside the slot instead of leaving the arena (void-fall rig
  * rule; the catch floor is itself a failure detector, not a route).
  *
  * <p>Dedicated-topology caveats (same class as the documented DIG-hold / GEAR-degraded
@@ -40,10 +40,10 @@ import net.minecraft.world.level.block.Blocks;
  *       {@code ClientWorldView} (bucketFallReady) and the {@code ClutchController} is
  *       ticked from the client tick — a dedicated-server LevelWorldView can never emit
  *       or actuate {@code fallBucket*}. The lethal-gap scene therefore covers the
- *       bucket-less leg (MUST refuse the drop and hold the lip); the "with bucket →
- *       MLG through" leg is live/T1 territory (verified live: drop-10/20 onto 1×1).</li>
- *   <li><b>Digs are instant</b> (1 tick/block) on this topology, so the pickaxe vs
- *       bare-hand legs of the break-through scene share execution speed; what they
+ *       bucket-less case (MUST refuse the drop and hold the lip); the "with bucket →
+ *       MLG through" case is live/T1 territory (verified live: drop-10/20 onto 1×1).</li>
+ *   <li><b>Digs are instant</b> (1 tick/block) on this topology, so the pickaxe and
+ *       bare-hand runs of the break-through scene share execution speed; what they
  *       exercise is the PLANNER's break-cost economics and the dig fallback chain.</li>
  * </ul>
  *
@@ -110,9 +110,9 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                 ctx.setBlock(cx + dx, y, cz + dz, Blocks.STONE);
     }
 
-    /** Catch floor: a shed body lands here (inside the slot) instead of leaving the
-     *  arena. Reaching it at all is already a scene failure via the minY guard. The
-     *  3-tall bedrock rim keeps a fallen body from wandering off the slot (rig rule:
+    /** Catch floor: a player that falls off lands here (inside the slot) instead of leaving
+     *  the arena. Reaching it at all is already a scene failure via the minY guard. The
+     *  3-tall bedrock rim keeps a fallen player from wandering off the slot (rig rule:
      *  fence every floor bordering void). */
     private static void catchFloor(SceneContext ctx, int x0, int x1, int y, int z0, int z1) {
         for (int x = x0; x <= x1; x++)
@@ -135,7 +135,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         BlockPos p = ctx.rel(x, standY, z);
         ServerPlayerBody av = SceneBody.avatar(ctx, level, p.getX() + 0.5, p.getY(), p.getZ() + 0.5);
         ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> { if (!fp.isRemoved()) fp.discard(); });   // breakThrough discards per-leg
+        ctx.cleanup(() -> { if (!fp.isRemoved()) fp.discard(); });   // breakThrough discards per run
         fp.getInventory().clearContent();
         return av;
     }
@@ -153,8 +153,8 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
     /** Drive one walker journey to {@code goal}, capped at {@code n} sim ticks; tracks
      *  the no-fall guard (minY) and the farthest +x progress (origin-relative).
      *  {@code guardStandY}: the scene's lowest legitimate stand level (origin-relative);
-     *  the first tick the body dips below it, the walker's state is snapshotted so a
-     *  fall failure reports WHERE and in WHAT state the body left the deck (the final
+     *  the first tick the player dips below it, the walker's state is snapshotted so a
+     *  fall failure reports WHERE and in WHAT state the player left the deck (the final
      *  probe is post-fall and has misled triage before). */
     private static Run drive(SceneContext ctx, ServerPlayerBody av, int n, BlockPos goal, int guardStandY) {
         ServerPlayer fp = av.fakePlayer();
@@ -177,7 +177,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         // window, and the livelock that matters happened hundreds of ticks before the end.
         java.util.List<String> journey = new java.util.ArrayList<>();
         String lastPid = "";
-        // Pin window: the first time the body sits STATIC for 15 ticks mid-journey the
+        // Pin window: the first time the player sits STATIC for 15 ticks mid-journey the
         // rolling trail is snapshotted — arrive-failures wedge long before the terminal,
         // and the end-of-run trail only shows the FAILED epilogue.
         String pinWindow = null;
@@ -250,12 +250,12 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                 && r.fp().getY() >= goal.getY() - 0.5;
     }
 
-    /** Family-wide no-fall guard: the body must never have dropped below the lowest
+    /** Family-wide no-fall guard: the player must never have dropped below the lowest
      *  legitimate deck stand level of the scene. */
     private static void assertNeverFell(SceneContext ctx, String scene, Run r, int lowestStandY) {
         double floorAbs = ctx.origin().getY() + lowestStandY - 0.5;
         if (r.minY() < floorAbs)
-            ctx.fail(scene + ": body dropped below the deck (minY=" + r.minY() + " < " + floorAbs
+            ctx.fail(scene + ": the bot dropped below the deck (minY=" + r.minY() + " < " + floorAbs
                     + ") — fell off the bridge | " + r.breach() + " | final " + r.walker().progressProbe());
     }
 
@@ -378,7 +378,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         walkStraight(ctx, "bridgeCausewayOverWater", half);
     }
 
-    /** 长条单宽独木桥跑酷: 32-block 1-wide run, end to end, no shed. */
+    /** Long single-width bridge run: 32-block 1-wide run, end to end, without falling off. */
     private static void bridgeLongRun(SceneContext ctx) {
         liveStack(ctx);
         BlockPos goal = frame(ctx, 32);
@@ -387,7 +387,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         assertArrived(ctx, "bridgeLongRun", r, goal);
     }
 
-    /** 带1格障碍的独木桥: single 1-high hurdle mid-deck — step up, step down, carry on. */
+    /** Single-width bridge with a 1-high obstacle: one hurdle mid-deck; step up, step down, continue. */
     private static void bridgeHurdle1(SceneContext ctx) {
         liveStack(ctx);
         BlockPos goal = frame(ctx, 24);
@@ -397,20 +397,20 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         assertArrived(ctx, "bridgeHurdle1", r, goal);
     }
 
-    /** 1.5格高障碍+旁路: block+bottom-slab (1.5 > jump reach 1.25) seals the mainline;
+    /** 1.5-high obstacle with a bypass: block+bottom-slab (1.5 > jump reach 1.25) seals the mainline;
      *  the |dz|=3 branch is the only route.
      *
      *  <p>The routing claim is carried by {@code assertArrived}, not by the {@code assertBlock}
      *  below: {@code bypass()} widens the deck to {@code z=0..4}, the obstacle seals only
      *  {@code z=0}, and with break OFF there is no way to reach the goal except around it. So
-     *  「arrived」IS「went around」here — that is the assertion that can go red.
+     *  "arrived" IS "went around" here — that is the assertion that can go red.
      *
      *  <p><b>The {@code assertBlock} is staging self-defence, not a behavioural test.</b>
      *  {@code liveStack} pins {@code allowBreak=false}, which prunes break edges in the planner
      *  ({@code Move}) and refuses them in the executor ({@code Walker.mayBreak}), so nothing in
      *  this arm can remove that stone and the row cannot fail on behaviour. It is worth keeping
      *  only as a check that the staging is what the scene thinks it is. The arm that really
-     *  grades「dig or detour」is {@link #bridgeDetourCheap}, whose identical two lines mean
+     *  grades "dig or detour" is {@link #bridgeDetourCheap}, whose identical two lines mean
      *  something because it turns {@code allowBreak} back ON. */
     private static void bridgeHurdleSlabBypass(SceneContext ctx) {
         liveStack(ctx);
@@ -424,7 +424,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         ctx.assertBlock(12, DECK + 1, 0, Blocks.STONE);
     }
 
-    /** 2格高障碍+旁路: full 2-tall pillar on the deck, bypass branch is the route.
+    /** 2-high obstacle with a bypass: full 2-tall pillar on the deck, bypass branch is the route.
      *
      *  <p>Same division of labour as {@link #bridgeHurdleSlabBypass}: {@code assertArrived} is what
      *  can go red (with break OFF and only {@code z=0} sealed, arriving requires the detour), while
@@ -441,7 +441,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         ctx.assertBlock(12, DECK + 2, 0, Blocks.STONE);
     }
 
-    /** 挡头+旁路: head-height bar over the deck (foot cell free, head cell sealed —
+    /** Head-height block with a bypass: head-height bar over the deck (foot cell free, head cell sealed —
      *  a 1-tall gap fits no biped and the planner may not crawl), bypass is the route. */
     private static void bridgeHeadBlockBypass(SceneContext ctx) {
         liveStack(ctx);
@@ -453,7 +453,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         assertArrived(ctx, "bridgeHeadBlockBypass", r, goal);
     }
 
-    /** 挡头且无路径: head bar, no bypass. Contract = advance to the farthest reachable
+    /** Head-height block with no route: head bar, no bypass. Contract = advance to the farthest reachable
      *  cell, hold there (or fail the goto), and NEVER leave the deck. */
     private static void bridgeHeadBlockStop(SceneContext ctx) {
         liveStack(ctx);
@@ -475,7 +475,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         assertHeldAtBarrier(ctx, scene, r, goal, 12, DECK + 1);
     }
 
-    /** 挡脚且无路径: 1-high hurdle UNDER a low ceiling (deck+3 roof spans the hurdle) —
+    /** Foot-height block with no route: 1-high hurdle UNDER a low ceiling (deck+3 roof spans the hurdle) —
      *  the mount jump has no headroom, the under-gap is sealed by the hurdle. No route;
      *  same hold-the-lip contract. */
     private static void bridgeFootBlockStop(SceneContext ctx) {
@@ -487,7 +487,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         assertHeldAtBarrier(ctx, "bridgeFootBlockStop", r, goal, 12, DECK + 1);
     }
 
-    /** 阶梯上升的独木桥: five +1 rises, four flat cells apart, all 1-wide. */
+    /** Ascending single-width stair bridge: five +1 rises, four flat cells apart, all 1-wide. */
     private static void bridgeStairUp(SceneContext ctx) {
         liveStack(ctx);
         pad(ctx, -2, DECK, 0);
@@ -500,7 +500,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         assertArrived(ctx, "bridgeStairUp", r, goal);
     }
 
-    /** 阶梯下降的独木桥: mirror of stairUp — five -1 drops on a 1-wide strip. */
+    /** Descending single-width stair bridge: mirror of stairUp — five -1 drops on a 1-wide strip. */
     private static void bridgeStairDown(SceneContext ctx) {
         liveStack(ctx);
         pad(ctx, -2, DECK + 5, 0);
@@ -513,21 +513,21 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         assertArrived(ctx, "bridgeStairDown", r, goal);
     }
 
-    /** 下行搭桥入竖井 — ROUTE regression cover for task#4 (replay-0013), NOT a wedge
+    /** Descending bridge placement into a shaft — ROUTE regression cover for replay-0013, NOT a wedge
      *  repro: a step-up lip over a ceiling-sealed 2-wide shaft whose only continuation
-     *  is a DESCENDING bridgePlace (support cell below the lip's foot). Both A/B legs
+     *  is a DESCENDING bridgePlace (support cell below the lip's foot). Both A/B arms
      *  of walkerBridgeDescentPlaceAnchor PASS here — the live wedge (74× climb-slide-
      *  repath during the place-aim ticks) needs the async-search/escalation regime a
-     *  deterministic synchronous-search scene structurally cannot enter (same verdict
-     *  as the futileBankDig family / #52). This scene pins the descending-place ROUTE:
-     *  planner emits it, actuator executes it, body arrives without entering the
+     *  deterministic synchronous-search scene structurally cannot enter (same conclusion
+     *  as the futileBankDig family). This scene pins the descending-place ROUTE:
+     *  planner emits it, actuator executes it, the bot arrives without entering the
      *  shaft, material is spent. The wedge itself is validated live via
-     *  mc.debug.replay{replay-0013} (bot must be idle — it teleports the body). */
+     *  mc.debug.replay{replay-0013} (the bot must be idle — the replay teleports it). */
     private static void bridgeDescendPlaceLip(SceneContext ctx) {
         liveStack(ctx);
         BotConfig.allowPlace = true;
         // Live shape (replay-0013): the lip is MOUNTED BY A STEP-UP right before the
-        // descending place — the wedge fired while the body was still climbing onto
+        // descending place — the wedge fired while the bot was still climbing onto
         // the lip (the actuator freeze mid-step-up dropped it back down the stair,
         // x 89.81→89.28, 74× climb-slide-repath).
         pad(ctx, -2, DECK + 2, 0);
@@ -555,20 +555,20 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                     + "inv-events: " + r.invEvents() + " ;; journey: " + r.journey());
     }
 
-    /** 阶梯下降有中断(安全): the descending strip breaks at x=12 with a drop-3 resume —
-     *  inside the dry-fall cap, planner routes the fall, body continues after landing. */
+    /** Descending stair with a gap (safe): the descending strip breaks at x=12 with a drop-3 resume —
+     *  inside the dry-fall cap, the planner routes the fall and the bot continues after landing. */
     private static void bridgeStairDownGapSafe(SceneContext ctx) {
         stairGapScene(ctx, "bridgeStairDownGapSafe", 3, true);
     }
 
-    /** 阶梯下降有中断(跌落伤害): drop-4 resume = the pathfinderMaxDryFall cap edge.
+    /** Descending stair with a gap (fall damage): drop-4 resume = the pathfinderMaxDryFall cap edge.
      *  Live this costs ~1 HP; the FakePlayer is damage-immune by contract, so the
      *  scene asserts routing+traversal (see class doc). */
     private static void bridgeStairDownGapDamage(SceneContext ctx) {
         stairGapScene(ctx, "bridgeStairDownGapDamage", 4, true);
     }
 
-    /** 阶梯下降有中断(致命, 无水桶): drop-12 break — beyond the dry cap, and the
+    /** Descending stair with a gap (lethal, no water bucket): drop-12 break — beyond the dry cap, and the
      *  dedicated world view can never offer fallBucket (client-only capability, see
      *  class doc), so there is NO route: hold the lip, do not step off. */
     private static void bridgeLethalGapStop(SceneContext ctx) {
@@ -602,7 +602,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         }
     }
 
-    /** 阶梯上升需垫脚(有材料): a +2 cliff splits the deck; allowPlace + dirt in the bag
+    /** Ascending step that needs a foothold (with material): a +2 cliff splits the deck; allowPlace + dirt in the bag
      *  → the planner may pillar/foothold through. Assert arrival AND that placement
      *  actually happened (dirt consumed or a placed block present). */
     private static void bridgeFootholdPlace(SceneContext ctx) {
@@ -621,7 +621,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                     + r.invEvents() + " ;; journey: " + r.journey());
     }
 
-    /** 阶梯上升需垫脚(无材料): same rig, empty bag → no route; hold at the face. */
+    /** Ascending step that needs a foothold (no material): same rig, empty bag → no route; hold at the face. */
     private static void bridgeFootholdStarve(SceneContext ctx) {
         liveStack(ctx);
         BotConfig.allowPlace = true;
@@ -643,7 +643,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         return ctx.rel(24, DECK + 3, 0);
     }
 
-    /** 两格高阶梯但有旁路(不消耗材料): the same +2 face, but a |dz|=3 branch climbs it
+    /** Two-high step with a bypass (no material spent): the same +2 face, but a |dz|=3 branch climbs it
      *  as two +1 steps. Dirt in the bag + allowPlace ON — the walk detour must win on
      *  cost, so the bag stays untouched. */
     private static void bridgeStepTwoBypassNoPlace(SceneContext ctx) {
@@ -653,7 +653,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         // Branch: leave around x=8, climb +1 at x=11 and +1 at x=13 along z=5, rejoin the
         // high deck around x=14. Branch parallels the mainline at z=5 — OUTSIDE the
         // carrot/adoption snap radius (~3-4): at z=3 the fast-forward adopted the branch
-        // node while the body was still on the mainline and the drive dragged it off the
+        // node while the bot was still on the mainline and the drive dragged it off the
         // deck chasing a laterally-snapped carrot (t0 2026-07-20 round 2, breach@t=66).
         // Junctions are SOLID slabs, not 1-wide L-connectors: every thin L-junction
         // exposes a LEGAL parkour2d shortcut across its inside corner (the diagonal
@@ -678,8 +678,9 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                     + r.invEvents() + " ;; journey: " + r.journey());
     }
 
-    /** 不可跨障碍+开破坏(有镐无镐都过): a 2-tall wall seals the deck, allowBreak ON, no
-     *  bypass — leg 1 bare-hand, leg 2 iron pickaxe over a rebuilt wall. Digs are
+    /** Impassable obstacle with breaking enabled (passes with or without a pickaxe): a 2-tall wall
+     *  seals the deck, allowBreak ON, no bypass — the first run bare-handed, the second with an iron
+     *  pickaxe against a rebuilt wall. Digs are
      *  instant on this topology (class doc); the coverage is the dig-through routing. */
     private static void bridgeBreakThrough(SceneContext ctx) {
         liveStack(ctx);
@@ -697,7 +698,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         }
     }
 
-    /** 挖掘比绕路快: thin wall (2 blocks) vs a LONG |dz|=6 detour (~32 extra walks),
+    /** Digging is faster than the detour: thin wall (2 blocks) vs a LONG |dz|=6 detour (~32 extra walks),
      *  iron pickaxe in hand → the planner should dig through; assert the wall fell. */
     private static void bridgeDigShortcut(SceneContext ctx) {
         liveStack(ctx);
@@ -719,7 +720,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                     + "where a 2-block pickaxe dig is far cheaper");
     }
 
-    /** 挖掘不如绕路快: same wall but BARE-HAND (stone ≈150t/block live → huge break
+    /** The detour is faster than digging: same wall but BARE-HAND (stone ≈150t/block live → huge break
      *  cost) vs a SHORT |dz|=3 detour (~10 extra walks) → detour must win; wall intact. */
     private static void bridgeDetourCheap(SceneContext ctx) {
         liveStack(ctx);

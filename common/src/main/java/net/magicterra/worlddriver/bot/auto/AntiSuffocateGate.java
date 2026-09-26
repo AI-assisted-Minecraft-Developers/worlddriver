@@ -46,11 +46,11 @@ public final class AntiSuffocateGate {
 
     /**
      * Freshness gate for {@code AntiSuffocate#resolveHead}'s FOOT and HORIZONTAL-
-     * neighbour fallback legs only (final-review M1). {@link #shouldTrigger} above
-     * stays a ~40-tick vanilla damage-window gate (correct for the eye/above legs —
+     * neighbour fallback steps only (final-review M1). {@link #shouldTrigger} above
+     * stays a ~40-tick vanilla damage-window gate (correct for the eye/above steps —
      * those are the block actually reported as choking us, so acting on a slightly
      * stale signal is harmless: at worst we re-check an already-air cell). The
-     * foot/horizontal legs are different: they are a last-resort guess ("some solid
+     * foot/horizontal steps are different: they are a last-resort guess ("some solid
      * block must be touching us") that, once the bot is FREED, degenerates into
      * chewing the bot's own foot cell or a shaft/bunker wall for the trailing ~2s of
      * the 40-tick window — a new death vector (bunker-wall breach right after every
@@ -62,12 +62,12 @@ public final class AntiSuffocateGate {
      * hot (>0) for the whole ongoing episode; once the bot is actually freed,
      * {@code hurtTime} decays to 0 within &le;10 ticks — far inside the ~40-tick
      * damage-window {@link #shouldTrigger} still reads as true. Gating the
-     * foot/horizontal legs on {@code hurtTime>0} keeps them armed for the real
+     * foot/horizontal steps on {@code hurtTime>0} keeps them armed for the real
      * desync case (death #16) and disarms them within ~10 ticks of freedom, instead
      * of riding the full 40-tick tail.
      *
      * @param hurtTime {@code LivingEntity#hurtTime} this tick.
-     * @return true iff the foot/horizontal fallback legs may fire this tick.
+     * @return true iff the foot/horizontal fallback steps may fire this tick.
      */
     public static boolean allowProximityFallback(int hurtTime) {
         return hurtTime > 0;

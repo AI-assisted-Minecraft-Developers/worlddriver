@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
 
 /**
  * The on-screen "the bot is driving" badge. Rendered from each loader's HUD hook
@@ -17,7 +18,7 @@ import net.minecraft.client.gui.GuiGraphics;
 public final class MouseYieldHud {
     private MouseYieldHud() {}
 
-    private static final int COLOR_DRIVING = 0xFFFFB300;   // amber: bot has the body
+    private static final int COLOR_DRIVING = 0xFFFFB300;   // amber: the bot is driving the player
     private static final int COLOR_YIELDED = 0xFFB0B0B0;   // grey: informational
     private static final int COLOR_RECLAIM = 0xFF7FD98A;   // green: you hold the mouse
     private static final int COLOR_BACKDROP = 0x90000000;
@@ -33,18 +34,20 @@ public final class MouseYieldHud {
         if (!MouseYield.driving()) return;
 
         String who = MouseYield.driver();
-        String line1 = who.isEmpty() ? "● BOT 接管中" : "● BOT 接管中 · " + who;
-        String line2;
+        Component line1 = who.isEmpty()
+                ? Component.translatable("hud.worlddriver.driving")
+                : Component.translatable("hud.worlddriver.driving.named", who);
+        Component line2;
         int color2;
         if (MouseYield.reclaimed()) {
-            line2 = "鼠标在你手上 · bot 仍在操作";
+            line2 = Component.translatable("hud.worlddriver.reclaimed");
             color2 = COLOR_RECLAIM;
         } else if (MouseYield.yielded()) {
-            line2 = "鼠标已释放 · 双击 ESC 取回";
+            line2 = Component.translatable("hud.worlddriver.yielded");
             color2 = COLOR_YIELDED;
         } else {
             // Driving but nothing released — mouseYield off, or a screen owns the cursor.
-            line2 = "双击 ESC 取回鼠标";
+            line2 = Component.translatable("hud.worlddriver.escHint");
             color2 = COLOR_YIELDED;
         }
 

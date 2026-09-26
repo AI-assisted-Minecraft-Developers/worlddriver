@@ -14,7 +14,7 @@ import net.minecraft.world.level.block.Blocks;
 /**
  * The shape of the mould rung 12 casts its portal frame in, and the rules that say where it may go.
  *
- * <p>Pure geometry and world-reading: no body, no rig, no processes. It lives apart from the rung
+ * <p>Pure geometry and world-reading: no bot, no rig, no processes. It lives apart from the rung
  * that drives it because the rung's file is at its line budget, and because these are the parts a
  * failure is usually diagnosed against — {@code RING}'s order and the shell rule below are each a
  * one-line invariant that cost a run to learn.
@@ -24,7 +24,7 @@ import net.minecraft.world.level.block.Blocks;
  * <b>1. Every cell is cast onto something.</b> {@link #RING} is the cast order and it encodes a
  * dependency: each cell's floor is either rock nobody has touched or the obsidian cast one step
  * earlier — {@code (-1,2)} stands on {@code (-1,1)}, which is cast before it. That is why
- * {@link #corridor} carves only the space the body walks in and the frame cells are opened one at a
+ * {@link #corridor} carves only the space the bot walks in and the frame cells are opened one at a
  * time, in {@code castCell}. Hollowing all twelve up front turns every one of those floors into air
  * before the first pour, and every fluid then runs off: measured as {@code frame.cast=0/10} with
  * both buckets reporting {@code CONSUME}.
@@ -47,7 +47,7 @@ public final class JourneyForge {
     public static final int[][] RING = {
             {0, 0}, {1, 0}, {-1, 1}, {2, 1}, {-1, 2}, {2, 2}, {-1, 3}, {2, 3}, {0, 4}, {1, 4}};
 
-    /** How tall the alcove is, in cells — the body's floor plus six. */
+    /** How tall the alcove is, in cells — the bot's floor plus six. */
     public static final int ALCOVE_HEIGHT = 7;
 
     /** How far below the lava the mould starts out being cut.
@@ -71,10 +71,10 @@ public final class JourneyForge {
     }
 
     /**
-     * Only the corridor — the space the body walks and stands in. <b>Not</b> the frame cells.
+     * Only the corridor — the space the bot walks and stands in. <b>Not</b> the frame cells.
      *
      * <p>Carved bottom-up and deepening with {@code push}, so however far out the frame is pushed the
-     * body still has a walked path to each cell. Order is not tidiness: the body digs what it can
+     * bot still has a walked path to each cell. Order is not tidiness: the bot digs what it can
      * path to, so opening a whole layer before the one above keeps every next cell adjacent to air it
      * can already stand in.
      */
@@ -88,13 +88,13 @@ public final class JourneyForge {
     }
 
     /**
-     * The width of the alcove, ordered OUTWARD from the shaft the body arrives down.
+     * The width of the alcove, ordered OUTWARD from the shaft the bot arrives down.
      *
      * <p>Not cosmetic: {@code Body.canBreak} refuses a block whose six neighbours are all full
      * solid faces, on the correct grounds that no ray from any eye could reach it. Sweeping
      * {@code -2 → 2} therefore asks for the far edge first, while it is still buried in rock — and
      * that cell is silently skipped, which then buries the cell BEHIND it at the next depth. Measured
-     * as {@code carve.stuck=2 格挖不动 例：-7,51,21}: both stuck cells were the far edge of the
+     * as {@code carve.stuck} reporting 2 cells that could not be dug, for example -7,51,21: both stuck cells were the far edge of the
      * corridor's floor, and nothing else in the whole excavation failed.
      *
      * <p>{@code 0} is the shaft's own column, which is already open when carving starts, so each
@@ -156,11 +156,12 @@ public final class JourneyForge {
      * Every water SOURCE within {@code r} of {@code cells}, highest first — or null when there is
      * none. The question {@link #firstFluid}'s own parenthetical assumes an answer to.
      *
-     * <p><b>Why this exists.</b> {@code firstFluid} prints「流动，没源就会自己退」for a flowing
-     * cell. That is a claim about the cell's UPSTREAM, and the reading it comes from never looked
-     * upstream — it is a local fact carrying a global promise. Ladder j51 is where the promise came
-     * due: {@code drain.0} through {@code drain.6} cleared the stair foot every time, and then
-     * {@code drain.7 = 等了 200 tick 仍有流体：2,56,20（流动，没源就会自己退）}. Sourceless water
+     * <p><b>Why this exists.</b> {@code firstFluid} prints "flowing, will recede on its own without
+     * a source" for a flowing cell. That is a claim about the cell's UPSTREAM, and the reading it
+     * comes from never looked upstream — it is a local fact carrying a global promise. Ladder j51 is
+     * where the promise came due: {@code drain.0} through {@code drain.6} cleared the stair foot
+     * every time, and then {@code drain.7} reported fluid still present after waiting 200 ticks at
+     * 2,56,20, flowing and expected to recede on its own. Sourceless water
      * does not survive 200 ticks; water that is still being fed survives forever, and the two are
      * the same row.
      *
@@ -185,15 +186,16 @@ public final class JourneyForge {
                         if (JourneyTerrain.plainSource(level, p, false)) found.add(p);
                     }
         if (found.isEmpty()) return null;
-        // Highest first: the one feeding a puddle is upstream of it, and「上游」here means y.
+        // Highest first: the one feeding a puddle is upstream of it, and "upstream" here means y.
         // Sorted rather than scan-ordered because the caller hands us a Set whose iteration order
         // is unspecified — an evidence row that reshuffles between runs cannot be diffed.
         found.sort(java.util.Comparator.<BlockPos>comparingInt(BlockPos::getY).reversed()
                 .thenComparingInt(BlockPos::getX).thenComparingInt(BlockPos::getZ));
         StringBuilder sb = new StringBuilder();
         int n = Math.min(found.size(), 12);
-        for (int i = 0; i < n; i++) sb.append(i == 0 ? "" : "、").append(found.get(i).toShortString());
-        if (found.size() > n) sb.append("…（共 ").append(found.size()).append(" 个，只列最高的 ").append(n).append(" 个）");
+        for (int i = 0; i < n; i++) sb.append(i == 0 ? "" : "; ").append(found.get(i).toShortString());
+        if (found.size() > n) sb.append("… (").append(found.size()).append(" in total, only the highest ")
+                .append(n).append(" listed)");
         return sb.toString();
     }
 
@@ -208,7 +210,8 @@ public final class JourneyForge {
                 // ticks and it is still wet" for both, which is a true sentence about two different
                 // worlds.
                 return c.toShortString() + " = " + level.getBlockState(c).getBlock()
-                        + (level.getFluidState(c).isSource() ? "（源块）" : "（流动，没源就会自己退）");
+                        + (level.getFluidState(c).isSource() ? " (source)"
+                                : " (flowing, will recede on its own without a source)");
         return null;
     }
 
@@ -222,14 +225,14 @@ public final class JourneyForge {
      */
     public static String blocked(ServerLevel level, BlockPos at, Direction away, int push) {
         String inside = firstFluid(level, cells(at, away, push));
-        if (inside != null) return "要挖的格子里有流体：" + inside;
+        if (inside != null) return "fluid in a cell to be dug: " + inside;
         String outside = firstFluid(level, shell(at, away, push));
-        if (outside != null) return "模腔外壳（顶/壁/底）上有流体：" + outside
-                + " —— 挖开旁边那格它就会灌进来";
+        if (outside != null) return "fluid in the mould shell (roof/wall/floor): " + outside
+                + "; it will flow in as soon as the neighbouring cell is opened";
         String back = firstOpenBacking(level, at, away, push);
-        if (back != null) return "门框背后不是实心的：" + back
-                + " —— 每一桶都是瞄着背板浇的，背板是空的，射线就穿过去，"
-                + "流体落在更远的一格里（use 照样报 CONSUME）";
+        if (back != null) return "the backing behind the frame is not solid: " + back
+                + "; every bucket is aimed at the backing, so with the backing open the ray passes"
+                + " through and the fluid lands one cell further (use still reports CONSUME)";
         return null;
     }
 
@@ -252,7 +255,7 @@ public final class JourneyForge {
         if (open.isEmpty()) return null;
         BlockPos backing = open.get(0);
         return backing.toShortString() + " = " + level.getBlockState(backing).getBlock()
-                + "（在 " + backing.relative(away.getOpposite()).toShortString() + " 后面）";
+                + " (behind " + backing.relative(away.getOpposite()).toShortString() + ")";
     }
 
     /**

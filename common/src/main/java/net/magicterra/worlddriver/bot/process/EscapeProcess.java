@@ -227,7 +227,7 @@ public final class EscapeProcess implements BotProcess {
     private boolean carve(Body a, WorldView w, LivingEntity p, BotState st) {
         BlockPos startArc = base.above(2);          // launch-arc clearance over the bot's
                                                     // OWN head: the jump peak lifts the head
-                                                    // into this cell before the body enters
+                                                    // into this cell before the bot enters
                                                     // the niche. A sealed shelter roof left
                                                     // here made every STEP_UP a no-op ping-pong.
         BlockPos nf = base.relative(dir).above();   // new foot
@@ -336,23 +336,23 @@ public final class EscapeProcess implements BotProcess {
         hands.breakHold(false);
         BlockPos dest = base.above();
         // Same column, not just the right height. The centring snap below is a discrete write that
-        // does not sweep, so it is only safe while the body is already IN the cell it centres on —
+        // does not sweep, so it is only safe while the bot is already IN the cell it centres on —
         // which is what its two sibling arrival gates require and this one did not: STEP_DOWN
         // (DescendProcess:216-218) and STEP_UP (EscapeProcess:256-258) both test X and Z equality,
         // and only this one tested height alone.
         //
         // The gap is reachable because VERT_RISE is a JUMP: this phase commands a jump and, unlike
-        // the other phases, neither zeroes the horizontal velocity nor re-pins the body per tick. A
+        // the other phases, neither zeroes the horizontal velocity nor re-pins the bot per tick. A
         // dozen airborne ticks with any lateral component — a leftover forward key, flowing water,
-        // a mob's Entity.push — can land the body in a neighbouring column, and a neighbour with a
-        // solid face at dest.getY() satisfies the old gate. The snap then moves the body a whole
+        // a mob's Entity.push — can land the bot in a neighbouring column, and a neighbour with a
+        // solid face at dest.getY() satisfies the old gate. The snap then moves the bot a whole
         // cell or more sideways; across two columns the cell in between may be solid rock, and
         // nothing checked it. VERT_RISE is entered precisely when no side is steppable — terrain
         // that HAS such neighbours.
         //
         // Not observed: EscapeProcess appears in none of the logs on disk (see
         // docs/archive/centre-snap-teleport-audit.md). This closes a hole in the shape its own siblings
-        // already closed, rather than answering a failure. A body that lands off-column now falls
+        // already closed, rather than answering a failure. A bot that lands off-column now falls
         // to the phase's own 100-tick stall and re-PICKs, which is the escape this process already
         // has for every other way a rise can fail.
         if (foot.getX() == dest.getX() && foot.getZ() == dest.getZ()
@@ -373,7 +373,7 @@ public final class EscapeProcess implements BotProcess {
             a.commandJump(true);
         } else {
             a.commandJump(false);
-            // Place into the old feet cell once the body has risen clear of it —
+            // Place into the old feet cell once the bot has risen clear of it —
             // vanilla's collision check silently rejects a block the AABB overlaps.
             if (p.getY() >= base.getY() + 1.0) {
                 hands.placeOn(base.below(), Direction.UP);

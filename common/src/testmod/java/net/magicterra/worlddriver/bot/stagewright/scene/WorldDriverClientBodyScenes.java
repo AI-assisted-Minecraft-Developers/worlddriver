@@ -17,7 +17,8 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * The precondition in front of every body verb ({@code BodyReady}), on the client's real player:
+ * The precondition in front of every verb that moves or acts through the player ({@code BodyReady}),
+ * on the client's real player:
  * a dead player is refused with {@code {ok:false, reason:"dead"}} instead of {@code started:true},
  * a read ({@code mc.bot.status}) still answers, and the same order is taken again once the player
  * has respawned. The lab world found this the hard way — a player that died on joining sat on its
@@ -72,18 +73,18 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
             }
         });
         helm.sync(20, () -> {
-            Map<?, ?> alive = call(ctx, "活着.goto", "mc.bot.goto", Map.of("pos", pos(start)));
-            ctx.check(Boolean.TRUE.equals(alive.get("started"))).as("A 活着时 goto 接单：" + alive).isTrue();
-            call(ctx, "活着.cancel", "mc.bot.cancel", Map.of("process", "goto"));
+            Map<?, ?> alive = call(ctx, "alive.goto", "mc.bot.goto", Map.of("pos", pos(start)));
+            ctx.check(Boolean.TRUE.equals(alive.get("started"))).as("A: while the player is alive, goto accepts the request: " + alive).isTrue();
+            call(ctx, "alive.cancel", "mc.bot.cancel", Map.of("process", "goto"));
             body.kill();
             ctx.await(body::isDeadOrDying).within(60).then(() -> helm.sync(15, () -> {
-                Map<?, ?> dead = call(ctx, "死后.goto", "mc.bot.goto", Map.of("pos", pos(start)));
+                Map<?, ?> dead = call(ctx, "dead.goto", "mc.bot.goto", Map.of("pos", pos(start)));
                 ctx.check(Boolean.FALSE.equals(dead.get("ok")) && "dead".equals(dead.get("reason")))
-                        .as("B 死亡后 goto 被拒，reason=dead：" + dead).isTrue();
-                ctx.check(!Boolean.TRUE.equals(dead.get("started"))).as("C 被拒的单没有起步：" + dead).isTrue();
-                Map<?, ?> status = call(ctx, "死后.status", "mc.bot.status", Map.of());
+                        .as("B: after death, goto is refused with reason=dead: " + dead).isTrue();
+                ctx.check(!Boolean.TRUE.equals(dead.get("started"))).as("C: the refused request did not start: " + dead).isTrue();
+                Map<?, ?> status = call(ctx, "dead.status", "mc.bot.status", Map.of());
                 ctx.check(!status.isEmpty() && status.get("reason") == null)
-                        .as("D 读接口不受身体状态影响：" + status.keySet()).isTrue();
+                        .as("D: read-only methods are unaffected by the player's death: " + status.keySet()).isTrue();
                 // The client's own Respawn button, sent from here: the packet handler runs on this thread.
                 body.connection.handleClientCommand(new ServerboundClientCommandPacket(
                         ServerboundClientCommandPacket.Action.PERFORM_RESPAWN));
@@ -94,9 +95,9 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
                     ServerPlayer again = SceneBody.humanPlayers(ctx).get(0);
                     again.teleportTo(ctx.level(), start.getX() + 0.5, start.getY(), start.getZ() + 0.5, Set.of(), 0f, 0f);
                     helm.sync(20, () -> {
-                        Map<?, ?> back = call(ctx, "复活.goto", "mc.bot.goto", Map.of("pos", pos(start)));
-                        ctx.check(Boolean.TRUE.equals(back.get("started"))).as("E 复活后同一单再次接单：" + back).isTrue();
-                        call(ctx, "复活.cancel", "mc.bot.cancel", Map.of("process", "goto"));
+                        Map<?, ?> back = call(ctx, "respawned.goto", "mc.bot.goto", Map.of("pos", pos(start)));
+                        ctx.check(Boolean.TRUE.equals(back.get("started"))).as("E: after respawn, the same request is accepted again: " + back).isTrue();
+                        call(ctx, "respawned.cancel", "mc.bot.cancel", Map.of("process", "goto"));
                     });
                 });
             }));

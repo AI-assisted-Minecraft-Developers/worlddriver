@@ -13,7 +13,7 @@ import java.util.PriorityQueue;
  * grid — the heuristic source that lets the fine {@link PathFinder} A* route
  * <em>around</em> a concave obstacle (the spawn water+mountain pinch) instead of
  * burning its budget expanding into the wall and then committing a backward
- * best-effort segment (the "走回头路" oscillation).
+ * best-effort segment (the backtracking oscillation).
  *
  * <h2>Why this exists</h2>
  * The Euclidean {@link Goal#estimate} points straight at the goal — through any
