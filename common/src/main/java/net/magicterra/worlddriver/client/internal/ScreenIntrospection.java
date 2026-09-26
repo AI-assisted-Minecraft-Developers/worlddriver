@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.client.gui.screens.DeathScreen;
 import net.minecraft.client.gui.screens.Overlay;
 import net.minecraft.client.gui.components.EditBox;
@@ -162,6 +163,9 @@ public final class ScreenIntrospection {
             n.put("active", w.active);
             n.put("focused", w.isFocused());
             n.put("message", w.getMessage().getString());
+            // The message is in the player's language; the key lets a script pick a vanilla
+            // button without carrying one label per locale.
+            if (w.getMessage().getContents() instanceof TranslatableContents tc) n.put("key", tc.getKey());
         }
         // EditBox holds typed text. Without exposing the current value, agents
         // can drive the cursor and call typeText but never verify what was

@@ -135,7 +135,7 @@ server-side verb to call.
 | Method | What it does | Notable parameters |
 |---|---|---|
 | `mc.client.screen.info` | A cheap probe of the current screen: whether a screen, world or player exists, the screen type and title, and `windowActive` / `mouseGrabbed`. Call it first as an availability check. | none |
-| `mc.client.screen.tree` | Walks the screen's widget tree and returns positions and labels. The canonical way to pick a click target without taking a screenshot, and it works for self-drawn modded screens. It reports structure, not paint. | none |
+| `mc.client.screen.tree` | Walks the screen's widget tree and returns positions and labels, plus the label's translation key when it has one, so a script can find a vanilla button whatever the player's language. The canonical way to pick a click target without taking a screenshot, and it works for self-drawn modded screens. It reports structure, not paint. | none |
 | `mc.client.screen.close` | Pops the current screen. Always succeeds. | none |
 | `mc.client.input.click` | Clicks at logical screen coordinates. | `x`, `y`, `button` |
 | `mc.client.input.slotClick` | Clicks a slot in the open container menu with an explicit click type — the only way to get shift-click, Q-drop, number-key swap, middle-click or double-click without spoofing keyboard modifiers. | `slot`, `button`, `type` (`pickup`, `quickMove`, `throw`, `swap`, `clone`, `pickupAll`, `quickCraft`) |

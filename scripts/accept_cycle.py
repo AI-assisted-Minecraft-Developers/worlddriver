@@ -34,7 +34,7 @@ def click_button(labels, gone_type=None, timeout=6.0):
     screen, so the next journey started from a corpse and its verdict was garbage.
 
     Nothing new is needed on the mod side. `mc.client.screen.tree` already reports
-    every widget's bbox, label, visible and active — its own comment says it exists
+    every widget's bbox, label, translation key, visible and active — its own comment says it exists
     so agents can pick a widget "by label/index without resorting to pixel-
     counting". Widget x/y are in the Screen's coordinate space, which is exactly
     what `mc.client.input.click` feeds to `Screen.mouseClicked`, so the centre of
@@ -57,7 +57,8 @@ def click_button(labels, gone_type=None, timeout=6.0):
     kids = tree.get('children') or []
     want = {s.strip().lower() for s in labels}
     hit = next((c for c in kids
-                if str(c.get('message', '')).strip().lower() in want
+                if (str(c.get('message', '')).strip().lower() in want
+                    or str(c.get('key', '')).lower() in want)
                 and c.get('visible') and c.get('active') and 'width' in c), None)
     if hit is None:
         seen = [c.get('message') for c in kids if c.get('message')]
@@ -80,9 +81,9 @@ def click_button(labels, gone_type=None, timeout=6.0):
                        f'after {timeout}s')
 
 
-# Vanilla's respawn button, by locale. Add yours if click_button reports it. The second entry is
-# the zh_cn label, spelled by code point so the source stays ASCII.
-RESPAWN_LABELS = ('Respawn', chr(0x91CD) + chr(0x751F), 'deathScreen.respawn')
+# The translation key finds vanilla's respawn button in any language; the label covers a
+# screen that sets a literal message.
+RESPAWN_LABELS = ('deathScreen.respawn', 'Respawn')
 
 
 def ensure_alive():
