@@ -72,7 +72,7 @@ import net.minecraft.world.level.block.Blocks;
  * scanned via {@code getEntitiesOfClass} (so, unlike the CombatSense wave, no entity-visibility await
  * is needed); it also plants a 1×1 stone pocket for the {@code BunkerProcess.enclosed} geometry rows.
  * {@code wd.duskSecureHeldProcessLifecycle} runs the pure lifecycle matrix, then a REAL
- * {@code BunkerProcess} world phase (the gap#75-b re-arm incident) over a {@code createIsolated}
+ * {@code BunkerProcess} world phase (the re-arm incident) over a {@code createIsolated}
  * FakePlayer driven synchronously via {@code driver.tick()}. Both register {@code ctx.cleanup} to
  * discard their avatar/mobs and scrub every block they place (the #40 persistent-world lesson). The
  * canonical substitutions are the wave-6 Station set: {@code helper.getLevel()} →
@@ -113,7 +113,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         var skeleton = net.minecraft.world.entity.EntityType.SKELETON.create(level);
         var zombie = net.minecraft.world.entity.EntityType.ZOMBIE.create(level);
         ctx.cleanup(() -> { skeleton.discard(); zombie.discard(); });
-        // Scrub the pocket the geometry rows plant (#40 persistent-world lesson — the mobs are
+        // Scrub the pocket the geometry rows plant (the world persists between scenes — the mobs are
         // discarded above; only the stone pocket is left in the world otherwise).
         ctx.cleanup(() -> {
             for (int dx = 7; dx <= 9; dx++)
@@ -612,7 +612,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
 
     // ==================================================================================
     // wd.duskSecureHeldProcessLifecycle — gap#72-① held-process interrupt/cancel lifecycle
-    // matrix (26 rows) + gap#75-b re-arm WORLD phase over a real BunkerProcess (7 rows) = 33.
+    // matrix (26 rows) + re-arm WORLD phase over a real BunkerProcess (7 rows) = 33.
     // ==================================================================================
 
     // duskSecure holds a BunkerProcess (SEALED-hold, active=true endReason=SEALED, which by
@@ -750,7 +750,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
     }
 
     /**
-     * gap#75-b world phase (merged into the lifecycle scene — no new scene): the full live
+     * Re-arm world phase, run inside the lifecycle scene: the full live
      * incident shape over a REAL {@link BunkerProcess} on a FakePlayer. duskSecure starts a
      * dusk dig; a user goto (USER 50 > 40) preempts it mid-shaft; the goto is then cancelled
      * and the bot is idle IN the half-dug, unsealed pit. Ground truth asserted from the real

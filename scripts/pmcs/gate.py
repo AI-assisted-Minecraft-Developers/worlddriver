@@ -1,8 +1,8 @@
 """Acceptance gate: is a candidate flag combination good enough to flip to default-ON?
 
-The "net positive across the whole set + zero regressions" gate from spec §3. It exists to
+The "net positive across the whole set + zero regressions" gate. It exists to
 prevent over-fitting: apw was tuned on 0005/0006 and regressed catastrophically on 0004
-(579→1935). The gate is only as good as the corpus (spec §9, risk 2).
+(579→1935). The gate is only as good as the corpus.
 """
 from dataclasses import dataclass
 

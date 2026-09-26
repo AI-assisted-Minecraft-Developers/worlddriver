@@ -130,7 +130,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
      *  unharvestable break edges (no dig ever starts); (v3) plank wall → DEDICATED-server
      *  avatar digs are INSTANT (1 tick, no hold), so the DIG-hold observers
      *  (DIG-slow/DIG-dropped) are structurally unfireable in this topology — they remain
-     *  live/client-player sensors (see the task#95b exemption list). A blocked JUMP is the
+     *  live/client-player sensors. A blocked JUMP is the
      *  observer this topology can pin: the jump press is real, the ceiling is real, and
      *  the 8-tick arc watch fires on physics alone. */
     private static void expectAlarmBlockedJump(SceneContext ctx) {

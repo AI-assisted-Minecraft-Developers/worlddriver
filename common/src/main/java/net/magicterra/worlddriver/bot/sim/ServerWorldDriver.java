@@ -21,7 +21,7 @@ import java.util.Map;
  * wires it to the live {@code ServerTickEvent} so a dedicated server drives the
  * bot with no {@code LocalPlayer}.
  *
- * <p>Phase 0/1 capability note: the bot is a {@code ServerPlayer}, so it
+ * <p>Capability note: the bot is a {@code ServerPlayer}, so it
  * has full Player capability (place/break/craft/containers). This Phase-2
  * increment wires the MOVEMENT loop end-to-end on the server tick; richer
  * task processes (mine/craft) migrate off the client {@code mc} in later work.

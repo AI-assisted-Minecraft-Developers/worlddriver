@@ -63,7 +63,7 @@ import net.minecraft.world.level.block.Blocks;
  * apply — {@code helper.getLevel()} → {@link SceneContext#level()}; absolute {@code cx/cz} →
  * origin X/Z; absolute {@code floorY=220} → {@code origin.y + 20} / {@code floorY=200} →
  * {@code origin.y}; ground-anchored {@code helper.absolutePos(ZERO)} → {@link SceneContext#origin()};
- * {@code ServerWorldDriver.create} → {@link ServerWorldDriver#createIsolated} (#48 per-scene server-side player);
+ * {@code ServerWorldDriver.create} → {@link ServerWorldDriver#createIsolated} (per-scene server-side player);
  * legacy NeoForge {@code FakePlayer} → common {@link ServerPlayer} (a FakePlayer IS a ServerPlayer;
  * every call used — {@code getInventory()}, {@code getY()}, {@code getHealth()}, {@code setAirSupply}
  * — is a ServerPlayer member, type-faithful on both loaders); {@code try/finally} config save/restore

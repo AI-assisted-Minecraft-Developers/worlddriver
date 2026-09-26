@@ -352,7 +352,7 @@ public final class SettingsDocs {
             "the frozen step by 2-5 segments at stalls). Edge-execution holds still gate it. On by " +
             "default"),
         e("walkerTangentAim",
-            "bool — Phase-2: aim the camera AND the movement heading at the path TANGENT ahead of the projection instead " +
+            "bool — aim the camera AND the movement heading at the path TANGENT ahead of the projection instead " +
             "of the immediate-node bearing, which flips ~180° on node overshoot (the backward-jump / " +
             "repeated side-to-side hopping / facing-the-wall dead-corner stall; live P1: bot stalled on-path with dYaw up to " +
             "129°). The tangent never reverses, killing that failure mode + the descent " +

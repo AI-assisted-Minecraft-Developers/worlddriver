@@ -70,7 +70,7 @@ final class WalkerTickSearch {
      * budget's breakHeld hold. Water is exempt: an afloat bot legitimately repaths many times while
      * stationary (bank climb-outs, bobbing), and that churn is owned by the existing in-water
      * anti-spin (repathsNoProgress) — two governors on one loop would race. This guard owns the DRY
-     * unreachable churn. gap#66 run C: a COMPLETELY empty result while stuck-penalties are live is
+     * unreachable churn. A COMPLETELY empty result while stuck-penalties are live is
      * (likely) SELF-INFLICTED blindness — the wedge penalties walled the pocket, not the terrain
      * (live pit 2026-07-14: "waiting out decay (1/900)" then the 5th futile search fail-stopped the
      * goto 6 s in, 39 s before the penalties would have cleared). Don't count those; penalties decay

@@ -49,7 +49,7 @@ import net.minecraft.world.level.block.state.BlockState;
  *       knob, {@link ServerPlayerBody#faithfulBreak} (a static field, not covered by the
  *       pin), is saved/restored via its own {@code ctx.cleanup} in {@link #tallBankDigClimb};</li>
  *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
- *       (per-scene player, #48) + {@code ctx.cleanup(() -> fp.discard())}. In the ISOLATED
+ *       (per-scene player) + {@code ctx.cleanup(() -> fp.discard())}. In the ISOLATED
  *       per-scene player model the legacy shared-FakePlayer parking / anti-contamination
  *       finally blocks (e.g. {@code vineOverWaterClimbArena}'s {@code cleanupFp} re-park, the
  *       legacy per-arena isolation batches) become dead weight and are DROPPED —
@@ -79,13 +79,13 @@ import net.minecraft.world.level.block.state.BlockState;
  *       (walkerVineFreeHangClimb OFF) it MUST FAIL, and that optional-FAIL is the proof it
  *       reproduces the live wall-less-vine detach. Its RED stays VISIBLE (reported per-run),
  *       never tuned away — marking it required would RED the whole suite. See its own javadoc.</li>
- *   <li>{@code wd.deepWaterClimboutNoBlock} is the gap #48 shared-player lottery member
+ *   <li>{@code wd.deepWaterClimboutNoBlock} is the shared-player lottery member
  *       (solo-GREEN proven this phase, full-run flaky in the OLD shared-player suite). With the
  *       createUnique isolated player the shared-player flake mechanism is GONE, so it runs
  *       DETERMINISTICALLY GREEN (observed ×2×2) — kept {@code required=true}; the determinism
  *       is the expected outcome of player isolation (a shell difference), NOT a rebaseline of
  *       thresholds.</li>
- *   <li>{@code wd.riverSheerBank} → <b>required</b> (task#91 CLOSED). The gap #48 shared-player
+ *   <li>{@code wd.riverSheerBank} → <b>required</b>. The shared-player
  *       false-green this wave surfaced was a REAL executor gap, now fixed structurally: A* always
  *       routed the correct far-lateral exit (the low bank +5 EAST across open water), but the
  *       climb-out executor misread that laterally-distant, only-+1-higher waypoint as a climb-here
@@ -741,7 +741,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
      * only climb-out is a LOW (+1) bank far EAST, goal diagonally SE. No flanking walls pin the bot onto a
      * pillar — the buoyant drift is free, as on the real river. Break+place ON. Asserts the bot gets ashore.
      *
-     * <p><b>required — task#91 CLOSED (structural fix).</b> The gap #48 shared-player false-green this
+     * <p><b>required — structural fix.</b> The shared-player false-green this
      * scene surfaced was a REAL executor gap. Config, geometry and start pose are byte-identical to the
      * legacy twin, which ran green only because concurrent GameTest batches shoved the shared singleton
      * ashore; this scene's serial createUnique player has no such helper and, under the authored default-OFF
@@ -955,7 +955,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                     + ") maxX=" + maxX + " step=" + s);
     }
 
-    /** Ported from {@code AgentGameTestWaterBank#deepWaterClimboutNoBlockArena} (gap #48 shared-player lottery
+    /** Ported from {@code AgentGameTestWaterBank#deepWaterClimboutNoBlockArena} (shared-player lottery
      *  member — solo-GREEN this phase; deterministic with the createUnique isolated player). Block-LESS deep-water
      *  +2 bank climb-out: the bot holds only SAND (FallingBlock → no pillar), so the ONLY escape is the
      *  block-less bank-DIG fallback. Asserts the floating Walker reaches dry land within a bounded budget. */

@@ -64,7 +64,7 @@ import net.minecraft.world.phys.Vec3;
  * world's coordinate collisions) → {@link SceneContext#origin()} AUTO slots (the harness allocates a
  * fresh non-colliding slot per scene, so the collision-avoidance the legacy did by hand is now
  * structural); ground-anchored {@code helper.absolutePos(ZERO)} → {@code ctx.origin()};
- * {@code ServerWorldDriver.create} → {@link ServerWorldDriver#createIsolated} (#48 per-scene player);
+ * {@code ServerWorldDriver.create} → {@link ServerWorldDriver#createIsolated} (per-scene player);
  * legacy NeoForge {@code FakePlayer} → common {@link ServerPlayer}; {@code try/finally} config
  * save/restore → {@link BotConfig#pinnedBaseline()} + {@code ctx.cleanup(pin::close)} (snapshots EVERY
  * mutable field, so {@code fleeActive}/{@code walkerWallDigFallback}/… are restored too); {@code throw
@@ -2088,13 +2088,13 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         WorldDriverCommon.LOG.info("[bridgePillar {}] END t={} pos=({},{},{}) minY={} laid={} finished={} lastErr={}",
                 leg, t, fp.getX(), fp.getY(), fp.getZ(), minY, laid, driver.finished(), lastErr);
         if (minY < feetY - 1.0)
-            ctx.fail("gap#75-a arm " + leg + ": bot dropped below pillar-top-1 (minY="
+            ctx.fail("arm " + leg + ": bot dropped below pillar-top-1 (minY="
                     + minY + ", start feetY=" + feetY + ") — bridge start fell off the pillar (death #24 shape)");
         if (laidCount < distance)
-            ctx.fail("gap#75-a arm " + leg + ": bridge only laid " + laidCount + "/"
+            ctx.fail("arm " + leg + ": bridge only laid " + laidCount + "/"
                     + distance + " (" + laid + ") — lastErr=" + lastErr);
         if (!driver.finished() || lastErr == null || !lastErr.startsWith("done"))
-            ctx.fail("gap#75-a arm " + leg + ": process did not reach the done terminal: "
+            ctx.fail("arm " + leg + ": process did not reach the done terminal: "
                     + "finished=" + driver.finished() + " lastErr=" + lastErr);
         ServerAvatarManager.clear();
     }

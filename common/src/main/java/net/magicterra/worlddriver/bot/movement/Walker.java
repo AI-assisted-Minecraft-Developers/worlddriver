@@ -525,7 +525,7 @@ public final class Walker {
     final DriveLatches driveLatch = new DriveLatches();
     static final class DriveLatches {
         int deepWaterDriftLatch = 0;                // ticks the deep-water drift sprint-brake stays latched after firing while grounded, so sprint stays OFF through the airborne sub-arcs of a step-down descent toward a deep pocket (otherwise sprint re-arms each airborne tick and the accumulated forward momentum still overshoots into the water)
-        int steepDescentLatch = 0;                  // DRY sibling of deepWaterDriftLatch (task#36): ticks the steep-descent sprint-brake stays latched across the airborne sub-arcs of a step-down, so sprint can't re-arm mid-fall and accumulate forward momentum off a survivable-deep lip (live 2026-07-11 Mountains massif: onG=false→sprint=true walked the bot off a 19-block lip to death)
+        int steepDescentLatch = 0;                  // DRY sibling of deepWaterDriftLatch: ticks the steep-descent sprint-brake stays latched across the airborne sub-arcs of a step-down, so sprint can't re-arm mid-fall and accumulate forward momentum off a survivable-deep lip (live 2026-07-11 Mountains massif: onG=false→sprint=true walked the bot off a 19-block lip to death)
         int climbPressConsec = 0;                   // consecutive ticks the buoyant-climb-press raw condition has held (debounces the surface-bob false trigger)
         int descentDriveRejectStreak = 0;           // consecutive back-hop rejections on a dry diagDown slope (escape-hatch snaps to the real node after WATER_DRIVE_MAX_REJECT)
         int underwaterTicks;                        // consecutive eyes-under ticks → debounces the swim-up jump (surface bob ≠ sinking)
@@ -2888,7 +2888,7 @@ public final class Walker {
 
     /** Phase-0 SHADOW arc-length pursuit (walkerArcLengthShadow). Projects the continuous foot XZ onto the
      *  path polyline within a FORWARD window [step, step+W] (so it can't snap backward onto a self-overlapping
-     *  earlier segment — the dominant projection risk, §7), honouring the adoptPath overlap barriers (a submerged
+     *  earlier segment — the dominant projection risk), honouring the adoptPath overlap barriers (a submerged
      *  below-node is a hard dive barrier; a pending break/place edge stops the scan). Reports the projected
      *  segment, cumulative XZ arc-length s (from path[0]), horizontal perpendicular distance, and the tangent
      *  heading at s+lookahead — and counts backward-snap events (ds&lt;-0.5). DRIVES NOTHING; this only proves

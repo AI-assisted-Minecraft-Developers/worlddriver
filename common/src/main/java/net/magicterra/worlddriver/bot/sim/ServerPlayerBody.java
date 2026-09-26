@@ -131,7 +131,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     /**
      * Build a bot player at {@code pos} in {@code level}, ready to drive.
      *
-     * <p>⚠️ SHARED PLAYER (gap #48): {@link ServerAvatarBodies#shared} is a per-LEVEL SINGLETON — every
+     * <p>⚠️ SHARED PLAYER: {@link ServerAvatarBodies#shared} is a per-LEVEL SINGLETON — every
      * caller of THIS factory in a level shares one player. Production never rides it
      * ({@code /worlddriver server} → {@link #createUnique}, one player per agent, guarded by the required
      * {@code wd.serverAgentDistinctBodies} scene).

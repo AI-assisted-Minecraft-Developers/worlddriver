@@ -45,7 +45,7 @@ import net.minecraft.world.level.block.Blocks;
  *       + {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after the
  *       avatar discard) then the SAME keys the legacy body flipped;</li>
  *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
- *       (per-scene player, #48) + {@code ctx.cleanup(() -> fp.discard())} (closes the leak
+ *       (per-scene player) + {@code ctx.cleanup(() -> fp.discard())} (closes the leak
  *       the throwaway-world GameTest methods never had to);</li>
  *   <li>{@code AgentGameTestSupport.grantWaterEffects} →
  *       {@link SimProbes#grantWaterEffects} (the common single source);</li>
@@ -79,7 +79,7 @@ import net.minecraft.world.level.block.Blocks;
  *
  * <p><b>{@code descentDrift} is NOT migrated — retired-without-scene, pending controller
  * adjudication (P4b escape hatch).</b> The 13th Terrain test, {@code descentDriftArena}, is a
- * legacy {@code required = false} PROVEN FALSE GREEN (gap #49 audit: it "passed" the shared-player
+ * legacy {@code required = false} PROVEN FALSE GREEN (it "passed" the shared-player
  * suite only because a concurrent arena shoved the shared FakePlayer out of the wedge; SOLO it
  * is deterministically RED — the fix-ON arm still LAUNCHES off the stair into open void, minY≈−60).
  * Its own javadoc records that "the fix's gate is the LIVE A/B" — i.e. the arena is superseded and

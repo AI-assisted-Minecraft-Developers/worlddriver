@@ -64,7 +64,7 @@ class GameTestBaselineManifestTest {
 
             // --- §78 flip wave: ON for live play after the arena assertions were written
             e("walkerStepUpBackoffRetry", "§78 — stepUp mount backoff-retry (#47 problem-6 grind)"),
-            e("walkerCarrotBodyLos", "§78 — carrot LOS honest about player width (jungle-trunk friction)"),
+            e("walkerCarrotBodyLos", "carrot LOS honest about player width (jungle-trunk friction)"),
             e("walkerBankDigGroundBlip", "§78 — bank-dig ground-blip immunity (underground-pool climb-out grind)"),
             e("walkerExpectAlarm", "§78 — actuator expectation alarms; changes what the log SAYS, "
                     + "which is why a scene reading log lines would see it"),

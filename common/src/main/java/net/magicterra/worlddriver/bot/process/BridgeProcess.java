@@ -19,7 +19,7 @@ public final class BridgeProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Hands hands;
     private static final int STUCK_TICKS = 80;
-    /** Max |player yaw − bridge yaw| before the forward key is allowed (gap #75-a): the raw
+    /** Max |player yaw − bridge yaw| before the forward key is allowed: the raw
      *  forward impulse walks along the CAMERA yaw, and on the client the LookController
      *  re-clamps the camera to ~30°/tick AFTER this process writes it — so the first
      *  WALKING ticks used to drive up to 180° off the bridge axis, over a 1×1 pillar top
@@ -67,7 +67,7 @@ public final class BridgeProcess implements BotProcess {
         Level lvl = p.level();
         // Player yaw BEFORE this tick's snap-write below: on the client the LookController
         // re-clamps the camera after every actuator, so the value we WRITE is not the yaw
-        // the player travels by — the pre-write value is the rendered truth (gap #75-a).
+        // the player travels by — the pre-write value is the rendered truth.
         float yawNow = p.getYRot();
         BlockPos foot = anchoredFoot(p, lvl);
         if (startFoot == null) startFoot = foot;

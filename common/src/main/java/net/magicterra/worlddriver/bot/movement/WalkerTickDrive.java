@@ -532,7 +532,7 @@ final class WalkerTickDrive {
             }
             else if (waterClimb) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // centre on the target column
             else if (diagUp) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // centre on the diagonal toward the step corner
-            else if (BotConfig.walkerDiagDownCenter && diagDown) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // §26: mirror diagUp — centre on the diagonal descend line so the bot doesn't ram the perpendicular corner
+            else if (BotConfig.walkerDiagDownCenter && diagDown) { latX = (wp.getX() + 0.5) - p.getX(); latZ = (wp.getZ() + 0.5) - p.getZ(); } // mirror diagUp — centre on the diagonal descend line so the bot doesn't ram the perpendicular corner
             else if (ddx == 0 && ddz != 0) latX = (wp.getX() + 0.5) - p.getX();        // N/S lane → hold X
             else if (ddz == 0 && ddx != 0) latZ = (wp.getZ() + 0.5) - p.getZ();   // E/W lane → hold Z
             // Anti-drift in a current: a flowing-water cell pushes the bot
@@ -613,7 +613,7 @@ final class WalkerTickDrive {
         // just polish: coupling the drive to the far trend made the bot swim straight at the centroid
         // THROUGH a divider and ram it (waterFarAimBankCorner regressed); driving the immediate node
         // rounds the corner while the camera trend still kills the head-shake.
-        // Phase-2 (walkerTangentAim): drive the bot along the smoothed path tangent (aimYaw, which Edit A
+        // walkerTangentAim: drive the bot along the smoothed path tangent (aimYaw, which Edit A
         // above set to the tangent) in ALL cases — including water, where the legacy smoothWaterDriveYaw EMA
         // is a separate node-following heading that the tangent supersedes. The flip-rejection block below is
         // skipped when this is on (the tangent already never reverses, so there is no back-hop to reject).
