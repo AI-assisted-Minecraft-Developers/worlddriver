@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the English text instead.
 - **The "BOT in control" badge follows the game language.** Its two lines come from the mod's
   language files, English and Simplified Chinese, instead of being fixed Chinese text.
+- **`mc.client.screen.tree` reports a widget's translation key.** A node whose label is
+  translated also carries `key` (for example `deathScreen.respawn`), which is the same in every
+  language, so a script can find a vanilla button without one label per locale.
 
 ## 2026-09-23
 
