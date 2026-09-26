@@ -80,7 +80,7 @@ public final class BotInteract {
      *  player would naturally hit if they ray-cast at the block. Used when the
      *  caller didn't specify a face.
      *
-     *  <p>The bot moved to {@link BotUtil#faceTowardEye} so the two PROCESSES that need the
+     *  <p>The implementation lives in {@link BotUtil#faceTowardEye} so the two PROCESSES that need the
      *  same answer can have it without naming this client-only class — see that method for why
      *  their private copies existed and why deleting them did not put a client type on a
      *  dedicated server's class path. This name stays because its callers are all

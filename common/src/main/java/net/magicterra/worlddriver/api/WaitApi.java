@@ -74,7 +74,7 @@ public final class WaitApi {
                     return size() > MAX_RESULTS;
                 }
             });
-    /** waitIds whose bot is still running. Without it an id missing from RESULTS is
+    /** waitIds whose callback is still running. Without it an id missing from RESULTS is
      *  ambiguous — still running, or gone — and reading it as "pending" hung agents. */
     private static final Set<String> IN_FLIGHT = ConcurrentHashMap.newKeySet();
 
