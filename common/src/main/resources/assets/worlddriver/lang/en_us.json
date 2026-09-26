@@ -1,0 +1,7 @@
+{
+  "hud.worlddriver.driving": "● BOT in control",
+  "hud.worlddriver.driving.named": "● BOT in control · %s",
+  "hud.worlddriver.reclaimed": "You have the mouse · the bot is still acting",
+  "hud.worlddriver.yielded": "Mouse released · double-press ESC to take it back",
+  "hud.worlddriver.escHint": "Double-press ESC to take back the mouse"
+}

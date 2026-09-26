@@ -17,7 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the smelt failures in `lastError` ("timed out opening the furnace", "partially completed: smelted
   only 3/8 (the ingredient ran out)"), log lines, and the evidence StageWright scenes record were
   partly in Chinese; they are now English. Code that matched the old Chinese wording has to match
-  the English text instead. The language files for in-game text are unchanged.
+  the English text instead.
+- **The "BOT in control" badge follows the game language.** Its two lines come from the mod's
+  language files, English and Simplified Chinese, instead of being fixed Chinese text.
 
 ## 2026-09-23
 

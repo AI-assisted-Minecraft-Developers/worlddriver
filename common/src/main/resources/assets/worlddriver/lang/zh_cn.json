@@ -1,0 +1,7 @@
+{
+  "hud.worlddriver.driving": "● BOT 接管中",
+  "hud.worlddriver.driving.named": "● BOT 接管中 · %s",
+  "hud.worlddriver.reclaimed": "鼠标在你手上 · bot 仍在操作",
+  "hud.worlddriver.yielded": "鼠标已释放 · 双击 ESC 取回",
+  "hud.worlddriver.escHint": "双击 ESC 取回鼠标"
+}
