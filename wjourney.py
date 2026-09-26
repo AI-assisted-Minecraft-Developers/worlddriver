@@ -78,7 +78,7 @@ def main():
     print(f"final pos               : {lastpos}")
     if risers:
         top = sorted(risers.items(), key=lambda kv: -kv[1])[:6]
-        print("dig riser分布            : " + ", ".join(f"{k}×{v}" for k, v in top))
+        print("dig risers (top 6)       : " + ", ".join(f"{k}×{v}" for k, v in top))
     sys.exit(0 if result == "ARRIVED" else 2)
 
 if __name__ == "__main__":
