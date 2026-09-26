@@ -170,8 +170,8 @@ public final class BotTools {
     private static List<ToolSchema> withBody(List<ToolSchema> tools) {
         for (ToolSchema t : tools) {
             if (VERBS_A_BODY_TAKES.contains(t.name()) && t.schema() instanceof Schema.Obj o) {
-                o.prop("body", bodyId().desc("Which bot player: 'self' (default, this client's player) or an id "
-                        + "from the bodies list of mc.bot.status. Any other bot player has no reflexes and an NPC "
+                o.prop("body", bodyId().desc("Which bot: 'self' (default, this client's player) or an id "
+                        + "from the bodies list of mc.bot.status. Any other bot has no reflexes and an NPC "
                         + "no hands; out of reach is refused there, combat's force lifts nothing, and useItem on an entity answers menu, not screen."));
             }
         }
@@ -272,8 +272,8 @@ public final class BotTools {
                         .desc("With plan:true, also return the route's cells as [x,y,z]."))
                     .prop("awaitMs", awaitMs())
                     .prop("body", bodyId()
-                        .desc("Which bot player walks: 'self' (default) or an id from the bodies list of "
-                            + "mc.bot.status. Any other bot player refuses waypoint, plan and planId, and "
+                        .desc("Which bot walks: 'self' (default) or an id from the bodies list of "
+                            + "mc.bot.status. Any other bot refuses waypoint, plan and planId, and "
                             + "route.requireTool unless it is a player."))
                 ),
 
@@ -751,8 +751,8 @@ public final class BotTools {
                 "pathStep, lastError?, goal?, target?, startedAtMs?}. lastPath = stats from the " +
                 "most recent A* run: {expanded, ms, goalReached, finalCost, pathLen} — useful for " +
                 "debugging 'why isn't it moving' (low expanded + goalReached=false = unreachable). " +
-                "bodies: [{id, kind, entityId?, pos?, busy}] lists the other bot players `body` can name; " +
-                "with body, returns that player's {id, busy, activeProcess?} and its slots instead.",
+                "bodies: [{id, kind, entityId?, pos?, busy}] lists the other bots `body` can name; " +
+                "with body, returns that bot's {id, busy, activeProcess?} and its slots instead.",
                 object()
                     .prop("body", bodyId())
                 ),
@@ -776,8 +776,8 @@ public final class BotTools {
                             "'combat') targets that chain's internal episode, and a process KIND " +
                             "also reaches a process held inside a reflex chain."))
                     .prop("body", bodyId()
-                        .desc("Which bot player: 'self' (default) or an id from the bodies list of mc.bot.status. "
-                            + "Any other bot player holds one process and no reflex chains, so a named cancel "
+                        .desc("Which bot: 'self' (default) or an id from the bodies list of mc.bot.status. "
+                            + "Any other bot holds one process and no reflex chains, so a named cancel "
                             + "matches its process kind or nothing."))
                 )
         );
