@@ -56,6 +56,15 @@ class EventMutePolicyTest {
                 deliveredAfterEmitting(Set.of("noisy"), "noisy", "kept"));
     }
 
+    /** An empty set is what {@link BotConfig#mutedEvents} ships as, so this is every
+     *  out-of-the-box client. {@code events.subscribe} reads {@code types:[]} as "all
+     *  types"; the same reading here would mute everything, and no other test here
+     *  mutes nothing. */
+    @Test
+    void anEmptyMuteSetDeliversEveryEventInOrder() throws Exception {
+        assertEquals(List.of("a", "b"), deliveredAfterEmitting(Set.of(), "a", "b"));
+    }
+
     @Test
     void mutingSuppressesThePushOnly() throws Exception {
         // The event is appended to the replay ring BEFORE the dispatch that applies the
