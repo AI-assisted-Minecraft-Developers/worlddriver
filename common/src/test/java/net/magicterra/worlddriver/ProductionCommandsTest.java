@@ -49,9 +49,9 @@ class ProductionCommandsTest {
     }
 
     /**
-     * The only dispatch here that starts from the root production registers itself: the test below
-     * swaps in an ungated root, and the per-child sweep never asks the root, so a requirement on the
-     * root that locks out permission-2 operators would pass both.
+     * The only dispatch here that starts from the root that production code registers itself: the
+     * test below swaps in an ungated root, and the per-child sweep never asks the root, so a
+     * requirement on the root that locks out permission-2 operators would pass both.
      */
     @Test
     void operatorsAndOnlyOperatorsGetPastTheProductionRoot() {
