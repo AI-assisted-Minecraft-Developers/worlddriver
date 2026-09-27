@@ -31,23 +31,27 @@ The second one is the nastier of the two: it can drop a client to roughly one fr
 second, and therefore to about half the server's tick rate, which turns ordinary desktop
 behaviour into failures that look like defects in the bot being driven.
 
-The provisioned run directories are seeded with an `options.txt` that disables both
-(`pauseOnLostFocus:false` and `enableVsync:false`, plus two accessibility keys). Minecraft
-merges the keys it does not find with its own defaults, so a short file is a complete one.
-A run directory you created yourself is not seeded, so set them by hand or accept the
-consequences. `-Dworlddriver.pauseOnLostFocus=false` forces the same behaviour from the
-mod's side for an unattended client.
+A client that StageWright directs — any run with `stagewright.client.world` or
+`stagewright.client.connect` set, which is every client a scene topology starts — has both
+off, plus the narrator and the accessibility onboarding, set in memory as its options load;
+`options.txt` itself keeps whatever it said. The journey and rehearsal run directories are
+also seeded with an `options.txt` carrying the same four. A client StageWright does not
+direct gets neither, so set them by hand or accept the consequences.
+`-Dworlddriver.pauseOnLostFocus=false` forces the focus behaviour from the mod's side for an
+unattended client.
 
 ## On a machine with no display server
 
-The scene topologies whose run task is a client declare `virtualDisplay = true`. On Linux,
-if the `DISPLAY` environment variable is empty, the StageWright Gradle plugin probes for a
-free display number, starts an `Xvfb` on it, points the run's environment at it, and stops
-it afterwards. If `DISPLAY` is already set it uses that and starts nothing, and on any
-platform that is not Linux it does nothing at all — a developer at a real desktop gets
-their own screen rather than an error telling them their machine is not a build server.
+The scene topologies whose run task is a client declare `client = true`, and on Linux the
+StageWright Gradle plugin refuses to start one — and every companion client — without a
+display it can open a window on: when neither `DISPLAY` nor `WAYLAND_DISPLAY` is set, or
+when `DISPLAY` names a local X server that is not running or turns the connection away,
+which under Xwayland usually means `XAUTHORITY` is missing or stale. It does not start a
+display itself; that is the environment's job.
 
-So: on a headless Linux host, `Xvfb` must be installed. On a desktop, nothing is required.
+So: in a desktop session, nothing is required. On a headless Linux host, give the build a
+display, for example `xvfb-run -a ./gradlew stagewrightIntegratedServerFabric`, or run it in
+a CI image that starts `Xvfb` and exports `DISPLAY`.
 
 ## The window that never appears
 
@@ -109,6 +113,3 @@ invocation covers interactive runs and gates alike:
 ./gradlew stagewrightIntegratedServerFabric \
     -PworlddriverVmArgs=-Dorg.lwjgl.glfw.libname=/path/to/libglfw.so
 ```
-
-If a display is already set in the environment, the plugin will not try to start an
-`Xvfb`, which is what you want when the intent is to render onto a real session.

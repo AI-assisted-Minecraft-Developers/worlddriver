@@ -241,7 +241,7 @@ Two terminals. In the first:
 In the second, pointing `TESTKIT_ENDPOINT` at the descriptor that hold wrote:
 
 ```bash
-TESTKIT_ENDPOINT=$PWD/fabric/run-dogfood/stagewright-endpoint.json \
+TESTKIT_ENDPOINT=$PWD/fabric/run-dogfood/stagewright/stagewright-endpoint.json \
   ../stagewright/gradlew -p ../stagewright :stagewright-junit:test --rerun-tasks
 ```
 
