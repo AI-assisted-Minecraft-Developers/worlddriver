@@ -49,6 +49,16 @@ class ProductionCommandsTest {
     }
 
     /**
+     * The only dispatch here that starts from the root production registers itself: the test below
+     * swaps in an ungated root, and the per-child sweep never asks the root, so a requirement on the
+     * root that locks out permission-2 operators would pass both.
+     */
+    @Test
+    void operatorsAndOnlyOperatorsGetPastTheProductionRoot() {
+        assertOperatorOnly(production(), "port", "mcp", "reload", "server");
+    }
+
+    /**
      * Brigadier keeps the requirement of whichever same-named literal registered first, so a gate on
      * the root would vanish behind any earlier {@code worlddriver} registration. Each child carries
      * its own.
