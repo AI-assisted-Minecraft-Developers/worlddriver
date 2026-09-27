@@ -741,8 +741,8 @@ def provisionRun = { String taskName, String dirName, String what, String port =
         // cannot — it names a scene, so a stale one reports last run's position as this one's.
         // The companion client's file is in the companion's own directory and is swept by that
         // directory's own provision task, not from here.
-        ['stagewright-results.jsonl', 'stagewright-client-results.jsonl',
-         'stagewright-progress.json'].each { name ->
+        ['stagewright/stagewright-results.jsonl', 'stagewright/stagewright-client-results.jsonl',
+         'stagewright/stagewright-progress.json'].each { name ->
             def stale = new File(runDir, name)
             if (stale.exists() && !stale.delete()) {
                 throw new GradleException("could not delete ${stale} — judging a run against the"
@@ -757,9 +757,9 @@ def provisionRun = { String taskName, String dirName, String what, String port =
         // the window loses focus, and with vsync on the client blocks in the buffer swap whenever
         // the compositor is not presenting it, which drops the client to ~1 fps and therefore to
         // ten game ticks a second against the server's twenty. Both turn a desktop's ordinary
-        // behaviour into scene failures that look like bot defects. Kept in step with StageWright's own
-        // RunDirectory.seedClientOptions, where the vsync reasoning is written out; Minecraft
-        // merges the keys it does not find with its defaults, so a four-line file is a complete one.
+        // behaviour into scene failures that look like bot defects. The same four StageWright's
+        // RunOptions sets in memory for a directed client, where the vsync reasoning is written out;
+        // Minecraft merges the keys it does not find with its defaults, so a four-line file is complete.
         new File(runDir, 'options.txt').text =
                 'pauseOnLostFocus:false\nonboardAccessibility:false\nnarrator:0\nenableVsync:false\n'
         def properties = new File(runDir, 'server.properties')
@@ -843,6 +843,6 @@ tasks.named('runJourneyDedicatedServerWithClient') {
     def companionLog = layout.projectDirectory.file('run-journey-with-client/companion-client.log').asFile
     doFirst {
         companionLog.parentFile.mkdirs()
-        journeyCompanionService.get().startCompanion(companion, companionLog, null, logger)
+        journeyCompanionService.get().startCompanion(companion, companionLog, logger)
     }
 }

@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-09-28
+
+- **Run artifacts are read from each run directory's `stagewright/` folder, and the client
+  topologies are marked `client = true`.** This follows StageWright, which now writes a run's
+  results, heartbeat and endpoint descriptor there: the companion client's results, the journey and
+  rehearsal runs' stale-file sweep and a held run's `TESTKIT_ENDPOINT`
+  (`<run>/stagewright/stagewright-endpoint.json`) moved with it. The Gradle plugin no longer starts
+  an Xvfb, and on Linux refuses to start a client topology's run or any companion client without a
+  display; on a headless host any client needs `xvfb-run` or an image that provides a display.
+
 ## 2026-09-24
 
 - **Messages and descriptions call the controlled player "the bot", not "the body", and a walk or

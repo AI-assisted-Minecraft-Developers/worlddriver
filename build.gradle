@@ -30,11 +30,8 @@ ext.architectury_version_range =
 //
 //   ./gradlew stagewrightDedicatedServerFabric stagewrightDedicatedServerNeoforge     # both loaders, one command
 //
-// `virtualDisplay` is on for every topology whose run task is a client. It is a no-op wherever a
-// DISPLAY already exists, so a developer on a desktop gets their own screen and the headless Linux
-// host gets an Xvfb the build starts and stops — the one job the retired client orchestrators did
-// that had nothing to do
-// with Minecraft.
+// `client` marks a topology whose run task is a client, so it is refused up front without a display.
+// The display is the environment's: a desktop, or `xvfb-run ./gradlew …` on a headless host.
 stagewright {
     topologies {
         dedicatedServerFabric {
@@ -61,7 +58,7 @@ stagewright {
             runTask = ':fabric:runStagewrightIntegratedServer'
             gameDirectory = file('fabric/run-stagewright-integrated')
             expectFile = file('scripts/stagewright/expected-scenes-fabric.txt')
-            virtualDisplay = true
+            client = true
             timeoutMinutes = 45
             sceneScripts = file('stagewright-scenes')
         }
@@ -69,7 +66,7 @@ stagewright {
             runTask = ':neoforge:runStagewrightIntegratedServer'
             gameDirectory = file('neoforge/run-stagewright-integrated')
             expectFile = file('scripts/stagewright/expected-scenes-neoforge.txt')
-            virtualDisplay = true
+            client = true
             timeoutMinutes = 45
             sceneScripts = file('stagewright-scenes')
         }
@@ -79,9 +76,8 @@ stagewright {
             gameDirectory = file('fabric/run-stagewright-with-client')
             // The client half probes the process boundary in its own JVM; without this its
             // verdict would be written and never read.
-            companionResultsFile = file('fabric/run-stagewright-joining-client/stagewright-client-results.jsonl')
+            companionResultsFile = file('fabric/run-stagewright-joining-client/stagewright/stagewright-client-results.jsonl')
             expectFile = file('scripts/stagewright/expected-scenes-fabric.txt')
-            virtualDisplay = true
             timeoutMinutes = 45
             sceneScripts = file('stagewright-scenes')
         }
@@ -91,9 +87,8 @@ stagewright {
             gameDirectory = file('neoforge/run-stagewright-with-client')
             // The client half probes the process boundary in its own JVM; without this its
             // verdict would be written and never read.
-            companionResultsFile = file('neoforge/run-stagewright-joining-client/stagewright-client-results.jsonl')
+            companionResultsFile = file('neoforge/run-stagewright-joining-client/stagewright/stagewright-client-results.jsonl')
             expectFile = file('scripts/stagewright/expected-scenes-neoforge.txt')
-            virtualDisplay = true
             timeoutMinutes = 45
             sceneScripts = file('stagewright-scenes')
         }
