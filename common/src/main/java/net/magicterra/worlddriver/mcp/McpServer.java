@@ -353,7 +353,7 @@ public final class McpServer implements Closeable {
         static final int OUTBOX_CAP = 256;
 
         private final OutputStream os;
-        private final BlockingQueue<String> outbox = new ArrayBlockingQueue<>(OUTBOX_CAP);
+        final BlockingQueue<String> outbox = new ArrayBlockingQueue<>(OUTBOX_CAP);
         volatile boolean alive = true;
         final CountDownLatch done = new CountDownLatch(1);
 

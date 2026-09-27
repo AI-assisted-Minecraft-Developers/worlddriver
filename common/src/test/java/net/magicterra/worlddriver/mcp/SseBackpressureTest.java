@@ -11,6 +11,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -113,5 +114,18 @@ class SseBackpressureTest {
 
         sub.die();
         pump.join(5_000);
+    }
+
+    @Test
+    @Timeout(30)
+    void aDeadSubscriberStopsBufferingFrames() {
+        // A subscriber leaves the sse set only when its pump returns, and a pump stuck in
+        // write() is still there after die(), so onEvent keeps offering to it. Without the
+        // alive check each of those would re-fill the outbox, then WARN and die() again.
+        SseSubscriber sub = new SseSubscriber(new ByteArrayOutputStream());
+        sub.die();
+        int afterDeath = sub.outbox.size();
+        for (int i = 0; i < SseSubscriber.OUTBOX_CAP * 2; i++) sub.offer("data: " + i + "\n\n");
+        assertEquals(afterDeath, sub.outbox.size(), "a dead subscriber kept buffering frames");
     }
 }
