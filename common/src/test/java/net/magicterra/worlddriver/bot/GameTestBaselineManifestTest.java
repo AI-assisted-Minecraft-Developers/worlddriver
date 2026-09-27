@@ -276,6 +276,23 @@ class GameTestBaselineManifestTest {
         assertTrue(drifted.isEmpty(), "the baseline probe leaked into live config: " + drifted);
     }
 
+    /**
+     * The probe against a stand-in that writes one field of each primitive type, so its blind
+     * spots do not hinge on which types the real baseline happens to pin today: a type it cannot
+     * see would let a later baseline line of that type slip past the manifest check.
+     */
+    @Test
+    void theProbeSeesOneWriteOfEachTypeAndNothingElse() {
+        Map<Class<?>, Field> oneOfEach = new LinkedHashMap<>();
+        for (Field f : SettingsRegistry.reflectivePrimitiveFields()) oneOfEach.putIfAbsent(f.getType(), f);
+        assertTrue(oneOfEach.containsKey(boolean.class) && oneOfEach.containsKey(double.class),
+                "the settings surface came back without booleans or doubles: " + oneOfEach.keySet());
+        for (Field f : oneOfEach.values()) {
+            assertEquals(Set.of(f.getName()), fieldsWrittenBy(() -> assign(f)),
+                    "the probe misread a lone write to the " + f.getType() + " field " + f.getName());
+        }
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private static Map.Entry<String, String> e(String k, String v) { return Map.entry(k, v); }
@@ -289,19 +306,23 @@ class GameTestBaselineManifestTest {
      * sentinels, so the union is exact.
      */
     private static Set<String> fieldsWrittenByBaseline() {
+        return fieldsWrittenBy(BotConfig::applyGameTestBaseline);
+    }
+
+    private static Set<String> fieldsWrittenBy(Runnable writer) {
         Map<Field, Object> saved = saveAll();
         try {
-            Set<String> changed = new TreeSet<>(probe(true, -9991));
-            changed.addAll(probe(false, -9992));
+            Set<String> changed = new TreeSet<>(probe(writer, true, -9991));
+            changed.addAll(probe(writer, false, -9992));
             return changed;
         } finally {
             restoreAll(saved);
         }
     }
 
-    private static Set<String> probe(boolean flag, long number) {
+    private static Set<String> probe(Runnable writer, boolean flag, long number) {
         for (Field f : SettingsRegistry.reflectivePrimitiveFields()) writeSentinel(f, flag, number);
-        BotConfig.applyGameTestBaseline();
+        writer.run();
         Set<String> changed = new TreeSet<>();
         for (Field f : SettingsRegistry.reflectivePrimitiveFields()) {
             if (!isSentinel(f, flag, number)) changed.add(f.getName());
@@ -337,6 +358,21 @@ class GameTestBaselineManifestTest {
             throw new AssertionError("unreachable: writeSentinel already rejected " + t);
         } catch (IllegalAccessException ex) {
             throw new AssertionError("cannot read " + f.getName(), ex);
+        }
+    }
+
+    /** A value distinct from both sentinels, as one baseline line would assign it. */
+    private static void assign(Field f) {
+        Class<?> t = f.getType();
+        try {
+            if (t == boolean.class) f.setBoolean(null, true);
+            else if (t == int.class) f.setInt(null, 7);
+            else if (t == long.class) f.setLong(null, 7L);
+            else if (t == float.class) f.setFloat(null, 7.5f);
+            else if (t == double.class) f.setDouble(null, 7.5);
+            else throw new AssertionError("no stand-in value for " + t + " " + f.getName());
+        } catch (IllegalAccessException ex) {
+            throw new AssertionError("cannot write " + f.getName(), ex);
         }
     }
 
