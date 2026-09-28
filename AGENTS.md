@@ -13,10 +13,9 @@ links to; read that page before arguing with the rule.
   Every transport — the MCP HTTP server, the WebSocket RPC server, the in-process script
   bridge — routes through `DriverApi.route(method, params)`.
 - **StageWright is a dependency, not a subproject.** It lives in `../stagewright` and is
-  consumed only as published Maven artifacts, versioned by `stagewright_version` and
-  `stagewright_plugin_version` in `gradle.properties`; neither shipped jar contains a
-  StageWright class. A clean pair of checkouts bootstraps in the order given in
-  `CONTRIBUTING.md` ("First build").
+  consumed only as published Maven artifacts, a CI build from the Nexus pinned by
+  `stagewright_version` in `gradle.properties`; neither shipped jar contains a
+  StageWright class. `CONTRIBUTING.md` ("First build") covers building against a local one.
 - **Three test layers**: JVM tests (`./gradlew :common:test`), scenes run by the six
   StageWright gate tasks, and out-of-process suites. Prefer the JVM layer wherever the subject
   allows it. See `docs/dev/testing.md`.

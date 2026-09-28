@@ -169,9 +169,20 @@ if (!publishedAt.isEmpty()) {
     }
 }
 
+// <base>-build.<n>+<minecraft>. CI sets BUILD_NUMBER to its run number; without it the build is
+// `local`, which is never published to the Nexus.
+def buildNumber = providers.environmentVariable('BUILD_NUMBER').orNull
+// Refused rather than spliced in: `build.<n>` has to be a SemVer numeric identifier, digits with no
+// leading zero, for the version to be valid SemVer and order by run number.
+if (buildNumber != null && !(buildNumber ==~ /0|[1-9][0-9]*/)) {
+    throw new GradleException("BUILD_NUMBER is '${buildNumber}', but it must be a whole number"
+            + " without leading zeros; unset it for a local build")
+}
+ext.worlddriverVersion = "${mod_base_version}-build.${buildNumber ?: 'local'}+${minecraft_version}".toString()
+
 allprojects {
     group = rootProject.maven_group
-    version = rootProject.mod_version
+    version = rootProject.worlddriverVersion
 
     configurations.all {
         resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
@@ -189,11 +200,15 @@ subprojects {
     }
 
     repositories {
-        // StageWright's published modules. Required, not a convenience: since the repo
-        // split the framework is not a subproject here, so `mc_stagewright-api:dev` (testmod
-        // compile) and `mc_stagewright-{fabric,neoforge}` (dev runs) have nowhere else to
-        // come from. Local until the artifacts are on a real remote.
+        // StageWright's published modules: `mc_stagewright-api:dev` (testmod compile) and
+        // `mc_stagewright-{fabric,neoforge}` (dev runs), from StageWright's CI builds on the
+        // Nexus — or from mavenLocal first, for one built here.
         mavenLocal()
+        maven {
+            name = 'gardelNexus'
+            url = 'https://nexus.gardel.top/repository/maven-releases'
+            content { includeGroup 'net.magicterra' }
+        }
         // Loom adds the essential maven repositories to download Minecraft and libraries
         // from automatically; only declare others when depending on mods.
     }
@@ -312,6 +327,30 @@ subprojects {
             // The repositories here will be used for publishing your artifact, not for
             // retrieving dependencies.
             mavenLocal()
+            // Where CI publishes each build. The credentials are taken from the environment as this
+            // is configured, and only a task that publishes here needs them.
+            maven {
+                name = 'gardelNexus'
+                url = 'https://nexus.gardel.top/repository/maven-releases'
+                credentials {
+                    username = System.getenv('MAVEN_USERNAME')
+                    password = System.getenv('MAVEN_PASSWORD')
+                }
+            }
+        }
+    }
+
+    // A release version cannot be deployed twice, so a local build that got here would stay forever
+    // under a name no CI build can replace. Failed loudly: skipping would read as a published build.
+    def published = rootProject.worlddriverVersion
+    tasks.withType(PublishToMavenRepository)
+            .matching { it.name.endsWith('ToGardelNexusRepository') }.configureEach {
+        doFirst {
+            if (!(published ==~ /.*-build\.[0-9]+\+.*/)) {
+                throw new GradleException("${published} is not published to the Nexus: only a build"
+                        + " numbered by BUILD_NUMBER goes there."
+                        + " Use publishToMavenLocal for a local build.")
+            }
         }
     }
 }

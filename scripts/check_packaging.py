@@ -6,7 +6,8 @@ Run from the repo root (exit 1 on violation):
     python3 scripts/check_packaging.py              # every check
     python3 scripts/check_packaging.py repos        # just the named ones
 
-Every check except `repos` reads BUILT artifacts, so assemble them first:
+Every check except `repos` reads BUILT artifacts, so assemble them first, with the same
+BUILD_NUMBER (or none) this script then runs with, since that is in their names:
 
     ./gradlew :common:assemble :fabric:assemble :neoforge:assemble \\
         :common:generatePomFileForMavenJavaPublication \\
@@ -65,7 +66,10 @@ def gradle_properties():
 def published_jars(module):
     """The jar files the module's publication ships, as (label, path)."""
     props = gradle_properties()
-    base = f"{props['archives_name']}-{module}-{props['mod_version']}"
+    # The root build.gradle's rule: the same BUILD_NUMBER that built the jars names them.
+    version = (f"{props['mod_base_version']}-build.{os.environ.get('BUILD_NUMBER', 'local')}"
+               f"+{props['minecraft_version']}")
+    base = f"{props['archives_name']}-{module}-{version}"
     build = os.path.join(ROOT, module, "build")
     return [
         ("jar", os.path.join(build, "libs", base + ".jar")),

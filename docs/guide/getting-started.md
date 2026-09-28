@@ -41,11 +41,9 @@ That compiles the shared module and produces a jar for each loader. If you only 
 loader, `./gradlew :fabric:build` and `./gradlew :neoforge:build` work too.
 
 > **Note**
-> A fresh clone also needs StageWright, the in-game test framework, published to your local
-> Maven repository before the test sources will compile. WorldDriver consumes it as
-> published artifacts rather than as a subproject. The bootstrap order is documented at the
-> top of StageWright's own `build.gradle`. A plain `./gradlew build` of the main source sets
-> does not need it.
+> A fresh clone takes StageWright, the in-game test framework, from the Nexus at the version set as
+> `stagewright_version` in `gradle.properties`, so the first build needs network access.
+> [`CONTRIBUTING.md`](../../CONTRIBUTING.md) covers building against a StageWright of your own.
 
 ## Launch a development client
 

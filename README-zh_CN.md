@@ -68,42 +68,26 @@ external MCP client            in-game JS script              external WS client
 子系统 —— 键有数百个，且由设置注册表生成而非手工罗列，所以该方法的 `inputSchema` 才是权威清
 单。其中两个键决定寻路器是否可以改变世界：`allowBreak` 允许它挖穿障碍，`allowPlace` 允许它
 搭出一格桥，**两者默认都是开启的**，也就是说除非你关掉它们，否则 `goto` 与 `follow` 会改变地
-形。场景套件把两者都钉成关闭，因此在那里跑通的路线不能作为默认客户端上的证据。这一层背后的
+形。场景套件把两者都固定为关闭，因此在那里走通的路线不能作为默认客户端上的证据。这一层背后的
 分层设计见 [`docs/dev/bot-layering.md`](docs/dev/bot-layering.md)。
 
 ---
 
 ## 快速上手
 
-### 1. 构建，并跑场景套件
+### 1. 构建，并运行场景套件
 
 场景套件所依托的游戏内测试框架 StageWright 有自己的仓库，在这里以发布到 Maven 的产物形式被
-消费。两个仓库以相反的方向互相编译 —— StageWright 的模块针对 WorldDriver 的 `common` 编译，
-而 WorldDriver 的测试源码针对 StageWright 的 API 编译 —— 所以一份干净的 checkout 只有唯一一条
-可行的引导顺序。它写在 `../stagewright/build.gradle` 顶部，并且起点在 StageWright 一侧，因为
-WorldDriver 的根构建会应用 StageWright 的 Gradle 插件，在该插件可解析之前根本无法完成配置：
+使用：版本锁定在 `gradle.properties` 的 `stagewright_version`，由 StageWright 的持续集成发布到
+`https://nexus.gardel.top/repository/maven-releases`。克隆仓库后直接就能构建：
 
 ```bash
-cd ../stagewright
-./gradlew -p engine publishToMavenLocal
-./gradlew -p gradle-plugin publishToMavenLocal
-./gradlew :stagewright-api:publishToMavenLocal :stagewright-attached:publishToMavenLocal
-
-cd ../worlddriver
-./gradlew -PworlddriverBootstrap :common:publishToMavenLocal
-
-cd ../stagewright
-./gradlew publishToMavenLocal
-
-cd ../worlddriver
 ./gradlew build
 ```
 
-`-PworlddriverBootstrap` 会去掉两个 loader 对 StageWright 的运行期依赖，而 Gradle 在配置期就要
-解析它；没有这个属性，一台从未发布过 StageWright 的机器过不了这一步。这并不是真正的依赖环：
-WorldDriver 出厂的源码从来没有依赖过 StageWright，两个发布 jar 里也没有任何一个 StageWright 类。
+WorldDriver 发布的 jar 里没有任何 StageWright 类，只有测试源码和开发环境的运行用到它。
 
-做完之后，一条命令就能让场景套件在无头专用服务器上跑起来：
+一条命令就能让场景套件在无头专用服务器上运行起来：
 
 ```bash
 ./gradlew stagewrightDedicatedServerNeoforge
@@ -113,7 +97,7 @@ WorldDriver 出厂的源码从来没有依赖过 StageWright，两个发布 jar 
 场景都通过时才以零退出。这样的任务共有六个，按进程拓扑与 loader 组合而成，说明见
 [`docs/dev/testing.md`](docs/dev/testing.md)。
 
-### 2. 跑客户端并接入 MCP 客户端
+### 2. 运行客户端并接入 MCP 客户端
 
 ```bash
 ./gradlew :fabric:runClient
