@@ -11,38 +11,24 @@ a change, and get it merged. The architectural constraints a change has to respe
   toolchain, so it compiles with whatever JVM Gradle itself runs on.
 - **The Gradle wrapper.** Use `./gradlew`, or `gradlew.bat` on Windows. Do not install
   Gradle globally; the wrapper pins the version the build expects.
-- **A checkout of StageWright next to this one**, at `../stagewright`. It is the in-game
-  test framework and is consumed as published Maven artifacts, not as a subproject.
+- **A checkout of StageWright next to this one**, at `../stagewright`, when a task needs
+  StageWright's own source: the out-of-process suites, a change to StageWright, a first publish.
+  The build itself takes StageWright, the test framework, as published Maven artifacts, not as a
+  subproject.
 
 ## First build
 
-StageWright compiles against this repository's `common` module and this repository's test
-sources compile against StageWright's API, so a clean pair of checkouts bootstraps in one
-specific order. It is documented at the top of `../stagewright/build.gradle`; the short
-form is:
+StageWright comes from the Nexus, at the exact version set as `stagewright_version` in
+`gradle.properties`, so a fresh clone builds without StageWright's source. To try a change to
+StageWright here, publish it to `mavenLocal` from `../stagewright` — its version is
+`0.1.0-build.local+1.21.1` — and pass `-Pstagewright_version=0.1.0-build.local+1.21.1`.
+`mavenLocal` is searched first. Moving to a newer StageWright version is a commit to that line.
 
-```bash
-cd ../stagewright
-./gradlew -p engine publishToMavenLocal
-./gradlew -p gradle-plugin publishToMavenLocal
-./gradlew :stagewright-api:publishToMavenLocal :stagewright-attached:publishToMavenLocal
+StageWright depends on one exact WorldDriver version the same way. When neither side has published
+anything to the Nexus yet, they have to be published in a particular order, described in
+StageWright's `docs/reference/publishing.md`.
 
-cd ../worlddriver
-./gradlew -PworlddriverBootstrap :common:publishToMavenLocal
-
-cd ../stagewright
-./gradlew publishToMavenLocal
-
-cd ../worlddriver
-./gradlew build
-```
-
-The StageWright half comes first because this repository's root build applies StageWright's
-Gradle plugin and cannot even configure until that plugin resolves. `-PworlddriverBootstrap`
-drops the loaders' runtime dependency on StageWright, which Gradle resolves at configuration
-time and which does not exist yet at that point.
-
-Afterwards, ordinary builds are ordinary:
+Ordinary builds:
 
 ```bash
 ./gradlew build            # compile both loaders, assemble the jars, run the JVM tests

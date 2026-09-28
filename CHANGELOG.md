@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-28
 
+- **The version names its build, and StageWright comes from a public Nexus.** The version is
+  `0.1.0-build.<build number>+1.21.1`, the build number being CI's run number, in place of
+  `0.1.0+1.21.1`; a build without `BUILD_NUMBER` is `0.1.0-build.local+1.21.1`, and one whose
+  `BUILD_NUMBER` is not a whole number without leading zeros stops. Only a numbered build can be
+  published to `https://nexus.gardel.top/repository/maven-releases`. StageWright now comes from
+  there too, at the one version set by `stagewright_version`, which replaces
+  `stagewright_plugin_version` as well. Before, both projects had to be built from source and
+  published to `mavenLocal` in a fixed order.
 - **Run artifacts are read from each run directory's `stagewright/` folder, and the client
   topologies are marked `client = true`.** This follows StageWright, which now writes a run's
   results, heartbeat and endpoint descriptor there: the companion client's results, the journey and

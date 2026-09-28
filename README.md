@@ -87,35 +87,18 @@ all of this is described in [`docs/dev/bot-layering.md`](docs/dev/bot-layering.m
 ### 1. Build, and run the scene suite
 
 StageWright, the in-game test framework the suite runs on, lives in its own repository and is
-consumed here as published Maven artifacts. The two repositories compile against each other in
-opposite directions — StageWright's modules compile against WorldDriver's `common`, and
-WorldDriver's test sources compile against StageWright's API — so a clean checkout has exactly
-one working bootstrap order. It is documented at the top of `../stagewright/build.gradle`, and
-it starts inside StageWright, because WorldDriver's root build applies StageWright's Gradle
-plugin and cannot configure until that plugin is resolvable:
+used here as published Maven artifacts: the exact version set as `stagewright_version` in
+`gradle.properties`, which StageWright's CI published to
+`https://nexus.gardel.top/repository/maven-releases`. A fresh clone builds:
 
 ```bash
-cd ../stagewright
-./gradlew -p engine publishToMavenLocal
-./gradlew -p gradle-plugin publishToMavenLocal
-./gradlew :stagewright-api:publishToMavenLocal :stagewright-attached:publishToMavenLocal
-
-cd ../worlddriver
-./gradlew -PworlddriverBootstrap :common:publishToMavenLocal
-
-cd ../stagewright
-./gradlew publishToMavenLocal
-
-cd ../worlddriver
 ./gradlew build
 ```
 
-`-PworlddriverBootstrap` drops the loaders' runtime dependency on StageWright, which Gradle
-resolves at configuration time; without it a machine that has never published StageWright
-cannot get past this step. This is not a real dependency cycle: WorldDriver's shipped sources
-have never depended on StageWright, and neither shipped jar contains a single StageWright class.
+WorldDriver's shipped jars contain no StageWright class; only its test sources and development runs
+use it.
 
-With that done, one command runs the scene suite against a headless dedicated server:
+One command runs the scene suite against a headless dedicated server:
 
 ```bash
 ./gradlew stagewrightDedicatedServerNeoforge

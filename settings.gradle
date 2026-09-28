@@ -1,10 +1,13 @@
 pluginManagement {
     repositories {
-        // StageWright's gradle plugin arrives as a published artifact now, not as an
-        // included build: the framework lives in its own repository. Until it is on a real
-        // remote that repository is the local one — see the release-order note at the foot
-        // of ../stagewright/settings.gradle for how the two builds bootstrap each other.
+        // StageWright's gradle plugin arrives as a published artifact, from StageWright's CI
+        // builds on the Nexus — or from mavenLocal first, for one built here.
         mavenLocal()
+        maven {
+            name = 'gardelNexus'
+            url = 'https://nexus.gardel.top/repository/maven-releases'
+            content { includeGroupByRegex 'net\\.magicterra(\\..*)?' }
+        }
         maven { url "https://maven.fabricmc.net/" }
         maven { url "https://maven.architectury.dev/" }
         maven { url "https://files.minecraftforge.net/maven/" }
@@ -15,7 +18,7 @@ pluginManagement {
     // property interpolation. Keeps build.gradle's `id 'net.magicterra.stagewright'`
     // version-free and the number beside the other coordinates in gradle.properties.
     plugins {
-        id 'net.magicterra.stagewright' version "${stagewright_plugin_version}"
+        id 'net.magicterra.stagewright' version "${stagewright_version}"
     }
 }
 
