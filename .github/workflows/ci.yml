@@ -1,0 +1,102 @@
+name: CI
+
+# Build, unit tests and the NeoForge dedicated-server scene gate; a master push that passes is
+# published to the Nexus.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+# Every step runs the pushed code, so the token it can read gets nothing it could write with.
+permissions:
+  contents: read
+
+# Keyed by event as well: a pending run is replaced by the next one in its group, and a manual run,
+# which publishes nothing, must not take the place of a master push waiting to publish.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  BUILD_NUMBER: ${{ github.run_number }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Source budget
+        run: python3 scripts/check_source_budget.py
+
+      - name: Build and unit tests
+        run: ./gradlew build
+
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The whole log goes to a file and the verdict is read from it: the judgments that can redden
+      # a run print above the VERDICT line, and a run that dies early has its cause in the middle.
+      - name: Dedicated-server scene gate (NeoForge)
+        run: |
+          set +e
+          ./gradlew stagewrightDedicatedServerNeoforge > gate.log 2>&1
+          status=$?
+          grep -E '^\[stagewright' gate.log | grep -vE '^\[stagewright[^]]*\] (pass|skip): '
+          exit $status
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-neoforge-${{ github.run_number }}
+          path: |
+            gate.log
+            neoforge/run-dogfood/stagewright/
+            neoforge/run-dogfood/logs/
+            neoforge/run-dogfood/crash-reports/
+          if-no-files-found: ignore
+
+  publish:
+    needs: [build, gate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Built and tested again here, then published by a later Gradle run that finds every jar up
+      # to date: what goes to the Nexus is what this job's tests ran against.
+      - name: Build and unit tests
+        run: ./gradlew build
+
+      - name: Publish to Nexus
+        env:
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+        run: ./gradlew publishAllPublicationsToGardelNexusRepository

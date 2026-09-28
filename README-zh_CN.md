@@ -87,6 +87,10 @@ external MCP client            in-game JS script              external WS client
 
 WorldDriver 发布的 jar 里没有任何 StageWright 类，只有测试源码和开发环境的运行用到它。
 
+每个拉取请求和每次推送到 `master`，持续集成都会构建、运行单元测试，并通过 NeoForge 专用服务器场景
+门控；推送到 `master` 且通过的构建还会以 `0.1.0-build.<构建编号>+1.21.1` 发布到同一个 Nexus。
+`master` 上还在等待前一次运行结束的运行，遇到更新的推送时会被取消，那次推送不会以自己的编号发布。
+
 一条命令就能让场景套件在无头专用服务器上运行起来：
 
 ```bash

@@ -81,8 +81,8 @@ game is in a world, and waits. The suites live in StageWright's `:stagewright-ju
 and are gated on which face the hold presents, so with no endpoint configured both halves skip
 and a green result means nothing. The details are in [`docs/dev/testing.md`](docs/dev/testing.md).
 
-**Source checks** under `scripts/` are run by hand; nothing in the build invokes them and
-there is no CI configuration in this repository.
+**Source checks** under `scripts/` are run by hand; nothing in the build invokes them, and CI runs
+`check_source_budget.py` as well.
 
 ```bash
 python3 scripts/check_source_budget.py   # no Java source file over 3000 lines
