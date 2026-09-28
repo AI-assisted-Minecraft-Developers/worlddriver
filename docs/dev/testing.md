@@ -10,10 +10,10 @@ a live world, drives it, and asserts an outcome. StageWright launches the game i
 process topology, runs the scenes, and writes a machine-readable result file, which a
 Gradle task then judges.
 
-There are also plain JUnit tests that need no game (`./gradlew :common:test`), an
-out-of-process JUnit suite that attaches to a running game, and a handful of Python
-checks. None of it runs automatically: this repository has no CI workflow and no Gradle
-task invokes the Python checks, so everything below is something a contributor types.
+There are also plain JUnit tests that need no game (`./gradlew :common:test`), an out-of-process
+JUnit suite that attaches to a running game, and a handful of Python checks. CI runs the JVM tests,
+`check_source_budget.py` and the NeoForge dedicated-server gate; no Gradle task invokes the Python
+checks, so everything else below is something a contributor types.
 
 The JUnit layer also holds the checks that are properties of the source rather than of a
 run; they read the compiled bytecode and fail with a file and a line instead of a scene

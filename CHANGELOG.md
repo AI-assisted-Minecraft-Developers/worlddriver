@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   there too, at the one version set by `stagewright_version`, which replaces
   `stagewright_plugin_version` as well. Before, both projects had to be built from source and
   published to `mavenLocal` in a fixed order.
+- **CI checks every pull request and every push to `master`, and publishes `master` to the Nexus.**
+  It builds the project, runs the unit tests and runs the scene suite on a NeoForge dedicated
+  server, and a push to `master` that passes is published. A `master` run still waiting for an
+  earlier one when a newer push arrives is cancelled, and its push is not published under a number
+  of its own.
 - **Run artifacts are read from each run directory's `stagewright/` folder, and the client
   topologies are marked `client = true`.** This follows StageWright, which now writes a run's
   results, heartbeat and endpoint descriptor there: the companion client's results, the journey and
