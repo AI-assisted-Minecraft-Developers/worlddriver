@@ -33,7 +33,16 @@ public final class DiagonalAscend extends Move {
         double c = cost;
         if (waterBelow(w, from, 6)) c += 200;
         else c += net.magicterra.worlddriver.bot.BotConfig.pathfinderDiagAscendPenalty;  // dry diagUp is unmountable on steep terrain (§30) — route around via cardinal stepUp when penalised
+        if (dropAtLaunch(w, from.offset(dx, 0, 0)) || dropAtLaunch(w, from.offset(0, 0, dz))) c += Diagonal.DROP_CORNER_TAX;
         return new Move.Edge(apply(from), c, java.util.List.of(), java.util.List.of(), name());
+    }
+
+    /** An open launch-row corner with a drop under it. The bot runs at the riser corner before it can
+     *  jump and drifts toward the open side: off a 1-wide strip (wd.bridgeStepTwoBypassNoPlace) it
+     *  ended on 0.05 of the strip, where the void-graze veto rightly refused the jump. Taxed past a
+     *  walk and a cardinal stepUp (25), which keep the body over floor. */
+    private static boolean dropAtLaunch(WorldView w, BlockPos c) {
+        return w.isPassable(c) && Move.dropCorner(w, c);
     }
 
     private static boolean waterBelow(WorldView w, BlockPos from, int depth) {

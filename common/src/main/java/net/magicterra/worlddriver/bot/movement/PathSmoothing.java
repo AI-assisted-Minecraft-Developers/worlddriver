@@ -252,10 +252,13 @@ public final class PathSmoothing {
     }
 
     /** A corner column the diagonal straight-line skims: blocked if either the
-     *  foot or head cell is non-passable or a hazard. */
+     *  foot or head cell is non-passable or a hazard, or it is a drop the planner's diagonal
+     *  already refused to cut ({@code Diagonal.DROP_CORNER_TAX}) — pulling the two cardinals it
+     *  chose back into that diagonal would undo the choice. */
     private static boolean cornerBlocked(WorldView w, BlockPos c) {
         return !w.isPassable(c) || w.isHazard(c)
-            || !w.isPassable(c.offset(0, 1, 0)) || w.isHazard(c.offset(0, 1, 0));
+            || !w.isPassable(c.offset(0, 1, 0)) || w.isHazard(c.offset(0, 1, 0))
+            || Move.dropCorner(w, c);
     }
 
     /** Sum of the per-intent bias modifiers over the original waypoints in
