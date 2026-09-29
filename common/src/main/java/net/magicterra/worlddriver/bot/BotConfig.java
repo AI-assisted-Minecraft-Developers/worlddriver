@@ -576,6 +576,8 @@ public final class BotConfig {
     public static volatile double walkerCarrotBodyHalfWidth = 0.4;
     /** Take a stair flight riser by riser: carrot and trend centroid stop at its first riser, and a +1 jump aims at its node until it lands. */
     public static volatile boolean walkerCarrotStopAtRise = true;
+    /** Airborne on the step before a stairUpBreak, start its dig so the last break's destroyDelay burns in the air; see {@code WalkerDig.preDigNextBreak}. */
+    public static volatile boolean walkerPreDigNextBreak = true;
     /** Keep sprint through a diagonal +1 take-off (the diagAscent/stepJump vetoes), for the sprint-jump boost. */
     public static volatile boolean walkerDiagAscentSprint = true;
 

@@ -192,6 +192,7 @@ class GameTestBaselineManifestTest {
             e("walkerSearchFromLanding", "plan an airborne bot from its landing cell, not the jump apex"),
             e("walkerDiagAscentSprint", "keep sprint through a diagonal +1 take-off"),
             e("walkerCommitTailPeak", "cut a best-effort segment whose tail sinks into a dip back to its ridge"),
+            e("walkerPreDigNextBreak", "start a stairUpBreak's dig in the air so destroyDelay burns before landing"),
             e("combatCrit", "jump before a melee swing for the 1.5x critical"),
             e("combatCollectDrops", "post-kill drop sweep"),
             e("duskUrgent", "urgent dusk securing")));

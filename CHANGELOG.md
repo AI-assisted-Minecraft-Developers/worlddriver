@@ -137,6 +137,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **An airborne bot is planned from the cell it will land in** (`walkerSearchFromLanding`). A plan
   started at the top of a jump could open with a pillar step into the cell the body already filled,
   and the bot jumped for 4 s without placing once.
+- **Cutting steps up a cliff, the bot starts digging the next one while still in the air**
+  (`walkerPreDigNextBreak`), and a new dig starts the way a click does. Minecraft leaves a 5-tick
+  delay after every broken block, and only holding the dig counts it down, so each cut waited it out
+  after landing: 9 ticks for a grass block that takes 3, five cuts a run on the R1 cliff.
 
 ## 2026-09-28
 
