@@ -24,10 +24,10 @@ ref, and every GUI action returns the resulting screen snapshot so no separate o
 
 ### The R1 route still grazes a few trunks
 
-Every run scrapes birch trunks at 1553,66,-143, 1470,68,-299, 1418,64,-409 and 1481,65,-286, and a
-hanging dark oak log at 1389,114,-583 while stepping down under it, about 0.2 s each. The drive
-passes flush with the trunk while it skirts a node or follows the carrot; the dark oak step is priced
-by the head-strike tax but still the cheapest.
+Every run scrapes birch trunks at 1541,72,-165, 1489,66,-275, 1481,65,-283 and 1471,68,-298, leaves
+at 1478,66,-287, and a hanging dark oak log at 1389,114,-583 while stepping down under it, about 0.2 s
+each. Between the two birches at 1481,65,-283/-286 the step pointer moves on a node early and the
+drive cuts the next corner; the dark oak step is priced by the head-strike tax but still the cheapest.
 
 ### The shore scan can aim a drowning bot at lava
 
