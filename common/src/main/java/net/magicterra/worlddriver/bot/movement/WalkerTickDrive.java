@@ -1256,7 +1256,7 @@ final class WalkerTickDrive {
                 // kills ONLY the futile overhang bob-jump.
                 && !(p.horizontalCollision && p.onGround() && wp.getY() < foot.getY())
                 && !atAnAdjacentNodeBelow(p, wp, foot)
-                && (stepUpJump || parkourEdge
+                && (stepUpJump || (parkourEdge && !parkourLanded(wk, p, wp, foot) && !dipWalkIn(wk, world, wp, foot, parkourEdge))
                     // Freeze-breaker: force a GROUNDED jump straight up the step once a
                     // stepUp/diagUp has rammed the riser past STEPUP_FREEZE_TICKS — the
                     // normal stepUpJump gate (ascendJumpReady) can stay false there (the
@@ -1334,7 +1334,8 @@ final class WalkerTickDrive {
         int sprintVeto = sprintVeto(bridging, steppingOffFall, steppingOffWaterFall, diagAscent && !leadJump && !diagSprint, finalApproach(wk, p, wp, parkourEdge),
                 lowHpCareful, hazardAhead, descendBrake, lethalNear && !parkourEdge, steepDescentNear, deepWaterDriftNear,
                 descentStepSkip, needJumpForStep && !parkourAscend && !sprintAscend && !leadJump && !diagSprint,
-                p.isInWater() && !flatWaterWalk && !diveUnderCap && !climbApproach);
+                p.isInWater() && !flatWaterWalk && !diveUnderCap && !climbApproach,
+                dipLeap(wk, world, wp, parkourEdge) && foot.getY() < wp.getY());
         boolean sprint = (cruise.on() && !hazardAhead && !lowHpCareful) || sprintVeto == 0;   // the cruise IS its sprint: only hazard and low HP outrank it (see surfaceCruise)
         p.setSprinting(sprint);
         // Lily pads sit ON the water plane with a real collision box; the planner
@@ -1546,7 +1547,7 @@ final class WalkerTickDrive {
 
     private static final String[] SPRINT_VETO_NAMES = {"bridge", "offFall", "offWaterFall", "diagAscent",
             "finalApproach", "lowHp", "hazard", "descendBrake", "lethalNear", "steepDescent", "deepWaterDrift",
-            "descentSkip", "stepJump", "water"};
+            "descentSkip", "stepJump", "water", "dipLeap"};
 
     /**
      * Every reason the walk drops sprint, one bit each in {@link #SPRINT_VETO_NAMES} order, so the
@@ -1577,16 +1578,45 @@ final class WalkerTickDrive {
      *     launched early.
      * <li>{@code water} — in water, sprint only a flat crossing, a capped tunnel (the prone pose fits
      *     under the lip) or a climb-out approach; the prone pose cannot rise a bank.
+     * <li>{@code dipLeap} — see {@link #dipLeap}.
      * </ul>
      */
     private static int sprintVeto(boolean bridge, boolean offFall, boolean offWaterFall, boolean diagAscent,
             boolean finalApproach, boolean lowHp, boolean hazard, boolean descendBrake, boolean lethalNear,
-            boolean steepDescent, boolean deepWaterDrift, boolean descentSkip, boolean stepJump, boolean water) {
+            boolean steepDescent, boolean deepWaterDrift, boolean descentSkip, boolean stepJump, boolean water,
+            boolean dipLeap) {
         boolean[] v = {bridge, offFall, offWaterFall, diagAscent, finalApproach, lowHp, hazard, descendBrake,
-                lethalNear, steepDescent, deepWaterDrift, descentSkip, stepJump, water};
+                lethalNear, steepDescent, deepWaterDrift, descentSkip, stepJump, water, dipLeap};
         int mask = 0;
         for (int i = 0; i < v.length; i++) if (v[i]) mask |= 1 << i;
         return mask;
+    }
+
+    /** A level two-cell leap over a one-deep dip, where the dip itself is a floor. A leap has no safe
+     *  length there: sprinted, live 1569,64,-107 → 1567,64,-109 flew past into the pit behind; unsprinted
+     *  it fell short into the dip on some starts, ~2 s either way. So {@link #dipWalkIn} walks down into
+     *  it and the edge's jump fires from the dip floor, unsprinted so the climb-out lands its cell.
+     *  A leap over a hole, which needs the run-up, keeps its sprint. */
+    private static boolean dipLeap(Walker wk, WorldView world, BlockPos wp, boolean parkourEdge) {
+        if (!parkourEdge || wk.step <= 0 || wk.step >= wk.path.size()) return false;
+        BlockPos from = wk.path.get(wk.step - 1);
+        int dx = wp.getX() - from.getX(), dz = wp.getZ() - from.getZ();
+        if (wp.getY() != from.getY() || Math.max(Math.abs(dx), Math.abs(dz)) != 2) return false;
+        return world.canStandAt(from.offset(Integer.signum(dx), -1, Integer.signum(dz)));
+    }
+
+    /** Still on the takeoff level of a {@link #dipLeap}: walk off into the dip instead of jumping it. */
+    private static boolean dipWalkIn(Walker wk, WorldView world, BlockPos wp, BlockPos foot, boolean parkourEdge) {
+        return foot.getY() >= wp.getY() && dipLeap(wk, world, wp, parkourEdge);
+    }
+
+    /** The leap is over: grounded on the landing's level, off the takeoff cell, short of the node by
+     *  a walk. Held jump used to fire a second hop from there — live 1569,64,-107 → 1567,64,-109 landed
+     *  0.85 short, hopped again and on some starts over into the pit behind, ~1 s. */
+    private static boolean parkourLanded(Walker wk, LivingEntity p, BlockPos wp, BlockPos foot) {
+        if (!p.onGround() || foot.getY() != wp.getY() || wk.step <= 0 || foot.equals(wk.path.get(wk.step - 1))) return false;
+        double dx = wp.getX() + 0.5 - p.getX(), dz = wp.getZ() + 0.5 - p.getZ();
+        return dx * dx + dz * dz < 1.5 * 1.5;
     }
 
     private static String sprintVetoNames(int mask) {

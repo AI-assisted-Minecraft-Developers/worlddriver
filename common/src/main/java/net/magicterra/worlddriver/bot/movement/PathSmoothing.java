@@ -44,6 +44,10 @@ public final class PathSmoothing {
         return e.move.equals("walk") || e.move.equals("diag");
     }
 
+    private static boolean isLeap(Move.Edge e) {
+        return e != null && e.move != null && e.move.startsWith("parkour");
+    }
+
     /**
      * String-pull the path: replace flat same-Y walk/diagonal staircase runs
      * with the straight segment between their endpoints (kept only when the
@@ -109,6 +113,10 @@ public final class PathSmoothing {
                     && losWalkable(w, path.get(i), path.get(j + 1))) {
                 j++;
             }
+            // A leap takes off along the step the planner put before it; pulled into the run, the approach
+            // came in 30° off a parkour2d's diagonal and the leap fell short off a one-wide deck
+            // (wd.bridgeStepTwoBypassNoPlace).
+            if (j > next && j + 1 < path.size() && isLeap(edges.get(j + 1))) j--;
             // Don't straighten a bow that A* made to dodge danger: if the
             // straight line i→j routes through MORE dangerCost than the original
             // (bowed) waypoints, keep the waypoints. Without this the smoother
