@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   down off a ridge toward the goal, and the next search then started at the bottom of a pit whose
   far wall was a cliff, 14 blocks below the ridge. `mc.debug.plan` applies the same cut and
   reports it as `sunkTailCut`.
+- **`mc.debug.plan` reports what a planned route is made of.** Each result now has `nodes`, the
+  route's nodes, `moves`, the count `n` and summed `cost` per move name, and the numbers of blocks
+  the route breaks (`breaks`) and places (`places`). The RPC skill adds `route_record.py`, which
+  records a bot or human run of a fixed route and compares runs slice by slice.
 
 ## 2026-09-28
 

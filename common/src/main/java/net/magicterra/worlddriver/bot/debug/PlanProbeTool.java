@@ -4,6 +4,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.ClientWorldView;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.PathSmoothing;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.client.internal.ClientThread;
 import net.minecraft.client.Minecraft;
@@ -150,6 +151,22 @@ public final class PlanProbeTool {
         out.put("forward", hEnd < hStart - 1e-6);
         out.put("maxStepDrop", maxStepDrop);            // task#36 discriminator: planner-routed single-node Y drop (blocks)
         out.put("yProfile", yProfile);                  // per-node absolute Y along committed path (side elevation)
+        out.put("nodes", path.stream().map(n -> n.getX() + "," + n.getY() + "," + n.getZ()).toList());
+        // Per-move count and summed edge cost: which moves a route is made of and what the planner
+        // charged for each, so a cost model can be checked against the time the walk actually took.
+        Map<String, double[]> moves = new java.util.TreeMap<>();
+        int breaks = 0, places = 0;
+        for (Move.Edge e : r.edges()) {
+            if (e == null || e.move == null) continue;
+            double[] m = moves.computeIfAbsent(e.move, k -> new double[2]);
+            m[0]++; m[1] += e.cost;
+            breaks += e.toBreak.size(); places += e.toPlace.size();
+        }
+        Map<String, Object> moveOut = new LinkedHashMap<>();
+        moves.forEach((k, m) -> moveOut.put(k, Map.of("n", (int) m[0], "cost", Math.round(m[1]))));
+        out.put("moves", moveOut);
+        out.put("breaks", breaks);
+        out.put("places", places);
         return out;
     }
 
