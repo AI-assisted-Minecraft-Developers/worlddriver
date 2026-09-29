@@ -125,6 +125,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **On a one-wide step cut into a wall, the bot corrects sideways in proportion to how far off it
   is.** Full left or right overshot by about 0.4 each way, and every jump clipped the neighbouring
   column, for about 10 s.
+- **Pillar recovery looks for a ceiling over the whole body, ends once the bot stands on the new
+  block, and never places into a filled cell.** Before, a bot straddling two columns bumped every
+  jump on the neighbour's block for about 15 s, and the recovery kept jumping and placing into the
+  full cell for about 12 ticks in every run.
+- **Cliff-climb recoveries stay on the stair.** The step-up back-off retreats only over floor;
+  before, it walked the bot backwards off a one-wide stair and fell 3 blocks, about 12 s each time.
+  A bot pressed against a step and stalled jumps while up to 0.35 off centre instead of waiting for
+  0.2, which wedged it for 12 s. The wall dig never digs the block the next node stands on, which
+  had turned a step into a pillar the bot fell off, for four minutes.
+- **An airborne bot is planned from the cell it will land in** (`walkerSearchFromLanding`). A plan
+  started at the top of a jump could open with a pillar step into the cell the body already filled,
+  and the bot jumped for 4 s without placing once.
 
 ## 2026-09-28
 
