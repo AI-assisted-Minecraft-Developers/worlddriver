@@ -197,6 +197,7 @@ class GameTestBaselineManifestTest {
             e("walkerDropAheadResync", "a body that dropped a row early on a descent skips to the node on its row"),
             e("walkerCornerFootingConsume", "a bot on its node's row counts as standing even on a thin corner"),
             e("walkerStepUpRawHeading", "a step-up's heading is judged against the raw aim as well as the smoothed one"),
+            e("walkerProjectCurrentLeg", "the path projection includes the leg the bot is walking, not only those past its node"),
             e("combatCrit", "jump before a melee swing for the 1.5x critical"),
             e("combatCollectDrops", "post-kill drop sweep"),
             e("duskUrgent", "urgent dusk securing")));
