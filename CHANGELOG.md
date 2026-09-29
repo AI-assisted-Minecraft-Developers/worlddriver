@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-30
 
+- **Sprint-jumping across open level ground, behind a switch that is off by default.** With
+  `walkerCruiseHop` on, a bot sprinting along a straight, level stretch with nothing overhead jumps
+  as a player crossing open ground does; each jump adds a fifth of a block per tick along its
+  facing. Over six R1 runs it took 135.4 s against 140.8 s with the same tree contacts.
+
 - **A walking bot follows a straightened leg to its end instead of cutting for the leg after.**
   The walker locates the bot on its path to steer by, but only looked at the legs past the node the
   bot was walking to, never the leg it was on. With a node every block that is off by under a block;

@@ -1372,7 +1372,7 @@ final class WalkerTickDrive {
                     // actually +1 above the grounded foot (the mislabel) — the bot sprinted in level,
                     // dropped onto it, and rams the +1; fire the grounded jump up-and-over AT ONCE
                     // instead of waiting out the off-axis pivot/freeze. Flag-gated; ram confirmed above.
-                    || levelRiserJump
+                    || levelRiserJump || cruiseHop(wk, world, p, foot)
                     // !diving: swimColumn is true for any submerged bot, so during an
                     // ACTIVE dive the held jump cancelled the sneak-sink exactly —
                     // !underwaterDepthHold: same cancellation for the SUBMERGED HORIZONTAL
@@ -1759,6 +1759,56 @@ final class WalkerTickDrive {
             for (int z = Mth.floor(p.getZ() - 0.3); z <= Mth.floor(p.getZ() + 0.2999); z++)
                 if (world.isSolid(new BlockPos(x, y, z))) return true;
         return false;
+    }
+
+    /** How far ahead a {@link #cruiseHop} must find the path straight, level and open: a sprint jump on the
+     *  flat stays up about 12 ticks and covers about 4 blocks. */
+    private static final double CRUISE_HOP_RUN = 5.0;
+
+    /**
+     * walkerCruiseHop: jump off the ground while sprinting along a straight, level, open run of path, the way a
+     * player crosses open ground. Each sprint jump adds 0.2 of a block per tick along the facing, so the run
+     * averages about 0.36 a tick against the sprint's 0.28; on R1 about 30 s a run are on such stretches.
+     * Taken only where the flight cannot go wrong: grounded, sprinting, not pushing a wall, facing within a
+     * body half-width of the path for {@link #CRUISE_HOP_RUN} blocks, every node there on the foot's level with
+     * nothing to break or place, and the box's sweep along the facing open to three above the feet over solid
+     * floor. The jump key comes up in the air, so vanilla's hold-to-repeat delay never applies on landing.
+     */
+    private static boolean cruiseHop(Walker wk, WorldView world, LivingEntity p, BlockPos foot) {
+        if (!BotConfig.walkerCruiseHop || !p.onGround() || p.isInWater() || !p.isSprinting() || p.horizontalCollision
+                || wk.stuckTicks > 0 || wk.path == null || wk.step >= wk.path.size()
+                || p.getDeltaMovement().horizontalDistance() < 0.13) return false;   // after ground friction: sprint 0.153, walk 0.118
+        double ux = -Mth.sin(p.getYRot() * Mth.DEG_TO_RAD), uz = Mth.cos(p.getYRot() * Mth.DEG_TO_RAD);
+        // The path ahead, sampled every block from the bot along its polyline, must stay within 0.6 of the facing
+        // ray: the body's yaw moves in steps of about 5°, 0.45 over the run, and the sweep below vets the ray itself.
+        double cx = p.getX(), cz = p.getZ(), run = 0, next = 1;
+        for (int i = wk.step; i < wk.path.size() && run < CRUISE_HOP_RUN; i++) {
+            BlockPos n = wk.path.get(i);
+            if (n.getY() != foot.getY() || hasPendingEdge(world, wk.edgeAt(i))) return false;
+            double nx = n.getX() + 0.5, nz = n.getZ() + 0.5, seg = Math.hypot(nx - cx, nz - cz);
+            for (; next <= run + seg && next <= CRUISE_HOP_RUN; next++) {
+                double t = (next - run) / seg, sx = cx + (nx - cx) * t - p.getX(), sz = cz + (nz - cz) * t - p.getZ();
+                if (Math.abs(sx * uz - sz * ux) > 0.6) return false;
+            }
+            run += seg; cx = nx; cz = nz;
+        }
+        if (run < CRUISE_HOP_RUN) return false;   // the path ends inside the flight: arrive on the ground
+        // Swept 0.1 wider than the box: at the box's own 0.3 a flight with its side on a cell edge passed, and drifted
+        // into the leaves beside it at the apex (R1 1393.30,65.25,-443.74).
+        for (double d = 0.25; d <= CRUISE_HOP_RUN; d += 0.25) {
+            double fx = p.getX() + ux * d, fz = p.getZ() + uz * d;
+            if (!world.isSolid(BlockPos.containing(fx, foot.getY() - 1, fz))) return false;
+            for (int sx = -1; sx <= 1; sx += 2)
+                for (int sz = -1; sz <= 1; sz += 2) {
+                    BlockPos c = BlockPos.containing(fx + sx * 0.4, foot.getY(), fz + sz * 0.4);
+                    if (!world.isPassable(c) || world.isHazard(c) || world.isWater(c)
+                            || !world.isPassable(c.above()) || !world.isPassable(c.above(2))
+                            || !world.isPassable(c.above(3))) return false;   // the apex puts the head 0.05 into y+3
+                }
+        }
+        wk.driveLatch.hopY = foot.getY();
+        wk.driveLatch.hopTick = p.tickCount;
+        return true;
     }
 
     /** Horizontal speed a parkour launch needs over the void. Walking is ~0.13 and a sprint ~0.28;

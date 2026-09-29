@@ -108,6 +108,20 @@ final class WalkerTickPrelude {
         }
     }
 
+    /** The tick's foot during a cruise hop ({@code WalkerTickDrive.cruiseHop}): its apex lifts the feet 1.25 over
+     *  the level it left, so floor(y) read a row up and every "node below the foot" branch (aim at the node, the
+     *  descent hold) took the heading over mid-flight and swung it 40° (R1 1422,64,-403). Until it lands the hop is
+     *  judged from its take-off level. The keying tick itself may still be grounded, so landing counts after it. */
+    static BlockPos hopFoot(Walker wk, LivingEntity p, BlockPos foot) {
+        Walker.DriveLatches l = wk.driveLatch;
+        if (l.hopY == Integer.MIN_VALUE) return foot;
+        if (p.isInWater() || foot.getY() < l.hopY || p.onGround() && p.tickCount > l.hopTick + 1) {
+            l.hopY = Integer.MIN_VALUE;
+            return foot;
+        }
+        return foot.getY() > l.hopY ? new BlockPos(foot.getX(), l.hopY, foot.getZ()) : foot;
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         LivingEntity p = a.entity();
@@ -187,7 +201,7 @@ final class WalkerTickPrelude {
         // scooped. So there's nothing to do here; the walk dispatch below only
         // ARMS the planned case and biases the step-off keys.
 
-        BlockPos foot = blockPosOf(p);
+        BlockPos foot = hopFoot(wk, p, blockPosOf(p));
         // Search start for a bot floating AT the water surface. foot=floor(p.y) DIPS underwater on a
         // down-bob (p.y 61.64↔62.02 → foot.y 61↔62), so a repath fired mid-down-bob starts A* one
         // cell UNDER the surface; A* prefixes the plan with submerged nodes the buoyant bot can't
