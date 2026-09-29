@@ -22,11 +22,6 @@ click, and a stale coordinate lands on whatever sits there now (a world-list cli
 Wanted, agent-browser style: `screen.tree` hands out stable element refs, the input verbs accept a
 ref, and every GUI action returns the resulting screen snapshot so no separate observe is needed.
 
-### The R1 route still bumps leaves and a pit
-
-Route R1 (1574,66,-102 → 1385,-625): about one run in six drops off the 1387,76,-510 stepDown into the
-pit at 1387,74,-512, costing 2-7 s.
-
 ### The shore scan can aim a drowning bot at lava
 
 `AutoSwim.nearestShore` tests `isHazard` on the block below a candidate foot cell only, while
