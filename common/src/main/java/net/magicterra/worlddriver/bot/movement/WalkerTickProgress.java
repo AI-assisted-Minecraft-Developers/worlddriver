@@ -420,6 +420,18 @@ final class WalkerTickProgress {
         return held;
     }
 
+    /** Horizontal reach (squared) at which a best-effort tail counts as reached once its continuation waits. */
+    private static final double TAIL_READY_SQ = 1.0;
+
+    /** A best-effort tail whose continuation has already landed is a splice point, not a target: standing on its
+     *  row within a block of it is reach enough. Held to the 0.45 gate, a bot that landed a diagUp 0.7 past R1's
+     *  1387,77,-509 circled it, the bearing sweeping round and the camera 320° with it, in every run. */
+    private static boolean tailReady(Walker wk, LivingEntity p, BlockPos foot, BlockPos w, double cur2) {
+        PathFinder.Result next = wk.seg.pendingSegment;
+        return next != null && next.hasPath() && p.onGround() && !p.isInWater()
+                && foot.getY() == w.getY() && cur2 < TAIL_READY_SQ;
+    }
+
     /** How many nodes past the current one {@link #dropAheadTarget} may skip to. */
     private static final int DROP_AHEAD_NODES = 4;
 
@@ -982,7 +994,7 @@ final class WalkerTickProgress {
                     && p.getY() < w.getY() - 2.0;
             boolean tailOvershot = cur2 > OVERSHOOT_RESYNC_SQ && !tailStillAhead(wk, p, w);
             boolean tailConsumed = !within && wk.step + 1 == wk.path.size() && wk.seg.pathBestEffort
-                    && (tailOvershot || tailDroppedPast);
+                    && (tailOvershot || tailDroppedPast || tailReady(wk, p, foot, w, cur2));
             // DESCENT OVERSHOOT-ADVANCE (the in-place back-hop fix the in-place-hop comment
             // points to): on a dry descent step the bot drives the IMMEDIATE node
             // (driveTargetYaw = descentNodeYaw). The instant the foot crosses PAST that node

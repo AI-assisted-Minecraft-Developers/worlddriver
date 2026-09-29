@@ -100,6 +100,12 @@ public final class LookController {
         }
         float rendered;
         if (snap) {
+            // Same heading, but the VALUE nearest last tick's: the renderer lerps yRotO→yRot by value, so a dig
+            // snap from -547 to 56 (117° of real turn) drew a 603° spin, twice a run on the R1 cliff.
+            if (havePrev) {
+                yaw = prevYaw + (((yaw - prevYaw) % 360f + 540f) % 360f - 180f);
+                p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw;
+            }
             prevYaw = yaw; prevPitch = pitch; havePrev = true;
             rendered = yaw;
         } else {
