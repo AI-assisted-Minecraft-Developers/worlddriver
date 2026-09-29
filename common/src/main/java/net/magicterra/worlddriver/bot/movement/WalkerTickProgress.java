@@ -34,10 +34,43 @@ import static net.magicterra.worlddriver.bot.movement.WalkerTickClimb.floodedSha
 final class WalkerTickProgress {
     private WalkerTickProgress() {}
 
+    /** Reach (squared) for a grounded bot level with a node a climb enters or leaves: the centre may sit
+     *  0.85 out, i.e. the 0.3-half-width box still over the node cell. */
+    private static final double LEVEL_CLIMB_REACH_SQ = 0.72;
+
+    /** Grounded and level with the node, its box still over the node cell, with a climb out of it, or a climb
+     *  into it and a long flat leg out: reached. A diagUp that lands 0.08 past the cell edge (live
+     *  1544.92,71,-158.15 at node 1545,71,-159, cur2 0.455) read unreached, took the next riser's jump from
+     *  beside it and walked back, ~1 s per run; one landing at cur2 0.456 with a 13-block walk next ran on
+     *  unreached until an off-path search re-routed the whole leg (1482,66,-309). A short leg out keeps the
+     *  tight gate: consuming every stair landing early started each next riser off-centre, 4-6 s per cliff.
+     *  Only for a bot that has come up to the node: one still short of it along the incoming leg keeps the
+     *  tight gate. On a 1-wide strip (wd.bridgeStepTwoBypassNoPlace) a bot 0.76 short took the next diagUp
+     *  from there, cut across the void beside the strip and was pinned at its edge. */
+    private static boolean levelAtClimb(Walker wk, LivingEntity p, BlockPos w, double dyNode, double cur2) {
+        if (!p.onGround() || p.isInWater() || Math.abs(dyNode) >= 0.05 || cur2 >= LEVEL_CLIMB_REACH_SQ) return false;
+        if (shortOfNode(wk, p, w)) return false;
+        if (wk.step + 1 >= wk.path.size()) return false;
+        BlockPos next = wk.path.get(wk.step + 1);
+        if (next.getY() > w.getY()) return true;
+        boolean climbIn = wk.step > 0 && wk.path.get(wk.step - 1).getY() < w.getY();
+        return climbIn && Math.max(Math.abs(next.getX() - w.getX()), Math.abs(next.getZ() - w.getZ())) >= 2;
+    }
+
+    /** Behind {@code w} along the leg from the previous node by more than the tight gate's radius. */
+    private static boolean shortOfNode(Walker wk, LivingEntity p, BlockPos w) {
+        if (wk.step == 0) return false;
+        BlockPos a = wk.path.get(wk.step - 1);
+        double ax = w.getX() - a.getX(), az = w.getZ() - a.getZ(), len = Math.hypot(ax, az);
+        if (len == 0) return false;
+        double along = ((p.getX() - (w.getX() + 0.5)) * ax + (p.getZ() - (w.getZ() + 0.5)) * az) / len;
+        return along < -Math.sqrt(REACH_DIST_SQ);
+    }
+
     /** The step-advance gates, in the order {@link #advanceCause} is handed their flags. */
     private static final String[] ADVANCE_NAMES = {
             "within", "passed", "tail", "crossDesc", "crossWalk",
-            "waterStepDown", "crestReach", "waterWalk", "arc"};
+            "waterStepDown", "crestReach", "waterWalk", "arc", "dropAhead"};
 
     /** [STEP-ADV-DIAG temp — remove before commit] why a grounded grossly-overshot node won't
      *  advance (-823 dimple churn): logs which advance fired + the descend-geometry sub-conditions.
@@ -154,11 +187,21 @@ final class WalkerTickProgress {
      * reachability clause at all). Both decide a vertical question from the y the bot happens to
      * hold this tick. This guard sits at the advance OUTLET, so it covers them; their own criteria
      * remain wrong.
+     *
+     * <p>A bot whose sole sits exactly on {@code w}'s row with any solid under it has landed on
+     * {@code w}, however little of the sole that is: the next climb starts from this row. Live R1
+     * 1545,71,-159: a diagUp landed on 0.11 of the node block's corner, the guard held the pointer,
+     * and the drive jumped at the node it was already standing on, twice (~25 ticks, 4 runs in 6).
+     * Not when {@code nx} is stacked over {@code w}: the next rung is placed under the bot, so it
+     * has to be over the column, not on a corner of it ({@code wd.buoyantWall}: a pillar climbed off
+     * its rung's corner drifted a block and the top jump fell back into the water).
      */
     private static boolean airborneClimbConsume(WorldView world, LivingEntity p, BlockPos w, BlockPos nx) {
-        return nx != null && nx.getY() > w.getY()
-                && !p.isInWater()
-                && WalkerGeometry.soleOnSolid(world, p) < FOOTING_MIN;
+        if (nx == null || nx.getY() <= w.getY() || p.isInWater()) return false;
+        double sole = WalkerGeometry.soleOnSolid(world, p);
+        boolean stacked = nx.getX() == w.getX() && nx.getZ() == w.getZ();
+        if (BotConfig.walkerCornerFootingConsume && !stacked && sole > 0 && Math.abs(p.getY() - w.getY()) < 1e-3) return false;
+        return sole < FOOTING_MIN;
     }
 
     /**
@@ -356,7 +399,11 @@ final class WalkerTickProgress {
                 && w.getY() < foot.getY()
                 && !p.isInWater()
                 && WalkerGeometry.soleOnSolid(world, p) > 0.0
-                && wk.stepProg.noStepProgressTicks <= TAIL_HOLD_STALL_TICKS;
+                && wk.stepProg.noStepProgressTicks <= TAIL_HOLD_STALL_TICKS
+                // A dip the bot stepped over: the plan goes down to w and straight back up to the
+                // bot's own row, so there is no descent left to strand (live 1539,71,-180 held with the
+                // bot beside it on the 72 row it rejoins, recovery-hopping until the stall released it).
+                && !(nx != null && nx.getY() == foot.getY() && losWalkable(world, foot, nx));
         // Mid-path, hold outright: spending the node strands the pointer for the rest of the plan.
         // At the LAST node, three terms, each bought on the gate — see the javadoc:
         //   · the bot has not gone DOWN under this plan (its row is still at or above the row the
@@ -371,6 +418,33 @@ final class WalkerTickProgress {
                         && wk.goal != null && wk.goal.reached(w) && !wk.goal.reached(foot)));
         if (held) Walker.descentHolds++;
         return held;
+    }
+
+    /** How many nodes past the current one {@link #dropAheadTarget} may skip to. */
+    private static final int DROP_AHEAD_NODES = 4;
+
+    /**
+     * A descent the body took a row early. A body carrying momentum down a turning staircase steps
+     * off the upper tread beside its node and grounds on the row the plan reaches only a node or two
+     * later; holding the node above then costs a jump back up and a second drop (live 1436,64,-352 on
+     * every R1 run: ~1.5 s hopping on a row the plan was about to leave). Returns the index of the
+     * later node on the foot's row that the body can walk straight to, or -1. Only grounded and dry,
+     * with the current node exactly one row up and every edge in between a plain walk or descent.
+     */
+    private static int dropAheadTarget(Walker wk, WorldView world, LivingEntity p, BlockPos foot) {
+        if (!BotConfig.walkerDropAheadResync || foot == null || wk.path == null || wk.step >= wk.path.size()
+                || p.isInWater() || !p.onGround() || wk.path.get(wk.step).getY() != foot.getY() + 1) return -1;
+        int prevY = foot.getY() + 1;
+        for (int k = wk.step + 1; k < wk.path.size() && k <= wk.step + DROP_AHEAD_NODES; k++) {
+            BlockPos n = wk.path.get(k);
+            Move.Edge e = wk.edgeAt(k);
+            if (n.getY() > prevY || n.getY() < foot.getY() || e == null || e.move == null
+                    || !(e.move.equals("walk") || e.move.equals("stepDown") || e.move.equals("diagDown"))
+                    || !e.toBreak.isEmpty() || !e.toPlace.isEmpty()) return -1;
+            if (n.getY() == foot.getY() && losWalkableBody(world, p.getX(), p.getZ(), foot, n)) return k;
+            prevY = n.getY();
+        }
+        return -1;
     }
 
     /**
@@ -404,6 +478,34 @@ final class WalkerTickProgress {
      * real; the exact hold gives up after FINAL_NODE_HOLD_TICKS so a cell the bot genuinely
      * cannot stand in still ends the walk the honest way.
      */
+    /** A node the bot went PAST at arm's length: across the plane through it square to the incoming
+     *  segment, within {@link WalkerConstants#SKIRT_PASS_SQ}, and with a walkable line on to the next
+     *  node. The halfway rule ({@code nd2 < cur2}) alone waits until the bot is nearer the NEXT node,
+     *  so a node skirted 1.1 blocks to the side of a long pulled diagonal, followed by a 5-block leg,
+     *  stayed current for half that leg; the stall clock ran up to a recovery hop on every such
+     *  corner (live 2026-09-28 R1: 14 hops, node 1552,64,-132 passed at cur2 1.2, advanced at 8.1).
+     *  Flat only: a riser skirted from below would hand the bot a next node it has not climbed to.
+     *  Already riding the planned leg on to the next node counts as the walkable line: the foot cell's
+     *  own ray crossed a one-deep hole the leg itself misses (R1 1424,63,-402), the node stayed
+     *  current while the bot walked the leg, and 3 blocks on offPath re-searched from the hole onto
+     *  another cliff face (+8 s). */
+    private static boolean skirtedPast(Walker wk, WorldView world, LivingEntity p, BlockPos foot, BlockPos nx, double cur2) {
+        BlockPos w = wk.path.get(wk.step);
+        int wy = w.getY();
+        return cur2 <= SKIRT_PASS_SQ && !p.isInWater() && p.onGround() && foot.getY() == wy && nx.getY() == wy
+                && beyondNode(wk.path, wk.step, p) && (losWalkable(world, foot, nx) || onLeg(wk, w, nx, p));
+    }
+
+    /** On a plain walk leg w → nx: within {@link #LEG_HALF_WIDTH} of its centre line, forward of w. */
+    private static boolean onLeg(Walker wk, BlockPos w, BlockPos nx, LivingEntity p) {
+        if (!plainFlatWalk(wk.edgeAt(wk.step + 1))) return false;
+        double ax = nx.getX() - w.getX(), az = nx.getZ() - w.getZ(), len = Math.hypot(ax, az);
+        double px = p.getX() - (w.getX() + 0.5), pz = p.getZ() - (w.getZ() + 0.5);
+        return len > 0 && px * ax + pz * az > 0 && Math.abs(px * az - pz * ax) / len <= LEG_HALF_WIDTH;
+    }
+
+    private static final double LEG_HALF_WIDTH = 0.8;
+
     private static boolean holdLastNode(Walker wk, BlockPos foot, BlockPos w) {
         if (wk.step + 1 < wk.path.size() || wk.goal.reached(foot)) return false;
         boolean diskGoal = (wk.goal instanceof Goal.XZ xz && xz.radius() > 0)
@@ -636,6 +738,7 @@ final class WalkerTickProgress {
             wk.arc.progBaseS = Double.NaN; wk.arc.progWindowTicks = 0; wk.arc.progStall = false;   // reset the net-progress window too
         }
 
+        int dropAheadTo = dropAheadTarget(wk, world, p, foot);
         while (wk.step < wk.path.size()) {
             Move.Edge se = wk.edgeAt(wk.step);
             // Buoyant pillar (bunker / flooded-pit self-exit): the bot rises through
@@ -773,7 +876,7 @@ final class WalkerTickProgress {
             // the sprint for "no forward impulse"). Under the cruise, reach is horizontal: the bot is
             // at the surface for every purpose the gates protect.
             boolean cruiseUnder = wk.driveLatch.cruiseOn && p.isInWater() && dyNode > 0 && dyNode <= 3.0;
-            boolean within = cur2 < REACH_DIST_SQ
+            boolean within = (cur2 < REACH_DIST_SQ || levelAtClimb(wk, p, w, dyNode, cur2))
                     && (Math.abs(dyNode) < 1.2 || floatOverSubmerged || cruiseUnder)
                     && !(p.isInWater() && dyNode > 0.5 && !cruiseUnder)
                     && !unclimbedUnderOverhead;
@@ -845,7 +948,7 @@ final class WalkerTickProgress {
                 boolean cruisePassed = cruiseUnder && nx.getY() <= w.getY();   // the next surface node is no higher: see cruiseUnder at `within`
                 passed = (nx.getX() == w.getX() && nx.getZ() == w.getZ()   // stacked next node: see STACKED_PASS_SQ
                             ? cur2 <= STACKED_PASS_SQ || (overshot && beyondNode(wk.path, wk.step, p))
-                            : overshot ? nd2 <= cur2 : nd2 < cur2)
+                            : (overshot ? nd2 <= cur2 : nd2 < cur2) || skirtedPast(wk, world, p, foot, nx, cur2))
                         && (Math.abs(w.getY() - p.getY()) < 1.5 || droppedPastDescend || cruisePassed)
                         && (Math.abs(nx.getY() - p.getY()) < 1.2 || cruisePassed)
                         && !unclimbedUnderOverhead   // see the note at `within`
@@ -1047,22 +1150,21 @@ final class WalkerTickProgress {
             // advancing than either alone, so it both kills the bob-defeated step-freeze (projection drives) AND
             // keeps the reach helpers (legacy drives). Edge-execution holds above still gate advancement.
             boolean legacyAdvance = within || passed || tailConsumed || crossedDescendNode || crossedWalkNode
-                    || waterStepDownFloat || stepUpCrestReach || waterWalkReach;
+                    || waterStepDownFloat || stepUpCrestReach || waterWalkReach || dropAheadTo > wk.step;
+            BlockPos nxt = wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null;
             boolean doAdvance = (legacyAdvance || (BotConfig.walkerArcLengthAdvance && wk.arc.proj.segIdx > wk.step))
-                    && !airborneClimbConsume(world, p, w, wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null)   // ONE outlet for all nine gates — an airborne bot must not spend a node on a climb; see the helper's javadoc for the wd.buriedOre reading
-                    && !unwalkedDescentConsume(wk, world, p, foot, w,
-                            wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null)                                                           // …and a standing bot must not spend one on a descent — the LAST node too when spending it would fake an arrival; see that helper for the rung-14 and rung-13 readings
-                    && !airborneDryArrival(wk, world, p, foot, w,
-                            wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null);                                                          // …and a bot that is not standing must not spend a dry LAST node — the flush-bank reading on the real client
+                    && !airborneClimbConsume(world, p, w, nxt)             // ONE outlet for all nine gates — an airborne bot must not spend a node on a climb; see the helper's javadoc for the wd.buriedOre reading
+                    && !unwalkedDescentConsume(wk, world, p, foot, w, nxt) // …and a standing bot must not spend one on a descent — the LAST node too when spending it would fake an arrival; see that helper for the rung-14 and rung-13 readings
+                    && !airborneDryArrival(wk, world, p, foot, w, nxt);    // …and a bot that is not standing must not spend a dry LAST node — the flush-bank reading on the real client
             if (doAdvance) {
                 if (holdLastNode(wk, foot, w)) break;
                 // The step-advance reading, at the ONE `step++` in the walker (so within/passed/tail
                 // are all covered here) and AFTER the disk-goal hold — see Walker#noteStepAdvance.
-                wk.noteStepAdvance(world, p, foot, w,
-                        wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null,
+                wk.noteStepAdvance(world, p, foot, w, nxt,
                         advanceCause(within, passed, tailConsumed, crossedDescendNode, crossedWalkNode,
                                 waterStepDownFloat, stepUpCrestReach, waterWalkReach,
-                                BotConfig.walkerArcLengthAdvance && wk.arc.proj.segIdx > wk.step),
+                                BotConfig.walkerArcLengthAdvance && wk.arc.proj.segIdx > wk.step,
+                                dropAheadTo > wk.step),
                         cur2, nd2, overshot);
                 wk.step++;
             }

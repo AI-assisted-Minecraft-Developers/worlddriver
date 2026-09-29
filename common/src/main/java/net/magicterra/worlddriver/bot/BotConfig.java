@@ -578,6 +578,10 @@ public final class BotConfig {
     public static volatile boolean walkerCarrotStopAtRise = true;
     /** Airborne on the step before a stairUpBreak, start its dig so the last break's destroyDelay burns in the air; see {@code WalkerDig.preDigNextBreak}. */
     public static volatile boolean walkerPreDigNextBreak = true;
+    /** Grounded a row below the node on a descent, skip ahead to the later node on the foot's row; see {@code WalkerTickProgress.dropAheadTarget}. */
+    public static volatile boolean walkerDropAheadResync = true;
+    /** A bot grounded on its node's row counts as standing for the climb-consume guard even on a thin corner; see {@code WalkerTickProgress.airborneClimbConsume}. */
+    public static volatile boolean walkerCornerFootingConsume = true;
     /** Keep sprint through a diagonal +1 take-off (the diagAscent/stepJump vetoes), for the sprint-jump boost. */
     public static volatile boolean walkerDiagAscentSprint = true;
 
