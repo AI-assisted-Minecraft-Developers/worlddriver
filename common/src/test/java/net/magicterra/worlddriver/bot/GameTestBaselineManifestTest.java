@@ -189,6 +189,7 @@ class GameTestBaselineManifestTest {
             e("walkerRiserLeadJump", "jump a dry +1 riser at its face distance, keeping sprint"),
             e("walkerRiserLeadExact", "the riser lead only for the riser under the node itself"),
             e("walkerDescentLaneKeep", "lane-keep strafe on a one-block step-down"),
+            e("walkerSearchFromLanding", "plan an airborne bot from its landing cell, not the jump apex"),
             e("walkerDiagAscentSprint", "keep sprint through a diagonal +1 take-off"),
             e("walkerCommitTailPeak", "cut a best-effort segment whose tail sinks into a dip back to its ridge"),
             e("combatCrit", "jump before a melee swing for the 1.5x critical"),

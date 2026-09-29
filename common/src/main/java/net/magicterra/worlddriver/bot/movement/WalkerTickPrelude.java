@@ -214,6 +214,12 @@ final class WalkerTickPrelude {
             if (!p.isUnderWater() || lifted - foot.getY() <= SURFACE_SEARCH_LIFT_MAX)
                 searchFoot = new BlockPos(foot.getX(), lifted, foot.getZ());
         }
+        // A search fired at a jump's apex starts one cell above the floor, and a plan opening with a
+        // pillarUp from there places into the cell the body already fills: live 1446,79,-553 jumped
+        // 4 s without placing once. The cell below is where the jump lands.
+        if (BotConfig.walkerSearchFromLanding && !p.onGround() && !p.isInWater() && !p.onClimbable()
+                && !world.canStandAt(foot) && world.canStandAt(foot.below()))
+            searchFoot = foot.below();
         wk.sampleTick(p);
         // One-shot goal snap (needs a live WorldView, so here not in setGoal): a random
         // long-distance goto whose exact target block is UNSTANDABLE — buried in terrain,

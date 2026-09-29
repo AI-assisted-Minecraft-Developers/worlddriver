@@ -1954,6 +1954,8 @@ public final class BotConfig {
     public static volatile boolean walkerDescentLaneKeep = true;
     /** {@link #walkerRiserLeadJump} only for the riser under the node itself, not one beside it. */
     public static volatile boolean walkerRiserLeadExact = true;
+    /** Plan a dry airborne bot from the cell it lands in, not the jump apex (see {@code WalkerTickPrelude}). */
+    public static volatile boolean walkerSearchFromLanding = true;
 
     /** task#82: weave the thin per-move AscendMovement episode tracker over ascent edges
      *  (stepUp/stairUpBreak/diagUp; B1 adjudication — the machine never actuates, PREP/RUNNING/

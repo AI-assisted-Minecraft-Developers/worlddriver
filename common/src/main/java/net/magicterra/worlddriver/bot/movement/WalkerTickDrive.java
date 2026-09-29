@@ -19,6 +19,7 @@ import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.movement.PathSmoothing.*;
 import static net.magicterra.worlddriver.bot.util.BotInteract.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
+import java.util.List;
 import java.util.Locale;
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.movement.WalkerConstants.*;
@@ -221,6 +222,18 @@ final class WalkerTickDrive {
     }
 
     /**
+     * The block capping a pillar-recover rung, or null. The ceiling is every cell the 0.6-wide box
+     * meets rising one rung from the rung it stands on, not cell+2 alone: a bot straddling a column
+     * boundary bonks on the NEIGHBOUR's block (live 2026-09-28, x=1389.9: stone at 1390,71 capped
+     * every jump at +0.2 for ~15 s while 1389,71 was air). Anchored at the rung so an airborne tick
+     * asks the same question.
+     */
+    private static BlockPos pillarRecoverCeiling(Walker wk, LivingEntity p) {
+        List<BlockPos> ceiling = riseBlockers(p, wk.pillarRecover.cell.getY() + PILLAR_RISE - p.getY());
+        return ceiling.isEmpty() ? null : ceiling.get(0);
+    }
+
+    /**
      * Offset from the body to the nearest point of the planned segment into {@code wp}, or null when
      * there is no reason to steer back onto it. Drifted off a string-pulled segment, foot→wp reads
      * diagonal and no lane is held, but the segment is the line that was checked clear: pinned on a
@@ -258,9 +271,52 @@ final class WalkerTickDrive {
 
     private static final double LANE_KP = 3.0, LANE_KD = 8.0;
 
+    private static final double BACKOFF_RUNWAY = 1.8;   // how far 12 ticks of walking back carries the bot, with margin
     private static final double RISER_SCAN = 1.6;       // farther than any lead a sprint launch needs (~1.05)
 
+    /**
+     * True when the runway the step-up backoff would retreat over has floor at the bot's level.
+     * On a one-wide cliff staircase the cell behind is the drop the bot just climbed out of, so a
+     * blind 12-tick retreat walked it off the stair (live 2026-09-28, twice at 1390,99,-534: fell
+     * 3 blocks, then pillar-recovered, ~12 s each time).
+     */
+    private static boolean backoffRunwayFloored(WorldView world, LivingEntity p, BlockPos wp) {
+        double bx = p.getX() - (wp.getX() + 0.5), bz = p.getZ() - (wp.getZ() + 0.5);
+        double len = Math.hypot(bx, bz);
+        if (len < 1e-3) return false;
+        for (double s = 0.6; s <= BACKOFF_RUNWAY; s += 0.6) {
+            BlockPos cell = BlockPos.containing(p.getX() + bx / len * s, p.getY(), p.getZ() + bz / len * s);
+            if (!world.canStandOn(cell.below())) return false;
+        }
+        return true;
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
+    /**
+     * The block walkerWallDigFallback punches: the wp-facing one at head then feet height. §85: that probe goes
+     * EMPTY-HANDED when the pinning wall's normal is not the wp direction (ultra#2: wall south, wp east; C98-J2
+     * canopy pin: wp a stepDown below, hCol from a side trunk) — hCol says "a wall touches the box" but not WHERE.
+     * Fall back to the drive heading, then sweep the four neighbours at head/feet height.
+     *
+     * <p>Never the block the next node stands on, nor a feet-height block while that node is above the feet:
+     * that is the riser, and digging it turned a stepUp into a pillar the bot then fell off (live 1444,80,-553
+     * on the R1 east cliff, four minutes of dig-pillar-fall).
+     */
+    private static BlockPos wallDigTarget(WorldView world, LivingEntity p, BlockPos wp, double ux, double uz) {
+        BlockPos support = wp.below();
+        boolean riser = wp.getY() > Mth.floor(p.getY() + 1e-3);
+        java.util.function.Predicate<BlockPos> ok = c -> world.isSolid(c) && !c.equals(support);
+        double[][] dirs = {{ux, uz}, {-Math.sin(Math.toRadians(p.getYRot())), Math.cos(Math.toRadians(p.getYRot()))},
+                {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (double[] d : dirs) {
+            BlockPos head = BlockPos.containing(p.getX() + d[0], p.getY() + 1.4, p.getZ() + d[1]);
+            BlockPos feet = BlockPos.containing(p.getX() + d[0], p.getY() + 0.4, p.getZ() + d[1]);
+            if (ok.test(head)) return head;
+            if (!riser && ok.test(feet)) return feet;
+        }
+        return null;
+    }
+
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
@@ -371,6 +427,11 @@ final class WalkerTickDrive {
             wk.pillarRecover.latch = PILLAR_RECOVER_TICKS;
             wk.pillarRecover.cell = foot;                 // grounded feet cell = the rung we fill
         }
+        // Standing on the filled rung ends the recovery; a further rung re-armed it on the new foot
+        // above. The latch used to run out its ticks here, jumping in place and re-placing into the
+        // full cell (live R1 cliff 1390,82,-520: ~12 ticks of refused places, every run).
+        if (wk.pillarRecover.latch > 0 && wk.pillarRecover.cell != null && p.onGround()
+                && p.getY() >= wk.pillarRecover.cell.getY() + 1.0 - 1e-3) wk.pillarRecover.latch = 0;
         if (wk.pillarRecover.latch > 0 && wk.pillarRecover.cell != null) {
             wk.pillarRecover.latch--;
             Walker.avatarForward(a, false);
@@ -386,8 +447,8 @@ final class WalkerTickDrive {
             // DELIBERATELY on the global allowBreak switch, NOT mayBreak(): this is the
             // anti-suffocation safety dig, and it is EXEMPT from per-goto forbidDig — suffocation is
             // death, forbidDig is only a navigation preference, so safety wins over the constraint.
-            BlockPos recCeiling = wk.pillarRecover.cell.offset(0, 2, 0);
-            if (BotConfig.allowBreak && world.isSolid(recCeiling)) {
+            BlockPos recCeiling = BotConfig.allowBreak ? pillarRecoverCeiling(wk, p) : null;
+            if (recCeiling != null) {
                 wk.avatarJump(a, false);
                 // Preempting: suffocation is death, a navigation claim is a preference. The other
                 // six walker digs queue behind whoever holds the slot; this one takes it.
@@ -403,7 +464,7 @@ final class WalkerTickDrive {
                 wk.avatarJump(a, false);
                 // Place into the feet cell once risen clear of it (vanilla rejects the place
                 // while the player AABB still overlaps the target cell — gate on real height).
-                if (p.getY() >= wk.pillarRecover.cell.getY() + 1.0) {
+                if (p.getY() >= wk.pillarRecover.cell.getY() + 1.0 && !world.isSolid(wk.pillarRecover.cell)) {
                     wk.hands.placeOn(wk.pillarRecover.cell.offset(0, -1, 0), Direction.UP);
                     wk.exAlarms.notePlace(wk.pillarRecover.cell);
                 }
@@ -477,9 +538,12 @@ final class WalkerTickDrive {
                         && Integer.signum(wp.getX() - cmP.getX()) == Integer.signum(cmP.getX() - cmP2.getX())
                         && Integer.signum(wp.getZ() - cmP.getZ()) == Integer.signum(cmP.getZ() - cmP2.getZ());
             }
-            boolean aligned = chainAscend
+            // Pressed on the riser and stalled, the strict square-up deadlocks: no room to strafe, offset just
+            // over 0.2 (live 1401.24,87,-531.70: 0.26, wedged 12 s). A standing jump off the face still lands on it.
+            boolean faceWedged = p.horizontalCollision && wk.stuckTicks > 4 && sideDist <= 0.35 && flatDist <= 1.0;
+            boolean aligned = faceWedged || (chainAscend
                     ? (Math.abs(lateralMotion) <= 0.25 && sideDist <= 0.45)
-                    : (Math.abs(lateralMotion) <= 0.1 && sideDist <= 0.2);
+                    : (Math.abs(lateralMotion) <= 0.1 && sideDist <= 0.2));
             sprintAscend = aligned;
             ascendJumpReady = aligned && flatDist <= (chainAscend ? 2.0 : 1.7);
             // STEPUP BACKOFF-RETRY trigger (walkerStepUpBackoffRetry, default OFF): the early
@@ -498,7 +562,7 @@ final class WalkerTickDrive {
             boolean grindPress = p.onGround() && Math.sqrt(vel.x * vel.x + vel.z * vel.z) < 0.1;
             boolean grindGraze = p.horizontalCollision && wk.stuckTicks > 30;
             if (BotConfig.walkerStepUpBackoffRetry && wk.stepUpBackoff.cooldown == 0
-                    && wk.stuckTicks > 15 && flatDist < 1.1 && (grindPress || grindGraze)) {
+                    && wk.stuckTicks > 15 && flatDist < 1.1 && (grindPress || grindGraze) && backoffRunwayFloored(world, p, wp)) {
                 wk.stepUpBackoff.yaw = (float) (Math.toDegrees(Math.atan2(
                         -((wp.getX() + 0.5) - p.getX()), (wp.getZ() + 0.5) - p.getZ())) + 180.0);
                 wk.stepUpBackoff.ticks = 12;
@@ -1451,30 +1515,7 @@ final class WalkerTickDrive {
             double fdx = (wp.getX() + 0.5) - p.getX(), fdz = (wp.getZ() + 0.5) - p.getZ();
             double fl = Math.sqrt(fdx * fdx + fdz * fdz);
             if (fl > 1e-3) {
-                BlockPos headCell = BlockPos.containing(p.getX() + fdx / fl, p.getY() + 1.4, p.getZ() + fdz / fl);
-                BlockPos feetCell = BlockPos.containing(p.getX() + fdx / fl, p.getY() + 0.4, p.getZ() + fdz / fl);
-                BlockPos tgt = world.isSolid(headCell) ? headCell : world.isSolid(feetCell) ? feetCell : null;
-                // §85: the wp-facing probe goes EMPTY-HANDED when the pinning wall's normal
-                // is not the wp direction (ultra#2: wall south, wp east; C98-J2 canopy pin:
-                // wp a stepDown below, hCol from a side trunk) — hCol says "a wall touches
-                // the box" but not WHERE. Fall back to the drive heading, then sweep the
-                // four neighbours at head/feet height and punch the first solid. Still
-                // gated on the confirmed stall, so open-field travel never reaches this.
-                if (tgt == null) {
-                    double ryaw = Math.toRadians(p.getYRot());
-                    double ddx = -Math.sin(ryaw), ddz = Math.cos(ryaw);
-                    BlockPos dh = BlockPos.containing(p.getX() + ddx, p.getY() + 1.4, p.getZ() + ddz);
-                    BlockPos df = BlockPos.containing(p.getX() + ddx, p.getY() + 0.4, p.getZ() + ddz);
-                    tgt = world.isSolid(dh) ? dh : world.isSolid(df) ? df : null;
-                }
-                if (tgt == null) {
-                    for (int[] nb : new int[][]{{1,0},{-1,0},{0,1},{0,-1}}) {
-                        BlockPos nh = BlockPos.containing(p.getX() + nb[0], p.getY() + 1.4, p.getZ() + nb[1]);
-                        BlockPos nf = BlockPos.containing(p.getX() + nb[0], p.getY() + 0.4, p.getZ() + nb[1]);
-                        if (world.isSolid(nh)) { tgt = nh; break; }
-                        if (world.isSolid(nf)) { tgt = nf; break; }
-                    }
-                }
+                BlockPos tgt = wallDigTarget(world, p, wp, fdx / fl, fdz / fl);
                 if (tgt != null) {
                     Walker.avatarDig(wk, a, tgt, true);
                     if (BotConfig.walkerDebug)
