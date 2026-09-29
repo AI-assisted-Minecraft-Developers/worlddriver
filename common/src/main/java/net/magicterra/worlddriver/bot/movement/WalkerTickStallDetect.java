@@ -27,6 +27,26 @@ import static net.magicterra.worlddriver.bot.movement.WalkerGeometry.*;
 final class WalkerTickStallDetect {
     private WalkerTickStallDetect() {}
 
+    /** Blocks² from the churn window's base that count as having left it, and as being back. */
+    private static final int CHURN_CYCLE_LEAVE_SQ = 16, CHURN_CYCLE_RETURN_SQ = 4;
+
+    /**
+     * Per tick: the wall-corner ram count, and whether the body has left this churn window's base
+     * and come back to it on the same row. Net displacement alone reads a limit cycle wider than
+     * {@code CHURN_MIN_MOVE_SQ} as progress whenever the window closes at its far end:
+     * {@code wd.boxedChurnEscalate} cycled between the pocket's back wall and its mouth, ten blocks
+     * apart, and every other window reset the escape count to zero. A route never comes back to
+     * where it stood a window ago; a cycle does, whatever its width.
+     */
+    private static void trackWindow(Walker wk, LivingEntity p, BlockPos foot) {
+        if (p.horizontalCollision) wk.churn.hColRamTicks++; else wk.churn.hColRamTicks = 0;
+        BlockPos b = wk.churn.base;
+        if (b == null || wk.churn.windowTicks == 0) { wk.churn.cycle = 0; return; }
+        int dx = foot.getX() - b.getX(), dz = foot.getZ() - b.getZ(), d2 = dx * dx + dz * dz;
+        if (wk.churn.cycle == 0 && d2 >= CHURN_CYCLE_LEAVE_SQ) wk.churn.cycle = 1;
+        else if (wk.churn.cycle == 1 && d2 <= CHURN_CYCLE_RETURN_SQ && Math.abs(foot.getY() - b.getY()) <= 1) wk.churn.cycle = 2;
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
@@ -317,7 +337,7 @@ final class WalkerTickStallDetect {
         // healthy crossing nets ≫8 blocks / 20 s, so legit swims never trip it.
         // Wall-corner ram signature: count consecutive sustained-hCol ticks (§39). A clean walk brushes
         // a wall for a tick or two; only a genuine wall-corner stall pins hCol true for seconds.
-        if (p.horizontalCollision) wk.churn.hColRamTicks++; else wk.churn.hColRamTicks = 0;
+        trackWindow(wk, p, foot);
         int effChurnWindow = BotConfig.walkerFasterChurnRepath ? 240 : CHURN_WINDOW;
         // A sustained ram shortens the net-displacement window so the existing blacklist+escalate
         // (below) fires in ~8s instead of 20s — but ONLY while genuinely wall-pinned, so legitimate
@@ -339,7 +359,7 @@ final class WalkerTickStallDetect {
             // reset, all wasted" — and the shove toward deep water is what then sank the bot. A
             // dig in progress IS progress; let it finish (the per-riser commit cap bounds a truly
             // stuck dig).
-            if ((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ && (wk.seg.pathBestEffort || cdy <= CHURN_MIN_Y)
+            if (((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ || wk.churn.cycle == 2) && (wk.seg.pathBestEffort || cdy <= CHURN_MIN_Y)
                     && !breakingEdge) {
                 wk.churn.escapes++;
                 // Arm the sticky steep-barrier planner escalation (see top of tick()): the

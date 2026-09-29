@@ -166,6 +166,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fits** (`walkerDiagonalStringPull`, now on). On such a level stretch the bot counts as off its path
   by its distance from the path's line, not from the next node, which had re-planned 224 times in
   one 200 s route, each a slowdown.
+- **A bot going round the same loop is caught as stuck however wide the loop is.** A loop wider
+  than the progress threshold looked like progress whenever the check window closed at its far end,
+  and the escape count went back to zero every other window.
 
 ## 2026-09-28
 
