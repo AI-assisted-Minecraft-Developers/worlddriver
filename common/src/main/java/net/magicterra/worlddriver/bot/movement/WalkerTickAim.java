@@ -47,6 +47,16 @@ final class WalkerTickAim {
      * ticks of unstuck bursts and repaths around a goal the bot had already reached.
      */
     /**
+     * How far the body faces off a step-up's aim. The smoothed aim lags a sharp turn together with the
+     * body, so on the turn's first tick it reads aligned: R1 1387,76,-510 jumped a diagUp 90° off its raw
+     * aim and flew off the notch it stood in (2.5 s). {@code walkerStepUpRawHeading} also asks the raw aim.
+     */
+    private static float stepHeadingErr(LivingEntity p, float aimYaw, float targetYaw) {
+        float err = Math.abs(angleDiff(p.getYRot(), aimYaw));
+        return BotConfig.walkerStepUpRawHeading ? Math.max(err, Math.abs(angleDiff(p.getYRot(), targetYaw))) : err;
+    }
+
+    /**
      * The EMA rate for the target heading: the slow trend-camera alpha, or — under
      * {@code walkerOrbitBreaksAimLag} — the cruise alpha once the bot has spent {@code ORBIT_TICKS}
      * moving with a mid-range heading error. Under tangent drive the bot follows this EMA, and an
@@ -1039,7 +1049,7 @@ final class WalkerTickAim {
         // checked HEADING — so a drift-off-column / sharp-turn arrival bob-jammed the
         // step. Gate both forward (keyUp) and the step jump on this. Excludes parkour
         // and water (own handling; launches snap heading so the error is ≈0 anyway).
-        float stepHeadingErr = Math.abs(angleDiff(p.getYRot(), aimYaw));
+        float stepHeadingErr = stepHeadingErr(p, aimYaw, targetYaw);
         // STEP-UP FREEZE BREAKER (cur2≈0.64 ram): a dry stepUp/diagUp that has dwelt
         // past STEPUP_FREEZE_TICKS without closing on its node, while laterally CLOSE to
         // the step column, is ramming the riser — the close-node bearing swings on every

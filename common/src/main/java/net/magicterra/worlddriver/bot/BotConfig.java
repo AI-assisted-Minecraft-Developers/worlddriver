@@ -401,9 +401,8 @@ public final class BotConfig {
      *  a certain wedge — deliberately conservative; A/B sweeps {20,40,80}. */
     public static volatile int riskBiasScale = 15;
 
-    /** A* node cap surfaced as a tunable knob — Baritone's
-     *  {@code pathTimeoutMS} analogue. Maps directly to
-     *  {@link net.magicterra.worlddriver.bot.pathfinder.PathFinder} default. */
+    /** A* node cap surfaced as a tunable knob — Baritone's {@code pathTimeoutMS} analogue.
+     *  Maps directly to {@link net.magicterra.worlddriver.bot.pathfinder.PathFinder} default. */
     public static volatile int pathfinderMaxNodes =
             PathFinder.DEFAULT_MAX_NODES;
 
@@ -501,9 +500,8 @@ public final class BotConfig {
      *  cheaper to build, coarser routing). */
     public static volatile int goalFieldCellSize = 4;
 
-    /** Horizontal half-extent (blocks) of the goal-field box around the search
-     *  start — keep within the client render distance so cells map to known
-     *  terrain. */
+    /** Horizontal half-extent (blocks) of the goal-field box around the search start — keep within
+     *  the client render distance so cells map to known terrain. */
     public static volatile int goalFieldRadius = 64;
 
     /** Vertical half-extent (blocks) of the goal-field box around the search start. */
@@ -1960,6 +1958,8 @@ public final class BotConfig {
     public static volatile boolean walkerDescentLaneKeep = true;
     /** {@link #walkerRiserLeadJump} only for the riser under the node itself, not one beside it. */
     public static volatile boolean walkerRiserLeadExact = true;
+    /** Judge a dry step-up's heading against the raw aim too, not only the lagging smoothed one; see {@code WalkerTickAim}. */
+    public static volatile boolean walkerStepUpRawHeading = true;
     /** Plan a dry airborne bot from the cell it lands in, not the jump apex (see {@code WalkerTickPrelude}). */
     public static volatile boolean walkerSearchFromLanding = true;
 

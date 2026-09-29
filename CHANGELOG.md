@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-29
 
+- **A bot that has to turn sharply onto a step up turns before it jumps.** Whether it faced the step
+  was judged against its smoothed heading, which lags a sharp turn along with the body, so on the
+  turn's first tick it read as facing the step. On R1 the bot stood in a notch at 1387,76,-510 facing
+  west, jumped at a diagonal step 90° to its right, flew off the notch, and climbed back, about 2.5 s
+  a run. It is now also judged against the heading it is turning to, set by `walkerStepUpRawHeading`.
+  Over twelve R1 runs alternating it on and off in one client, the fall went from every run to none,
+  and the median time from 142.4 s to 140.9 s.
 - **The planner avoids a step down that would put the bot's head into a block just past the
   landing.** The body moves on about a cell before it has dropped, so a block there at the launch
   head height, often a tree's leaves, stopped it for about 0.3 s. Such a step now costs 6 more,
