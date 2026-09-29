@@ -118,6 +118,8 @@ public final class BotConfig {
 
     /** Dry descent: camera on a stable path trend (no downhill spin); see {@code WalkerConstants.DESCENT_CAM_FAR_DIST}. */
     public static volatile boolean descentCameraDecouple = true;
+    /** The dry trend centroid steers only while the body has room along it; see {@code WalkerTickAim.headingClear}. */
+    public static volatile boolean walkerTrendNeedsRoom = true;
 
     /** Extend {@link #descentCameraDecouple} to ALL dry launches (parkourDescend / parkour / fall):
      *  the camera SLEWS smoothly through the turn instead of snapping ~180° to the landing node

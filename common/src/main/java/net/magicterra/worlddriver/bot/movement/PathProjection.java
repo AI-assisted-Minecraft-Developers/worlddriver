@@ -39,6 +39,10 @@ public final class PathProjection {
      *  offset at atan(perp / lookahead) per tick and becomes the tangent as it closes. Equal to
      *  {@link #tangentYaw} when the point ahead is degenerate (the path ends at the bot). */
     public float pursuitYaw;
+    /** The point {@code lookahead} blocks ahead that {@link #pursuitYaw} bears on, and the index of the node
+     *  that ends its segment. */
+    public double aheadX, aheadZ;
+    public int aheadNode;
     /** True when the scan stopped early at a barrier (submerged dive node / pending break-place edge). */
     public boolean barrierHit;
 
@@ -60,8 +64,16 @@ public final class PathProjection {
         int bestSeg = step;
         double bestT = 0, bestD2 = Double.POSITIVE_INFINITY;
         boolean barrier = false;
+        // The heading must stop at a barrier too, not just the projection: past a pending traverseBreak it
+        // took the 12-block leg beyond it and waded the bot 8 blocks away from the bank (live 1431,62,-355).
+        int aheadEnd = scanEnd;
+        // A segment starting two rows above the foot is not where the foot is, however close it runs in XZ: a
+        // path that climbs back over its own column (R1 1390,82..84,-520) otherwise projected a bot still on
+        // y81 onto it and spent two climb nodes at once. Only the projection stops there; the heading scan goes on.
+        boolean aboveReach = false;
         for (int i = step; i < scanEnd; i++) {
             BlockPos a = path.get(i), b = path.get(i + 1);
+            aboveReach |= i > step && a.getY() - footY >= 2;   // the step's own segment always projects
             double ax = a.getX() + 0.5, az = a.getZ() + 0.5;
             double vx = (b.getX() + 0.5) - ax, vz = (b.getZ() + 0.5) - az;
             double len2 = vx * vx + vz * vz;
@@ -69,15 +81,15 @@ public final class PathProjection {
             if (t < 0) t = 0; else if (t > 1) t = 1;
             double cx = ax + t * vx, cz = az + t * vz;
             double d2 = (px - cx) * (px - cx) + (pz - cz) * (pz - cz);
-            if (d2 < bestD2) { bestD2 = d2; bestSeg = i; bestT = t; }
+            if (d2 < bestD2 && !aboveReach) { bestD2 = d2; bestSeg = i; bestT = t; }
             // V-shaped submerged-below dive barrier (mirrors adoptPath): everything beyond a node that sits
             // >1 below the foot AND is water is only reachable THROUGH the dive — stop the forward scan.
-            if (b.getY() - footY < -1 && world.isWater(b)) { barrier = true; break; }
+            if (b.getY() - footY < -1 && world.isWater(b)) { barrier = true; aheadEnd = i + 1; break; }
             // Pending break/place edge entering the next node: don't let the projection skim past an
             // unexecuted bridge lip / dug riser.
             Move.Edge e = (edges != null && i + 1 < edges.size()) ? edges.get(i + 1) : null;
             if (e != null && ((e.toBreak != null && !e.toBreak.isEmpty()) || (e.toPlace != null && !e.toPlace.isEmpty()))) {
-                barrier = true; break;
+                barrier = true; aheadEnd = i + 1; break;
             }
         }
         // Cumulative XZ arc-length from path[0] to the projection point.
@@ -102,8 +114,11 @@ public final class PathProjection {
         this.segFrac = bestT;
         this.s = arc;
         this.perp = Math.sqrt(bestD2);
-        this.tangentYaw = tangentYawAt(path, bestSeg, bestT, lookahead, scanEnd);
-        double[] ahead = pointAhead(path, bestSeg, bestT, lookahead, scanEnd);
+        this.tangentYaw = tangentYawAt(path, bestSeg, bestT, lookahead, aheadEnd);
+        double[] ahead = pointAhead(path, bestSeg, bestT, lookahead, aheadEnd);
+        this.aheadX = ahead[0];
+        this.aheadZ = ahead[1];
+        this.aheadNode = (int) ahead[2];
         double adx = ahead[0] - px, adz = ahead[1] - pz;
         this.pursuitYaw = adx * adx + adz * adz < 0.09 ? this.tangentYaw
                 : (float) Math.toDegrees(Math.atan2(-adx, adz));
@@ -111,7 +126,8 @@ public final class PathProjection {
     }
 
     /** The point {@code lookahead} blocks of arc-length forward of the projection at {@code (seg, frac)},
-     *  along the polyline; the scan end's node when the path is shorter than that. */
+     *  along the polyline, as {x, z, index of the node ending its segment}; the scan end's node when the
+     *  path is shorter than that. */
     private static double[] pointAhead(List<BlockPos> path, int seg, double frac, double lookahead, int scanEnd) {
         double remain = lookahead;
         for (int i = seg; i < scanEnd; i++) {
@@ -123,12 +139,12 @@ public final class PathProjection {
             double avail = segLen * (1.0 - from);
             if (segLen > 1e-9 && avail >= remain) {
                 double t = from + remain / segLen;
-                return new double[] { ax + t * vx, az + t * vz };
+                return new double[] { ax + t * vx, az + t * vz, i + 1 };
             }
             remain -= avail;
         }
         int j = Math.max(0, Math.min(scanEnd, path.size() - 1));
-        return new double[] { path.get(j).getX() + 0.5, path.get(j).getZ() + 0.5 };
+        return new double[] { path.get(j).getX() + 0.5, path.get(j).getZ() + 0.5, j };
     }
 
     /**

@@ -5,6 +5,7 @@ import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
@@ -26,6 +27,16 @@ import static net.magicterra.worlddriver.bot.movement.WalkerGeometry.*;
  */
 final class WalkerTickAim {
     private WalkerTickAim() {}
+
+    /** The ram-release gate: pinned against a face under a stall clock, or grounded and scraping it
+     *  for {@code RAM_SCRAPE_TICKS}. Sliding along a face at ~0.05 b/t never trips the stall clocks
+     *  while the bot presses a heading >60° off its node (live 2026-09-28, 1515.36,75,-237.70: a
+     *  stepDown node 80° to the side, stuck=0 throughout, 11+ ticks of scrape). */
+    private static boolean ramPinned(Walker wk, LivingEntity p) {
+        return p.horizontalCollision
+                && (wk.stuckTicks > 40 || (p.onGround() && wk.churn.hColRamTicks >= RAM_SCRAPE_TICKS)
+                    || (BotConfig.walkerPhysicalStallClock && wk.physStall.stallTicks > 60));
+    }
 
     /**
      * The tangent aim never applies on the LAST node. Every earlier node is spent by crossing its
@@ -107,6 +118,137 @@ final class WalkerTickAim {
         for (int k = wk.step; k < lastNode; k++)
             if (wk.path.get(k).getY() > foot.getY() || hasPendingEdge(world, wk.edgeAt(k))) return k;
         return lastNode;
+    }
+
+    /** {@code yaw}, or the bearing to {@link #reachableAim}'s point when a trunk, wall or head-height block stands
+     *  on it. A +1 riser with head room never counts: it is jumped where it stands, and walking round lone steps
+     *  cost the R1 hills 0.35 s a run while walking round a staircase's cost the cliff 1.3 s. A heading it turns
+     *  to drops the trend camera in {@code run} the way a pinned recovery does, else the centroid overwrites it
+     *  and drives on: into the dark oak at R1 1389,112,-584 three times a run, the corner node's bearing in hand. */
+    private static float aroundWall(Walker wk, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
+        if (openHeading(wk, world, p, foot, yaw)) return yaw;
+        double[] q = reachableAim(wk, world, foot, p.getX(), p.getZ());        if (q != null) return (float) Math.toDegrees(Math.atan2(-(q[0] - p.getX()), q[1] - p.getZ()));
+        return nextNodeHeading(wk, world, p, foot, yaw);
+    }
+
+    private static boolean openHeading(Walker wk, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
+        return headingClear(world, p, foot, yaw, true) && !unplannedDrop(wk, world, p, foot, yaw);
+    }
+
+    /** The bearing to the first of the current node (unless the body is on or past it: a node behind turned the
+     *  camera a full circle down the R1 steps at 1439,67,-352) and the two after it that
+     *  {@link #openHeading} lets through, else {@code yaw}. {@link #reachableAim}'s line test wants floor under
+     *  the body's centre, so a line over a one-deep dip or from a centre already past a ledge finds nothing: at
+     *  the R1 cliff foot (1387,76,-510, the next node up and east) the heading ran north over the edge into a
+     *  two-deep pit and dug out for 3-9 s. The current node first: the projection never runs behind it, so
+     *  short of a corner the tangent already follows the next leg, and at 1388,112,-583 that leg's parallel
+     *  ran into a dark oak trunk three times a run. */
+    private static float nextNodeHeading(Walker wk, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
+        for (int k = wk.step; k <= Math.min(wk.step + 2, wk.path.size() - 1); k++) {
+            BlockPos n = wk.path.get(k);
+            double dx = n.getX() + 0.5 - p.getX(), dz = n.getZ() + 0.5 - p.getZ();
+            if (k == wk.step && (dx * dx + dz * dz < ON_NODE_SQ || PathSmoothing.beyondNode(wk.path, k, p))) continue;
+            float b = (float) Math.toDegrees(Math.atan2(-dx, dz));
+            if (openHeading(wk, world, p, foot, b)) return b;
+        }
+        return yaw;
+    }
+
+    /** Squared distance inside which the body counts as standing on a node for {@link #nextNodeHeading}. */
+    private static final double ON_NODE_SQ = 0.25;
+
+    /** How far along the heading {@link #unplannedDrop} looks for a missing floor. */
+    private static final double DROP_LOOK = 1.5;
+
+    /** Whether the heading carries the body to where no corner of it has floor, over a cell none of the next few
+     *  nodes stands in: a hole the path walks round, not a descent it takes. The tangent cut a terrace corner at
+     *  R1's start into the one-deep holes at 1572,64,-106 and 1570,63,-107 and jumped out of each for a second.
+     *  Corners, not the centre: the body stands while any corner has floor, and a centre test read the ledge a
+     *  node sits on as a drop in every direction. */
+    private static boolean unplannedDrop(Walker wk, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
+        double ux = -Math.sin(Math.toRadians(yaw)), uz = Math.cos(Math.toRadians(yaw)), hw = 0.3;
+        for (double d = 0.5; d <= DROP_LOOK; d += 0.25) {
+            double fx = p.getX() + ux * d, fz = p.getZ() + uz * d;
+            int x = Mth.floor(fx), z = Mth.floor(fz);
+            BlockPos floor = new BlockPos(x, foot.getY() - 1, z);
+            if (world.isWater(floor) || world.isWater(floor.above())) continue;
+            boolean held = false;
+            for (int sx = -1; sx <= 1 && !held; sx += 2)
+                for (int sz = -1; sz <= 1 && !held; sz += 2)
+                    held = world.isSolid(new BlockPos(Mth.floor(fx + sx * hw), foot.getY() - 1, Mth.floor(fz + sz * hw)));
+            if (held) continue;
+            boolean planned = false;
+            for (int k = Math.max(0, wk.step - 1); k < Math.min(wk.path.size(), wk.step + 4) && !planned; k++)
+                planned = wk.path.get(k).getX() == x && wk.path.get(k).getZ() == z;
+            if (!planned) return true;
+        }
+        return false;
+    }
+
+    /** Sampling pitch along the path when {@link #reachableAim} walks back from the pursuit point. */
+    private static final double REACH_BACK_STEP = 0.25;
+
+    /**
+     * The pursuit point if the body at {@code (px, pz)} reaches it in a straight line, else the farthest point
+     * back along the path, down to the node behind the bot, that it reaches and that still lies ahead of it;
+     * null when none does. The tangent runs parallel to the pulled line, so a bot half a block off that line
+     * (a diagonal climb cuts its corner) walked the parallel into a trunk the line itself clears: R1
+     * 1483,66,-312, 17 contacts in six runs. Aiming back at the line first walks around it.
+     */
+    private static double[] reachableAim(Walker wk, WorldView world, BlockPos foot, double px, double pz) {
+        PathProjection pr = wk.arc.proj;
+        int i = Math.min(pr.aheadNode, wk.path.size() - 1);
+        if (PathSmoothing.losWalkableBody(world, px, pz, foot, pr.aheadX, pr.aheadZ, wk.path.get(i).getY()))
+            return new double[]{pr.aheadX, pr.aheadZ};
+        double ex = pr.aheadX, ez = pr.aheadZ;
+        for (int k = i; k >= Math.max(1, wk.step); k--) {
+            BlockPos a = wk.path.get(k - 1), b = wk.path.get(k);
+            double sx = a.getX() + 0.5, sz = a.getZ() + 0.5, dx = ex - sx, dz = ez - sz, len = Math.hypot(dx, dz);
+            for (double d = k == i ? len - REACH_BACK_STEP : len; d > 0; d -= REACH_BACK_STEP) {
+                double qx = sx + dx * d / len, qz = sz + dz * d / len;
+                if ((qx - px) * dx + (qz - pz) * dz <= 0) return null;                   // behind the bot
+                if (PathSmoothing.losWalkableBody(world, px, pz, foot, qx, qz, b.getY())) return new double[]{qx, qz};
+            }
+            ex = sx; ez = sz;
+        }
+        return null;
+    }
+
+    /** How far along the trend heading {@link #headingClear} sweeps the body. */
+    private static final double HEADING_CLEAR_DIST = 2.0;
+
+    /** The dry trend heading, or the bearing to the node when only the latter has room for the body (under
+     *  {@code walkerTrendNeedsRoom}). The centroid averages nodes past a corner and its line can cut it: live
+     *  1545,72,-159 drove 162° with the node at 141° and slid along a raised bank for 10 ticks. The node, not the
+     *  tangent: at a cliff foot the tangent sat on the next leg and drove the bot away from its stepDown for 4 s.
+     *  Only where nothing in the window rises: before a riser the line always meets it, and swapping the trend for
+     *  the node there cost 2-8 s per run on the R1 cliff. */
+    private static float trendWithRoom(WorldView world, LivingEntity p, BlockPos foot, BlockPos wp, float centroidYaw) {
+        if (!BotConfig.walkerTrendNeedsRoom || headingClear(world, p, foot, centroidYaw)) return centroidYaw;
+        float nodeYaw = (float) Math.toDegrees(Math.atan2(-(wp.getX() + 0.5 - p.getX()), wp.getZ() + 0.5 - p.getZ()));
+        return headingClear(world, p, foot, nodeYaw) ? nodeYaw : centroidYaw;
+    }
+
+    /** Whether the body box, carried {@link #HEADING_CLEAR_DIST} along {@code yaw} at the foot's level, meets no solid cell. */
+    private static boolean headingClear(WorldView world, LivingEntity p, BlockPos foot, float yaw) {
+        return headingClear(world, p, foot, yaw, false);
+    }
+
+    /** {@link #headingClear}, optionally letting through what a jump takes: a riser, or the second step of a flight
+     *  behind it, with head room above. What stays in the way is a block at head height (a leaf over the lane) or
+     *  one that goes on up (a trunk, a wall). */
+    private static boolean headingClear(WorldView world, LivingEntity p, BlockPos foot, float yaw, boolean risersPass) {
+        double ux = -Math.sin(Math.toRadians(yaw)), uz = Math.cos(Math.toRadians(yaw)), hw = 0.3;
+        for (double d = 0.25; d <= HEADING_CLEAR_DIST; d += 0.25) {
+            double fx = p.getX() + ux * d, fz = p.getZ() + uz * d;
+            for (int sx = -1; sx <= 1; sx += 2)
+                for (int sz = -1; sz <= 1; sz += 2) {
+                    BlockPos c = new BlockPos((int) Math.floor(fx + sx * hw), foot.getY(), (int) Math.floor(fz + sz * hw));
+                    if (world.isPassable(c) && world.isPassable(c.above())) continue;
+                    if (!(risersPass && !world.isPassable(c) && world.isPassable(c.above(2)))) return false;
+                }
+        }
+        return true;
     }
 
     private static boolean onLastNode(Walker wk) {
@@ -480,12 +622,13 @@ final class WalkerTickAim {
         // ridge to bedrock. Plain stuckTicks-triggered nodeAim (no pin) keeps the
         // historical tangent override.
         boolean pinnedRecovery = (p.horizontalCollision || wk.guardSneakLatch)
-                && (reCentre || "nodeAim".equals(aimSrc));
+                && (reCentre || "nodeAim".equals(aimSrc)), walkedRound = false;
         if (BotConfig.walkerTangentAim && !launch && !pinnedRecovery && !onLastNode(wk)
                 && aim2 >= aimDeadzone
                 && wk.path != null && wk.step < wk.path.size()
                 && wk.path.get(wk.step).getY() <= foot.getY()) {
-            targetYaw = tangentOrPursuit(wk, p, launch, foot);
+            float tangent = tangentOrPursuit(wk, p, launch, foot);
+            walkedRound = (targetYaw = aroundWall(wk, world, p, foot, tangent)) != tangent;
             // walkerWallCornerNodeAim: the tangent steers along the path TREND, but at a CORNER where the
             // immediate node sits well off the tangent AND a wall is on the tangent heading, the bot RAMS
             // the wall (horizontalCollision) instead of turning the corner toward the node — it then only
@@ -510,10 +653,7 @@ final class WalkerTickAim {
         // both the drive (descentNodeYaw capture below) and the camera follow. Aims at the
         // CURRENT node under a collision gate — not the §25 step-1 reanchor that bounced.
         boolean ramReleaseAim = false;
-        if (BotConfig.walkerRamNodeAimRelease && !p.isInWater()
-                && p.horizontalCollision
-                && (wk.stuckTicks > 40
-                    || (BotConfig.walkerPhysicalStallClock && wk.physStall.stallTicks > 60))
+        if (BotConfig.walkerRamNodeAimRelease && !p.isInWater() && ramPinned(wk, p)
                 && wk.path != null && wk.step < wk.path.size()) {
             BlockPos rn = wk.path.get(wk.step);
             double rndx = (rn.getX() + 0.5) - p.getX(), rndz = (rn.getZ() + 0.5) - p.getZ();
@@ -613,7 +753,7 @@ final class WalkerTickAim {
         boolean recoverySnagAim = !p.isInWater()
                 && ((p.horizontalCollision && (reCentre || ramReleaseAim))
                     || (wk.guardSneakLatch && (reCentre || "nodeAim".equals(aimSrc))));
-        boolean trendCam = (dryDescent || flatWaterTrend) && !recoverySnagAim && !offPathPursuit(wk, p, launch, foot);
+        boolean trendCam = (dryDescent || flatWaterTrend) && !recoverySnagAim && !walkedRound && !offPathPursuit(wk, p, launch, foot);
         // Smoothed water DRIVE: the raw immediate-node bearing flips ±180° when the slow buoyant bot
         // overshoots a node, so driving it raw makes the bot swim-wobble (live: 52% path efficiency,
         // and the bot suddenly turning away from the target). A light EMA damps the per-tick flip while still tracking the node. WATER
@@ -683,8 +823,10 @@ final class WalkerTickAim {
             for (int k = firstNode; k <= lastNode; k++) { sumX += wk.path.get(k).getX() + 0.5; sumZ += wk.path.get(k).getZ() + 0.5; cnt++; }
             if (cnt > 0) {
                 double mdx = sumX / cnt - p.getX(), mdz = sumZ / cnt - p.getZ();
+                float centroidYaw = (float) Math.toDegrees(Math.atan2(-mdx, mdz));
                 if (mdx * mdx + mdz * mdz > 1.0)
-                    targetYaw = (float) Math.toDegrees(Math.atan2(-mdx, mdz));
+                    targetYaw = dryDescent && wk.path.get(lastNode).getY() <= foot.getY()
+                            ? trendWithRoom(world, p, foot, wp, centroidYaw) : centroidYaw;
             }
         }
         // Low-pass the TARGET heading (EMA on the shortest angle, kept in [-180,180]) so a

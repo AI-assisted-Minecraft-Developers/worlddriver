@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-29
 
+- **A walking bot steers round tree trunks and holes on its heading instead of into them.** When
+  the path's heading would put the bot against a trunk or wall, or over a hole the path does not
+  step into, it aims at the nearest point on the path it can walk straight to. If there is no such
+  point, it aims at the corner node or one of the next two nodes. The camera's trend heading no
+  longer overrides that choice. On the R1 route, trunk contacts fell from about 80 to 36 per six
+  runs, and the median time went from 142.3 s to 140.0 s. Leaf contacts rose from about 26 to about
+  41 per six runs, because the path round a trunk often passes under the crown.
 - **Straightening a path keeps the last step before a parkour jump.** Before, the straightened line ran
   up to the take-off cell, so the bot could arrive at an angle to the jump and fall short.
 - **The planner avoids a diagonal step up past an open drop at the take-off.** Such a step now costs
@@ -103,6 +110,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   corner the line to it could cross a pit the path walks round. With no clear line even to the
   current node, the aim now falls back to that node; before, it fell back to the bot itself, kept
   the old heading, and the bot rammed a corner for 38 ticks.
+- **On a dry descent the trend heading steers only where the body has room along it**
+  (`walkerTrendNeedsRoom`); otherwise the bot heads for its node. Before, the trend could cut a
+  corner, and the bot slid along a raised bank for 10 ticks.
+- **The path heading stops at a block the path still has to break, and the bot is never placed on
+  a stretch of path two rows above its feet.** Before, a wading bot followed the leg beyond an undug
+  bank exit 8 blocks away from the bank, and a path that climbs back over its own column spent two
+  climb nodes at once. A bot scraping along a face with its node more than 60° off turns to the
+  node after 4 ticks instead of waiting for a stall.
 
 ## 2026-09-28
 

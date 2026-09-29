@@ -578,6 +578,10 @@ final class WalkerConstants {
     /** Path nodes left before the segment end at which an in-flight continuation search switches
      *  to the idle slice: past here the bot reaches the end sooner than a thin slice finishes. */
     public static final int SEGMENT_END_SLICE_NODES = 6;
+    /** Consecutive grounded collision ticks after which a heading >60° off the current node is
+     *  released to the node bearing (ram-release) without waiting for a stall clock; see
+     *  {@code WalkerTickAim.ramPinned}. */
+    public static final int RAM_SCRAPE_TICKS = 4;
     /** Hard wall-clock cap for one synchronous quick-start stub search; the node
      *  cap ({@link BotConfig#pathfinderQuickNodes}) normally lands well under it. */
     public static final long QUICK_MAX_MS = 80;
