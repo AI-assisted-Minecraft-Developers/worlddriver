@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer overrides that choice. On the R1 route, trunk contacts fell from about 80 to 36 per six
   runs, and the median time went from 142.3 s to 140.0 s. Leaf contacts rose from about 26 to about
   41 per six runs, because the path round a trunk often passes under the crown.
+- **The bot no longer circles a node at the end of a planned stretch or turns its camera the long
+  way round.** It moves on to the next stretch once it stands at the last node. A camera snap onto
+  a block being dug turns through the short angle, which before could draw as a 600° spin. On R1
+  the lap at the foot of the cliff happened in almost every run before, and it no longer happens.
 - **A bot that skirts a node while walking the next leg of the path counts the node as passed.**
   Before, when the direct line from its feet to the next node crossed a small hole, the node stayed
   current until the bot was judged off its path. It then planned again from where it stood, and on
