@@ -18,6 +18,14 @@ import net.minecraft.core.BlockPos;
  */
 public final class DiagonalDescend extends Move {
     public DiagonalDescend(int dx, int dz) { super(dx, -1, dz, 14); }
+
+    /** Taxed like {@link StepDown} for a block the head meets past the landing. */
+    @Override public Edge eval(WorldView w, BlockPos from) {
+        if (!valid(w, from)) return null;
+        return new Edge(apply(from), cost + StepDown.headStrikeTax(w, apply(from), dx, dz),
+                java.util.List.of(), java.util.List.of(), name());
+    }
+
     public boolean valid(WorldView w, BlockPos from) {
         BlockPos to = apply(from);
         // A buoyant bot can't follow a descend INTO submerged water (water at the

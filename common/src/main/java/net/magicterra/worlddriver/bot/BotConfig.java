@@ -216,9 +216,8 @@ public final class BotConfig {
      *  Stops when food fills to 20. Baritone default = 18 (one bite of room). */
     public static volatile int autoEatFoodThreshold = 18;
 
-    /** Click the Respawn button (via player.respawn()) the moment a
-     *  DeathScreen is shown. Without this, a dead bot sits on the death
-     *  overlay until a human intervenes. */
+    /** Click the Respawn button (via player.respawn()) the moment a DeathScreen is shown.
+     *  Without this, a dead bot sits on the death overlay until a human intervenes. */
     public static volatile boolean autoRespawn = false;
 
     /** Survival reflex (ROADMAP Phase B, scheduler RetreatChain) — when on, the
@@ -234,9 +233,8 @@ public final class BotConfig {
      *  below this, so a near-death bot flees harder. */
     public static volatile float retreatHpThreshold = 6f;
 
-    /** Phase B hand/equipment reflexes (ambient, run concurrently with movement,
-     *  arbitrating the use key shield > heal > eat). All off by default so a
-     *  quiet bot stays quiet. */
+    /** Phase B hand/equipment reflexes (ambient, run concurrently with movement, arbitrating
+     *  the use key shield > heal > eat). All off by default so a quiet bot stays quiet. */
     public static volatile boolean autoTotem  = false;   // keep a totem in the offhand
     public static volatile boolean autoShield = false;   // raise shield vs incoming
     public static volatile boolean autoHeal   = false;   // drink/eat to heal when low
@@ -570,6 +568,8 @@ public final class BotConfig {
 
     /** Extra g-cost on a DRY diagUp (base 19); &gt;0 prefers the cardinal stepUp+walk L over a diagonal riser's late jump. */
     public static volatile double pathfinderDiagAscendPenalty = 0;
+    /** Extra g-cost on a step down with a block at launch head height past it (R1: 6 took 148.8 s to 142.1 s); see {@code StepDown}. */
+    public static volatile double pathfinderHeadStrikeTax = 6;
     /** Dry-descent heading EMA; the tangent-aim drive follows it, and 0.08 walked a one-wide stair off (1512.7,76,-240.5). */
     public static volatile double walkerDescentYawAlpha = 0.5;
     /** Half-width {@code PathSmoothing.losWalkableBody} sweeps; 0.3 is the box exactly, leaving no margin. */

@@ -24,9 +24,8 @@ ref, and every GUI action returns the resulting screen snapshot so no separate o
 
 ### The R1 route still bumps leaves and a pit
 
-Route R1 (1574,66,-102 → 1385,-625): after a one-block step down the head hits a block at landing + 2
-in the next cell (1493,68,-287; 1409,66,-439; dark oak 1389,114,-583), about 1 s a run. About one run
-in six drops off the 1387,76,-510 stepDown into the pit at 1387,74,-512, costing 2-7 s.
+Route R1 (1574,66,-102 → 1385,-625): about one run in six drops off the 1387,76,-510 stepDown into the
+pit at 1387,74,-512, costing 2-7 s.
 
 ### The shore scan can aim a drowning bot at lava
 

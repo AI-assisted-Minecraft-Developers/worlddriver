@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-29
 
+- **The planner avoids a step down that would put the bot's head into a block just past the
+  landing.** The body moves on about a cell before it has dropped, so a block there at the launch
+  head height, often a tree's leaves, stopped it for about 0.3 s. Such a step now costs 6 more,
+  set by `pathfinderHeadStrikeTax`. Over twelve R1 runs alternating the tax on and off in one
+  client, leaf contacts fell from 27 to 4 per six runs and the median time from 148.8 s to 142.1 s.
 - **A walking bot steers round tree trunks and holes on its heading instead of into them.** When
   the path's heading would put the bot against a trunk or wall, or over a hole the path does not
   step into, it aims at the nearest point on the path it can walk straight to. If there is no such
