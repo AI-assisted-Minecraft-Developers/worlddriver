@@ -12,6 +12,8 @@ import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.movement.PathSmoothing.*;
 import static net.magicterra.worlddriver.bot.util.BotInteract.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.movement.WalkerConstants.*;
@@ -145,7 +147,31 @@ final class WalkerTickAim {
     /** Swept at the body's own half-width: a margin here stranded the bot in a one-wide doorway
      *  (wd.serverStepsDownAPlanItSpentInOneTick) and on a water-side wall (wd.buoyantWall). */
     private static boolean openHeading(Walker wk, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
-        return headingClear(world, p, foot, yaw, true, BODY_HALF_WIDTH) && !unplannedDrop(wk, world, p, foot, yaw);
+        return headingClear(world, p, foot, yaw, true, BODY_HALF_WIDTH, jumpedRises(wk, foot)) && !unplannedDrop(wk, world, p, foot, yaw);
+    }
+
+    /** The risers {@link #openHeading} may pass (null: every one). Under {@code walkerAvoidLoneRisers}, off a climb
+     *  only those at or beside the node that starts one. Nothing jumps a +1 block that is not the path's own step,
+     *  so a level heading that meets one rams its face: R1 1527,74,-222 and 1526,74,-223 on a level diagonal,
+     *  1544,72,-163 with the climb four blocks on, every run. On a climb (the next two nodes rise) every riser still
+     *  passes: walking round the cliff staircase's side steps cost it 2 s a run. */
+    private static List<BlockPos> jumpedRises(Walker wk, BlockPos foot) {
+        if (!BotConfig.walkerAvoidLoneRisers) return null;
+        List<BlockPos> rises = new ArrayList<>(1);
+        for (int k = wk.step; k < Math.min(wk.path.size(), wk.step + 3); k++)
+            if (wk.path.get(k).getY() > foot.getY()) {
+                if (k < wk.step + 2) return null;
+                rises.add(wk.path.get(k));
+            }
+        return rises;
+    }
+
+    /** Whether cell {@code c} is one of {@code rises} or next to one, a null list counting as everywhere. */
+    private static boolean besideAny(BlockPos c, List<BlockPos> rises) {
+        if (rises == null) return true;
+        for (BlockPos r : rises)
+            if (Math.abs(r.getX() - c.getX()) <= 1 && Math.abs(r.getZ() - c.getZ()) <= 1) return true;
+        return false;
     }
 
     /** The player's half-width: a heading swept at it can only be walked flush. */
@@ -249,13 +275,14 @@ final class WalkerTickAim {
      *  {@code yaw} at the foot's level, meets no solid cell. At the body's own 0.3 a heading with the body's side
      *  flush against a trunk passes. */
     private static boolean headingClear(WorldView world, LivingEntity p, BlockPos foot, float yaw) {
-        return headingClear(world, p, foot, yaw, false, Math.max(BODY_HALF_WIDTH, BotConfig.walkerHeadingClearHalfWidth));
+        return headingClear(world, p, foot, yaw, false, Math.max(BODY_HALF_WIDTH, BotConfig.walkerHeadingClearHalfWidth), null);
     }
 
     /** {@link #headingClear}, optionally letting through what a jump takes: a riser, or the second step of a flight
      *  behind it, with head room above. What stays in the way is a block at head height (a leaf over the lane) or
-     *  one that goes on up (a trunk, a wall). */
-    private static boolean headingClear(WorldView world, LivingEntity p, BlockPos foot, float yaw, boolean risersPass, double hw) {
+     *  one that goes on up (a trunk, a wall). Given {@code rises}, only a riser beside one of those nodes passes. */
+    private static boolean headingClear(WorldView world, LivingEntity p, BlockPos foot, float yaw, boolean risersPass, double hw,
+                                        List<BlockPos> rises) {
         double ux = -Math.sin(Math.toRadians(yaw)), uz = Math.cos(Math.toRadians(yaw));
         for (double d = 0.25; d <= HEADING_CLEAR_DIST; d += 0.25) {
             double fx = p.getX() + ux * d, fz = p.getZ() + uz * d;
@@ -263,7 +290,7 @@ final class WalkerTickAim {
                 for (int sz = -1; sz <= 1; sz += 2) {
                     BlockPos c = new BlockPos((int) Math.floor(fx + sx * hw), foot.getY(), (int) Math.floor(fz + sz * hw));
                     if (world.isPassable(c) && world.isPassable(c.above())) continue;
-                    if (!(risersPass && !world.isPassable(c) && world.isPassable(c.above(2)))) return false;
+                    if (!(risersPass && !world.isPassable(c) && world.isPassable(c.above(2)) && besideAny(c, rises))) return false;
                 }
         }
         return true;

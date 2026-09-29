@@ -22,12 +22,12 @@ click, and a stale coordinate lands on whatever sits there now (a world-list cli
 Wanted, agent-browser style: `screen.tree` hands out stable element refs, the input verbs accept a
 ref, and every GUI action returns the resulting screen snapshot so no separate observe is needed.
 
-### The R1 route still grazes a few trunks
+### The R1 route still grazes a few trunks and steps
 
-Every run scrapes birch trunks at 1541,72,-165, 1489,66,-275, 1481,65,-283 and 1471,68,-298, leaves
-at 1478,66,-287, and a hanging dark oak log at 1389,114,-583 while stepping down under it, about 0.2 s
-each. Between the two birches at 1481,65,-283/-286 the step pointer moves on a node early and the
-drive cuts the next corner; the dark oak step is priced by the head-strike tax but still the cheapest.
+Every run scrapes birch trunks at 1541,72,-166 and 1470,68,-299 and a hanging dark oak log at
+1389,114,-583 while stepping down under it, and rubs the raised blocks at 1526,74,-223, 1544,72,-163,
+1559,65,-128 and 1563,64,-123 just before a climb, about 0.2 s each; the dark oak step is priced by
+the head-strike tax but still the cheapest.
 
 ### The shore scan can aim a drowning bot at lava
 
