@@ -110,6 +110,15 @@ public final class WalkerGeometry {
 
     public static float angleDiff(float a, float b) { return ((b - a) % 360f + 540f) % 360f - 180f; }
 
+    /** An edge whose landing is below its start. A bot found BELOW such a node overshot it on the
+     *  way down; climbing back up to it is never the recovery (live 2026-09-28: a fall4 node left
+     *  3 above after an 11-block cliff drop armed a pillar back up to it). Null-safe. */
+    public static boolean isDescentEdge(Move.Edge edge) {
+        String m = edge == null ? null : edge.move;
+        return m != null && (m.startsWith("fall") || m.startsWith("stepDown")
+                || m.startsWith("diagDown") || m.startsWith("parkourDescend"));
+    }
+
     /**
      * How much of the bot's own sole is resting on solid ground, in blocks² out of 0.36.
      *
