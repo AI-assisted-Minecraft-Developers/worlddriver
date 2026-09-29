@@ -570,6 +570,8 @@ public final class BotConfig {
 
     /** Extra g-cost on a DRY diagUp (base 19); &gt;0 prefers the cardinal stepUp+walk L over a diagonal riser's late jump. */
     public static volatile double pathfinderDiagAscendPenalty = 0;
+    /** Dry-descent heading EMA; the tangent-aim drive follows it, and 0.08 walked a one-wide stair off (1512.7,76,-240.5). */
+    public static volatile double walkerDescentYawAlpha = 0.5;
     /** Half-width {@code PathSmoothing.losWalkableBody} sweeps; 0.3 is the box exactly, leaving no margin. */
     public static volatile double walkerCarrotBodyHalfWidth = 0.4;
     /** Take a stair flight riser by riser: carrot and trend centroid stop at its first riser, and a +1 jump aims at its node until it lands. */
@@ -1948,6 +1950,8 @@ public final class BotConfig {
 
     /** Jump a dry +1 riser at its face distance along the velocity, keeping sprint (R1: 26/39 jumps fired at the face). */
     public static volatile boolean walkerRiserLeadJump = true;
+    /** Hold a one-block step-down on its planned segment with the lane-keep strafe (see {@code WalkerTickDrive.segmentLaneOffset}). */
+    public static volatile boolean walkerDescentLaneKeep = true;
     /** {@link #walkerRiserLeadJump} only for the riser under the node itself, not one beside it. */
     public static volatile boolean walkerRiserLeadExact = true;
 

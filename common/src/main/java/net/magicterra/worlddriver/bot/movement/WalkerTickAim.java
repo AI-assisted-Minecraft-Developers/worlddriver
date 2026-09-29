@@ -55,7 +55,7 @@ final class WalkerTickAim {
      * only — water has its own drive heading.
      */
     private static float smoothingAlpha(Walker wk, LivingEntity p, boolean trendCam, float targetYaw) {
-        float alpha = trendCam ? YAW_SMOOTH_ALPHA_DESCENT : YAW_SMOOTH_ALPHA;
+        float alpha = trendCam ? (float) BotConfig.walkerDescentYawAlpha : YAW_SMOOTH_ALPHA;
         AimSmoothing a = wk.aimSmooth;
         float turn = Float.isNaN(a.orbitLastYaw) ? 0f : angleDiff(a.orbitLastYaw, p.getYRot());
         a.orbitLastYaw = p.getYRot();

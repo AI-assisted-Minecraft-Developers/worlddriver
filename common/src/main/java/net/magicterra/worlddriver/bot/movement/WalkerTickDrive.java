@@ -220,6 +220,44 @@ final class WalkerTickDrive {
         return new Cruise(true, !swimming || l.cruiseSwimTicks <= CRUISE_SINK_TICKS, swimming, lift);
     }
 
+    /**
+     * Offset from the body to the nearest point of the planned segment into {@code wp}, or null when
+     * there is no reason to steer back onto it. Drifted off a string-pulled segment, foot→wp reads
+     * diagonal and no lane is held, but the segment is the line that was checked clear: pinned on a
+     * face (live 1536.73,72,-189.70: grazing the column beside lane x=1537 by 0.03 of a block, 2.5 s
+     * of stall and anti-stuck jumps), or with {@link BotConfig#walkerDescentLaneKeep} walking a
+     * one-block step-down, where the column beside a one-wide stair is the drop (live 1512.7,76,-240.5:
+     * the heading lagged west of the x=1513 stair and the body walked off a 5-block ridge, most runs).
+     */
+    private static double[] segmentLaneOffset(Walker wk, LivingEntity p, BlockPos wp, boolean stepDown) {
+        if (!(p.horizontalCollision || stepDown && BotConfig.walkerDescentLaneKeep) || wk.step <= 0) return null;
+        BlockPos sp = wk.path.get(wk.step - 1);
+        if (stepDown && sp.getX() != wp.getX() && sp.getZ() != wp.getZ()) return null;
+        double ax = sp.getX() + 0.5, az = sp.getZ() + 0.5, sx = wp.getX() + 0.5 - ax, sz = wp.getZ() + 0.5 - az;
+        double t = Mth.clamp(((p.getX() - ax) * sx + (p.getZ() - az) * sz) / Math.max(1e-6, sx * sx + sz * sz), 0, 1);
+        return new double[] {ax + sx * t - p.getX(), az + sz * t - p.getZ()};
+    }
+
+    /**
+     * The lane-keep strafe impulse (left positive). Elsewhere it stays bang-bang; on a dry cardinal
+     * climb it is proportional with velocity damping. A step cut into a wall is a one-wide notch
+     * that the 0.6 box only fits within ±0.2 of the column centre, and full strafe until the error
+     * fell under the dead band overshot by ~0.4 each way, so every jump clipped a neighbour
+     * column (live 2026-09-28, 1390,99,-534: x swung 1390.07↔1390.91 for ~10 s).
+     */
+    private static double laneStrafe(LivingEntity p, BlockPos wp, boolean strafeL, boolean strafeR, boolean dryCardinalClimb) {
+        double bang = strafeL ? 1.0 : (strafeR ? -1.0 : 0.0);
+        if (!dryCardinalClimb || bang == 0.0) return bang;
+        double yr = Math.toRadians(p.getYRot());
+        double rx = -Math.cos(yr), rz = -Math.sin(yr);          // the player's right, as in the lane-keep above
+        double errR = ((wp.getX() + 0.5) - p.getX()) * rx + ((wp.getZ() + 0.5) - p.getZ()) * rz;
+        Vec3 v = p.getDeltaMovement();
+        double velR = v.x * rx + v.z * rz;
+        return -Mth.clamp(LANE_KP * errR - LANE_KD * velR, -1.0, 1.0);
+    }
+
+    private static final double LANE_KP = 3.0, LANE_KD = 8.0;
+
     private static final double RISER_SCAN = 1.6;       // farther than any lead a sprint launch needs (~1.05)
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
@@ -499,11 +537,15 @@ final class WalkerTickDrive {
         // water bank with apw OFF is unaffected (the && walkerArcProgressWedge guard).
         boolean bankFollow = BotConfig.walkerFloatingBankFollow && wk.ramFold.bankFollowRamTicks > 2 * STEPUP_FREEZE_TICKS
                 && !(BotConfig.walkerArcProgressWedge && wk.arc.progStall);
-        if (!descendBrake && !parkourEdge && !steppingOffFall && (wp.getY() == foot.getY() || waterClimb || cardinalUp || diagUp || bankFollow)) {
+        boolean stepDownLane = BotConfig.walkerDescentLaneKeep && wp.getY() == foot.getY() - 1 && !p.isInWater();
+        if (!descendBrake && !parkourEdge && !steppingOffFall && (wp.getY() == foot.getY() || waterClimb || cardinalUp || diagUp || bankFollow || stepDownLane)) {
             int ddx = wp.getX() - foot.getX();
             int ddz = wp.getZ() - foot.getZ();
+            double[] seg = ddx != 0 && ddz != 0 && (wp.getY() == foot.getY() || stepDownLane) && !waterClimb && !diagUp && !bankFollow
+                    ? segmentLaneOffset(wk, p, wp, stepDownLane) : null;
             double latX = 0, latZ = 0;
-            if (bankFollow) {
+            if (seg != null) { latX = seg[0]; latZ = seg[1]; }
+            else if (bankFollow) {
                 // Geometry-aware CONVERGENT slide (v2): the chaotic alternating sweep (v1) sometimes slid
                 // PAST the goal and churned (live A/B: ON#2 ran to -654, worse than OFF). Instead, SCAN
                 // along the bank for the nearest cell the bot can actually mount — a canStandAt lip at
@@ -598,7 +640,7 @@ final class WalkerTickDrive {
         boolean descentAirborneDriftClamp = BotConfig.walkerDescentStepSkipBrake
                 && !p.onGround() && wk.driveLatch.steepDescentLatch > 0 && !parkourEdge;
         double driveF = (!descendBrake && !pivotForStepUp && !descentAirborneDriftClamp) ? 1.0 : 0.0;
-        double driveL = strafeL ? 1.0 : (strafeR ? -1.0 : 0.0);
+        double driveL = laneStrafe(p, wp, strafeL, strafeR, cardinalUp && !p.isInWater());
         // Drive heading: normally aimYaw (decoupled from the slewing camera). EXCEPTION —
         // a BUOYANT slope-mount. A floating bot at a +1/+2 bank top bobs UP to the bank
         // height but, with forward zeroed by pivotForStepUp (aim not yet aligned) and the

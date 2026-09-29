@@ -105,12 +105,6 @@ final class WalkerConstants {
      *  steady bearing (a 20°/50° square wave settles to ~35° ±5° at 0.5) while still
      *  converging on a genuine turn in a few ticks. Launches bypass it (must snap). */
     public static final float YAW_SMOOTH_ALPHA = 0.5f;
-    /** Stronger low-pass for the DRY-DESCENT camera (~6-tick time constant vs the cruise 2-tick).
-     *  Smooths the residual centroid-quantisation jitter (nodes shifting in/out of the look-ahead
-     *  window nudge the trend bearing ~3°/tick) into a near-still heading. Safe to lag this hard
-     *  ONLY because the descent drive is camera-decoupled (driveTargetYaw=node) — the bot keeps
-     *  taking every step while the camera eases onto the trend. See DESCENT_CAM_LOOKAHEAD. */
-    public static final float YAW_SMOOTH_ALPHA_DESCENT = 0.08f;
     /** The orbit signature the trend camera cannot converge out of: a heading error this wide, held
      *  this long while the bot keeps moving, means the bearing rotates as fast as the slow EMA
      *  follows it (wd.clientGotoStartsMidAirOverWater: 300 ticks at ~90°, yaw wound 52→2453). Below
