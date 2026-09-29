@@ -186,6 +186,7 @@ class GameTestBaselineManifestTest {
             // runs before it shipped ON, so the arena runs it — a scene it breaks is a finding, not noise
             e("walkerTrendNeedsRoom", "the dry trend centroid steers only while the body has room along it"),
             e("walkerCarrotStopAtRise", "carrot and trend centroid stop at a stair flight's first riser"),
+            e("walkerDiagonalStringPull", "string-pull a flat cardinal staircase into a diagonal the body clears"),
             e("walkerRiserLeadJump", "jump a dry +1 riser at its face distance, keeping sprint"),
             e("walkerRiserLeadExact", "the riser lead only for the riser under the node itself"),
             e("walkerDescentLaneKeep", "lane-keep strafe on a one-block step-down"),

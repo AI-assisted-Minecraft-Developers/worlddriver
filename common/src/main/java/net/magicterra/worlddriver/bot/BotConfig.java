@@ -1940,8 +1940,8 @@ public final class BotConfig {
      *  probe, same primitive walkerCarrotBodyLos trusts for pursuit) a diagonal merge can be
      *  admitted honestly: the merged segment is kept only when the BOT corridor clears. Kills
      *  the cardinal staircase residue on open diagonal terrain — the last structural source of
-     *  corner-scrape micro-slowdowns. Default OFF. */
-    public static volatile boolean walkerDiagonalStringPull = false;
+     *  corner-scrape micro-slowdowns. */
+    public static volatile boolean walkerDiagonalStringPull = true;
 
     /** §91 steep-ascent chain tax (#15): extra cost on an ascending edge whose landing faces another 2-high wall
      *  (continued climbs measured ~5 s/block against a price of 15 vs walk 10), steering onto switchbacks.
