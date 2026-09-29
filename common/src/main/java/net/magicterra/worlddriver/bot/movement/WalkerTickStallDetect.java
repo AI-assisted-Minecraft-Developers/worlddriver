@@ -263,7 +263,7 @@ final class WalkerTickStallDetect {
         // foot (supported → a falling block won't drop), unlike a planned pillar over air/water
         // that world.canPlace() rightly rejects. Strict superset of the old gate (identical when
         // a non-falling support block is held).
-        boolean fellBelowRoute = fellOffPath
+        boolean fellBelowRoute = fellOffPath && onRoute(wk) && !isDescentEdge(wedgeEdge)
                 && wk.path.get(wk.step).getY() > foot.getY()
                 && wk.path.get(wk.step).getY() - foot.getY() <= PILLAR_RECOVER_MAX_DY
                 && wk.pillarRecover.stallTicks <= PILLAR_NORISE_GIVEUP   // a no-rise pillar-trap (canopy/overhang) gives up → foot-search re-routes
@@ -276,7 +276,7 @@ final class WalkerTickStallDetect {
         // and fellBelowRoute carries it the rest. Hard-gated on the long stall + grounded +
         // node-above + blocks-in-hand → inert in all normal motion (a working bot never stalls this
         // long: any step advance resets noStepProgressTicks).
-        boolean deepPitEscape = fellOffPath && p.onGround()
+        boolean deepPitEscape = fellOffPath && onRoute(wk) && !isDescentEdge(wedgeEdge) && p.onGround()
                 && wk.path.get(wk.step).getY() > foot.getY()
                 && wk.path.get(wk.step).getY() - foot.getY() > PILLAR_RECOVER_MAX_DY
                 && wk.stepProg.noStepProgressTicks > DEEP_PIT_ESCAPE_TICKS
@@ -434,6 +434,12 @@ final class WalkerTickStallDetect {
      *  back) and the two {@code wd.pillarLedger*} (the water climb-out takeover never engaged) —
      *  i.e. the per-tick re-search on a long edge is load-bearing for the leash and the bank takeover
      *  in ways this file does not own. Until those are re-homed, the node stays the reference. */
+    /** A current node to be below: fellOffPath also folds in flags that stay set once the path is dropped, and
+     *  wd.bridgeStepTwoBypassNoPlace read the node of a null path from the fell-below and deep-pit checks. */
+    private static boolean onRoute(Walker wk) {
+        return wk.path != null && wk.step < wk.path.size();
+    }
+
     private static boolean offPath(Walker wk, BlockPos foot) {
         if (wk.path == null || wk.step >= wk.path.size()) return false;
         BlockPos node = wk.path.get(wk.step);

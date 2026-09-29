@@ -400,7 +400,7 @@ final class WalkerTickDrive {
         // Don't bob against it: accelerate the stuck timer so the search blacklists
         // the node and reroutes (the steep-climb wedge), instead of jumping forever.
         boolean overJump = needJumpForStep && upDy > maxJumpUp && p.onGround() && !p.isInWater()
-                && edge != null && !"pillarUp".equals(edge.move) && !parkourEdge;
+                && edge != null && !"pillarUp".equals(edge.move) && !parkourEdge && !isDescentEdge(edge);
         if (overJump) wk.stuckTicks += 3;
         // Vertical recovery (execution hardening): the bot is BELOW the next node by more
         // than it can jump — it slid/fell below the committed climb path, and a plain stepUp

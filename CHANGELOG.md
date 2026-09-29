@@ -44,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   R1 that once sent it up a different cliff face and cost 8 s.
 - **Straightening a path keeps the last step before a parkour jump.** Before, the straightened line ran
   up to the take-off cell, so the bot could arrive at an angle to the jump and fall short.
+- **A bot whose path was dropped no longer crashes the walk with a `NullPointerException`.** The
+  checks for having fallen below the route now require a current path node.
 - **The planner avoids a diagonal step up past an open drop at the take-off.** Such a step now costs
   more than a walk plus a straight step up. Before, a bot on a one-block-wide strip drifted toward
   the open side while running at the corner, ended with its feet on the strip's edge, and could not
@@ -158,6 +160,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`walkerDropAheadResync`). It jumped back up to the node above and dropped again, about 1.5 s on
   every R1 run. A node in a one-deep dip that the bot stepped over is no longer held until the stall
   check gives up on it.
+- **A bot that falls past a node on the way down no longer climbs back up to it.** After an 11-block
+  cliff drop left a fall node 3 blocks above, the bot started building a pillar back up to it.
 
 ## 2026-09-28
 
