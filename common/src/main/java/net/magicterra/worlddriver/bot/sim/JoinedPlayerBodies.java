@@ -1,7 +1,9 @@
 package net.magicterra.worlddriver.bot.sim;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.ChannelHandlerContext;
@@ -85,6 +87,15 @@ public final class JoinedPlayerBodies {
      *  the fake-player factories had, so scene behaviour stayed comparable across the switch. */
     private static final String SHARED_NAME = "worlddriver";
 
+    // Only the loader entry point may install this hook. Fabric needs no connection setup;
+    // NeoForge must populate its per-connection channels before the join sends mod payloads.
+    private static Consumer<Connection> silentConnectionSetup = connection -> { };
+
+    /** Configure only WorldDriver's own silent connections, never a real player's connection. */
+    public static void installSilentConnectionSetup(Consumer<Connection> setup) {
+        silentConnectionSetup = Objects.requireNonNull(setup);
+    }
+
     private final Map<ServerLevel, Map<String, JoinedBody>> byLevel = new ConcurrentHashMap<>();
 
     /** The per-level shared player: every caller in a level gets the same player. */
@@ -144,8 +155,10 @@ public final class JoinedPlayerBodies {
         // mobs can see it), ChunkMap registration (it loads what it walks into), and the loader's
         // login event.
         try {
+            Connection connection = body.silentConnection();
+            silentConnectionSetup.accept(connection);
             level.getServer().getPlayerList().placeNewPlayer(
-                    body.silentConnection(), body, CommonListenerCookie.createInitial(profile, false));
+                    connection, body, CommonListenerCookie.createInitial(profile, false));
         } catch (RuntimeException e) {
             // The join path runs a lot of code that assumes a socket. Log the frame that wanted
             // one — the harness only surfaces an exception's message, and "channel is null" names
