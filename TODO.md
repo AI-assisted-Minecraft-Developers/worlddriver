@@ -22,6 +22,13 @@ click, and a stale coordinate lands on whatever sits there now (a world-list cli
 Wanted, agent-browser style: `screen.tree` hands out stable element refs, the input verbs accept a
 ref, and every GUI action returns the resulting screen snapshot so no separate observe is needed.
 
+### The R1 route still grazes a few trunks
+
+Every run scrapes birch trunks at 1553,66,-143, 1470,68,-299, 1418,64,-409 and 1481,65,-286, and a
+hanging dark oak log at 1389,114,-583 while stepping down under it, about 0.2 s each. The drive
+passes flush with the trunk while it skirts a node or follows the carrot; the dark oak step is priced
+by the head-strike tax but still the cheapest.
+
 ### The shore scan can aim a drowning bot at lava
 
 `AutoSwim.nearestShore` tests `isHazard` on the block below a candidate foot cell only, while
