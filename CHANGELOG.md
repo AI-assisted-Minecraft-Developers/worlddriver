@@ -118,6 +118,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bank exit 8 blocks away from the bank, and a path that climbs back over its own column spent two
   climb nodes at once. A bot scraping along a face with its node more than 60° off turns to the
   node after 4 ticks instead of waiting for a stall.
+- **A bot walking down one-block steps keeps to the line of the path** (`walkerDescentLaneKeep`),
+  **and its descent heading follows the path faster** (`walkerDescentYawAlpha`, 0.5 where it was a
+  fixed 0.08). The heading lagged beside a one-wide stair, and the bot walked off a 5-block ridge in
+  most runs. A bot pressed against a block beside a straightened path also steers back onto it.
+- **On a one-wide step cut into a wall, the bot corrects sideways in proportion to how far off it
+  is.** Full left or right overshot by about 0.4 each way, and every jump clipped the neighbouring
+  column, for about 10 s.
 
 ## 2026-09-28
 
