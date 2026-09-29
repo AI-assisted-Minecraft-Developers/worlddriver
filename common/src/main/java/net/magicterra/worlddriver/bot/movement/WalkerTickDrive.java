@@ -1600,7 +1600,9 @@ final class WalkerTickDrive {
         if (len < 1e-3) return Double.NaN;
         double contact = riserContact(world, p, foot.getY(), dx / len, dz / len, node);
         double air = 0.026, m1 = vh + 0.2 + air, m2 = m1 * 0.91 + air;   // sprint-jump boost + air accel
-        return contact - (m1 + m2 + vh + 0.13);                          // + the ground move a wait would spend
+        // walkerRiserLeadMargin: at 0 a launch timed to the hundredth still rubs the face on the second airborne
+        // tick (R1 1386,64,-464: 0.75 of run, 0.75 travelled).
+        return contact - (m1 + m2 + BotConfig.walkerRiserLeadMargin + vh + 0.13);   // + the ground move a wait would spend
     }
 
     /** Distance the player box can travel along (ux,uz) at foot level {@code fy} before touching a

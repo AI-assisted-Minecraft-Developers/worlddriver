@@ -198,6 +198,7 @@ class GameTestBaselineManifestTest {
             e("walkerCornerFootingConsume", "a bot on its node's row counts as standing even on a thin corner"),
             e("walkerStepUpRawHeading", "a step-up's heading is judged against the raw aim as well as the smoothed one"),
             e("walkerProjectCurrentLeg", "the path projection includes the leg the bot is walking, not only those past its node"),
+            e("walkerAvoidLoneRisers", "off a climb, a heading walks round a +1 block that is not the path's own step"),
             e("combatCrit", "jump before a melee swing for the 1.5x critical"),
             e("combatCollectDrops", "post-kill drop sweep"),
             e("duskUrgent", "urgent dusk securing")));

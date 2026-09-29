@@ -27,6 +27,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-30
 
+- **A walking bot stops brushing the steps beside its path and jumps lone steps cleanly.** Two
+  changes to how it walks over uneven ground. On a level stretch, a raised block beside the path used
+  to count as a step the bot would jump, so the heading was allowed to run straight into it; nothing
+  jumps a block that is not on the path, and the bot rubbed its side along it, on R1 at 1536,72,-198,
+  1560,65,-127 and 1445,69,-330 every run. Now only the block the path itself climbs next counts as a
+  step there, set by `walkerAvoidLoneRisers`; when the path climbs within its next two nodes every step
+  still counts, because walking round the cliff staircase's side steps cost 2 s a run, and that leaves
+  1526,74,-223 and 1544,72,-163 just before a climb still rubbed. Separately, the early jump at a lone step
+  was timed to leave no room at all, and a launch 0.75 of a block from the step that travels 0.75 in
+  its first two airborne ticks touched the step's face; it now keeps a tenth of a block in hand,
+  `walkerRiserLeadMargin`. Over six R1 runs alternating both on and off in one client, step contacts
+  went from 86 to 76 a run, rubbing along a raised block from 14 to 9, late jumps at a lone step from
+  10 to 5, leaf contacts from about 2 to none, the birches at 1481,65,-283 and 1488,66,-275 stopped,
+  and the mean time was 138.5 s against 140.0 s. Most of the remaining step contacts are on the
+  cliff's one-block staircase, where a running jump reaches the next step's face before its feet
+  clear the top; launching those jumps without the sprint's push cut about 12 contacts but cost
+  0.8 s on the cliff every run, and was dropped.
+
 - **Sprint-jumping across open level ground, behind a switch that is off by default.** With
   `walkerCruiseHop` on, a bot sprinting along a straight, level stretch with nothing overhead jumps
   as a player crossing open ground does; each jump adds a fifth of a block per tick along its

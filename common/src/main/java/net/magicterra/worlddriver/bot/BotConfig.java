@@ -556,10 +556,7 @@ public final class BotConfig {
      *  the part of a step that lies below the slack threshold is charged, and only
      *  when going down (climbing is free), so shallow wading across a river isn't
      *  penalised. Default {@value}: the mc.debug.plan water-pit A/B value that flips the real spawn +6-bank water bowl from dive-and-tunnel
-     *  (end Y 50) to climb-ashore (end Y 71) in the mc.debug.plan A/B. The usual
-     *  over-charge worry (deep dives) does NOT apply because the tax is gated to
-     *  Y-agnostic XZ goals only — a seabed-monument/shipwreck dive uses a Y-aware
-     *  pos/block goal and pays nothing. Set 0 to disable. */
+     *  (end Y 50) to climb-ashore (end Y 71); deep dives are spared by gate (1). Set 0 to disable. */
     public static volatile double pathfinderDescendCost = 40;
 
     /** Extra g-cost on a DRY diagUp (base 19); &gt;0 prefers the cardinal stepUp+walk L over a diagonal riser's late jump. */
@@ -586,6 +583,8 @@ public final class BotConfig {
     public static volatile boolean walkerDiagAscentSprint = true;
     /** Sprint-jump along a straight, level, open run of path; see {@code WalkerTickDrive.cruiseHop}. */
     public static volatile boolean walkerCruiseHop = false;
+    /** Walk round a +1 block beside a level stretch instead of passing it as a riser; see {@code WalkerTickAim.jumpedRises}. */
+    public static volatile boolean walkerAvoidLoneRisers = true;
 
     /** Per-water-cell g-cost added to EVERY move that enters a water cell, for
      *  Y-agnostic (XZ) goals only — on top of the base {@code waterDangerPenalty}.
@@ -1942,18 +1941,18 @@ public final class BotConfig {
     public static volatile boolean walkerDiagonalStringPull = true;
 
     /** §91 steep-ascent chain tax (#15): extra cost on an ascending edge whose landing faces another 2-high wall
-     *  (continued climbs measured ~5 s/block against a price of 15 vs walk 10), steering onto switchbacks.
-     *  0 = off; trial 12. */
+     *  (continued climbs measured ~5 s/block against a price of 15 vs walk 10), steering onto switchbacks. 0 = off; trial 12. */
     public static volatile double pathfinderSteepAscentTax = 0.0;
 
-    /** §92 chain-mount (#15 steep-climb executor lane). Consecutive same-direction +1 steps loosen the stepUp
-     *  square-up gate (sideDist 0.2→0.45, lateral 0.1→0.25, launch 1.7→2.0) so the staircase is ridden on landing
-     *  momentum instead of stall-recentre-jump per step — the recentre window on a slope is exactly the slide-back
-     *  window (slow-map y sawtooth). Direction changes keep the strict gate. Default OFF. */
+    /** §92 chain-mount (#15 steep-climb executor lane): consecutive same-direction +1 steps loosen the stepUp
+     *  square-up gate (sideDist 0.2→0.45, lateral 0.1→0.25, launch 1.7→2.0) to ride the staircase on landing momentum,
+     *  not stall-recentre-jump per step (that window is the slide-back window); direction changes keep the strict gate. */
     public static volatile boolean walkerChainMount = false;
 
     /** Jump a dry +1 riser at its face distance along the velocity, keeping sprint (R1: 26/39 jumps fired at the face). */
     public static volatile boolean walkerRiserLeadJump = true;
+    /** Run {@link #walkerRiserLeadJump} keeps beyond two airborne ticks' travel; see {@code WalkerTickDrive.riserLead}. */
+    public static volatile double walkerRiserLeadMargin = 0.1;
     /** Hold a one-block step-down on its planned segment with the lane-keep strafe (see {@code WalkerTickDrive.segmentLaneOffset}). */
     public static volatile boolean walkerDescentLaneKeep = true;
     /** {@link #walkerRiserLeadJump} only for the riser under the node itself, not one beside it. */
@@ -1963,16 +1962,14 @@ public final class BotConfig {
     /** Plan a dry airborne bot from the cell it lands in, not the jump apex (see {@code WalkerTickPrelude}). */
     public static volatile boolean walkerSearchFromLanding = true;
 
-    /** task#82: weave the thin per-move AscendMovement episode tracker over ascent edges
-     *  (stepUp/stairUpBreak/diagUp; B1 adjudication — the machine never actuates, PREP/RUNNING/
-     *  SUCCESS fall through to the legacy drive; it owns only the per-edge episode + the dig-aware
-     *  72t dead-zone watchdog whose UNREACHABLE folds into forceFellOffPath→re-route).
-     *  Default ON since 2026-07-20 (B1-3): replay A/B 2×2 over the ascent-heavy corpus subset —
-     *  the only arrival in 16 case-runs was an ON arm (steep-822, lowest peak stuck of its four),
-     *  10 watchdog fires all landed on genuine dead-zone poses (zero false trips on progressing
-     *  climbs), churn deltas stayed inside the identical-flag chaos envelope (×4-5 per-archive
-     *  swings), and every ON-arm churn pocket was a pre-existing OFF family. OFF restores the
-     *  byte-identical legacy branch. Wired to mc.bot.setting. */
+    /** task#82: weave the thin per-move AscendMovement episode tracker over ascent edges (stepUp/stairUpBreak/diagUp;
+     *  B1 adjudication — the machine never actuates, PREP/RUNNING/SUCCESS fall through to the legacy drive; it owns
+     *  only the per-edge episode + the dig-aware 72t dead-zone watchdog whose UNREACHABLE folds into
+     *  forceFellOffPath→re-route). Default ON since 2026-07-20 (B1-3): replay A/B 2×2 over the ascent-heavy corpus
+     *  subset — the only arrival in 16 case-runs was an ON arm (steep-822, lowest peak stuck of its four), 10 watchdog
+     *  fires all landed on genuine dead-zone poses (zero false trips on progressing climbs), churn deltas stayed inside
+     *  the identical-flag chaos envelope (×4-5 per-archive swings), and every ON-arm churn pocket was a pre-existing
+     *  OFF family. OFF restores the byte-identical legacy branch. Wired to mc.bot.setting. */
     public static volatile boolean walkerAscendMovement = true;
 
     /** §93 commit-tail platform retreat (#15 final lane). Best-effort segments whose
