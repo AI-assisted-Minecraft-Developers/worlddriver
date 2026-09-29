@@ -73,7 +73,7 @@ final class WalkerTickStallDetect {
         //     the walk and the result is ready to splice the instant we arrive.
         //     Adoption is DEFERRED to the segment end (see below) so the new path
         //     always starts where the bot will be — no backward yaw flip.
-        boolean offPath = offPath(wk, foot);
+        boolean offPath = offPath(wk, foot, p);
         // Jitter-immune wedge: stuck on a node the Walker can't complete (e.g. a
         // ground-blocked fallN). An edge that's legitimately BREAKING blocks gets a
         // far longer leash: bare-handed stone takes ~150 ticks/block — well past
@@ -433,18 +433,41 @@ final class WalkerTickStallDetect {
      *  {@code wd.entityLeash}, {@code wd.entityLeashLowY} (the hard leash no longer held the bot
      *  back) and the two {@code wd.pillarLedger*} (the water climb-out takeover never engaged) —
      *  i.e. the per-tick re-search on a long edge is load-bearing for the leash and the bank takeover
-     *  in ways this file does not own. Until those are re-homed, the node stays the reference. */
+     *  in ways this file does not own. So the edge is the reference only where neither can be in
+     *  play: a dry, level, action-free walk/diag edge under an unconstrained profile (a leash rides
+     *  in as a profile constraint or bias). With diagonal string-pulling on, open terrain is mostly
+     *  such edges, and the node reference re-searched 224 times in one 200 s route (live
+     *  2026-09-28), each adoption a speed dip. */
     /** A current node to be below: fellOffPath also folds in flags that stay set once the path is dropped, and
      *  wd.bridgeStepTwoBypassNoPlace read the node of a null path from the fell-below and deep-pit checks. */
     private static boolean onRoute(Walker wk) {
         return wk.path != null && wk.step < wk.path.size();
     }
 
-    private static boolean offPath(Walker wk, BlockPos foot) {
+    private static boolean offPath(Walker wk, BlockPos foot, LivingEntity p) {
         if (wk.path == null || wk.step >= wk.path.size()) return false;
         BlockPos node = wk.path.get(wk.step);
-        if (!wk.driveLatch.cruiseOn) return node.distSqr(foot) > 9;
-        int dx = node.getX() - foot.getX(), dz = node.getZ() - foot.getZ();
-        return dx * dx + dz * dz > 9;
+        if (wk.driveLatch.cruiseOn) {
+            int dx = node.getX() - foot.getX(), dz = node.getZ() - foot.getZ();
+            return dx * dx + dz * dz > 9;
+        }
+        if (onPlainLane(wk, node, foot, p)) return laneDistSqr(wk.path.get(wk.step - 1), node, foot) > 9;
+        return node.distSqr(foot) > 9;
+    }
+
+    private static boolean onPlainLane(Walker wk, BlockPos node, BlockPos foot, LivingEntity p) {
+        return wk.step >= 1 && !p.isInWater() && plainFlatWalk(wk.edgeAt(wk.step))
+                && wk.path.get(wk.step - 1).getY() == node.getY() && foot.getY() == node.getY()
+                && wk.profile.bias().isEmpty() && wk.profile.constraints().isEmpty();
+    }
+
+    /** Horizontal squared distance from the foot cell's centre to the segment {@code a → b}. */
+    private static double laneDistSqr(BlockPos a, BlockPos b, BlockPos foot) {
+        double ax = a.getX(), az = a.getZ(), bx = b.getX() - ax, bz = b.getZ() - az;
+        double px = foot.getX() - ax, pz = foot.getZ() - az;
+        double len2 = bx * bx + bz * bz;
+        double t = len2 == 0 ? 0 : Math.max(0, Math.min(1, (px * bx + pz * bz) / len2));
+        double dx = px - bx * t, dz = pz - bz * t;
+        return dx * dx + dz * dz;
     }
 }

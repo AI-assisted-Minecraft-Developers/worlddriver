@@ -162,6 +162,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   check gives up on it.
 - **A bot that falls past a node on the way down no longer climbs back up to it.** After an 11-block
   cliff drop left a fall node 3 blocks above, the bot started building a pillar back up to it.
+- **Straightening a path also turns flat staircases of straight steps into diagonals where the body
+  fits** (`walkerDiagonalStringPull`, now on). On such a level stretch the bot counts as off its path
+  by its distance from the path's line, not from the next node, which had re-planned 224 times in
+  one 200 s route, each a slowdown.
 
 ## 2026-09-28
 
