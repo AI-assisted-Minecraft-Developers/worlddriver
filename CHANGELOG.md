@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-29
 
+- **The planner avoids a diagonal step up past an open drop at the take-off.** Such a step now costs
+  more than a walk plus a straight step up. Before, a bot on a one-block-wide strip drifted toward
+  the open side while running at the corner, ended with its feet on the strip's edge, and could not
+  jump from there.
 - **A long path search no longer halves the client's frame rate.** On a client with a frame-rate
   cap, the search now runs in the part of each frame the cap would otherwise spend waiting, instead
   of taking up to 30 ms of the frame each game tick. On R1 at a 120 fps cap, the two large searches
@@ -50,6 +54,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   route's nodes, `moves`, the count `n` and summed `cost` per move name, and the numbers of blocks
   the route breaks (`breaks`) and places (`places`). The RPC skill adds `route_record.py`, which
   records a bot or human run of a fixed route and compares runs slice by slice.
+- **The planner prefers two straight steps over a flat diagonal step past a drop of two or more
+  blocks**, and straightening a path no longer pulls those two steps back into the diagonal. A
+  sprinting bot drifts a few tenths toward the open corner: on one route three runs fell four blocks
+  down a one-wide shaft beside such a diagonal.
 
 ## 2026-09-28
 

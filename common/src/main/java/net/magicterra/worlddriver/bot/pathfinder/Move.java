@@ -177,6 +177,13 @@ public abstract class Move {
      *  must agree, or the planner routes over a gap the executor's guards then refuse to cross. */
     public static final int VOID_SCAN_FLOOR = -70;
 
+    /** A corner cell a flat crossing sweeps with a drop of two or more under it (water breaks the
+     *  fall, so it does not count). A one-deep dip is a stumble the next step climbs out of. */
+    public static boolean dropCorner(WorldView w, BlockPos c) {
+        BlockPos below = c.below();
+        return !w.isSolid(below) && !w.isWater(below) && !w.isSolid(below.below()) && !w.isWater(below.below());
+    }
+
     /** True when nothing at all stands under {@code col} down to {@link #VOID_SCAN_FLOOR}. */
     public static boolean bottomless(WorldView w, BlockPos col) {
         for (int y = col.getY() - 1; y >= VOID_SCAN_FLOOR; y--) {
