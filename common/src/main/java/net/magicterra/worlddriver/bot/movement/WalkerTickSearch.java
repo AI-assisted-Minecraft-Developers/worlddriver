@@ -135,8 +135,14 @@ final class WalkerTickSearch {
             // none yet), the bot is FROZEN until the search lands — so frame-smoothness
             // is moot and a thin 6 ms slice just stretches a 3 s search to ~27 s of
             // standing still. Spend a much bigger slice to finish it ~5× sooner; while
-            // walking, keep the thin slice so frames stay smooth.
-            boolean idleNoPath = wk.path == null || wk.step >= wk.path.size();
+            // walking, keep the thin slice so frames stay smooth. A FOOT-search (not a
+            // continuation from the segment end) counts as idle too: its result replaces the
+            // path on landing, so what the bot walks meanwhile is a stale plan or a stub, and
+            // the thin slice stretched a 19k-node cliff search to 11 s of walking the stub
+            // into a pit (live 2026-09-28, 1385,71,-517). So does a continuation the bot is about
+            // to run out of path for: thin-sliced, a 20k-node cliff continuation left it standing
+            // ~4 s at its segment end (live 2026-09-28, 1385,75,-511).
+            boolean idleNoPath = wk.path == null || wk.step >= wk.path.size() - SEGMENT_END_SLICE_NODES || !wk.seg.searchFromEnd;
             FrameSearchPump.offer(wk);
             long slice = FrameSearchPump.pumping() ? 1 : idleNoPath   // frames spend the limiter's slack on it: see FrameSearchPump
                     ? Math.max(BotConfig.pathfinderSliceMs, BotConfig.pathfinderIdleSliceMs)

@@ -116,9 +116,7 @@ public final class BotConfig {
     /** Yaw delta below this is not written each tick — reduces jitter when already aligned. */
     public static volatile float walkerYawHysteresisDeg = 5f;
 
-    /** Decouple camera from movement on a dry descent: aim the CAMERA at a stable far-ahead
-     *  path heading (kills the yaw wind-up that spins the camera going downhill) while the movement keeps driving at the immediate node.
-     *  See {@code WalkerConstants.DESCENT_CAM_FAR_DIST} (not a {@code Walker} member). A/B toggle. */
+    /** Dry descent: camera on a stable path trend (no downhill spin); see {@code WalkerConstants.DESCENT_CAM_FAR_DIST}. */
     public static volatile boolean descentCameraDecouple = true;
 
     /** Extend {@link #descentCameraDecouple} to ALL dry launches (parkourDescend / parkour / fall):
@@ -561,24 +559,14 @@ public final class BotConfig {
      *  — taxing only already-submerged steps left A* a tax-free back-door. Only
      *  the part of a step that lies below the slack threshold is charged, and only
      *  when going down (climbing is free), so shallow wading across a river isn't
-     *  penalised. Set 0 to disable. Default {@value} — tuned via the mc.debug.plan
-     *  water-pit A/B so the +6 climb-ashore beats the dive-and-tunnel. Default 40:
-     *  the value that flips the real spawn +6-bank water bowl from dive-and-tunnel
+     *  penalised. Default {@value}: the mc.debug.plan water-pit A/B value that flips the real spawn +6-bank water bowl from dive-and-tunnel
      *  (end Y 50) to climb-ashore (end Y 71) in the mc.debug.plan A/B. The usual
      *  over-charge worry (deep dives) does NOT apply because the tax is gated to
      *  Y-agnostic XZ goals only — a seabed-monument/shipwreck dive uses a Y-aware
      *  pos/block goal and pays nothing. Set 0 to disable. */
     public static volatile double pathfinderDescendCost = 40;
 
-    /** Extra g-cost charged on a DRY {@link net.magicterra.worlddriver.bot.pathfinder.moves.DiagonalAscend}
-     *  (diagUp, a diagonal +1 step). Default 0 = base cost (19) unchanged. The executor CANNOT reliably
-     *  mount a diagonal +1 riser: the cardinal sprint-bunny-hop (early-jump ≤1.7 + sprint, Walker:4194) was
-     *  A/B-DISPROVEN for diagonals (Walker:4198), and diagAscent drops sprint (Walker:4810), so a diagUp
-     *  mounts only by a slow late-jump grind that bistably WEDGES on steep terrain (live -711, REGRESSION.md
-     *  §30: the residual case of failing to jump up onto a block on a slope). A cardinal stepUp+walk L-shape covers the same ascent and the
-     *  executor mounts it reliably (the proven sprint-bunny-hop). When >0, this penalty makes A* prefer that
-     *  L-shape on dry land, routing AROUND the unmountable diagUp instead of committing it. Validate on the
-     *  steep corpus (878/815) with the hardened K≥6 P(wedge) gate; too high over-charges + lengthens paths. */
+    /** Extra g-cost on a DRY diagUp (base 19); &gt;0 prefers the cardinal stepUp+walk L over a diagonal riser's late jump. */
     public static volatile double pathfinderDiagAscendPenalty = 0;
 
     /** Per-water-cell g-cost added to EVERY move that enters a water cell, for
@@ -876,11 +864,11 @@ public final class BotConfig {
      *  leaving plenty of walk-time to hide the next search → no freeze. Self-disables
      *  when the real goal is within the horizon (then h can't drop that far → the
      *  search runs to the actual goal). Only fires on genuine goal-ward progress, so a
-     *  pinch/wall (no forward node) falls through to the unchanged best-effort backoff
-     *  — same go-around/vertical-escape behaviour. Excluded for in-water starts
-     *  (bestAshore climb-out wins). Converted to cost units at ~10/block (matching
-     *  {@code MIN_FRONTIER_GAIN}=50≈5 blocks). */
+     *  pinch/wall (no forward node) falls through to the unchanged best-effort backoff. Excluded for
+     *  in-water starts (bestAshore wins). ~10 cost units per block ({@code MIN_FRONTIER_GAIN}=50≈5 blocks). */
     public static volatile int pathfinderHorizonBlocks = 48;
+    /** Start the from-end continuation only within this many blocks of the segment end (0 = OFF); see {@code WalkerTickRepath}. */
+    public static volatile int walkerContinuationMaxLead = 48;
 
     /** Soft node-budget early-commit (0 = OFF). The {@link #pathfinderHorizonBlocks}
      *  early-stop only fires when the search can make {@code horizon} blocks of forward
@@ -1932,20 +1920,15 @@ public final class BotConfig {
      *  corner-scrape micro-slowdowns. Default OFF. */
     public static volatile boolean walkerDiagonalStringPull = false;
 
-    /** §91 steep-ascent chain tax (#15). Ascending edge whose landing faces another
-     *  2-high wall (the climb continues immediately) costs this much extra — the
-     *  slow-map measured continued climbs at ~5s/block real execution (climb-2-slide-1
-     *  churn) while A* priced them 15 vs walk 10. Taxing the continued-climb shape
-     *  steers the planner onto switchbacks/detours that execute at full walk speed.
-     *  0 = off. Trial value 12 (≈ one extra walk block per taxed climb block). */
+    /** §91 steep-ascent chain tax (#15): extra cost on an ascending edge whose landing faces another 2-high wall
+     *  (continued climbs measured ~5 s/block against a price of 15 vs walk 10), steering onto switchbacks.
+     *  0 = off; trial 12. */
     public static volatile double pathfinderSteepAscentTax = 0.0;
 
-    /** §92 chain-mount (#15 steep-climb executor lane). Consecutive same-direction +1
-     *  steps loosen the stepUp square-up gate (sideDist 0.2→0.45, lateral 0.1→0.25,
-     *  launch 1.7→2.0) so the staircase is ridden on landing momentum instead of
-     *  stall-recentre-jump per step — the recentre window on a slope is exactly the
-     *  slide-back window (slow-map y sawtooth). Direction changes keep the strict
-     *  gate. Default OFF. */
+    /** §92 chain-mount (#15 steep-climb executor lane). Consecutive same-direction +1 steps loosen the stepUp
+     *  square-up gate (sideDist 0.2→0.45, lateral 0.1→0.25, launch 1.7→2.0) so the staircase is ridden on landing
+     *  momentum instead of stall-recentre-jump per step — the recentre window on a slope is exactly the slide-back
+     *  window (slow-map y sawtooth). Direction changes keep the strict gate. Default OFF. */
     public static volatile boolean walkerChainMount = false;
 
     /** task#82: weave the thin per-move AscendMovement episode tracker over ascent edges
@@ -1966,6 +1949,9 @@ public final class BotConfig {
      *  periodic repath is what turns complex steep terrain into a 100s climb-fall grind
      *  while the same terrain runs clean standalone (§92b CSI). Default OFF. */
     public static volatile boolean walkerCommitTailPlatform = false;
+
+    /** Cut a best-effort segment whose tail sinks into a dip back to its ridge ({@code PathSmoothing.sunkTailCut}). */
+    public static volatile boolean walkerCommitTailPeak = true;
 
     /** Repath route-oscillation damper (the C16 dry-land churn, REGRESSION §55 final autopsy):
      *  two near-equal-cost A* routes (a dig-through and a detour) alternate across periodic

@@ -1,7 +1,9 @@
 package net.magicterra.worlddriver.bot.debug;
 
+import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.ClientWorldView;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.movement.PathSmoothing;
 import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.client.internal.ClientThread;
 import net.minecraft.client.Minecraft;
@@ -78,7 +80,8 @@ public final class PlanProbeTool {
                 PathFinder.Result r = new PathFinder(world).withOwner("debug.plan").findPath(from, goal);
                 totalExpanded += r.expanded();
                 List<BlockPos> path = r.path();
-                BlockPos end = path.isEmpty() ? from : path.get(path.size() - 1);
+                int cut = BotConfig.walkerCommitTailPeak && !r.goalReached() ? PathSmoothing.sunkTailCut(path) : -1;
+                BlockPos end = path.isEmpty() ? from : path.get(cut > 0 ? cut : path.size() - 1);
                 double hFrom = goal.estimate(from), hEnd = goal.estimate(end);
                 if (hEnd > hFrom + 1e-6) backwardSegs++;
                 maxRegression = Math.max(maxRegression, hEnd - bestH);
@@ -89,6 +92,7 @@ public final class PlanProbeTool {
                 seg.put("hDelta", Math.round(hEnd - hFrom));
                 seg.put("expanded", r.expanded());
                 seg.put("goalReached", r.goalReached());
+                if (cut > 0) seg.put("sunkTailCut", xyz(path.get(path.size() - 1)));
                 segs.add(seg);
                 if (r.goalReached()) { reached = true; break; }
                 if (end.equals(from)) break;            // no progress → stuck

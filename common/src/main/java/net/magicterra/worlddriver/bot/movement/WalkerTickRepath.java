@@ -152,7 +152,8 @@ final class WalkerTickRepath {
             wk.ticksSinceRepath = 0;
         } else if (!wk.replayMode && wk.seg.pathBestEffort && wk.seg.commitEnd != null
                 && wk.seg.activeSearch == null && wk.seg.pendingSegment == null
-                && wk.searchGov.searchBackoffTicks == 0 && !wk.searchGov.futileLatched(foot)) {
+                && wk.searchGov.searchBackoffTicks == 0 && !wk.searchGov.futileLatched(foot)
+                && continuationInLoadedReach(wk, p)) {
             // Eagerly precompute the next best-effort segment from the committed end.
             wk.seg.activeSearch = wk.newPathFinder(world).newSearch(wk.seg.commitEnd, wk.goal);
             wk.seg.searchFromEnd = true;
@@ -228,6 +229,20 @@ final class WalkerTickRepath {
      * prints exactly twice per episode, and BOTH outcomes print — a row that only appears when the
      * hop is cut cannot tell a reader the gate was consulted and said yes.
      */
+    /**
+     * A continuation planned from a segment end far ahead of the body searches out past the loaded
+     * chunks, and its commit lands on whichever edge row has loaded by then: R1 committed from
+     * 1526,71,-211 to 1473,66,-319 or, with one chunk row fewer, to 1435,67,-303 — the west branch,
+     * 8-10 s slower. Waiting until the body is within {@code walkerContinuationMaxLead} of the end
+     * keeps end + horizon inside what the body has loaded.
+     */
+    private static boolean continuationInLoadedReach(Walker wk, LivingEntity p) {
+        int lead = BotConfig.walkerContinuationMaxLead;
+        if (lead <= 0) return true;
+        double dx = wk.seg.commitEnd.getX() + 0.5 - p.getX(), dz = wk.seg.commitEnd.getZ() + 0.5 - p.getZ();
+        return dx * dx + dz * dz <= (double) lead * lead;
+    }
+
     private static boolean burstHopAllowed(Walker wk, WorldView world, LivingEntity p, BlockPos foot) {
         boolean allowed = !(BotConfig.walkerRecoveryHopFloorGate
                 && hopSuppressed(world, p, foot, wk.unstuck.burstYaw));

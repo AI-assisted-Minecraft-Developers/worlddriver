@@ -575,6 +575,9 @@ final class WalkerConstants {
      *  a boxed-in micro-search keeps finding nothing until the terrain context
      *  changes, so retrying every tick would just burn frames. */
     public static final int QUICK_RETRY_TICKS = 10;
+    /** Path nodes left before the segment end at which an in-flight continuation search switches
+     *  to the idle slice: past here the bot reaches the end sooner than a thin slice finishes. */
+    public static final int SEGMENT_END_SLICE_NODES = 6;
     /** Hard wall-clock cap for one synchronous quick-start stub search; the node
      *  cap ({@link BotConfig#pathfinderQuickNodes}) normally lands well under it. */
     public static final long QUICK_MAX_MS = 80;
