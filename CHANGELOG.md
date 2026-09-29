@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-29
 
+- **Straightening a path keeps the last step before a parkour jump.** Before, the straightened line ran
+  up to the take-off cell, so the bot could arrive at an angle to the jump and fall short.
 - **The planner avoids a diagonal step up past an open drop at the take-off.** Such a step now costs
   more than a walk plus a straight step up. Before, a bot on a one-block-wide strip drifted toward
   the open side while running at the corner, ended with its feet on the strip's edge, and could not
@@ -79,6 +81,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The deep-water brake drops sprint only for water the bot is moving toward.** It checked a ring
   round the feet, so a bot walking past a pond or stream walked the whole way unsprinted: on R1 that
   was 195 ticks a run, about 3 s of the route.
+- **A short leap over a one-deep dip walks down into the dip and jumps out of it, and a leap that
+  has landed does not hop again.** Sprinted, the leap flew past into the pit behind; unsprinted it
+  fell short into the dip on some starts, about 2 s either way. A leap that landed short of its node
+  hopped a second time, and on some starts over into the pit behind.
 
 ## 2026-09-28
 
