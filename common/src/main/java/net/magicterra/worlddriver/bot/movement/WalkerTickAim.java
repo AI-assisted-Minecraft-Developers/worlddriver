@@ -78,6 +78,37 @@ final class WalkerTickAim {
         return YAW_SMOOTH_ALPHA;
     }
 
+    /** How far past a lone +1 step node the aim point sits, along the planned approach. */
+    private static final double LOOK_THROUGH = 1.5;
+
+    /**
+     * Aim vector at a point {@link #LOOK_THROUGH} past the step node {@code wp} along the direction
+     * the plan approaches it from, or null when that direction is vertical or already behind the
+     * bot. A lone step (no staircase for the trend to average) was aimed at the node centre itself,
+     * and the bearing to a point a block away swings 20-30° a tick as the bot closes on it: the first
+     * hundred blocks of R1 turned 3400-5900° of heading against a human's 2060°, most of it under
+     * this aim. A point past the node keeps the same line while it stays far enough not to swing.
+     */
+    private static double[] lookThrough(Walker wk, BlockPos wp, double adx, double adz) {
+        BlockPos prev = wk.path.get(wk.step - 1);
+        double ux = wp.getX() - prev.getX(), uz = wp.getZ() - prev.getZ(), ul = Math.hypot(ux, uz);
+        if (ul < 1e-6) return null;
+        ux /= ul; uz /= ul;
+        double tx = adx + ux * LOOK_THROUGH, tz = adz + uz * LOOK_THROUGH;
+        return tx * ux + tz * uz > 0 ? new double[]{tx, tz} : null;
+    }
+
+    /** Last node the trend centroid averages: under {@code walkerCarrotStopAtRise}, the first node above the feet
+     *  or behind a pending break/place. A flat walk into a stair flight averaged the flight's far nodes and drove
+     *  40° off the first riser (live 1543,64,-151, the twin of {@code Walker.carrotPoint}'s stop); a wade averaged
+     *  the leg past an undug bank exit and waded 8 blocks along it (1431,62,-355). */
+    private static int centroidEnd(Walker wk, WorldView world, BlockPos foot, int lastNode) {
+        if (!BotConfig.walkerCarrotStopAtRise) return lastNode;
+        for (int k = wk.step; k < lastNode; k++)
+            if (wk.path.get(k).getY() > foot.getY() || hasPendingEdge(world, wk.edgeAt(k))) return k;
+        return lastNode;
+    }
+
     private static boolean onLastNode(Walker wk) {
         return BotConfig.walkerFinalNodeDirectAim && wk.path != null && wk.step == wk.path.size() - 1;
     }
@@ -117,11 +148,21 @@ final class WalkerTickAim {
         return wk.arc.proj.perp > PURSUIT_PERP;
     }
 
+    /** The foot the aim judges by. At a +1 jump's apex the foot already reads the node's level, so every
+     *  level-walk aim (carrot, tangent, trend centroid) took over mid-air and steered past the step: live
+     *  1389,92,-526.7 drove at the next leg's 180° with the node at 74° and rammed a wall 30 ticks. Until
+     *  it lands, an ascent is judged from its take-off level (under {@code walkerCarrotStopAtRise}). */
+    private static BlockPos ascentAimFoot(Walker wk, LivingEntity p, BlockPos foot, BlockPos wp) {
+        if (!BotConfig.walkerCarrotStopAtRise || p.onGround() || p.isInWater() || p.onClimbable()
+                || wk.path == null || wk.step <= 0 || wk.step >= wk.path.size() || wp == null) return foot;
+        return wp.getY() == foot.getY() && wk.path.get(wk.step - 1).getY() < wp.getY() ? foot.below() : foot;
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
-        BlockPos foot = cx.frame.foot;
+        BlockPos foot = ascentAimFoot(wk, p, cx.frame.foot, cx.edges.wp);
         Move.Edge edge = cx.edges.edge;
         BlockPos wp = cx.edges.wp;
         boolean parkourEdge = cx.edges.parkourEdge;
@@ -237,9 +278,8 @@ final class WalkerTickAim {
             // the deterministic descentYawArena — every variant was WORSE than no fix (off=1050°
             // thrash/242tk; descent-trend=1559°/569tk i.e. 2.3× SLOWER; parkour-inclusive=1529° @
             // 6.4°/tick). A steep descent routes through fall/parkour-descend nodes the trend
-            // excludes, and where it engages it flickers between trend- and exact-aim, ADDING
-            // thrash. The descent spin needs a different mechanism (damp the swinging target
-            // bearing itself / cut switchback node density), not this aim swap. Up-steps only.
+            // excludes, and where it engages it flickers between trend- and exact-aim, ADDING thrash.
+            // The descent spin needs a different mechanism, not this aim swap. Up-steps only.
             if (!p.isInWater() && !parkourEdge && (wp.getY() - foot.getY()) == 1
                     && wk.step + 1 < wk.path.size()) {
                 // Path-trend averaging (the root-cause fix). Sum the UNIT direction of
@@ -270,6 +310,7 @@ final class WalkerTickAim {
                 // immediate-node aim is kept (else the summit pillar + bank-dig plateau mount
                 // mis-aim). Forward-only (dot>0) never reverses.
                 if (Math.sqrt(tx * tx + tz * tz) >= 2.0 && (tx * adx + tz * adz) > 0) { adx = tx; adz = tz; aimSrc = "trend"; }
+                else if (wk.step > 0) { double[] lt = lookThrough(wk, wp, adx, adz); if (lt != null) { adx = lt[0]; adz = lt[1]; aimSrc = "lookThrough"; } }
             }
         } else if (reCentre) {
             aimSrc = "recentre";
@@ -637,7 +678,7 @@ final class WalkerTickAim {
             // samples only an endpoint, which itself lands on alternating segments and swings; the
             // full average does not.) MOVEMENT stays on the immediate node via driveTargetYaw below.
             double sumX = 0, sumZ = 0; int cnt = 0;
-            int lastNode = Math.min(wk.step + DESCENT_CAM_LOOKAHEAD, wk.path.size() - 1);
+            int lastNode = centroidEnd(wk, world, foot, Math.min(wk.step + DESCENT_CAM_LOOKAHEAD, wk.path.size() - 1));
             int firstNode = (lastNode - wk.step >= 4) ? wk.step + 2 : wk.step;   // skip the at-foot nodes
             for (int k = firstNode; k <= lastNode; k++) { sumX += wk.path.get(k).getX() + 0.5; sumZ += wk.path.get(k).getZ() + 0.5; cnt++; }
             if (cnt > 0) {

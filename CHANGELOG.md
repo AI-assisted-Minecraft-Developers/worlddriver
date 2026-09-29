@@ -91,6 +91,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now lets go of the key for one tick when that delay would hold it, on the client and on
   server-side bots. A moving bot with any part of its body under a block two above its feet waits
   one more grounded tick before a step jump, which before rose 0.2 and landed back.
+- **A bot walking into a flight of steps takes it one step at a time** (`walkerCarrotStopAtRise`).
+  The aim point and the trend heading stop at the first step up, the trend heading also at a block
+  the path still has to break, and in the air a jump aims at its own node until it lands. Before, the line straight
+  up the flight passed the walkability check: the bot aimed 45° off a three-step flight, fell into
+  the pit beside it and pillared out, 5 s.
+- **A lone step up is aimed at a point 1.5 blocks past it along the path.** Aimed at its centre,
+  the bearing swung 20-30° a tick as the bot closed in: over R1's first hundred blocks the bot
+  turned 3400-5900° of heading against a human's 2060°.
+- **The aim point is checked from where the bot stands, with a margin round its body.** Past a
+  corner the line to it could cross a pit the path walks round. With no clear line even to the
+  current node, the aim now falls back to that node; before, it fell back to the bot itself, kept
+  the old heading, and the bot rammed a corner for 38 ticks.
 
 ## 2026-09-28
 
