@@ -949,6 +949,14 @@ public final class WorldDriverMobFightScenes {
         /** The iteration the bot left the floor on, or -1 if it never did. */
         int fellAt() { return fellAt; }
 
+        /** The blaze's health as a fraction of its maximum — how close the fight is to ending on its own. */
+        float blazeHealthFraction() { return blaze.getHealth() / blaze.getMaxHealth(); }
+
+        /** A staging step run before every iteration. Per iteration, not per await tick: one
+         *  {@link #pump()} can run a whole fight inside a single server tick. */
+        void stageEachIteration(Runnable step) { staging = step; }
+        private Runnable staging = () -> {};
+
         /** Worst single {@link #pump()}, in ms. The quantity the hang watchdog actually measures. */
         double worstPumpMs() { return worstPump / 1_000_000.0; }
 
@@ -959,6 +967,7 @@ public final class WorldDriverMobFightScenes {
             long deadline = pumpBegan + SLICE_MS * 1_000_000L;
             do {
                 if (done()) break;
+                staging.run();
                 long iter = System.nanoTime();
                 // NO per-iteration breadcrumb here, deliberately. One was written and removed: at
                 // 50-120 iterations per server tick its logging inflated open.worstServerTickMs /
@@ -1113,16 +1122,20 @@ public final class WorldDriverMobFightScenes {
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
 
-        final int pushAfter = 200;
+        // Push after a while of fighting, or once the blaze is at half health, whichever comes first:
+        // a bot that wins before the push leaves nothing to stage (the walker's R1 flags made it
+        // kill the blaze at ~50 iterations, and the guard never ran).
+        final int pushAfter = 200, pushNoEarlierThan = 20;
         var run = new BlazeFightRun(ctx, level, driver, fp, cx, cz, floorY, 3_000, "fell");
         final int[] pushedAt = { -1 };
-        ctx.await(() -> {
-            if (pushedAt[0] < 0 && run.iterations() >= pushAfter) {
+        run.stageEachIteration(() -> {
+            if (pushedAt[0] < 0 && run.iterations() >= pushNoEarlierThan
+                    && (run.iterations() >= pushAfter || run.blazeHealthFraction() <= 0.5f)) {
                 pushedAt[0] = run.iterations();
                 fp.moveTo(cx + 0.5, padY + 1, cz + 0.5);
             }
-            return run.pump();
-        }).within(run.tickAllowance()).then(() -> {
+        });
+        ctx.await(() -> run.pump()).within(run.tickAllowance()).then(() -> {
             var out = run.finish();
             ctx.record("staged.pushedAt", "after " + pushedAt[0] + " iterations the bot was moved to " + (cx) + ", "
                     + (padY + 1) + ", " + cz + " (platform top " + floorY + ", 200 blocks lower)");
