@@ -2411,7 +2411,9 @@ public final class Walker {
         r = WalkerTickClimb.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickEdgeGuards.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickAim.run(this, c, a, world); if (r != null) return r;
-        return WalkerTickDrive.run(this, c, a, world);
+        r = WalkerTickDrive.run(this, c, a, world);
+        if (r == Step.WALKING) WalkerDig.preDigNextBreak(this, a, world);
+        return r;
     }
 
     /** Fire onTerminal and return the step verdict in one place, so every terminal

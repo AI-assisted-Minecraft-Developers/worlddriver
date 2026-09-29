@@ -131,7 +131,15 @@ public final class BotInteract {
         // The finishing tick predicts the break inside this call, so the cell turning air across it
         // is a break by this drive: autoBackfill's only record of what the bot itself opened.
         boolean airBefore = mc.level.getBlockState(cell).isAir();
-        boolean ok = mc.gameMode.continueDestroyBlock(cell, pickFaceTowardsPlayer(cell, p));
+        // A new dig starts the way a click does (Minecraft.startAttack → startDestroyBlock), not the
+        // way a held button does. This only fixes the first tick: the 5-tick destroyDelay the LAST
+        // break left behind is still burned by the continueDestroyBlock calls that follow, since
+        // nothing else counts it down. Burning it before the cell is reached is
+        // WalkerDig.preDigNextBreak's job (live cliff stair cuts: 9 ticks for a 3-tick grass block).
+        Direction face = pickFaceTowardsPlayer(cell, p);
+        boolean ok = mc.gameMode.isDestroying()
+                ? mc.gameMode.continueDestroyBlock(cell, face)
+                : mc.gameMode.startDestroyBlock(cell, face);
         ClientIntents.noteDrive(cell, airBefore, mc.level.getBlockState(cell).isAir());
         if (ok) p.swing(InteractionHand.MAIN_HAND);
         // Vanilla's next attack pass stands aside for this drive (see ClientIntents) — the
