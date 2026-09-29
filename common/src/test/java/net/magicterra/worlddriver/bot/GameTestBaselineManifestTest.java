@@ -181,6 +181,10 @@ class GameTestBaselineManifestTest {
             e("walkerVineFreeHangClimb", "sustain a climb on a free-hanging vine"),
             e("walkerVineLandGrab", "grab a free-hanging vine at the parkour landing apex"),
             e("walkerWaterClimbLateralGate", "water climb-out lateral gate"),
+
+            // the R1 route work (2026-09): each was measured on the real client over jittered full
+            // runs before it shipped ON, so the arena runs it — a scene it breaks is a finding, not noise
+            e("walkerCommitTailPeak", "cut a best-effort segment whose tail sinks into a dip back to its ridge"),
             e("combatCrit", "jump before a melee swing for the 1.5x critical"),
             e("combatCollectDrops", "post-kill drop sweep"),
             e("duskUrgent", "urgent dusk securing")));

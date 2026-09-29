@@ -2626,6 +2626,36 @@ public final class Walker {
         return true;
     }
 
+    /** Where a best-effort segment's commit stops, which is where the continuation launches from.
+     *  §93 platform retreat (#15 final lane): the tail is wherever the node budget ran out — often
+     *  MID-SLOPE on complex steep terrain. The bot then climbs to a half-mounted ledge, the periodic
+     *  repath re-plans from that awkward stance, and the climb-fall oscillation burns ~100s
+     *  (slow-map zones; the SAME terrain runs clean in 8s standalone, §92b — the grind is planner
+     *  state, not executor skill). When the tail node is not a platform (fewer than 2 same-Y
+     *  standable cardinal neighbours), retreat up to 8 nodes to the nearest platform node so the
+     *  segment ends on ground the executor can stand square on while the next search runs.
+     *  Ridge retreat: see {@link PathSmoothing#sunkTailCut}. */
+    private void trimCommitTail(WorldView world) {
+        int cut = -1;
+        if (BotConfig.walkerCommitTailPlatform && path.size() > 4) {
+            for (int k = path.size() - 1; k >= Math.max(2, path.size() - 8) && cut < 0; k--) {
+                BlockPos n = path.get(k);
+                int flat = 0;
+                for (int[] d4 : new int[][]{{1,0},{-1,0},{0,1},{0,-1}})
+                    if (world.canStandAt(n.offset(d4[0], 0, d4[1]))) flat++;
+                if (flat >= 2) cut = k;
+            }
+        }
+        int peak = BotConfig.walkerCommitTailPeak ? PathSmoothing.sunkTailCut(path) : -1;
+        if (peak > 0 && (cut < 0 || peak < cut)) cut = peak;
+        if (cut <= 0 || cut >= path.size() - 1) return;
+        if (BotConfig.walkerDebug)
+            LOG.info("[walker] commit-tail retreat: {} -> {} ({} {},{},{})", path.size() - 1, cut,
+                    cut == peak ? "ridge" : "platform", path.get(cut).getX(), path.get(cut).getY(), path.get(cut).getZ());
+        path = List.copyOf(path.subList(0, cut + 1));
+        edges = Collections.unmodifiableList(new ArrayList<>(edges.subList(0, cut + 1)));
+    }
+
     /** Splice in a freshly-searched route: string-pull it, reset the per-path
      *  follow state, and record whether it's a best-effort partial (so the next
      *  segment is precomputed from its end — see the kickoff/splice logic in
@@ -2721,32 +2751,7 @@ public final class Walker {
         path = sm.path;
         edges = sm.edges;
         seg.pathBestEffort = !res.goalReached();
-        // §93 commit-tail platform retreat (#15 final lane). A best-effort segment's
-        // tail is wherever the node budget ran out — often MID-SLOPE on complex steep
-        // terrain. The bot then climbs to a half-mounted ledge, the periodic repath
-        // re-plans from that awkward stance, and the climb-fall oscillation burns
-        // ~100s (slow-map zones; the SAME terrain runs clean in 8s standalone, §92b —
-        // the grind is planner state, not executor skill). When the tail node is not
-        // a platform (fewer than 2 same-Y standable cardinal neighbours), retreat the
-        // commit up to 8 nodes to the nearest platform node so the segment ends on
-        // ground the executor can stand square on while the next search runs.
-        if (BotConfig.walkerCommitTailPlatform && seg.pathBestEffort && path.size() > 4) {
-            int cut = -1;
-            for (int k = path.size() - 1; k >= Math.max(2, path.size() - 8); k--) {
-                BlockPos n = path.get(k);
-                int flat = 0;
-                for (int[] d4 : new int[][]{{1,0},{-1,0},{0,1},{0,-1}})
-                    if (world.canStandAt(n.offset(d4[0], 0, d4[1]))) flat++;
-                if (flat >= 2) { cut = k; break; }
-            }
-            if (cut > 0 && cut < path.size() - 1) {
-                if (BotConfig.walkerDebug)
-                    LOG.info("[walker] commit-tail retreat: {} -> {} (platform {},{},{})",
-                            path.size() - 1, cut, path.get(cut).getX(), path.get(cut).getY(), path.get(cut).getZ());
-                path = List.copyOf(path.subList(0, cut + 1));
-                edges = Collections.unmodifiableList(new ArrayList<>(edges.subList(0, cut + 1)));
-            }
-        }
+        if (seg.pathBestEffort) trimCommitTail(world);
         seg.commitEnd = (seg.pathBestEffort && !path.isEmpty()) ? path.get(path.size() - 1) : null;
         step = 1;
         searchGov.noPathWaitTicks = 0;            // a segment was found → the no-path wait starts over

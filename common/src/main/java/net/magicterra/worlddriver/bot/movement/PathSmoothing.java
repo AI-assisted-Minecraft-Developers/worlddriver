@@ -387,6 +387,26 @@ public final class PathSmoothing {
         return ax * (p.getX() - (w.getX() + 0.5)) + az * (p.getZ() - (w.getZ() + 0.5)) > 0;
     }
 
+    /** How far a best-effort tail may sink below the segment's high point before it is cut back. */
+    public static final int SUNK_TAIL_DROP = 4;
+
+    /**
+     * Where to cut a best-effort segment whose tail sinks into a dip: the last node at the
+     * segment's highest Y, when the tail ends at least {@link #SUNK_TAIL_DROP} below it; -1 when
+     * the segment should be committed whole. An XZ goal's estimate ignores Y, so a budget-limited
+     * search happily spends its last nodes descending off a ridge toward the goal, and the next
+     * search then starts at the bottom of a pit whose far wall is a cliff (live 1387,63,-528:
+     * 14 blocks below the ridge the segment had just crossed, next to a hill the goal sits on).
+     * Stopping the commit at the ridge lets the continuation, launched from there, see past the dip
+     * before the bot walks into it. A segment whose own start is its high point is never cut, so a
+     * real descent still gets committed on the next segment.
+     */
+    public static int sunkTailCut(List<BlockPos> path) {
+        int peak = 0;
+        for (int k = 1; k < path.size(); k++) if (path.get(k).getY() >= path.get(peak).getY()) peak = k;
+        return peak >= 2 && path.get(path.size() - 1).getY() <= path.get(peak).getY() - SUNK_TAIL_DROP ? peak : -1;
+    }
+
     public static boolean hasPendingEdge(WorldView w, Move.Edge e) {
         if (e == null) return false;
         for (BlockPos b : e.toBreak) if (w.isSolid(b)) return true;

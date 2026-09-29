@@ -32,6 +32,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of taking up to 30 ms of the frame each game tick. On R1 at a 120 fps cap, the two large searches
   had held the client at 60-65 fps for as long as they ran; they no longer lower it. An uncapped
   client and a dedicated server search as before.
+- **A search from the bot's feet, and one continuing a path the bot is about to finish, gets the
+  large time slice while the bot walks.** Before, both got the thin slice meant for a search the
+  bot can walk while it runs. A search from the feet replaces the path when it lands, so the bot
+  spent it walking a stale plan: a 19,000-node cliff search took 11 s, and the bot walked the stub
+  path into a pit. A thin-sliced continuation left the bot standing about 4 s at the end of its path.
+- **The next stretch of a long walk is planned only once the bot is within 48 blocks of the current
+  stretch's end** (`walkerContinuationMaxLead`, 0 turns the wait off). Planned from farther back,
+  the search ran out past the chunks the bot had loaded, and where it ended depended on which chunk
+  row had loaded by then: on R1 that sometimes chose a branch 8-10 s slower.
+- **A best-effort stretch whose end sinks four or more blocks below its highest node is cut back to
+  that node** (`walkerCommitTailPeak`). A search that ran out of budget spent its last nodes going
+  down off a ridge toward the goal, and the next search then started at the bottom of a pit whose
+  far wall was a cliff, 14 blocks below the ridge. `mc.debug.plan` applies the same cut and
+  reports it as `sunkTailCut`.
 
 ## 2026-09-28
 
