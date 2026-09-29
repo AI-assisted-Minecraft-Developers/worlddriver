@@ -106,7 +106,8 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
      * goal: past the search horizon, so the walk is several best-effort segments, and the planner
      * climbs out, walks the top and digs back down. Measured at 680 ticks once the stale-plan cut,
      * the stacked-node pointer hold and the full-cube fast path were in; before them it did not
-     * arrive in 1500.
+     * arrive in 1500. That route digs 27 blocks when walked cleanly (430 ticks), so the dig floor is
+     * the cheaper route's: {@code cells} for the tunnel, or eight levels out and eight back down.
      */
     private static void tunnel(SceneContext ctx, int cells, int half, int arriveBy) {
         for (int dx = -half; dx <= half; dx++)
@@ -172,13 +173,16 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
                     ctx.check(arrivedTick[0] >= 0 && arrivedTick[0] <= arriveBy).as("B: the bot arrives within " + arriveBy
                             + " ticks (arrival tick: " + (arrivedTick[0] < 0 ? "never" : String.valueOf(arrivedTick[0]))
                             + ")").isTrue();
-                    ctx.check(cobble >= cells).as("C: the bot dug through at least " + cells + " blocks: cobblestone " + cobble).isTrue();
+                    int minDug = Math.min(cells, 2 * SLAB_OVER_FOOT);
+                    ctx.check(cobble >= minDug).as("C: the bot dug at least " + minDug + " blocks: cobblestone " + cobble).isTrue();
                 });
             });
         });
     }
 
     private static final int GROUND = 20;
+    /** Levels from the tunnel's foot row (GROUND + 1) to standing on the slab (GROUND + 9). */
+    private static final int SLAB_OVER_FOOT = 8;
     private static final int LEG_TICKS = 2_400;
     private static final int SETTLE_TICKS = 10;
     private static final int IDLE_TICKS = 600;
