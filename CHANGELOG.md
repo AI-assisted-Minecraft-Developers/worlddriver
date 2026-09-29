@@ -58,6 +58,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   blocks**, and straightening a path no longer pulls those two steps back into the diagonal. A
   sprinting bot drifts a few tenths toward the open corner: on one route three runs fell four blocks
   down a one-wide shaft beside such a diagonal.
+- **Stepping out of knee-deep water onto a bank one block up is priced as a plain step.** It was
+  taxed like a climb out of deep water, so the planner dug through the bank's sand lip instead.
+- **A diagonal two-block leap over a gap with water under it costs more.** Four of 17 such leaps on
+  R1 landed in the water, and the swim back out took about 3 s.
+- **The planner offers a climb-out that fills the cell under a floating bot only where that cell has
+  a face to place against.** A bank solid only at the risen height left the cell ringed by water,
+  and the bot waited about 20 s on a placement it could not make.
 
 ## 2026-09-28
 
