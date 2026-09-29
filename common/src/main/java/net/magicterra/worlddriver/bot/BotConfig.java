@@ -527,9 +527,8 @@ public final class BotConfig {
      *  mc.debug.plan chain harness. */
     public static volatile double pathfinderDepthPenalty = 6;
 
-    /** Blocks of descent below the search start that are free before {@link
-     *  #pathfinderDepthPenalty} kicks in (so a normal step-down / small dip isn't
-     *  charged). Shared with {@link #pathfinderDescendCost}. */
+    /** Blocks of descent below the search start that are free before {@link #pathfinderDepthPenalty} kicks in
+     *  (so a normal step-down / small dip isn't charged). Shared with {@link #pathfinderDescendCost}. */
     public static volatile int pathfinderDepthSlack = 4;
 
     /** REAL g-cost (not heuristic) charged per block for descending IN WATER or by
@@ -585,6 +584,8 @@ public final class BotConfig {
     public static volatile boolean walkerCornerFootingConsume = true;
     /** Keep sprint through a diagonal +1 take-off (the diagAscent/stepJump vetoes), for the sprint-jump boost. */
     public static volatile boolean walkerDiagAscentSprint = true;
+    /** Sprint-jump along a straight, level, open run of path; see {@code WalkerTickDrive.cruiseHop}. */
+    public static volatile boolean walkerCruiseHop = false;
 
     /** Per-water-cell g-cost added to EVERY move that enters a water cell, for
      *  Y-agnostic (XZ) goals only — on top of the base {@code waterDangerPenalty}.
@@ -960,9 +961,8 @@ public final class BotConfig {
      *  regardless, since a lagged crosshair would make those actions miss. */
     public static volatile boolean smoothLook = false;
 
-    /** Max degrees the camera turns per tick while {@link #smoothLook} is on.
-     *  20°/tick ≈ 400°/s → a 180° turn takes ~9 ticks (~0.45 s). Lower = more
-     *  cinematic, higher = snappier. Read every tick. */
+    /** Max degrees the camera turns per tick while {@link #smoothLook} is on. 20°/tick ≈ 400°/s → a 180° turn
+     *  takes ~9 ticks (~0.45 s). Lower = more cinematic, higher = snappier. Read every tick. */
     public static volatile float smoothLookDegPerTick = 20f;
 
     /** Stream-grade camera guarantee (AIRI). When on, EVERY bot camera write is
