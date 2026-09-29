@@ -193,6 +193,8 @@ class GameTestBaselineManifestTest {
             e("walkerDiagAscentSprint", "keep sprint through a diagonal +1 take-off"),
             e("walkerCommitTailPeak", "cut a best-effort segment whose tail sinks into a dip back to its ridge"),
             e("walkerPreDigNextBreak", "start a stairUpBreak's dig in the air so destroyDelay burns before landing"),
+            e("walkerDropAheadResync", "a body that dropped a row early on a descent skips to the node on its row"),
+            e("walkerCornerFootingConsume", "a bot on its node's row counts as standing even on a thin corner"),
             e("combatCrit", "jump before a melee swing for the 1.5x critical"),
             e("combatCollectDrops", "post-kill drop sweep"),
             e("duskUrgent", "urgent dusk securing")));

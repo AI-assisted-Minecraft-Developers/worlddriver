@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer overrides that choice. On the R1 route, trunk contacts fell from about 80 to 36 per six
   runs, and the median time went from 142.3 s to 140.0 s. Leaf contacts rose from about 26 to about
   41 per six runs, because the path round a trunk often passes under the crown.
+- **A bot that skirts a node while walking the next leg of the path counts the node as passed.**
+  Before, when the direct line from its feet to the next node crossed a small hole, the node stayed
+  current until the bot was judged off its path. It then planned again from where it stood, and on
+  R1 that once sent it up a different cliff face and cost 8 s.
 - **Straightening a path keeps the last step before a parkour jump.** Before, the straightened line ran
   up to the take-off cell, so the bot could arrive at an angle to the jump and fall short.
 - **The planner avoids a diagonal step up past an open drop at the take-off.** Such a step now costs
@@ -141,6 +145,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`walkerPreDigNextBreak`), and a new dig starts the way a click does. Minecraft leaves a 5-tick
   delay after every broken block, and only holding the dig counts it down, so each cut waited it out
   after landing: 9 ticks for a grass block that takes 3, five cuts a run on the R1 cliff.
+- **A bot that lands a step up at the edge of its node counts the node as reached.** A diagonal step
+  up that landed 0.08 past the node's block read as short, and the bot took the next jump from
+  beside it and walked back, about 1 s a run. One that landed on a corner of the block jumped at the
+  node it already stood on, twice; standing on the node's row now counts however little of the
+  block is underfoot (`walkerCornerFootingConsume`).
+- **A bot that reaches a lower row early on a descent skips ahead to the node on that row**
+  (`walkerDropAheadResync`). It jumped back up to the node above and dropped again, about 1.5 s on
+  every R1 run. A node in a one-deep dip that the bot stepped over is no longer held until the stall
+  check gives up on it.
 
 ## 2026-09-28
 

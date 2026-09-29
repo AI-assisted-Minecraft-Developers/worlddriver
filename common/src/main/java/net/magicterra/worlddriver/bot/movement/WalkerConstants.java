@@ -576,6 +576,9 @@ final class WalkerConstants {
      *  released to the node bearing (ram-release) without waiting for a stall clock; see
      *  {@code WalkerTickAim.ramPinned}. */
     public static final int RAM_SCRAPE_TICKS = 4;
+    /** Squared horizontal reach within which a node the bot has crossed the plane of counts as
+     *  passed; see {@code WalkerTickProgress.skirtedPast}. */
+    public static final double SKIRT_PASS_SQ = 4.0;
     /** Hard wall-clock cap for one synchronous quick-start stub search; the node
      *  cap ({@link BotConfig#pathfinderQuickNodes}) normally lands well under it. */
     public static final long QUICK_MAX_MS = 80;
