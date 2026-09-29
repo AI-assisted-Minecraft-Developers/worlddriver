@@ -1,7 +1,10 @@
 package net.magicterra.worlddriver.bot.movement;
 
+import net.magicterra.worlddriver.bot.body.JumpRelease;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.player.KeyboardInput;
+import net.minecraft.client.player.LocalPlayer;
 
 /**
  * The {@link Walker}'s movement actuator. Replaces the bot's {@code LocalPlayer.input}
@@ -33,6 +36,7 @@ public final class AvatarInput extends KeyboardInput {
     private boolean cmdJump;
     private boolean sneakCommanded;
     private boolean cmdSneak;
+    private final JumpRelease jumpRelease = new JumpRelease();
 
     public AvatarInput(Options options) {
         super(options);
@@ -116,11 +120,12 @@ public final class AvatarInput extends KeyboardInput {
         rawMoveCommanded = false;
         // Jump / sneak overrides — set the Input fields aiStep reads, directly on the
         // player's own input, never the shared global keybind. Per-tick: an uncommanded
-        // tick leaves super.tick()'s keyboard-derived value in place (manual play intact).
-        if (jumpCommanded) {
-            this.jumping = cmdJump;
-            jumpCommanded = false;
-        }
+        // tick leaves super.tick()'s keyboard-derived value in place (manual play intact). A
+        // commanded jump goes through JumpRelease, which lifts a key vanilla's delay is sitting on.
+        LocalPlayer p = Minecraft.getInstance().player;
+        boolean grounded = p != null && p.input == this && p.onGround() && !p.isInWater() && !p.isInLava();
+        this.jumping = jumpRelease.apply(jumpCommanded ? cmdJump : this.jumping, grounded, jumpCommanded);
+        jumpCommanded = false;
         if (sneakCommanded) {
             this.shiftKeyDown = cmdSneak;
             sneakCommanded = false;

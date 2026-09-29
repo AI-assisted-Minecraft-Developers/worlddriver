@@ -1657,6 +1657,24 @@ final class WalkerTickDrive {
             wk.jumpTag = "vetoed: takeoff speed too low";
             return true;
         }
+        // A step jump launched with any part of the box still under a ceiling two above the feet
+        // rises 0.2 and lands back (live 1546,69,-156: birch leaves over the cell behind the riser
+        // cell, the take-off 0.3 short of clearing them). One more grounded tick carries the box out
+        // from under it; a bot that is not moving keeps the jump, so a pinned one is never held down.
+        if (!parkour && p != null && p.onGround() && !p.isInWater()
+                && p.getDeltaMovement().horizontalDistance() >= 0.1 && headCapped(world, p)) {
+            wk.jumpTag = "vetoed: ceiling over the take-off";
+            return true;
+        }
+        return false;
+    }
+
+    /** A solid cell two above the feet over any column the player box covers. */
+    private static boolean headCapped(WorldView world, LivingEntity p) {
+        int y = Mth.floor(p.getY() + 1e-3) + 2;
+        for (int x = Mth.floor(p.getX() - 0.3); x <= Mth.floor(p.getX() + 0.2999); x++)
+            for (int z = Mth.floor(p.getZ() - 0.3); z <= Mth.floor(p.getZ() + 0.2999); z++)
+                if (world.isSolid(new BlockPos(x, y, z))) return true;
         return false;
     }
 

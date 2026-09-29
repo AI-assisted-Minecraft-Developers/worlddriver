@@ -7,6 +7,7 @@ import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.body.BodyCapabilities;
 import net.magicterra.worlddriver.bot.body.Containers;
 import net.magicterra.worlddriver.bot.body.Hands;
+import net.magicterra.worlddriver.bot.body.JumpRelease;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.world.ServerWorldView;
@@ -101,6 +102,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
 
     private float pendingLeft, pendingForward;
     private boolean pendingJump, pendingSneak;
+    private final JumpRelease jumpRelease = new JumpRelease();
     private BlockPos aimTarget;
     private boolean breakHeld;
     private boolean useHeld;
@@ -736,7 +738,8 @@ public class ServerPlayerBody implements Body, Hands, Containers {
             throw new IllegalStateException("step() pumps a player this server joined; "
                     + fp.getGameProfile().getName() + " is ticked by its own connection");
         }
-        joined.pump(pendingLeft, pendingForward, pendingJump, pendingSneak);
+        boolean grounded = fp.onGround() && !fp.isInWater() && !fp.isInLava();
+        joined.pump(pendingLeft, pendingForward, jumpRelease.apply(pendingJump, grounded, true), pendingSneak);
         if (!fp.isInWater()) pendingJump = false;
     }
 }
