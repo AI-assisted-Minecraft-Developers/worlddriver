@@ -25,6 +25,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to 200,000 for a goto to a block. When no block in range is usable the scan still runs to its
   end, since only then is that known.
 
+## 2026-09-30
+
+- **A walking bot follows a straightened leg to its end instead of cutting for the leg after.**
+  The walker locates the bot on its path to steer by, but only looked at the legs past the node the
+  bot was walking to, never the leg it was on. With a node every block that is off by under a block;
+  on a leg straightened to 15 blocks the bot read as far off the path the whole way, and steering
+  back to the path aimed it at the end of the next leg, across the corner the long leg went round.
+  On R1 that walked it into the birch at 1418,64,-409 every run. The leg the bot is on is now
+  included, set by `walkerProjectCurrentLeg`. Over six R1 runs alternating it on and off in one
+  client, trunk contacts went from 20 to 14, the birches at 1554,66,-143, 1427,65,-398 and
+  1418,64,-409 and three unidentified contacts stopped, and the mean time was 139.7 s against 139.8 s.
+  Sweeping the trend heading's room all the way to its centroid, and past risers, was tried at the
+  same time and cost 3 s a run.
+
 ## 2026-09-29
 
 - **A walking bot's trend heading keeps a margin from trunks and walls.** The check that the
