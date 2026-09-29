@@ -257,6 +257,8 @@ public final class SettingsRegistry {
         field("pathfinderSubmergedWaterCost"),
         field("pathfinderBridgeCost"),
         field("pathfinderPillarCost"),
+        field("pathfinderPillarCostStocked"),
+        field("pathfinderPillarStockBlocks"),
         field("walkerRecoveryHopFloorGate"),
         field("walkerFromEndNoProgressDiscard"),
         field("walkerTailConsumeDirectional"),
