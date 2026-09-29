@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.mixin.client;
 
 import net.magicterra.worlddriver.bot.movement.ClientIntents;
+import net.magicterra.worlddriver.bot.movement.FrameSearchPump;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
@@ -9,6 +10,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
@@ -45,5 +47,20 @@ abstract class MinecraftMixin {
               at = @At(value = "INVOKE", target = "Lnet/minecraft/client/KeyMapping;isDown()Z"))
     private boolean worlddriver$keyDownOrBotIntent(KeyMapping key) {
         return key.isDown() || (key == options.keyUse && ClientIntents.useHeld());
+    }
+
+    /** The frame limiter's slack goes to the bot's path search; see {@link FrameSearchPump}. */
+    @ModifyArg(method = "runTick(Z)V",
+               at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;limitDisplayFPS(I)V"))
+    private int worlddriver$searchInFrameSlack(int fps) {
+        FrameSearchPump.spendSlack(fps);
+        return fps;
+    }
+
+    @Inject(method = "runTick(Z)V",
+            at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;limitDisplayFPS(I)V",
+                     shift = At.Shift.AFTER))
+    private void worlddriver$frameStarted(boolean tick, CallbackInfo ci) {
+        FrameSearchPump.frameStarted();
     }
 }

@@ -137,7 +137,8 @@ final class WalkerTickSearch {
             // standing still. Spend a much bigger slice to finish it ~5× sooner; while
             // walking, keep the thin slice so frames stay smooth.
             boolean idleNoPath = wk.path == null || wk.step >= wk.path.size();
-            long slice = idleNoPath
+            FrameSearchPump.offer(wk);
+            long slice = FrameSearchPump.pumping() ? 1 : idleNoPath   // frames spend the limiter's slack on it: see FrameSearchPump
                     ? Math.max(BotConfig.pathfinderSliceMs, BotConfig.pathfinderIdleSliceMs)
                     : BotConfig.pathfinderSliceMs;
             searchDone = wk.seg.activeSearch.advance(slice);
