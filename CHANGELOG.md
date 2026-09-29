@@ -85,6 +85,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   has landed does not hop again.** Sprinted, the leap flew past into the pit behind; unsprinted it
   fell short into the dip on some starts, about 2 s either way. A leap that landed short of its node
   hopped a second time, and on some starts over into the pit behind.
+- **A jump cut short no longer leaves the bot standing still for eight ticks.** Minecraft refuses a
+  new jump for 10 ticks after each take-off unless the jump key is let go. The bot held the key, so
+  a hop cut short by a ceiling or a step landed and then stood for the rest of those ticks. The bot
+  now lets go of the key for one tick when that delay would hold it, on the client and on
+  server-side bots. A moving bot with any part of its body under a block two above its feet waits
+  one more grounded tick before a step jump, which before rose 0.2 and landed back.
 
 ## 2026-09-28
 
