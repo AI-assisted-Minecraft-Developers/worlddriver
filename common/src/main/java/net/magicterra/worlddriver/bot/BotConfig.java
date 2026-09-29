@@ -568,6 +568,10 @@ public final class BotConfig {
 
     /** Extra g-cost on a DRY diagUp (base 19); &gt;0 prefers the cardinal stepUp+walk L over a diagonal riser's late jump. */
     public static volatile double pathfinderDiagAscendPenalty = 0;
+    /** Half-width {@code PathSmoothing.losWalkableBody} sweeps; 0.3 is the box exactly, leaving no margin. */
+    public static volatile double walkerCarrotBodyHalfWidth = 0.4;
+    /** Take a stair flight riser by riser: carrot and trend centroid stop at its first riser, and a +1 jump aims at its node until it lands. */
+    public static volatile boolean walkerCarrotStopAtRise = true;
     /** Keep sprint through a diagonal +1 take-off (the diagAscent/stepJump vetoes), for the sprint-jump boost. */
     public static volatile boolean walkerDiagAscentSprint = true;
 

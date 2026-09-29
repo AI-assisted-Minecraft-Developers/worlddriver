@@ -238,18 +238,28 @@ public final class PathSmoothing {
      *  width instead of shrinking pursuit). Used by the Walker's carrotPoint behind
      *  {@code walkerCarrotBodyLos}; path smoothing keeps the cheaper ray test. */
     public static boolean losWalkableBody(WorldView w, BlockPos a, BlockPos b) {
+        return losWalkableBody(w, a.getX() + 0.5, a.getZ() + 0.5, a, b);
+    }
+
+    /** {@link #losWalkableBody(WorldView, BlockPos, BlockPos)} from the exact point (ax, az) inside
+     *  cell {@code a} rather than its centre: a body half a block off-centre crosses cells the
+     *  centre line misses. */
+    public static boolean losWalkableBody(WorldView w, double ax, double az, BlockPos a, BlockPos b) {
         int steps = 2 * Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
-        if (steps == 0) return true;
-        double ax = a.getX() + 0.5, az = a.getZ() + 0.5;
-        double bx = b.getX() + 0.5, bz = b.getZ() + 0.5;
+        return steps == 0 || losWalkableBody(w, ax, az, a, b.getX() + 0.5, b.getZ() + 0.5, b.getY(), steps,
+                BotConfig.walkerCarrotBodyHalfWidth);
+    }
+
+    private static boolean losWalkableBody(WorldView w, double ax, double az, BlockPos a, double bx, double bz, int by,
+                                           int steps, double hw) {
         for (int s = 1; s <= steps; s++) {
             double t = (double) s / steps;
             double fx = ax + (bx - ax) * t;
             double fz = az + (bz - az) * t;
-            int y = (int) Math.round(a.getY() + (b.getY() - a.getY()) * t);
+            int y = (int) Math.round(a.getY() + (by - a.getY()) * t);
             for (int cx = -1; cx <= 1; cx += 2)
                 for (int cz = -1; cz <= 1; cz += 2) {
-                    BlockPos c = new BlockPos((int) Math.floor(fx + cx * 0.3), y, (int) Math.floor(fz + cz * 0.3));
+                    BlockPos c = new BlockPos((int) Math.floor(fx + cx * hw), y, (int) Math.floor(fz + cz * hw));
                     if (!w.isPassable(c) || w.isHazard(c)) return false;
                     if (!w.isPassable(c.offset(0, 1, 0)) || w.isHazard(c.offset(0, 1, 0))) return false;
                 }

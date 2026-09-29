@@ -2956,7 +2956,11 @@ public final class Walker {
         // the LOS ray fits (jungle trunks). Collapse pursuit to the immediate node —
         // the A* chain is walkable at player width by construction (walkerCarrotHColShrink).
         if (BotConfig.walkerCarrotHColShrink && churn.hColRamTicks >= 8) remaining = 0.01;
-        double cx = px, cz = pz, tx = px, tz = pz;
+        // No LOS even to the current node falls back to that node, not to the bot itself: a zero aim
+        // vector holds the stale yaw, and a bot that walked off a pulled diagonal kept ramming the
+        // corner it had drifted onto (live 2026-09-28, 1389.57,66,-478.70: 38 ticks, bearing to wp -131, yaw -178).
+        double cx = px, cz = pz;
+        double tx = step < path.size() ? path.get(step).getX() + 0.5 : px, tz = step < path.size() ? path.get(step).getZ() + 0.5 : pz;
         for (int i = step; i < path.size() && i - step <= CARROT_MAX_NODES; i++) {
             BlockPos node = path.get(i);
             double nx = node.getX() + 0.5, nz = node.getZ() + 0.5;
@@ -2968,9 +2972,18 @@ public final class Walker {
             double seg = Math.hypot(nx - cx, nz - cz);
             if (seg < 1e-6) { tx = nx; tz = nz; continue; }
             if (remaining <= seg) {
-                double t = remaining / seg;
-                return new double[]{cx + (nx - cx) * t, cz + (nz - cz) * t};
+                double t = remaining / seg, ax = cx + (nx - cx) * t, az = cz + (nz - cz) * t;
+                // Past a corner the chord to the carrot is not the checked foot→node line: live
+                // 1489,65,-399 was a pit beside the 1491,66,-400 corner that the chord crossed.
+                BlockPos carrot = BlockPos.containing(ax, node.getY(), az);
+                if (i > step && !PathSmoothing.losWalkableBody(world, px, pz, foot, carrot))
+                    return new double[]{cx, cz};
+                return new double[]{ax, az};
             }
+            // The LOS test ramps y from foot to node, so it passes a straight line up a stair flight that
+            // takes one jump per riser: live 1543,64,-151 aimed 45° off a three-stepUp flight and fell
+            // into the pit beside it (1541,62,-154), then pillared out (5 s).
+            if (BotConfig.walkerCarrotStopAtRise && node.getY() > foot.getY()) return new double[]{nx, nz};
             remaining -= seg;
             cx = nx; cz = nz; tx = nx; tz = nz;
         }
