@@ -255,9 +255,8 @@ public final class BotConfig {
      *  mc.bot.combat} verb works regardless of this flag). */
     public static volatile boolean autoFight = false;
 
-    /** ThreatScanner score (0–1) a hostile must reach to trigger {@link #autoFight}.
-     *  Low default — any visible hostile within scan range is worth engaging when
-     *  auto-fight is deliberately turned on. */
+    /** ThreatScanner score (0–1) a hostile must reach to trigger {@link #autoFight}. Low default —
+     *  any visible hostile within scan range is worth engaging when auto-fight is deliberately turned on. */
     public static volatile double autoFightThreatThreshold = 0.05;
 
     /** Melee engage distance (blocks, centre-to-centre). The combat loop closes to
@@ -574,6 +573,8 @@ public final class BotConfig {
     public static volatile double walkerCarrotBodyHalfWidth = 0.4;
     /** Half-width {@code WalkerTickAim.trendWithRoom} sweeps a heading at; 0.3 = the body's own, no margin. */
     public static volatile double walkerHeadingClearHalfWidth = 0.4;
+    /** The path projection also scans the leg the bot is on, not only the ones past its node; see {@code PathProjection.compute}. */
+    public static volatile boolean walkerProjectCurrentLeg = true;
     /** Take a stair flight riser by riser: carrot and trend centroid stop at its first riser, and a +1 jump aims at its node until it lands. */
     public static volatile boolean walkerCarrotStopAtRise = true;
     /** Airborne on the step before a stairUpBreak, start its dig so the last break's destroyDelay burns in the air; see {@code WalkerDig.preDigNextBreak}. */
@@ -1061,9 +1062,8 @@ public final class BotConfig {
      *  inventory (creative skips the inventory check via auto-pickItem). */
     public static volatile String autoBackfillBlock = "minecraft:cobblestone";
 
-    /** Chebyshev radius around the player within which {@link #autoBackfill}
-     *  considers tracked-air cells for filling. Larger = more aggressive
-     *  but more pathing per tick. */
+    /** Chebyshev radius around the player within which {@link #autoBackfill} considers tracked-air
+     *  cells for filling. Larger = more aggressive but more pathing per tick. */
     public static volatile int autoBackfillRadius = 6;
 
     /** gap#68-⑧: ticks after a respawn during which autoFight does NOT re-engage and

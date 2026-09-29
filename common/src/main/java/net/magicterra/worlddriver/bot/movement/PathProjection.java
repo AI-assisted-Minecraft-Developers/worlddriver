@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.movement;
 
 import net.minecraft.core.BlockPos;
+import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 
@@ -71,7 +72,12 @@ public final class PathProjection {
         // path that climbs back over its own column (R1 1390,82..84,-520) otherwise projected a bot still on
         // y81 onto it and spent two climb nodes at once. Only the projection stops there; the heading scan goes on.
         boolean aboveReach = false;
-        for (int i = step; i < scanEnd; i++) {
+        // The bot walks the leg INTO path[step]; scanning from step alone left that leg out, harmless when nodes
+        // are a block apart but not on a string-pulled leg: R1 1426,64,-399 → 1411,64,-414 → 1411,64,-416
+        // projected 15.7 off onto the 2-block stub past the node, and the pursuit cut the corner at the stub's
+        // end, 0.30 off the birch at 1418,64,-409 the leg itself clears by 0.71. Barriers still start at step.
+        int from = BotConfig.walkerProjectCurrentLeg && step > 0 && step < n ? step - 1 : step;
+        for (int i = from; i < scanEnd; i++) {
             BlockPos a = path.get(i), b = path.get(i + 1);
             aboveReach |= i > step && a.getY() - footY >= 2;   // the step's own segment always projects
             double ax = a.getX() + 0.5, az = a.getZ() + 0.5;
@@ -82,6 +88,7 @@ public final class PathProjection {
             double cx = ax + t * vx, cz = az + t * vz;
             double d2 = (px - cx) * (px - cx) + (pz - cz) * (pz - cz);
             if (d2 < bestD2 && !aboveReach) { bestD2 = d2; bestSeg = i; bestT = t; }
+            if (i < step) continue;
             // V-shaped submerged-below dive barrier (mirrors adoptPath): everything beyond a node that sits
             // >1 below the foot AND is water is only reachable THROUGH the dive — stop the forward scan.
             if (b.getY() - footY < -1 && world.isWater(b)) { barrier = true; aheadEnd = i + 1; break; }
