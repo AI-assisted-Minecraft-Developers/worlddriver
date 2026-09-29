@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to 200,000 for a goto to a block. When no block in range is usable the scan still runs to its
   end, since only then is that known.
 
+## 2026-09-29
+
+- **A long path search no longer halves the client's frame rate.** On a client with a frame-rate
+  cap, the search now runs in the part of each frame the cap would otherwise spend waiting, instead
+  of taking up to 30 ms of the frame each game tick. On R1 at a 120 fps cap, the two large searches
+  had held the client at 60-65 fps for as long as they ran; they no longer lower it. An uncapped
+  client and a dedicated server search as before.
+
 ## 2026-09-28
 
 - **The version names its build, and StageWright comes from a public Nexus.** The version is
