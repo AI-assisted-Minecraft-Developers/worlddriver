@@ -15,6 +15,13 @@ checked against the current tree. Read the code before acting on one.
 
 ## Engine and mod code
 
+### GUI driving still goes by pixel coordinates
+
+`mc.client.screen.tree` → `mc.client.input.click {x,y}` → `screen.info` is three round trips per
+click, and a stale coordinate lands on whatever sits there now (a world-list click hit "delete").
+Wanted, agent-browser style: `screen.tree` hands out stable element refs, the input verbs accept a
+ref, and every GUI action returns the resulting screen snapshot so no separate observe is needed.
+
 ### The R1 route still bumps leaves and a pit
 
 Route R1 (1574,66,-102 → 1385,-625): after a one-block step down the head hits a block at landing + 2
