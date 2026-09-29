@@ -1014,6 +1014,10 @@ public final class PathFinder {
             if (!world.isWater(from) || world.isWater(to)) return 0;   // only water → dry
             int rise = to.getY() - from.getY();
             if (rise <= 0) return 0;                                   // surface-level/down exits free
+            // Wading (floor under the foot, head in air) is not afloat: a +1 exit there is a plain
+            // step. Taxing it made A* dig through the sand lip instead (live 1431,62,-355: break 20 t
+            // + a diagUp 31 t out of a knee-deep pond).
+            if (rise == 1 && !world.isWater(from.below()) && !world.isWater(from.above())) return 0;
             double tax = per * rise;
             // Floating-SOURCE climb-out (water directly below the foot → buoyant bot, no solid
             // floor to push off): even a LOW +1..+3 exit can't be swim-jumped or sand-pillared —

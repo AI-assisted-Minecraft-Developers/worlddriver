@@ -14,7 +14,31 @@ import net.minecraft.core.BlockPos;
  * Walk+Diagonal pair would be cheaper. Cost ≈ 33 ≈ sqrt(8)*10 + jump.
  */
 public final class Parkour2Diagonal extends Move {
+    /** Extra cost when the corner swept by the leap has water under it: a short diagonal leap lands
+     *  in the gap often enough (4 of 17 on the R1 route, at 1567,-109 and 1548,-141) that the swim
+     *  back out, ~3 s, belongs in its price. */
+    static final double WATER_GAP_TAX = 30;
+
     public Parkour2Diagonal(int dx, int dz) { super(dx * 2, 0, dz * 2, 33); }
+
+    @Override public Edge eval(WorldView w, BlockPos from) {
+        if (!valid(w, from)) return null;
+        int sx = Integer.signum(dx), sz = Integer.signum(dz);
+        boolean wet = wetUnder(w, from.offset(sx, 0, sz)) || wetUnder(w, from.offset(sx, 0, 0))
+                || wetUnder(w, from.offset(0, 0, sz));
+        return new Edge(apply(from), cost + (wet ? WATER_GAP_TAX : 0), java.util.List.of(), java.util.List.of(), name());
+    }
+
+    /** Whether the first non-air cell under the gap column {@code c} is water — at 1549,-140 the
+     *  surface sits two below the leap's feet with air between. */
+    private static boolean wetUnder(WorldView w, BlockPos c) {
+        for (int d = 1; d <= 3; d++) {
+            BlockPos b = c.below(d);
+            if (w.isWater(b)) return true;
+            if (!w.isPassable(b)) return false;
+        }
+        return false;
+    }
     public boolean valid(WorldView w, BlockPos from) {
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
         // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.

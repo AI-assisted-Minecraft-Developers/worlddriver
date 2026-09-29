@@ -28,11 +28,15 @@ public final class SurfaceClimbOut extends Move {
         if (!w.isPassable(to) || w.isHazard(to)) return false;
         BlockPos head = to.above();
         if (!w.isPassable(head) || w.isHazard(head)) return false;
-        return w.canStandOn(from.below()) || bankBeside(w, to) || sideFoothold(w, from);
+        return w.canStandOn(from.below()) || (bankBeside(w, to) && Move.hasPlaceSupport(w, from))
+                || sideFoothold(w, from);
     }
 
     /** A solid beside the risen feet: the player presses into it and vanilla's swim boost lifts it
-     *  clear of the fill cell. */
+     *  clear of the fill cell. The fill cell is {@code from}, not {@code to}, so it needs a face of
+     *  its own to click against: a bank that is solid only at the risen height leaves a fill cell
+     *  ringed by water, and the takeover then waits forever on a click it can never make (live
+     *  2026-09-28, 1471,62,-261: support=false with the crest cleared, ~20 s). */
     private static boolean bankBeside(WorldView w, BlockPos to) {
         return w.isSolid(to.east()) || w.isSolid(to.west()) || w.isSolid(to.north()) || w.isSolid(to.south());
     }
