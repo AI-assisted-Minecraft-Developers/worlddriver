@@ -568,6 +568,8 @@ public final class BotConfig {
 
     /** Extra g-cost on a DRY diagUp (base 19); &gt;0 prefers the cardinal stepUp+walk L over a diagonal riser's late jump. */
     public static volatile double pathfinderDiagAscendPenalty = 0;
+    /** Keep sprint through a diagonal +1 take-off (the diagAscent/stepJump vetoes), for the sprint-jump boost. */
+    public static volatile boolean walkerDiagAscentSprint = true;
 
     /** Per-water-cell g-cost added to EVERY move that enters a water cell, for
      *  Y-agnostic (XZ) goals only — on top of the base {@code waterDangerPenalty}.
@@ -1937,6 +1939,11 @@ public final class BotConfig {
      *  momentum instead of stall-recentre-jump per step — the recentre window on a slope is exactly the slide-back
      *  window (slow-map y sawtooth). Direction changes keep the strict gate. Default OFF. */
     public static volatile boolean walkerChainMount = false;
+
+    /** Jump a dry +1 riser at its face distance along the velocity, keeping sprint (R1: 26/39 jumps fired at the face). */
+    public static volatile boolean walkerRiserLeadJump = true;
+    /** {@link #walkerRiserLeadJump} only for the riser under the node itself, not one beside it. */
+    public static volatile boolean walkerRiserLeadExact = true;
 
     /** task#82: weave the thin per-move AscendMovement episode tracker over ascent edges
      *  (stepUp/stairUpBreak/diagUp; B1 adjudication — the machine never actuates, PREP/RUNNING/

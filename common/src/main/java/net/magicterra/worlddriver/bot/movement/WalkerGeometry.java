@@ -577,46 +577,49 @@ public final class WalkerGeometry {
                 && world.isPassable(riser.offset(0, 2, 0));     // head room once standing on the riser
     }
 
-    /** True if a DEEP floating-water cell ({@link WorldView#isFloatingWater}: water with
-     *  water directly below — ≥2 deep, no floor in jump range) lies within {@code radius}
-     *  blocks horizontally of the foot AND within a short ({@code ≤maxDrop}) open fall column
-     *  from foot level, with a clear (un-walled) drop to it. The water analogue of
-     *  {@link #dropAdjacentExceeds}: that helper counts only DRY drops (it {@code continue}s
-     *  past any water as a harmless splash) and only the 8 immediate neighbours, so a descent
-     *  that borders a deep pocket SET BACK behind a stepped/sloped bank face is invisible to
-     *  both the lethal sneak-pin and the steep-descent sprint brake. A buoyant bot that drifts
-     *  into such a cell floats and cannot climb out, so the deep-water drift brake drops sprint
-     *  to keep the bot on the dry staircase line.
-     *  <p>Why a horizontal RADIUS (not just the 8 neighbours like the dry brakes): a dry cliff
-     *  edge IS an immediate neighbour, but a deep pocket sits against a TALL bank whose face is
-     *  stepped, so while the bot is still GROUNDED on the upper steps the open water is 2 cells
-     *  away (live -870: grounded foot x-871, the floating-water column begins at x-869/-868) and
-     *  the bot only goes airborne — losing the {@code onGround} precondition — once it has
-     *  already drifted off. A 2-cell reach catches the water before the launch, matching the
-     *  ~1.5-2 blocks of lateral overshoot a sprint adds on a descent.
-     *  <p>For each cell in the ring: skip a SOLID cell (a wall the bot can't drift through);
-     *  if it is itself floating water at foot level, hit. Otherwise scan its fall column — deep
-     *  water within {@code maxDrop} = a drift-in hazard; a solid or SHALLOW-water floor first
-     *  (1-deep splash, not floating water) terminates the column as a safe landing, so it never
-     *  fires walking a 1-deep ford or onto a flush bank. */
-    public static boolean deepWaterDropAdjacent(WorldView world, BlockPos foot, int radius, int maxDrop) {
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                if (dx == 0 && dz == 0) continue;
-                BlockPos n = foot.offset(dx, 0, dz);
-                if (world.isSolid(n)) continue;                 // a wall/step face — no drift through it
-                if (world.isFloatingWater(n)) return true;      // deep water at foot level within reach
-                if (world.isWater(n)) continue;                 // shallow water at foot level (floor below) — a safe splash
-                // Open cell: scan the fall column. Deep water under it (within maxDrop) = a
-                // drift-in hazard; a solid/shallow floor first = a DRY drop (left to the lethal /
-                // steep-descent brakes), not ours.
-                BlockPos c = n.below();
-                for (int d = 1; d <= maxDrop; d++) {
-                    if (world.isFloatingWater(c)) return true;
-                    if (world.isSolid(c) || world.isWater(c)) break;   // hit a floor (or shallow splash) before any deep water
-                    c = c.below();
-                }
+    /**
+     * True if a DEEP floating-water cell ({@link WorldView#isFloatingWater}) lies under any part of
+     * the body's width (±0.3) within {@code reach} blocks along its horizontal velocity, at foot level
+     * or down an open fall column of {@code ≤maxDrop}. The water analogue of
+     * {@link #dropAdjacentExceeds}, which counts only DRY drops: a buoyant bot that drifts into such a
+     * cell floats and cannot climb out, so the drift brake drops sprint to keep it on the dry line.
+     * <p>Why a reach, not the adjacent cell: a deep pocket sits against a TALL bank whose face is
+     * stepped, so the grounded bot on the upper steps is 2 cells from the water (live -870: foot
+     * x-871, water from x-869) and loses {@code onGround} only once it has already drifted off.
+     * <p>Why along the velocity, not a ring round the foot: the ring took the sprint for the length of
+     * every bank and pool the walk merely passed (live 2026-09-28 R1, 1551,65,-139..-143 beside a
+     * one-wide stream and 1565,64,-113 beside a pool: 0.20-0.22 a tick, 747 vetoed ticks over three
+     * runs). Below 0.05 a tick nothing is drifting anywhere.
+     */
+    public static boolean deepWaterAlongVelocity(WorldView world, double px, double pz, int footY,
+                                                 double vx, double vz, double reach, int maxDrop) {
+        double v = Math.hypot(vx, vz);
+        if (v < 0.05) return false;
+        double ux = vx / v, uz = vz / v;
+        BlockPos last = null;
+        for (double s = 0.25; s <= reach; s += 0.25) {
+            for (double w = -0.3; w <= 0.3; w += 0.3) {
+                BlockPos c = BlockPos.containing(px + ux * s - uz * w, footY, pz + uz * s + ux * w);
+                if (c.equals(last)) continue;
+                last = c;
+                if (deepWaterColumn(world, c, maxDrop)) return true;
             }
+        }
+        return false;
+    }
+
+    /** Deep water at {@code n} or under it within {@code maxDrop}, before any floor. */
+    private static boolean deepWaterColumn(WorldView world, BlockPos n, int maxDrop) {
+        if (world.isSolid(n)) return false;                 // a wall/step face — no drift through it
+        if (world.isFloatingWater(n)) return true;          // deep water at foot level within reach
+        if (world.isWater(n)) return false;                 // shallow water at foot level (floor below) — a safe splash
+        // Open cell: scan the fall column. Deep water under it (within maxDrop) = a drift-in hazard;
+        // a solid/shallow floor first = a DRY drop (left to the lethal / steep-descent brakes), not ours.
+        BlockPos c = n.below();
+        for (int d = 1; d <= maxDrop; d++) {
+            if (world.isFloatingWater(c)) return true;
+            if (world.isSolid(c) || world.isWater(c)) return false;   // hit a floor (or shallow splash) before any deep water
+            c = c.below();
         }
         return false;
     }

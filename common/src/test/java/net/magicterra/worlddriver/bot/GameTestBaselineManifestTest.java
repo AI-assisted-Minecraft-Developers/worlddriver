@@ -184,6 +184,9 @@ class GameTestBaselineManifestTest {
 
             // the R1 route work (2026-09): each was measured on the real client over jittered full
             // runs before it shipped ON, so the arena runs it — a scene it breaks is a finding, not noise
+            e("walkerRiserLeadJump", "jump a dry +1 riser at its face distance, keeping sprint"),
+            e("walkerRiserLeadExact", "the riser lead only for the riser under the node itself"),
+            e("walkerDiagAscentSprint", "keep sprint through a diagonal +1 take-off"),
             e("walkerCommitTailPeak", "cut a best-effort segment whose tail sinks into a dip back to its ridge"),
             e("combatCrit", "jump before a melee swing for the 1.5x critical"),
             e("combatCollectDrops", "post-kill drop sweep"),
