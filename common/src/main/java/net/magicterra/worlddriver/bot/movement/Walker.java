@@ -415,6 +415,7 @@ public final class Walker {
         int windowTicks;       // ticks elapsed in the current window
         int escapes;           // consecutive windows that detected churn (escalates the charge radius)
         int hColRamTicks;      // wall-corner: consecutive ticks of sustained horizontalCollision (the signature of the bot pinned against a wall)
+        int cycle;             // this window: 0 near base, 1 left it, 2 came back to it (WalkerTickStallDetect.trackWindow)
         void resetForNewGoal() {
             base = null;
             windowTicks = 0;
