@@ -455,6 +455,9 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         BlockPos goalN = new BlockPos(cx - 6, waterY, cz);
         BlockPos padCell = new BlockPos(cx + 1, waterY + 1, cz);   // the pinned bot's OWN head cell
         Runnable setup = () -> {
+            // Wall across the channel at the node, foot and head: the head block alone pinned only an upright
+            // treader, and a sprint-swimmer (0.6 tall) slid under it; the pass came from scraping the side wall.
+            level.setBlockAndUpdate(node, Blocks.STONE.defaultBlockState());
             level.setBlockAndUpdate(node.above(), Blocks.STONE.defaultBlockState());       // head-wall → deterministic pin
             level.setBlockAndUpdate(padCell, Blocks.LILY_PAD.defaultBlockState());
         };
