@@ -572,6 +572,8 @@ public final class BotConfig {
     public static volatile double walkerDescentYawAlpha = 0.5;
     /** Half-width {@code PathSmoothing.losWalkableBody} sweeps; 0.3 is the box exactly, leaving no margin. */
     public static volatile double walkerCarrotBodyHalfWidth = 0.4;
+    /** Half-width {@code WalkerTickAim.trendWithRoom} sweeps a heading at; 0.3 = the body's own, no margin. */
+    public static volatile double walkerHeadingClearHalfWidth = 0.4;
     /** Take a stair flight riser by riser: carrot and trend centroid stop at its first riser, and a +1 jump aims at its node until it lands. */
     public static volatile boolean walkerCarrotStopAtRise = true;
     /** Airborne on the step before a stairUpBreak, start its dig so the last break's destroyDelay burns in the air; see {@code WalkerDig.preDigNextBreak}. */
@@ -944,9 +946,8 @@ public final class BotConfig {
      *  re-verified 109/109 with it ON. */
     public static volatile boolean pathfinderProgressive = true;
 
-    /** Y plane targeted by {@code mc.bot.goto{axis:true}} — Baritone's
-     *  {@code axisHeight} setting (default 120, the classic "highway" Y). Read
-     *  when an Axis goal is constructed. */
+    /** Y plane targeted by {@code mc.bot.goto{axis:true}} — Baritone's {@code axisHeight} setting
+     *  (default 120, the classic "highway" Y). Read when an Axis goal is constructed. */
     public static volatile int axisHeight = 120;
 
     /** Camera smoothing for stream/demo scenarios. When on, the pathfinding
@@ -1056,9 +1057,8 @@ public final class BotConfig {
      *  tunnels behind a {@code mc.bot.mine} pass. Off by default. */
     public static volatile boolean autoBackfill = false;
 
-    /** Block id used when {@link #autoBackfill} fires. Must be a vanilla block
-     *  the player has in their inventory (creative skips the inventory check
-     *  via auto-pickItem). */
+    /** Block id used when {@link #autoBackfill} fires. Must be a vanilla block the player has in their
+     *  inventory (creative skips the inventory check via auto-pickItem). */
     public static volatile String autoBackfillBlock = "minecraft:cobblestone";
 
     /** Chebyshev radius around the player within which {@link #autoBackfill}

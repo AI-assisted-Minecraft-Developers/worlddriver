@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-29
 
+- **A walking bot's trend heading keeps a margin from trunks and walls.** The check that the
+  heading averaged over the next few nodes has room for the body swept exactly the body's width, so
+  a heading that put the body's side flush against a trunk counted as clear. It now sweeps 0.4
+  blocks either side of the centre, as the path straightening already did, set by
+  `walkerHeadingClearHalfWidth`. Over twelve R1 runs alternating 0.4 and 0.3 in one client, the
+  median time went from 141.1 s to 139.8 s. The same margin on the check that turns a heading
+  away from a wall left the bot stuck in a one-wide doorway and at the foot of a wall rising
+  from water, so that check still sweeps the body's own width.
 - **A bot that has to turn sharply onto a step up turns before it jumps.** Whether it faced the step
   was judged against its smoothed heading, which lags a sharp turn along with the body, so on the
   turn's first tick it read as facing the step. On R1 the bot stood in a notch at 1387,76,-510 facing

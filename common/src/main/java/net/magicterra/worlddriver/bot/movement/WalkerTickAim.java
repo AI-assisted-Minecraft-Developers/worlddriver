@@ -137,13 +137,19 @@ final class WalkerTickAim {
      *  and drives on: into the dark oak at R1 1389,112,-584 three times a run, the corner node's bearing in hand. */
     private static float aroundWall(Walker wk, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
         if (openHeading(wk, world, p, foot, yaw)) return yaw;
-        double[] q = reachableAim(wk, world, foot, p.getX(), p.getZ());        if (q != null) return (float) Math.toDegrees(Math.atan2(-(q[0] - p.getX()), q[1] - p.getZ()));
+        double[] q = reachableAim(wk, world, foot, p.getX(), p.getZ());
+        if (q != null) return (float) Math.toDegrees(Math.atan2(-(q[0] - p.getX()), q[1] - p.getZ()));
         return nextNodeHeading(wk, world, p, foot, yaw);
     }
 
+    /** Swept at the body's own half-width: a margin here stranded the bot in a one-wide doorway
+     *  (wd.serverStepsDownAPlanItSpentInOneTick) and on a water-side wall (wd.buoyantWall). */
     private static boolean openHeading(Walker wk, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
-        return headingClear(world, p, foot, yaw, true) && !unplannedDrop(wk, world, p, foot, yaw);
+        return headingClear(world, p, foot, yaw, true, BODY_HALF_WIDTH) && !unplannedDrop(wk, world, p, foot, yaw);
     }
+
+    /** The player's half-width: a heading swept at it can only be walked flush. */
+    private static final double BODY_HALF_WIDTH = 0.3;
 
     /** The bearing to the first of the current node (unless the body is on or past it: a node behind turned the
      *  camera a full circle down the R1 steps at 1439,67,-352) and the two after it that
@@ -239,16 +245,18 @@ final class WalkerTickAim {
         return headingClear(world, p, foot, nodeYaw) ? nodeYaw : centroidYaw;
     }
 
-    /** Whether the body box, carried {@link #HEADING_CLEAR_DIST} along {@code yaw} at the foot's level, meets no solid cell. */
+    /** Whether the body box widened to {@code walkerHeadingClearHalfWidth}, carried {@link #HEADING_CLEAR_DIST} along
+     *  {@code yaw} at the foot's level, meets no solid cell. At the body's own 0.3 a heading with the body's side
+     *  flush against a trunk passes. */
     private static boolean headingClear(WorldView world, LivingEntity p, BlockPos foot, float yaw) {
-        return headingClear(world, p, foot, yaw, false);
+        return headingClear(world, p, foot, yaw, false, Math.max(BODY_HALF_WIDTH, BotConfig.walkerHeadingClearHalfWidth));
     }
 
     /** {@link #headingClear}, optionally letting through what a jump takes: a riser, or the second step of a flight
      *  behind it, with head room above. What stays in the way is a block at head height (a leaf over the lane) or
      *  one that goes on up (a trunk, a wall). */
-    private static boolean headingClear(WorldView world, LivingEntity p, BlockPos foot, float yaw, boolean risersPass) {
-        double ux = -Math.sin(Math.toRadians(yaw)), uz = Math.cos(Math.toRadians(yaw)), hw = 0.3;
+    private static boolean headingClear(WorldView world, LivingEntity p, BlockPos foot, float yaw, boolean risersPass, double hw) {
+        double ux = -Math.sin(Math.toRadians(yaw)), uz = Math.cos(Math.toRadians(yaw));
         for (double d = 0.25; d <= HEADING_CLEAR_DIST; d += 0.25) {
             double fx = p.getX() + ux * d, fz = p.getZ() + uz * d;
             for (int sx = -1; sx <= 1; sx += 2)
