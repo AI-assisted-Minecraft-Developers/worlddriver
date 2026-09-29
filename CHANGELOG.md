@@ -70,6 +70,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pathfinderPillarCost` with no blocks to `pathfinderPillarCostStocked` at the stock count
   (default 64). Both prices default to 150, so nothing changes unless they are set; on a 34-level
   hill the climb took 53 s at 150 and 41 s at 20.
+- **A walking bot jumps a one-block step at the last moment that still clears it, and sprints into
+  the jump** (`walkerRiserLeadJump`, `walkerRiserLeadExact`). Before, it walked the approach and
+  jumped close to the step. Only the block under the step's own node counts, so a block beside it
+  that the bot's velocity happens to meet is not jumped at.
+- **Sprint is kept through a diagonal step up** (`walkerDiagAscentSprint`) **and on the last node of
+  a best-effort stretch**, which has the next stretch after it.
+- **The deep-water brake drops sprint only for water the bot is moving toward.** It checked a ring
+  round the feet, so a bot walking past a pond or stream walked the whole way unsprinted: on R1 that
+  was 195 ticks a run, about 3 s of the route.
 
 ## 2026-09-28
 

@@ -12,6 +12,7 @@ import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.core.Direction;
+import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
@@ -104,11 +105,12 @@ final class WalkerTickDrive {
     /**
      * The LAST node is spent by closing to within ~0.67 of its centre, and a sprinting bot turning
      * onto it from a diagonal passes wider than that (see WalkerTickAim's last-node note). Walk the
-     * final two blocks; there is nothing after them to carry momentum into.
+     * final two blocks; there is nothing after them to carry momentum into. A best-effort segment's
+     * last node has its continuation after it, so it keeps the sprint.
      */
     private static boolean finalApproach(Walker wk, LivingEntity p, BlockPos wp, boolean parkourEdge) {
         double dx = (wp.getX() + 0.5) - p.getX(), dz = (wp.getZ() + 0.5) - p.getZ();
-        return BotConfig.walkerFinalNodeDirectAim && !p.isInWater() && !parkourEdge
+        return BotConfig.walkerFinalNodeDirectAim && !p.isInWater() && !parkourEdge && !wk.seg.pathBestEffort
                 && wk.step == wk.path.size() - 1 && dx * dx + dz * dz < FINAL_APPROACH_WALK_SQ;
     }
 
@@ -217,6 +219,8 @@ final class WalkerTickDrive {
                 && (eyeGap > 0.3 ? vy < 0.05 : vy <= 0.005);
         return new Cruise(true, !swimming || l.cruiseSwimTicks <= CRUISE_SINK_TICKS, swimming, lift);
     }
+
+    private static final double RISER_SCAN = 1.6;       // farther than any lead a sprint launch needs (~1.05)
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
@@ -882,10 +886,13 @@ final class WalkerTickDrive {
         // neighbour). A dry fall column self-terminates at its first solid/shallow floor, so a
         // wider/deeper scan only adds reach toward genuinely deep water, never a dry-cliff false
         // positive. 2 covers the lateral overshoot a sprint adds; 7 the 6-deep drift with margin.
+        // Only water the velocity is carrying the body toward counts: the ring walked past every
+        // pond unsprinted (live 2026-09-28 R1: 195 vetoed ticks a run, ~3 s of the route).
         boolean deepWaterEdgeRaw = BotConfig.walkerDeepWaterDriftBrake && p.onGround()
                 && wp.getY() <= foot.getY()                       // descending or flush walk along the edge (not an ascent)
                 && !world.isFloatingWater(wp)                     // not a deliberate deep-water entry (the path means to swim in)
-                && deepWaterDropAdjacent(world, foot, 2, 7);
+                && WalkerGeometry.deepWaterAlongVelocity(world, p.getX(), p.getZ(), foot.getY(),
+                        p.getDeltaMovement().x, p.getDeltaMovement().z, wp.getY() < foot.getY() ? 2.5 : 1.5, 7);
         // LATCH the brake across the airborne sub-arcs of a step-down descent: a staircase is a
         // chain of small drops, so the bot is airborne (onGround false) for ~half the ticks, and
         // without the latch sprint re-arms on every airborne tick and the accumulated forward
@@ -1153,7 +1160,9 @@ final class WalkerTickDrive {
         // Jump a step only when a jump is actually needed (beyond auto-step) AND the
         // step is within reach (≤ maxJumpUp) — never bob-jump an unreachable height —
         // and, for the +1 cardinal case, only once Baritone-aligned.
-        boolean stepUpJump = needJumpForStep && upDy <= maxJumpUp && (!dryStepUp || ascendJumpReady) && !pivotForStepUp && !cruise.on();
+        double riserLead = riserLead(wk, world, p, foot);
+        boolean leadJump = riserLead <= 0;                      // NaN (no clean riser ahead) is false
+        boolean stepUpJump = leadJump || needJumpForStep && upDy <= maxJumpUp && (!dryStepUp || ascendJumpReady) && !pivotForStepUp && !cruise.on();
         // Y-MISLABELED-RISER RAM (executor riser-detection). A* can emit an edge it labels a LEVEL
         // {@code walk} (the Move has dy=0) whose DESTINATION floor is actually +1 — a mislabeled
         // ridge step. The bot, told the ground is level, SPRINTS into it (a walk edge keeps sprint),
@@ -1319,30 +1328,14 @@ final class WalkerTickDrive {
         // bobbing, can't climb out" trace stays fixed; this only speeds the approach swim.
         boolean climbApproach = p.isInWater() && !p.onGround() && wp.getY() > foot.getY()
                 && (stepColDx * stepColDx + stepColDz * stepColDz) >= 2.5;
-        // LATERAL DRIFT on steep diagonal climbs (live 2026-06-25 replay-0004 -787 ridge): sprint is
-        // already dropped on the diagonal STEP-UP itself (sprintAscend is cardinal-only), but the bot
-        // still sprints the flat run-up BETWEEN diagonal steps, and that momentum — carried through the
-        // next jump arc — pushes it laterally OFF the narrow √2 staircase line. It drifts 1-2 blocks
-        // sideways, then EITHER slides 2-3 below an ascent node (→ ascentRamSlide pillar-spam: one climb
-        // burned 56 cobble / 292 pillarUp) OR descends a crest early and rams the ridge block sideways
-        // (x frozen at -786.70, hCol, bobbing, ~2 s grind per node, totStuck 928). Dropping sprint while
-        // the NEXT node is a dry diagonal ascent keeps the bot on the line so it tracks the staircase
-        // instead of overshooting the corner. Parkour leaps + water climb-approaches still sprint (they
-        // need the momentum). Distinct from the A/B-disproven diagonal sprint-bunny-hop (that flipped
-        // sprint ON to JUMP a diagonal; this drops it to stop drift). A/B vs the 292-pillar baseline.
-        boolean diagAscent = !parkourEdge && !p.isInWater()
+        boolean diagAscent = !parkourEdge && !p.isInWater()   // why: sprintVeto's javadoc, DIAG_ASCENT
                 && wp.getX() != foot.getX() && wp.getZ() != foot.getZ() && wp.getY() > foot.getY();
-        boolean sprint = (cruise.on() && !hazardAhead && !lowHpCareful)   // the cruise IS its sprint: only hazard and low HP outrank it (see surfaceCruise)
-                || !bridging && !steppingOffFall && !steppingOffWaterFall && !diagAscent && !finalApproach(wk, p, wp, parkourEdge)
-                && !lowHpCareful  // low-HP care: sprint is the drift amplifier behind every unplanned fall — at ≤lowHealthCareful HP walk everything (DEATH #3)
-                && !hazardAhead   // never carry sprint momentum INTO a lava/hazard cell — in water too (no sneak there, but dropping sprint kills the drift that pushed the swimmer in)
-                && !descendBrake && (!lethalNear || parkourEdge) && !steepDescentNear && !deepWaterDriftNear && !descentStepSkip && (!needJumpForStep || parkourAscend || sprintAscend)   // parkourEdge (was parkourAscend): a FLAT leap over an abyss is exactly the case parkourAscend excludes, and lethalNear is only ever true over an abyss — measured 0.1563→0.1400 (no impulse, fell in) vs 0.1232→0.2475 one cell back; narrowed to parkourEdge, NOT loosened to a blanket !lethalNear, so wd.bridgeLethalGapStop's walk-off lip still loses its sprint. Full evidence: this class's javadoc. !descentStepSkip: pointer ran ahead down the staircase (wp >maxDryFall below the grounded foot) — kill sprint so no residual momentum launches the bot off the stair edge while sneak (brakeSneak) edge-guards it down. !lethalNear (not !edgeBrake): never sprint NEAR a lethal edge — incl. a planned descent past it — so no drift/overshoot momentum off the lip while sneak is released for the step-down. !deepWaterDriftNear: same, for a deep-water pocket bordering a descent/edge-walk (drift-in bob-stall). Baritone doesn't sprint a jumped CARDINAL ascend (overshoots/bonks) but DOES sprint a parkour leap; a horse auto-walk-up keeps sprint
-                // A/B-DISPROVEN (2026-06-06): re-enabling sprint on an aligned ascend (sprintableAscend)
-                // regressed hCol 13%→36% / mean hSpd .112→.082 — because the jump fires CLOSE to the riser
-                // (ascendJumpReady flatDist≤1.2), the sprint forward-boost rams the riser face HARDER instead
-                // of arcing over it. A sprint-jump only clears a step if launched EARLY (before the riser);
-                // closing that gap needs an early-jump-timing change, not just flipping sprint on. Kept no-sprint.
-                && (!p.isInWater() || flatWaterWalk || diveUnderCap || climbApproach);
+        boolean diagSprint = diagAscent && BotConfig.walkerDiagAscentSprint;
+        int sprintVeto = sprintVeto(bridging, steppingOffFall, steppingOffWaterFall, diagAscent && !leadJump && !diagSprint, finalApproach(wk, p, wp, parkourEdge),
+                lowHpCareful, hazardAhead, descendBrake, lethalNear && !parkourEdge, steepDescentNear, deepWaterDriftNear,
+                descentStepSkip, needJumpForStep && !parkourAscend && !sprintAscend && !leadJump && !diagSprint,
+                p.isInWater() && !flatWaterWalk && !diveUnderCap && !climbApproach);
+        boolean sprint = (cruise.on() && !hazardAhead && !lowHpCareful) || sprintVeto == 0;   // the cruise IS its sprint: only hazard and low HP outrank it (see surfaceCruise)
         p.setSprinting(sprint);
         // Lily pads sit ON the water plane with a real collision box; the planner
         // deliberately treats the thin shape as passable (a fast prone swim slides
@@ -1458,15 +1451,16 @@ final class WalkerTickDrive {
         if (BotConfig.walkerDebug) {
             // [dbgcollide] hard physics evidence for the hill speed-sawtooth: is the
             // bot actually COLLIDING (hitbox snagging a trunk/step face) or just
-            // turning? hSpd = horizontal velocity magnitude (sprint≈0.28 b/tick);
+            // turning? hSpd = horizontal velocity AFTER vanilla's ground friction (x0.546), so a
+            // full grounded sprint reads ~0.15 b/tick although the bot covers ~0.28 per tick;
             // hCol/minorCol = vanilla collision flags; pos = real feet so we can see
             // dwell (pos frozen while wp/yaw change = stuck, not moving).
             Vec3 dm = p.getDeltaMovement();
             double hSpd = Math.sqrt(dm.x * dm.x + dm.z * dm.z);
-            LOG.info("[walker] walk-keys yaw={} wp={},{},{} up={} jump={} sprint={} sneak={} hCol={} minorCol={} hSpd={} pos={},{},{} onG={} attack={} dryDesc={} driveYaw={} aim={} stuckT={}",
+            LOG.info("[walker] walk-keys yaw={} wp={},{},{} up={} jump={} sprint={}{} sneak={} hCol={} minorCol={} hSpd={} pos={},{},{} onG={} attack={} dryDesc={} driveYaw={} aim={} stuckT={} lead={}",
                     String.format(Locale.ROOT, "%.0f", p.getYRot()),
                     wp.getX(), wp.getY(), wp.getZ(),
-                    a.dbgForwardImpulse(), a.dbgJumping(), p.isSprinting(),
+                    a.dbgForwardImpulse(), a.dbgJumping(), p.isSprinting(), sprint ? "" : sprintVetoNames(sprintVeto),
                     a.dbgSneak(),
                     p.horizontalCollision, p.minorHorizontalCollision,
                     String.format(Locale.ROOT, "%.3f", hSpd),
@@ -1475,9 +1469,131 @@ final class WalkerTickDrive {
                     String.format(Locale.ROOT, "%.2f", p.getZ()),
                     p.onGround(), wk.hands.breakHeld(),
                     dryDescent, String.format(Locale.ROOT, "%.0f", driveTargetYaw),
-                    aimSrc, wk.stuckTicks);
+                    aimSrc, wk.stuckTicks, Double.isNaN(riserLead) ? leadWhy : String.format(Locale.ROOT, "%.2f", riserLead));
         }
         return Walker.Step.WALKING;
+    }
+
+    /** Why the last {@link #riserLead} gave no lead, for the walk-keys line only. */
+    private static String leadWhy = "";
+
+    /**
+     * {@link BotConfig#walkerRiserLeadJump}: jump the +1 riser ahead NOW if one more grounded tick
+     * would leave the box too little run to rise above it. A jump reaches y+0.42 and y+0.75 on its
+     * first two airborne ticks and clears a block top only on the third, so the face must lie beyond
+     * those two ticks' travel (sprint launch boost included); deciding once per tick, the last safe
+     * moment is when the next ground move would eat that margin. The riser is the current node when
+     * it is the +1, or the next one while the pointer still sits on the flat cell before it — that
+     * cell is only "within" half a block from the face, far too late for a sprinting launch.
+     *
+     * <p>Returns how much run is left before that moment (≤ 0: jump now), or NaN with no clean +1
+     * riser ahead. Lifting the stepJump sprint veto over the whole approach (any finite value) was
+     * tried: three starts averaged 160.5 s against 154.6 s, take-off speed unchanged.
+     */
+    private static double riserLead(Walker wk, WorldView world, LivingEntity p, BlockPos foot) {
+        leadWhy = "air";
+        if (!BotConfig.walkerRiserLeadJump || !p.onGround() || p.isInWater() || wk.path == null) return Double.NaN;
+        int idx = -1;
+        leadWhy = "noRise";
+        for (int i = wk.step; i < Math.min(wk.path.size(), wk.step + 2) && idx < 0; i++) {
+            BlockPos n = wk.path.get(i);
+            if (n.getY() == foot.getY() + 1) idx = i;
+            else if (n.getY() != foot.getY()) return Double.NaN;
+        }
+        if (idx < 0) return Double.NaN;
+        Move.Edge e = wk.edgeAt(idx);
+        if (e == null || e.move == null || !(e.move.startsWith("stepUp") || e.move.startsWith("diagUp")) || hasPendingEdge(world, e)) {
+            leadWhy = "edge:" + (e == null ? "null" : e.move);
+            return Double.NaN;
+        }
+        BlockPos node = wk.path.get(idx);
+        leadWhy = "contact";
+        Vec3 v = p.getDeltaMovement();
+        double vh = Math.hypot(v.x, v.z);
+        double dx = (node.getX() + 0.5) - p.getX(), dz = (node.getZ() + 0.5) - p.getZ();
+        if (vh > 0.03) { dx = v.x; dz = v.z; }
+        double len = Math.hypot(dx, dz);
+        if (len < 1e-3) return Double.NaN;
+        double contact = riserContact(world, p, foot.getY(), dx / len, dz / len, node);
+        double air = 0.026, m1 = vh + 0.2 + air, m2 = m1 * 0.91 + air;   // sprint-jump boost + air accel
+        return contact - (m1 + m2 + vh + 0.13);                          // + the ground move a wait would spend
+    }
+
+    /** Distance the player box can travel along (ux,uz) at foot level {@code fy} before touching a
+     *  solid cell, or NaN when nothing is met within reach or what it meets is not a +1 riser with
+     *  head room over it (a wall must not be jumped at), or, given a {@code node}, it is not the step under it.
+     *  A block beside it is not the one to mount: live 1544,72,-159, met along a velocity still
+     *  carrying the previous diagonal, was jumped onto and fallen off four times beside node
+     *  1545,72,-160. Not even a diagonal's corner cell: landing there puts the next step off its line
+     *  (S1 2026-09-28: onto corner 1545,70,-158, then the same 1544,72,-159, 5.8 s → 6.5 s). */
+    private static double riserContact(WorldView world, LivingEntity p, int fy, double ux, double uz, BlockPos node) {
+        for (double s = 0.0; s <= RISER_SCAN; s += 0.05) {
+            double cx = p.getX() + ux * s, cz = p.getZ() + uz * s;
+            boolean hit = false;
+            for (int x = Mth.floor(cx - 0.3); x <= Mth.floor(cx + 0.2999); x++)
+                for (int z = Mth.floor(cz - 0.3); z <= Mth.floor(cz + 0.2999); z++) {
+                    BlockPos c = new BlockPos(x, fy, z);
+                    if (!world.isSolid(c)) continue;
+                    if (world.isSolid(c.above()) || world.isSolid(c.above(2))) { leadWhy = "wall@" + x + "," + z; return Double.NaN; }
+                    if (node != null && (BotConfig.walkerRiserLeadExact ? x != node.getX() || z != node.getZ()
+                                : Math.abs(x - node.getX()) > 1 || Math.abs(z - node.getZ()) > 1)) { leadWhy = "beside@" + x + "," + z; return Double.NaN; }
+                    hit = true;
+                }
+            if (hit) return s;
+        }
+        return Double.NaN;
+    }
+
+    private static final String[] SPRINT_VETO_NAMES = {"bridge", "offFall", "offWaterFall", "diagAscent",
+            "finalApproach", "lowHp", "hazard", "descendBrake", "lethalNear", "steepDescent", "deepWaterDrift",
+            "descentSkip", "stepJump", "water"};
+
+    /**
+     * Every reason the walk drops sprint, one bit each in {@link #SPRINT_VETO_NAMES} order, so the
+     * walk-keys line can say WHICH gate took sprint away. A bare {@code sprint=false} could not: a
+     * flat stretch walked 17% of its grounded ticks unsprinted with no collision, and nothing told
+     * the dozen gates apart.
+     *
+     * <ul>
+     * <li>{@code diagAscent} — LATERAL DRIFT on steep diagonal climbs (live 2026-06-25 -787 ridge):
+     *     the flat run-up between diagonal steps carried sprint momentum through the next jump arc and
+     *     pushed the bot 1-2 blocks off the √2 staircase, into pillar-spam slides (56 cobble / 292
+     *     pillarUp on one climb) or a sideways ram of the ridge block. Parkour leaps and water
+     *     climb-approaches still sprint; they need the momentum.
+     * <li>{@code lowHp} — sprint is the drift amplifier behind every unplanned fall; at
+     *     ≤lowHealthCareful HP walk everything (DEATH #3).
+     * <li>{@code hazard} — never carry sprint momentum INTO a lava/hazard cell, in water too.
+     * <li>{@code lethalNear} — never sprint near a lethal edge, incl. a planned descent past it; a
+     *     parkour edge is exempt, since a flat leap over an abyss needs the run-up (measured
+     *     0.1563→0.1400 with no impulse, fell in, vs 0.1232→0.2475 one cell back), while
+     *     wd.bridgeLethalGapStop's walk-off lip still loses its sprint.
+     * <li>{@code descentSkip} — the pointer ran ahead down a staircase (wp more than maxDryFall below
+     *     the grounded foot): no residual momentum off the stair edge while brakeSneak guards it.
+     * <li>{@code deepWaterDrift} — as lethalNear, for a deep-water pocket bordering a descent.
+     * <li>{@code stepJump} — a jumped CARDINAL ascend walks (Baritone does the same; a parkour ascend
+     *     and a sprintAscend are exempt). A/B-DISPROVEN 2026-06-06: sprinting an aligned ascend
+     *     regressed hCol 13%→36% and mean hSpd .112→.082, because the jump fires close to the riser
+     *     (flatDist≤1.2) and the sprint boost rams its face; a sprint-jump clears a step only when
+     *     launched early.
+     * <li>{@code water} — in water, sprint only a flat crossing, a capped tunnel (the prone pose fits
+     *     under the lip) or a climb-out approach; the prone pose cannot rise a bank.
+     * </ul>
+     */
+    private static int sprintVeto(boolean bridge, boolean offFall, boolean offWaterFall, boolean diagAscent,
+            boolean finalApproach, boolean lowHp, boolean hazard, boolean descendBrake, boolean lethalNear,
+            boolean steepDescent, boolean deepWaterDrift, boolean descentSkip, boolean stepJump, boolean water) {
+        boolean[] v = {bridge, offFall, offWaterFall, diagAscent, finalApproach, lowHp, hazard, descendBrake,
+                lethalNear, steepDescent, deepWaterDrift, descentSkip, stepJump, water};
+        int mask = 0;
+        for (int i = 0; i < v.length; i++) if (v[i]) mask |= 1 << i;
+        return mask;
+    }
+
+    private static String sprintVetoNames(int mask) {
+        StringBuilder sb = new StringBuilder("(");
+        for (int i = 0; i < SPRINT_VETO_NAMES.length; i++)
+            if ((mask & (1 << i)) != 0) sb.append(sb.length() > 1 ? "+" : "").append(SPRINT_VETO_NAMES[i]);
+        return sb.append(')').toString();
     }
 
     /**
