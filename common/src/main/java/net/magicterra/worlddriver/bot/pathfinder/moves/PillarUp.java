@@ -78,7 +78,7 @@ public final class PillarUp extends Move {
         BlockPos ceiling = from.offset(0, 2, 0);                       // head room after rising (= to + 1)
 
         java.util.List<BlockPos> toBreak = new java.util.ArrayList<>();
-        double cost = BotConfig.pathfinderPillarCost;   // material-scarcity pricing — see the config javadoc
+        double cost = rungCost(w.placeableBlockCount());   // material-scarcity pricing — see the config javadoc
 
         // Own-column ceiling: the cell the rising head climbs into. Must be open
         // or breakable (then mined first so there's room to rise).
@@ -126,6 +126,13 @@ public final class PillarUp extends Move {
 
         return new Edge(to, cost, toBreak, List.of(from), name());
     }
+    /** Base rung price for a bag holding {@code stock} placeable blocks. */
+    static double rungCost(int stock) {
+        double scarce = BotConfig.pathfinderPillarCost, stocked = BotConfig.pathfinderPillarCostStocked;
+        double f = Math.min(1.0, Math.max(0, stock) / (double) Math.max(1, BotConfig.pathfinderPillarStockBlocks));
+        return scarce + (stocked - scarce) * f;
+    }
+
     public String name() { return "pillarUp"; }
     @Override public boolean placesBlock() { return true; }
 }

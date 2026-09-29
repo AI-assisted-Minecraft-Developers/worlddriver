@@ -65,6 +65,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The planner offers a climb-out that fills the cell under a floating bot only where that cell has
   a face to place against.** A bank solid only at the risen height left the cell ringed by water,
   and the bot waited about 20 s on a placement it could not make.
+- **A pillar step can cost less when the bot carries plenty of blocks.** The new settings
+  `pathfinderPillarCostStocked` and `pathfinderPillarStockBlocks` slide the price from
+  `pathfinderPillarCost` with no blocks to `pathfinderPillarCostStocked` at the stock count
+  (default 64). Both prices default to 150, so nothing changes unless they are set; on a 34-level
+  hill the climb took 53 s at 150 and 41 s at 20.
 
 ## 2026-09-28
 

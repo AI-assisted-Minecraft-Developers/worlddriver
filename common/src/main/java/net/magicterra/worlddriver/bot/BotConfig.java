@@ -791,6 +791,13 @@ public final class BotConfig {
      *  Live-tunable via mc.bot.setting. */
     public static volatile double pathfinderPillarCost = 150;
 
+    /** Rung price at {@link #pathfinderPillarStockBlocks}+ blocks, sliding from {@link #pathfinderPillarCost} at none. A dry
+     *  rung is ~14 ticks live vs ~21 for stairUpBreak (34-level hill: 53 s at 150, 41 s at 20). Default = no slide. */
+    public static volatile double pathfinderPillarCostStocked = 150;
+
+    /** Stock at which a pillar rung costs {@link #pathfinderPillarCostStocked}. */
+    public static volatile int pathfinderPillarStockBlocks = 64;
+
     /** Max DRY (no-water) fall the planner takes as a plain {@code Fall} move, in blocks.
      *  <b>Default 4 — one block PAST Baritone's no-damage cap of 3</b>, so {@code Fall(4)} is live
      *  on every default run and only {@code Fall(5)} is inert; set 3 for damage-free routing.
