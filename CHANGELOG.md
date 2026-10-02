@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-03
+
+- **A bot joins on NeoForge alongside a mod that sends its own payload at login.** NeoForge
+  refuses a mod's payload on a channel the client did not negotiate, and a bot has no client to
+  negotiate one, so with a mod such as L2Core (Youkai's Homecoming) installed every bot creation
+  threw `Payload <id> may not be sent to the client!`. A bot's connection already threw every
+  packet away; its custom payloads are now dropped before NeoForge's check, on both loaders. The
+  bot still claims no mod channels, so a mod that checks for its channel before sending sends a
+  bot nothing, as before.
+
 ## 2026-09-28
 
 - **The version names its build, and StageWright comes from a public Nexus.** The version is

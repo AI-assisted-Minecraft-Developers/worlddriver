@@ -1,9 +1,7 @@
 package net.magicterra.worlddriver.bot.sim;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.ChannelHandlerContext;
@@ -87,13 +85,9 @@ public final class JoinedPlayerBodies {
      *  the fake-player factories had, so scene behaviour stayed comparable across the switch. */
     private static final String SHARED_NAME = "worlddriver";
 
-    // Only the loader entry point may install this hook. Fabric needs no connection setup;
-    // NeoForge must populate its per-connection channels before the join sends mod payloads.
-    private static Consumer<Connection> silentConnectionSetup = connection -> { };
-
-    /** Configure only WorldDriver's own silent connections, never a real player's connection. */
-    public static void installSilentConnectionSetup(Consumer<Connection> setup) {
-        silentConnectionSetup = Objects.requireNonNull(setup);
+    /** Whether {@code connection} is a bot's, which has no client and throws every packet away. */
+    public static boolean isSilent(Connection connection) {
+        return connection instanceof SilentConnection;
     }
 
     private final Map<ServerLevel, Map<String, JoinedBody>> byLevel = new ConcurrentHashMap<>();
@@ -155,10 +149,8 @@ public final class JoinedPlayerBodies {
         // mobs can see it), ChunkMap registration (it loads what it walks into), and the loader's
         // login event.
         try {
-            Connection connection = body.silentConnection();
-            silentConnectionSetup.accept(connection);
             level.getServer().getPlayerList().placeNewPlayer(
-                    connection, body, CommonListenerCookie.createInitial(profile, false));
+                    body.silentConnection(), body, CommonListenerCookie.createInitial(profile, false));
         } catch (RuntimeException e) {
             // The join path runs a lot of code that assumes a socket. Log the frame that wanted
             // one — the harness only surfaces an exception's message, and "channel is null" names
@@ -468,6 +460,10 @@ public final class JoinedPlayerBodies {
          * <p>{@link EmbeddedChannel} supplies attributes for free, but its default tail queues
          * outbound messages forever — a silent leak in place of a loud crash. The handler discards
          * and completes each write instead of letting it reach that queue.
+         *
+         * <p>One packet never reaches {@code send}: NeoForge refuses a modded payload above the
+         * connection, for a channel no client negotiated, and this connection negotiated none. The
+         * mixin on {@code ServerCommonPacketListenerImpl.send} drops those first; see its javadoc.
          */
         @SuppressWarnings("unused")     // held so the channel is not collected out from under us
         private final EmbeddedChannel wire;

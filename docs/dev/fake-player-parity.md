@@ -144,6 +144,13 @@ drop packets, it would queue them in `pendingActions` forever. It carries a real
 attribute and dereferences it: without a channel, the armed NeoForge suite fell to 76
 executed scenes, every bot-minting scene reporting the same null dereference.
 
+A mod's own payload never reaches that connection. NeoForge refuses one, above the
+connection, for a channel the client did not negotiate, and a bot negotiates none, so a mod
+that syncs every player at login made the bot's join throw. A mixin on
+`ServerCommonPacketListenerImpl.send` drops a bot's custom payloads first, on both loaders.
+The bot stays a vanilla client: it claims no mod channels, so a mod that asks before sending
+sends it nothing (`wd.serverBotJoinsPastModdedPayload`).
+
 ## The boundary table
 
 In the tables, *a driven bot* means the server-side player: the joined player, or the adopted
