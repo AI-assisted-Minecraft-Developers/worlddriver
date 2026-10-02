@@ -16,6 +16,17 @@ var console = {
     error: function (m) { __log.push('[err] ' + __fmt(m)); }
 };
 
+// The Java class name of a wrapped Java object, e.g. "java.util.ArrayList"; null for
+// null/undefined and for plain JS values. Scripts cannot call obj.getClass() in this
+// Rhino: it never exposes methods only java.lang.Object declares (see ScriptJava).
+function javaClassName(v) {
+    if (v === null || v === undefined) return null;
+    var t = typeof v;
+    if (t === 'string' || t === 'number' || t === 'boolean') return null;
+    var name = __java.className(v);
+    return name === null ? null : String(name);
+}
+
 var Driver = {};
 
 // Strip "java.lang.IllegalArgumentException:" or "net.x.y.SomeException:" prefixes

@@ -196,6 +196,7 @@ public final class ScriptEvaluator {
 
         ScriptableObject scope = cx.initStandardObjects();
         ScriptableObject.putProperty(scope, "__api", cx.javaToJS(api, scope), cx);
+        ScriptableObject.putProperty(scope, "__java", cx.javaToJS(ScriptJava.INSTANCE, scope), cx);
 
         cx.evaluateString(scope, PRELUDE, "<eval-prelude>", 1, null);
 
