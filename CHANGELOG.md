@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   packet away; its custom payloads are now dropped before NeoForge's check, on both loaders. The
   bot still claims no mod channels, so a mod that checks for its channel before sending sends a
   bot nothing, as before.
+- **Mining stops scanning once it finds the nearest usable block.** The candidate offsets are
+  already ordered by distance, so a full scan after finding one did extra world reads after
+  every break.
 
 ## 2026-09-28
 

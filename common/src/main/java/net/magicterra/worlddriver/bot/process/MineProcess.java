@@ -837,8 +837,6 @@ public final class MineProcess implements BotProcess {
         noTargetReason = null;
         BlockPos foot = blockPosOf(p);
         int r = searchRadius;
-        Target best = null;
-        long bestD2 = Long.MAX_VALUE;
         // Nearest real target we could SEE but not reach — the leaf-clearing
         // fallback (below) tries to open access to it when nothing else is reachable.
         BlockPos nearestUnreachable = null;
@@ -898,12 +896,13 @@ public final class MineProcess implements BotProcess {
                 if (d2 < nuD2) { nuD2 = d2; nearestUnreachable = bp; }
                 continue;
             }
-            if (d2 < bestD2) {
-                bestD2 = d2;
-                best = new Target(bp, stand, faceFromStandToBlock(stand, bp), false);
-            }
+            // 2026-09-30 live mine: every broken block re-entered SEARCH while
+            // the client had debug capture on. The offsets are already sorted
+            // by squared distance, so the first usable stand wins the same
+            // nearest-target comparison the old full 50k-cell pass performed.
+            // Stop here instead of reading the rest of the world each time.
+            return new Target(bp, stand, faceFromStandToBlock(stand, bp), false);
         }
-        if (best != null) return best;
         // Nothing directly reachable. If a real target is occluded by leaves we can
         // stand-and-break, return one as a clearing target so mining it opens access.
         if (nearestUnreachable != null) {
