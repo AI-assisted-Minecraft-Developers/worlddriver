@@ -153,6 +153,7 @@ wd.serverAvatarTickFidelity
 wd.serverAttackCooldown
 wd.serverCapability
 wd.serverElytra
+wd.serverBotJoinsPastModdedPayload
 
 # Process-core family — the per-verb process lifecycle: start, poll, cancel, finish.
 # driver/mine/process/flee/mineProcess/mineNoTool/walkerDeepslate/forbidDigWall/build/lookRaycast/follow/combat/look/mineCanopyRadius/bridgePillar

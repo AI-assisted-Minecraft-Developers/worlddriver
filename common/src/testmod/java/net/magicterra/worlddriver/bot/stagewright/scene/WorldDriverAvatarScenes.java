@@ -1,12 +1,17 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
+import com.mojang.authlib.GameProfile;
+import dev.architectury.event.events.common.PlayerEvent;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.ElytraProcess;
+import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
@@ -17,6 +22,9 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -61,7 +69,8 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
                 Scene.of("wd.serverAvatarTickFidelity", 200, WorldDriverAvatarScenes::serverAvatarTickFidelityScene),
                 Scene.of("wd.serverAttackCooldown", 200, WorldDriverAvatarScenes::serverAttackCooldownScene),
                 Scene.of("wd.serverCapability", 200, WorldDriverAvatarScenes::serverCapabilityScene),
-                Scene.of("wd.serverElytra", 200, WorldDriverAvatarScenes::serverElytraScene));
+                Scene.of("wd.serverElytra", 200, WorldDriverAvatarScenes::serverElytraScene),
+                Scene.of("wd.serverBotJoinsPastModdedPayload", 200, WorldDriverAvatarScenes::serverBotJoinsPastModdedPayloadScene));
     }
 
     /**
@@ -387,5 +396,56 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
             ctx.fail("server ElytraProcess crashed the tick (driver removed unfinished)");
         if (!flewAtSomePoint)
             ctx.fail("server ElytraProcess never entered fall-flying (startFallFlying failed)");
+    }
+
+    // ==================================================================================
+    // wd.serverBotJoinsPastModdedPayload — a mod's own payload, sent to a bot at login and after,
+    // neither stops the join nor throws. NeoForge refuses a payload on a channel the client did not
+    // negotiate, and a bot negotiates none; L2Core's login sync made every bot creation fail.
+    // ==================================================================================
+
+    /** A payload on a channel no client negotiated. Never encoded: the bot drops it first. */
+    private record ProbePayload() implements CustomPacketPayload {
+        static final Type<ProbePayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(WorldDriverCommon.MOD_ID, "bot_payload_probe"));
+
+        @Override public Type<ProbePayload> type() { return TYPE; }
+    }
+
+    private static void serverBotJoinsPastModdedPayloadScene(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final String name = "wd-payload-probe";
+
+        // Sent from the login event, as L2Core sends its sync: inside placeNewPlayer.
+        int[] sentAtJoin = {0};
+        PlayerEvent.PlayerJoin onJoin = player -> {
+            if (!name.equals(player.getGameProfile().getName())) return;
+            player.connection.send(new ClientboundCustomPayloadPacket(new ProbePayload()));
+            sentAtJoin[0]++;
+        };
+        PlayerEvent.PLAYER_JOIN.register(onJoin);
+        ctx.cleanup(() -> PlayerEvent.PLAYER_JOIN.unregister(onJoin));
+
+        GameProfile profile = new GameProfile(
+                UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8)), name);
+        ServerPlayer bot;
+        try {
+            bot = new JoinedPlayerBodies().unique(level, profile);
+        } catch (RuntimeException e) {
+            ctx.fail("the bot did not join past a modded payload sent at login: " + e);
+            return;
+        }
+        ctx.cleanup(bot::discard);
+        ctx.record("sentAtJoin", sentAtJoin[0]);
+        // Without this the scene would pass on a run where the payload was never sent at all.
+        if (sentAtJoin[0] != 1)
+            ctx.fail("the login event sent the probe " + sentAtJoin[0] + " times, expected once");
+
+        // And after the join, the path a mod's PacketDistributor.sendToPlayer takes.
+        try {
+            bot.connection.send(new ClientboundCustomPayloadPacket(new ProbePayload()));
+        } catch (RuntimeException e) {
+            ctx.fail("a modded payload sent to a joined bot threw: " + e);
+        }
     }
 }
