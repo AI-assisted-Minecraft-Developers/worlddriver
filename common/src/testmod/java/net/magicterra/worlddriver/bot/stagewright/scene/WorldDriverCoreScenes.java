@@ -324,16 +324,17 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  Was 259 until 34_yaml_gametest.js (5 checks, both topologies — it was pure server-side and
      *  never self-skipped) retired with the mc.test.yaml harness; 254 until 66_body_routes.js
      *  (3 checks, both topologies, needs no bot player) was added; 257 until the build stamp (1 check,
-     *  both topologies) and the capture's frame check (1 check, client-face) were added. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 259;
+     *  both topologies) and the capture's frame check (1 check, client-face) were added; 259 until
+     *  11_script_eval.js's javaClassName check (1 check, both topologies) was added. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 260;
 
     /** task#92 — the same suite's check count on the DEDICATED topology, where the ~35 client-face
      *  scripts each self-skip to a single "no client" placeholder (their real branch needs a client).
      *  The integrated set is a strict superset; both run REQUIRED with FAIL==0. Coverage-drift guard.
      *  Was 147 until 34_yaml_gametest.js retired, 142 until 66_body_routes.js was added — see the
      *  INTEGRATED note above. 145 until the build stamp was added: it needs no client, so it is the
-     *  one of that pair that lands here too. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 146;
+     *  one of that pair that lands here too. 146 until the javaClassName check was added. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 147;
 
     /** task#92 — allow-list of check-name substrings permitted to record a {@code SKIP(task#92)} PASS on
      *  a topology whose precondition isn't met. Every skipped check MUST match one of these; any other

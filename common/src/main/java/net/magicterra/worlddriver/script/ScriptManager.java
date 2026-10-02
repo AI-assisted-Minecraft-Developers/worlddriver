@@ -48,6 +48,7 @@ public final class ScriptManager {
         ScriptEvents.install(factory, scope);
 
         ScriptableObject.putProperty(scope, "__api", cx.javaToJS(api, scope), cx);
+        ScriptableObject.putProperty(scope, "__java", cx.javaToJS(ScriptJava.INSTANCE, scope), cx);
         ScriptableObject.putProperty(scope, "ScriptTest",
                 new NativeJavaClass(cx, scope, ScriptTest.class), cx);
         ScriptableObject.putProperty(scope, "ScriptEvents",
