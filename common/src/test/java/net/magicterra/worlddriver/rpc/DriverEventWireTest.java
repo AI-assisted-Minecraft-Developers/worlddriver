@@ -90,6 +90,21 @@ class DriverEventWireTest {
         assertInstanceOf(Long.class, wire.get("timestamp"));
     }
 
+    /** Either encoder, qualified or not: the guard is only as good as the names it knows. */
+    private static final Pattern PRE_ENCODED_EMIT = Pattern.compile(
+            "\\.emit(?:External)?\\s*\\([^;]{0,400}?(?:WireValues|JsonCodec)\\.encode\\s*\\(", Pattern.DOTALL);
+
+    @Test
+    void theGuardSeesEveryEncoder() {
+        for (String site : List.of(
+                "api.emitExternal(\"x\", pos, WireValues.encode(map));",
+                "api.emit(\"x\", pos, JsonCodec.encode(map));",
+                "api.emitExternal(\"x\", pos,\n        net.magicterra.worlddriver.api.WireValues.encode(map));")) {
+            assertTrue(PRE_ENCODED_EMIT.matcher(site).find(), site);
+        }
+        assertFalse(PRE_ENCODED_EMIT.matcher("api.emitExternal(\"x\", pos, map);").find());
+    }
+
     /**
      * The tests above build an {@link DriverEvent} directly, so they prove the CODEC
      * is right — not that the emitters stopped pre-encoding. Nothing else can:
@@ -111,14 +126,11 @@ class DriverEventWireTest {
             assertTrue(Files.isDirectory(p), "loader module source root moved: " + sibling);
             roots.add(p);
         }
-        Pattern offender = Pattern.compile(
-                "\\.emit(?:External)?\\s*\\([^;]{0,400}?"
-                + "(?:net\\.magicterra\\.agent\\.rpc\\.)?JsonCodec\\.encode\\s*\\(", Pattern.DOTALL);
         List<String> hits = new ArrayList<>();
         for (Path root : roots) {
             try (Stream<Path> files = Files.walk(root)) {
                 for (Path p : files.filter(f -> f.toString().endsWith(".java")).toList()) {
-                    if (offender.matcher(Files.readString(p)).find()) hits.add(p.toString());
+                    if (PRE_ENCODED_EMIT.matcher(Files.readString(p)).find()) hits.add(p.toString());
                 }
             }
         }
