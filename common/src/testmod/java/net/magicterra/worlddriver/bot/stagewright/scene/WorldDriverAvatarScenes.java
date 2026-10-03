@@ -1,5 +1,9 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import net.magicterra.worlddriver.application.ObserveApi;
+
+import net.magicterra.worlddriver.application.DriverApplication;
+
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -242,10 +246,10 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         // Let the weapon SWAP land before timing anything (gap #47 empties the bar on swap).
         driver.avatar().step();
 
-        DriverApi api = new DriverApi();
+        DriverApi api = new DriverApplication();
         fp.resetAttackStrengthTicker();               // just swung: bar empty
         @SuppressWarnings("unchecked")
-        Map<String, Object> a0 = (Map<String, Object>) api.observe.playerSnapshot(fp).get("attack");
+        Map<String, Object> a0 = (Map<String, Object>) ObserveApi.playerSnapshot(fp).get("attack");
         WorldDriverCommon.LOG.info("[wd.serverAttackCooldown] swordFresh={}", a0);
         if (a0 == null)
             ctx.fail("observe.player carries no `attack` field at all — "
@@ -268,7 +272,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         for (int t = 1; t <= period + 2; t++) {
             driver.avatar().step();                   // the one tick-clock a FakePlayer gets
             @SuppressWarnings("unchecked")
-            Map<String, Object> a = (Map<String, Object>) api.observe.playerSnapshot(fp).get("attack");
+            Map<String, Object> a = (Map<String, Object>) ObserveApi.playerSnapshot(fp).get("attack");
             float s = ((Number) a.get("strengthScale")).floatValue();
             int cd = ((Number) a.get("cooldownTicks")).intValue();
             boolean ready = Boolean.TRUE.equals(a.get("ready"));
@@ -290,7 +294,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         // (C) The number tracks the HELD weapon, not the player: an axe recharges slower.
         equipMainHand(fp, new ItemStack(Items.IRON_AXE));
         @SuppressWarnings("unchecked")
-        Map<String, Object> axe = (Map<String, Object>) api.observe.playerSnapshot(fp).get("attack");
+        Map<String, Object> axe = (Map<String, Object>) ObserveApi.playerSnapshot(fp).get("attack");
         int axePeriod = ((Number) axe.get("fullCooldownTicks")).intValue();
         WorldDriverCommon.LOG.info("[wd.serverAttackCooldown] axe={}", axe);
         if (axePeriod <= period)

@@ -1,7 +1,8 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.model.DriverEvent;
+import net.magicterra.worlddriver.api.WireValues;
 
+import net.magicterra.worlddriver.model.DriverEvent;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -27,12 +28,12 @@ public final class EventNotifications {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("level", levelFor(e.type));
         params.put("logger", "minecraft.events");
-        params.put("data", e); // JsonCodec encodes DriverEvent → {seq,timestamp,type,pos,data}
+        params.put("data", e); // WireValues encodes DriverEvent → {seq,timestamp,type,pos,data}
         Map<String, Object> msg = new LinkedHashMap<>();
         msg.put("jsonrpc", "2.0");
         msg.put("method", "notifications/message");
         msg.put("params", params);
-        return JsonCodec.encode(msg);
+        return WireValues.encode(msg);
     }
 
     /** Map an event type to an RFC 5424 / MCP logging severity level. Since the channel

@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot;
 
-import net.magicterra.worlddriver.bot.movement.Walker;
+import net.magicterra.worlddriver.bot.debug.PathArchiveRecorder;
+
+import net.magicterra.worlddriver.api.WorldCell;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
@@ -8,12 +10,10 @@ import net.magicterra.worlddriver.bot.process.ReplayProcess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
-
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
 
 /**
@@ -35,7 +35,7 @@ final class ReplayInstaller {
      * drives {@link Walker#beginReplay} so the wedge reproduces with no re-planning.
      */
     static Map<String, Object> startReplay(BotApiImpl bot,
-                                           java.util.List<net.magicterra.worlddriver.api.WorldApi.Cell> cells,
+                                           java.util.List<WorldCell> cells,
                                            List<BlockPos> plan, List<Move.Edge> edges,
                                            BlockPos start, Goal endGoal, BlockPos startFoot,
                                            String archiveName, boolean restoreBlocks) {
@@ -74,7 +74,7 @@ final class ReplayInstaller {
             // Arm replay capture BEFORE installing the process so the very first tick
             // (which calls beginReplay) is captured against this session.
             net.magicterra.worlddriver.bot.debug.PathArchiveRecorder rec =
-                    net.magicterra.worlddriver.bot.debug.PathDebugBootstrap.archiveRecorder();
+                    PathArchiveRecorder.active();
             if (rec != null) rec.armReplay(plan, archiveName, player.getId());
 
             bot.startProcess(new ReplayProcess(plan, edges, endGoal, startFoot));
@@ -96,7 +96,7 @@ final class ReplayInstaller {
      *  restored terrain, so emergent live behaviour (repaths, execution wedges)
      *  reproduces. A normal path archive of the re-run is captured when pathArchive is on. */
     static Map<String, Object> startReplayReplan(BotApiImpl bot,
-                                                 java.util.List<net.magicterra.worlddriver.api.WorldApi.Cell> cells,
+                                                 java.util.List<WorldCell> cells,
                                                  BlockPos start, Goal goal,
                                                  String archiveName, boolean restoreBlocks) {
         return onClient(() -> {

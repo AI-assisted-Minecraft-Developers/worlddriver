@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.mcp;
 
+import net.magicterra.worlddriver.application.DriverApplication;
+
 import net.magicterra.worlddriver.api.DriverApi;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -23,21 +25,21 @@ class McpHttpTest {
     void aTextPlainPostIsRefusedWith415() throws Exception {
         // text/plain is a CORS "simple" content type: a page can send it with no preflight,
         // so accepting it would let a no-cors fetch reach tools/call.
-        try (McpServer server = new McpServer(new DriverApi(), 0)) {
+        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
             assertEquals(415, post(server.port(), "text/plain", PING).statusCode());
         }
     }
 
     @Test
     void aPostWithoutContentTypeIsRefusedWith415() throws Exception {
-        try (McpServer server = new McpServer(new DriverApi(), 0)) {
+        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
             assertEquals(415, post(server.port(), null, PING).statusCode());
         }
     }
 
     @Test
     void jsonWithParametersIsAccepted() throws Exception {
-        try (McpServer server = new McpServer(new DriverApi(), 0)) {
+        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
             assertEquals(200, post(server.port(), "application/json", PING).statusCode());
             assertEquals(200, post(server.port(), "Application/JSON; charset=utf-8", PING).statusCode());
         }
@@ -46,7 +48,7 @@ class McpHttpTest {
     @Test
     void everyIdLessMessageIsANotificationAnswered202WithNoBody() throws Exception {
         // spec: 2025-06-18 §Transports — an accepted notification MUST get 202 and no bot.
-        try (McpServer server = new McpServer(new DriverApi(), 0)) {
+        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
             for (String body : new String[] {
                     "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}",
                     "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":3}}",
@@ -61,7 +63,7 @@ class McpHttpTest {
 
     @Test
     void anIdLessToolCallIsAcknowledgedButNotRun() throws Exception {
-        DriverApi api = new DriverApi();
+        DriverApi api = new DriverApplication();
         AtomicInteger calls = new AtomicInteger();
         api.addRoute("test.probe", p -> calls.incrementAndGet());
         try (McpServer server = new McpServer(api, 0)) {
@@ -78,7 +80,7 @@ class McpHttpTest {
 
     @Test
     void aNonStringMethodIsAnInvalidRequest() throws Exception {
-        try (McpServer server = new McpServer(new DriverApi(), 0)) {
+        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
             HttpResponse<String> r = post(server.port(), "application/json",
                     "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":42}");
             assertEquals(400, r.statusCode(), r.body());

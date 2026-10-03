@@ -1,4 +1,6 @@
 package net.magicterra.worlddriver.client;
+
+import net.magicterra.worlddriver.integration.debug.PathDebugBootstrap;
 import net.magicterra.worlddriver.WorldDriverCommon;
 
 /**
@@ -24,7 +26,7 @@ public final class ClientHooks {
         WorldDriverCommon.ensureMcpUp();
         // Optional, strippable: wire the path-debug recorder + mc.debug.pathChart now that
         // DriverApi exists. Removing the bot.debug package + this line fully strips the feature.
-        net.magicterra.worlddriver.bot.debug.PathDebugBootstrap.init();
+        PathDebugBootstrap.init(WorldDriverCommon.api());
     }
 
     public static ClientDriverApi impl() {

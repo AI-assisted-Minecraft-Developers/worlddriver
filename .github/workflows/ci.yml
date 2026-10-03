@@ -35,11 +35,47 @@ jobs:
           distribution: 'temurin'
       - uses: gradle/actions/setup-gradle@v4
 
+      # A same-named branch in the companion repository identifies a candidate pair.
+      # Pin its commit before checkout; other PRs keep using their published dependency.
+      - name: Find companion candidate
+        id: companion
+        if: github.event_name == 'pull_request'
+        env:
+          COMPANION_BRANCH: ${{ github.head_ref }}
+          COMPANION_REPOSITORY: ${{ github.repository_owner }}/stagewright
+        run: |
+          status=0
+          tip="$(git ls-remote --exit-code --heads \
+            "$GITHUB_SERVER_URL/$COMPANION_REPOSITORY.git" \
+            "refs/heads/$COMPANION_BRANCH")" || status=$?
+          if [ "$status" -eq 2 ]; then exit 0; fi
+          if [ "$status" -ne 0 ]; then exit "$status"; fi
+          printf 'sha=%s\n' "${tip%%[[:space:]]*}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout companion candidate
+        if: steps.companion.outputs.sha != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/stagewright
+          ref: ${{ steps.companion.outputs.sha }}
+          path: .ci/stagewright
+          persist-credentials: false
+
+      - name: Build and inspect candidate pair
+        if: steps.companion.outputs.sha != ''
+        run: .ci/stagewright/scripts/build_driver_pair.sh "$PWD"
+
       - name: Source budget
         run: python3 scripts/check_source_budget.py
 
+      - name: Architecture boundaries
+        run: python3 scripts/check_architecture.py
+
       - name: Build and unit tests
-        run: ./gradlew build
+        if: steps.companion.outputs.sha == ''
+        run: |
+          ./gradlew build
+          python3 scripts/check_architecture.py --jars
 
   gate:
     runs-on: ubuntu-latest
@@ -54,12 +90,48 @@ jobs:
           distribution: 'temurin'
       - uses: gradle/actions/setup-gradle@v4
 
+      # A same-named branch in the companion repository identifies a candidate pair.
+      # Pin its commit before checkout; other PRs keep using their published dependency.
+      - name: Find companion candidate
+        id: companion
+        if: github.event_name == 'pull_request'
+        env:
+          COMPANION_BRANCH: ${{ github.head_ref }}
+          COMPANION_REPOSITORY: ${{ github.repository_owner }}/stagewright
+        run: |
+          status=0
+          tip="$(git ls-remote --exit-code --heads \
+            "$GITHUB_SERVER_URL/$COMPANION_REPOSITORY.git" \
+            "refs/heads/$COMPANION_BRANCH")" || status=$?
+          if [ "$status" -eq 2 ]; then exit 0; fi
+          if [ "$status" -ne 0 ]; then exit "$status"; fi
+          printf 'sha=%s\n' "${tip%%[[:space:]]*}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout companion candidate
+        if: steps.companion.outputs.sha != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/stagewright
+          ref: ${{ steps.companion.outputs.sha }}
+          path: .ci/stagewright
+          persist-credentials: false
+
+      - name: Build and inspect candidate pair
+        if: steps.companion.outputs.sha != ''
+        run: .ci/stagewright/scripts/build_driver_pair.sh "$PWD"
+
       # The whole log goes to a file and the verdict is read from it: the judgments that can redden
       # a run print above the VERDICT line, and a run that dies early has its cause in the middle.
       - name: Dedicated-server scene gate (NeoForge)
+        env:
+          COMPANION_SHA: ${{ steps.companion.outputs.sha }}
         run: |
           set +e
-          ./gradlew stagewrightDedicatedServerNeoforge > gate.log 2>&1
+          candidate_args=()
+          if [ -n "$COMPANION_SHA" ]; then
+            candidate_args+=("-Pstagewright_version=0.1.0-build.$BUILD_NUMBER+1.21.1")
+          fi
+          ./gradlew stagewrightDedicatedServerNeoforge "${candidate_args[@]}" > gate.log 2>&1
           status=$?
           grep -E '^\[stagewright' gate.log | grep -vE '^\[stagewright[^]]*\] (pass|skip): '
           exit $status
@@ -92,6 +164,9 @@ jobs:
 
       # Built and tested again here, then published by a later Gradle run that finds every jar up
       # to date: what goes to the Nexus is what this job's tests ran against.
+      - name: Architecture boundaries
+        run: python3 scripts/check_architecture.py
+
       - name: Build and unit tests
         run: ./gradlew build
 

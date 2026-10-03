@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.testcontent;
 
+import java.util.Map;
+
 import java.util.Comparator;
 import java.util.concurrent.locks.LockSupport;
 
@@ -78,7 +80,7 @@ public final class TestArena {
      */
     public static void seed(DriverApi api, MinecraftServer server) {
         ServerLevel level = server.overworld();
-        BlockPos origin = api.system.testOrigin();
+        BlockPos origin = (BlockPos) api.route("mc.system.testOrigin", Map.of());
         new ServerThreadHop(server, server::isSameThread, SERVER_THREAD_TIMEOUT_MS).call(() -> {
             // Pin first, write second. The ticket's level has to reach ENTITY_TICKING (31) out to
             // TEST_ARENA_CHUNK_RADIUS, and a region ticket at distance d puts its own chunk at

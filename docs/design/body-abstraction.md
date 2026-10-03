@@ -160,7 +160,7 @@ shim is a failed scene, not a caught null.
 - `bot/body/BodyRegistry.java` and `BodyHost.java` — naming and the per-bot process slot.
 - `bot/body/ClientPlayerBody.java` — the client implementation.
 - `bot/sim/ServerPlayerBody.java` and the joined-player pump beside it — the server implementation.
-- `api/BodyRoutes.java` and `api/BodyInteractions.java` — how the `body` parameter reaches a process and
+- `application/BodyRoutes.java` and `application/BodyInteractions.java` — how the `body` parameter reaches a process and
   how hand operations are performed for a non-client player.
 - `bot/VerbOrders.java` — the shared parameter parsing.
 - `common/src/testmod/java/.../stagewright/LivingBody.java` and

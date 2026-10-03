@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.application.DriverApplication;
+
 import net.magicterra.worlddriver.mcp.McpServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -50,21 +51,21 @@ class TransportOriginTest {
 
     @Test
     void rpcHandshakeFromAForeignOriginIsRefused() throws Exception {
-        try (RpcServer server = new RpcServer(new DriverApi(), 0)) {
+        try (RpcServer server = new RpcServer(new DriverApplication(), 0)) {
             assertEquals(403, handshakeStatus(server.port(), "https://evil.example"));
         }
     }
 
     @Test
     void rpcHandshakeFromTheNullOriginIsRefused() throws Exception {
-        try (RpcServer server = new RpcServer(new DriverApi(), 0)) {
+        try (RpcServer server = new RpcServer(new DriverApplication(), 0)) {
             assertEquals(403, handshakeStatus(server.port(), "null"));
         }
     }
 
     @Test
     void rpcHandshakeWithoutOriginOrFromLoopbackIsAccepted() throws Exception {
-        try (RpcServer server = new RpcServer(new DriverApi(), 0)) {
+        try (RpcServer server = new RpcServer(new DriverApplication(), 0)) {
             assertEquals(101, handshakeStatus(server.port(), null));
             assertEquals(101, handshakeStatus(server.port(), "http://127.0.0.1:5173"));
         }
@@ -97,21 +98,21 @@ class TransportOriginTest {
 
     @Test
     void mcpPostFromAForeignOriginIsRefused() throws Exception {
-        try (McpServer server = new McpServer(new DriverApi(), 0)) {
+        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
             assertEquals(403, ping(server.port(), "https://evil.example").statusCode());
         }
     }
 
     @Test
     void mcpPostFromTheNullOriginIsRefused() throws Exception {
-        try (McpServer server = new McpServer(new DriverApi(), 0)) {
+        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
             assertEquals(403, ping(server.port(), "null").statusCode());
         }
     }
 
     @Test
     void mcpPostWithoutOriginOrFromLoopbackIsAccepted() throws Exception {
-        try (McpServer server = new McpServer(new DriverApi(), 0)) {
+        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
             assertEquals(200, ping(server.port(), null).statusCode());
             assertEquals(200, ping(server.port(), "http://localhost:6274").statusCode());
         }

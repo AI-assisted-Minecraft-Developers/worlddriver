@@ -1,7 +1,8 @@
 package net.magicterra.worlddriver.bot.process;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.DriverApi;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.PreviewSearch;
@@ -20,7 +21,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,6 +36,7 @@ import java.util.List;
  * status reporting, and {@code UserTaskChain} mapping are unchanged.
  */
 public final class IntentProcess implements BotProcess {
+    private static final Logger LOG = LoggerFactory.getLogger("WorldDriver");
 
     /**
      * {@code endReason} for a run that ended because the bot left the world its goal was set in.
@@ -70,19 +71,18 @@ public final class IntentProcess implements BotProcess {
     private static final double ANCHOR_DIRTY_DIST_SQ = 2 * 2;
 
     public IntentProcess(Intent intent) {
+        this(intent, (type, pos, data) -> {});
+    }
+
+    public IntentProcess(Intent intent, RouteEvents.Emitter emitter) {
         this.intent = intent;
         walker.setGoal(intent.targets().get(0));
         walker.setSearchProfile(intent.searchProfile());
         boolean conditions = !intent.bias().isEmpty() || !intent.constraints().isEmpty();
         boolean sight = intent.bias().stream().anyMatch(m -> m instanceof SightExposure)
                 || intent.constraints().stream().anyMatch(c -> c instanceof SightExposure);
-        events = conditions ? new RouteEvents(intent.constraintNames(), true, sight, IntentProcess::emit) : null;
+        events = conditions ? new RouteEvents(intent.constraintNames(), true, sight, emitter) : null;
         risk = sight ? new PreviewSearch.ProfileRisk(intent.searchProfile()) : null;
-    }
-
-    private static void emit(String type, BlockPos pos, java.util.Map<String, Object> data) {
-        DriverApi api = WorldDriverCommon.api();
-        if (api != null) api.emitExternal(type, pos, data);
     }
 
     /** Judges the route events for a deep search the walker finished since the last tick. */
@@ -144,7 +144,7 @@ public final class IntentProcess implements BotProcess {
                 if (anchor != null) {
                     BlockPos ab = anchor.blockPosition();
                     if (lastAnchor == null || ab.distSqr(lastAnchor) > ANCHOR_DIRTY_DIST_SQ) {
-                        WorldDriverCommon.LOG.info("[IntentProcess] anchor re-solve: {} -> {} (was {}), repath",
+                        LOG.info("[IntentProcess] anchor re-solve: {} -> {} (was {}), repath",
                                 el.entity(), ab.toShortString(), lastAnchor == null ? "first" : lastAnchor.toShortString());
                         lastAnchor = ab;
                         walker.setSearchProfile(profileWith(el, ab));
@@ -193,7 +193,7 @@ public final class IntentProcess implements BotProcess {
         int last = intent.targets().size() - 1;
         if (shortfall == null && leg < last) {
             leg++;
-            WorldDriverCommon.LOG.info("[IntentProcess] via {} reached, segment {}/{} → {}",
+            LOG.info("[IntentProcess] via {} reached, segment {}/{} → {}",
                     intent.targets().get(leg - 1), leg + 1, intent.targets().size(), intent.targets().get(leg));
             walker.setGoal(intent.targets().get(leg));
             st.mc_goto.goal = intent.targets().get(leg).toString();
@@ -256,7 +256,7 @@ public final class IntentProcess implements BotProcess {
         st.mc_goto.finalDist = -1;
         failure = st.mc_goto.lastError;
         st.mc_goto.reset();
-        WorldDriverCommon.LOG.info("[IntentProcess] {} → {}: goal {} abandoned, {}",
+        LOG.info("[IntentProcess] {} → {}: goal {} abandoned, {}",
                 plannedIn.location(), here.location(), intent.target(), DIMENSION_CHANGED);
         return true;
     }

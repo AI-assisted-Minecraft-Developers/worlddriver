@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * Fan-out {@link PathTrace} that forwards every callback to multiple sinks in
- * order. Lets {@link net.magicterra.worlddriver.bot.debug.PathDebugBootstrap} install
+ * order. Lets {@link net.magicterra.worlddriver.integration.debug.PathDebugBootstrap} install
  * both {@link net.magicterra.worlddriver.bot.debug.PathDebugRecorder} and
  * {@link net.magicterra.worlddriver.bot.debug.PathArchiveRecorder} behind a single
  * {@link PathTraceHolder#SINK}.

@@ -10,7 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import net.magicterra.worlddriver.rpc.JsonCodec;
+import net.magicterra.worlddriver.protocol.JsonCodec;
 
 /**
  * {@code <name>.verdicts.jsonl}: one line per run or per human judgement, and the arithmetic

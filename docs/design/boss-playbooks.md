@@ -43,7 +43,7 @@ constraints; there is no separate privileged mode for them.
 
 ## Where to look
 
-- `api/DriverApi.java` — the `mc.bot.playbook` route and the binding seam its runner is installed
+- `application/DriverApplication.java` — the `mc.bot.playbook` route and the binding seam its runner is installed
   through.
 - `common/src/main/resources/data/worlddriver/scripts/playbooks/` — the shipped playbooks, currently
   one for the ender dragon and one for the wither, each carrying its own strategy notes at the top.

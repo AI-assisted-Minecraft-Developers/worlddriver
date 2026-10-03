@@ -32,7 +32,7 @@ public final class WorldDriverClientEvents {
     /** Registers the client API and the bot. Render thread only. */
     public static void install() {
         ClientHooks.register(new ClientDriverApiImpl());
-        BotApiImpl b = new BotApiImpl();
+        BotApiImpl b = new BotApiImpl(WorldDriverCommon.api()::emitExternal);
         BotHooks.register(b);
         bot = b;
         WorldDriverCommon.LOG.info("[{}] client api + bot registered", WorldDriverCommon.MOD_ID);

@@ -1,5 +1,9 @@
 package net.magicterra.worlddriver.rpc;
 
+import net.magicterra.worlddriver.api.WireValues;
+
+import net.magicterra.worlddriver.protocol.RequestLimits;
+import net.magicterra.worlddriver.protocol.JsonCodec;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -22,9 +26,7 @@ import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
 import io.netty.handler.codec.http.websocketx.WebSocketClientHandshakerFactory;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketVersion;
-
 import net.magicterra.worlddriver.api.ServerThreadGuard;
-
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
@@ -63,7 +65,7 @@ public final class RpcClient implements Closeable {
         // simply time out. Same ceiling as every other transport.
         WebSocketClientHandshaker hs = WebSocketClientHandshakerFactory.newHandshaker(
                 uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders(),
-                TransportLimits.MAX_REQUEST_BYTES);
+                RequestLimits.MAX_REQUEST_BYTES);
         this.handler = new ClientHandler(hs);
 
         Bootstrap b = new Bootstrap();
@@ -98,7 +100,7 @@ public final class RpcClient implements Closeable {
 
     public synchronized Object call(String method, Map<String, Object> params) throws IOException {
         long id = nextId.getAndIncrement();
-        String req = JsonCodec.encode(Map.of(
+        String req = WireValues.encode(Map.of(
                 "id", id,
                 "method", method,
                 "params", params == null ? Map.of() : params
@@ -111,12 +113,12 @@ public final class RpcClient implements Closeable {
         long id = nextId.getAndIncrement();
         StringBuilder sb = new StringBuilder(128 + (paramsJson == null ? 2 : paramsJson.length()));
         sb.append("{\"id\":").append(id).append(",\"method\":");
-        sb.append(JsonCodec.encode(method));
+        sb.append(WireValues.encode(method));
         sb.append(",\"params\":");
         sb.append(paramsJson == null || paramsJson.isBlank() ? "{}" : paramsJson);
         sb.append('}');
         Object result = parseEnvelope(send(sb.toString(), id));
-        return JsonCodec.encode(result);
+        return WireValues.encode(result);
     }
 
     /**

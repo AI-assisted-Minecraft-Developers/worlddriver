@@ -6,8 +6,8 @@ gives the notable parameters of each.
 
 **Where the authoritative list lives.** The schemas are declared in
 `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/`, one file per family, and the
-routing table that binds each name to an implementation is the constructor of
-`common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java`. A live server answers
+routing table that binds each name to an implementation is assembled by
+`common/src/main/java/net/magicterra/worlddriver/application/DriverApplication.java`. A live server answers
 `tools/list` with what it has registered, including anything an optional subsystem added, so
 that call is the answer for a particular build. Each tool's `description` is written for a
 language model and states the call shape, the return shape and the pitfalls; this page is

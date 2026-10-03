@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import net.magicterra.worlddriver.application.ObserveApi;
+
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -1148,7 +1150,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         ServerPlayer fp = driver.fakePlayer();
         fp.setAirSupply(42);
 
-        java.util.Map<String, Object> snap = new net.magicterra.worlddriver.api.DriverApi().observe.playerSnapshot(fp);
+        java.util.Map<String, Object> snap = ObserveApi.playerSnapshot(fp);
         WorldDriverCommon.LOG.info("[wd.serverObserveAirSupply] air={} maxAir={}", snap.get("air"), snap.get("maxAir"));
         if (!(snap.get("air") instanceof Number an) || an.intValue() != 42)
             ctx.fail("gap#70: observe.player carries no (or wrong) `air` field — got " + snap.get("air")

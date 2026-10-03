@@ -46,9 +46,9 @@ There is no dependency on a recipe-viewer mod for the core capability.
 
 ## Where to look
 
-- `api/RecipeApi.java` — the lookup, the resolve and the acquisition planner, behind
+- `application/RecipeApi.java` — the lookup, the resolve and the acquisition planner, behind
   `mc.recipe.lookup`, `mc.recipe.resolve` and `mc.plan.acquire`.
-- `api/DriverApi.java` — where those three routes are registered.
+- `application/DriverApplication.java` — where those three routes are registered.
 
 Reading the recipe manager is a read, so it obeys the same thread rule as every other read in the
 driver; see `docs/dev/architecture.md`.

@@ -1,5 +1,8 @@
 package net.magicterra.worlddriver.mcp;
 
+import net.magicterra.worlddriver.api.WireValues;
+
+import net.magicterra.worlddriver.protocol.RequestLimits;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import net.magicterra.worlddriver.BuildStamp;
@@ -8,11 +11,9 @@ import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.rpc.EventNotifications;
-import net.magicterra.worlddriver.rpc.JsonCodec;
+import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.magicterra.worlddriver.rpc.OriginPolicy;
-import net.magicterra.worlddriver.rpc.ServerBusyException;
-import net.magicterra.worlddriver.rpc.TransportLimits;
-
+import net.magicterra.worlddriver.protocol.ServerBusyException;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -85,13 +86,13 @@ public final class McpServer implements Closeable {
     /** Maximum inbound POST body — shared with the WebSocket transport's frame
      *  limit so the two cannot disagree about what a request may weigh. See
      *  {@link TransportLimits}. */
-    private static final long MAX_BODY_BYTES = TransportLimits.MAX_REQUEST_BYTES;
+    private static final long MAX_BODY_BYTES = RequestLimits.MAX_REQUEST_BYTES;
 
     private final DriverApi api;
     private final HttpServer http;
     private final ThreadPoolExecutor executor;
-    private final Semaphore postSlots = new Semaphore(TransportLimits.MCP_MAX_IN_FLIGHT);
-    private final Semaphore streamSlots = new Semaphore(TransportLimits.MCP_MAX_EVENT_STREAMS);
+    private final Semaphore postSlots = new Semaphore(McpLimits.MCP_MAX_IN_FLIGHT);
+    private final Semaphore streamSlots = new Semaphore(McpLimits.MCP_MAX_EVENT_STREAMS);
     /** Open server→client SSE streams (clients that issued {@code GET /mcp}).
      *  {@link #onEvent} fans each driver event out to all of them. */
     private final Set<SseSubscriber> sse = ConcurrentHashMap.newKeySet();
@@ -108,7 +109,7 @@ public final class McpServer implements Closeable {
         // More threads than both caps together, so a request past a cap still gets a
         // thread to be told it is busy. Only a burst past threads + queue is dropped
         // without an answer, which is the HTTP server's own behaviour on rejection.
-        int threads = TransportLimits.MCP_MAX_IN_FLIGHT + TransportLimits.MCP_MAX_EVENT_STREAMS + 8;
+        int threads = McpLimits.MCP_MAX_IN_FLIGHT + McpLimits.MCP_MAX_EVENT_STREAMS + 8;
         this.executor = new ThreadPoolExecutor(threads, threads, 60L, TimeUnit.SECONDS,
                 new ArrayBlockingQueue<>(64), r -> {
             Thread t = new Thread(r, "agent-mcp-worker");
@@ -199,8 +200,8 @@ public final class McpServer implements Closeable {
         if (id == null) { sendNoBody(ex, 202); return; }
 
         if (!postSlots.tryAcquire()) {
-            sendJson(ex, 503, jsonRpcError(id, TransportLimits.RPC_CODE_SERVER_BUSY, "server busy: "
-                    + TransportLimits.MCP_MAX_IN_FLIGHT + " requests already running; retry later"));
+            sendJson(ex, 503, jsonRpcError(id, ServerBusyException.CODE, "server busy: "
+                    + McpLimits.MCP_MAX_IN_FLIGHT + " requests already running; retry later"));
             return;
         }
         try {
@@ -268,7 +269,7 @@ public final class McpServer implements Closeable {
                         ServerBusyException busy = ServerBusyException.find(t);
                         if (hop != null) sendJson(ex, 200, jsonRpcError(id, hop.code(), hop.getMessage()));
                         else if (busy != null) sendJson(ex, 200,
-                                jsonRpcError(id, TransportLimits.RPC_CODE_SERVER_BUSY, busy.getMessage()));
+                                jsonRpcError(id, ServerBusyException.CODE, busy.getMessage()));
                         else sendJson(ex, 200, jsonRpcResult(id, toolError(t.getMessage())));
                     }
                 }
@@ -290,7 +291,7 @@ public final class McpServer implements Closeable {
      */
     private void handleSse(HttpExchange ex) throws IOException {
         if (!streamSlots.tryAcquire()) {
-            send(ex, 503, "server busy: " + TransportLimits.MCP_MAX_EVENT_STREAMS
+            send(ex, 503, "server busy: " + McpLimits.MCP_MAX_EVENT_STREAMS
                     + " event streams already open; close one first");
             return;
         }
@@ -438,7 +439,7 @@ public final class McpServer implements Closeable {
                 && isImageMimeFormat(fmt)) {
             Map<String, Object> meta = new LinkedHashMap<>((Map<String, Object>) raw);
             meta.remove("base64");
-            Map<String, Object> textBlock = Map.of("type", "text", "text", JsonCodec.encode(meta));
+            Map<String, Object> textBlock = Map.of("type", "text", "text", WireValues.encode(meta));
             Map<String, Object> imageBlock = Map.of(
                     "type", "image",
                     "data", b64,
@@ -459,7 +460,7 @@ public final class McpServer implements Closeable {
 
     private static Map<String, Object> toolText(Object result) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("content", List.of(Map.of("type", "text", "text", JsonCodec.encode(result))));
+        m.put("content", List.of(Map.of("type", "text", "text", WireValues.encode(result))));
         m.put("isError", false);
         return m;
     }
@@ -499,7 +500,7 @@ public final class McpServer implements Closeable {
         m.put("jsonrpc", "2.0");
         m.put("id", id == null ? null : id);
         m.put("result", result);
-        return JsonCodec.encode(m);
+        return WireValues.encode(m);
     }
 
     private static String jsonRpcError(Object id, int code, String message) {
@@ -507,7 +508,7 @@ public final class McpServer implements Closeable {
         m.put("jsonrpc", "2.0");
         m.put("id", id == null ? null : id);
         m.put("error", Map.of("code", code, "message", message));
-        return JsonCodec.encode(m);
+        return WireValues.encode(m);
     }
 
     private static void sendJson(HttpExchange ex, int status, String body) throws IOException {

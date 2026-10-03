@@ -241,7 +241,7 @@ player more power.
 | Swinging | every consumed use, place and attack swings | the swing lives at the call sites, not on the bot: the client player swings on each dig tick, and the combat, interaction and elytra processes swing on a consumed action. The server-side player's place, use and attack do not | `Open` |
 
 The two routes described above do not agree here, and the difference is deliberate. A
-`mc.bot.*` verb addressed at a named bot lands in `api/BodyInteractions`, which does what
+`mc.bot.*` verb addressed at a named bot lands in `application/BodyInteractions`, which does what
 the server's packet handlers do with a packet, reach check included: it refuses a use or an
 attack out of range, where a client's equivalent packet would simply be ignored, and swings
 on a consumed action. The `Hands` actuator the walker and the processes drive does neither.

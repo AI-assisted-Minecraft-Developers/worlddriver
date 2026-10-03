@@ -1,7 +1,5 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.body.Body;
@@ -9,12 +7,11 @@ import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.process.BunkerProcess;
+import net.magicterra.worlddriver.bot.process.RouteEvents;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-
 import java.util.Map;
-
 import static net.magicterra.worlddriver.bot.util.BotInteract.releaseKeys;
 
 /**
@@ -38,6 +35,7 @@ public final class DuskSecureChain implements Chain {
      *  gets a real stretch of travel off the failed site before the next try, and a night still
      *  holds some twenty tries for when it has found diggable ground. */
     static final int BAIL_COOLDOWN_TICKS = 600;
+    private final RouteEvents.Emitter emitter;
     private final BotState state;
     private final WorldModel worldModel;
     private BunkerProcess process;
@@ -59,6 +57,11 @@ public final class DuskSecureChain implements Chain {
     private boolean rearmPending;
 
     public DuskSecureChain(BotState state, WorldModel worldModel) {
+        this(state, worldModel, (type, pos, data) -> {});
+    }
+
+    public DuskSecureChain(BotState state, WorldModel worldModel, RouteEvents.Emitter emitter) {
+        this.emitter = emitter;
         this.state = state;
         this.worldModel = worldModel;
     }
@@ -188,11 +191,10 @@ public final class DuskSecureChain implements Chain {
      *  can react (e.g. mc.bot.cancel) and the operator sees it. Pairs with the off-by-default
      *  {@link BotConfig#autoSecureAtDusk} to keep the "dig three, fill one" bunker predominantly an Agent-invoked
      *  action (mc.bot.bunker) rather than an uncontrolled reflex. */
-    private static void announceAutoTrigger(Minecraft mc, boolean rearm) {
-        DriverApi api = WorldDriverCommon.api();
-        if (api == null || mc.player == null) return;
+    private void announceAutoTrigger(Minecraft mc, boolean rearm) {
+        if (mc.player == null) return;
         BlockPos p = mc.player.blockPosition();
-        api.emitExternal("duskSecure.triggered", p, Map.of(
+        emitter.emit("duskSecure.triggered", p, Map.of(
                         "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ()),
                         "depth", BotConfig.bunkerDepth,
                         // gap#75-b: distinguishes a re-arm after preemption from a fresh
@@ -207,10 +209,9 @@ public final class DuskSecureChain implements Chain {
      *  #announceAutoTrigger}'s emit shape. */
     private void maybeEmitDryRun(Minecraft mc) {
         if (dryRunCooldown > 0) { dryRunCooldown--; return; }
-        DriverApi api = WorldDriverCommon.api();
-        if (api == null || mc.player == null) return;
+        if (mc.player == null) return;
         BlockPos p = mc.player.blockPosition();
-        api.emitExternal("duskSecure.urgentDryRun", p, Map.of(
+        emitter.emit("duskSecure.urgentDryRun", p, Map.of(
                         "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ())));
         dryRunCooldown = DRY_RUN_EMIT_COOLDOWN_TICKS;
     }

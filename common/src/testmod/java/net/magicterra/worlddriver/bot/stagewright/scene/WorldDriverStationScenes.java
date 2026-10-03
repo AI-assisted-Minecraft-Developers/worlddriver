@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import net.magicterra.worlddriver.application.ObserveApi;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -8,8 +10,7 @@ import java.util.Map;
 import java.util.Set;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.RecipeApi;
+import net.magicterra.worlddriver.application.RecipeApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.CraftProcess;
 import net.magicterra.worlddriver.bot.process.RecipeResolver;
@@ -424,7 +425,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         worn.setDamageValue(245);
         fp.getInventory().setItem(4, worn);
 
-        Map<String, Object> snap = new DriverApi().observe.playerSnapshot(fp);
+        Map<String, Object> snap = ObserveApi.playerSnapshot(fp);
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> inv = (List<Map<String, Object>>) snap.get("inventory");

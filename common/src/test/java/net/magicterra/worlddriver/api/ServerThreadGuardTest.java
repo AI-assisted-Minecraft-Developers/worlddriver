@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.api;
 
+import net.magicterra.worlddriver.application.DriverApplication;
+
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -53,7 +55,7 @@ class ServerThreadGuardTest {
 
     @Test
     void aForegroundWaitIsRefused() {
-        DriverApi api = new DriverApi();
+        DriverApplication api = new DriverApplication();
         assertRefusedFast("mc.wait.condition", () -> api.wait.condition(Map.of(
                 "invoke", "mc.events", "params", Map.of("op", "list"), "field", "nope", "timeoutMs", 5000)));
     }
@@ -61,14 +63,14 @@ class ServerThreadGuardTest {
     /** A named bot player, because the client's own bot does not exist in a JVM test; both reach the same await. */
     @Test
     void anAwaitMsOrderIsRefusedBeforeItStarts() {
-        DriverApi api = new DriverApi();
+        DriverApplication api = new DriverApplication();
         assertRefusedFast("awaitMs", () -> api.route("mc.bot.mine",
                 Map.of("blocks", java.util.List.of("minecraft:stone"), "body", "npc:ghost", "awaitMs", 5000)));
     }
 
     @Test
     void aBackgroundWaitIsStillAllowed() {
-        DriverApi api = new DriverApi();
+        DriverApplication api = new DriverApplication();
         Map<String, Object> ack = api.wait.condition(Map.of(
                 "invoke", "mc.events", "params", Map.of("op", "list"), "background", true));
         assertTrue(ack.containsKey("waitId"), ack.toString());

@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.script;
 
-import net.magicterra.worlddriver.rpc.JsonCodec;
+import net.magicterra.worlddriver.api.WireValues;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -115,7 +115,7 @@ public final class SkillLibrary {
         if (src == null) return Map.of("ok", false, "error", "unknown skill: " + name);
         Object args = params.getOrDefault("args", Map.of());
         int timeout = (params.get("timeoutMs") instanceof Number n) ? n.intValue() : 0;
-        String full = "var SKILL = " + JsonCodec.encode(args) + ";\n" + src;
+        String full = "var SKILL = " + WireValues.encode(args) + ";\n" + src;
         Map<String, Object> env = evaluator.evaluate(full, timeout);
         Map<String, Object> out = new LinkedHashMap<>(env);
         out.put("ok", env.get("error") == null);

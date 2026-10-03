@@ -1,5 +1,10 @@
 package net.magicterra.worlddriver.rpc;
 
+import net.magicterra.worlddriver.api.WireValues;
+
+import net.magicterra.worlddriver.protocol.RequestLimits;
+import net.magicterra.worlddriver.protocol.ServerBusyException;
+import net.magicterra.worlddriver.protocol.JsonCodec;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
@@ -39,7 +44,6 @@ import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.UnknownMethodException;
 import net.magicterra.worlddriver.model.DriverEvent;
-
 import java.io.Closeable;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -148,10 +152,10 @@ public final class RpcServer implements Closeable {
                    .addLast(new HttpObjectAggregator(1 << 20))
                    .addLast(new OriginGate())
                    .addLast(new WebSocketServerProtocolHandler("/rpc", null, true,
-                           TransportLimits.MAX_REQUEST_BYTES))
+                           RequestLimits.MAX_REQUEST_BYTES))
                    // A fragmented message reaches FrameHandler as one frame; without this
                    // the first fragment was parsed alone and the continuations dropped.
-                   .addLast(new WebSocketFrameAggregator(TransportLimits.MAX_REQUEST_BYTES))
+                   .addLast(new WebSocketFrameAggregator(RequestLimits.MAX_REQUEST_BYTES))
                    .addLast(new PeerLiveness(pingIntervalMs, idleCloseMs))
                    .addLast(new FrameHandler(api, routeExec, subs));
              }
@@ -329,7 +333,7 @@ public final class RpcServer implements Closeable {
             try {
                 if (JsonCodec.decode(line) instanceof Map<?, ?> req) id = req.get("id");
             } catch (Throwable ignored) { /* unreadable: answer with a null id */ }
-            return errorFrame(id, TransportLimits.RPC_CODE_SERVER_BUSY, "server busy: " + why + "; retry later");
+            return errorFrame(id, ServerBusyException.CODE, "server busy: " + why + "; retry later");
         }
 
         @SuppressWarnings("unchecked")
@@ -346,7 +350,7 @@ public final class RpcServer implements Closeable {
                 if (!(req.get("method") instanceof String method)) {
                     return errorFrame(id, CODE_INVALID_REQUEST,
                             "invalid request: 'method' must be a string, got "
-                            + JsonCodec.encode(req.get("method")));
+                            + WireValues.encode(req.get("method")));
                 }
                 Map<String, Object> params = (Map<String, Object>) req.get("params");
                 // Event-stream subscription is per-connection state, so it's handled
@@ -398,7 +402,7 @@ public final class RpcServer implements Closeable {
             m.put("id", id);          // Map.of would reject the null
             m.put("error", message);
             m.put("code", code);
-            return JsonCodec.encode(m);
+            return WireValues.encode(m);
         }
 
         /** A request that carried no id is answered with {@code id:null}, never a made-up
@@ -407,7 +411,7 @@ public final class RpcServer implements Closeable {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", id);
             m.put("result", result);
-            return JsonCodec.encode(m);
+            return WireValues.encode(m);
         }
 
         /** Mirrors McpServer's classification: a frame with no method is -32600, an
@@ -418,7 +422,7 @@ public final class RpcServer implements Closeable {
         private static int codeFor(Throwable ex) {
             ServerThreadHop.HopTimeoutException hop = ServerThreadHop.find(ex);
             if (hop != null) return hop.code();
-            if (ServerBusyException.find(ex) != null) return TransportLimits.RPC_CODE_SERVER_BUSY;
+            if (ServerBusyException.find(ex) != null) return ServerBusyException.CODE;
             if (ex instanceof UnknownMethodException u)
                 return u.method() == null ? CODE_INVALID_REQUEST : CODE_METHOD_NOT_FOUND;
             if (ex instanceof IllegalArgumentException)
@@ -447,7 +451,7 @@ public final class RpcServer implements Closeable {
                         if (!(o instanceof String s) || s.isBlank()) {
                             return errorFrame(id, CODE_INVALID_PARAMS,
                                     "mc.events.subscribe: every entry of 'types' must be a "
-                                    + "non-blank string, got " + JsonCodec.encode(o));
+                                    + "non-blank string, got " + WireValues.encode(o));
                         }
                         types.add(s);
                     }

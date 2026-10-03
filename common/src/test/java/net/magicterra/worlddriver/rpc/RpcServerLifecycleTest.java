@@ -1,7 +1,8 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.WaitApi;
+import net.magicterra.worlddriver.application.DriverApplication;
+
+import net.magicterra.worlddriver.application.WaitApi;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -29,7 +30,7 @@ class RpcServerLifecycleTest {
         Set<Thread> before = rpcThreads();
         try (ServerSocket taken = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))) {
             assertThrows(Exception.class,
-                    () -> new RpcServer(new DriverApi(), "127.0.0.1", taken.getLocalPort()));
+                    () -> new RpcServer(new DriverApplication(), "127.0.0.1", taken.getLocalPort()));
         }
         List<String> leaked = List.of();
         long deadline = System.nanoTime() + 20_000_000_000L;
@@ -45,7 +46,7 @@ class RpcServerLifecycleTest {
     void aPeerThatAnswersNoPingsIsClosedAfterTheSilenceWindow() throws Exception {
         // A half-open peer never errors a write the kernel can still buffer, so without
         // a liveness check its connection and subscription live as long as the JVM.
-        try (RpcServer server = new RpcServer(new DriverApi(), "127.0.0.1", 0, 200, 1_000);
+        try (RpcServer server = new RpcServer(new DriverApplication(), "127.0.0.1", 0, 200, 1_000);
              WsTestClient silent = new WsTestClient(server.port())) {
             assertTrue(silent.channel.closeFuture().await(10, TimeUnit.SECONDS),
                     "a peer silent past the window must be closed");
@@ -57,7 +58,7 @@ class RpcServerLifecycleTest {
     void aPeerThatAnswersPingsOutlivesTheWindowWhileSendingNothingElse() throws Exception {
         // Stands in for a client blocked on a long mc.wait.*: its library answers pings
         // while the application sends nothing.
-        try (RpcServer server = new RpcServer(new DriverApi(), "127.0.0.1", 0, 200, 1_000);
+        try (RpcServer server = new RpcServer(new DriverApplication(), "127.0.0.1", 0, 200, 1_000);
              WsTestClient alive = new WsTestClient(server.port())) {
             alive.answerPings = true;
             Thread.sleep(3_000);
@@ -70,7 +71,7 @@ class RpcServerLifecycleTest {
     void theInJvmClientSurvivesACallLongerThanTheWindow() throws Exception {
         // Driver.invokeRpc opens one RpcClient per call, and an awaitMs call may block for
         // minutes; the client must answer pings meanwhile or the server hangs up on it.
-        try (RpcServer server = new RpcServer(new DriverApi(), "127.0.0.1", 0, 200, 1_000);
+        try (RpcServer server = new RpcServer(new DriverApplication(), "127.0.0.1", 0, 200, 1_000);
              RpcClient client = new RpcClient("127.0.0.1", server.port())) {
             Object r = client.call("mc.wait.condition", Map.of("invoke", "mc.events",
                     "params", Map.of("op", "list"), "field", "nope", "timeoutMs", 2_500, "pollMs", 100));

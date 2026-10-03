@@ -1,5 +1,9 @@
 package net.magicterra.worlddriver.rpc;
 
+import net.magicterra.worlddriver.protocol.RequestLimits;
+
+import net.magicterra.worlddriver.protocol.JsonCodec;
+
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -45,7 +49,7 @@ final class WsTestClient implements AutoCloseable {
     WsTestClient(int port) throws Exception {
         WebSocketClientHandshaker hs = WebSocketClientHandshakerFactory.newHandshaker(
                 URI.create("ws://127.0.0.1:" + port + "/rpc"), WebSocketVersion.V13,
-                null, false, new DefaultHttpHeaders(), TransportLimits.MAX_REQUEST_BYTES);
+                null, false, new DefaultHttpHeaders(), RequestLimits.MAX_REQUEST_BYTES);
         Handler handler = new Handler(hs);
         Bootstrap b = new Bootstrap();
         b.group(group).channel(NioSocketChannel.class)
