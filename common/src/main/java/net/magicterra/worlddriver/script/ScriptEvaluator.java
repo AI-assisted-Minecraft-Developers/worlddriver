@@ -9,9 +9,6 @@ import dev.latvian.mods.rhino.util.ClassVisibilityContext;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.rpc.JsonCodec;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,21 +41,10 @@ public final class ScriptEvaluator {
     private static final int PLAYBOOK_MAX_TIMEOUT_MS = 20 * 60_000;
     private static final int MAX_SOURCE_CHARS = 64 * 1024;
     private static final int INSTRUCTION_THRESHOLD = 10_000;
-    private static final String PRELUDE_RESOURCE = "/data/worlddriver/scripts/prelude.js";
-    private static final String PRELUDE = loadPrelude();
 
     private final DriverApi api;
     private final ExecutorService executor;
     private final AtomicLong seq = new AtomicLong();
-
-    private static String loadPrelude() {
-        try (InputStream in = ScriptEvaluator.class.getResourceAsStream(PRELUDE_RESOURCE)) {
-            if (in == null) throw new IllegalStateException("missing classpath resource " + PRELUDE_RESOURCE);
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("failed to load " + PRELUDE_RESOURCE, e);
-        }
-    }
 
     public ScriptEvaluator(DriverApi api) {
         this.api = api;
@@ -195,10 +181,7 @@ public final class ScriptEvaluator {
         cx.setInstructionObserverThreshold(INSTRUCTION_THRESHOLD);
 
         ScriptableObject scope = cx.initStandardObjects();
-        ScriptableObject.putProperty(scope, "__api", cx.javaToJS(api, scope), cx);
-        ScriptableObject.putProperty(scope, "__java", cx.javaToJS(ScriptJava.INSTANCE, scope), cx);
-
-        cx.evaluateString(scope, PRELUDE, "<eval-prelude>", 1, null);
+        ScriptPrelude.install(cx, scope, api);
 
         // Evaluate the user source directly — its last expression becomes the
         // result. Doing this with a separate evaluateString (rather than wrapping
