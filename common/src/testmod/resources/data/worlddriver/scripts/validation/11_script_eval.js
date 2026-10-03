@@ -96,13 +96,13 @@ ScriptTest.run("11_script_eval: sandbox still applies inside eval", function(t) 
 // both scopes that load the prelude: this harness scope and an eval scope.
 ScriptTest.run("11_script_eval: javaClassName names a Java object, null for a JS value", function(t) {
     t.assertEqual(typeof __api.getClass, "undefined", "if getClass is reachable, javaClassName is redundant");
-    t.assertEqual(javaClassName(__api), "net.magicterra.worlddriver.api.DriverApi");
+    t.assertEqual(javaClassName(__api), "net.magicterra.worlddriver.application.DriverApplication");
     t.assertEqual(javaClassName({a: 1}), null);
     t.assertEqual(javaClassName("s"), null);
     t.assertEqual(javaClassName(null), null);
     var out = call("[javaClassName(__api), javaClassName([1, 2]), javaClassName(undefined)]");
     t.assertEqual(out.error, null, "no error expected, got: " + out.error);
-    t.assertEqual(out.result[0], "net.magicterra.worlddriver.api.DriverApi");
+    t.assertEqual(out.result[0], "net.magicterra.worlddriver.application.DriverApplication");
     t.assertEqual(out.result[1], null);
     t.assertEqual(out.result[2], null);
 });
