@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.script;
 
-import net.magicterra.worlddriver.rpc.JsonCodec;
+import net.magicterra.worlddriver.api.WireValues;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -90,7 +90,7 @@ public final class PlaybookRunner {
         }
         final int budget = (params.get("budgetMs") instanceof Number n) ? n.intValue() : DEFAULT_BUDGET_MS;
         // Inject the caller's params as a PLAYBOOK global the script reads for tuning.
-        final String full = "var PLAYBOOK = " + JsonCodec.encode(params) + ";\n" + body;
+        final String full = "var PLAYBOOK = " + WireValues.encode(params) + ";\n" + body;
 
         this.name = nm;
         this.abort = false;

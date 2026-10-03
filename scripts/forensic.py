@@ -19,15 +19,19 @@ import argparse
 import re
 import sys
 
+# Fabric uses [HH:MM:SS]; NeoForge uses [03Oct2026 HH:MM:SS.SSS]. Keep the
+# extracted time in HH:MM:SS so the window filter and paired rows agree.
+STAMP = r'\[(?:\d{2}[A-Za-z]{3}\d{4} )?(?P<ts>\d\d:\d\d:\d\d)(?:\.\d+)?\]'
+P_STAMP = re.compile(STAMP)
 P_T = re.compile(
-    r'\[(?P<ts>\d\d:\d\d:\d\d)\].*\[walker\] t=(?P<t>\d+) step=(?P<step>\S+) move=(?P<move>\S+) '
+    STAMP + r'.*\[walker\] t=(?P<t>\d+) step=(?P<step>\S+) move=(?P<move>\S+) '
     r'node=(?P<node>\S+) p=\((?P<pos>[^)]*)\).*?bear=(?P<bear>-?\d+) yawErr=(?P<yawErr>-?\d+).*?'
     r'cur2=(?P<cur2>\S+) \(gate[^)]*\) \|dY\|=(?P<dy>\S+)')
 P_K = re.compile(
-    r'\[(?P<ts>\d\d:\d\d:\d\d)\].*walk-keys yaw=(?P<yaw>-?\d+) wp=(?P<wp>\S+) up=(?P<up>\w+) '
+    STAMP + r'.*walk-keys yaw=(?P<yaw>-?\d+) wp=(?P<wp>\S+) up=(?P<up>\w+) '
     r'jump=(?P<jump>\w+) sprint=(?P<sprint>\w+).*?hCol=(?P<hcol>\w+).*?hSpd=(?P<hspd>\S+) '
     r'pos=(?P<kpos>\S+) onG=(?P<ong>\w+) attack=(?P<attack>\w+).*?driveYaw=(?P<dyaw>-?\d+)')
-P_E = re.compile(r'\[(?P<ts>\d\d:\d\d:\d\d)\].*(?P<line>\[expect\].*)$')
+P_E = re.compile(STAMP + r'.*(?P<line>\[expect\].*)$')
 
 
 def main():
@@ -51,9 +55,10 @@ def main():
             # Only timestamped lines participate in the window filter — a banner or
             # stack-trace line would win the string comparison and false-trigger the
             # early break (the bug that made the first windowed run return 0 rows).
-            if len(line) < 10 or line[0] != '[' or line[3] != ':' or line[9] != ']':
+            stamp = P_STAMP.match(line)
+            if stamp is None:
                 continue
-            ts = line[1:9]
+            ts = stamp.group('ts')
             if args.t_from and ts < args.t_from:
                 continue
             if args.t_to and ts > args.t_to:

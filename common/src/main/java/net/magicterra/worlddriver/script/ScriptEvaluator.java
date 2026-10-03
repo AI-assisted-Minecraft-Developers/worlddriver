@@ -7,7 +7,7 @@ import dev.latvian.mods.rhino.ScriptableObject;
 import dev.latvian.mods.rhino.Undefined;
 import dev.latvian.mods.rhino.util.ClassVisibilityContext;
 import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.rpc.JsonCodec;
+import net.magicterra.worlddriver.protocol.JsonCodec;
 
 import java.util.LinkedHashMap;
 import java.util.List;

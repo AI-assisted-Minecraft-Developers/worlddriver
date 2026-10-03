@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.rpc;
 
+import net.magicterra.worlddriver.protocol.JsonCodec;
+
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;

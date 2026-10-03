@@ -94,7 +94,7 @@ A reflex cannot ask a question it cannot answer from the snapshot, which is why 
 - `bot/world/SurvivalMath.java` and `SurvivalFacts.java` — the pure survival arithmetic.
 - `bot/world/AsciiMapRenderer.java` — the map the caller reads.
 - `bot/scheduler/` — the reflex chains that consume it; see `docs/design/scheduler-semantics.md`.
-- `api/ObserveApi.java` and the client scene read — the caller's view.
+- `application/ObserveApi.java` and the client scene read — the caller's view.
 
 Two decisions recorded here were later revised, and the revisions live in
 `docs/design/scheduler-semantics.md`: shelter-seeking gained a tier that *can* preempt a user task, and

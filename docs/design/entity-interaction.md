@@ -51,8 +51,8 @@ parameterised call beats one that depends on where the crosshair happens to poin
 ## Where to look
 
 - `bot/InteractionCommands.java` — the vanilla sequence, the sneak handling, and the deferred result poll.
-- `api/DriverApi.java` — the three-way dispatch on the use-item route.
-- `api/BodyInteractions.java` — the same operation for a bot player that is not the client's, where the reach
+- `application/DriverApplication.java` — the three-way dispatch on the use-item route.
+- `application/BodyInteractions.java` — the same operation for a bot player that is not the client's, where the reach
   check has to be explicit because there is no server to silently drop it.
 - `mcp/catalog/BotTools.java` — the advertised schema and the documented return shape.
 

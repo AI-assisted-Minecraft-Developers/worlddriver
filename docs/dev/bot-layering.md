@@ -177,10 +177,10 @@ every host wraps an entity of that server.
 
 The `mc.bot.*` verbs that drive a bot take a `body` parameter; `equip`, `setting`,
 `waypoint` and `playbook` stay with the client. Anything other than `self` goes to
-`api/BodyRoutes`, which hops to the server thread and refuses in `BodyReady` terms judged
+`application/BodyRoutes`, which hops to the server thread and refuses in `BodyReady` terms judged
 on the entity. A process verb's parameters are read by `bot/VerbOrders`, the same builder
 `BotApiImpl` uses for `self`, so the two cannot read one order differently. The hand verbs
-are `api/BodyInteractions`, which does on the server what a client click's packets would
+are `application/BodyInteractions`, which does on the server what a client click's packets would
 have done there, reach check included. A host runs one process on the server tick with no
 scheduler, chains or reflexes; `self` keeps all three. `BodyRoutes`, `BodyInteractions`
 and `VerbOrders` must not name a client class — on a dedicated server they are the only

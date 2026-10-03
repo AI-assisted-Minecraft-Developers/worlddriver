@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.api;
 
+import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
-
 import java.util.List;
 import java.util.Map;
 
@@ -21,7 +21,7 @@ public final class QueryParams {
         if (sel instanceof List<?> l) {
             p.select = (List<String>) l;
         }
-        p.center = ApiSupport.readPos(m.get("center"));
+        p.center = Params.toPos(m.get("center"));
         return p;
     }
 }

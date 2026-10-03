@@ -1,5 +1,9 @@
 package net.magicterra.worlddriver.rpc;
 
+import net.magicterra.worlddriver.api.WireValues;
+
+import net.magicterra.worlddriver.protocol.JsonCodec;
+
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
@@ -22,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code DriverEvent.data} must reach the wire as a typed value.
  *
  * <p>It was declared {@code String}, so every structured emitter pre-encoded with
- * {@code JsonCodec.encode(map)} and the payload shipped as JSON escaped inside a
+ * {@code WireValues.encode(map)} and the payload shipped as JSON escaped inside a
  * JSON string. The field was then an undiscriminated union — scalar payloads
  * ({@code block.place} carries a block id) and documents ({@code time.phase}
  * carries {@code {phase, dayTime}}) were both just strings, and a consumer had to
@@ -33,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DriverEventWireTest {
 
     private static Map<?, ?> encodeThenDecode(DriverEvent e) {
-        Object decoded = JsonCodec.decode(JsonCodec.encode(e));
+        Object decoded = JsonCodec.decode(WireValues.encode(e));
         return assertInstanceOf(Map.class, decoded);
     }
 
@@ -90,7 +94,7 @@ class DriverEventWireTest {
      * The tests above build an {@link DriverEvent} directly, so they prove the CODEC
      * is right — not that the emitters stopped pre-encoding. Nothing else can:
      * {@code emit} takes an {@code Object}, so a leftover
-     * {@code emit(type, pos, JsonCodec.encode(map))} compiles cleanly and quietly
+     * {@code emit(type, pos, WireValues.encode(map))} compiles cleanly and quietly
      * restores the escaped-string payload for that one event type. This is the only
      * thing standing between that and a silent regression, so it reads the source.
      */

@@ -6,7 +6,6 @@ import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.ContextFactory;
 import dev.latvian.mods.rhino.NativeJavaClass;
 import dev.latvian.mods.rhino.ScriptableObject;
-
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.ArrayList;

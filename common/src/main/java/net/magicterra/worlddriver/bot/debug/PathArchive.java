@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.bot.debug;
 
-import net.magicterra.worlddriver.rpc.JsonCodec;
-
+import net.magicterra.worlddriver.protocol.JsonCodec;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

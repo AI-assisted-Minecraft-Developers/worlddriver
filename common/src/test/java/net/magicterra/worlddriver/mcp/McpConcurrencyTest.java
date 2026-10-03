@@ -1,8 +1,10 @@
 package net.magicterra.worlddriver.mcp;
 
-import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.rpc.JsonCodec;
-import net.magicterra.worlddriver.rpc.TransportLimits;
+import net.magicterra.worlddriver.application.DriverApplication;
+
+import net.magicterra.worlddriver.protocol.ServerBusyException;
+
+import net.magicterra.worlddriver.protocol.JsonCodec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -39,9 +41,9 @@ class McpConcurrencyTest {
 
     @Test
     void postsPastTheCapAreRefusedWithABusyError() throws Exception {
-        int cap = TransportLimits.MCP_MAX_IN_FLIGHT;
+        int cap = McpLimits.MCP_MAX_IN_FLIGHT;
         int extra = 6;
-        try (McpServer server = new McpServer(new DriverApi(), 0)) {
+        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
             HttpClient http = HttpClient.newHttpClient();
             List<CompletableFuture<HttpResponse<String>>> calls = new ArrayList<>();
             for (int i = 1; i <= cap + extra; i++) {
@@ -54,7 +56,7 @@ class McpConcurrencyTest {
                 else {
                     assertEquals(503, r.statusCode(), r.body());
                     Map<?, ?> err = (Map<?, ?>) ((Map<?, ?>) JsonCodec.decode(r.body())).get("error");
-                    assertEquals(String.valueOf(TransportLimits.RPC_CODE_SERVER_BUSY), String.valueOf(err.get("code")));
+                    assertEquals(String.valueOf(ServerBusyException.CODE), String.valueOf(err.get("code")));
                     busy++;
                 }
             }
@@ -65,8 +67,8 @@ class McpConcurrencyTest {
 
     @Test
     void eventStreamsPastTheCapAreRefused() throws Exception {
-        int cap = TransportLimits.MCP_MAX_EVENT_STREAMS;
-        try (McpServer server = new McpServer(new DriverApi(), 0)) {
+        int cap = McpLimits.MCP_MAX_EVENT_STREAMS;
+        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
             HttpClient http = HttpClient.newHttpClient();
             HttpRequest get = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + "/mcp"))
                     .header("Accept", "text/event-stream").GET().build();

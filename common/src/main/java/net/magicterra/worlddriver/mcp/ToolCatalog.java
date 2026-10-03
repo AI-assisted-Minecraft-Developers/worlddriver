@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.mcp;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -9,6 +10,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -69,6 +71,7 @@ public final class ToolCatalog {
     private ToolCatalog() {}
 
     private static final List<Supplier<List<ToolSchema>>> EXTRA = new CopyOnWriteArrayList<>();
+    private static final Map<String, ToolSchema> PAIRED = new ConcurrentHashMap<>();
     private static volatile Map<String, Schema> byNameCache;
 
     /**
@@ -105,7 +108,7 @@ public final class ToolCatalog {
      * <ol>
      *   <li>enforce the {@linkplain ToolCatalog class-level} namespace policy on
      *       {@code schema.name()} — violation throws {@link IllegalArgumentException};</li>
-     *   <li>supply the schema through the {@link #registerExtra} mechanism (which
+     *   <li>supply the schema through the keyed paired registry (which
      *       invalidates the validation cache so the new verb validates immediately);</li>
      *   <li>install the route on the live {@code DriverApi} via the bootstrap-wired
      *       {@linkplain #wireRouteSink route sink};</li>
@@ -130,14 +133,13 @@ public final class ToolCatalog {
      * {@code schemaByName()}. The guard outlives that verb: it is what keeps the
      * {@code mc.test.*} grant from reaching the curated sections. The baseline is fixed at class-load
      * (the fixed sections + {@code HIDDEN_TOOLS} never change at runtime, and
-     * {@link #registerExtra} — including the extras this method itself feeds — never
+     * {@link #EXTRA} and {@link #PAIRED} never
      * contributes to it by construction), so the guard cannot be bypassed by first
      * registering something to grow the baseline.
      *
      * <p><b>Duplicate names within the extra space</b> (i.e. names NOT in the driver-owned
      * baseline) still follow {@code DriverApi.addRoute} last-wins semantics for the route;
-     * the schema supplier is appended (last entry for a name wins in
-     * {@code schemaByName()}), so re-registering the SAME extra verb name replaces its
+     * the paired schema is replaced by name, so re-registering the SAME extra verb name replaces its
      * route and its effective schema. This residual last-wins is a same-classpath trust
      * boundary, not a hardened one: any code running in this JVM can call
      * {@code registerVerb} again with a third party's already-registered extra name and
@@ -150,7 +152,7 @@ public final class ToolCatalog {
      * @throws IllegalStateException    if the route sink is not yet wired (pre-boot), or the
      *                                  self-check finds the pair torn
      */
-    public static void registerVerb(ToolSchema schema, Function<Map<String, Object>, Object> handler) {
+    public static synchronized void registerVerb(ToolSchema schema, Function<Map<String, Object>, Object> handler) {
         Objects.requireNonNull(schema, "schema");
         Objects.requireNonNull(handler, "handler");
         String name = schema.name();
@@ -170,9 +172,10 @@ public final class ToolCatalog {
                     + "which runs once the DriverApi exists). Pre-boot queueing is intentionally not "
                     + "supported: it would split the atomic (schema+route) pair.");
         }
-        // Atomic pair: schema first (via EXTRA — invalidates the validation cache), then the
+        // Atomic pair: schema first (keyed by name — invalidates the validation cache), then the
         // route on the live api. Both halves land under this one call.
-        registerExtra(() -> List.of(schema));
+        PAIRED.put(name, schema);
+        byNameCache = null;
         sink.accept(name, handler);
         // Self-check — single-name mirror of DriverApi.requireSchemasFor. A paired entry that
         // leaves the route without a resolvable schema is a bug, not a runtime possibility.
@@ -224,7 +227,7 @@ public final class ToolCatalog {
     );
 
     /** Register an extra schema supplier (e.g. the path-debug tool). Inert until called. */
-    public static void registerExtra(Supplier<List<ToolSchema>> supplier) {
+    public static synchronized void registerExtra(Supplier<List<ToolSchema>> supplier) {
         Objects.requireNonNull(supplier, "supplier");
         EXTRA.add(supplier);
         byNameCache = null;   // extras registered after boot wiring must still validate
@@ -234,7 +237,7 @@ public final class ToolCatalog {
      * The curated, hand-written tool schemas in their fixed section order — NO extras.
      * This is the fixed half of {@link #curated()}, split out so the driver-owned
      * {@linkplain #baselineNames() baseline} can be computed without folding in
-     * {@link #EXTRA} (registerVerb's own paired schemas among them).
+     * {@link #EXTRA} and {@link #PAIRED}.
      */
     private static List<ToolSchema> fixedCurated() {
         ArrayList<ToolSchema> all = new ArrayList<>();
@@ -252,6 +255,7 @@ public final class ToolCatalog {
     private static List<ToolSchema> curated() {
         ArrayList<ToolSchema> all = new ArrayList<>(fixedCurated());
         for (Supplier<List<ToolSchema>> s : EXTRA) all.addAll(s.get());
+        PAIRED.values().stream().sorted(Comparator.comparing(ToolSchema::name)).forEach(all::add);
         return all;
     }
 
@@ -260,8 +264,7 @@ public final class ToolCatalog {
     /**
      * The driver-owned baseline name set: every name in the fixed curated sections
      * ({@link #fixedCurated()}) plus {@link #HIDDEN_TOOLS} — deliberately WITHOUT
-     * {@link #EXTRA}, so names registered through {@link #registerExtra} (including
-     * {@link #registerVerb}'s own paired schemas) never join the baseline. This is
+     * {@link #EXTRA} and {@link #PAIRED}, so extension schemas never join the baseline. This is
      * what {@link #registerVerb} guards: a third-party caller cannot pick a name equal
      * to a driver-owned verb and last-wins shadow it. Immutable after class init (the
      * fixed sections and {@code HIDDEN_TOOLS} never change at runtime, and extras never
@@ -303,9 +306,9 @@ public final class ToolCatalog {
 
     /**
      * name → typed Schema for EVERY declared tool (visible + hidden) — the
-     * validation side of the single source. Cached; registerExtra invalidates.
+     * validation side of the single source. Cached; registerExtra and registerVerb invalidate.
      */
-    public static Map<String, Schema> schemaByName() {
+    public static synchronized Map<String, Schema> schemaByName() {
         Map<String, Schema> c = byNameCache;
         if (c == null) {
             LinkedHashMap<String, Schema> m = new LinkedHashMap<>();

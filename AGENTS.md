@@ -24,12 +24,12 @@ links to; read that page before arguing with the rule.
 
 ## Hard rules
 
-1. **Never put behaviour in a transport handler.** New methods go in `DriverApi`; the MCP
+1. **Never put behaviour in a transport handler.** Register new core methods in `application/DriverApplication`; the MCP
    server, the RPC server and the script bridge only translate parameters and call
    `DriverApi.route(...)`. The parity scripts sample this rather than prove it — see
    `docs/dev/architecture.md`.
 2. **Writes, and reads that touch the level, go through the server thread** via
-   `DriverApi.onServerThread`. Never reach for `Level` from a transport thread.
+   `DriverApplication.onServerThread`. Never reach for `Level` from a transport thread.
 3. **Widening what a script can reach is a decision, not a refactor.** The script class filter
    is off unless `-Dworlddriver.sandbox=on`; do not describe it as a gate and do not propose
    flipping the default. If you change what scripts can reach, say so and update
@@ -90,8 +90,8 @@ to read a negative verdict, and the out-of-process suites are in `docs/dev/testi
 ## When you add a method to the API surface
 
 0. Re-read hard rule 6 first. Can you extend an existing method instead?
-1. Add the behaviour to `DriverApi.route(...)`. That is where the core `mc.*` methods are
-   registered; an extension verb (`mc.test.*`, `<modid>.*`) uses `ToolCatalog.registerVerb`
+1. Add the behaviour to `application/DriverApplication`. Its handlers are dispatched by
+   `DriverApi.route(...)`; an extension verb (`mc.test.*`, `<modid>.*`) uses `ToolCatalog.registerVerb`
    instead — see `docs/dev/architecture.md` ("Registering a verb").
 2. Register the schema under `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/`.
    Every route must have a schema; the boot invariant refuses a route without one.
@@ -102,7 +102,7 @@ to read a negative verdict, and the out-of-process suites are in `docs/dev/testi
 
 ## When you remove or merge a method
 
-1. Drop the route in `DriverApi` and the catalog entry.
+1. Drop the registration in `DriverApplication` and the catalog entry.
 2. Keep a JavaScript-level helper in `prelude.js` and in the inlined prelude inside
    `ScriptManager.java` so existing scripts keep working. Both prelude sources must stay in
    step.

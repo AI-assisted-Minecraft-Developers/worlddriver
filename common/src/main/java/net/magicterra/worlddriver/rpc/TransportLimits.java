@@ -1,37 +1,9 @@
 package net.magicterra.worlddriver.rpc;
 
-/**
- * Inbound size ceiling for every transport, in one place so they cannot disagree.
- *
- * <p>They did. {@code McpServer} capped a POST body at 8 MiB and said so; the
- * WebSocket server never set a frame size at all and silently inherited Netty's
- * 64 KiB default. The same {@code DriverApi} call therefore succeeded over MCP and
- * failed over the WebSocket at 128× less payload — and failed in the worst way
- * available: a frame that exceeds the decoder's limit never assembles, so there is
- * no request to answer and no id to answer it with. The caller saw the connection
- * drop, not an error. Nothing tied the two numbers together, and nothing would have
- * noticed if only one of them changed.
- *
- * <p>8 MiB is well above any real request (the biggest inbound payload is a script
- * body for {@code mc.script.eval}; screenshots travel the other way) and small
- * enough that a single hostile frame cannot be a one-shot OOM. Both transports
- * buffer a whole request in memory, so the exposure is the same on each — which is
- * the argument for one number rather than two.
- */
+/** WebSocket connection, liveness and worker limits. */
 public final class TransportLimits {
     private TransportLimits() {}
 
-    /**
-     * Largest inbound request, in bytes: a POST body on MCP, a WebSocket message on
-     * the RPC socket (each frame, and a fragmented message's fragments together).
-     * Override with {@code -Dworlddriver.maxRequestBytes=N}.
-     *
-     * <p>Replaces the MCP-only {@code agent.mcp.maxBodyBytes}. An {@code int}
-     * because that is what Netty's frame-size parameter takes; the MCP side widens
-     * it for its {@code Content-Length} comparison.
-     */
-    public static final int MAX_REQUEST_BYTES =
-            Integer.getInteger("worlddriver.maxRequestBytes", 8 * 1024 * 1024);
 
     /**
      * Outbound bytes a WebSocket connection may have queued before it counts as unwritable,
@@ -56,7 +28,7 @@ public final class TransportLimits {
 
     /**
      * Requests one WebSocket connection may have running at once. Past it a request is
-     * answered at once with {@link #RPC_CODE_SERVER_BUSY} instead of taking a thread: a
+     * answered at once with {@link ServerBusyException#CODE} instead of taking a thread: a
      * long {@code mc.wait.*} holds its worker for up to two minutes, so an unbounded loop on
      * one socket would otherwise exhaust the JVM's native threads and take the game down.
      */
@@ -65,19 +37,7 @@ public final class TransportLimits {
     /** Worker threads the WebSocket server runs requests on, across all connections. */
     public static final int RPC_MAX_WORKERS = 64;
 
-    /** POSTs the MCP server runs at once; past it a request gets 503 with
-     *  {@link #RPC_CODE_SERVER_BUSY}, for the same reason as the WebSocket cap. */
-    public static final int MCP_MAX_IN_FLIGHT = 32;
 
-    /** Open MCP event streams ({@code GET /mcp}); each parks a worker for its lifetime. */
-    public static final int MCP_MAX_EVENT_STREAMS = 8;
 
-    /** {@code background:true} waits running at once, across the JVM. Each holds a thread for
-     *  up to its whole budget, and starting one is a single cheap call, so a loop could
-     *  otherwise start them faster than they finish. */
-    public static final int WAIT_MAX_BACKGROUND = 32;
 
-    /** JSON-RPC error code, from the implementation-defined server-error range, for a
-     *  request refused because a concurrency cap is full. Retrying later can succeed. */
-    public static final int RPC_CODE_SERVER_BUSY = -32005;
 }

@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.mcp;
 
+import net.magicterra.worlddriver.application.DriverApplication;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -13,7 +15,7 @@ import java.util.Map;
 
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.ServerThreadHop;
-import net.magicterra.worlddriver.rpc.JsonCodec;
+import net.magicterra.worlddriver.protocol.JsonCodec;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -26,7 +28,7 @@ class McpHopTimeoutTest {
 
     @Test
     void theTwoTimeoutsCarryTheirOwnCodesAndOtherFailuresStayToolErrors() throws Exception {
-        DriverApi api = new DriverApi();
+        DriverApi api = new DriverApplication();
         api.addRoute("mc.test.notExecuted", p -> {
             throw new ServerThreadHop.NotExecutedException("withdrawn");
         });

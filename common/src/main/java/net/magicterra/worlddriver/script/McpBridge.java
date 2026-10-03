@@ -1,8 +1,9 @@
 package net.magicterra.worlddriver.script;
 
-import net.magicterra.worlddriver.api.ServerThreadGuard;
-import net.magicterra.worlddriver.rpc.JsonCodec;
+import net.magicterra.worlddriver.api.WireValues;
 
+import net.magicterra.worlddriver.api.ServerThreadGuard;
+import net.magicterra.worlddriver.protocol.JsonCodec;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -48,7 +49,7 @@ public final class McpBridge {
         req.put("method", "tools/call");
         req.put("params", Map.of("name", toolName, "arguments", args == null ? Map.of() : args));
 
-        String body = JsonCodec.encode(req);
+        String body = WireValues.encode(req);
         try {
             HttpRequest httpReq = HttpRequest.newBuilder(endpoint)
                     .timeout(Duration.ofSeconds(10))
@@ -126,6 +127,6 @@ public final class McpBridge {
             args = (decoded instanceof Map<?, ?> mm) ? (Map<String, Object>) mm : Map.of();
         }
         Object result = call(toolName, args);
-        return JsonCodec.encode(result);
+        return WireValues.encode(result);
     }
 }

@@ -227,7 +227,7 @@ three-dimensional search and does not go through A*; mixing a flown segment with
 needs it.
 
 Preview, scoring and adoption belong to the client's player. The `route` object itself reaches any named bot —
-`mc.bot.goto` dispatches through `api/BodyRoutes` when a `body` other than `self` is given, and the conditions and
+`mc.bot.goto` dispatches through `application/BodyRoutes` when a `body` other than `self` is given, and the conditions and
 the parser work there — but `plan`, `planId` and waypoints are refused by name on any other bot, because a waypoint
 lives in the client's memory and a preview is the client's planner. `route.requireTool` reads an inventory and is
 refused on a bot that has none.

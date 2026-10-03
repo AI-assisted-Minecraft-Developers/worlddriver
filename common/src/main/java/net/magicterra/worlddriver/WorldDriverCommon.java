@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver;
 
+import net.magicterra.worlddriver.application.DriverApplication;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
@@ -22,7 +23,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -40,11 +40,11 @@ public final class WorldDriverCommon {
     public static final String MOD_ID = "worlddriver";
     public static final Logger LOG = LoggerFactory.getLogger("WorldDriver");
 
-    private static DriverApi api;
+    private static volatile DriverApi api;
     private static RpcServer rpcServer;
     private static McpServer mcpServer;
-    private static int rpcPort = -1;
-    private static int mcpPort = -1;
+    private static volatile int rpcPort = -1;
+    private static volatile int mcpPort = -1;
 
     private WorldDriverCommon() {}
 
@@ -65,7 +65,7 @@ public final class WorldDriverCommon {
         try {
             if (api == null) {
                 BotConfig.load();   // restore persisted bot settings before any tick reads them
-                api = new DriverApi();
+                api = new DriverApplication();
                 ScriptEvaluator evaluator = new ScriptEvaluator(api);
                 api.setScriptHandler(p -> {
                     String src = (p.get("source") instanceof String s) ? s : "";

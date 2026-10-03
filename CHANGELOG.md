@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-03
 
+- **The route contract and its implementation have separate packages.** `api/DriverApi` remains
+  the validated entry point; `application/DriverApplication` assembles world, bot and recipe
+  handlers. Shared JSON, request limits and busy errors live in a pure-JDK `protocol` package.
+  Debug tool registration moves to `integration/debug`, while recorders and analysis remain with
+  bot debug code. Internal Java packages move without forwarding aliases.
+- **Core behaviour receives its event emitter rather than looking up the global API.** Intent
+  processes and the dusk scheduler use injected `RouteEvents.Emitter` services. Wire conversion
+  normalizes coordinates and nested events before each transport encodes them.
+- **Extension registration follows the current API instance.** Paired tool schemas are keyed by
+  method name and invalidate catalog caches instead of accumulating suppliers across repeated
+  registrations. Source and jar checks enforce production/test and transport/application
+  boundaries; WorldDriver production artifacts still contain no StageWright classes.
+- **Candidate pairs can be checked before publication.** PR CI builds the StageWright branch with
+  the same name when it exists, pins its discovered commit, and uses that candidate for the
+  NeoForge dedicated-server scene gate. Other builds retain their configured published dependency.
+  Both candidates passed six Fabric/NeoForge runtime topologies, scene coverage and 32 external
+  contract tests locally; optional vine climbing and sealed-shelter failures remain.
+- **Forensic log parsing accepts both loader timestamp formats.** Date and millisecond prefixes
+  in NeoForge logs no longer hide walker, key and expectation records; time windows still compare
+  hours, minutes and seconds. The producer log format is unchanged.
 - **Scripts can name the Java class of an object they hold.** This Rhino never exposes the
   methods only `java.lang.Object` declares, so `obj.getClass()` is undefined in every script.
   The prelude now has `javaClassName(v)`, which returns the class name as a string, or null for

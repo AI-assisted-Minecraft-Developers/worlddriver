@@ -1,7 +1,10 @@
 package net.magicterra.worlddriver.bot;
 
+import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import net.magicterra.worlddriver.bot.process.RouteEvents;
+
+import net.magicterra.worlddriver.api.WorldCell;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
-import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -15,13 +18,11 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.magicterra.worlddriver.client.internal.ClientChatLog;
-
 import net.magicterra.worlddriver.bot.movement.ClientIntents;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.movement.WalkerPlanAdoption;
@@ -38,14 +39,11 @@ import net.magicterra.worlddriver.bot.scheduler.PanicChain;
 import net.magicterra.worlddriver.bot.scheduler.ProcessScheduler;
 import net.magicterra.worlddriver.bot.scheduler.RetreatChain;
 import net.magicterra.worlddriver.bot.scheduler.UserTaskChain;
-
 import static net.magicterra.worlddriver.bot.GoalResolver.*;
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.util.BotInteract.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
 import java.util.Locale;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.magicterra.worlddriver.bot.auto.AutoEat;
 import net.magicterra.worlddriver.bot.auto.AutoEquip;
 import net.magicterra.worlddriver.bot.auto.AutoShield;
@@ -94,7 +92,10 @@ public final class BotApiImpl implements BotApi {
     /** Movement-channel scheduler: each tick runs the highest-priority chain,
      *  letting survival/combat chains preempt the user task and hand it back. */
     private final ProcessScheduler scheduler = new ProcessScheduler();
-    {
+    private final RouteEvents.Emitter eventEmitter;
+
+    public BotApiImpl(RouteEvents.Emitter eventEmitter) {
+        this.eventEmitter = eventEmitter;
         // Reflex chains outrank the user task (see Priorities); registration
         // order is irrelevant, selection is purely by per-tick priority.
         scheduler.register(new PanicChain());     // 1000 — creeper blast
@@ -121,7 +122,7 @@ public final class BotApiImpl implements BotApi {
         scheduler.register(new RetreatChain(state)); // 100 — low-HP flee
         scheduler.register(combatChain);          // 60  — active combat
         scheduler.register(userTask);             // 50  — foreground task
-        scheduler.register(new DuskSecureChain(state, worldModel)); // 40 — idle dusk shelter
+        scheduler.register(new DuskSecureChain(state, worldModel, eventEmitter)); // 40 — idle dusk shelter
     }
     volatile boolean paused;
     /** Gates the idle {@code releaseKeys()} so it only fires after the bot itself
@@ -265,7 +266,7 @@ public final class BotApiImpl implements BotApi {
                     route.profile().bias(),
                     route.profile().capability(),
                     route.profile().constraints(),
-                    route.entityLeash())));
+                    route.entityLeash()), eventEmitter));
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("ok", true);
             out.put("started", true);
@@ -290,7 +291,7 @@ public final class BotApiImpl implements BotApi {
                     + PreviewSearch.TTL_MS / 1000 + " s, the last " + PreviewSearch.KEEP + " of them)");
         }
         IntentProcess process = new IntentProcess(new Intent(plan.goals, plan.profile.bias(),
-                plan.profile.capability(), plan.profile.constraints(), null));
+                plan.profile.capability(), plan.profile.constraints(), null), eventEmitter);
         String why = null;
         boolean adopted = false;
         if (plan.bestEffort()) why = "the preview did not reach the goal (bestEffort)";
@@ -322,7 +323,7 @@ public final class BotApiImpl implements BotApi {
      * <p>Logic lives in {@link ReplayInstaller}; kept here as the public entry point
      * ReplayTool calls.
      */
-    public Map<String, Object> startReplay(java.util.List<net.magicterra.worlddriver.api.WorldApi.Cell> cells,
+    public Map<String, Object> startReplay(java.util.List<WorldCell> cells,
                                             List<BlockPos> plan, List<Move.Edge> edges,
                                             BlockPos start, Goal endGoal, BlockPos startFoot,
                                             String archiveName, boolean restoreBlocks) {
@@ -339,7 +340,7 @@ public final class BotApiImpl implements BotApi {
      *
      *  <p>Logic lives in {@link ReplayInstaller}; kept here as the public entry point
      *  ReplayTool calls. */
-    public Map<String, Object> startReplayReplan(java.util.List<net.magicterra.worlddriver.api.WorldApi.Cell> cells,
+    public Map<String, Object> startReplayReplan(java.util.List<WorldCell> cells,
                                                  BlockPos start, Goal goal,
                                                  String archiveName, boolean restoreBlocks) {
         return ReplayInstaller.startReplayReplan(this, cells, start, goal, archiveName, restoreBlocks);
@@ -941,10 +942,9 @@ public final class BotApiImpl implements BotApi {
                 String type = mc.screen.getClass().getSimpleName();
                 mc.player.closeContainer();
                 mc.setScreen(null);
-                net.magicterra.worlddriver.api.DriverApi api = net.magicterra.worlddriver.WorldDriverCommon.api();
-                if (api != null) api.emitExternal("screen.autoClosed", mc.player.blockPosition(), java.util.Map.of(
+                eventEmitter.emit("screen.autoClosed", mc.player.blockPosition(), java.util.Map.of(
                                 "screen", type, "blockedTicks", (double) screenBlockTicks));
-                net.magicterra.worlddriver.WorldDriverCommon.LOG.warn(
+                LOG.warn(
                         "[screenWatchdog] closed stray {} after {} blocked ticks", type, screenBlockTicks);
                 screenBlockTicks = 0;
             }

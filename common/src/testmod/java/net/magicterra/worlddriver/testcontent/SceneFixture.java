@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import net.magicterra.worlddriver.rpc.JsonCodec;
+import net.magicterra.worlddriver.protocol.JsonCodec;
 
 /**
  * A hand-built scene as its {@code <name>.json} describes it. The terrain itself is in the

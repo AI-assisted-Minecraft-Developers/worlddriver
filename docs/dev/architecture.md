@@ -17,13 +17,13 @@ in-process Rhino┘
 ```
 
 `DriverApi.route(String, Map)` is the only entry. It is a lookup in a
-`ConcurrentHashMap<String, Function<Map, Object>>` populated in the `DriverApi`
+`ConcurrentHashMap<String, Function<Map, Object>>` populated in the `application/DriverApplication`
 constructor; an unknown name raises `IllegalArgumentException`. Before the handler runs,
 `route` applies the injected params validator (see below), so the same schema check
 covers every caller.
 
 The handlers are split across sibling classes in the same package, each holding a
-back-reference to the owning `DriverApi` for the server handle, the event ring buffer and
+back-reference to the owning `DriverApplication` for the server handle, the event ring buffer and
 the server-thread hop.
 
 | Class | Verb group |
@@ -41,7 +41,7 @@ the server-thread hop.
 `mc.client.*` resolves at call time through `requireClient()`, so a dedicated server that
 has no client still boots and simply fails those verbs.
 
-`mc.bot.*` is not client-only. `DriverApi.putBodyVerb` installs each of those verbs as a
+`mc.bot.*` is not client-only. `DriverApplication.putBodyVerb` installs each of those verbs as a
 two-way route: a call naming `self` — or naming no bot at all — goes through
 `requireBot()` to the client-side implementation, and a call naming any other bot goes to
 `BodyRoutes`, which runs on a dedicated server. `mc.bot.status` is bound straight to
@@ -56,7 +56,7 @@ namespace that names a bot other than `self`, and only the `self` half needs a c
 | WebSocket JSON-RPC | `rpc/RpcServer` | frame → `api.route(method, params)` |
 | in-process Rhino | `script/ScriptManager` | `Driver.invoke` → `DriverApi.invokeJson` → `route` |
 
-`invokeJson` is a `JsonCodec` decode/encode wrapper around `route` and adds no behaviour.
+`invokeJson` uses protocol `JsonCodec` for decoding and API `WireValues` for domain-aware encoding around `route` and adds no behaviour.
 
 Rhino additionally exposes `Driver.invokeRpc` through `script/RpcBridge`, which
 deliberately goes back out over the socket instead of calling `route` in process. It
@@ -138,7 +138,7 @@ validation behind it.
 ## Threading
 
 Game state may only be touched on the server thread. The hop is
-`DriverApi.onServerThread(Supplier<T>)`:
+`DriverApplication.onServerThread(Supplier<T>)`:
 
 1. if already on the server thread (`server.isSameThread()`), run inline;
 2. otherwise `server.execute(...)` and block on the resulting future.
@@ -147,7 +147,7 @@ The mechanics live in `ServerThreadHop`, which takes the executor, the same-thre
 the timeout, so it is unit-tested without a game.
 
 The budget is `SERVER_THREAD_TIMEOUT_MS`, a `Long.getLong("worlddriver.serverThreadTimeoutMs", 8_000L)`
-in `DriverApi` — eight seconds unless overridden with that system property. Expiry usually
+in `DriverApplication` — eight seconds unless overridden with that system property. Expiry usually
 means a paused client or a wedged tick rather than a defect in the verb that was called, and
 it has two outcomes, because a queued task outlives the wait that gave up on it. Each call
 races the server thread with a compare-and-set on its own state: the server thread moves it
@@ -158,7 +158,7 @@ runs out, and a task found abandoned is skipped. The waiter that wins throws
 
 **Reads hop as well as writes.** There is no family of snapshot helpers that lets another
 thread read the level directly; anything touching live level state goes through
-`onServerThread`. Measured by call site, the classes that hop are `DriverApi` itself,
+`onServerThread`. Measured by call site, the classes that hop are `DriverApplication` itself,
 `ActionApi`, `ObserveApi`, `WorldApi`, `RecipeApi`, `BodyRoutes`, and `bot/util/BotUtil`.
 The classes with no calls are the ones that genuinely never reach the level: `SystemApi`,
 `WaitApi`, `EventsApi`, `ApiSupport`, `ParamsValidator` and `QueryParams` — polling, the
@@ -182,7 +182,7 @@ same-thread check.
 
 ### The event ring buffer
 
-`DriverApi.events` is a bounded `ArrayDeque<DriverEvent>` with an `AtomicLong` sequence;
+`DriverApplication.events` is a bounded `ArrayDeque<DriverEvent>` with an `AtomicLong` sequence;
 push listeners live in a `CopyOnWriteArrayList`. It is bounded on purpose: old events roll
 off, and `eventsSince(cursor)` with an out-of-window cursor returns whatever is still
 retained rather than failing. A consumer that falls behind loses events without being
@@ -192,9 +192,12 @@ told, so the cursor is best-effort.
 
 | Package | What it is |
 |---|---|
-| `api/` | `DriverApi` and the sibling verb handlers. The single source of truth. |
+| `protocol/` | JDK-only JSON codec, shared refusal code and request-size budget |
+| `api/` | Final unified dispatch in `DriverApi`, validation/thread contracts, `WireValues` and `WorldCell` |
+| `application/` | `DriverApplication` and concrete world, observe, action, wait and body handlers |
+| `integration/debug/` | Debug schema, route registration and tool handlers; recorders/analysis stay in `bot/debug` |
 | `mcp/` | MCP HTTP server, `ToolCatalog`, `catalog/`, `schema/` |
-| `rpc/` | WebSocket JSON-RPC server, `JsonCodec`, `TransportLimits`, event push |
+| `rpc/` | WebSocket JSON-RPC server, connection-specific `TransportLimits`, event push |
 | `script/` | Rhino: `ScriptManager`, `ScriptEvaluator`, the bridges, `SkillLibrary`, the class filter |
 | `bot/` | The client-side autonomous layer behind `mc.bot.*` |
 | `client/` | `ClientDriverApi` and `ClientHooks`, reached through `requireClient()` |
@@ -224,3 +227,16 @@ and the full posture are in [`../guide/transports.md`](../guide/transports.md).
 The checks that shape code in this layer, and how to run them, are in
 [`testing.md`](testing.md). Two of them bite most often: no Java file may exceed the
 source budget, and a scene registered without a matching manifest entry fails the run.
+
+## Dependency guards
+
+`python3 scripts/check_architecture.py` prevents protocol dependencies on game/transport types,
+API dependencies on handlers and transports, core behaviour dependencies on API or tool registration,
+and any production dependency on StageWright. After assembly, `--jars` also checks that the test
+framework and testmod fixture classes are absent from production artifacts.
+
+WorldDriverCommon creates `DriverApplication` and exposes only its `DriverApi` contract.
+`WireValues` supplies recursive coordinate/event adaptation to the JDK-only codec; RPC, MCP and
+in-process JSON share that conversion. `IntentProcess` and `DuskSecureChain` receive an event
+emitter instead of looking up the global API. Paired extension schemas are keyed by name so
+rebinding an API installs the route on the new instance without duplicating catalog entries.

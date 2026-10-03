@@ -18,7 +18,6 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -44,6 +43,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@link PathDebugRecorder}'s auto-dump.</p>
  */
 public final class PathArchiveRecorder implements PathTrace {
+    private static volatile PathArchiveRecorder active;
+
+    public static PathArchiveRecorder active() { return active; }
+    public static void activate(PathArchiveRecorder recorder) { active = recorder; }
+
 
     private static final Logger LOG = LoggerFactory.getLogger("agent-patharchive");
 

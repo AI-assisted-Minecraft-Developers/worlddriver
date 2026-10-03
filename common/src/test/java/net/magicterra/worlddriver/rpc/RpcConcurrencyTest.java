@@ -1,6 +1,9 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.application.DriverApplication;
+
+import net.magicterra.worlddriver.protocol.ServerBusyException;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -32,7 +35,7 @@ class RpcConcurrencyTest {
     void requestsPastThePerConnectionCapAreRefusedWithABusyError() throws Exception {
         int cap = TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION;
         int extra = 4;
-        try (RpcServer server = new RpcServer(new DriverApi(), 0);
+        try (RpcServer server = new RpcServer(new DriverApplication(), 0);
              WsTestClient client = new WsTestClient(server.port())) {
             for (int i = 1; i <= cap + extra; i++) client.send(slowWait(i, 4_000));
 
@@ -45,7 +48,7 @@ class RpcConcurrencyTest {
             }
             assertEquals(extra, early.size(), "busy refusals did not arrive promptly: " + early);
             for (Map<?, ?> r : early) {
-                assertEquals(String.valueOf(TransportLimits.RPC_CODE_SERVER_BUSY), String.valueOf(r.get("code")), r.toString());
+                assertEquals(String.valueOf(ServerBusyException.CODE), String.valueOf(r.get("code")), r.toString());
                 long id = ((Number) r.get("id")).longValue();
                 assertTrue(id > cap, "a request within the cap was refused: " + r);
             }
@@ -62,7 +65,7 @@ class RpcConcurrencyTest {
     @Test
     void theCapIsPerConnection() throws Exception {
         int cap = TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION;
-        try (RpcServer server = new RpcServer(new DriverApi(), 0);
+        try (RpcServer server = new RpcServer(new DriverApplication(), 0);
              WsTestClient busy = new WsTestClient(server.port());
              WsTestClient other = new WsTestClient(server.port())) {
             for (int i = 1; i <= cap; i++) busy.send(slowWait(i, 3_000));
