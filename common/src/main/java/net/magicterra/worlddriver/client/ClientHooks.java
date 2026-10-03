@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.client;
 
 import net.magicterra.worlddriver.integration.debug.PathDebugBootstrap;
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.DriverApi;
 
 /**
  * Broker between the platform-neutral {@code DriverApi} and the platform-supplied
@@ -26,7 +27,10 @@ public final class ClientHooks {
         WorldDriverCommon.ensureMcpUp();
         // Optional, strippable: wire the path-debug recorder + mc.debug.pathChart now that
         // DriverApi exists. Removing the bot.debug package + this line fully strips the feature.
-        PathDebugBootstrap.init(WorldDriverCommon.api());
+        // ensureRpcUp logs and swallows a failed boot, leaving no api to register on.
+        DriverApi driver = WorldDriverCommon.api();
+        if (driver != null) PathDebugBootstrap.init(driver);
+        else WorldDriverCommon.LOG.warn("[{}] DriverApi not ready; mc.debug.* not registered", WorldDriverCommon.MOD_ID);
     }
 
     public static ClientDriverApi impl() {

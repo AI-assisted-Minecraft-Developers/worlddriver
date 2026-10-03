@@ -4,6 +4,7 @@ import dev.architectury.event.events.client.ClientGuiEvent;
 import dev.architectury.event.events.client.ClientLifecycleEvent;
 import dev.architectury.event.events.client.ClientTickEvent;
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotApiImpl;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.FocusPolicy;
@@ -32,7 +33,12 @@ public final class WorldDriverClientEvents {
     /** Registers the client API and the bot. Render thread only. */
     public static void install() {
         ClientHooks.register(new ClientDriverApiImpl());
-        BotApiImpl b = new BotApiImpl(WorldDriverCommon.api()::emitExternal);
+        // Looked up per event: a driver that failed to boot leaves api() null, and the bot still
+        // drives without one, as it always has; only its events have nowhere to go.
+        BotApiImpl b = new BotApiImpl((type, pos, data) -> {
+            DriverApi api = WorldDriverCommon.api();
+            if (api != null) api.emitExternal(type, pos, data);
+        });
         BotHooks.register(b);
         bot = b;
         WorldDriverCommon.LOG.info("[{}] client api + bot registered", WorldDriverCommon.MOD_ID);
