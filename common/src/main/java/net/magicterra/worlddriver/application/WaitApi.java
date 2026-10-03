@@ -45,11 +45,14 @@ public final class WaitApi {
     private final DriverApplication api;
     WaitApi(DriverApplication api) { this.api = api; }
 
+    /** {@code background:true} waits running at once, across the JVM. Each holds a thread for
+     *  up to its whole budget, and starting one is a single cheap call, so a loop could
+     *  otherwise start them faster than they finish. */
+    public static final int MAX_BACKGROUND = 32;
+
     /** Maximum wall-clock budget any wait.* tool will accept, in ms. Keeps a
      *  runaway script from squatting on a worker thread for hours. Public because the
      *  WebSocket liveness window must outlast it. */
-    public static final int MAX_BACKGROUND = 32;
-
     public static final long MAX_BUDGET_MS = 120_000L;
 
     // ---- background wait machinery (see class javadoc) -------------------------
