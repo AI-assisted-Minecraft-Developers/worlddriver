@@ -840,7 +840,6 @@ public final class MineProcess implements BotProcess {
         // Nearest real target we could SEE but not reach — the leaf-clearing
         // fallback (below) tries to open access to it when nothing else is reachable.
         BlockPos nearestUnreachable = null;
-        long nuD2 = Long.MAX_VALUE;
         // Nearest candidate skipped ONLY because the bot owns no tool that would
         // harvest it (breaks but drops nothing). Kept so we can emit an actionable
         // abort when nothing reachable-and-harvestable remains.
@@ -887,20 +886,16 @@ public final class MineProcess implements BotProcess {
             }
             // Find a standable adjacent position (incl. a pillar-up
             // stand for an otherwise-too-high log, relative to our feet).
-            long d2 = (long) bp.distSqr(foot);
             BlockPos stand = findStandableAdjacent(lvl, bp, foot.getY());
             if (stand == null) {
                 // Real target, but no stand reaches it (the leaf-encased
                 // floating-canopy oak: leaves wall it in and block the reach
-                // raycast). Remember the nearest so we can clear its leaves.
-                if (d2 < nuD2) { nuD2 = d2; nearestUnreachable = bp; }
+                // raycast). The first one met is the nearest; clear its leaves.
+                if (nearestUnreachable == null) nearestUnreachable = bp;
                 continue;
             }
-            // 2026-09-30 live mine: every broken block re-entered SEARCH while
-            // the client had debug capture on. The offsets are already sorted
-            // by squared distance, so the first usable stand wins the same
-            // nearest-target comparison the old full 50k-cell pass performed.
-            // Stop here instead of reading the rest of the world each time.
+            // Nearest-first order makes the first usable target the nearest one
+            // (see NearestFirstScan), so the rest of the scan cannot beat it.
             return new Target(bp, stand, faceFromStandToBlock(stand, bp), false);
         }
         // Nothing directly reachable. If a real target is occluded by leaves we can

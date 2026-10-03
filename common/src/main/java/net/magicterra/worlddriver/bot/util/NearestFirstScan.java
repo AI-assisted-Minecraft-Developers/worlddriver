@@ -33,7 +33,13 @@ public final class NearestFirstScan {
     /** Every (dx,dy,dz) offset with |dx|,|dz| &lt;= radius and |dy| &lt;=
      *  vertRadius, sorted nearest-first by squared distance from the origin.
      *  Callers apply their own budget by only consuming a prefix of the
-     *  returned array — the farthest cells simply sort last. */
+     *  returned array — the farthest cells simply sort last.
+     *
+     *  <p>The key is exactly {@code origin.offset(o).distSqr(origin)}, and the
+     *  sort is stable, so a caller looking for the nearest acceptable cell may
+     *  stop at the first one it accepts: nothing later is nearer, and a tie
+     *  goes to the one met first. {@code MineProcess.scanForTarget} and
+     *  {@code GoalResolver.findNearestStandForBlock} both do. */
     public static BlockPos[] offsetsNearestFirst(int radius, int vertRadius) {
         long key = (((long) radius) << 32) ^ (vertRadius & 0xffffffffL);
         return CACHE.computeIfAbsent(key, k -> buildSorted(radius, vertRadius));
