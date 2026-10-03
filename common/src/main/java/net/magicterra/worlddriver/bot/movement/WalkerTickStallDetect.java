@@ -35,13 +35,16 @@ final class WalkerTickStallDetect {
      * and come back to it on the same row. Net displacement alone reads a limit cycle wider than
      * {@code CHURN_MIN_MOVE_SQ} as progress whenever the window closes at its far end:
      * {@code wd.boxedChurnEscalate} cycled between the pocket's back wall and its mouth, ten blocks
-     * apart, and every other window reset the escape count to zero. A route never comes back to
-     * where it stood a window ago; a cycle does, whatever its width.
+     * apart, and every other window reset the escape count to zero. A cycle comes back to where it
+     * stood a window ago, whatever its width. So can a route round a wall or an inlet, which is why a
+     * window that got nearer the goal than ever before ({@code nearer}) is no cycle: a pocket's loop
+     * stops doing that after its first lap.
      */
-    private static void trackWindow(Walker wk, LivingEntity p, BlockPos foot) {
+    private static void trackWindow(Walker wk, LivingEntity p, BlockPos foot, boolean nearer) {
         if (p.horizontalCollision) wk.churn.hColRamTicks++; else wk.churn.hColRamTicks = 0;
         BlockPos b = wk.churn.base;
         if (b == null || wk.churn.windowTicks == 0) { wk.churn.cycle = 0; return; }
+        if (nearer) { wk.churn.cycle = -1; return; }   // sticks until the window closes
         int dx = foot.getX() - b.getX(), dz = foot.getZ() - b.getZ(), d2 = dx * dx + dz * dz;
         if (wk.churn.cycle == 0 && d2 >= CHURN_CYCLE_LEAVE_SQ) wk.churn.cycle = 1;
         else if (wk.churn.cycle == 1 && d2 <= CHURN_CYCLE_RETURN_SQ && Math.abs(foot.getY() - b.getY()) <= 1) wk.churn.cycle = 2;
@@ -57,8 +60,8 @@ final class WalkerTickStallDetect {
         // Hard tick budget: prevents infinite walking when A* returns a partial path
         // for an unreachable goal (best-effort fallback path > 1 node satisfies ok()).
         // Reset on real progress (closer to goal) so legitimate long walks aren't killed.
-        double d = wk.goal.estimate(foot);
-        if (d < wk.goalSpin.bestDistToGoal - 0.5) {
+        double d = wk.goal.estimate(foot); boolean nearer = d < wk.goalSpin.bestDistToGoal - 0.5;
+        if (nearer) {
             wk.goalSpin.bestDistToGoal = d;
             wk.totalTicks = 0;
         } else if (wk.hands.breakHeld() || wk.waterClimb.digging) {
@@ -337,7 +340,7 @@ final class WalkerTickStallDetect {
         // healthy crossing nets ≫8 blocks / 20 s, so legit swims never trip it.
         // Wall-corner ram signature: count consecutive sustained-hCol ticks (§39). A clean walk brushes
         // a wall for a tick or two; only a genuine wall-corner stall pins hCol true for seconds.
-        trackWindow(wk, p, foot);
+        trackWindow(wk, p, foot, nearer);
         int effChurnWindow = BotConfig.walkerFasterChurnRepath ? 240 : CHURN_WINDOW;
         // A sustained ram shortens the net-displacement window so the existing blacklist+escalate
         // (below) fires in ~8s instead of 20s — but ONLY while genuinely wall-pinned, so legitimate
