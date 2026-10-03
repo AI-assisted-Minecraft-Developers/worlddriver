@@ -338,7 +338,9 @@ final class WalkerTickAim {
     /** The foot the aim judges by. At a +1 jump's apex the foot already reads the node's level, so every
      *  level-walk aim (carrot, tangent, trend centroid) took over mid-air and steered past the step: live
      *  1389,92,-526.7 drove at the next leg's 180° with the node at 74° and rammed a wall 30 ticks. Until
-     *  it lands, an ascent is judged from its take-off level (under {@code walkerCarrotStopAtRise}). */
+     *  it lands, an ascent's aim is judged from its take-off level (under {@code walkerCarrotStopAtRise}). The aim
+     *  only: {@code run} goes back to the real foot once the aim is chosen, or the step-up pivot found the node still
+     *  above at the jump's apex and cut forward drive mid-air. */
     private static BlockPos ascentAimFoot(Walker wk, LivingEntity p, BlockPos foot, BlockPos wp) {
         if (!BotConfig.walkerCarrotStopAtRise || p.onGround() || p.isInWater() || p.onClimbable()
                 || wk.path == null || wk.step <= 0 || wk.step >= wk.path.size() || wp == null) return foot;
@@ -897,7 +899,7 @@ final class WalkerTickAim {
             // displacement while frozen.)
             wk.aimSmooth.smoothTargetYaw = angleDiff(0f, wk.aimSmooth.smoothTargetYaw + alpha * angleDiff(wk.aimSmooth.smoothTargetYaw, targetYaw));
         }
-        float aimYaw = snapLaunch ? targetYaw : wk.aimSmooth.smoothTargetYaw;
+        float aimYaw = snapLaunch ? targetYaw : wk.aimSmooth.smoothTargetYaw; foot = cx.frame.foot;   // see ascentAimFoot
         // ── In-place backward hop fix ───────────────────────────────────────────────
         // The decoupled descent drive rides the IMMEDIATE node (descentNodeYaw). When the bot
         // OVERSHOOTS that node on a fall landing or a step (lands a hair past it), the node is now
