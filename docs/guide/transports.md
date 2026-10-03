@@ -281,6 +281,10 @@ trees.length ? Driver.bot.goto({pos: trees[0].pos}) : 'nothing nearby'
   `observe`, `action`, `query`, `plan`, `skill`, `events`, `wait`, `client` and `bot`.
   Anything without a helper is reachable by name through `Driver.invoke`, which is the whole
   route table.
+- `javaClassName(v)` names the Java class of a wrapped Java object, such as
+  `java.util.ArrayList`, since this Rhino offers no `obj.getClass()`. It is null for null,
+  undefined, JS objects, and anything `typeof` calls a string, number or boolean. A Minecraft
+  class's name depends on the loader: `net.minecraft.class_1657` in a Fabric production game.
 - `timeoutMs` defaults to 3000 and is capped at 30000. Source is capped at 64 KiB. The
   deadline is wall-clock and is enforced through Rhino's instruction observer, so a runaway
   loop is cut off rather than hanging the game.
