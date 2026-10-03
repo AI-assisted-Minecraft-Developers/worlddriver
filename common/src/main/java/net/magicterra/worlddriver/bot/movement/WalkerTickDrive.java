@@ -257,15 +257,20 @@ final class WalkerTickDrive {
      * that the 0.6 box only fits within ±0.2 of the column centre, and full strafe until the error
      * fell under the dead band overshot by ~0.4 each way, so every jump clipped a neighbour
      * column (live 2026-09-28, 1390,99,-534: x swung 1390.07↔1390.91 for ~10 s).
+     *
+     * <p>Error and velocity are the lane-keep's own lateral offset ({@code latX}, {@code latZ}) and the
+     * velocity along it, not the offset to the node centre: with the heading a few degrees off the lane, the
+     * distance still to run along it leaked into the player's right and could strafe against the bang side.
      */
-    private static double laneStrafe(LivingEntity p, BlockPos wp, boolean strafeL, boolean strafeR, boolean dryCardinalClimb) {
+    private static double laneStrafe(LivingEntity p, double latX, double latZ, boolean strafeL, boolean strafeR,
+                                     boolean dryCardinalClimb) {
         double bang = strafeL ? 1.0 : (strafeR ? -1.0 : 0.0);
         if (!dryCardinalClimb || bang == 0.0) return bang;
         double yr = Math.toRadians(p.getYRot());
         double rx = -Math.cos(yr), rz = -Math.sin(yr);          // the player's right, as in the lane-keep above
-        double errR = ((wp.getX() + 0.5) - p.getX()) * rx + ((wp.getZ() + 0.5) - p.getZ()) * rz;
+        double errR = latX * rx + latZ * rz;
         Vec3 v = p.getDeltaMovement();
-        double velR = v.x * rx + v.z * rz;
+        double velR = (latX != 0 ? v.x : 0) * rx + (latZ != 0 ? v.z : 0) * rz;
         return -Mth.clamp(LANE_KP * errR - LANE_KD * velR, -1.0, 1.0);
     }
 
@@ -602,6 +607,7 @@ final class WalkerTickDrive {
         boolean bankFollow = BotConfig.walkerFloatingBankFollow && wk.ramFold.bankFollowRamTicks > 2 * STEPUP_FREEZE_TICKS
                 && !(BotConfig.walkerArcProgressWedge && wk.arc.progStall);
         boolean stepDownLane = BotConfig.walkerDescentLaneKeep && wp.getY() == foot.getY() - 1 && !p.isInWater();
+        double laneLatX = 0, laneLatZ = 0;
         if (!descendBrake && !parkourEdge && !steppingOffFall && (wp.getY() == foot.getY() || waterClimb || cardinalUp || diagUp || bankFollow || stepDownLane)) {
             int ddx = wp.getX() - foot.getX();
             int ddz = wp.getZ() - foot.getZ();
@@ -656,6 +662,7 @@ final class WalkerTickDrive {
                 Vec3 flow = world.waterFlow(foot);
                 latX -= flow.x; latZ -= flow.z;
             }
+            laneLatX = latX; laneLatZ = latZ;
             if (Math.abs(latX) > 0.06 || Math.abs(latZ) > 0.06) {
                 double yr = Math.toRadians(p.getYRot());
                 double fx = -Math.sin(yr), fz = Math.cos(yr);   // forward unit (x,z)
@@ -704,7 +711,7 @@ final class WalkerTickDrive {
         boolean descentAirborneDriftClamp = BotConfig.walkerDescentStepSkipBrake
                 && !p.onGround() && wk.driveLatch.steepDescentLatch > 0 && !parkourEdge;
         double driveF = (!descendBrake && !pivotForStepUp && !descentAirborneDriftClamp) ? 1.0 : 0.0;
-        double driveL = laneStrafe(p, wp, strafeL, strafeR, cardinalUp && !p.isInWater());
+        double driveL = laneStrafe(p, laneLatX, laneLatZ, strafeL, strafeR, cardinalUp && !p.isInWater());
         // Drive heading: normally aimYaw (decoupled from the slewing camera). EXCEPTION —
         // a BUOYANT slope-mount. A floating bot at a +1/+2 bank top bobs UP to the bank
         // height but, with forward zeroed by pivotForStepUp (aim not yet aligned) and the
