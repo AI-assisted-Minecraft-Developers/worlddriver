@@ -36,6 +36,12 @@
 // any added or removed check reddens wd.agentRpcSmoke until both constants move in
 // the same commit.
 
+// WHAT THE SCOPE HOLDS BESIDES THE PRELUDE'S HELPERS. `__api` (the DriverApi) and
+// `__java` (ScriptJava), both installed by ScriptPrelude. `__java` only answers a
+// class's NAME, as a string, and hands out no Class object, so it reaches nothing a
+// script could not reach before; it has no check here for the count reason above.
+// 11_script_eval.js checks what it answers.
+
 // The discriminating reading, printed rather than asserted — on EVERY run, whatever
 // the checks below do. It needs no -Dworlddriver.sandbox=on: if `java` does not
 // resolve in this scope at all, that alone proves the six checks are vacuous, because

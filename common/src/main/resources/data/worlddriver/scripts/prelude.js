@@ -19,6 +19,10 @@ var console = {
 // The Java class name of a wrapped Java object, e.g. "java.util.ArrayList"; null for
 // null/undefined and for plain JS values. Scripts cannot call obj.getClass() in this
 // Rhino: it never exposes methods only java.lang.Object declares (see ScriptJava).
+// A value typeof calls a string, number or boolean is a JS value here even when Java
+// produced it (a List element, a method returning long): it behaves as one and cannot
+// be told apart from a literal, so it is null too. A Minecraft class's name depends on
+// the loader's runtime mappings (net.minecraft.class_1657 in a Fabric production game).
 function javaClassName(v) {
     if (v === null || v === undefined) return null;
     var t = typeof v;
