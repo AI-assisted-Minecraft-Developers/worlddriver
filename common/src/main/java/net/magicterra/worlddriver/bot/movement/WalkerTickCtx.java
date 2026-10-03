@@ -19,6 +19,8 @@ final class WalkerTickCtx {
     final StallVerdict stall = new StallVerdict();
     final EdgeState edges = new EdgeState();
     final AimPlan aim = new AimPlan();
+    /** Why {@link WalkerTickDrive}'s riser lead gave no lead this tick, for the walk-keys line only. */
+    String leadWhy = "";
 
     /** Produced by {@link WalkerTickPrelude}: the resolved bot + anchor cells every
      *  later phase keys off. {@code foot} is re-derived by phases that move the bot. */
