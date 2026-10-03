@@ -307,14 +307,21 @@ public final class ToolCatalog {
     /**
      * name → typed Schema for EVERY declared tool (visible + hidden) — the
      * validation side of the single source. Cached; registerExtra and registerVerb invalidate.
+     *
+     * <p>Every route validates through this, so a warm cache is a lock-free read. Only the rebuild
+     * takes the class lock the invalidators hold, so it cannot publish a map they just dropped.
      */
-    public static synchronized Map<String, Schema> schemaByName() {
+    public static Map<String, Schema> schemaByName() {
         Map<String, Schema> c = byNameCache;
-        if (c == null) {
-            LinkedHashMap<String, Schema> m = new LinkedHashMap<>();
-            for (ToolSchema s : schemas()) m.put(s.name(), s.schema());
-            byNameCache = c = Collections.unmodifiableMap(m);
+        if (c != null) return c;
+        synchronized (ToolCatalog.class) {
+            c = byNameCache;
+            if (c == null) {
+                LinkedHashMap<String, Schema> m = new LinkedHashMap<>();
+                for (ToolSchema s : schemas()) m.put(s.name(), s.schema());
+                byNameCache = c = Collections.unmodifiableMap(m);
+            }
+            return c;
         }
-        return c;
     }
 }
