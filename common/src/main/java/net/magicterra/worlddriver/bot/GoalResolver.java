@@ -70,8 +70,6 @@ public static BlockPos findNearestStandForBlock(Entity self, String blockId, int
     if (lvl == null) return null;
     BlockPos foot = blockPosOf(self.getX(), self.getY(), self.getZ());
     int vr = BotConfig.mineSearchVerticalRadius;
-    long bestD2 = Long.MAX_VALUE;
-    BlockPos bestStand = null;
     // Supports exact ids and '#tag' selectors (e.g. #minecraft:logs → any tree).
     Predicate<BlockState> match = BlockMatch.of(blockId);
     // gap#67-⑤: nearest-first order (shared with MineProcess.scanForTarget) so
@@ -83,14 +81,11 @@ public static BlockPos findNearestStandForBlock(Entity self, String blockId, int
     for (int i = 0; i < budget; i++) {
         BlockPos bp = foot.offset(offsets[i]);
         if (!match.test(lvl.getBlockState(bp))) continue;
-        long d2 = (long) bp.distSqr(foot);
-        if (d2 >= bestD2) continue;
         BlockPos stand = findStandAdjacent(lvl, bp);
-        if (stand == null) continue;
-        bestD2 = d2;
-        bestStand = stand;
+        // The first block with a stand is the nearest one (see NearestFirstScan).
+        if (stand != null) return stand;
     }
-    return bestStand;
+    return null;
 }
 
 /** Compute a block target N blocks away in the requested direction. Cardinal
