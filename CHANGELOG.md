@@ -110,8 +110,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A long path search no longer halves the client's frame rate.** On a client with a frame-rate
   cap, the search now runs in the part of each frame the cap would otherwise spend waiting, instead
   of taking up to 30 ms of the frame each game tick. On R1 at a 120 fps cap, the two large searches
-  had held the client at 60-65 fps for as long as they ran; they no longer lower it. An uncapped
-  client and a dedicated server search as before.
+  had held the client at 60-65 fps for as long as they ran; they no longer lower it. Each tick still
+  makes up whatever of its old slice the frames since the last tick did not spend, so a client that
+  only just meets its cap, with little to spare in a frame, does not search slower than before. An
+  uncapped client and a dedicated server search as before.
 - **A search from the bot's feet, and one continuing a path the bot is about to finish, gets the
   large time slice while the bot walks.** Before, both got the thin slice meant for a search the
   bot can walk while it runs. A search from the feet replaces the path when it lands, so the bot

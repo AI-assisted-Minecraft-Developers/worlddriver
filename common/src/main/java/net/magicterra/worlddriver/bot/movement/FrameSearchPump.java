@@ -11,21 +11,23 @@ import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
  * frame's 1/cap, so a search spending exactly that leftover costs no frames, and at 120 fps the leftover
  * adds up to as much search time per second as the 30 ms tick slice gave.
  *
- * <p>Render thread only: the walker registers from its tick, the limiter hook spends, and the tick keeps a
- * 1 ms slice while frames are pumping so it still collects the result. With no limiter (an uncapped client,
- * a dedicated server) nothing pumps and the tick slices are unchanged.
+ * <p>Render thread only: the walker registers from its tick, the limiter hook spends, and the tick takes off
+ * its own slice what the frames spent since the tick before, keeping at least 1 ms so it still collects the
+ * result. A frame that only just meets the cap has little slack to give, and the tick tops the search up to
+ * what it got before. With no limiter (an uncapped client, a dedicated server) nothing pumps and the tick
+ * slices are unchanged.
  */
 public final class FrameSearchPump {
     private FrameSearchPump() {}
 
     /** Left unspent before the limiter's deadline, for the swap and the limiter's own wakeup. */
     private static final long MARGIN_NANOS = 700_000L;
-    /** How long a registration or a frame with slack stays current. */
+    /** How long a registration stays current. */
     private static final long STALE_NANOS = 100_000_000L;
 
     private static volatile Thread frameThread;
     private static Walker walker;
-    private static long offeredAt, slackAt, frameStart;
+    private static long offeredAt, frameStart, spentNanos;
 
     /** Right after the limiter returns: the next frame's 1/cap starts now. */
     public static void frameStarted() {
@@ -39,23 +41,27 @@ public final class FrameSearchPump {
         long now = System.nanoTime();
         long slackMs = (frameStart + 1_000_000_000L / fps - now - MARGIN_NANOS) / 1_000_000L;
         if (slackMs < 1) return;
-        slackAt = now;
         Walker wk = walker;
         if (wk == null || now - offeredAt > STALE_NANOS) return;
         PathFinder.Search s = wk.seg.activeSearch;
         if (s == null || s.done()) { walker = null; return; }
         s.advance(slackMs);
+        spentNanos += System.nanoTime() - now;
     }
 
     /** From the walker's tick: this walker has a search in flight. */
     static void offer(Walker wk) {
         if (Thread.currentThread() != frameThread) return;
+        if (wk != walker) spentNanos = 0;
         walker = wk;
         offeredAt = System.nanoTime();
     }
 
-    /** Whether frames on this thread are spending slack, so the tick need not slice the search itself. */
-    static boolean pumping() {
-        return Thread.currentThread() == frameThread && System.nanoTime() - slackAt < STALE_NANOS;
+    /** Milliseconds frames on this thread spent on the search since the last call, which the tick need not spend. */
+    static long takeSpentMs() {
+        if (Thread.currentThread() != frameThread) return 0;
+        long ms = spentNanos / 1_000_000L;
+        spentNanos = 0;
+        return ms;
     }
 }

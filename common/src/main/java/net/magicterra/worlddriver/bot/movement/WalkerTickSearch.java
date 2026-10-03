@@ -144,9 +144,9 @@ final class WalkerTickSearch {
             // ~4 s at its segment end (live 2026-09-28, 1385,75,-511).
             boolean idleNoPath = wk.path == null || wk.step >= wk.path.size() - SEGMENT_END_SLICE_NODES || !wk.seg.searchFromEnd;
             FrameSearchPump.offer(wk);
-            long slice = FrameSearchPump.pumping() ? 1 : idleNoPath   // frames spend the limiter's slack on it: see FrameSearchPump
-                    ? Math.max(BotConfig.pathfinderSliceMs, BotConfig.pathfinderIdleSliceMs)
+            long want = idleNoPath ? Math.max(BotConfig.pathfinderSliceMs, BotConfig.pathfinderIdleSliceMs)
                     : BotConfig.pathfinderSliceMs;
+            long slice = Math.max(1, want - FrameSearchPump.takeSpentMs());   // less what frames spent: see FrameSearchPump
             searchDone = wk.seg.activeSearch.advance(slice);
             if (BotConfig.walkerDebug && !searchDone)
                 LOG.info(
