@@ -5,7 +5,8 @@ public final class McpLimits {
     private McpLimits() {}
 
     /** POSTs the MCP server runs at once; past it a request gets 503 with
-     *  {@link #RPC_CODE_SERVER_BUSY}, for the same reason as the WebSocket cap. */
+     *  {@link net.magicterra.worlddriver.protocol.ServerBusyException#CODE}, for the same reason
+     *  as the WebSocket cap. */
     public static final int MCP_MAX_IN_FLIGHT = 32;
 
     /** Open MCP event streams ({@code GET /mcp}); each parks a worker for its lifetime. */

@@ -85,7 +85,7 @@ public final class McpServer implements Closeable {
     private static final String SERVER_VERSION = BuildStamp.VERSION;
     /** Maximum inbound POST body — shared with the WebSocket transport's frame
      *  limit so the two cannot disagree about what a request may weigh. See
-     *  {@link TransportLimits}. */
+     *  {@link RequestLimits}. */
     private static final long MAX_BODY_BYTES = RequestLimits.MAX_REQUEST_BYTES;
 
     private final DriverApi api;
