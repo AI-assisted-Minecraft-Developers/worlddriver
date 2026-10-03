@@ -7,7 +7,9 @@
     "client.GameRendererMixin",
     "client.MinecraftMixin"
   ],
-  "mixins": [],
+  "mixins": [
+    "ServerCommonPacketListenerImplMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

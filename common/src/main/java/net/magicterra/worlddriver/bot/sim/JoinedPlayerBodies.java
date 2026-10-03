@@ -85,6 +85,11 @@ public final class JoinedPlayerBodies {
      *  the fake-player factories had, so scene behaviour stayed comparable across the switch. */
     private static final String SHARED_NAME = "worlddriver";
 
+    /** Whether {@code connection} is a bot's, which has no client and throws every packet away. */
+    public static boolean isSilent(Connection connection) {
+        return connection instanceof SilentConnection;
+    }
+
     private final Map<ServerLevel, Map<String, JoinedBody>> byLevel = new ConcurrentHashMap<>();
 
     /** The per-level shared player: every caller in a level gets the same player. */
@@ -455,6 +460,10 @@ public final class JoinedPlayerBodies {
          * <p>{@link EmbeddedChannel} supplies attributes for free, but its default tail queues
          * outbound messages forever — a silent leak in place of a loud crash. The handler discards
          * and completes each write instead of letting it reach that queue.
+         *
+         * <p>One packet never reaches {@code send}: NeoForge refuses a modded payload above the
+         * connection, for a channel no client negotiated, and this connection negotiated none. The
+         * mixin on {@code ServerCommonPacketListenerImpl.send} drops those first; see its javadoc.
          */
         @SuppressWarnings("unused")     // held so the channel is not collected out from under us
         private final EmbeddedChannel wire;
