@@ -1273,7 +1273,7 @@ final class WalkerTickDrive {
         // Jump a step only when a jump is actually needed (beyond auto-step) AND the
         // step is within reach (≤ maxJumpUp) — never bob-jump an unreachable height —
         // and, for the +1 cardinal case, only once Baritone-aligned.
-        double riserLead = riserLead(wk, world, p, foot);
+        double riserLead = riserLead(wk, cx, world, p, foot);
         boolean leadJump = riserLead <= 0;                      // NaN (no clean riser ahead) is false
         boolean stepUpJump = leadJump || needJumpForStep && upDy <= maxJumpUp && (!dryStepUp || ascendJumpReady) && !pivotForStepUp && !cruise.on();
         // Y-MISLABELED-RISER RAM (executor riser-detection). A* can emit an edge it labels a LEVEL
@@ -1560,13 +1560,10 @@ final class WalkerTickDrive {
                     String.format(Locale.ROOT, "%.2f", p.getZ()),
                     p.onGround(), wk.hands.breakHeld(),
                     dryDescent, String.format(Locale.ROOT, "%.0f", driveTargetYaw),
-                    aimSrc, wk.stuckTicks, Double.isNaN(riserLead) ? leadWhy : String.format(Locale.ROOT, "%.2f", riserLead));
+                    aimSrc, wk.stuckTicks, Double.isNaN(riserLead) ? cx.leadWhy : String.format(Locale.ROOT, "%.2f", riserLead));
         }
         return Walker.Step.WALKING;
     }
-
-    /** Why the last {@link #riserLead} gave no lead, for the walk-keys line only. */
-    private static String leadWhy = "";
 
     /**
      * {@link BotConfig#walkerRiserLeadJump}: jump the +1 riser ahead NOW if one more grounded tick
@@ -1581,11 +1578,11 @@ final class WalkerTickDrive {
      * riser ahead. Lifting the stepJump sprint veto over the whole approach (any finite value) was
      * tried: three starts averaged 160.5 s against 154.6 s, take-off speed unchanged.
      */
-    private static double riserLead(Walker wk, WorldView world, LivingEntity p, BlockPos foot) {
-        leadWhy = "air";
+    private static double riserLead(Walker wk, WalkerTickCtx tick, WorldView world, LivingEntity p, BlockPos foot) {
+        tick.leadWhy = "air";
         if (!BotConfig.walkerRiserLeadJump || !p.onGround() || p.isInWater() || wk.path == null) return Double.NaN;
         int idx = -1;
-        leadWhy = "noRise";
+        tick.leadWhy = "noRise";
         for (int i = wk.step; i < Math.min(wk.path.size(), wk.step + 2) && idx < 0; i++) {
             BlockPos n = wk.path.get(i);
             if (n.getY() == foot.getY() + 1) idx = i;
@@ -1594,18 +1591,18 @@ final class WalkerTickDrive {
         if (idx < 0) return Double.NaN;
         Move.Edge e = wk.edgeAt(idx);
         if (e == null || e.move == null || !(e.move.startsWith("stepUp") || e.move.startsWith("diagUp")) || hasPendingEdge(world, e)) {
-            leadWhy = "edge:" + (e == null ? "null" : e.move);
+            tick.leadWhy = "edge:" + (e == null ? "null" : e.move);
             return Double.NaN;
         }
         BlockPos node = wk.path.get(idx);
-        leadWhy = "contact";
+        tick.leadWhy = "contact";
         Vec3 v = p.getDeltaMovement();
         double vh = Math.hypot(v.x, v.z);
         double dx = (node.getX() + 0.5) - p.getX(), dz = (node.getZ() + 0.5) - p.getZ();
         if (vh > 0.03) { dx = v.x; dz = v.z; }
         double len = Math.hypot(dx, dz);
         if (len < 1e-3) return Double.NaN;
-        double contact = riserContact(world, p, foot.getY(), dx / len, dz / len, node);
+        double contact = riserContact(tick, world, p, foot.getY(), dx / len, dz / len, node);
         double air = 0.026, m1 = vh + 0.2 + air, m2 = m1 * 0.91 + air;   // sprint-jump boost + air accel
         // walkerRiserLeadMargin: at 0 a launch timed to the hundredth still rubs the face on the second airborne
         // tick (R1 1386,64,-464: 0.75 of run, 0.75 travelled).
@@ -1619,7 +1616,8 @@ final class WalkerTickDrive {
      *  carrying the previous diagonal, was jumped onto and fallen off four times beside node
      *  1545,72,-160. Not even a diagonal's corner cell: landing there puts the next step off its line
      *  (S1 2026-09-28: onto corner 1545,70,-158, then the same 1544,72,-159, 5.8 s → 6.5 s). */
-    private static double riserContact(WorldView world, LivingEntity p, int fy, double ux, double uz, BlockPos node) {
+    private static double riserContact(WalkerTickCtx tick, WorldView world, LivingEntity p, int fy, double ux, double uz,
+                                       BlockPos node) {
         for (double s = 0.0; s <= RISER_SCAN; s += 0.05) {
             double cx = p.getX() + ux * s, cz = p.getZ() + uz * s;
             boolean hit = false;
@@ -1627,9 +1625,9 @@ final class WalkerTickDrive {
                 for (int z = Mth.floor(cz - 0.3); z <= Mth.floor(cz + 0.2999); z++) {
                     BlockPos c = new BlockPos(x, fy, z);
                     if (!world.isSolid(c)) continue;
-                    if (world.isSolid(c.above()) || world.isSolid(c.above(2))) { leadWhy = "wall@" + x + "," + z; return Double.NaN; }
+                    if (world.isSolid(c.above()) || world.isSolid(c.above(2))) { tick.leadWhy = "wall@" + x + "," + z; return Double.NaN; }
                     if (node != null && (BotConfig.walkerRiserLeadExact ? x != node.getX() || z != node.getZ()
-                                : Math.abs(x - node.getX()) > 1 || Math.abs(z - node.getZ()) > 1)) { leadWhy = "beside@" + x + "," + z; return Double.NaN; }
+                                : Math.abs(x - node.getX()) > 1 || Math.abs(z - node.getZ()) > 1)) { tick.leadWhy = "beside@" + x + "," + z; return Double.NaN; }
                     hit = true;
                 }
             if (hit) return s;
