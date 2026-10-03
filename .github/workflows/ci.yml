@@ -117,6 +117,7 @@ jobs:
           persist-credentials: false
 
       - name: Build and inspect candidate pair
+        id: pair
         if: steps.companion.outputs.sha != ''
         run: .ci/stagewright/scripts/build_driver_pair.sh "$PWD"
 
@@ -125,11 +126,16 @@ jobs:
       - name: Dedicated-server scene gate (NeoForge)
         env:
           COMPANION_SHA: ${{ steps.companion.outputs.sha }}
+          CANDIDATE_VERSION: ${{ steps.pair.outputs.stagewright_version }}
         run: |
           set +e
           candidate_args=()
           if [ -n "$COMPANION_SHA" ]; then
-            candidate_args+=("-Pstagewright_version=0.1.0-build.$BUILD_NUMBER+1.21.1")
+            if [ -z "$CANDIDATE_VERSION" ]; then
+              echo "the companion's build_driver_pair.sh reported no candidate version" >&2
+              exit 1
+            fi
+            candidate_args+=("-Pstagewright_version=$CANDIDATE_VERSION")
           fi
           ./gradlew stagewrightDedicatedServerNeoforge "${candidate_args[@]}" > gate.log 2>&1
           status=$?
