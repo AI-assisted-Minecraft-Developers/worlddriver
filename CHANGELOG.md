@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-03
 
+- **Scripts can name the Java class of an object they hold.** This Rhino never exposes the
+  methods only `java.lang.Object` declares, so `obj.getClass()` is undefined in every script.
+  The prelude now has `javaClassName(v)`, which returns the class name as a string, or null for
+  a JS value. A Minecraft class's name is the loader's runtime one, an intermediary name such as
+  `net.minecraft.class_1657` in a Fabric production game.
 - **A bot joins on NeoForge alongside a mod that sends its own payload at login.** NeoForge
   refuses a mod's payload on a channel the client did not negotiate, and a bot has no client to
   negotiate one, so with a mod such as L2Core (Youkai's Homecoming) installed every bot creation
