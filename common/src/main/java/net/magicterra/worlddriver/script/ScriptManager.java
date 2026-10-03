@@ -47,8 +47,6 @@ public final class ScriptManager {
         ScriptableObject scope = cx.initStandardObjects();
         ScriptEvents.install(factory, scope);
 
-        ScriptableObject.putProperty(scope, "__api", cx.javaToJS(api, scope), cx);
-        ScriptableObject.putProperty(scope, "__java", cx.javaToJS(ScriptJava.INSTANCE, scope), cx);
         ScriptableObject.putProperty(scope, "ScriptTest",
                 new NativeJavaClass(cx, scope, ScriptTest.class), cx);
         ScriptableObject.putProperty(scope, "ScriptEvents",
@@ -71,13 +69,7 @@ public final class ScriptManager {
         // an integrated (client-hosted) topology those scripts took their REAL
         // branch, called the missing sugar, and threw "… of undefined". Loading the
         // real prelude fixes the whole family at the source (single source of truth).
-        String canonical;
-        try (java.io.InputStream in = ScriptManager.class.getResourceAsStream(
-                "/data/worlddriver/scripts/prelude.js")) {
-            if (in == null) throw new IOException("prelude.js missing from classpath");
-            canonical = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-        }
-        cx.evaluateString(scope, canonical, "prelude.js", 1, null);
+        ScriptPrelude.install(cx, scope, api);
 
         // Harness-only extras the runtime prelude has no reason to carry: the
         // RPC/MCP transport round-trip bridges the transport-parity checks call
