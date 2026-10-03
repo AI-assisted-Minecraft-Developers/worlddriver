@@ -207,7 +207,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cutting steps up a cliff, the bot starts digging the next one while still in the air**
   (`walkerPreDigNextBreak`), and a new dig starts the way a click does. Minecraft leaves a 5-tick
   delay after every broken block, and only holding the dig counts it down, so each cut waited it out
-  after landing: 9 ticks for a grass block that takes 3, five cuts a run on the R1 cliff.
+  after landing: 9 ticks for a grass block that takes 3, five cuts a run on the R1 cliff. The click
+  still waits out that delay, as a held button does; skipping it would break an instant-break block,
+  or any block in creative, every tick.
 - **A bot that lands a step up at the edge of its node counts the node as reached.** A diagonal step
   up that landed 0.08 past the node's block read as short, and the bot took the next jump from
   beside it and walked back, about 1 s a run. One that landed on a corner of the block jumped at the
