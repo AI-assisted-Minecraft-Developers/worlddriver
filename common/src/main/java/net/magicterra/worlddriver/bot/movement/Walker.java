@@ -2979,8 +2979,8 @@ public final class Walker {
                 double t = remaining / seg, ax = cx + (nx - cx) * t, az = cz + (nz - cz) * t;
                 // Past a corner the chord to the carrot is not the checked foot→node line: live
                 // 1489,65,-399 was a pit beside the 1491,66,-400 corner that the chord crossed.
-                BlockPos carrot = BlockPos.containing(ax, node.getY(), az);
-                if (i > step && !PathSmoothing.losWalkableBody(world, px, pz, foot, carrot))
+                // At the box's true half-width: with the margin, a body pressed on a trunk failed every chord.
+                if (i > step && !PathSmoothing.losWalkableBody(world, px, pz, foot, ax, az, node.getY()))
                     return new double[]{cx, cz};
                 return new double[]{ax, az};
             }
