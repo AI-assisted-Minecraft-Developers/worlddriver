@@ -316,6 +316,10 @@ public final class WorldDriverCommon {
      * which McpServer converts to a tool isError.
      */
     public static void onServerStopping() {
+        // Every action here, the client player's included when this is its integrated server, loses
+        // its world now; mark that before the hosts go, so body_removed does not claim the cause.
+        net.magicterra.worlddriver.api.action.ActionRegistry.GLOBAL.cancelAll(
+                net.magicterra.worlddriver.api.methods.ActionContract.CancelReason.WORLD_CLOSED);
         // Every addressable bot player wraps an entity of the stopping server.
         net.magicterra.worlddriver.bot.body.BodyRegistry.clear();
         if (api != null) {

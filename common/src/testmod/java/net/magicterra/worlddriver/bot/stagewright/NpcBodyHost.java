@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.stagewright;
 
 import java.util.Map;
 
+import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.body.BodyHost;
 import net.magicterra.worlddriver.bot.movement.Walker;
@@ -54,10 +55,21 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
 
     @Override public Map<String, Object> lastProcessEnd() { return held.lastEnd(); }
 
-    @Override public void start(BotProcess p) {
-        held.start(p);
+    @Override public void start(BotProcess p, ActionHandle action) {
+        held.start(p, action);
         finished = false;
         ServerAvatarManager.register(this);
+    }
+
+    @Override public boolean cancelAction(ActionHandle action, String reason) {
+        if (!held.cancelAction(action, reason)) return false;
+        finished = true;
+        return true;
+    }
+
+    @Override public void crashed(Throwable t) {
+        held.crashed(t);
+        finished = true;
     }
 
     /** The way {@code ServerWorldDriver.cancel} ends a task: the process hears it, and the slots it
@@ -74,7 +86,10 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
         if (finished || p == null) return Walker.Step.ARRIVED;
         Map<String, Object> gone = refusal();
         if (gone != null) {
-            end(String.valueOf(gone.get("reason")));
+            // Dead or unloaded is the task failing, not anyone cancelling it.
+            String why = String.valueOf(gone.get("reason"));
+            held.cancel(why, h -> h.fail(String.valueOf(gone.get("error"))));
+            finished = true;
             return Walker.Step.FAILED;
         }
         boolean done = p.tick(body, view(), botState);

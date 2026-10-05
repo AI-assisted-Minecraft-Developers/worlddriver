@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.sim;
 
+import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
@@ -135,12 +136,34 @@ public class ServerWorldDriver implements BodyDriver {
      *  {@code UserTaskChain}: the outgoing process hears {@code onCancelled} ({@code MineProcess}
      *  releases its trunk-tax waiver there), and the slots it switched on go inactive. */
     public ServerWorldDriver runProcess(BotProcess p) {
-        held.start(p);
+        return runProcess(p, null);
+    }
+
+    /** {@link #runProcess(BotProcess)} carrying out {@code action}, which ends with the process. */
+    public ServerWorldDriver runProcess(BotProcess p, ActionHandle action) {
+        held.start(p, action);
         this.mineTarget = null;
         finished = false;
         tasked = true;
         last = Walker.Step.WALKING;
         return this;
+    }
+
+    /** Stop the held process if it still carries {@code action}; what a cancel requested off the server thread comes back to. */
+    public boolean cancelAction(ActionHandle action, String reason) {
+        if (!held.cancelAction(action, reason)) return false;
+        mineTarget = null;
+        finished = true;
+        last = Walker.Step.FAILED;
+        return true;
+    }
+
+    /** The tick threw: the held process ends with the error, and its action fails. */
+    @Override public void crashed(Throwable t) {
+        held.crashed(t);
+        mineTarget = null;
+        finished = true;
+        last = Walker.Step.FAILED;
     }
 
     /**

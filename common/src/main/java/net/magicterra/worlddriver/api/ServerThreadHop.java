@@ -1,14 +1,19 @@
 package net.magicterra.worlddriver.api;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
+
+import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.contract.ApiException;
 
 /**
  * Runs a task on the server thread and waits a bounded time for it. The client-thread hop
@@ -71,6 +76,51 @@ public final class ServerThreadHop {
         } catch (ExecutionException e) {
             throw unwrap(e);
         }
+    }
+
+    /**
+     * {@link #call} without holding the calling thread: the task is queued and the returned stage
+     * completes when it ran, or with the same withdraw-or-unknown answer when the hop timeout or
+     * {@code ctx}'s deadline comes first. On the target thread the task runs at once. On the OTHER
+     * game thread nothing is queued and {@code capability_unavailable} is thrown: that thread could
+     * only consume a result that was already there, and a task queued for it would run after its
+     * caller had been told it failed.
+     */
+    public <T> CompletableFuture<T> submit(Supplier<T> task, CallContext ctx) {
+        if (onTargetThread.getAsBoolean()) {
+            try { return CompletableFuture.completedFuture(task.get()); }
+            catch (Throwable e) { return CompletableFuture.failedFuture(e); }
+        }
+        if (!ctx.blockingAllowed()) {
+            throw new ApiException(new ApiError(ApiError.Code.CAPABILITY_UNAVAILABLE,
+                    "this call needs the " + threadName + ", and a game thread cannot wait for another one; "
+                            + "call it from a worker", List.of(), ApiError.Execution.NOT_STARTED));
+        }
+        AtomicInteger state = new AtomicInteger(QUEUED);
+        CompletableFuture<T> f = new CompletableFuture<>();
+        try {
+            executor.execute(() -> {
+                if (!state.compareAndSet(QUEUED, RUNNING)) return;
+                try { f.complete(task.get()); }
+                catch (Throwable e) { f.completeExceptionally(e); }
+            });
+        } catch (RejectedExecutionException e) {
+            return CompletableFuture.failedFuture(new NotExecutedException(threadName + " refused the task ("
+                    + e.getMessage() + "); it will not run and is safe to retry"));
+        }
+        long waitMs = Math.max(1, Math.min(timeoutMs, ctx.remainingMillis()));
+        ScheduledFuture<?> timer = ApiTimers.schedule(() -> {
+            if (f.isDone()) return;
+            if (state.compareAndSet(QUEUED, ABANDONED)) {
+                f.completeExceptionally(new NotExecutedException(threadName + " did not start the task within "
+                        + waitMs + "ms (busy, loading or paused); it was withdrawn and will not run, so it is safe to retry"));
+            } else {
+                f.completeExceptionally(new OutcomeUnknownException(threadName + " started the task but it did not finish within "
+                        + waitMs + "ms; it is still running and may yet apply, so observe the world before retrying"));
+            }
+        }, waitMs);
+        f.whenComplete((v, t) -> timer.cancel(false));
+        return f;
     }
 
     private <T> T giveUp(AtomicInteger state, CompletableFuture<T> f, String when) {

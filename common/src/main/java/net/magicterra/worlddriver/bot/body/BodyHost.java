@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.body;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.bot.BodyReady;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.process.BotProcess;
@@ -42,7 +43,16 @@ public interface BodyHost {
     Map<String, Object> lastProcessEnd();
 
     /** Run {@code process}, superseding whatever was running. */
-    void start(BotProcess process);
+    default void start(BotProcess process) { start(process, null); }
+
+    /**
+     * Run {@code process} for the accepted {@code action} (null: none), superseding whatever was
+     * running; the host's executor ends the action with the process, however it ends.
+     */
+    void start(BotProcess process, ActionHandle action);
+
+    /** Stop the running process if it still carries {@code action}; false when it has left. */
+    boolean cancelAction(ActionHandle action, String reason);
 
     /**
      * Cancel the running process when its kind is {@code process}, or when {@code process} is

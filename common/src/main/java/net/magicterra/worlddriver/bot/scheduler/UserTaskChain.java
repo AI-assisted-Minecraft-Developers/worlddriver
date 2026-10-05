@@ -8,6 +8,10 @@ import net.magicterra.worlddriver.bot.body.Body;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Consumer;
+
+import net.magicterra.worlddriver.api.action.ActionHandle;
+import net.magicterra.worlddriver.api.methods.ActionContract.CancelReason;
 
 import static net.magicterra.worlddriver.bot.util.BotInteract.releaseKeys;
 
@@ -44,21 +48,48 @@ public final class UserTaskChain implements Chain {
     /** Start a process, superseding any current one. Mirrors the old
      *  {@code BotApiImpl.startProcess}. */
     public void setProcess(BotProcess next) {
-        install(next, true);
+        install(next, true, null);
+    }
+
+    /**
+     * Start a process for the accepted action {@code action}, superseding any current one. The held
+     * action, if any, ends as superseded by this one; this one ends with the process.
+     */
+    public void setProcess(BotProcess next, ActionHandle action) {
+        install(next, true, action);
     }
 
     /** Start a process nobody asked for (the auto-backfill). It runs like a user task, but its
      *  ending is not recorded: {@link #lastEnd} answers for the last task a caller started. */
     public void setAmbientProcess(BotProcess next) {
-        install(next, false);
+        install(next, false, null);
     }
 
-    private void install(BotProcess next, boolean asked) {
-        cancel("superseded");
+    private void install(BotProcess next, boolean asked, ActionHandle nextAction) {
+        // An ambient process never replaces a caller's task (the backfill starts only when idle), so a
+        // held action without a successor is replaced by a process no caller can name.
+        stop("superseded", nextAction != null ? h -> h.supersede(nextAction.id())
+                : h -> h.fail("replaced by a process started without an action"));
         claim = SlotClaim.attach(next, state);
         drove = false;
         this.asked = asked;
+        action = nextAction;
         process = next;
+    }
+
+    /** The accepted action the held process carries out, or null (none held, or one nobody can name). */
+    private volatile ActionHandle action;
+
+    public ActionHandle action() { return action; }
+
+    /**
+     * Stop the held process if it is still {@code which}'s: what a cancel requested off this thread
+     * comes back to, once it has hopped here. False when {@code which} has already left the slot.
+     */
+    public boolean cancelAction(ActionHandle which, String reason) {
+        if (which == null || action != which) return false;
+        stop(reason, h -> {});
+        return true;
     }
 
     /** Whether the held process was started by a caller, so that its ending is theirs to read. */
@@ -72,13 +103,25 @@ public final class UserTaskChain implements Chain {
     /** Cancel the held process (if any) with a reason recorded on its slot.
      *  Mirrors the old {@code BotApiImpl.cancelCurrent}. */
     public void cancel(String reason) {
+        stop(reason, h -> h.cancelled(CancelReason.REQUESTED));
+    }
+
+    /** {@link #cancel} that ends the held action with {@code ending} rather than as requested. */
+    public void cancel(String reason, Consumer<ActionHandle> ending) {
+        stop(reason, ending);
+    }
+
+    private void stop(String reason, Consumer<ActionHandle> ending) {
         BotProcess c = process;
         if (c == null) return;
+        ActionHandle a = action;
+        action = null;
         c.onCancelled(reason);   // let the process finalize per-session observers (e.g. flush a path archive)
         endClaim(reason);
         recordEnd(c.kind(), reason);
         keyRelease.run();
         process = null;
+        if (a != null) ending.accept(a);
     }
 
     // === Last ending, whatever slot the process reported into ================
@@ -134,20 +177,30 @@ public final class UserTaskChain implements Chain {
         if (c == null) return;
         try {
             if (c.tick(body, w, st)) {
+                ActionHandle a = action;
+                action = null;
+                String failure = c.failure();
                 endClaim(null);
-                recordEnd(c.kind(), c.failure());
+                recordEnd(c.kind(), failure);
                 if (drove) keyRelease.run();
                 process = null;
+                if (a != null) {
+                    if (failure == null) a.succeed();
+                    else a.fail(failure);
+                }
             } else {
                 drove = true;
             }
         } catch (RuntimeException e) {
             String err = e.getClass().getSimpleName() + ": " + e.getMessage();
+            ActionHandle a = action;
+            action = null;
             try { c.onCancelled(err); } catch (RuntimeException ignored) { /* finalize must not mask the original */ }
             endClaim(err);
             recordEnd(c.kind(), err);
             keyRelease.run();
             process = null;
+            if (a != null) a.fail(err);
         }
     }
 

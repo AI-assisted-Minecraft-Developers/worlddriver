@@ -27,8 +27,13 @@ public final class ClientHop {
 
     /** Run {@code body} on the client thread and return its value; see {@link BotUtil#onClient}. */
     public static <T> T call(Supplier<T> body) {
+        return hop().call(body);
+    }
+
+    /** The hop itself, for a caller that submits without blocking. */
+    public static ServerThreadHop hop() {
         Minecraft mc = Minecraft.getInstance();
-        return call(mc, mc::isSameThread, CLIENT_THREAD_TIMEOUT_MS, body);
+        return new ServerThreadHop(mc, mc::isSameThread, CLIENT_THREAD_TIMEOUT_MS, "client thread");
     }
 
     static <T> T call(Executor client, BooleanSupplier onClientThread, long timeoutMs, Supplier<T> body) {

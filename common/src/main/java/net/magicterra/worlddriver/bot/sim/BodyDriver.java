@@ -13,4 +13,10 @@ public interface BodyDriver {
 
     /** Whether the driver is done; the manager drops it then. */
     boolean finished();
+
+    /**
+     * {@link #tick} threw and the manager is dropping the driver: end whatever it held with the error,
+     * or a caller waiting on it waits until its own deadline for an ending that never comes.
+     */
+    default void crashed(Throwable t) {}
 }

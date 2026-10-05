@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.sim;
 
+import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.body.BodyHost;
 import net.magicterra.worlddriver.bot.process.BotProcess;
@@ -40,9 +41,13 @@ public final class ServerBodyHost implements BodyHost {
 
     @Override public Map<String, Object> lastProcessEnd() { return driver.lastProcessEnd(); }
 
-    @Override public void start(BotProcess process) {
-        driver.runProcess(process);
+    @Override public void start(BotProcess process, ActionHandle action) {
+        driver.runProcess(process, action);
         ServerAvatarManager.register(driver);
+    }
+
+    @Override public boolean cancelAction(ActionHandle action, String reason) {
+        return driver.cancelAction(action, reason);
     }
 
     @Override public String cancel(String process) {

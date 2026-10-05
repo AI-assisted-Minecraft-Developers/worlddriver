@@ -5,6 +5,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import net.magicterra.worlddriver.api.action.ActionRegistry;
+import net.magicterra.worlddriver.api.methods.ActionContract;
 import net.magicterra.worlddriver.bot.BodyReady;
 
 /**
@@ -33,8 +35,11 @@ public final class BodyRegistry {
         synchronized (HOSTS) { return HOSTS.putIfAbsent(host.id(), host) == null; }
     }
 
+    /** Removes {@code id}; an action still running on it ends as {@code body_removed}, since nothing can address it now. */
     public static void unregister(String id) {
-        synchronized (HOSTS) { HOSTS.remove(id); }
+        boolean removed;
+        synchronized (HOSTS) { removed = HOSTS.remove(id) != null; }
+        if (removed) ActionRegistry.GLOBAL.cancelBody(id, ActionContract.CancelReason.BODY_REMOVED);
     }
 
     /** The host registered under {@code id}, or null. */
