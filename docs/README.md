@@ -38,6 +38,7 @@ For someone adding or changing code here.
 | Document | Covers |
 |---|---|
 | [Architecture](dev/architecture.md) | How a verb travels from a socket to the game and back: the single dispatch point, the registration seams, the boot invariant, the thread discipline. |
+| [Generated API artifacts](dev/api-artifacts.md) | The d.ts, script wrappers, schemas and reference the build produces from the method descriptions, and how to add a method. |
 | [The `bot/` layers](dev/bot-layering.md) | The autonomous layer behind `mc.bot.*` — the seams between facade, scheduler, process, walker and pathfinder, and the invariants across them. |
 | [The movement tick phases](dev/movement-tick-phases.md) | How the per-tick walker decision is decomposed into phase classes, and what crosses a tick boundary. |
 | [Fake-player parity](dev/fake-player-parity.md) | Where a driven player matches a real player and where it does not, behaviour by behaviour, and which kind of player a given scene should run on. |

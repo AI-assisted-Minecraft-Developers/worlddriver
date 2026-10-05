@@ -191,8 +191,6 @@ Driver.client = {
 Driver.bot = {
     goto:      function (opts) { return Driver.invoke('mc.bot.goto',      opts || {}); },
     mine:      function (opts) { return Driver.invoke('mc.bot.mine',      opts || {}); },
-    // A tunnel is a clearArea target: clearArea({target:{kind:'tunnel', distance:12}}).
-    clearArea: function (params) { return Driver.invoke('mc.bot.clearArea', params); },
     farm:      function (opts) { return Driver.invoke('mc.bot.farm',      opts || {}); },
     sleep:     function (opts) { return Driver.invoke('mc.bot.sleep',     opts || {}); },
     construct: function (opts) { return Driver.invoke('mc.bot.construct', opts || {}); },

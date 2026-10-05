@@ -76,6 +76,7 @@ public final class ActionContract {
     public static final ApiType<String> BODY_REF = ApiTypes.pattern("self|(player|npc):[^\\s:]+",
                     "self, player:<name> or npc:<name>; a name has no whitespace or colon")
             .maxLength(128)
+            .tsAlias("BodyRef", "'self' | `player:${string}` | `npc:${string}`")
             .describe("self (this client's own player), player:<name> or npc:<name>.");
 
     public static final ApiType<String> ACTION_ID = ApiTypes.string(1, 64)

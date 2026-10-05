@@ -123,3 +123,52 @@ dependencies {
     compileOnly "io.netty:netty-codec-http:$rootProject.netty_version"
 
 }
+
+// The API artifacts (d.ts, script wrappers, schemas, reference) are generated from the method
+// descriptions on a classpath with no Minecraft; see docs/dev/api-artifacts.md.
+configurations {
+    codegenRuntime { transitive = false }
+}
+
+dependencies {
+    codegenRuntime 'com.mojang:datafixerupper:8.0.16'
+    codegenRuntime 'com.google.guava:guava:32.1.2-jre'
+    codegenRuntime 'com.google.guava:failureaccess:1.0.1'
+    codegenRuntime 'it.unimi.dsi:fastutil:8.5.12'
+    codegenRuntime 'org.slf4j:slf4j-api:2.0.9'
+}
+
+def generatedApiDir = layout.buildDirectory.dir('generated/worlddriver-api')
+
+def generateApiArtifacts = tasks.register('generateApiArtifacts', JavaExec) {
+    group = 'build'
+    description = 'Generates the API d.ts, script wrappers, schemas and reference from the method descriptions.'
+    classpath = files(sourceSets.main.output.classesDirs) + configurations.codegenRuntime
+    mainClass = 'net.magicterra.worlddriver.api.gen.ApiArtifacts'
+    inputs.files(sourceSets.main.output.classesDirs).withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.dir(generatedApiDir)
+    dependsOn tasks.named('compileJava')
+    argumentProviders.add({ [generatedApiDir.get().asFile.absolutePath] } as CommandLineArgumentProvider)
+}
+
+// Not part of `check`: it fetches a pinned TypeScript through npx.
+tasks.register('checkApiTypes', Exec) {
+    group = 'verification'
+    description = 'Type-checks src/apiTypes/usage.ts against the generated declarations with TypeScript 5.9.3.'
+    dependsOn generateApiArtifacts
+    workingDir = projectDir
+    commandLine 'npx', '--yes', '--package=typescript@5.9.3', '--', 'tsc', '--noEmit', '--strict',
+            '--target', 'es2020', '--lib', 'es2020', 'src/apiTypes/usage.ts'
+}
+
+tasks.named('processResources') {
+    dependsOn generateApiArtifacts
+    from(generatedApiDir) {
+        include 'driver-api.js'
+        into 'data/worlddriver/scripts/generated'
+    }
+    from(generatedApiDir) {
+        exclude 'driver-api.js'
+        into 'worlddriver-api'
+    }
+}

@@ -106,7 +106,8 @@ public final class UnionType<T> extends ApiType<T> {
 
     private String inline(TsContext ts, String separator) {
         StringJoiner j = new StringJoiner(separator);
-        for (Variant<T, ?> v : variants) j.add(v.type.tsInline(ts, tagName, v.tag));
+        // A multi-line variant is indented one step under its "|", so the closing brace lines up with it.
+        for (Variant<T, ?> v : variants) j.add(v.type.tsInline(ts, tagName, v.tag).replace("\n", "\n    "));
         return j.toString();
     }
 }

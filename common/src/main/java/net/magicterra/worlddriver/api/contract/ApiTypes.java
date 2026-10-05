@@ -268,6 +268,7 @@ public final class ApiTypes {
         private final int minLength, maxLength;
         private final Pattern pattern;
         private final String meaning;
+        private String tsName, tsType;
 
         StringType(int minLength, int maxLength, Pattern pattern, String meaning) {
             this.minLength = minLength;
@@ -276,8 +277,26 @@ public final class ApiTypes {
             this.meaning = meaning;
         }
 
-        public StringType maxLength(int max) { return new StringType(minLength, max, pattern, meaning); }
-        public StringType minLength(int min) { return new StringType(min, maxLength, pattern, meaning); }
+        public StringType maxLength(int max) { return copy(minLength, max); }
+        public StringType minLength(int min) { return copy(min, maxLength); }
+
+        /**
+         * Declare it to TypeScript as {@code type <name> = <tsType>}, a template literal type for a
+         * pattern TypeScript can approximate. TypeScript cannot check the whole pattern; the server does.
+         */
+        public StringType tsAlias(String name, String type) {
+            StringType s = copy(minLength, maxLength);
+            s.tsName = name;
+            s.tsType = type;
+            return s;
+        }
+
+        private StringType copy(int min, int max) {
+            StringType s = new StringType(min, max, pattern, meaning);
+            s.tsName = tsName;
+            s.tsType = tsType;
+            return s;
+        }
 
         @Override protected String read(Object value, DecodeContext at) {
             if (!(value instanceof String s)) return at.mismatch(expected(), value);
@@ -301,7 +320,10 @@ public final class ApiTypes {
             return s;
         }
 
-        @Override public String ts(TsContext ts) { return "string"; }
+        @Override public String ts(TsContext ts) {
+            if (tsName == null) return "string";
+            return ts.declare(tsName, this, () -> "type " + tsName + " = " + tsType + ";");
+        }
 
         @Override public String expected() {
             if (meaning != null) return meaning;
@@ -575,7 +597,9 @@ public final class ApiTypes {
         }
 
         @Override public String ts(TsContext ts) {
-            return objectOnly ? "{ [key: string]: WorldDriver.Json }" : "WorldDriver.Json";
+            String json = ts.declare("Json", JsonType.class, () ->
+                    "type Json = null | boolean | number | string | Json[] | { [key: string]: Json };");
+            return objectOnly ? "{ [key: string]: " + json + " }" : json;
         }
 
         @Override public String expected() { return objectOnly ? "a JSON object" : "a JSON value"; }
