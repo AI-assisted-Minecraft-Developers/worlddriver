@@ -60,6 +60,11 @@ class RpcFramingTest {
             + "{\"level\":\"warning\",\"logger\":\"minecraft.events\","
             + "\"data\":{\"type\":\"player.hurt\"}}}";
 
+    /** The JSON-RPC {@code error.code} of a response frame, as text; "null" when it has none. */
+    private static String code(Map<?, ?> frame) {
+        return frame.get("error") instanceof Map<?, ?> e ? String.valueOf(e.get("code")) : "null";
+    }
+
     // ------------------------------------------------------------------ client
 
     @Test
@@ -93,10 +98,11 @@ class RpcFramingTest {
     @Test
     void idLessErrorFrameFailsTheCallInsteadOfTimingOut() throws Exception {
         try (ScriptedServer server = new ScriptedServer()) {
-            server.script = List.of("{\"id\":null,\"error\":\"parse: boom\",\"code\":-32700}");
+            server.script = List.of("{\"id\":null,\"error\":{\"code\":-32700,\"message\":\"parse: boom\"}}");
             try (RpcClient c = new RpcClient("127.0.0.1", server.port)) {
-                Exception e = assertThrows(Exception.class, () -> c.call("mc.x", Map.of()));
+                RpcCallException e = assertThrows(RpcCallException.class, () -> c.call("mc.x", Map.of()));
                 assertTrue(String.valueOf(e.getMessage()).contains("boom"), e.getMessage());
+                assertEquals(-32700, e.rpcCode());
             }
         }
     }
@@ -124,21 +130,21 @@ class RpcFramingTest {
             Map<?, ?> nonObject = raw.roundTrip("\"just a string\"");
             assertTrue(nonObject.containsKey("id"), "id key missing: " + nonObject);
             assertNull(nonObject.get("id"), "id must be an explicit null, not absent");
-            assertEquals("-32600", String.valueOf(nonObject.get("code")));
+            assertEquals("-32600", code(nonObject));
 
             Map<?, ?> unparseable = raw.roundTrip("{not json");
             assertTrue(unparseable.containsKey("id"), "id key missing: " + unparseable);
             assertNull(unparseable.get("id"));
-            assertEquals("-32700", String.valueOf(unparseable.get("code")));
+            assertEquals("-32700", code(unparseable));
 
             Map<?, ?> unknown = raw.roundTrip("{\"id\":7,\"method\":\"mc.nope\",\"params\":{}}");
             assertEquals("7", String.valueOf(unknown.get("id")));
-            assertEquals("-32601", String.valueOf(unknown.get("code")));
+            assertEquals("-32601", code(unknown));
 
             // A frame whose id WAS readable must keep it even though the rest was bad.
             Map<?, ?> badMethod = raw.roundTrip("{\"id\":8,\"method\":42,\"params\":{}}");
             assertEquals("8", String.valueOf(badMethod.get("id")));
-            assertEquals("-32600", String.valueOf(badMethod.get("code")));
+            assertEquals("-32600", code(badMethod));
         }
     }
 
@@ -153,7 +159,7 @@ class RpcFramingTest {
                     new ContinuationWebSocketFrame(false, 0, "pe\",\"params\""),
                     new ContinuationWebSocketFrame(true, 0, ":{}}"));
             assertEquals("21", String.valueOf(r.get("id")), r.toString());
-            assertEquals("-32601", String.valueOf(r.get("code")), r.toString());
+            assertEquals("-32601", code(r), r.toString());
         }
     }
 
@@ -163,7 +169,7 @@ class RpcFramingTest {
              WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip("{\"id\":5,\"params\":{}}");
             assertEquals("5", String.valueOf(r.get("id")));
-            assertEquals("-32600", String.valueOf(r.get("code")), r.toString());
+            assertEquals("-32600", code(r), r.toString());
             assertTrue(String.valueOf(r.get("error")).contains("method"), r.toString());
         }
     }
@@ -177,7 +183,7 @@ class RpcFramingTest {
             Map<?, ?> err = raw.roundTrip("{\"method\":\"mc.nope\",\"params\":{}}");
             assertTrue(err.containsKey("id"), "id key missing: " + err);
             assertNull(err.get("id"), err.toString());
-            assertEquals("-32601", String.valueOf(err.get("code")));
+            assertEquals("-32601", code(err));
 
             Map<?, ?> ok = raw.roundTrip("{\"method\":\"mc.events.unsubscribe\"}");
             assertTrue(ok.containsKey("id"), "id key missing: " + ok);
@@ -204,9 +210,9 @@ class RpcFramingTest {
         try (RpcServer server = new RpcServer(api, 0);
              WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> ne = raw.roundTrip("{\"id\":21,\"method\":\"mc.test.notExecuted\",\"params\":{}}");
-            assertEquals("-32001", String.valueOf(ne.get("code")), "reply: " + ne);
+            assertEquals("-32001", code(ne), "reply: " + ne);
             Map<?, ?> ou = raw.roundTrip("{\"id\":22,\"method\":\"mc.test.outcomeUnknown\",\"params\":{}}");
-            assertEquals("-32002", String.valueOf(ou.get("code")), "reply: " + ou);
+            assertEquals("-32002", code(ou), "reply: " + ou);
         }
     }
 
@@ -221,8 +227,7 @@ class RpcFramingTest {
         try (RpcServer server = new RpcServer(api, 0);
              WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip("{\"id\":23,\"method\":\"mc.test.busy\",\"params\":{}}");
-            assertEquals(String.valueOf(ServerBusyException.CODE), String.valueOf(r.get("code")),
-                    "reply: " + r);
+            assertEquals(String.valueOf(ServerBusyException.CODE), code(r), "reply: " + r);
         }
     }
 
@@ -240,7 +245,7 @@ class RpcFramingTest {
                     "{\"id\":11,\"method\":\"mc.nope\",\"params\":{\"pad\":\"" + pad + "\"}}");
             assertEquals("11", String.valueOf(r.get("id")),
                     "a large frame must still get a response");
-            assertEquals("-32601", String.valueOf(r.get("code")));
+            assertEquals("-32601", code(r));
         }
     }
 
@@ -257,17 +262,17 @@ class RpcFramingTest {
 
             Map<?, ?> str = raw.roundTrip("{\"id\":1,\"method\":\"mc.events.subscribe\","
                     + "\"params\":{\"types\":\"chat.message\"}}");
-            assertEquals("-32602", String.valueOf(str.get("code")),
+            assertEquals("-32602", code(str),
                     "a string where an array belongs must be refused: " + str);
 
             Map<?, ?> num = raw.roundTrip("{\"id\":2,\"method\":\"mc.events.subscribe\","
                     + "\"params\":{\"types\":[\"chat.message\",42]}}");
-            assertEquals("-32602", String.valueOf(num.get("code")),
+            assertEquals("-32602", code(num),
                     "a non-string entry must be refused, not silently dropped: " + num);
 
             Map<?, ?> blank = raw.roundTrip("{\"id\":3,\"method\":\"mc.events.subscribe\","
                     + "\"params\":{\"types\":[\"\"]}}");
-            assertEquals("-32602", String.valueOf(blank.get("code")), blank.toString());
+            assertEquals("-32602", code(blank), blank.toString());
         }
     }
 
@@ -302,14 +307,17 @@ class RpcFramingTest {
     }
 
     @Test
-    void errorPayloadStaysABareString() throws Exception {
-        // Journeyman's driver.py and the worlddriver-rpc skill's rpc.py both read
-        // `error` as a string. `code` was added alongside it precisely so neither
-        // has to change; if this ever becomes an object, both break silently.
+    void anApiErrorTravelsAsTheStandardErrorObjectWithItsDataAttached() throws Exception {
+        // JSON-RPC 2.0 error shape: {code, message, data}; data is the ApiError a caller
+        // branches on, so a client never has to parse the message text.
         try (RpcServer server = new RpcServer(new DriverApplication(), 0);
              WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip("{\"id\":1,\"method\":\"mc.nope\",\"params\":{}}");
-            assertInstanceOf(String.class, r.get("error"));
+            Map<?, ?> err = assertInstanceOf(Map.class, r.get("error"));
+            assertInstanceOf(String.class, err.get("message"));
+            Map<?, ?> data = assertInstanceOf(Map.class, err.get("data"));
+            assertEquals("method_not_found", data.get("code"));
+            assertEquals("not_started", data.get("execution"));
         }
     }
 

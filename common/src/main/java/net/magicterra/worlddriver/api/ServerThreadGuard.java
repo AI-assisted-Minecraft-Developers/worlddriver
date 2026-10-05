@@ -27,6 +27,9 @@ public final class ServerThreadGuard {
     /** No server thread to protect any more. */
     public static void uninstall() { onServerThread = NONE; }
 
+    /** Whether the calling thread is the attached server's thread. */
+    public static boolean onServerThread() { return onServerThread.getAsBoolean(); }
+
     /** Throw when called on the server thread; {@code what} names the blocking call being refused. */
     public static void refuseBlocking(String what) {
         if (onServerThread.getAsBoolean()) {

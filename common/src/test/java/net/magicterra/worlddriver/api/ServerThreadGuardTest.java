@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.api;
 
+import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.application.DriverApplication;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -35,7 +36,9 @@ class ServerThreadGuardTest {
 
     private static void assertRefusedFast(String what, Callable<?> call) {
         long t0 = System.nanoTime();
-        IllegalStateException e = assertThrows(IllegalStateException.class, call::call, what);
+        // A Java caller sees the guard's own exception; a call through DriverApi sees it as an ApiError.
+        RuntimeException e = assertThrows(RuntimeException.class, call::call, what);
+        assertTrue(e instanceof IllegalStateException || e instanceof ApiException, what + ": " + e);
         long ms = (System.nanoTime() - t0) / 1_000_000L;
         assertTrue(e.getMessage().contains("server thread"), what + ": " + e.getMessage());
         assertTrue(ms < 1000, what + " took " + ms + "ms to refuse");
@@ -50,7 +53,7 @@ class ServerThreadGuardTest {
     @Test
     void anMcpRoundTripIsRefused() throws IOException {
         int port = deadPort();
-        assertRefusedFast("McpBridge", () -> new McpBridge("127.0.0.1", port).call("mc.events", Map.of()));
+        assertRefusedFast("McpBridge", () -> new McpBridge("127.0.0.1", port).callJson("mc.events", "{}"));
     }
 
     @Test

@@ -1,16 +1,26 @@
 package net.magicterra.worlddriver.api;
 
+import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.MethodSpec;
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -18,68 +28,133 @@ import java.util.function.Function;
  * The single validated dispatch point shared by every transport.
  * The bootstrap supplies an application implementation; this package knows no
  * transport implementation or concrete business handler.
+ *
+ * <p>Methods live in the {@link ApiRegistry}: one entry binds a method's types to its handler.
+ * {@link #routes} holds the methods not yet moved onto typed contracts; {@link #dispatch} serves
+ * both, and a name can be in only one of them.
  */
 public abstract class DriverApi {
+    /** Methods still answered by an untyped handler; validated by the injected {@link ParamsValidator}. */
     protected final Map<String, Function<Map<String, Object>, Object>> routes = new ConcurrentHashMap<>();
+    private final ApiRegistry registry = new ApiRegistry();
     private volatile ParamsValidator paramsValidator;
 
-    public final Object route(String method, Map<String, Object> params) {
-        // ConcurrentHashMap.get(null) throws a bare NPE, which every transport would report as
-        // an internal fault instead of a request that named no method.
+    public final ApiRegistry registry() { return registry; }
+
+    /**
+     * Run {@code method} for an entry point. {@code paramsTree} is the decoded JSON of the request's
+     * parameters, null when it sent none. The stage completes with the encoded result tree, or
+     * exceptionally with an {@link ApiException}.
+     */
+    public final CompletionStage<Object> dispatch(String method, Object paramsTree, CallContext context) {
+        if (method != null && registry.method(method) != null) return registry.dispatch(method, paramsTree, context);
         Function<Map<String, Object>, Object> fn = method == null ? null : routes.get(method);
-        if (fn == null) throw new UnknownMethodException(method);
-        Map<String, Object> p = (params == null) ? Map.of() : params;
-        ParamsValidator v = paramsValidator;
-        if (v != null) v.validate(method, p);
-        return fn.apply(p);
+        if (fn == null) return registry.dispatch(method, paramsTree, context);   // reports method_not_found
+        try {
+            if (paramsTree != null && !(paramsTree instanceof Map<?, ?>)) {
+                throw ApiException.invalidParam("", net.magicterra.worlddriver.api.contract.ApiIssue.Code.TYPE_MISMATCH,
+                        "expected an object, got " + net.magicterra.worlddriver.api.contract.DecodeContext.describe(paramsTree));
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> p = paramsTree == null ? Map.of() : (Map<String, Object>) paramsTree;
+            ParamsValidator v = paramsValidator;
+            if (v != null) v.validate(method, p);
+            Object result = fn.apply(p);
+            // One adaptation for every entry point, so the three stay byte-identical.
+            return CompletableFuture.completedFuture(JsonCodec.decode(WireValues.encode(result)));
+        } catch (Throwable t) {
+            return CompletableFuture.failedFuture(ApiRegistry.asApi(t));
+        }
     }
 
     /**
-     * Register an additional route after construction. Used by optional, strippable
-     * subsystems (e.g. the path-debug package) so core never compile-depends on them.
-     * Idempotent-safe: a duplicate name overwrites. Thread-safe via the concurrent map.
-     * Routes added here are reachable identically through every transport (Hard Rule #1).
-     *
-     * <p><b>This is the low-level seam.</b> A route added here still MUST have a declared
-     * MCP {@code ToolSchema} (register one via {@code ToolCatalog.registerExtra}), or the
-     * boot invariant {@link #requireSchemasFor} refuses to start. As of the paired-registration
-     * change, a route reached at dispatch time with no schema is a <b>loud
-     * {@link IllegalStateException}</b> in {@link #route} — schema-less dispatch is no longer
-     * silently skipped. For game-affecting verbs prefer the paired
-     * {@code ToolCatalog.registerVerb(schema, handler)}, which registers the schema and this
-     * route together (atomically) and enforces the verb namespace policy; use raw {@code addRoute}
-     * only for internal driver routes whose schema you register separately (path-debug pattern).
+     * Run {@code method} and wait for its result on this thread: for code inside this JVM that holds
+     * a Map (wait conditions, watchers, replay). Throws the call's {@link ApiException}.
+     */
+    public final Object route(String method, Map<String, Object> params) {
+        return await(dispatch(method, params, CallContext.standalone()), CallContext.SERVER_CAP_MS);
+    }
+
+    /** Wait at most {@code budgetMs} for {@code stage}, unwrapping its failure into the {@link ApiException}. */
+    public static <T> T await(CompletionStage<T> stage, long budgetMs) {
+        try {
+            return stage.toCompletableFuture().get(Math.max(1, budgetMs), TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
+            throw ApiRegistry.asApi(e.getCause() == null ? e : e.getCause());
+        } catch (TimeoutException e) {
+            stage.toCompletableFuture().cancel(false);
+            throw new ApiException(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
+                    "no result within " + budgetMs + "ms; the call may still take effect", List.of(),
+                    ApiError.Execution.UNKNOWN));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ApiException(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
+                    "interrupted while waiting; the call may still take effect", List.of(), ApiError.Execution.UNKNOWN));
+        }
+    }
+
+    /**
+     * Register an additional untyped route after construction. Used by optional, strippable
+     * subsystems so core never compile-depends on them; the name still needs a declared schema
+     * ({@code ToolCatalog}), checked at boot by {@link #requireSchemasFor} and at dispatch by the validator.
      */
     public final void addRoute(String method, Function<Map<String, Object>, Object> handler) {
         Objects.requireNonNull(method, "method");
         Objects.requireNonNull(handler, "handler");
+        if (registry.method(method) != null) {
+            throw new IllegalArgumentException(method + " is already a typed method");
+        }
         routes.put(method, handler);
     }
 
-    @SuppressWarnings("unchecked")
+    /**
+     * The in-JVM script entry: parameters as JSON text ({@code null} for none), answer as an envelope
+     * {@code {"result":…}} or {@code {"error":ApiError}} so a script sees the error's code and issues
+     * rather than a Java exception's message.
+     *
+     * <p>On a game thread the call may not wait: a call that would is refused before it starts,
+     * because that thread is what it would be waiting for.
+     */
     public final String invokeJson(String method, String paramsJson) {
-        Map<String, Object> params;
-        if (paramsJson == null || paramsJson.isBlank() || paramsJson.equals("null")) {
-            params = Map.of();
-        } else {
-            Object decoded = JsonCodec.decode(paramsJson);
-            params = (decoded instanceof Map<?, ?> m) ? (Map<String, Object>) m : Map.of();
+        Map<String, Object> envelope = new LinkedHashMap<>();
+        try {
+            Object params = paramsJson == null ? null : JsonCodec.decode(paramsJson);
+            boolean game = GameThreads.onGameThread();
+            CallContext ctx = game ? CallContext.standalone().onGameThread() : CallContext.standalone();
+            CompletionStage<Object> stage = dispatch(method, params, ctx);
+            CompletableFuture<Object> f = stage.toCompletableFuture();
+            if (game && !f.isDone()) {
+                f.cancel(false);
+                throw new ApiException(new ApiError(ApiError.Code.INTERNAL_ERROR, method
+                        + " did not finish synchronously on a game thread; it may still take effect", List.of(),
+                        ApiError.Execution.UNKNOWN));
+            }
+            envelope.put("result", await(f, CallContext.SERVER_CAP_MS));
+        } catch (JsonCodec.JsonSyntaxException bad) {
+            envelope.put("error", ApiErrors.toTree(ApiError.of(ApiError.Code.INVALID_PARAMS, "params are not JSON: " + bad.getMessage())));
+        } catch (Throwable t) {
+            envelope.put("error", ApiErrors.toTree(ApiRegistry.asApi(t).error()));
         }
-        Object result = route(method, params);
-        return WireValues.encode(result);
+        return WireValues.encode(envelope);
     }
 
-    public final Set<String> methods() { return Collections.unmodifiableSet(routes.keySet()); }
+    /** Every callable method name: typed ones first, in registration order, then the untyped ones. */
+    public final Set<String> methods() {
+        Set<String> out = new LinkedHashSet<>(registry.snapshot().names());
+        out.addAll(new TreeSet<>(routes.keySet()));
+        return java.util.Collections.unmodifiableSet(out);
+    }
+
+    /** The spec of a typed method, or null for an untyped or unknown one. */
+    public final MethodSpec<?, ?> spec(String method) {
+        ApiMethod<?, ?> m = registry.method(method);
+        return m == null ? null : m.spec();
+    }
 
     /**
-     * Boot-time invariant: every registered route MUST have a declared MCP
-     * {@code ToolSchema}. The set of declared names is passed in by the bootstrap
-     * (from {@code ToolCatalog.declaredMethodNames()}) so this stays in the api
-     * layer without depending on the mcp/transport layer (Hard Rule #1 — core is
-     * transport-agnostic). A route with no schema would be half-specified: invisible
-     * to MCP {@code tools/list} yet callable, the exact drift that let methods slip
-     * to RPC-only. We refuse to start rather than ship it; an intentional RPC-only
-     * method is declared as a {@code hidden} ToolSchema, so it counts as "declared".
+     * Boot-time invariant: every untyped route MUST have a declared MCP {@code ToolSchema}; typed
+     * methods carry their own. The declared names come in from the bootstrap so this layer does not
+     * import the MCP catalog.
      *
      * @throws IllegalStateException if any route lacks a declared schema
      */
@@ -93,17 +168,13 @@ public abstract class DriverApi {
         }
     }
 
-    /**
-     * Pre-dispatch params validation, injected by the bootstrap from the MCP
-     * ToolCatalog (Hard Rule #1: the api layer never depends on the mcp layer —
-     * same seam style as {@link #requireSchemasFor}). Covers EVERY caller of
-     * {@link #route}: MCP tools/call, RPC websocket, in-JVM Rhino Driver.invoke,
-     * and internal consumers (EventsApi/WaitApi/…) — one
-     * contract, uniformly enforced.
-     */
+    /** Pre-dispatch validation of the untyped routes, injected by the bootstrap from the MCP catalog. */
     public final void setParamsValidator(ParamsValidator validator) {
         this.paramsValidator = validator;
     }
+
+    /** Untyped route names, for the catalog and the boot invariant. */
+    public final List<String> untypedMethods() { return new ArrayList<>(new TreeSet<>(routes.keySet())); }
 
     public abstract void setScriptHandler(Function<Map<String, Object>, Object> handler);
     public abstract void setPlaybookHandler(Function<Map<String, Object>, Object> handler);

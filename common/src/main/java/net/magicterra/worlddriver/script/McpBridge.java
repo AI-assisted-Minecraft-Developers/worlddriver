@@ -1,9 +1,12 @@
 package net.magicterra.worlddriver.script;
 
-import net.magicterra.worlddriver.api.WireValues;
-
+import net.magicterra.worlddriver.api.ApiErrors;
 import net.magicterra.worlddriver.api.ServerThreadGuard;
+import net.magicterra.worlddriver.api.WireValues;
+import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.contract.MethodSpec;
 import net.magicterra.worlddriver.protocol.JsonCodec;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -14,119 +17,100 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 /**
- * Used as the body of Driver.system.mcpRoundtrip(method, params).
- *
- * Sends a JSON-RPC 2.0 tools/call request over HTTP to the local MCP server,
- * pulls the "text" content of the first content block, JSON-decodes it, and
- * returns the result Object. Lets validation scripts compare MCP-path results
- * against in-JVM results from the same DriverApi route.
+ * The body of {@code Driver.system.mcpRoundtrip(method, params)}: the same call as an MCP
+ * {@code tools/call} over HTTP, answered with the envelope {@code DriverApi.invokeJson} gives so a
+ * parity check compares like with like. The result is {@code structuredContent}, with an image's bytes
+ * put back under the field its spec names; an error is the {@code ApiError} the server sent, whether
+ * as a JSON-RPC error's {@code data} or as a tool error's text.
  */
 public final class McpBridge {
     private final URI endpoint;
     private final HttpClient client;
     private final AtomicInteger seq = new AtomicInteger();
+    private final Function<String, MethodSpec.ImageHint> images;
 
     public McpBridge(String host, int port) {
-        this.endpoint = URI.create("http://" + host + ":" + port + "/mcp");
-        this.client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
-                .build();
+        this(host, port, name -> null);
     }
 
-    /**
-     * Calls a tool by name and returns the inner result as a parsed Object
-     * (Map / List / Number / String / Boolean / null) — same shape DriverApi
-     * would have returned in-process.
-     */
-    @SuppressWarnings("unchecked")
-    public Object call(String toolName, Map<String, Object> args) {
+    /** {@code images} names, per method, where an image's bytes belong in the in-JVM result. */
+    public McpBridge(String host, int port, Function<String, MethodSpec.ImageHint> images) {
+        this.endpoint = URI.create("http://" + host + ":" + port + "/mcp");
+        this.client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        this.images = images;
+    }
+
+    /** {@code {"result":…}} or {@code {"error":ApiError}}; {@code argsJson} null sends no arguments. */
+    public String callJson(String toolName, String argsJson) {
+        // Outside the envelope: a refusal is the script's mistake, not an outcome of the call.
         ServerThreadGuard.refuseBlocking("an MCP round-trip");
+        Map<String, Object> envelope = new LinkedHashMap<>();
+        try {
+            envelope.put("result", call(toolName, argsJson == null ? null : JsonCodec.decode(argsJson)));
+        } catch (BridgeError e) {
+            envelope.put("error", ApiErrors.toTree(e.error));
+        } catch (Exception e) {
+            envelope.put("error", ApiErrors.toTree(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
+                    "mcpRoundtrip failed: " + e.getMessage(), List.of(), ApiError.Execution.UNKNOWN)));
+        }
+        return WireValues.encode(envelope);
+    }
+
+    private static final class BridgeError extends RuntimeException {
+        final ApiError error;
+        BridgeError(ApiError error) { super(error.message()); this.error = error; }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object call(String toolName, Object args) throws Exception {
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("name", toolName);
+        if (args != null) params.put("arguments", args);
         Map<String, Object> req = new LinkedHashMap<>();
         req.put("jsonrpc", "2.0");
         req.put("id", seq.incrementAndGet());
         req.put("method", "tools/call");
-        req.put("params", Map.of("name", toolName, "arguments", args == null ? Map.of() : args));
+        req.put("params", params);
 
-        String body = WireValues.encode(req);
-        try {
-            HttpRequest httpReq = HttpRequest.newBuilder(endpoint)
-                    .timeout(Duration.ofSeconds(10))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-                    .build();
-            HttpResponse<String> resp = client.send(httpReq, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            Object decoded = JsonCodec.decode(resp.body());
-            if (!(decoded instanceof Map<?, ?> m)) {
-                throw new RuntimeException("MCP response not an object: " + resp.body());
-            }
-            Object err = m.get("error");
-            if (err != null) {
-                throw new RuntimeException("MCP error: " + err);
-            }
-            Object result = m.get("result");
-            if (!(result instanceof Map<?, ?> rm)) {
-                throw new RuntimeException("MCP result not an object: " + result);
-            }
-            Object content = rm.get("content");
-            if (!(content instanceof List<?> cl) || cl.isEmpty()) {
-                throw new RuntimeException("MCP tool returned no content");
-            }
-            Object isErr = rm.get("isError");
-
-            // Find the text block (usually content[0]) and any image block
-            // (present for screenshot-shaped results). Order is not guaranteed
-            // by the spec; we scan instead of indexing.
-            Map<String, Object> textBlock = null;
-            Map<String, Object> imageBlock = null;
+        HttpRequest httpReq = HttpRequest.newBuilder(endpoint)
+                .timeout(Duration.ofSeconds(30))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(WireValues.encode(req), StandardCharsets.UTF_8))
+                .build();
+        HttpResponse<String> resp = client.send(httpReq, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (!(JsonCodec.decode(resp.body()) instanceof Map<?, ?> m)) {
+            throw new IllegalStateException("MCP response not an object: " + resp.body());
+        }
+        if (m.get("error") instanceof Map<?, ?> err) {
+            ApiError api = ApiErrors.fromTree(err.get("data"));
+            throw new BridgeError(api != null ? api : ApiError.of(ApiError.Code.INTERNAL_ERROR,
+                    "MCP error " + err.get("code") + ": " + err.get("message")));
+        }
+        if (!(m.get("result") instanceof Map<?, ?> rm)) throw new IllegalStateException("MCP result not an object");
+        Map<String, Object> textBlock = null, imageBlock = null;
+        if (rm.get("content") instanceof List<?> cl) {
             for (Object b : cl) {
                 if (!(b instanceof Map<?, ?> bm)) continue;
-                String type = (String) bm.get("type");
-                if ("text".equals(type) && textBlock == null) {
-                    textBlock = (Map<String, Object>) bm;
-                } else if ("image".equals(type) && imageBlock == null) {
-                    imageBlock = (Map<String, Object>) bm;
-                }
+                if ("text".equals(bm.get("type")) && textBlock == null) textBlock = (Map<String, Object>) bm;
+                else if ("image".equals(bm.get("type")) && imageBlock == null) imageBlock = (Map<String, Object>) bm;
             }
-            if (textBlock == null && imageBlock == null) {
-                throw new RuntimeException("MCP tool returned no text or image block");
-            }
-
-            String text = textBlock != null ? (String) textBlock.get("text") : null;
-            if (Boolean.TRUE.equals(isErr)) {
-                throw new RuntimeException("MCP tool isError: " + text);
-            }
-
-            Object inner = (text == null || text.isEmpty()) ? null : JsonCodec.decode(text);
-
-            // If the server split a screenshot-shaped result into [text(meta), image(bytes)],
-            // re-attach the bytes as 'base64' so JS scripts comparing in-JVM and MCP-path
-            // results see byte-compatible maps. (Spec says image.data is base64.)
-            if (imageBlock != null && inner instanceof Map<?, ?> dm) {
-                Map<String, Object> merged = new LinkedHashMap<>((Map<String, Object>) dm);
-                merged.put("base64", imageBlock.get("data"));
-                return merged;
-            }
-            return inner;
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new RuntimeException("mcpRoundtrip failed: " + e.getMessage(), e);
         }
-    }
-
-    /** JSON-in / JSON-out variant used by the JS prelude. */
-    @SuppressWarnings("unchecked")
-    public String callJson(String toolName, String argsJson) {
-        Map<String, Object> args;
-        if (argsJson == null || argsJson.isBlank() || argsJson.equals("null")) {
-            args = Map.of();
-        } else {
-            Object decoded = JsonCodec.decode(argsJson);
-            args = (decoded instanceof Map<?, ?> mm) ? (Map<String, Object>) mm : Map.of();
+        String text = textBlock == null ? null : (String) textBlock.get("text");
+        if (Boolean.TRUE.equals(rm.get("isError"))) {
+            ApiError api = text == null ? null : ApiErrors.fromTree(JsonCodec.decode(text));
+            throw new BridgeError(api != null ? api : ApiError.of(ApiError.Code.INTERNAL_ERROR, "MCP tool error: " + text));
         }
-        Object result = call(toolName, args);
-        return WireValues.encode(result);
+        Object inner = rm.containsKey("structuredContent") ? rm.get("structuredContent")
+                : (text == null || text.isEmpty()) ? null : JsonCodec.decode(text);
+        MethodSpec.ImageHint hint = images.apply(toolName);
+        if (imageBlock != null && inner instanceof Map<?, ?> dm) {
+            Map<String, Object> merged = new LinkedHashMap<>((Map<String, Object>) dm);
+            merged.put(hint != null ? hint.dataField() : "base64", imageBlock.get("data"));
+            return merged;
+        }
+        return inner;
     }
 }

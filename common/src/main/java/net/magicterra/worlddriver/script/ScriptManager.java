@@ -80,15 +80,20 @@ public final class ScriptManager {
             "  log:   function(m){ System.out.println('[js] ' + m); }," +
             "  error: function(m){ System.err.println('[js] ' + m); }" +
             "};" +
+            // Same envelope as Driver.invoke, so a transport-parity check sees the same
+            // DriverApiError (code, issues, execution) whichever way the call went.
+            "function __viaBridge(bridge, method, params) {" +
+            "  var reply = JSON.parse(String(bridge.callJson(method, params === undefined ? null : JSON.stringify(params))));" +
+            "  if (reply.error) throw new DriverApiError(reply.error);" +
+            "  return reply.result;" +
+            "}" +
             "Driver.invokeRpc = function(method, params) {" +
-            "  if (typeof __rpc === 'undefined') throw 'RPC bridge not installed';" +
-            "  var json = __rpc.callJson(method, JSON.stringify(params || {}));" +
-            "  return JSON.parse(json);" +
+            "  if (typeof __rpc === 'undefined') throw new Error('RPC bridge not installed');" +
+            "  return __viaBridge(__rpc, method, params);" +
             "};" +
             "Driver.invokeMcp = function(method, params) {" +
-            "  if (typeof __mcp === 'undefined') throw 'MCP bridge not installed';" +
-            "  var json = __mcp.callJson(method, JSON.stringify(params || {}));" +
-            "  return JSON.parse(json);" +
+            "  if (typeof __mcp === 'undefined') throw new Error('MCP bridge not installed');" +
+            "  return __viaBridge(__mcp, method, params);" +
             "};" +
             "Driver.system.rpcRoundtrip = function(m, p) { return Driver.invokeRpc(m, p); };" +
             "Driver.system.mcpRoundtrip = function(m, p) { return Driver.invokeMcp(m, p); };" +

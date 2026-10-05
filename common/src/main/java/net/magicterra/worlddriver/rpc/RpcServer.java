@@ -40,10 +40,17 @@ import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.ApiErrors;
+import net.magicterra.worlddriver.api.ApiRegistry;
+import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.CancellationToken;
 import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.ServerThreadHop;
-import net.magicterra.worlddriver.api.UnknownMethodException;
+import net.magicterra.worlddriver.api.WaitPermits;
+import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.contract.DecodeContext;
+import net.magicterra.worlddriver.api.methods.EventStreamContract;
 import net.magicterra.worlddriver.model.DriverEvent;
+import net.magicterra.worlddriver.protocol.JsonRpcFrames;
 import java.io.Closeable;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -62,15 +69,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * WebSocket RPC server (Netty). Endpoint: ws://host:port/rpc
- * Request frame:  {"id": int, "method": "mc.observe.player", "params": {...}}
- * Response frame: {"id": int, "result": ...}
- *              or {"id": int|null, "error": "...", "code": int}
- * The {@code id} key is present on EVERY response, null only when the request did
- * not carry one (omitted, or too malformed to read); {@code code} is the JSON-RPC 2.0 reserved code, the
- * same value McpServer would report for the same failure.
+ * Request frame:  {"jsonrpc":"2.0", "id": 1, "method": "mc.observe.player", "params": {...},
+ *                  "_meta": {"budgetMs": N}}   (_meta optional: the caller's remaining budget)
+ * Response frame: {"jsonrpc":"2.0", "id": 1, "result": ...}
+ *              or {"jsonrpc":"2.0", "id": 1|null, "error": {"code": int, "message": "...", "data": ApiError}}
+ * Standard JSON-RPC 2.0: the {@code id} key is present on EVERY response, null only when the
+ * request did not carry a usable one; {@code error.code} is the JSON-RPC code, and {@code data}
+ * carries the API's {@code {code, message, issues, execution}} whenever the API produced the error.
  *
- * Same {@code DriverApi.route(method, params)} is invoked here AND from in-JVM Rhino
- * calls, guaranteeing structural parity between paths.
+ * Same {@code DriverApi.dispatch(method, params, context)} is invoked here AND from in-JVM Rhino
+ * calls, guaranteeing structural parity between paths. A call that suspends (an awaited action)
+ * hands its worker back; its answer is written when its stage completes.
  *
  * The upgrade request is refused with 403 when its {@code Origin} fails
  * {@link OriginPolicy}, the same check the MCP transport applies to a POST.
@@ -298,8 +307,24 @@ public final class RpcServer implements Closeable {
             this.subscribers = subscribers;
         }
 
-        /** Requests of THIS connection that hold a worker; one handler per channel. */
+        /**
+         * Requests of THIS connection that hold a worker; one handler per channel. A request that
+         * suspends (an awaited action, a wait) gives its worker back and holds a wait permit instead,
+         * so a connection with its waits outstanding can still observe and cancel.
+         */
         private final AtomicInteger inFlight = new AtomicInteger();
+        /** Suspended waits across every connection of this JVM's RPC servers. */
+        private static final WaitPermits GLOBAL_WAITS = WaitPermits.bounded(TransportLimits.RPC_MAX_WAITS);
+        /** Cancelled when the socket closes: every wait it left suspended ends then, nothing it started does. */
+        private final CancellationToken.Source gone = new CancellationToken.Source();
+        private final WaitPermits waits = WaitPermits.both(GLOBAL_WAITS,
+                WaitPermits.bounded(TransportLimits.RPC_MAX_WAITS_PER_CONNECTION));
+
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+            gone.cancel();
+            super.channelInactive(ctx);
+        }
 
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame msg) {
@@ -314,8 +339,7 @@ public final class RpcServer implements Closeable {
             try {
                 routeExec.execute(() -> {
                     try {
-                        String response = handleRequest(text, ch);
-                        ch.writeAndFlush(new TextWebSocketFrame(response));
+                        handleRequest(text, ch);
                     } finally {
                         inFlight.decrementAndGet();
                     }
@@ -331,151 +355,105 @@ public final class RpcServer implements Closeable {
         private static String busyFrame(String line, String why) {
             Object id = null;
             try {
-                if (JsonCodec.decode(line) instanceof Map<?, ?> req) id = req.get("id");
+                if (JsonCodec.decode(line) instanceof Map<?, ?> req && JsonRpcFrames.validId(req.get("id"))) id = req.get("id");
             } catch (Throwable ignored) { /* unreadable: answer with a null id */ }
-            return errorFrame(id, ServerBusyException.CODE, "server busy: " + why + "; retry later");
+            ApiError busy = ApiError.of(ApiError.Code.SERVER_BUSY, "server busy: " + why + "; retry later");
+            return encode(JsonRpcFrames.error(id, busy.code().rpcCode, busy.message(), ApiErrors.toTree(busy)));
         }
-
-        @SuppressWarnings("unchecked")
-        private String handleRequest(String line, Channel ch) {
-            Object id = null;
-            boolean parsed = false;
-            try {
-                Object decoded = JsonCodec.decode(line);
-                parsed = true;
-                if (!(decoded instanceof Map<?, ?> req)) {
-                    return errorFrame(null, CODE_INVALID_REQUEST, "request must be JSON object");
-                }
-                id = req.get("id");
-                if (!(req.get("method") instanceof String method)) {
-                    return errorFrame(id, CODE_INVALID_REQUEST,
-                            "invalid request: 'method' must be a string, got "
-                            + WireValues.encode(req.get("method")));
-                }
-                Map<String, Object> params = (Map<String, Object>) req.get("params");
-                // Event-stream subscription is per-connection state, so it's handled
-                // at the transport layer (not an DriverApi route): it controls which
-                // frames THIS socket receives, not any game behavior.
-                if ("mc.events.subscribe".equals(method) || "mc.events.unsubscribe".equals(method)) {
-                    return subscriptionControl(method, params, ch, id);
-                }
-                try {
-                    Object result = api.route(method, params);
-                    return resultFrame(id, result);
-                } catch (Throwable ex) {
-                    return errorFrame(id, codeFor(ex), String.valueOf(ex.getMessage()));
-                }
-            } catch (Throwable err) {
-                // Decode succeeded but the frame was still unusable (e.g. "params" was
-                // not an object) -> invalid request, not a parse error. The id may have
-                // been read before the failure; emit it when we have it.
-                return parsed
-                        ? errorFrame(id, CODE_INVALID_REQUEST, "invalid request: " + err.getMessage())
-                        : errorFrame(null, CODE_PARSE, "parse: " + err.getMessage());
-            }
-        }
-
-        // JSON-RPC 2.0 §5.1 reserved codes, identical to the ones McpServer emits.
-        private static final int CODE_PARSE = -32700;
-        private static final int CODE_INVALID_REQUEST = -32600;
-        private static final int CODE_METHOD_NOT_FOUND = -32601;
-        private static final int CODE_INVALID_PARAMS = -32602;
-        private static final int CODE_INTERNAL = -32603;
 
         /**
-         * An error response. The {@code id} key is ALWAYS present — explicitly null
-         * when the request was too malformed to carry one — because this transport's
-         * own demultiplexing rule (see the class doc) is "notifications have a method
-         * and no id; responses have an id". Two paths used to omit the key entirely,
-         * so a client following that rule could not classify them at all, and a client
-         * correlating by id would wait out its timeout instead of seeing the error.
-         *
-         * <p>{@code error} stays a bare string: Journeyman's {@code driver.py} and the
-         * worlddriver-rpc skill's {@code rpc.py} both read it as one, and breaking two
-         * working clients to reshape it into MCP's {@code {code, message}} object buys
-         * nothing. {@code code} is added ALONGSIDE it, using the same JSON-RPC codes
-         * {@code McpServer.jsonRpcError} already emits, so the two transports finally
-         * agree on the classification even though their payload shapes differ.
+         * Answer one frame. The answer is written when the call's stage completes, which for an
+         * awaited action is after this worker has returned; the stage arrives already encoded, off any
+         * game thread (see {@code ApiRegistry.dispatch}).
          */
-        private static String errorFrame(Object id, int code, String message) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", id);          // Map.of would reject the null
-            m.put("error", message);
-            m.put("code", code);
-            return WireValues.encode(m);
-        }
-
-        /** A request that carried no id is answered with {@code id:null}, never a made-up
-         *  number: 0 is a legal client id and would misroute the reply. */
-        private static String resultFrame(Object id, Object result) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", id);
-            m.put("result", result);
-            return WireValues.encode(m);
-        }
-
-        /** Mirrors McpServer's classification: a frame with no method is -32600, an
-         *  unroutable method -32601, a bad argument -32602, a server-thread hop that gave up
-         *  its own code from ServerThreadHop, anything else the route threw -32603.
-         *  DriverApi.route signals the first two with UnknownMethodException, a bad argument
-         *  with IllegalArgumentException. */
-        private static int codeFor(Throwable ex) {
-            ServerThreadHop.HopTimeoutException hop = ServerThreadHop.find(ex);
-            if (hop != null) return hop.code();
-            if (ServerBusyException.find(ex) != null) return ServerBusyException.CODE;
-            if (ex instanceof UnknownMethodException u)
-                return u.method() == null ? CODE_INVALID_REQUEST : CODE_METHOD_NOT_FOUND;
-            if (ex instanceof IllegalArgumentException)
-                return CODE_INVALID_PARAMS;
-            return CODE_INTERNAL;
-        }
-
-        private String subscriptionControl(String method, Map<String, Object> params, Channel ch, Object id) {
-            Map<String, Object> result = new LinkedHashMap<>();
-            if ("mc.events.subscribe".equals(method)) {
-                Object rawTypes = params == null ? null : params.get("types");
-                Set<String> types = new LinkedHashSet<>();
-                // A malformed filter used to fail OPEN. `instanceof List` simply did not
-                // match for {"types":"chat.message"}, the set stayed empty, empty meant
-                // "no filter", and the client was subscribed to EVERY event while its ack
-                // said types:[] — which reads like "none". Same for a non-string entry,
-                // which was dropped without a word. Both are now refused.
-                if (rawTypes != null) {
-                    if (!(rawTypes instanceof List<?> l)) {
-                        return errorFrame(id, CODE_INVALID_PARAMS,
-                                "mc.events.subscribe: 'types' must be an array of strings, got "
-                                + rawTypes.getClass().getSimpleName()
-                                + " — omit 'types' entirely to receive every type");
-                    }
-                    for (Object o : l) {
-                        if (!(o instanceof String s) || s.isBlank()) {
-                            return errorFrame(id, CODE_INVALID_PARAMS,
-                                    "mc.events.subscribe: every entry of 'types' must be a "
-                                    + "non-blank string, got " + WireValues.encode(o));
-                        }
-                        types.add(s);
-                    }
+        private void handleRequest(String line, Channel ch) {
+            Object decoded;
+            try {
+                decoded = JsonCodec.decode(line);
+            } catch (Throwable err) {
+                write(ch, JsonRpcFrames.error(null, JsonRpcFrames.PARSE_ERROR, "parse: " + err.getMessage(), null));
+                return;
+            }
+            if (!(decoded instanceof Map<?, ?> req)) {
+                write(ch, JsonRpcFrames.error(null, JsonRpcFrames.INVALID_REQUEST, "request must be a JSON object", null));
+                return;
+            }
+            Object rawId = req.get("id");
+            Object id = JsonRpcFrames.validId(rawId) ? rawId : null;
+            if (!JsonRpcFrames.validId(rawId)) {
+                write(ch, JsonRpcFrames.error(null, JsonRpcFrames.INVALID_REQUEST,
+                        "invalid request: id must be a string, an integer or null", null));
+                return;
+            }
+            if (!(req.get("method") instanceof String method)) {
+                write(ch, JsonRpcFrames.error(id, JsonRpcFrames.INVALID_REQUEST,
+                        "invalid request: 'method' must be a string, got " + DecodeContext.describe(req.get("method")), null));
+                return;
+            }
+            Object params = req.get("params");
+            // Event-stream subscription is per-connection state, so it's handled at the transport
+            // layer: it controls which frames THIS socket receives, not any game behavior.
+            if ("mc.events.subscribe".equals(method) || "mc.events.unsubscribe".equals(method)) {
+                write(ch, subscriptionControl(method, params, ch, id));
+                return;
+            }
+            CallContext context = CallContext.withBudget(budgetOf(req), gone, waits);
+            api.dispatch(method, params, context).whenComplete((result, failure) -> {
+                if (failure == null) {
+                    write(ch, JsonRpcFrames.result(id, result));
+                } else {
+                    ApiError e = ApiRegistry.asApi(failure).error();
+                    write(ch, JsonRpcFrames.error(id, e.code().rpcCode, e.message(), ApiErrors.toTree(e)));
                 }
-                // Event type names are open-world — scripts mint their own through
-                // mc.events{op:'emit'} and watcher emitAs — so an unknown name cannot be
-                // rejected. A typo therefore still yields silence; `types` is echoed back
-                // verbatim so at least the ack shows what was actually installed.
-                ch.attr(FILTER).set(types.isEmpty() ? null : types);
-                subscribers.add(ch);
-                result.put("ok", true);
-                result.put("subscribed", true);
-                result.put("types", List.copyOf(types));
-                // Explicit, because types:[] alone is ambiguous: an omitted or empty
-                // filter means EVERY type, and reading it as "none" is the natural
-                // mistake — the one the silent-failure path above led straight into.
-                result.put("allTypes", types.isEmpty());
-            } else {
+            });
+        }
+
+        /**
+         * The caller's remaining budget in ms, from {@code _meta.budgetMs} beside the params (never
+         * inside them), else the server's own cap. A remote client's local timeout is not something
+         * this server can know unless it is sent.
+         */
+        private static long budgetOf(Map<?, ?> req) {
+            if (req.get("_meta") instanceof Map<?, ?> meta && meta.get("budgetMs") instanceof Number n) {
+                long ms = n.longValue();
+                if (ms > 0) return Math.min(ms, CallContext.SERVER_CAP_MS);
+            }
+            return CallContext.SERVER_CAP_MS;
+        }
+
+        private static void write(Channel ch, Map<String, Object> frame) {
+            if (!ch.isActive()) return;
+            ch.writeAndFlush(new TextWebSocketFrame(encode(frame)));
+        }
+
+        private static String encode(Map<String, Object> frame) { return WireValues.encode(frame); }
+
+        /**
+         * The two connection-control calls, decoded by their own contract: a malformed filter is an
+         * invalid_params error, never a silent "every type" (it used to fail open that way).
+         */
+        private Map<String, Object> subscriptionControl(String method, Object params, Channel ch, Object id) {
+            try {
+                Object tree = params == null ? Map.of() : params;
+                if (EventStreamContract.SUBSCRIBE.equals(method)) {
+                    EventStreamContract.SubscribeParams p = EventStreamContract.SUBSCRIBE_PARAMS.decode(tree);
+                    Set<String> types = new LinkedHashSet<>(p.types().orElse(List.of()));
+                    // Event type names are open-world (scripts mint their own), so an unknown name
+                    // cannot be rejected; the ack echoes what was installed, and allTypes says
+                    // outright that an empty filter means every type.
+                    ch.attr(FILTER).set(types.isEmpty() ? null : types);
+                    subscribers.add(ch);
+                    return JsonRpcFrames.result(id, EventStreamContract.SUBSCRIPTION.encode(
+                            new EventStreamContract.Subscription(true, List.copyOf(types), types.isEmpty())));
+                }
+                EventStreamContract.NO_PARAMS.decode(tree);
                 subscribers.remove(ch);
                 ch.attr(FILTER).set(null);
-                result.put("ok", true);
-                result.put("subscribed", false);
+                return JsonRpcFrames.result(id, EventStreamContract.UNSUBSCRIBED.encode(new EventStreamContract.Unsubscribed(false)));
+            } catch (RuntimeException bad) {
+                ApiError e = ApiRegistry.asApi(bad).error();
+                return JsonRpcFrames.error(id, e.code().rpcCode, e.message(), ApiErrors.toTree(e));
             }
-            return resultFrame(id, result);
         }
     }
 }

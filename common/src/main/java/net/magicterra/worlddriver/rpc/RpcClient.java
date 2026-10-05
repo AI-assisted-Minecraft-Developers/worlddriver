@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.rpc;
 
+import net.magicterra.worlddriver.api.ApiErrors;
 import net.magicterra.worlddriver.api.WireValues;
 
 import net.magicterra.worlddriver.protocol.RequestLimits;
@@ -31,21 +32,27 @@ import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.net.URI;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 /**
- * Single-shot WebSocket RPC client (Netty). One TCP connection + WS handshake per
- * instance; callers use try-with-resources just like the prior NDJSON client.
+ * WebSocket RPC client (Netty). One TCP connection and handshake per instance.
  *
- * Reads are serialized through a blocking queue so {@code call()} stays synchronous,
- * matching the surface that {@link net.magicterra.worlddriver.script.RpcBridge} expects.
+ * <p>Calls may overlap: each request has its own id and its own pending future, and the reader
+ * completes whichever one a response names. No lock spans "send until answered", so a second
+ * thread's observe goes out while a first thread's awaited action is still pending. Server-pushed
+ * notifications go to {@link #onNotification}, never to a caller.
  */
 public final class RpcClient implements Closeable {
-    private static final long CALL_TIMEOUT_MS = 30_000L;
+    /** A call's budget when the caller gives none; sent to the server as {@code _meta.budgetMs}. */
+    public static final long DEFAULT_CALL_TIMEOUT_MS = 30_000L;
 
     private final EventLoopGroup group = new NioEventLoopGroup(1, r -> {
         Thread t = new Thread(r, "agent-rpc-client-io");
@@ -98,76 +105,88 @@ public final class RpcClient implements Closeable {
         }
     }
 
-    public synchronized Object call(String method, Map<String, Object> params) throws IOException {
-        long id = nextId.getAndIncrement();
-        String req = WireValues.encode(Map.of(
-                "id", id,
-                "method", method,
-                "params", params == null ? Map.of() : params
-        ));
-        return parseEnvelope(send(req, id));
-    }
+    /** Receive every server-pushed notification frame ({@code method}, no {@code id}), on the IO thread. */
+    public void onNotification(Consumer<Map<?, ?>> listener) { handler.notifications = listener; }
 
-    /** Returns the JSON-encoded {@code result} field as a String. */
-    public synchronized String callJson(String method, String paramsJson) throws IOException {
-        long id = nextId.getAndIncrement();
-        StringBuilder sb = new StringBuilder(128 + (paramsJson == null ? 2 : paramsJson.length()));
-        sb.append("{\"id\":").append(id).append(",\"method\":");
-        sb.append(WireValues.encode(method));
-        sb.append(",\"params\":");
-        sb.append(paramsJson == null || paramsJson.isBlank() ? "{}" : paramsJson);
-        sb.append('}');
-        Object result = parseEnvelope(send(sb.toString(), id));
-        return WireValues.encode(result);
+    public Object call(String method, Map<String, Object> params) throws IOException {
+        return call(method, params, DEFAULT_CALL_TIMEOUT_MS);
     }
 
     /**
-     * Write one request and return ITS response frame.
+     * One call, waiting at most {@code budgetMs}. The same budget travels to the server, which ends
+     * its own wait before this one gives up.
      *
-     * <p>Every frame the socket receives lands in one queue, including the
-     * unsolicited {@code notifications/message} events a connection gets after
-     * {@code mc.events.subscribe}. Taking "the next line" as the answer therefore
-     * only works while nobody subscribes: one pushed event would be returned as
-     * the call's response — {@code result} absent, so the call quietly yields null
-     * — and would leave the real response in the queue, shifting every later call
-     * by one frame for the life of the connection.
-     *
-     * <p>So demultiplex the way the server's own class doc specifies: a frame with
-     * a {@code method} is a notification, a frame with an {@code id} is a response.
-     * Calls are serialized by {@code synchronized}, so at most one is outstanding
-     * and an id-less error frame (the server could not parse the request well
-     * enough to echo an id) can only belong to it.
+     * @throws RpcCallException for an error response, carrying the API's error when there is one
      */
-    private Map<?, ?> send(String frameText, long id) throws IOException {
-        ServerThreadGuard.refuseBlocking("an RPC round-trip");
-        if (!channel.isActive()) throw new EOFException("ws channel closed");
-        channel.writeAndFlush(new TextWebSocketFrame(frameText));
-        long deadlineNs = System.nanoTime() + CALL_TIMEOUT_MS * 1_000_000L;
-        while (true) {
-            long remainMs = (deadlineNs - System.nanoTime()) / 1_000_000L;
-            String line;
-            try {
-                line = remainMs <= 0 ? null : handler.inbox.poll(remainMs, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IOException("interrupted awaiting ws response", e);
+    public Object call(String method, Map<String, Object> params, long budgetMs) throws IOException {
+        Map<?, ?> resp = await(callAsync(method, params, budgetMs), budgetMs);
+        return resultOf(resp);
+    }
+
+    /** {@link #call} with the parameters and the result as JSON text ({@code null} params: none). */
+    public String callJson(String method, String paramsJson, long budgetMs) throws IOException {
+        Object params = paramsJson == null ? null : JsonCodec.decode(paramsJson);
+        Map<?, ?> resp = await(send(method, params, budgetMs), budgetMs);
+        return WireValues.encode(resultOf(resp));
+    }
+
+    /** Send one call and return the future of its response frame. */
+    public CompletableFuture<Map<?, ?>> callAsync(String method, Map<String, Object> params, long budgetMs) {
+        return send(method, params, budgetMs);
+    }
+
+    private CompletableFuture<Map<?, ?>> send(String method, Object params, long budgetMs) {
+        long id = nextId.getAndIncrement();
+        Map<String, Object> req = new LinkedHashMap<>();
+        req.put("jsonrpc", "2.0");
+        req.put("id", id);
+        req.put("method", method);
+        if (params != null) req.put("params", params);
+        // The server sees how long this caller will wait and stops its own wait first.
+        req.put("_meta", Map.of("budgetMs", Math.max(1, budgetMs - 250)));
+        CompletableFuture<Map<?, ?>> f = new CompletableFuture<>();
+        handler.pending.put(id, f);
+        if (!channel.isActive()) {
+            handler.pending.remove(id);
+            f.completeExceptionally(new EOFException("ws channel closed"));
+            return f;
+        }
+        channel.writeAndFlush(new TextWebSocketFrame(WireValues.encode(req))).addListener(w -> {
+            if (!w.isSuccess()) {
+                handler.pending.remove(id);
+                f.completeExceptionally(new IOException("ws write failed", w.cause()));
             }
-            if (line == null) throw new IOException("ws response timeout after " + CALL_TIMEOUT_MS + "ms");
-            Object decoded = JsonCodec.decode(line);
-            if (!(decoded instanceof Map<?, ?> resp)) throw new IOException("malformed response: " + line);
-            if (resp.containsKey("method")) continue;          // server→client notification
-            Object rid = resp.get("id");
-            if (rid == null) return resp;                      // id-less server error: ours by elimination
-            if (rid instanceof Number n && n.longValue() == id) return resp;
-            // A different id can only be a response to an earlier call that already
-            // timed out. Dropping it is the recovery: keeping it would hand the wrong
-            // payload to this caller and leave the queue permanently one frame behind.
+        });
+        return f.whenComplete((r, t) -> handler.pending.remove(id));
+    }
+
+    private static Map<?, ?> await(CompletableFuture<Map<?, ?>> f, long budgetMs) throws IOException {
+        ServerThreadGuard.refuseBlocking("an RPC round-trip");
+        try {
+            return f.get(Math.max(1, budgetMs), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            f.cancel(false);
+            throw new IOException("ws response timeout after " + budgetMs + "ms; the call may still take effect");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted awaiting ws response", e);
+        } catch (ExecutionException e) {
+            Throwable c = e.getCause();
+            if (c instanceof IOException io) throw io;
+            throw new IOException(c);
         }
     }
 
-    private Object parseEnvelope(Map<?, ?> resp) throws IOException {
-        if (resp.containsKey("error")) throw new IOException("rpc error: " + resp.get("error"));
-        return resp.get("result");
+    /** The result, or the error as an {@link RpcCallException}: standard JSON-RPC {@code error:{code,message,data}}. */
+    private static Object resultOf(Map<?, ?> resp) throws RpcCallException {
+        Object err = resp.get("error");
+        if (err == null) return resp.get("result");
+        if (err instanceof Map<?, ?> e) {
+            int code = e.get("code") instanceof Number n ? n.intValue() : 0;
+            String message = e.get("message") instanceof String s ? s : String.valueOf(err);
+            throw new RpcCallException(code, message, ApiErrors.fromTree(e.get("data")));
+        }
+        throw new RpcCallException(0, "malformed error " + err, null);
     }
 
     @Override public void close() {
@@ -184,7 +203,8 @@ public final class RpcClient implements Closeable {
 
     private static final class ClientHandler extends SimpleChannelInboundHandler<Object> {
         private final WebSocketClientHandshaker handshaker;
-        private final BlockingQueue<String> inbox = new LinkedBlockingQueue<>();
+        final Map<Long, CompletableFuture<Map<?, ?>>> pending = new ConcurrentHashMap<>();
+        volatile Consumer<Map<?, ?>> notifications;
         private ChannelPromise handshakeFuture;
 
         ClientHandler(WebSocketClientHandshaker handshaker) {
@@ -201,6 +221,12 @@ public final class RpcClient implements Closeable {
             handshaker.handshake(ctx.channel());
         }
 
+        @Override public void channelInactive(ChannelHandlerContext ctx) {
+            EOFException closed = new EOFException("ws channel closed");
+            for (CompletableFuture<Map<?, ?>> f : pending.values()) f.completeExceptionally(closed);
+            pending.clear();
+        }
+
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, Object msg) {
             Channel ch = ctx.channel();
@@ -214,16 +240,41 @@ public final class RpcClient implements Closeable {
                 return;
             }
             if (msg instanceof TextWebSocketFrame text) {
-                inbox.offer(text.text());
+                route(text.text());
             } else if (msg instanceof CloseWebSocketFrame) {
                 ch.close();
             } else if (msg instanceof PingWebSocketFrame ping) {
                 // The server closes a peer that stays silent past its liveness window, and
-                // one call may block for longer than that.
+                // one call may be pending for longer than that.
                 ch.writeAndFlush(new PongWebSocketFrame(ping.content().retain()));
             } else if (msg instanceof WebSocketFrame) {
                 // Ignore Pong/Binary for this minimal client.
             }
+        }
+
+        /**
+         * A frame with a {@code method} is a notification, one with an {@code id} answers that call. An
+         * error with {@code id:null} (the server could not read the request's id) can only be attributed
+         * when exactly one call is pending; otherwise it is dropped and the calls time out.
+         */
+        private void route(String line) {
+            Object decoded;
+            try { decoded = JsonCodec.decode(line); } catch (RuntimeException bad) { return; }
+            if (!(decoded instanceof Map<?, ?> resp)) return;
+            if (resp.containsKey("method")) {
+                Consumer<Map<?, ?>> l = notifications;
+                if (l != null) l.accept(resp);
+                return;
+            }
+            Object rid = resp.get("id");
+            CompletableFuture<Map<?, ?>> f = null;
+            if (rid instanceof Number n) {
+                f = pending.remove(n.longValue());
+            } else if (rid == null && pending.size() == 1) {
+                Long only = pending.keySet().iterator().next();
+                f = pending.remove(only);
+            }
+            if (f != null) f.complete(resp);
         }
 
         @Override public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {

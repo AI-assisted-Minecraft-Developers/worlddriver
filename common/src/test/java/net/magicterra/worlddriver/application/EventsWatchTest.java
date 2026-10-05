@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.application.DriverApplication;
+import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.contract.ApiException;
 
 import org.junit.jupiter.api.Test;
 
@@ -22,11 +23,12 @@ class EventsWatchTest {
     @Test
     void watchingAnUnknownRouteIsAnErrorAtWatchTime() {
         DriverApplication api = new DriverApplication();
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+        ApiException e = assertThrows(ApiException.class,
                 () -> api.route("mc.events", Map.of("op", "watch", "invoke", "mc.observe.playr",
                         "field", "health", "below", 6)));
+        assertEquals(ApiError.Code.INVALID_PARAMS, e.error().code());
         assertTrue(e.getMessage().contains("mc.observe.playr"), e.getMessage());
-        assertEquals(0, ((Map<?, ?>) api.route("mc.events", Map.of("op", "list"))).get("count"),
+        assertEquals(0L, ((Map<?, ?>) api.route("mc.events", Map.of("op", "list"))).get("count"),
                 "a refused watcher must not have been registered");
     }
 

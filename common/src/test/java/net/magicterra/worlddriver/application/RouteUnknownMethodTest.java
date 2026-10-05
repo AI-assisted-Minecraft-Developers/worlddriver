@@ -1,12 +1,9 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.UnknownMethodException;
-
-import net.magicterra.worlddriver.application.DriverApplication;
+import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.contract.ApiException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -23,18 +20,17 @@ class RouteUnknownMethodTest {
 
     @Test
     void aNullMethodIsAnUnknownMethodNotAnNpe() {
-        Throwable t = assertThrows(Throwable.class, () -> new DriverApplication().route(null, Map.of()));
-        UnknownMethodException u = assertInstanceOf(UnknownMethodException.class, t,
-                "route(null) must fail with the typed error, got " + t);
-        assertNull(u.method());
-        assertTrue(u.getMessage().contains("no method"), u.getMessage());
+        ApiException e = assertThrows(ApiException.class, () -> new DriverApplication().route(null, Map.of()),
+                "route(null) must fail with the typed error");
+        assertEquals(ApiError.Code.METHOD_NOT_FOUND, e.error().code());
+        assertTrue(e.getMessage().contains("no method"), e.getMessage());
     }
 
     @Test
     void anUnregisteredNameNamesItself() {
-        UnknownMethodException u = assertThrows(UnknownMethodException.class,
+        ApiException e = assertThrows(ApiException.class,
                 () -> new DriverApplication().route("mc.nope", Map.of()));
-        assertEquals("mc.nope", u.method());
-        assertTrue(u.getMessage().startsWith("unknown method: mc.nope"), u.getMessage());
+        assertEquals(ApiError.Code.METHOD_NOT_FOUND, e.error().code());
+        assertTrue(e.getMessage().startsWith("unknown method: mc.nope"), e.getMessage());
     }
 }

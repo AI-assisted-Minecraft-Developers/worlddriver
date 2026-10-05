@@ -37,6 +37,16 @@ public final class TransportLimits {
     /** Worker threads the WebSocket server runs requests on, across all connections. */
     public static final int RPC_MAX_WORKERS = 64;
 
+    /**
+     * Suspended waits (an awaited action, a wait method) one connection may hold. A suspended wait
+     * holds no worker, so these are counted apart from {@link #RPC_MAX_IN_FLIGHT_PER_CONNECTION}:
+     * a connection with every wait permit taken can still observe and cancel.
+     */
+    public static final int RPC_MAX_WAITS_PER_CONNECTION = 32;
+
+    /** Suspended waits across all connections; past either bound a new wait is refused before it starts. */
+    public static final int RPC_MAX_WAITS = 128;
+
 
 
 

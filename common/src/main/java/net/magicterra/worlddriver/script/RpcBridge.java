@@ -1,13 +1,21 @@
 package net.magicterra.worlddriver.script;
 
-import net.magicterra.worlddriver.rpc.RpcClient;
-
+import java.util.LinkedHashMap;
 import java.util.Map;
 
+import net.magicterra.worlddriver.api.ApiErrors;
+import net.magicterra.worlddriver.api.ServerThreadGuard;
+import net.magicterra.worlddriver.api.WireValues;
+import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.protocol.JsonCodec;
+import net.magicterra.worlddriver.rpc.RpcCallException;
+import net.magicterra.worlddriver.rpc.RpcClient;
+
 /**
- * Used as the body of Driver.system.rpcRoundtrip(method, params).
- * Each call opens a fresh WebSocket connection to ws://host:port/rpc, sends one
- * frame, reads one frame. Simple and deterministic for parity validation.
+ * The body of {@code Driver.system.rpcRoundtrip(method, params)}: the same call made over a fresh
+ * WebSocket connection, for the transport-parity checks. Its answer is the envelope
+ * {@code DriverApi.invokeJson} gives, so the script throws the same {@code DriverApiError} with the
+ * same code and issues whichever way the call went.
  */
 public final class RpcBridge {
     private final String host;
@@ -18,24 +26,21 @@ public final class RpcBridge {
         this.port = port;
     }
 
-    @SuppressWarnings("unchecked")
-    public Object call(String method, Map<String, Object> params) {
-        try (RpcClient c = new RpcClient(host, port)) {
-            return c.call(method, params);
-        } catch (Exception e) {
-            throw new RuntimeException("rpcRoundtrip failed: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Used by JS Driver.invokeRpc — returns the raw JSON response string so the script
-     * can JSON.parse it through the same path as the in-JVM result.
-     */
+    /** {@code {"result":…}} or {@code {"error":ApiError}}; {@code paramsJson} null sends no params. */
     public String callJson(String method, String paramsJson) {
+        // Outside the envelope: a refusal is the script's mistake, not an outcome of the call.
+        ServerThreadGuard.refuseBlocking("an RPC round-trip");
+        Map<String, Object> envelope = new LinkedHashMap<>();
         try (RpcClient c = new RpcClient(host, port)) {
-            return c.callJson(method, paramsJson);
+            envelope.put("result", JsonCodec.decode(c.callJson(method, paramsJson, RpcClient.DEFAULT_CALL_TIMEOUT_MS)));
+        } catch (RpcCallException e) {
+            ApiError err = e.apiError() != null ? e.apiError() : ApiError.of(ApiError.Code.INTERNAL_ERROR,
+                    "rpc error " + e.rpcCode() + ": " + e.getMessage());
+            envelope.put("error", ApiErrors.toTree(err));
         } catch (Exception e) {
-            throw new RuntimeException("rpcRoundtripJson failed: " + e.getMessage(), e);
+            envelope.put("error", ApiErrors.toTree(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
+                    "rpcRoundtrip failed: " + e.getMessage(), java.util.List.of(), ApiError.Execution.UNKNOWN)));
         }
+        return WireValues.encode(envelope);
     }
 }

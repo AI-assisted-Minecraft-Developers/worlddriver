@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.client;
 import net.magicterra.worlddriver.integration.debug.PathDebugBootstrap;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.GameThreads;
 
 /**
  * Broker between the platform-neutral {@code DriverApi} and the platform-supplied
@@ -19,6 +20,8 @@ public final class ClientHooks {
 
     public static void register(ClientDriverApi api) {
         impl = api;
+        // Only a client calls register, so naming the client class here never loads it on a server.
+        GameThreads.installClient(() -> net.minecraft.client.Minecraft.getInstance().isSameThread());
         // Boot both RPC and MCP at client init so mc.client.* (and the script
         // evaluator) are reachable from TitleScreen / Pause — before any world
         // exists. Both ensure*Up() calls are idempotent so onServerStarting

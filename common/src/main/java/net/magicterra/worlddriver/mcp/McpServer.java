@@ -1,6 +1,15 @@
 package net.magicterra.worlddriver.mcp;
 
+import net.magicterra.worlddriver.api.ApiErrors;
+import net.magicterra.worlddriver.api.ApiRegistry;
+import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.CancellationToken;
+import net.magicterra.worlddriver.api.WaitPermits;
 import net.magicterra.worlddriver.api.WireValues;
+import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.protocol.JsonRpcFrames;
+import java.util.concurrent.CompletableFuture;
 
 import net.magicterra.worlddriver.protocol.RequestLimits;
 import com.sun.net.httpserver.HttpExchange;
@@ -77,10 +86,8 @@ import java.util.concurrent.TimeUnit;
  * (isError=true), not transport-level JSON-RPC errors, per MCP convention.
  */
 public final class McpServer implements Closeable {
-    /** Protocol versions we know how to speak. Ordered newest-first. */
-    private static final List<String> SUPPORTED_PROTOCOL_VERSIONS =
-            List.of("2025-06-18", "2025-03-26", "2024-11-05");
-    private static final String LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS.get(0);
+    /** The one protocol version spoken: the first with outputSchema and structuredContent. */
+    static final String PROTOCOL_VERSION = "2025-06-18";
     private static final String SERVER_NAME = "worlddriver";
     private static final String SERVER_VERSION = BuildStamp.VERSION;
     /** Maximum inbound POST body — shared with the WebSocket transport's frame
@@ -120,6 +127,31 @@ public final class McpServer implements Closeable {
         this.http.setExecutor(executor);
         this.http.start();
         api.addEventListener(this::onEvent);
+        this.listed = listedNames();
+        api.registry().addListener(snapshot -> onRegistryChange());
+    }
+
+    /** The tool names {@code tools/list} showed last; a publish that changes them is announced. */
+    private volatile Set<String> listed;
+
+    private Set<String> listedNames() {
+        Set<String> names = new java.util.LinkedHashSet<>();
+        for (Map<String, Object> t : McpTools.list(api)) names.add(String.valueOf(t.get("name")));
+        return names;
+    }
+
+    /**
+     * Tell every open GET stream that the tool list changed, when a newly published batch changed
+     * what {@code tools/list} shows; a hidden method's registration changes nothing visible and is
+     * not announced. A client without an open stream reads the new list whenever it next asks.
+     */
+    private void onRegistryChange() {
+        Set<String> now = listedNames();
+        if (now.equals(listed)) return;
+        listed = now;
+        String frame = "data: " + WireValues.encode(Map.of("jsonrpc", "2.0",
+                "method", "notifications/tools/list_changed")) + "\n\n";
+        for (SseSubscriber sub : sse) sub.offer(frame);
     }
 
     public int port() { return http.getAddress().getPort(); }
@@ -130,7 +162,7 @@ public final class McpServer implements Closeable {
         StringBuilder sb = new StringBuilder();
         sb.append("<html><body><h1>Agent Driver MCP</h1>");
         sb.append("<p>POST JSON-RPC 2.0 to /mcp. Tools:</p><ul>");
-        for (Map<String, Object> t : ToolCatalog.tools()) {
+        for (Map<String, Object> t : McpTools.list(api)) {
             sb.append("<li><code>").append(t.get("name")).append("</code> — ")
               .append(t.get("description")).append("</li>");
         }
@@ -185,7 +217,12 @@ public final class McpServer implements Closeable {
             sendJson(ex, 400, jsonRpcError(null, -32600, "request must be JSON object"));
             return;
         }
-        Object id = req.get("id");
+        Object rawId = req.get("id");
+        if (!JsonRpcFrames.validId(rawId)) {
+            sendJson(ex, 400, jsonRpcError(null, -32600, "id must be a string, an integer or null"));
+            return;
+        }
+        Object id = rawId;
         // A cast here threw out of the handler, and the HTTP server answers that by dropping
         // the connection without a response.
         String method = (req.get("method") instanceof String s) ? s : null;
@@ -207,24 +244,26 @@ public final class McpServer implements Closeable {
         try {
             switch (method) {
                 case "initialize" -> {
-                    // Version negotiation per spec lifecycle: echo the client's
-                    // requested version when we support it, otherwise return our
-                    // latest. Clients that disagree may then disconnect.
+                    // One protocol version: tool entries always carry outputSchema and results
+                    // always carry structuredContent, which older versions do not define. A
+                    // client asking for another version is told so (spec: lifecycle, error
+                    // handling) rather than handed a session in a version it did not ask for.
                     String requested = (params.get("protocolVersion") instanceof String s) ? s : null;
-                    String negotiated = (requested != null && SUPPORTED_PROTOCOL_VERSIONS.contains(requested))
-                            ? requested
-                            : LATEST_PROTOCOL_VERSION;
+                    if (!PROTOCOL_VERSION.equals(requested)) {
+                        Map<String, Object> data = new LinkedHashMap<>();
+                        data.put("supported", List.of(PROTOCOL_VERSION));
+                        data.put("requested", requested);
+                        sendJson(ex, 200, WireValues.encode(JsonRpcFrames.error(id, JsonRpcFrames.INVALID_PARAMS,
+                                "Unsupported protocol version", data)));
+                        return;
+                    }
                     Map<String, Object> result = Map.of(
-                        "protocolVersion", negotiated,
-                        // listChanged=false: the catalog is fixed by the time any client
-                        // initializes. Optional subsystems append schemas via
-                        // ToolCatalog.registerExtra at client-register, which runs before any
-                        // external client connects — so the list never changes mid-session.
-                        // Clients that respect this skip subscribing to notifications/tools/list_changed.
-                        // logging:{} advertises we send notifications/message (our
-                        // event push on the GET SSE stream).
+                        "protocolVersion", PROTOCOL_VERSION,
+                        // listChanged: a batch registered after initialize (StageWright's mc.test.*,
+                        // a mod's verbs) is announced with notifications/tools/list_changed on every
+                        // open GET stream. logging:{} advertises notifications/message (the event push).
                         "capabilities", Map.of(
-                            "tools", Map.of("listChanged", false),
+                            "tools", Map.of("listChanged", true),
                             "logging", Map.of()),
                         "serverInfo", Map.of("name", SERVER_NAME, "version", SERVER_VERSION)
                     );
@@ -244,33 +283,38 @@ public final class McpServer implements Closeable {
                 }
                 case "ping" -> sendJson(ex, 200, jsonRpcResult(id, Map.of()));
                 case "tools/list" -> {
-                    Map<String, Object> result = Map.of("tools", ToolCatalog.tools());
+                    Map<String, Object> result = Map.of("tools", McpTools.list(api));
                     sendJson(ex, 200, jsonRpcResult(id, result));
                 }
                 case "tools/call" -> {
-                    String toolName = (String) params.get("name");
-                    Map<String, Object> args = (params.get("arguments") instanceof Map<?, ?> am)
-                            ? (Map<String, Object>) am : Map.of();
+                    String toolName = (params.get("name") instanceof String n) ? n : null;
                     if (toolName == null) {
-                        sendJson(ex, 400, jsonRpcError(id, -32602, "missing tool name"));
+                        sendJson(ex, 200, jsonRpcError(id, -32602, "missing tool name"));
                         return;
                     }
                     if (!api.methods().contains(toolName)) {
-                        sendJson(ex, 200, jsonRpcResult(id, toolError("unknown tool: " + toolName)));
+                        // spec: tools, error handling — an unknown tool is a protocol error.
+                        ApiError unknown = ApiError.of(ApiError.Code.METHOD_NOT_FOUND, "unknown tool: " + toolName);
+                        sendJson(ex, 200, WireValues.encode(JsonRpcFrames.error(id, JsonRpcFrames.INVALID_PARAMS,
+                                unknown.message(), ApiErrors.toTree(unknown))));
                         return;
                     }
-                    try {
-                        Object result = api.route(toolName, args);
-                        sendJson(ex, 200, jsonRpcResult(id, toolResultContent(result)));
-                    } catch (Throwable t) {
-                        // A hop that gave up, or a full cap, is a server error, not the tool's: the
-                        // code is the only thing that tells "safe to retry" from "may still apply".
-                        ServerThreadHop.HopTimeoutException hop = ServerThreadHop.find(t);
-                        ServerBusyException busy = ServerBusyException.find(t);
-                        if (hop != null) sendJson(ex, 200, jsonRpcError(id, hop.code(), hop.getMessage()));
-                        else if (busy != null) sendJson(ex, 200,
-                                jsonRpcError(id, ServerBusyException.CODE, busy.getMessage()));
-                        else sendJson(ex, 200, jsonRpcResult(id, toolError(t.getMessage())));
+                    // Absent arguments are no arguments; present ones that are not an object are reported
+                    // by the method's own decode, never turned into {}.
+                    Object args = params.get("arguments");
+                    CallContext context = CallContext.withBudget(budgetOf(params), CancellationToken.NEVER, WAITS);
+                    CompletableFuture<Object> call = api.dispatch(toolName, args, context).toCompletableFuture();
+                    MethodSpec<?, ?> spec = api.spec(toolName);
+                    if (call.isDone()) {
+                        sendToolOutcome(ex, id, spec, call);
+                    } else {
+                        // Suspended (an awaited action): this worker and its POST slot go back now, the
+                        // wait holds a wait permit, and the answer is written when the call completes.
+                        // The exchange stays open until then; sendJson closes it.
+                        call.whenComplete((r, t) -> {
+                            try { sendToolOutcome(ex, id, spec, call); }
+                            catch (IOException gone) { ex.close(); }
+                        });
                     }
                 }
                 default -> sendJson(ex, 200, jsonRpcError(id, -32601, "method not found: " + method));
@@ -421,36 +465,66 @@ public final class McpServer implements Closeable {
         }
     }
 
+    /** Suspended MCP waits across every client; past it a new wait is refused before it starts. */
+    private static final WaitPermits WAITS = WaitPermits.bounded(McpLimits.MCP_MAX_WAITS);
+
+    /** The caller's remaining budget from {@code params._meta.budgetMs}, else the server's cap. */
+    private static long budgetOf(Map<String, Object> params) {
+        if (params.get("_meta") instanceof Map<?, ?> meta && meta.get("budgetMs") instanceof Number n && n.longValue() > 0) {
+            return Math.min(n.longValue(), CallContext.SERVER_CAP_MS);
+        }
+        return CallContext.SERVER_CAP_MS;
+    }
+
     /**
-     * Wraps {@code DriverApi.route()} output into MCP tool result content. For
-     * image-shaped Maps (format=png/jpeg/... + base64 keys), emits a small text
-     * block with the non-base64 metadata as JSON, plus a real {@code image}
-     * content block so multimodal LLMs receive it as vision input rather than
-     * as a giant base64 string inside text. The companion {@code McpBridge}
-     * merges the image bytes back under {@code base64} so JS round-trip tests
-     * see the same shape as in-JVM calls.
+     * Write a finished call. A result is a tool result with {@code structuredContent}; a call that was
+     * withdrawn, may still apply, or never got capacity is a JSON-RPC error, because only its code
+     * tells "safe to retry" from "may still apply"; every other API error is a tool error whose text is
+     * the {@code ApiError} JSON, so a model reads the issue paths it needs to fix the call.
+     */
+    private static void sendToolOutcome(HttpExchange ex, Object id, MethodSpec<?, ?> spec,
+                                        CompletableFuture<Object> call) throws IOException {
+        Object result;
+        try {
+            result = call.join();
+        } catch (Throwable t) {
+            ApiError e = ApiRegistry.asApi(t).error();
+            switch (e.code()) {
+                case SERVER_BUSY, NOT_EXECUTED, OUTCOME_UNKNOWN -> sendJson(ex, 200, WireValues.encode(
+                        JsonRpcFrames.error(id, e.code().rpcCode, e.message(), ApiErrors.toTree(e))));
+                default -> sendJson(ex, 200, jsonRpcResult(id, toolError(WireValues.encode(ApiErrors.toTree(e)))));
+            }
+            return;
+        }
+        sendJson(ex, 200, jsonRpcResult(id, toolResultContent(spec, result)));
+    }
+
+    /**
+     * Wraps an encoded result into MCP tool result content: {@code structuredContent} plus the same
+     * JSON as text. For a method whose spec names an image field, the bytes become a native
+     * {@code image} block and both the text and {@code structuredContent} hold the metadata view, so a
+     * multimodal model receives the picture as vision input rather than a base64 string. The
+     * companion {@code McpBridge} merges the bytes back so in-JVM callers see one shape.
      */
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> toolResultContent(Object result) {
-        if (result instanceof Map<?, ?> raw
-                && raw.get("format") instanceof String fmt
-                && raw.get("base64") instanceof String b64
-                && !b64.isEmpty()
-                && isImageMimeFormat(fmt)) {
+    private static Map<String, Object> toolResultContent(MethodSpec<?, ?> spec, Object result) {
+        MethodSpec.ImageHint image = spec == null ? null : spec.image();
+        if (image != null && result instanceof Map<?, ?> raw
+                && raw.get(image.dataField()) instanceof String b64 && !b64.isEmpty()
+                && raw.get(image.formatField()) instanceof String fmt && isImageMimeFormat(fmt)) {
             Map<String, Object> meta = new LinkedHashMap<>((Map<String, Object>) raw);
-            meta.remove("base64");
+            meta.remove(image.dataField());
             Map<String, Object> textBlock = Map.of("type", "text", "text", WireValues.encode(meta));
-            Map<String, Object> imageBlock = Map.of(
-                    "type", "image",
-                    "data", b64,
-                    "mimeType", "image/" + fmt
-            );
+            Map<String, Object> imageBlock = Map.of("type", "image", "data", b64, "mimeType", "image/" + fmt);
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("content", List.of(textBlock, imageBlock));
+            m.put("structuredContent", meta);
             m.put("isError", false);
             return m;
         }
-        return toolText(result);
+        Map<String, Object> m = toolText(result);
+        if (result instanceof Map<?, ?>) m.put("structuredContent", result);
+        return m;
     }
 
     private static boolean isImageMimeFormat(String fmt) {

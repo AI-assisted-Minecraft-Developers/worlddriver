@@ -390,7 +390,11 @@ public final class WorldDriverCommon {
                 return 0;
             }
             RpcBridge bridge = new RpcBridge("127.0.0.1", rpcPort);
-            McpBridge mcpBridge = (mcpPort > 0) ? new McpBridge("127.0.0.1", mcpPort) : null;
+            DriverApi a = api;
+            McpBridge mcpBridge = (mcpPort > 0) ? new McpBridge("127.0.0.1", mcpPort, name -> {
+                var spec = a.spec(name);
+                return spec == null ? null : spec.image();
+            }) : null;
             ScriptManager mgr = new ScriptManager(api, dir, bridge, mcpBridge);
             int n = mgr.loadAll();
             LOG.info("[{}] loaded {} user script(s) from {}", MOD_ID, n, dir);

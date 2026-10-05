@@ -33,19 +33,25 @@ function javaClassName(v) {
 
 var Driver = {};
 
-// Strip "java.lang.IllegalArgumentException:" or "net.x.y.SomeException:" prefixes
-// off Rhino-wrapped Java exception messages so JS users see "unknown block: foo"
-// rather than "java.lang.IllegalArgumentException: unknown block: foo".
+// The error every Driver call throws: code, issues and execution as the API reported them,
+// message for a person. `e.code === 'invalid_params'` is how a script tells a bad request
+// from anything else; the message is not parsed.
+function DriverApiError(error) {
+    this.name = 'DriverApiError';
+    this.message = String(error.message);
+    this.code = String(error.code);
+    this.issues = error.issues || [];
+    this.execution = String(error.execution);
+}
+DriverApiError.prototype = Object.create(Error.prototype);
+DriverApiError.prototype.constructor = DriverApiError;
+
+// The one generic call. Omitted params are sent as none, never as {} made up here: a method
+// that takes nothing accepts that, and null, false or an array are still reported as what they are.
 Driver.invoke = function (method, params) {
-    try {
-        var json = __api.invokeJson(method, JSON.stringify(params || {}));
-        return JSON.parse(json);
-    } catch (e) {
-        var msg = (e && e.message) ? e.message : String(e);
-        var m = /^([a-zA-Z_$][\w.$]*Exception|[a-zA-Z_$][\w.$]*Error):\s+(.*)$/.exec(msg);
-        if (m && /\./.test(m[1])) msg = m[2];
-        throw new Error(msg);
-    }
+    var reply = JSON.parse(String(__api.invokeJson(method, params === undefined ? null : JSON.stringify(params))));
+    if (reply.error) throw new DriverApiError(reply.error);
+    return reply.result;
 };
 
 Driver.system = {
