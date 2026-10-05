@@ -159,11 +159,35 @@ public final class JsonCodec {
     // ============================================================
     //                          DECODE
     // ============================================================
+
+    /** Longest number token {@link #decode} turns into a value. */
+    public static final int MAX_NUMBER_CHARS = 100;
+    /** Largest exponent magnitude {@link #decode} turns into a value: BigDecimal's toPlainString
+     *  of {@code 1e999999999} would spell out a billion zeros. */
+    public static final int MAX_EXPONENT = 400;
+
+    /**
+     * A number token past {@link #MAX_NUMBER_CHARS} or {@link #MAX_EXPONENT}. The parse goes on so
+     * the request's id stays readable, and every typed decode reports this value as invalid at its
+     * own path; nothing converts it to a number.
+     */
+    public record RejectedNumber(String token, String reason) {}
+
+    /** Thrown for input that is not JSON, including a repeated object key. */
+    public static final class JsonSyntaxException extends RuntimeException {
+        public JsonSyntaxException(String message) { super(message); }
+    }
+
+    /**
+     * Strict JSON: integers without fraction or exponent become Long (BigInteger past its range),
+     * every other number an exact BigDecimal, so no digit is rounded on the way in; a repeated key
+     * in one object is a syntax error rather than a silent overwrite.
+     */
     public static Object decode(String json) {
         Parser p = new Parser(json);
         Object v = p.parseValue();
         p.skipWs();
-        if (p.pos < p.src.length()) throw new RuntimeException("trailing garbage at " + p.pos);
+        if (p.pos < p.src.length()) throw new JsonSyntaxException("trailing garbage at " + p.pos);
         return v;
     }
 
@@ -184,25 +208,21 @@ public final class JsonCodec {
 
         void enter() {
             if (++depth > MAX_DEPTH) {
-                throw new RuntimeException("JSON nested deeper than " + MAX_DEPTH + " at " + pos);
+                throw new JsonSyntaxException("JSON nested deeper than " + MAX_DEPTH + " at " + pos);
             }
         }
 
         Object parseValue() {
             skipWs();
-            if (pos >= src.length()) throw new RuntimeException("unexpected eof");
+            if (pos >= src.length()) throw new JsonSyntaxException("unexpected eof");
             char c = src.charAt(pos);
             if (c == '{') return parseObject();
             if (c == '[') return parseArray();
             if (c == '"') return parseString();
             if (c == 't' || c == 'f') return parseBool();
             if (c == 'n') { expect("null"); return null; }
-            // Lenient: a producer (notably Rhino's JSON.stringify over wrapped
-            // Java doubles) can emit the non-standard literals NaN / Infinity /
-            // -Infinity. Accept them as null so the round-trip never crashes.
-            if (c == 'N') { expect("NaN"); return null; }
-            if (c == 'I') { expect("Infinity"); return null; }
-            if (c == '-' && src.startsWith("-Infinity", pos)) { pos += 9; return null; }
+            // NaN and Infinity are not JSON, and a request carrying one names no value any
+            // field could hold; JSON.stringify writes null for them, never the literal.
             return parseNumber();
         }
 
@@ -214,14 +234,17 @@ public final class JsonCodec {
             if (peek('}')) { pos++; depth--; return m; }
             while (true) {
                 skipWs();
+                int keyAt = pos;
                 String k = parseString();
                 skipWs(); expect(":");
                 Object v = parseValue();
+                // A parsed tree cannot show which of two values a key had; only the parse can.
+                if (m.containsKey(k)) throw new JsonSyntaxException("duplicate key \"" + k + "\" at " + keyAt);
                 m.put(k, v);
                 skipWs();
                 if (peek(',')) { pos++; continue; }
                 if (peek('}')) { pos++; depth--; return m; }
-                throw new RuntimeException("expected , or } at " + pos);
+                throw new JsonSyntaxException("expected , or } at " + pos);
             }
         }
 
@@ -236,7 +259,7 @@ public final class JsonCodec {
                 skipWs();
                 if (peek(',')) { pos++; continue; }
                 if (peek(']')) { pos++; depth--; return l; }
-                throw new RuntimeException("expected , or ] at " + pos);
+                throw new JsonSyntaxException("expected , or ] at " + pos);
             }
         }
 
@@ -247,7 +270,7 @@ public final class JsonCodec {
                 char c = src.charAt(pos++);
                 if (c == '"') return sb.toString();
                 if (c == '\\') {
-                    if (pos >= src.length()) throw new RuntimeException("eof in escape");
+                    if (pos >= src.length()) throw new JsonSyntaxException("eof in escape");
                     char e = src.charAt(pos++);
                     switch (e) {
                         case '"' -> sb.append('"');
@@ -267,54 +290,94 @@ public final class JsonCodec {
                             // NB: do not write a backslash-u sequence in a comment; javac
                             // decodes unicode escapes before parsing, even inside comments.
                             if (pos + 4 > src.length()) {
-                                throw new RuntimeException("truncated \\u escape at " + pos);
+                                throw new JsonSyntaxException("truncated \\u escape at " + pos);
                             }
                             String h = src.substring(pos, pos + 4);
                             sb.append((char) Integer.parseInt(h, 16));
                             pos += 4;
                         }
-                        default -> throw new RuntimeException("bad escape \\" + e);
+                        default -> throw new JsonSyntaxException("bad escape \\" + e);
                     }
+                } else if (c < 0x20) {
+                    throw new JsonSyntaxException("unescaped control character in string at " + (pos - 1));
                 } else sb.append(c);
             }
-            throw new RuntimeException("unterminated string");
+            throw new JsonSyntaxException("unterminated string");
         }
 
         Boolean parseBool() {
             if (src.startsWith("true", pos)) { pos += 4; return Boolean.TRUE; }
             if (src.startsWith("false", pos)) { pos += 5; return Boolean.FALSE; }
-            throw new RuntimeException("expected bool at " + pos);
+            throw new JsonSyntaxException("expected bool at " + pos);
         }
 
-        Number parseNumber() {
+        /** RFC 8259 number grammar: {@code -? (0 | [1-9][0-9]*) (. [0-9]+)? ([eE] [+-]? [0-9]+)?}. */
+        Object parseNumber() {
             int s = pos;
             if (peek('-')) pos++;
-            while (pos < src.length() && "0123456789.eE+-".indexOf(src.charAt(pos)) >= 0) pos++;
-            String n = src.substring(s, pos);
-            // Zero-width / degenerate consume means we dispatched to a number on
-            // a non-number char (parser desync). Fail with context instead of a
-            // cryptic NumberFormatException ("For input string: \"\"").
-            if (n.isEmpty() || n.equals("-") || n.equals("+") || n.equals(".")) {
-                throw new RuntimeException("invalid JSON: expected value at " + s + " near '"
+            if (peek('0')) {
+                pos++;
+            } else if (pos < src.length() && src.charAt(pos) >= '1' && src.charAt(pos) <= '9') {
+                skipDigits();
+            } else {
+                throw new JsonSyntaxException("invalid JSON: expected value at " + s + " near '"
                         + src.substring(s, Math.min(src.length(), s + 12)) + "'");
             }
-            try {
-                if (n.contains(".") || n.contains("e") || n.contains("E")) return Double.parseDouble(n);
-                return Long.parseLong(n);
-            } catch (NumberFormatException nfe) {
-                // Out-of-long-range integers (or odd forms) degrade to double
-                // rather than crashing the whole decode.
-                return Double.parseDouble(n);
+            boolean integral = true;
+            if (peek('.')) {
+                pos++;
+                if (skipDigits() == 0) throw new JsonSyntaxException("digit expected after '.' at " + pos);
+                integral = false;
             }
+            int expStart = -1;
+            if (peek('e') || peek('E')) {
+                pos++;
+                if (peek('+') || peek('-')) pos++;
+                expStart = pos;
+                if (skipDigits() == 0) throw new JsonSyntaxException("digit expected in exponent at " + pos);
+                integral = false;
+            }
+            String n = src.substring(s, pos);
+            if (n.length() > MAX_NUMBER_CHARS) {
+                return new RejectedNumber(abbreviate(n), "longer than " + MAX_NUMBER_CHARS + " characters");
+            }
+            if (expStart >= 0) {
+                String digits = src.substring(expStart, pos).replaceFirst("^0+(?=.)", "");
+                if (digits.length() > 3 || Integer.parseInt(digits) > MAX_EXPONENT) {
+                    return new RejectedNumber(n, "exponent beyond ±" + MAX_EXPONENT);
+                }
+            }
+            if (!integral) return new BigDecimal(n);
+            // The grammar has already been checked, so these parse: out of long range is a BigInteger,
+            // never a double that would rewrite its low digits.
+            try {
+                return Long.parseLong(n);
+            } catch (NumberFormatException beyondLong) {
+                return new BigInteger(n);
+            }
+        }
+
+        private int skipDigits() {
+            int from = pos;
+            while (pos < src.length() && src.charAt(pos) >= '0' && src.charAt(pos) <= '9') pos++;
+            return pos - from;
+        }
+
+        private static String abbreviate(String token) {
+            return token.length() <= 24 ? token : token.substring(0, 20) + "…";
         }
 
         void skipWs() {
-            while (pos < src.length() && Character.isWhitespace(src.charAt(pos))) pos++;
+            while (pos < src.length()) {
+                char c = src.charAt(pos);
+                if (c != ' ' && c != '\t' && c != '\n' && c != '\r') break;
+                pos++;
+            }
         }
         boolean peek(char c) { return pos < src.length() && src.charAt(pos) == c; }
         void expect(String s) {
             skipWs();
-            if (!src.startsWith(s, pos)) throw new RuntimeException("expected " + s + " at " + pos);
+            if (!src.startsWith(s, pos)) throw new JsonSyntaxException("expected " + s + " at " + pos);
             pos += s.length();
         }
     }

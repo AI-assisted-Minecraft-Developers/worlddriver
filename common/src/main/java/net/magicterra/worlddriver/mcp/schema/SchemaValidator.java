@@ -117,6 +117,13 @@ public final class SchemaValidator {
             long l = (long) d;
             return (d == l) ? l : null;
         }
+        // The strict parser hands over BigDecimal and BigInteger; neither is rounded first.
+        if (v instanceof java.math.BigInteger bi) {
+            return bi.bitLength() < 64 ? bi.longValue() : null;
+        }
+        if (v instanceof java.math.BigDecimal bd) {
+            try { return bd.longValueExact(); } catch (ArithmeticException notIntegral) { return null; }
+        }
         return null;
     }
 
