@@ -2,6 +2,10 @@ package net.magicterra.worlddriver.client;
 
 import dev.architectury.event.events.client.ClientGuiEvent;
 import dev.architectury.event.events.client.ClientLifecycleEvent;
+import dev.architectury.event.events.client.ClientPlayerEvent;
+import net.magicterra.worlddriver.api.action.ActionHandle;
+import net.magicterra.worlddriver.api.action.ActionRegistry;
+import net.magicterra.worlddriver.api.methods.ActionContract;
 import dev.architectury.event.events.client.ClientTickEvent;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
@@ -58,6 +62,13 @@ public final class WorldDriverClientEvents {
         // temporary false into their settings. The tick's falling edge covers every normal
         // stop; this covers the one path where ticks just stop arriving.
         ClientLifecycleEvent.CLIENT_STOPPING.register(FocusPolicy::release);
+        // Leaving a server ends what this client's player was doing there; nothing may carry an old
+        // task into the next world. Marked before the chain drops it, so the ending is the cause.
+        ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(player -> {
+            ActionRegistry.GLOBAL.cancelScope(ActionHandle.Scope.CLIENT, ActionContract.CancelReason.CONNECTION_CLOSED);
+            BotApiImpl b = bot;
+            if (b != null) b.onDisconnect();
+        });
         // "Bot is driving" badge — the visible half of the mouse-yield handshake
         // (BotConfig.mouseYield / mouseYieldHud). Drawn after the vanilla HUD so it lands on top.
         ClientGuiEvent.RENDER_HUD.register((graphics, delta) -> MouseYieldHud.render(graphics));

@@ -1,9 +1,7 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.application.DriverApplication;
-
-import net.magicterra.worlddriver.application.WaitApi;
-
+import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.protocol.ServerBusyException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -32,9 +30,13 @@ class WaitResultTest {
         return (String) ack.get("waitId");
     }
 
-    private static Map<String, Object> awaitFinished(DriverApplication api, String waitId) throws InterruptedException {
+    private static Map<?, ?> result(DriverApplication api, Object waitId, boolean consume) {
+        return (Map<?, ?>) api.route("mc.wait.result", Map.of("kind", "wait", "waitId", waitId, "consume", consume));
+    }
+
+    private static Map<?, ?> awaitFinished(DriverApplication api, String waitId) throws InterruptedException {
         for (int i = 0; i < 500; i++) {
-            Map<String, Object> r = api.wait.result(Map.of("waitId", waitId, "consume", false));
+            Map<?, ?> r = result(api, waitId, false);
             if (!Boolean.TRUE.equals(r.get("pending"))) return r;
             Thread.sleep(10);
         }
@@ -44,8 +46,8 @@ class WaitResultTest {
     @Test
     void anIdThatWasNeverIssuedIsAnError() {
         DriverApplication api = new DriverApplication();
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> api.wait.result(Map.of("waitId", "condition-no-such-wait")));
+        ApiException e = assertThrows(ApiException.class, () -> result(api, "condition-no-such-wait", true));
+        assertEquals(ApiError.Code.INVALID_PARAMS, e.error().code());
         assertTrue(e.getMessage().contains("unknown"), e.getMessage());
     }
 
@@ -55,7 +57,8 @@ class WaitResultTest {
         Map<String, Object> ack = api.wait.condition(Map.of(
                 "invoke", "mc.events", "params", Map.of("op", "list"), "field", "nope",
                 "timeoutMs", 1500, "pollMs", 50, "background", true));
-        Map<String, Object> r = api.wait.result(Map.of("waitId", ack.get("waitId")));
+        Map<?, ?> r = result(api, ack.get("waitId"), true);
+        assertEquals("wait", r.get("kind"), r.toString());
         assertEquals(Boolean.TRUE, r.get("pending"), r.toString());
     }
 
@@ -64,8 +67,9 @@ class WaitResultTest {
         DriverApplication api = new DriverApplication();
         String id = startQuickWait(api);
         awaitFinished(api, id);
-        assertEquals(Boolean.TRUE, api.wait.result(Map.of("waitId", id)).get("satisfied"));
-        assertThrows(IllegalArgumentException.class, () -> api.wait.result(Map.of("waitId", id)));
+        Map<?, ?> r = result(api, id, true);
+        assertEquals(Boolean.TRUE, ((Map<?, ?>) r.get("result")).get("satisfied"), r.toString());
+        assertThrows(ApiException.class, () -> result(api, id, true));
     }
 
     @Test
@@ -94,8 +98,15 @@ class WaitResultTest {
         String first = startQuickWait(api);
         awaitFinished(api, first);
         for (int i = 0; i < 70; i++) awaitFinished(api, startQuickWait(api));
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> api.wait.result(Map.of("waitId", first)));
+        ApiException e = assertThrows(ApiException.class, () -> result(api, first, true));
         assertTrue(e.getMessage().contains(first), e.getMessage());
+    }
+
+    @Test
+    void anUnknownActionIsActionNotFound() {
+        DriverApplication api = new DriverApplication();
+        ApiException e = assertThrows(ApiException.class,
+                () -> api.route("mc.wait.result", Map.of("kind", "action", "actionId", "nope")));
+        assertEquals(ApiError.Code.ACTION_NOT_FOUND, e.error().code());
     }
 }

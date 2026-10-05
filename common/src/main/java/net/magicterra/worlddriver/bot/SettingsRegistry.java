@@ -137,6 +137,7 @@ public final class SettingsRegistry {
         field("autoTool"),
         field("autoBackfill"),
         field("autoBackfillBlock"),
+        field("tunnelWidthBias"),
         field("autoBackfillRadius"),
         field("allowParkour4"),
         field("allowBreak"),

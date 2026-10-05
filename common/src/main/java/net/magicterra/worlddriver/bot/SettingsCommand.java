@@ -145,6 +145,7 @@ public final class SettingsCommand {
                     rejected.add("autoBackfillBlock: invalid id " + abb);
                 }
             }
+            writeTunnelWidthBias(accepted.get("tunnelWidthBias"), applied, rejected);
             // blocksToAvoid is a list of block ids; each must parse as a
             // ResourceLocation (e.g. "minecraft:powder_snow"). Whole-list
             // replacement — pass [] to clear. Invalid ids cause the entire
@@ -251,6 +252,17 @@ public final class SettingsCommand {
     }
 
     /** The registered block ids in {@code list}, normalised; every entry that is not one goes to {@code bad}. */
+    /** {@code tunnelWidthBias} takes left or right; anything else is rejected and nothing changes. */
+    private static void writeTunnelWidthBias(Object value, List<String> applied, List<String> rejected) {
+        if (!(value instanceof String twb)) return;
+        if ("left".equals(twb) || "right".equals(twb)) {
+            BotConfig.tunnelWidthBias = twb;
+            applied.add("tunnelWidthBias");
+        } else {
+            rejected.add("tunnelWidthBias: expected left or right, got " + twb);
+        }
+    }
+
     private static Set<String> blockIds(List<?> list, List<String> bad) {
         Set<String> ids = new LinkedHashSet<>();
         for (Object o : list) {

@@ -191,7 +191,8 @@ Driver.client = {
 Driver.bot = {
     goto:      function (opts) { return Driver.invoke('mc.bot.goto',      opts || {}); },
     mine:      function (opts) { return Driver.invoke('mc.bot.mine',      opts || {}); },
-    clearArea: function (opts) { return Driver.invoke('mc.bot.clearArea', opts || {}); },
+    // A tunnel is a clearArea target: clearArea({target:{kind:'tunnel', distance:12}}).
+    clearArea: function (params) { return Driver.invoke('mc.bot.clearArea', params); },
     farm:      function (opts) { return Driver.invoke('mc.bot.farm',      opts || {}); },
     sleep:     function (opts) { return Driver.invoke('mc.bot.sleep',     opts || {}); },
     construct: function (opts) { return Driver.invoke('mc.bot.construct', opts || {}); },
@@ -203,87 +204,6 @@ Driver.bot = {
     bridge:    function (opts) {
         var p = Object.assign({}, opts || {}, { mode: 'bridge' });
         return Driver.invoke('mc.bot.construct', p);
-    },
-    // Baritone tunnel — clears a 1×2 (or wider/taller) corridor in a direction.
-    // Pure prelude sugar over mc.bot.clearArea: reads player pos, computes the
-    // corridor bbox, dispatches clearArea. opts:
-    //   direction:  'forward'|'back'|'left'|'right'|'north'|'south'|'east'|'west'|'up'|'down'
-    //   distance:   1..64 (number of cells in the travel direction)
-    //   width:      1..8  default 1 — corridor width perpendicular to direction
-    //   height:     1..8  default 2 — corridor height (Y)
-    //   fill:       optional block id to backfill (otherwise just clear)
-    tunnel: function (opts) {
-        opts = opts || {};
-        var dir = String(opts.direction || 'forward');
-        // Reject a missing/zero distance BEFORE clamping — Math.max(1, …) would
-        // otherwise floor a missing distance up to 1 and silently tunnel one cell,
-        // defeating the 'distance required' contract (task#92).
-        var dist = (opts.distance | 0) || 0;
-        if (!dist) return { ok: false, error: 'distance required (1..64)' };
-        dist = Math.max(1, Math.min(64, dist));
-        var width = Math.max(1, Math.min(8, (opts.width | 0) || 1));
-        var height = Math.max(1, Math.min(8, (opts.height | 0) || 2));
-        var pl = Driver.invoke('mc.observe.player', {});
-        if (!pl || !pl.pos) return { ok: false, error: 'no player' };
-        var px = Math.floor(pl.pos.x), py = Math.floor(pl.pos.y), pz = Math.floor(pl.pos.z);
-        // Resolve direction → unit forward (fx,fz/fy) + right (rx,rz).
-        // 'forward'/'back'/'left'/'right' need player yaw; absolute compass dirs don't.
-        var fx = 0, fy = 0, fz = 0, rx = 0, rz = 0;
-        function abs(d) {
-            switch (d) {
-                case 'north': fx = 0;  fz = -1; rx = -1; rz = 0;  break;
-                case 'south': fx = 0;  fz = 1;  rx = 1;  rz = 0;  break;
-                case 'east':  fx = 1;  fz = 0;  rx = 0;  rz = -1; break;
-                case 'west':  fx = -1; fz = 0;  rx = 0;  rz = 1;  break;
-                case 'up':    fy = 1;  rx = 1;  rz = 0;  break;
-                case 'down':  fy = -1; rx = 1;  rz = 0;  break;
-                default: return false;
-            }
-            return true;
-        }
-        if (!abs(dir)) {
-            // Player-relative: snap yaw to nearest cardinal.
-            var yaw = ((pl.look && pl.look.yaw) || 0) % 360;
-            if (yaw < 0) yaw += 360;
-            // 0=south, 90=west, 180=north, 270=east in MC yaw convention.
-            var face;
-            if (yaw >= 315 || yaw < 45) face = 'south';
-            else if (yaw < 135)         face = 'west';
-            else if (yaw < 225)         face = 'north';
-            else                        face = 'east';
-            if (dir === 'forward') abs(face);
-            else if (dir === 'back') {
-                var back = { south:'north', north:'south', east:'west', west:'east' }[face];
-                abs(back);
-            }
-            else if (dir === 'right') {
-                var right = { south:'west', west:'north', north:'east', east:'south' }[face];
-                abs(right);
-            }
-            else if (dir === 'left') {
-                var left = { south:'east', east:'north', north:'west', west:'south' }[face];
-                abs(left);
-            }
-            else return { ok: false, error: 'unknown direction: ' + dir };
-        }
-        // Travel axis: from player+1step to player+dist steps (don't dig the
-        // cell the player is standing in — that'd suffocate or knock them).
-        var ax = px + fx, ay = py + fy, az = pz + fz;
-        var bx = px + fx * dist, by = py + fy * dist, bz = pz + fz * dist;
-        // Perpendicular spread (width) — centered on travel axis. odd widths
-        // straddle; even widths bias right.
-        var halfL = Math.floor((width - 1) / 2);
-        var halfR = Math.ceil((width - 1) / 2);
-        var x0 = Math.min(ax, bx) - rx * halfL, x1 = Math.max(ax, bx) + rx * halfR;
-        var z0 = Math.min(az, bz) - rz * halfL, z1 = Math.max(az, bz) + rz * halfR;
-        if (x0 > x1) { var t = x0; x0 = x1; x1 = t; }
-        if (z0 > z1) { var t2 = z0; z0 = z1; z1 = t2; }
-        // Height: from feet Y up to feet Y + (height-1).
-        var y0 = Math.min(ay, by), y1 = Math.max(ay, by) + (height - 1);
-        var args = { from: { x: x0, y: y0, z: z0 }, to: { x: x1, y: y1, z: z1 } };
-        if (opts.fill) args.fill = opts.fill;
-        if (opts.awaitMs !== undefined) args.awaitMs = opts.awaitMs;
-        return Driver.invoke('mc.bot.clearArea', args);
     },
     build:     function (opts) { return Driver.invoke('mc.bot.build',     opts || {}); },
     follow:    function (opts) { return Driver.invoke('mc.bot.follow',    opts || {}); },

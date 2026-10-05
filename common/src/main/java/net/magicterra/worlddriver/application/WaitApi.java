@@ -1,6 +1,14 @@
 package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.api.ServerThreadGuard;
+import net.magicterra.worlddriver.api.WireValues;
+import net.magicterra.worlddriver.api.action.ActionRegistry;
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.methods.WaitResultContract;
+import net.magicterra.worlddriver.protocol.JsonCodec;
+import java.util.Optional;
 
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.model.Params;
@@ -137,23 +145,26 @@ public final class WaitApi {
      * {@code consume:false}). An id that is neither running nor stored — never
      * issued, already consumed, or evicted by newer results — is an error.
      */
-    public Map<String, Object> result(Map<String, Object> raw) {
-        Params p = Params.of(raw);
-        String waitId = p.getString("waitId");
-        if (waitId == null || waitId.isBlank()) throw new IllegalArgumentException("waitId required");
+    public WaitResultContract.Reply result(WaitResultContract.Query query) {
+        return switch (query) {
+            case WaitResultContract.ActionQuery a ->
+                    new WaitResultContract.ActionReply(ActionRegistry.GLOBAL.snapshot(a.actionId()));
+            case WaitResultContract.WaitQuery w -> waitResult(w.waitId(), w.consume());
+        };
+    }
+
+    private WaitResultContract.Reply waitResult(String waitId, boolean consume) {
         // In-flight first: the finisher stores the result before it clears the flag.
-        if (IN_FLIGHT.contains(waitId)) {
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("pending", true);
-            out.put("waitId", waitId);
-            return out;
-        }
-        Map<String, Object> r = p.getBool("consume", true) ? RESULTS.remove(waitId) : RESULTS.get(waitId);
+        if (IN_FLIGHT.contains(waitId)) return new WaitResultContract.WaitReply(waitId, true, Optional.empty());
+        Map<String, Object> r = consume ? RESULTS.remove(waitId) : RESULTS.get(waitId);
         if (r == null) {
-            throw new IllegalArgumentException("unknown waitId '" + waitId + "': never started, already "
-                    + "consumed, or evicted (only the " + MAX_RESULTS + " newest unread results are kept)");
+            throw ApiException.invalidParam("/waitId", ApiIssue.Code.INVALID_VALUE, "unknown waitId '" + waitId
+                    + "': never started, already consumed, or evicted (only the " + MAX_RESULTS
+                    + " newest unread results are kept)");
         }
-        return r;
+        // The stored result is an untyped map of the legacy wait verbs; its wire tree is what is returned.
+        return new WaitResultContract.WaitReply(waitId, false,
+                Optional.of(JsonValue.of(JsonCodec.decode(WireValues.encode(r)))));
     }
 
     /**

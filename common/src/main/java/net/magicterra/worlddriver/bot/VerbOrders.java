@@ -169,40 +169,7 @@ public final class VerbOrders {
         return s.indexOf(':') >= 0 ? s : "minecraft:" + s;
     }
 
-    public static Order clearArea(Params p, LivingEntity self) {
-        BlockPos from = p.getPos("from");
-        BlockPos to   = p.getPos("to");
-        if (from == null || to == null) return Order.refuse("from and to required");
-        long volume = cells(from, to);
-        if (volume > MAX_BOX_CELLS) return Order.refuse("area too large (max " + MAX_BOX_CELLS + " blocks)");
-        // Baritone sel-system parity: fill="id" places id after clearing each cell; replace={from,to}
-        // only touches cells matching the from id and leaves the to id behind. Each cell costs
-        // walk+break(+place) so the bbox is bot-driven (matches Baritone's survival path — survival
-        // requires the fill blocks to be in inventory, hotbar preferred).
-        String fillId = p.getNonBlank("fill");
-        String rFrom = null, rTo = null;
-        if (p.get("replace") instanceof Map<?, ?> rm) {
-            if (rm.get("from") instanceof String s) rFrom = s;
-            if (rm.get("to") instanceof String s)   rTo = s;
-            if (rFrom == null || rTo == null) return Order.refuse("replace requires {from:'id', to:'id'}");
-        }
-        if (fillId != null && rFrom != null) return Order.refuse("specify fill OR replace, not both");
-        // Effective semantics — clear: no fill / no filter. fill: fillId, no filter. replace:
-        // fillId=replace.to, filterFromId=replace.from.
-        String effFillId = (rTo != null) ? rTo : fillId;
-        String effFilterFromId = rFrom;
-        String mode = (rFrom != null) ? "replace" : (fillId != null ? "fill" : "clear");
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ok", true); out.put("started", true);
-        out.put("mode", mode);
-        out.put("from", posMap(from)); out.put("to", posMap(to));
-        out.put("volume", (int) volume);
-        if (effFillId != null) out.put("fill", effFillId);
-        if (effFilterFromId != null) out.put("replaceFrom", effFilterFromId);
-        return new Order(new BboxFillProcess(from, to, effFillId, effFilterFromId), out);
-    }
-
-    /** Most cells a box verb may cover: clearArea works every one, and farm rescans them all after each harvest. */
+    /** Most cells a box verb may cover: farm rescans them all after each harvest. */
     static final int MAX_BOX_CELLS = 4096;
 
     /** Cells in the box spanned by {@code a} and {@code b}, as a long so no span can overflow it. */

@@ -47,6 +47,14 @@ ScriptTest.run("66_body_routes: an unknown body refuses every verb that takes bo
     }
 });
 
+ScriptTest.run("66_body_routes: a typed body task refuses an unknown body as body_unavailable on every transport", function(t) {
+    var r = viaEveryTransport("mc.bot.clearArea", { body: NOBODY, target: { kind: "tunnel", distance: 1 } });
+    t.assertEqual(r[0].outcome, "refused", "outcome, got: " + JSON.stringify(r[0]));
+    t.assertEqual(r[0].reason, "body_unavailable", "reason");
+    t.assertEqual(jsonStable(r[0]), jsonStable(r[1]), "in-JVM and TCP must agree");
+    t.assertEqual(jsonStable(r[0]), jsonStable(r[2]), "in-JVM and MCP must agree");
+});
+
 ScriptTest.run("66_body_routes: status lists the same bodies on every transport", function(t) {
     var r = viaEveryTransport("mc.bot.status", {});
     for (var i = 0; i < r.length; i++) {

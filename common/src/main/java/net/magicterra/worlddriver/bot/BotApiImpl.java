@@ -4,6 +4,8 @@ import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import net.magicterra.worlddriver.bot.process.RouteEvents;
 
 import net.magicterra.worlddriver.api.WorldCell;
+import net.magicterra.worlddriver.api.action.ActionHandle;
+import net.magicterra.worlddriver.api.methods.ActionContract;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
@@ -595,12 +597,6 @@ public final class BotApiImpl implements BotApi {
     // pause/resume removed — handled inside setting() via the {paused:bool} key.
 
     @Override
-    public Map<String, Object> clearArea(Map<String, Object> params) {
-        if (params == null) return Map.of("ok", false, "error", "missing from/to");
-        return order(params, null, VerbOrders::clearArea);
-    }
-
-    @Override
     public Map<String, Object> farm(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing from/to");
         return order(params, null, VerbOrders::farm);
@@ -704,10 +700,18 @@ public final class BotApiImpl implements BotApi {
         // directly and cancel
         // through the same path mc.bot.cancel uses.
         onClient(() -> {
+            // Every explicit task ends at a test boundary, not only a look: a goto left running would
+            // keep driving the body through the next scene.
             BotProcess held = userTask.process();
-            if (held != null && "look".equals(held.kind())) {
-                cancelCurrent("mc.test.reset");
-                reset.add("look");
+            if (held != null) {
+                userTask.cancel("mc.test.reset", h -> h.cancelled(ActionContract.CancelReason.TEST_RESET));
+                reset.add(held.kind());
+            }
+            if (combatChain.engaged()) {
+                combatChain.standDown();
+                state.combat.lastError = "mc.test.reset";
+                state.combat.active = false;
+                reset.add("combat");
             }
             Minecraft mc = Minecraft.getInstance();
             String wereDown = heldKeyNames(mc);
@@ -1122,6 +1126,40 @@ public final class BotApiImpl implements BotApi {
         paused = false;
     }
 
+    /** {@link #startProcess} for an accepted action, which the user task chain ends with the process. Client thread only. */
+    @Override public void startAction(BotProcess next, ActionHandle action) {
+        userTask.setProcess(next, action);
+        paused = false;
+    }
+
+    /** Client thread only. */
+    @Override public boolean cancelAction(ActionHandle action, String reason) {
+        return userTask.cancelAction(action, reason);
+    }
+
+    @Override public net.magicterra.worlddriver.api.ServerThreadHop clientHop() {
+        return net.magicterra.worlddriver.bot.util.ClientHop.hop();
+    }
+
+    @Override public java.util.concurrent.Executor clientExecutor() { return Minecraft.getInstance(); }
+
+    @Override public net.minecraft.world.entity.LivingEntity selfEntity() { return Minecraft.getInstance().player; }
+
+    /**
+     * The client left its server. Whatever the bot was doing there ends now rather than resuming in
+     * the next world, which would act on a world the caller never asked about. Client thread only.
+     */
+    public void onDisconnect() {
+        if (combatChain.engaged()) {
+            combatChain.standDown();
+            state.combat.lastError = "disconnected";
+            state.combat.active = false;
+        }
+        userTask.cancel("disconnected", h -> h.cancelled(ActionContract.CancelReason.CONNECTION_CLOSED));
+        scheduler.cancelAllEpisodes("disconnected");
+        backfillTracker.clear();
+    }
+
     // === the object seam: run a caller's own BotProcess on the real player ======
     // See BotApi for why these two are not routes. They are the in-JVM entry point the
     // playthrough ladder uses to climb on the client's real player instead of spawning a
@@ -1232,7 +1270,8 @@ public final class BotApiImpl implements BotApi {
             state.combat.lastError = reason;
             state.combat.active = false;
         }
-        cancelCurrent(reason);
+        // Only the death edge calls this: the task failed with its body, nobody cancelled it.
+        userTask.cancel(reason, h -> h.fail("the body died (" + reason + ")"));
     }
 
     // === WorldView impl ======================================================

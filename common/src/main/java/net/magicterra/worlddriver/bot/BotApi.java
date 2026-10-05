@@ -36,7 +36,6 @@ public interface BotApi {
      */
     Map<String, Object> equip(Map<String, Object> params);
     Map<String, Object> build(Map<String, Object> params);
-    Map<String, Object> clearArea(Map<String, Object> params);
     Map<String, Object> follow(Map<String, Object> params);
     Map<String, Object> explore(Map<String, Object> params);
     Map<String, Object> runAway(Map<String, Object> params);
@@ -181,6 +180,25 @@ public interface BotApi {
      * <p>Observe completion with {@link #userTaskLeg()}, never by sleeping.
      */
     Map<String, Object> runProcess(BotProcess process);
+
+    /**
+     * Run {@code process} as the foreground user task for the accepted {@code action}, superseding the
+     * held one; the user task chain ends the action with the process. <b>Client thread only</b>: the
+     * caller has already hopped there to resolve the body and build the process.
+     */
+    void startAction(BotProcess process, net.magicterra.worlddriver.api.action.ActionHandle action);
+
+    /** Stop the user task if it still carries {@code action}. <b>Client thread only.</b> */
+    boolean cancelAction(net.magicterra.worlddriver.api.action.ActionHandle action, String reason);
+
+    /** The hop onto the client thread, for a caller that must not block on it ({@code submit}). */
+    net.magicterra.worlddriver.api.ServerThreadHop clientHop();
+
+    /** The client thread's executor: where a stop requested from elsewhere is queued. */
+    java.util.concurrent.Executor clientExecutor();
+
+    /** This client's player, or null with none. <b>Client thread only.</b> */
+    net.minecraft.world.entity.LivingEntity selfEntity();
 
     /**
      * One self-consistent reading of the user task {@link #runProcess} started:

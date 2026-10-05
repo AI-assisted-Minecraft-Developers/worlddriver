@@ -1060,6 +1060,8 @@ public final class BotConfig {
     /** Block id used when {@link #autoBackfill} fires. Must be a vanilla block the player has in their
      *  inventory (creative skips the inventory check via auto-pickItem). */
     public static volatile String autoBackfillBlock = "minecraft:cobblestone";
+    /** Side of the travel direction an even-width tunnel puts its extra column on: left or right. */
+    public static volatile String tunnelWidthBias = "left";
 
     /** Chebyshev radius around the player within which {@link #autoBackfill} considers tracked-air
      *  cells for filling. Larger = more aggressive but more pathing per tick. */

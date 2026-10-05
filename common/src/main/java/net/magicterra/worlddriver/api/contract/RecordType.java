@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
@@ -76,12 +77,31 @@ public final class RecordType<O> extends ApiType<O> {
             args[i] = f.presence == ApiField.Presence.OPTIONAL ? Optional.of(v) : v;
         }
         if (at.issues().size() != before) return null;
+        O value;
         try {
-            return constructor.apply(args);
+            value = constructor.apply(args);
         } catch (IllegalArgumentException rejected) {
             // A record's compact constructor guarding a rule that spans fields.
             return at.fail(ApiIssue.Code.INVALID_VALUE, rejected.getMessage());
         }
+        if (check != null) {
+            check.accept(value, at);
+            if (at.issues().size() != before) return null;
+        }
+        return value;
+    }
+
+    private BiConsumer<O, DecodeContext> check;
+
+    /**
+     * The same record type with a rule spanning its fields, run once every field decoded. Unlike
+     * {@link #withCheck} the result is still a record type, so it can be a union variant; the check
+     * reports at the field it blames ({@code at.field("widthBias").fail(...)}).
+     */
+    public RecordType<O> checked(BiConsumer<O, DecodeContext> rule) {
+        RecordType<O> copy = new RecordType<>(name, fields, constructor);
+        copy.check = check == null ? rule : check.andThen(rule);
+        return copy;
     }
 
     private String unknownMessage(String key, String skipKey) {

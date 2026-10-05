@@ -158,7 +158,6 @@ public final class DriverApplication extends DriverApi {
         routes.put("mc.wait.event",       p -> wait.event(p));
         routes.put("mc.wait.worldReady",  p -> wait.worldReady(p));
         routes.put("mc.wait.condition",   p -> wait.condition(p));
-        routes.put("mc.wait.result",      p -> wait.result(p));
         // Action routes — optional `returnEvents:true` bracket-captures events emitted
         // during the call so a script doesn't need a separate cursor/eventsSince pair.
         // mc.action.placeBlock removed — single-block placement = mc.action.placeMany({blocks:[{pos,type}]}).
@@ -191,7 +190,13 @@ public final class DriverApplication extends DriverApi {
 
         registerClientRoutes();
         registerBotRoutes();
+        registry().registerBatch(coreBatch);
     }
+
+    /** The typed core methods, published once; a retry would hand over this same object. */
+    private final net.magicterra.worlddriver.api.ApiBatch coreBatch =
+            new net.magicterra.worlddriver.api.ApiBatch(net.magicterra.worlddriver.api.ApiRegistry.CORE_OWNER, "core",
+                    new BotActions(this).methods());
 
     private void registerClientRoutes() {
         // Client routes. Resolution is deferred to call time so the broker's
@@ -367,7 +372,6 @@ public final class DriverApplication extends DriverApi {
         putBodyVerb(bodies, "mc.bot.smelt",     "smelt",   BotApi::smelt,     BodyRoutes.order(VerbOrders::smelt));
         putBodyVerb(bodies, "mc.bot.combat",    "combat",  BotApi::combat,    BodyRoutes.order(VerbOrders::combat));
         putBodyVerb(bodies, "mc.bot.build",     "builder", BotApi::build,     BodyRoutes.order(VerbOrders::build));
-        putBodyVerb(bodies, "mc.bot.clearArea", "builder", BotApi::clearArea, BodyRoutes.order(VerbOrders::clearArea));
         putBodyVerb(bodies, "mc.bot.farm",      "builder", BotApi::farm,      BodyRoutes.order(VerbOrders::farm));
         putBodyVerb(bodies, "mc.bot.construct", "builder", BotApi::construct, BodyRoutes.order(VerbOrders::construct));
         putBodyVerb(bodies, "mc.bot.sleep",     "goto",    BotApi::sleep,     BodyRoutes.order(VerbOrders::sleep));
@@ -505,6 +509,15 @@ public final class DriverApplication extends DriverApi {
         if (s == null) throw new IllegalStateException("DriverApplication not attached to a server");
         return new ServerThreadHop(s, s::isSameThread, SERVER_THREAD_TIMEOUT_MS).call(task);
     }
+
+    /** The hop onto the attached server's thread, or null with no server attached. */
+    ServerThreadHop serverHop() {
+        MinecraftServer s = server;
+        return s == null ? null : new ServerThreadHop(s, s::isSameThread, SERVER_THREAD_TIMEOUT_MS);
+    }
+
+    /** The attached server, or null. */
+    MinecraftServer server() { return server; }
 
     private int num(Object o) { return Params.toInt(o, 0); }
     private double numD(Object o) { return Params.toDouble(o, 0.0); }

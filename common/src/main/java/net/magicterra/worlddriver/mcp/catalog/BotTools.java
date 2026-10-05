@@ -162,7 +162,7 @@ public final class BotTools {
      *  answers them. goto, status and cancel declare theirs with their own words. */
     private static final java.util.Set<String> VERBS_A_BODY_TAKES = java.util.Set.of(
         "mc.bot.mine", "mc.bot.bunker", "mc.bot.escape", "mc.bot.craft", "mc.bot.smelt", "mc.bot.combat",
-        "mc.bot.build", "mc.bot.clearArea", "mc.bot.farm", "mc.bot.construct", "mc.bot.sleep",
+        "mc.bot.build", "mc.bot.farm", "mc.bot.construct", "mc.bot.sleep",
         "mc.bot.follow", "mc.bot.explore", "mc.bot.runAway", "mc.bot.elytraFly",
         "mc.bot.lookAt", "mc.bot.holdItem", "mc.bot.useItem", "mc.bot.attackEntity");
 
@@ -435,29 +435,6 @@ public final class BotTools {
                 "(all-or-nothing: a call carrying any key not in the schema applies NOTHING and " +
                 "errors, so an A/B script fails loudly instead of silently half-applying).",
                 settingSchema()
-                ),
-
-            wrTool("mc.bot.clearArea",
-                "Baritone sel-system parity — three modes inside one tool:\n" +
-                "  clear  (default)               break every non-air cell in the bbox\n" +
-                "  fill   {fill:'id'}             break + then place 'id' in every cell\n" +
-                "  replace{replace:{from,to}}     only act on cells matching 'from', place 'to'\n" +
-                "Bbox capped at 4096-block volume. Per cell: walk to standable adjacent → " +
-                "break (if non-air) → place (if fill/replace). Bottom-up so freshly placed " +
-                "blocks support higher layers. fill/replace need the block in inventory " +
-                "(hotbar > main inv, creative auto-pickItem). Unreachable cells skip. " +
-                "Async (see category note); pass `awaitMs` to block until completion. " +
-                "Returns {ok, started, mode, from, to, volume, fill?, replaceFrom?}.",
-                object()
-                    .req("from", pos())
-                    .req("to",   pos())
-                    .prop("fill", string()
-                        .desc("After clearing each cell, place this block id."))
-                    .prop("replace", object()
-                        .desc("Replace one block type with another within the bbox.")
-                        .req("from", string())
-                        .req("to",   string()))
-                    .prop("awaitMs", awaitMs())
                 ),
 
             wrTool("mc.bot.farm",

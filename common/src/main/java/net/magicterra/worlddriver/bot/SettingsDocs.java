@@ -144,6 +144,7 @@ public final class SettingsDocs {
             "bool — Baritone BackfillProcess analogue; when idle, refills the cells the bot's own digs " +
             "broke (never air it only walked through)"),
         e("autoBackfillBlock", "id — block placed by autoBackfill (default minecraft:cobblestone)"),
+        e("tunnelWidthBias", "left|right dflt left — side of the travel direction an even-width clearArea tunnel puts its extra column on"),
         e("autoBackfillRadius", "[1,16] dflt 6 — Chebyshev radius around player considered for backfill"),
         e("allowParkour4", "bool — enable 4-block cardinal leaps in A* (edge of vanilla physics; off by default)"),
         e("allowBreak",
