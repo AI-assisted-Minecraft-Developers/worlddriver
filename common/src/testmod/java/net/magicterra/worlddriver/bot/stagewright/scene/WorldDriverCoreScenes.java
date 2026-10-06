@@ -1727,27 +1727,24 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     private static void clientResetClearsEntry(SceneContext ctx) {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.test.reset is client-only — only an integrated server has its handler here");
-        DriverApi api = WorldDriverCommon.api();
         ctx.cleanup(() -> SceneCalls.send("mc.client.screen.close", Map.of()));
 
         // Start from a known no-screen state, then dirty both: a chat line and the inventory keybind.
         ask(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
                 ask(ctx, "chat", "mc.client.chat.send", Map.of("text", "stagewright-reset-probe"), sent ->
                         ask(ctx, "key", "mc.client.input.key", Map.of("key", "E"), pressed ->
-                                resetClearsWhatWasDirtied(ctx, api))));
+                                resetClearsWhatWasDirtied(ctx))));
     }
 
-    private static void resetClearsWhatWasDirtied(SceneContext ctx, DriverApi api) {
+    private static void resetClearsWhatWasDirtied(SceneContext ctx) {
         // Separate awaits so a timeout names which half of the dirtying never landed; steps drain
         // in registration order, so the reset below only runs once both have.
         SceneCalls.askUntil(ctx, "dirtiedScreen", "mc.client.screen.info", Map.of(),
                 info -> Boolean.TRUE.equals(info.get("hasScreen")), 100, info -> {});
         SceneCalls.askUntil(ctx, "dirtiedChat", "mc.client.chat.history", Map.of("limit", 50),
-                history -> chatCount(history) >= 1, 100, history -> {
-            Object r = api.route("mc.test.reset", Map.of());
-            Object reset = r instanceof Map<?, ?> m ? m.get("reset") : null;
-            ctx.expect(r instanceof Map<?, ?> m && Boolean.TRUE.equals(m.get("ok")))
-                    .as("mc.test.reset reported ok").isEqualTo(true);
+                history -> chatCount(history) >= 1, 100, history -> ask(ctx, "reset", "mc.test.reset", Map.of(), r -> {
+            Object reset = r.get("reset");
+            ctx.expect(String.valueOf(r.get("error"))).as("mc.test.reset answered without an error").isEqualTo("null");
             List<?> tokens = reset instanceof List<?> l ? l : List.of();
             // `screen:<class>` — the class it actually closed, and `→still:` appended when the
             // close did not take. A bare "screen" was a code-path trace: it said setScreen(null)
@@ -1768,7 +1765,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             });
             ask(ctx, "chatAfterReset", "mc.client.chat.history", Map.of("limit", 50), after ->
                     ctx.expect(chatCount(after)).as("chat readback entries after the reset").isEqualTo(0));
-        });
+        }));
     }
 
     /**
@@ -1790,7 +1787,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.test.input.heldKeys is client-only — only an integrated server has its"
                     + " handler here");
-        DriverApi api = WorldDriverCommon.api();
         // Not mc.test.reset — see clientResetClearsEntry. The key this scene holds down is released
         // by pressing it again through the same input verb that pressed it.
         ctx.cleanup(() -> SceneCalls.send("mc.client.input.key", Map.of("key", "W", "action", "release")));
@@ -1798,28 +1794,31 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // No screen → the key takes the keybind path.
         ask(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
                 ask(ctx, "press", "mc.client.input.key", Map.of("key", "W", "action", "press"), pressed ->
-                        resetReleasesTheHeldKey(ctx, api)));
+                        resetReleasesTheHeldKey(ctx)));
     }
 
-    private static void resetReleasesTheHeldKey(SceneContext ctx, DriverApi api) {
-        ctx.await(() -> Boolean.TRUE.equals(heldKeys(api).get("up"))).within(100).then(() -> {
-            Object r = api.route("mc.test.reset", Map.of());
-            Object reset = r instanceof Map<?, ?> m ? m.get("reset") : null;
+    private static void resetReleasesTheHeldKey(SceneContext ctx) {
+        SceneCalls.askUntil(ctx, "heldBefore", "mc.test.input.heldKeys", Map.of(),
+                held -> Boolean.TRUE.equals(keysOf(held).get("up")), 100, held ->
+                        ask(ctx, "reset", "mc.test.reset", Map.of(), r -> {
+            Object reset = r.get("reset");
             List<?> tokens = reset instanceof List<?> l ? l : List.of();
             ctx.expect(token(tokens, "keys:"))
                     .as("reset[] names the key it released, and nothing left held")
                     .isEqualTo("keys:up");
 
-            Map<?, ?> keys = heldKeys(api);
-            ctx.expect(joinSorted(keys.keySet())).as("the keys mc.test.input.heldKeys reports")
-                    .isEqualTo("attack,down,jump,left,right,shift,sprint,up");
-            List<String> stuck = new ArrayList<>();
-            for (Map.Entry<?, ?> e : keys.entrySet())
-                if (Boolean.TRUE.equals(e.getValue())) stuck.add(String.valueOf(e.getKey()));
-            ctx.expect(joinSorted(stuck))
-                    .as("keys still held after mc.test.reset — a releaseKeys() no-op regression")
-                    .isEqualTo("");
-        });
+            ask(ctx, "heldAfter", "mc.test.input.heldKeys", Map.of(), after -> {
+                Map<?, ?> keys = keysOf(after);
+                ctx.expect(joinSorted(keys.keySet())).as("the keys mc.test.input.heldKeys reports")
+                        .isEqualTo("attack,down,jump,left,right,shift,sprint,up");
+                List<String> stuck = new ArrayList<>();
+                for (Map.Entry<?, ?> e : keys.entrySet())
+                    if (Boolean.TRUE.equals(e.getValue())) stuck.add(String.valueOf(e.getKey()));
+                ctx.expect(joinSorted(stuck))
+                        .as("keys still held after mc.test.reset — a releaseKeys() no-op regression")
+                        .isEqualTo("");
+            });
+        }));
     }
 
     /** The one {@code reset[]} token starting with {@code prefix}, or a readable stand-in naming
@@ -1922,10 +1921,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     /** The {@code keys} map out of {@code mc.test.input.heldKeys}. */
-    private static Map<?, ?> heldKeys(DriverApi api) {
-        Object r = api.route("mc.test.input.heldKeys", Map.of());
-        Object keys = r instanceof Map<?, ?> m ? m.get("keys") : null;
-        return keys instanceof Map<?, ?> k ? k : Map.of();
+    /** The {@code keys} of a {@code mc.test.input.heldKeys} reply; empty for an error. */
+    private static Map<?, ?> keysOf(Map<?, ?> reply) {
+        return reply.get("keys") instanceof Map<?, ?> k ? k : Map.of();
     }
 
     /** Sorted and joined, so a mismatch reports as one readable string instead of a set dump. */
