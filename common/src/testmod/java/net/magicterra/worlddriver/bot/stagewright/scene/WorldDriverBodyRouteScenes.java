@@ -109,17 +109,18 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         ctx.check(ids(listed).containsAll(List.of(player.id(), npc.id())))
                 .as("status.bodies lists both registered bots: " + listed.get("bodies")).isTrue();
 
-        Map<String, Object> waypoint = call(api, "mc.bot.goto", Map.of("body", npc.id(), "waypoint", "home"));
-        Map<String, Object> tool = call(api, "mc.bot.goto", Map.of("body", npc.id(), "pos", pos(npcGoal),
+        Map<String, Object> waypoint = call(api, "mc.bot.goto", Map.of("body", npc.id(),
+                "target", Map.of("kind", "waypoint", "name", "home")));
+        Map<String, Object> tool = call(api, "mc.bot.goto", Map.of("body", npc.id(), "target", at(npcGoal),
                 "route", Map.of("requireTool", "minecraft:iron_pickaxe")));
         ctx.record("npc.refused", waypoint + " / " + tool);
-        ctx.check(Boolean.FALSE.equals(waypoint.get("ok")) && Boolean.FALSE.equals(tool.get("ok")) && !npc.busy())
+        ctx.check(refusedAs(waypoint, "unsupported_capability") && refusedAs(tool, "unsupported_capability") && !npc.busy())
                 .as("the NPC refuses the waypoint and requireTool orders and does not start: " + waypoint + " / " + tool).isTrue();
 
-        Map<String, Object> playerGo = call(api, "mc.bot.goto", Map.of("body", player.id(), "pos", pos(playerGoal)));
-        Map<String, Object> npcGo = call(api, "mc.bot.goto", Map.of("body", npc.id(), "pos", pos(npcGoal)));
+        Map<String, Object> playerGo = call(api, "mc.bot.goto", Map.of("body", player.id(), "target", at(playerGoal)));
+        Map<String, Object> npcGo = call(api, "mc.bot.goto", Map.of("body", npc.id(), "target", at(npcGoal)));
         ctx.record("goto", playerGo + " / " + npcGo);
-        if (!Boolean.TRUE.equals(playerGo.get("started")) || !Boolean.TRUE.equals(npcGo.get("started"))) {
+        if (actionId(playerGo) == null || actionId(npcGo) == null) {
             ctx.fail("a goto addressed by name did not start: player=" + playerGo + " npc=" + npcGo);
             return;
         }
@@ -128,39 +129,41 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
             BlockPos playerAt = b.driver().fakePlayer().blockPosition(), npcAt = b.npcBody().entity().blockPosition();
             Object playerSlot = call(api, "mc.bot.status", Map.of("body", player.id())).get("goto");
             Object npcSlot = call(api, "mc.bot.status", Map.of("body", npc.id())).get("goto");
-            ctx.record("player.goto", String.valueOf(playerSlot));
-            ctx.record("npc.goto", String.valueOf(npcSlot));
-            ctx.check(playerAt.closerThan(playerGoal, 1.5) && endedArrived(playerSlot))
+            Map<?, ?> playerAction = read(api, actionId(playerGo)), npcAction = read(api, actionId(npcGo));
+            ctx.record("player.goto", playerSlot + " " + playerAction);
+            ctx.record("npc.goto", npcSlot + " " + npcAction);
+            ctx.check(playerAt.closerThan(playerGoal, 1.5) && endedArrived(playerSlot) && "succeeded".equals(playerAction.get("state")))
                     .as("the server-side player, addressed by name, walks to the goal and the order ends as arrived: stopped at " + playerAt.toShortString() + ", " + playerSlot).isTrue();
-            ctx.check(npcAt.closerThan(npcGoal, 1.5) && endedArrived(npcSlot))
+            ctx.check(npcAt.closerThan(npcGoal, 1.5) && endedArrived(npcSlot) && "succeeded".equals(npcAction.get("state")))
                     .as("the NPC, addressed by name, walks to the goal and the order ends as arrived: stopped at " + npcAt.toShortString() + ", " + npcSlot).isTrue();
 
-            Map<String, Object> back = call(api, "mc.bot.goto", Map.of("body", npc.id(), "pos", pos(npcStart)));
+            Map<String, Object> back = call(api, "mc.bot.goto", Map.of("body", npc.id(), "target", at(npcStart)));
             Map<String, Object> cancelled = call(api, "mc.bot.cancel", Map.of("body", npc.id(), "process", "goto"));
             Map<String, Object> after = call(api, "mc.bot.status", Map.of("body", npc.id()));
-            ctx.record("npc.cancel", back + " / " + cancelled + " / busy=" + after.get("busy"));
-            Object slot = after.get("goto");
+            Map<?, ?> backAction = read(api, actionId(back));
+            ctx.record("npc.cancel", back + " / " + cancelled + " / busy=" + after.get("busy") + " / " + backAction);
             ctx.check("goto".equals(cancelled.get("cancelled")) && Boolean.FALSE.equals(after.get("busy"))
-                            && slot instanceof Map<?, ?> m && "user-cancel".equals(m.get("lastError")))
-                    .as("cancelling the NPC's second goto by name: " + cancelled + ", afterwards busy=" + after.get("busy") + " goto=" + slot)
+                            && "cancelled".equals(backAction.get("state")) && "requested".equals(backAction.get("reason")))
+                    .as("cancelling the NPC's second goto by name ends its action as cancelled: " + cancelled + ", afterwards busy="
+                            + after.get("busy") + " action=" + backAction)
                     .isTrue();
 
             // route.mode fly on another bot is elytraFly's order; the NPC wears no elytra, so it walks,
-            // and the reply names the goto slot the walk lives in.
-            Map<String, Object> fly = call(api, "mc.bot.goto", Map.of("body", npc.id(), "pos", pos(npcStart),
+            // and the trip's result says so.
+            Map<String, Object> fly = call(api, "mc.bot.goto", Map.of("body", npc.id(), "target", at(npcStart),
                     "route", Map.of("mode", List.of("fly"))));
             ctx.record("npc.fly", String.valueOf(fly));
-            if (!Boolean.TRUE.equals(fly.get("started")) || !"groundFallback".equals(fly.get("mode"))
-                    || !"goto".equals(fly.get("slot"))) {
-                ctx.fail("the NPC's route.mode fly should fall back to walking and reply with the goto slot: " + fly);
+            if (actionId(fly) == null) {
+                ctx.fail("the NPC's route.mode fly should start, walking: " + fly);
                 return;
             }
             ctx.await(() -> !npc.busy()).within(400).then(() -> {
                 BlockPos at = b.npcBody().entity().blockPosition();
-                Object flySlot = call(api, "mc.bot.status", Map.of("body", npc.id())).get("goto");
-                ctx.record("npc.flyBack", at.toShortString() + " " + flySlot);
-                ctx.check(at.closerThan(npcStart, 2.5))
-                        .as("the NPC has no elytra, so the fly order falls back to walking back near the start: stopped at " + at.toShortString() + ", " + flySlot).isTrue();
+                Map<?, ?> trip = read(api, actionId(fly));
+                Object travel = trip.get("result") instanceof Map<?, ?> r ? r.get("travel") : null;
+                ctx.record("npc.flyBack", at.toShortString() + " " + trip);
+                ctx.check(at.closerThan(npcStart, 2.5) && "walkWithoutElytra".equals(travel))
+                        .as("the NPC has no elytra, so the fly order falls back to walking back near the start: stopped at " + at.toShortString() + ", " + trip).isTrue();
             });
         });
     }
@@ -229,6 +232,26 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> call(DriverApi api, String method, Map<String, Object> params) {
         return (Map<String, Object>) api.route(method, params);
+    }
+
+    private static Map<String, Object> at(BlockPos p) {
+        return Map.of("kind", "position", "pos", pos(p));
+    }
+
+    /** The id of the action an accepted reply started, or null when it was refused. */
+    private static String actionId(Map<String, Object> reply) {
+        return "accepted".equals(reply.get("outcome")) && reply.get("action") instanceof Map<?, ?> a
+                ? String.valueOf(a.get("actionId")) : null;
+    }
+
+    private static boolean refusedAs(Map<String, Object> reply, String reason) {
+        return "refused".equals(reply.get("outcome")) && reason.equals(reply.get("reason"));
+    }
+
+    /** The action as {@code mc.wait.result} reads it now. */
+    private static Map<?, ?> read(DriverApi api, String actionId) {
+        if (actionId == null) return Map.of();
+        return call(api, "mc.wait.result", Map.of("kind", "action", "actionId", actionId)).get("action") instanceof Map<?, ?> a ? a : Map.of();
     }
 
     /** A goto slot that ended with the foot in the goal, not with the path merely spent. */

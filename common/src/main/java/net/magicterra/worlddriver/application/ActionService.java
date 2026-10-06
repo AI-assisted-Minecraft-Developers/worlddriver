@@ -5,6 +5,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
+import java.util.function.Consumer;
 
 import net.magicterra.worlddriver.api.ApiTimers;
 import net.magicterra.worlddriver.api.CallContext;
@@ -52,10 +53,16 @@ final class ActionService {
     }
 
     /** What a planner decided. */
-    sealed interface Plan<R> permits Start, Refuse {}
+    sealed interface Plan<R> permits Start, Launch, Refuse {}
 
     /** Start {@code process}; a success will report {@code summary}. */
     record Start<R>(BotProcess process, R summary) implements Plan<R> {}
+
+    /**
+     * Work that is not the body's held process (a route preview): {@code launcher} gets the admitted
+     * handle on the game thread, binds its stopper, and ends it with the result.
+     */
+    record Launch<R>(Consumer<ActionHandle> launcher) implements Plan<R> {}
 
     /** Start nothing: a valid request this body cannot take now. */
     record Refuse<R>(RefusalReason reason, String message) implements Plan<R> {}
@@ -153,12 +160,13 @@ final class ActionService {
     private <R> ActionResponse<R> admitAndStart(String body, ActionHandle.Scope scope, CallContext ctx, Plan<R> plan,
                                                 Installer installer) {
         if (plan instanceof Refuse<R> r) return new Refused<>(r.reason(), r.message());
-        Start<R> start = (Start<R>) plan;
-        ActionRegistry.Admission admission = actions.admit(body, scope, ctx.run(), start.summary());
+        Object summary = plan instanceof Start<R> s ? s.summary() : null;
+        ActionRegistry.Admission admission = actions.admit(body, scope, ctx.run(), summary);
         if (admission instanceof ActionRegistry.Denied d) return new Refused<>(d.reason(), d.message());
         ActionHandle h = ((ActionRegistry.Admitted) admission).handle();
         try {
-            installer.install(start.process(), h);
+            if (plan instanceof Launch<R> l) l.launcher().accept(h);
+            else installer.install(((Start<R>) plan).process(), h);
         } catch (RuntimeException e) {
             // A half-installed action must not stay running, and nothing may name it as a replacement.
             h.fail("the process could not be started: " + e.getClass().getSimpleName() + ": " + e.getMessage());

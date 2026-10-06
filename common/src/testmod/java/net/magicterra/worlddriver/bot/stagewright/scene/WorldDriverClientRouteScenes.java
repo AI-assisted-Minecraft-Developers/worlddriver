@@ -8,6 +8,8 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
@@ -17,7 +19,7 @@ import net.minecraft.world.level.block.Blocks;
 
 /**
  * The verb layer of route selection, on the client's REAL player: {@code mc.bot.goto} with a
- * {@code route}, {@code plan: true}, {@code planId}, and the {@code route.blocked} event. This layer
+ * {@code route}, {@code plan: 'preview'}, {@code planId}, and the {@code route.blocked} event. This layer
  * exists only where the client half of the driver is constructed, so every scene here adopts the
  * player through {@link ClientHelm} and skips on a dedicated server — the constraint layer under it
  * is covered there by {@code wd.route*}.
@@ -58,29 +60,48 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         return r instanceof Map<?, ?> m ? m : Map.of();
     }
 
-    /** Continue when the client's {@code name} slot reports {@code active: false}, or after {@code ticks}. */
-    private static void awaitSlotIdle(SceneContext ctx, ClientHelm helm, String name, int ticks, Runnable then) {
-        final int[] waited = { 0 };
-        ctx.await(() -> !Boolean.TRUE.equals(helm.slot(name).get("active")) || ++waited[0] >= ticks)
-                .within(ticks + 100).then(then);
+    /** {@code mc.bot.goto} to the cell {@code p}, with {@code extra} beside the target. */
+    private static Map<?, ?> goTo(SceneContext ctx, String tag, BlockPos p, Map<String, Object> extra) {
+        Map<String, Object> params = new java.util.LinkedHashMap<>(extra);
+        params.put("target", Map.of("kind", "position", "pos", pos(p)));
+        return call(ctx, tag, "mc.bot.goto", params);
     }
 
-    /** Continue when the {@code goto} slot reports {@code active: false}, or after {@code ticks}; the watcher
-     *  reads every tick. The slot, not {@code userTaskLeg()}: that task record is published only by the
-     *  in-JVM {@code runProcess} seam, and a process {@code mc.bot.goto} starts never marks it busy —
-     *  waiting on it returned on the first tick with the bot still on its start cell. */
-    private static void awaitGotoEnd(SceneContext ctx, ClientHelm helm, int ticks, ClientHelm.TickWatcher watch, Runnable then) {
+    /** The action an accepted reply carries; empty when the call was refused. */
+    private static Map<?, ?> action(Map<?, ?> reply) {
+        return "accepted".equals(reply.get("outcome")) && reply.get("action") instanceof Map<?, ?> a ? a : Map.of();
+    }
+
+    private static String actionId(Map<?, ?> reply) {
+        return String.valueOf(action(reply).get("actionId"));
+    }
+
+    /** The action as {@code mc.wait.result} reads it now. */
+    private static Map<?, ?> read(String actionId) {
+        Object r = WorldDriverCommon.api().route("mc.wait.result", Map.of("kind", "action", "actionId", actionId));
+        return r instanceof Map<?, ?> m && m.get("action") instanceof Map<?, ?> a ? a : Map.of();
+    }
+
+    private static Map<?, ?> result(Map<?, ?> action) {
+        return action.get("result") instanceof Map<?, ?> r ? r : Map.of();
+    }
+
+    /** Continue with the action once it has ended, or as it stands after {@code ticks}; the watcher reads every tick. */
+    private static void awaitEnd(SceneContext ctx, String actionId, int ticks, ClientHelm.TickWatcher watch,
+                                 java.util.function.Consumer<Map<?, ?>> then) {
         final int[] waited = { 0 };
+        final List<Map<?, ?>> last = new ArrayList<>(List.of(Map.of()));
         ctx.await(() -> {
             watch.tick(waited[0]);
-            return !Boolean.TRUE.equals(helm.slot("goto").get("active")) || ++waited[0] >= ticks;
-        }).within(ticks + 100).then(then);
+            last.set(0, read(actionId));
+            return !"running".equals(last.get(0).get("state")) || ++waited[0] >= ticks;
+        }).within(ticks + 100).then(() -> then.accept(last.get(0)));
     }
 
     /**
-     * Look before walking, then walk what was looked at. A preview of the flat lane comes back
-     * reached in the {@code plan} slot; the goto with its {@code planId} reports {@code adopted}
-     * and the bot arrives. How many searches the walker made on the way is recorded, not judged
+     * Look before walking, then walk what was looked at. The preview action of the flat lane ends
+     * reached; the goto with its {@code planId} arrives and its result reports {@code adopted}.
+     * How many searches the walker made on the way is recorded, not judged
      * ({@code Walker.lastStats} moves once per search): the off-path safety re-search supersedes the
      * adopted route on the first tick of any lane longer than three cells, and cells are not
      * comparable either ({@code adoptPath} straightens, trims and fast-forwards). Then the bot is
@@ -94,20 +115,15 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         BotConfig.walkerDebug = true;
         helm.sync(30, () -> {
-            Map<?, ?> planned = call(ctx, "preview.reply", "mc.bot.goto",
-                    Map.of("pos", pos(goal), "plan", true, "route", Map.of("risk", "normal")));
-            ctx.check("plan".equals(planned.get("slot")) && planned.get("planId") instanceof String)
-                    .as("A: the preview replies with slot=plan and a planId: " + planned).isTrue();
-            String planId = String.valueOf(planned.get("planId"));
-            awaitSlotIdle(ctx, helm, "plan", 200, () -> {
-                Map<?, ?> plan = helm.slot("plan");
-                ctx.record("preview.result", String.valueOf(plan));
-                ctx.check(Boolean.TRUE.equals(plan.get("ok")) && Boolean.TRUE.equals(plan.get("reached")))
-                        .as("B: the preview reaches the goal: ok=" + plan.get("ok") + " reached=" + plan.get("reached")).isTrue();
+            Map<?, ?> planned = goTo(ctx, "preview.reply", goal, Map.of("plan", "preview", "route", Map.of("risk", "normal")));
+            ctx.check(!action(planned).isEmpty()).as("A: the preview is accepted as an action: " + planned).isTrue();
+            awaitEnd(ctx, actionId(planned), 200, t -> { }, preview -> {
+                Map<?, ?> plan = result(preview);
+                ctx.record("preview.result", String.valueOf(preview));
+                ctx.check("succeeded".equals(preview.get("state")) && Boolean.TRUE.equals(plan.get("reached")))
+                        .as("B: the preview reaches the goal: state=" + preview.get("state") + " reached=" + plan.get("reached")).isTrue();
                 Walker.lastStats = null;
-                Map<?, ?> walked = call(ctx, "adopt.reply", "mc.bot.goto", Map.of("planId", planId));
-                ctx.check(Boolean.TRUE.equals(walked.get("adopted")))
-                        .as("C: the goto with a planId adopts the preview: adopted=" + walked.get("adopted") + " reason=" + walked.get("adoptReason")).isTrue();
+                Map<?, ?> walked = call(ctx, "adopt.reply", "mc.bot.goto", Map.of("planId", String.valueOf(plan.get("planId"))));
                 final int[] arrived = { -1 };
                 final int[] searches = { 0 };
                 final Walker.PathStats[] seen = { null };
@@ -116,8 +132,11 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                     Walker.PathStats st = Walker.lastStats;
                     if (st != null && st != seen[0]) { seen[0] = st; searches[0]++; }
                 };
-                awaitGotoEnd(ctx, helm, 400, watch, () -> {
-                    ctx.record("adopt.end", helm.where() + ", arrived at tick " + arrived[0] + ", full searches: " + searches[0]);
+                awaitEnd(ctx, actionId(walked), 400, watch, trip -> {
+                    Map<?, ?> adoption = result(trip).get("plan") instanceof Map<?, ?> a ? a : Map.of();
+                    ctx.record("adopt.end", trip + ", " + helm.where() + ", arrived at tick " + arrived[0] + ", full searches: " + searches[0]);
+                    ctx.check(Boolean.TRUE.equals(adoption.get("adopted")))
+                            .as("C: the goto with a planId adopts the preview: " + adoption).isTrue();
                     ctx.check(arrived[0] >= 0 || helm.flatDistance(goal) <= 1.5)
                             .as("D: the bot arrives along the adopted route: horizontal distance " + String.format(java.util.Locale.ROOT, "%.2f", helm.flatDistance(goal))).isTrue();
                     // Recorded, not judged. The adopted route is the walker's path when its first tick
@@ -129,21 +148,23 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                     // until that is re-homed the count here documents the cost rather than gating on it.
                     ctx.record("E full searches after adoption (not judged)", String.valueOf(searches[0]));
                     // Part two: preview the way back, then stand six cells off the line.
-                    Map<?, ?> back = call(ctx, "preview2.reply", "mc.bot.goto",
-                            Map.of("pos", pos(start), "plan", true, "route", Map.of("risk", "normal")));
-                    String backId = String.valueOf(back.get("planId"));
-                    awaitSlotIdle(ctx, helm, "plan", 200, () -> {
+                    Map<?, ?> back = goTo(ctx, "preview2.reply", start, Map.of("plan", "preview", "route", Map.of("risk", "normal")));
+                    awaitEnd(ctx, actionId(back), 200, t -> { }, backPreview -> {
+                        String backId = String.valueOf(result(backPreview).get("planId"));
                         BlockPos off = ctx.rel(12, GROUND + 1, -6);
                         helm.player().teleportTo(ctx.level(), off.getX() + 0.5, off.getY(), off.getZ() + 0.5,
                                 java.util.Set.of(), 90f, 0f);
                         helm.sync(20, () -> {
                             ctx.record("offset.afterSync", helm.where());
-                            Map<?, ?> refused = call(ctx, "adopt2.reply", "mc.bot.goto", Map.of("planId", backId));
-                            ctx.check(Boolean.FALSE.equals(refused.get("adopted")) && refused.get("adoptReason") != null)
-                                    .as("F: with the bot 6 blocks away from the preview's start, the goto declines to adopt and gives a reason: adopted=" + refused.get("adopted")
-                                            + " reason=" + refused.get("adoptReason")).isTrue();
-                            ctx.check(Boolean.TRUE.equals(refused.get("started")))
-                                    .as("G: when it declines, the goto still starts its own search: started=" + refused.get("started")).isTrue();
+                            Map<?, ?> declined = call(ctx, "adopt2.reply", "mc.bot.goto", Map.of("planId", backId));
+                            ctx.check(!action(declined).isEmpty())
+                                    .as("G: when it declines, the goto still starts its own search: " + declined).isTrue();
+                            awaitEnd(ctx, actionId(declined), 400, t -> { }, trip2 -> {
+                                Map<?, ?> adoption2 = result(trip2).get("plan") instanceof Map<?, ?> a ? a : Map.of();
+                                ctx.check(Boolean.FALSE.equals(adoption2.get("adopted")) && adoption2.get("reason") != null)
+                                        .as("F: with the bot 6 blocks away from the preview's start, the goto declines to adopt and gives a reason: "
+                                                + trip2).isTrue();
+                            });
                         });
                     });
                 });
@@ -153,9 +174,9 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
 
     /**
      * A preview must not cut the walk in progress short: it runs beside the walk on its own thin
-     * slice, not through the user task chain. A long goto is under way; a {@code plan: true} for
-     * another route returns at once with the {@code plan} slot active, the slot goes idle with a
-     * result, and the goto slot is still active the whole time.
+     * slice, not through the user task chain. A long goto is under way; a {@code plan: 'preview'}
+     * for another route is accepted as an action of its own, ends with a result, and the walk's
+     * action is running the whole time.
      */
     private static void previewDoesNotInterrupt(SceneContext ctx) {
         floor(ctx, -3, 42, -7, 7);
@@ -164,27 +185,25 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         BlockPos other = ctx.rel(30, GROUND + 1, -5);
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         helm.sync(30, () -> {
-            Map<?, ?> walk = call(ctx, "longGoto.reply", "mc.bot.goto", Map.of("pos", pos(far)));
-            ctx.check(Boolean.TRUE.equals(walk.get("started"))).as("A: the long-distance goto starts: " + walk).isTrue();
+            Map<?, ?> walk = goTo(ctx, "longGoto.reply", far, Map.of());
+            ctx.check(!action(walk).isEmpty()).as("A: the long-distance goto starts: " + walk).isTrue();
+            String walkId = actionId(walk);
             helm.sync(15, () -> {
-                Map<?, ?> preview = call(ctx, "preview.reply", "mc.bot.goto",
-                        Map.of("pos", pos(other), "plan", true, "route", Map.of("risk", "safe")));
-                boolean planActive = Boolean.TRUE.equals(helm.slot("plan").get("active"));
-                boolean gotoActive = Boolean.TRUE.equals(helm.slot("goto").get("active"));
-                ctx.record("preview.atSubmit", "plan.active=" + planActive + " goto.active=" + gotoActive + ", bot at " + helm.where());
-                ctx.check(Boolean.TRUE.equals(preview.get("started")) && "plan".equals(preview.get("slot")))
-                        .as("B: the preview returns immediately with started and slot=plan: " + preview).isTrue();
-                ctx.check(planActive).as("C: the plan slot is active after submission").isTrue();
-                ctx.check(gotoActive).as("D: the preview did not cancel the walk: the goto slot is still active").isTrue();
-                awaitSlotIdle(ctx, helm, "plan", 300, () -> {
-                    Map<?, ?> plan = helm.slot("plan");
-                    Map<?, ?> walking = helm.slot("goto");
-                    ctx.record("preview.result", String.valueOf(plan));
-                    ctx.record("walk.atPreviewEnd", "goto.active=" + walking.get("active") + ", bot at " + helm.where());
-                    ctx.check(!Boolean.TRUE.equals(plan.get("active")) && Boolean.TRUE.equals(plan.get("ok")))
-                            .as("E: the plan slot becomes inactive with an ok result").isTrue();
-                    ctx.check(Boolean.TRUE.equals(walking.get("active")) || helm.flatDistance(far) <= 1.5)
-                            .as("F: the walk is still in progress (or has arrived) when the preview ends: active=" + walking.get("active")).isTrue();
+                Map<?, ?> preview = goTo(ctx, "preview.reply", other, Map.of("plan", "preview", "route", Map.of("risk", "safe")));
+                Object previewState = read(actionId(preview)).get("state");
+                Object walkState = read(walkId).get("state");
+                ctx.record("preview.atSubmit", "preview=" + previewState + " walk=" + walkState + ", bot at " + helm.where());
+                ctx.check(!action(preview).isEmpty()).as("B: the preview is accepted at once: " + preview).isTrue();
+                ctx.check("running".equals(previewState)).as("C: the preview is running after submission: " + previewState).isTrue();
+                ctx.check("running".equals(walkState)).as("D: the preview did not cancel the walk: " + walkState).isTrue();
+                awaitEnd(ctx, actionId(preview), 300, t -> { }, ended -> {
+                    Object walking = read(walkId).get("state");
+                    ctx.record("preview.result", String.valueOf(ended));
+                    ctx.record("walk.atPreviewEnd", "walk=" + walking + ", bot at " + helm.where());
+                    ctx.check("succeeded".equals(ended.get("state")))
+                            .as("E: the preview ends with a result: " + ended.get("state")).isTrue();
+                    ctx.check("running".equals(walking) || helm.flatDistance(far) <= 1.5)
+                            .as("F: the walk is still in progress (or has arrived) when the preview ends: " + walking).isTrue();
                 });
             });
         });
@@ -203,22 +222,21 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         helm.sync(30, () -> {
             long cursor = ((Number) WorldDriverCommon.api().route("mc.observe.cursor", Map.of())).longValue();
             Map<String, Object> box = Map.of("shape", "box",
-                    "min", List.of(goal.getX() - 3, goal.getY() - 1, goal.getZ() - 5),
-                    "max", List.of(goal.getX() + 4, goal.getY() + 3, goal.getZ() + 5),
+                    "min", pos(goal.offset(-3, -1, -5)),
+                    "max", pos(goal.offset(4, 3, 5)),
                     "mode", "forbid");
-            Map<?, ?> reply = call(ctx, "goto.reply", "mc.bot.goto",
-                    Map.of("pos", pos(goal), "route", Map.of("regions", List.of(box))));
-            ctx.check(Boolean.TRUE.equals(reply.get("started"))).as("A: the goto starts: " + reply).isTrue();
-            final List<DriverEvent> got = new ArrayList<>();
+            Map<?, ?> reply = goTo(ctx, "goto.reply", goal, Map.of("route", Map.of("regions", List.of(box))));
+            ctx.check(!action(reply).isEmpty()).as("A: the goto starts: " + reply).isTrue();
+            final List<Map<?, ?>> got = new ArrayList<>();
             ctx.await(() -> {
                 Object evs = WorldDriverCommon.api().route("mc.observe.eventsSince",
                         Map.of("cursor", cursor, "types", List.of("route.blocked")));
-                if (evs instanceof List<?> l) for (Object o : l) if (o instanceof DriverEvent e && !got.contains(e)) got.add(e);
+                if (evs instanceof List<?> l) for (Object o : l) if (o instanceof Map<?, ?> e && !got.contains(e)) got.add(e);
                 return !got.isEmpty();
             }).within(300).then(() -> {
-                ctx.record("event", got.isEmpty() ? "no route.blocked within 300 ticks" : got.get(0).type + " " + got.get(0).data);
+                ctx.record("event", got.isEmpty() ? "no route.blocked within 300 ticks" : got.get(0).get("type") + " " + got.get(0).get("data"));
                 ctx.check(!got.isEmpty()).as("B: a route.blocked event arrives").isTrue();
-                Object reason = got.isEmpty() || !(got.get(0).data instanceof Map<?, ?> d) ? null : d.get("reason");
+                Object reason = got.isEmpty() || !(got.get(0).get("data") instanceof Map<?, ?> d) ? null : d.get("reason");
                 ctx.check("constraint:ForbidRegion".equals(reason))
                         .as("C: the reason names the hard constraint declared by this call: " + reason).isTrue();
             });
@@ -227,8 +245,8 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
 
     /**
      * The old top-level fields are gone without a compatibility layer: {@code forbidDig: true} is
-     * refused by the closed schema with {@code unexpected key}, and the same intent as
-     * {@code route: {break: "never"}} starts.
+     * {@code invalid_params} with an {@code unknown_field} issue at {@code /forbidDig}, and the same
+     * intent as {@code route: {break: "never"}} starts.
      */
     private static void oldFieldRejected(SceneContext ctx) {
         floor(ctx, -3, 6, -3, 3);
@@ -236,19 +254,18 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         BlockPos goal = ctx.rel(4, GROUND + 1, 0);
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         helm.sync(20, () -> {
-            String rejection = null;
+            List<ApiIssue> issues = List.of();
             try {
-                WorldDriverCommon.api().route("mc.bot.goto", Map.of("pos", pos(goal), "forbidDig", true));
-            } catch (RuntimeException e) {
-                rejection = String.valueOf(e.getMessage());
+                WorldDriverCommon.api().route("mc.bot.goto",
+                        Map.of("target", Map.of("kind", "position", "pos", pos(goal)), "forbidDig", true));
+            } catch (ApiException e) {
+                issues = e.error().issues();
             }
-            ctx.record("oldField.rejection", rejection == null ? "not rejected" : rejection);
-            ctx.check(rejection != null && rejection.contains("unexpected key") && rejection.contains("forbidDig"))
-                    .as("A: the schema rejects forbidDig and names it").isTrue();
-            Map<?, ?> ok = call(ctx, "route.break.reply", "mc.bot.goto",
-                    Map.of("pos", pos(goal), "route", Map.of("break", "never")));
-            ctx.check(Boolean.TRUE.equals(ok.get("ok")) && Boolean.TRUE.equals(ok.get("started")))
-                    .as("B: route:{break:'never'} starts: " + ok).isTrue();
+            ctx.record("oldField.rejection", issues.isEmpty() ? "not rejected" : issues.toString());
+            ctx.check(issues.stream().anyMatch(i -> i.path().equals("/forbidDig") && i.code() == ApiIssue.Code.UNKNOWN_FIELD))
+                    .as("A: forbidDig is refused as an unknown field at its own path").isTrue();
+            Map<?, ?> ok = goTo(ctx, "route.break.reply", goal, Map.of("route", Map.of("break", "never")));
+            ctx.check(!action(ok).isEmpty()).as("B: route:{break:'never'} starts: " + ok).isTrue();
         });
     }
 }

@@ -38,13 +38,9 @@ public final class ObserveActionTools {
                         + "mobDensity: per cell, hostiles within the cluster radius ({rows, maxDensity, "
                         + "clusteredCells}). Rows align with the map rows; '.' = no footing. Both use "
                         + "the goto route planner's own judgement."))
-                .prop("route", object()
-                        .prop("sight", object().prop("of", union("string", "array")).prop("range", number())
-                            .prop("eye", number()))
-                        .prop("mobs", object().prop("types", array(string()))
-                            .prop("cluster", object().prop("count", integer()).prop("radius", number())))
-                    .desc("Which observers / mobs the sight and mobDensity overlays count: the same "
-                        + "sight and mobs keys as mc.bot.goto's route. Default: ranged hostiles, cluster "
+                .prop("route", any()
+                    .desc("Which observers / mobs the sight and mobDensity overlays count: mc.bot.goto's Route "
+                        + "object, of which sight and mobs are read. Default: ranged hostiles, cluster "
                         + "radius 6 (the risk:'safe' preset).")));
     }
 

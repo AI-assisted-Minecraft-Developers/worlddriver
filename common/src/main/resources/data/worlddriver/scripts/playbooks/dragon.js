@@ -53,7 +53,7 @@
             // Caged crystals sit in an iron-bar cage atop the taller pillars — get
             // up close (range 2) so we can break in; exposed ones we approach loosely.
             try {
-                Driver.invoke('mc.bot.goto', { pos: { x: c.pos.x, y: c.pos.y, z: c.pos.z }, near: c.caged ? 2 : 4 });
+                Driver.invoke('mc.bot.goto', { target: { kind: 'position', pos: { x: c.pos.x, y: c.pos.y, z: c.pos.z }, near: c.caged ? 2 : 4 } });
             } catch (e) {}
             Driver.invoke('mc.bot.combat', { mode: 'kill', target: { id: c.id } });
             Driver.system.waitTicks(12);
@@ -66,7 +66,7 @@
         if (b.perched && b.head) {
             // Perch is the prime damage window — close on the head, then melee.
             try {
-                Driver.invoke('mc.bot.goto', { pos: { x: Math.floor(b.head.x), y: Math.floor(b.head.y), z: Math.floor(b.head.z) }, near: 3 });
+                Driver.invoke('mc.bot.goto', { target: { kind: 'position', pos: { x: Math.floor(b.head.x), y: Math.floor(b.head.y), z: Math.floor(b.head.z) }, near: 3 } });
             } catch (e) {}
         }
         Driver.invoke('mc.bot.combat', { mode: 'kill', target: { type: 'ender_dragon' } });

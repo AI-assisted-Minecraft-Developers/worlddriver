@@ -71,7 +71,7 @@ async def record(args):
         f = open(path, "w")
         f.write(json.dumps(meta) + "\n")
         if args.bot:
-            await _call(ws, st, "mc.bot.goto", {"xz": {"x": int(gx), "z": int(gz)}})
+            await _call(ws, st, "mc.bot.goto", {"target": {"kind": "column", "x": int(gx), "z": int(gz)}})
             print(f"[rec] bot goto issued → {gx},{gz}", flush=True)
         else:
             print(f"[rec] 就位。开始移动即开始计时；目标 x={gx:.0f} z={gz:.0f}（半径 {args.radius} 格）", flush=True)

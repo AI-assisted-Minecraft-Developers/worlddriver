@@ -1,12 +1,8 @@
 package net.magicterra.worlddriver.bot;
 
-import net.magicterra.worlddriver.model.Params;
-
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
-
-import java.util.Map;
 
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
 import net.magicterra.worlddriver.bot.util.BlockMatch;
@@ -17,10 +13,8 @@ import java.util.Locale;
 import java.util.function.Predicate;
 
 /**
- * Resolves goal / stand-position / direction descriptors from tool params into
- * {@link Goal} objects and world positions. Pure static helpers extracted from
- * BotApiImpl; the impl's instance {@code resolveGoal}/{@code resolveBaseGoal}
- * (which also consult per-bot waypoints) call into these.
+ * Stand positions and direction descriptors resolved against a body and its level. Pure static
+ * helpers; {@link GotoGoalResolver} and the verbs that take a direction call into these.
  *
  * <p><b>No client type anywhere in this class.</b> A server-side bot resolves its {@code goto}
  * through these helpers too, and the verifier checks every method of a class when it links it: one
@@ -31,16 +25,6 @@ import java.util.function.Predicate;
 public final class GoalResolver {
 
     private GoalResolver() {}
-
-/** Build the positional goal for {@code target} honoring near/goalMode. */
-public static Goal targetGoal(BlockPos target, String mode, int near) {
-    if (near > 0) return new Goal.Near(target, near);
-    return switch (mode) {
-        case "two", "twoblocks" -> new Goal.TwoBlocks(target);
-        case "adjacent", "gettoblock", "get" -> new Goal.GetToBlock(target);
-        default -> new Goal.Block(target);
-    };
-}
 
 /** Scan the player's level for the nearest matching block id within `radius`
  *  (XZ Chebyshev, Y by BotConfig.mineSearchVerticalRadius) that has a
@@ -197,22 +181,5 @@ public static Direction resolveCardinalDirection(Entity pl, String dir) {
         case "left"    -> front.getCounterClockWise();
         default -> null;
     };
-}
-
-public static Goal parseGoal(Params p) {
-    BlockPos pos = p.getPos("pos");
-    if (pos != null) {
-        int radius = p.getIntClamped("near", 0, 0, 64);
-        return radius > 0 ? new Goal.Near(pos, radius) : new Goal.Block(pos);
-    }
-    Object xzObj = p.get("xz");
-    if (xzObj instanceof Map<?, ?> xz) {
-        int x = intOr(xz.get("x"), Integer.MIN_VALUE);
-        int z = intOr(xz.get("z"), Integer.MIN_VALUE);
-        if (x != Integer.MIN_VALUE && z != Integer.MIN_VALUE)
-            return new Goal.XZ(x, z, p.getIntClamped("near", 0, 0, 64));
-    }
-    if (p.get("y") instanceof Number n) return new Goal.YLevel(n.intValue());
-    return null;
 }
 }

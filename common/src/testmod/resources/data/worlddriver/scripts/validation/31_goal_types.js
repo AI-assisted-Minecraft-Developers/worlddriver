@@ -1,8 +1,6 @@
-// Client-only — the new Baritone-parity goals (axis / goalMode / strict /
-// invert) and the pathfinder.axisHeight setting both go through requireBot(),
-// which the dedicated-server / GameTest harness doesn't bind. Skip in CI so
-// headless runs stay green; the real round-trip is exercised in fabric
-// runClient. Mirrors 17_goto_selectors / 19_setting_survival.
+// The Baritone-parity goals: axis, goalMode, heading (strict direction) and invert, and the
+// pathfinder.axisHeight setting the axis goal reads. The shape checks need no player; starting a
+// walk and the setting need this client's bot, so that part is client-only.
 
 function clientAvailable() {
     try {
@@ -13,8 +11,35 @@ function clientAvailable() {
     }
 }
 
+function errorOf(call) {
+    try { call(); } catch (e) { return e; }
+    return null;
+}
+
+ScriptTest.run("31_goal_types: a heading must be horizontal", function(t) {
+    var e = errorOf(function() { Driver.bot.goto({ target: { kind: "heading", direction: "up" } }); });
+    t.assertEqual(e.code, "invalid_params", "code");
+    t.assertEqual(e.issues[0].path, "/target/direction", "path");
+    t.assertTrue(e.issues[0].message.indexOf("horizontal") >= 0, "message: " + e.issues[0].message);
+});
+
+ScriptTest.run("31_goal_types: invert with nothing to invert is a missing target", function(t) {
+    var e = errorOf(function() { Driver.bot.goto({ invert: true }); });
+    t.assertEqual(e.issues[0].path, "/target", "path");
+    t.assertEqual(e.issues[0].code, "required", "issue code");
+});
+
+ScriptTest.run("31_goal_types: the same error over in-JVM, RPC and MCP", function(t) {
+    var args = { target: { kind: "heading", direction: "up" } };
+    var direct = errorOf(function() { Driver.invoke("mc.bot.goto", args); });
+    var viaRpc = errorOf(function() { Driver.system.rpcRoundtrip("mc.bot.goto", args); });
+    var viaMcp = errorOf(function() { Driver.system.mcpRoundtrip("mc.bot.goto", args); });
+    t.assertEqual(JSON.stringify(viaRpc.issues), JSON.stringify(direct.issues), "RPC issues");
+    t.assertEqual(JSON.stringify(viaMcp.issues), JSON.stringify(direct.issues), "MCP issues");
+});
+
 if (!clientAvailable()) {
-    ScriptTest.run("31_goal_types: skipped (no client api — dedicated server)", function(t) {
+    ScriptTest.run("31_goal_types: walks skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
@@ -30,43 +55,24 @@ if (!clientAvailable()) {
             "out-of-range axisHeight must be rejected");
     });
 
-    ScriptTest.run("31_goal_types: strict direction must be horizontal", function(t) {
-        var r = Driver.invoke("mc.bot.goto", { direction: "up", strict: true });
-        t.assertEqual(r.ok, false, "strict + vertical direction must be ok:false");
-        t.assertTrue(r.error.indexOf("horizontal") >= 0, "error must mention 'horizontal'");
-    });
-
-    ScriptTest.run("31_goal_types: invert with no base selector is rejected", function(t) {
-        var r = Driver.invoke("mc.bot.goto", { invert: true });
-        t.assertEqual(r.ok, false, "invert with nothing to invert must be ok:false");
-        t.assertTrue(typeof r.error === "string" && r.error.indexOf("pos") >= 0,
-            "error must list the accepted selector shapes");
-    });
-
-    ScriptTest.run("31_goal_types: axis goal starts a pathing process", function(t) {
-        var r = Driver.invoke("mc.bot.goto", { axis: true });
-        t.assertEqual(r.ok, true, "axis goal must be accepted");
-        t.assertEqual(r.started, true, "axis goal must start a process");
+    ScriptTest.run("31_goal_types: an axis goal starts a walk", function(t) {
+        var r = Driver.bot.goto({ target: { kind: "axis" } });
+        if (r.outcome === "refused") { t.assertEqual(r.reason, "body_unavailable", "only an unavailable body refuses"); return; }
+        t.assertEqual(r.action.state === "running" || r.action.state === "succeeded", true, "state " + r.action.state);
         Driver.invoke("mc.bot.cancel", {});
     });
 
-    ScriptTest.run("31_goal_types: goalMode 'adjacent' accepted for a positional target", function(t) {
-        var r = Driver.invoke("mc.bot.goto", { pos: { x: 0, y: 64, z: 0 }, goalMode: "adjacent" });
-        t.assertEqual(r.ok, true, "adjacent goalMode must be accepted");
-        t.assertEqual(r.started, true, "must start a process");
+    ScriptTest.run("31_goal_types: goalMode 'adjacent' is accepted for a positional target", function(t) {
+        var r = Driver.bot.goto({ target: { kind: "position", pos: { x: 0, y: 64, z: 0 }, goalMode: "adjacent" } });
+        if (r.outcome === "refused") { t.assertEqual(r.reason, "body_unavailable", "only an unavailable body refuses"); return; }
+        t.assertEqual(r.outcome, "accepted", "outcome");
         Driver.invoke("mc.bot.cancel", {});
     });
 
-    ScriptTest.run("31_goal_types: byte-identical results across in-JVM, RPC, MCP transports",
-        function(t) {
-            var args = { direction: "up", strict: true };
-            var direct = Driver.invoke("mc.bot.goto", args);
-            var viaTcp = Driver.system.rpcRoundtrip("mc.bot.goto", args);
-            var viaMcp = Driver.system.mcpRoundtrip("mc.bot.goto", args);
-            t.assertEqual(viaTcp.ok, direct.ok, "RPC.ok mismatch");
-            t.assertEqual(viaMcp.ok, direct.ok, "MCP.ok mismatch");
-            t.assertEqual(viaTcp.error, direct.error, "RPC.error mismatch");
-            t.assertEqual(viaMcp.error, direct.error, "MCP.error mismatch");
-        });
-
+    ScriptTest.run("31_goal_types: a heading starts a walk with no endpoint", function(t) {
+        var r = Driver.bot.goto({ target: { kind: "heading", direction: "north" } });
+        if (r.outcome === "refused") { t.assertEqual(r.reason, "body_unavailable", "only an unavailable body refuses"); return; }
+        t.assertEqual(r.outcome, "accepted", "outcome");
+        Driver.invoke("mc.bot.cancel", {});
+    });
 }

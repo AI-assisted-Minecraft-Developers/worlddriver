@@ -1,8 +1,7 @@
-// Client-only — mc.bot.goto needs Minecraft.player and a loaded level for the
-// new Baritone-style selectors (block / entity / entityId / direction /
-// waypoint). On dedicated-server / GameTest CI the client classes aren't
-// loaded; record a skipped-PASS so headless runs stay green. Live exercise
-// lives in fabric runClient sessions.
+// mc.bot.goto's targets: a malformed one is invalid_params at its path on every topology, the same
+// over every transport; a well-formed one the world cannot satisfy (no such waypoint, no such
+// entity) is refused before anything starts. The refusals read the client's own player, so that
+// part is client-only.
 
 function clientAvailable() {
     try {
@@ -13,54 +12,71 @@ function clientAvailable() {
     }
 }
 
+/** The DriverApiError a call throws, or null when it returned. */
+function errorOf(call) {
+    try { call(); } catch (e) { return e; }
+    return null;
+}
+
+ScriptTest.run("17_goto_selectors: a walk without a target is a missing field", function(t) {
+    var e = errorOf(function() { Driver.bot.goto({}); });
+    t.assertTrue(e !== null, "must throw");
+    t.assertEqual(e.code, "invalid_params", "code");
+    t.assertEqual(e.issues[0].path, "/target", "path");
+    t.assertEqual(e.issues[0].code, "required", "issue code");
+});
+
+ScriptTest.run("17_goto_selectors: an unknown direction is invalid at its path", function(t) {
+    var e = errorOf(function() { Driver.bot.goto({ target: { kind: "direction", direction: "wiggle", distance: 4 } }); });
+    t.assertEqual(e.issues[0].path, "/target/direction", "path");
+    t.assertEqual(e.issues[0].code, "invalid_value", "issue code");
+});
+
+ScriptTest.run("17_goto_selectors: an unknown entity type is invalid at its path", function(t) {
+    var e = errorOf(function() { Driver.bot.goto({ target: { kind: "entityType", type: "minecraft:no_such_mob" } }); });
+    t.assertEqual(e.issues[0].path, "/target/type", "path");
+});
+
+ScriptTest.run("17_goto_selectors: the old top-level selectors are unknown fields", function(t) {
+    var e = errorOf(function() { Driver.bot.goto({ pos: { x: 0, y: 64, z: 0 } }); });
+    t.assertEqual(e.issues[0].path, "/pos", "path");
+    t.assertEqual(e.issues[0].code, "unknown_field", "issue code");
+});
+
+ScriptTest.run("17_goto_selectors: the same error over in-JVM, RPC and MCP", function(t) {
+    var args = { target: { kind: "direction", direction: "wiggle", distance: 4 } };
+    var direct = errorOf(function() { Driver.invoke("mc.bot.goto", args); });
+    var viaRpc = errorOf(function() { Driver.system.rpcRoundtrip("mc.bot.goto", args); });
+    var viaMcp = errorOf(function() { Driver.system.mcpRoundtrip("mc.bot.goto", args); });
+    [viaRpc, viaMcp].forEach(function(e, i) {
+        var via = i === 0 ? "RPC" : "MCP";
+        t.assertTrue(e !== null, via + " must throw");
+        t.assertEqual(e.code, direct.code, via + " code");
+        t.assertEqual(JSON.stringify(e.issues), JSON.stringify(direct.issues), via + " issues");
+    });
+});
+
 if (!clientAvailable()) {
-    ScriptTest.run("17_goto_selectors: skipped (no client api — dedicated server)", function(t) {
-        // PASS
+    ScriptTest.run("17_goto_selectors: refusals skipped (no client player — dedicated server)", function(t) {
+        var r = Driver.bot.goto({ target: { kind: "axis" } });
+        t.assertEqual(r.outcome, "refused", "outcome");
+        t.assertEqual(r.reason, "body_unavailable", "reason");
     });
 } else {
 
-    ScriptTest.run("17_goto_selectors: rejects when no selector provided", function(t) {
-        var r = Driver.invoke("mc.bot.goto", {});
-        t.assertEqual(r.ok, false, "empty params must be ok:false");
-        t.assertTrue(typeof r.error === "string" && r.error.indexOf("pos") >= 0,
-            "error must list the accepted selector shapes");
+    ScriptTest.run("17_goto_selectors: a missing waypoint is refused as an invalid world target", function(t) {
+        var r = Driver.bot.goto({ target: { kind: "waypoint", name: "no-such-waypoint" } });
+        t.assertEqual(r.outcome, "refused", "outcome");
+        if (r.reason === "body_unavailable") return;
+        t.assertEqual(r.reason, "invalid_world_target", "reason");
+        t.assertTrue(r.message.indexOf("waypoint") >= 0, "message names the waypoint: " + r.message);
     });
 
-    ScriptTest.run("17_goto_selectors: rejects unknown direction name", function(t) {
-        // Route-layer schema validation rejects the enum violation before the tool runs.
-        var msg = null;
-        try { Driver.invoke("mc.bot.goto", { direction: "wiggle", distance: 4 }); }
-        catch (e) { msg = String(e); }
-        t.assertTrue(msg !== null && msg.indexOf("direction") >= 0 && msg.indexOf("must be one of") >= 0,
-            "unknown direction must be rejected by schema validation, got: " + msg);
+    ScriptTest.run("17_goto_selectors: a nonexistent entity id is refused as an invalid world target", function(t) {
+        var r = Driver.bot.goto({ target: { kind: "entity", entityId: 1073741824 } });
+        t.assertEqual(r.outcome, "refused", "outcome");
+        if (r.reason === "body_unavailable") return;
+        t.assertEqual(r.reason, "invalid_world_target", "reason");
+        t.assertTrue(r.message.indexOf("entity") >= 0, "message names the entity: " + r.message);
     });
-
-    ScriptTest.run("17_goto_selectors: rejects missing waypoint", function(t) {
-        var r = Driver.invoke("mc.bot.goto", { waypoint: "no-such-waypoint" });
-        t.assertEqual(r.ok, false, "missing waypoint must be ok:false");
-        t.assertTrue(r.error.indexOf("waypoint") >= 0, "error must mention 'waypoint'");
-    });
-
-    ScriptTest.run("17_goto_selectors: rejects nonexistent entity id", function(t) {
-        var r = Driver.invoke("mc.bot.goto", { entityId: 1073741824 });
-        t.assertEqual(r.ok, false, "missing entity must be ok:false");
-        t.assertTrue(r.error.indexOf("entity") >= 0, "error must mention 'entity'");
-    });
-
-    ScriptTest.run("17_goto_selectors: schema-reject surfaces identically across in-JVM, RPC, MCP transports",
-        function(t) {
-            // The validator runs inside DriverApi.route(), shared by all three
-            // transports — each must surface the SAME core violation message
-            // (each transport adds its own wrapper prefix, so we compare cores).
-            var args = { direction: "wiggle", distance: 4 };
-            var core = "invalid params for mc.bot.goto:";
-            function thrownMsg(fn) { try { fn(); return null; } catch (e) { return String(e); } }
-            var direct = thrownMsg(function() { Driver.invoke("mc.bot.goto", args); });
-            var viaTcp = thrownMsg(function() { Driver.system.rpcRoundtrip("mc.bot.goto", args); });
-            var viaMcp = thrownMsg(function() { Driver.system.mcpRoundtrip("mc.bot.goto", args); });
-            t.assertTrue(direct !== null && direct.indexOf(core) >= 0, "in-JVM must throw validator error, got: " + direct);
-            t.assertTrue(viaTcp !== null && viaTcp.indexOf(core) >= 0, "RPC must surface the validator error, got: " + viaTcp);
-            t.assertTrue(viaMcp !== null && viaMcp.indexOf(core) >= 0, "MCP must surface the validator error, got: " + viaMcp);
-        });
-
 }

@@ -66,7 +66,11 @@ public final class ActionContract {
     public record Cancelled<R>(String actionId, String body, CancelReason reason) implements ActionSnapshot<R> {}
     public record Superseded<R>(String actionId, String body, String replacementActionId) implements ActionSnapshot<R> {}
 
-    public sealed interface ActionResponse<R> permits Accepted, Refused {}
+    /**
+     * Not sealed: a method may answer some requests at once instead of starting an action (goto's
+     * {@code plan: 'score'}), with variants it adds through {@link #response(String, ApiType, UnionType.Variant[])}.
+     */
+    public interface ActionResponse<R> {}
 
     /** {@code waitTimedOut}: the call's wait ran out with the action still running; always false for awaitMs 0. */
     public record Accepted<R>(ActionSnapshot<R> action, boolean waitTimedOut) implements ActionResponse<R> {}
@@ -127,9 +131,14 @@ public final class ActionContract {
                 (UnionType.Variant) ApiTypes.variant("superseded", (Class) Superseded.class, (RecordType) superseded));
     }
 
-    /** The response union of a method whose action result is {@code result}: {@code <name>Response}. */
+    /**
+     * The response union of a method whose action result is {@code result}: {@code <name>Response}, tagged
+     * on {@code outcome}, with {@code extra} outcomes after accepted and refused.
+     */
+    @SafeVarargs
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static <R> UnionType<ActionResponse<R>> response(String name, ApiType<R> result) {
+    public static <R> UnionType<ActionResponse<R>> response(String name, ApiType<R> result,
+                                                            UnionType.Variant<ActionResponse<R>, ?>... extra) {
         UnionType<ActionSnapshot<R>> snap = snapshot(name, result);
         RecordType<Accepted<R>> accepted = ApiTypes.record(null,
                 ApiField.field("action", snap).required().forGetter(Accepted<R>::action),
@@ -141,8 +150,10 @@ public final class ActionContract {
                 ApiField.field("reason", REFUSAL_REASON).required().forGetter(Refused<R>::reason),
                 ApiField.field("message", ApiTypes.string()).required().forGetter(Refused<R>::message),
                 Refused::new);
-        return ApiTypes.taggedUnion(name + "Response", "outcome",
-                (UnionType.Variant) ApiTypes.variant("accepted", (Class) Accepted.class, (RecordType) accepted),
-                (UnionType.Variant) ApiTypes.variant("refused", (Class) Refused.class, (RecordType) refused));
+        UnionType.Variant[] all = new UnionType.Variant[2 + extra.length];
+        all[0] = ApiTypes.variant("accepted", (Class) Accepted.class, (RecordType) accepted);
+        all[1] = ApiTypes.variant("refused", (Class) Refused.class, (RecordType) refused);
+        System.arraycopy(extra, 0, all, 2, extra.length);
+        return ApiTypes.taggedUnion(name + "Response", "outcome", all);
     }
 }

@@ -6,6 +6,8 @@ import net.magicterra.worlddriver.bot.process.RouteEvents;
 import net.magicterra.worlddriver.api.WorldCell;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.ActionContract;
+import net.magicterra.worlddriver.api.methods.GotoContract;
+import net.magicterra.worlddriver.api.methods.RouteContract;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
@@ -189,93 +191,26 @@ public final class BotApiImpl implements BotApi {
         return best;
     }
 
+    /** Client thread. */
     @Override
-    public Map<String, Object> mcGoto(Map<String, Object> params) {
-        final Params p = Params.of(params);
-        return onClient(() -> {
-            LocalPlayer player = Minecraft.getInstance().player;
-            if (player == null) {
-                state.mc_goto.lastError = "no player";
-                return Map.of("ok", false, "error", "no player");
-            }
-            String planId = p.getString("planId");
-            if (planId != null && !planId.isBlank()) return adoptPlan(player, planId.trim());
-            Goal goal;
-            RouteParams.Parsed route;
-            try {
-                goal = GotoGoalResolver.resolveGoal(p, player, waypoints, type -> nearestRenderedEntity(player, type));
-                route = RouteParams.parse(p.getMap("route"));
-            }
-            catch (IllegalArgumentException e) { return Map.of("ok", false, "error", e.getMessage()); }
-            // `plan` is a top-level goto key (it is about this call, not the route); a `route.plan`
-            // is honoured too for a caller that put it there.
-            Object plan = p.get("plan") != null ? p.get("plan") : route.plan();
-            if ("score".equals(plan)) {
-                // The caller's own line, priced without a search: needs the corridor's points.
-                List<BlockPos> pts = new ArrayList<>();
-                if (p.getMap("route").get("corridor") instanceof Map<?, ?> cm && cm.get("points") instanceof List<?> pl) {
-                    for (Object o : pl) {
-                        if (o instanceof List<?> c && c.size() == 3 && c.get(0) instanceof Number x
-                                && c.get(1) instanceof Number y && c.get(2) instanceof Number z) {
-                            pts.add(new BlockPos(x.intValue(), y.intValue(), z.intValue()));
-                        }
-                    }
-                }
-                return PreviewSearch.score(pts, route.profile(), scopeOf(player));
-            }
-            if (goal == null) {
-                return Map.of("ok", false, "error",
-                        "missing goal — provide pos|xz|y|block|entity|entityId|direction|waypoint");
-            }
-            try { GotoGoalResolver.checkRequiredTool(route.requireTool(), player); }
-            catch (IllegalArgumentException e) { return Map.of("ok", false, "error", e.getMessage()); }
-            if (plan != null && !Boolean.FALSE.equals(plan)) {
-                if (!Boolean.TRUE.equals(plan)) return Map.of("ok", false, "error", "plan must be true or \"score\"");
-                if (route.fly()) return Map.of("ok", false, "error", "plan: true previews the ground planner; route.mode fly has none");
-                List<Goal> targets = new ArrayList<>();
-                for (BlockPos v : route.via()) targets.add(new Goal.Near(v, 1));
-                targets.add(goal);
-                String id = preview.submit(new PreviewSearch.Request(player.blockPosition(), targets, route.profile(),
-                        p.getBool("includePath"), world, scopeOf(player)));
-                Map<String, Object> out = new LinkedHashMap<>();
-                out.put("ok", true);
-                out.put("started", true);
-                out.put("slot", "plan");
-                out.put("planId", id);
-                out.put("goal", goal.toString());
-                return out;
-            }
-            if (route.fly()) {
-                // route.mode: ["fly"] — the whole intent goes to elytra, which has its own 3-D
-                // planner and no A*. Needs a target cell; the reply names the slot it lives in
-                // so an awaitMs waits on `elytra`, not on a goto that never started.
-                BlockPos target = goal.targetPos();
-                if (target == null) return Map.of("ok", false, "error",
-                        "route.mode fly needs a goal with a target cell (pos/entity/waypoint), got " + goal);
-                Map<String, Object> flyParams = new LinkedHashMap<>();
-                flyParams.put("pos", posMap(target));
-                flyParams.put("groundFallback", true);
-                Map<String, Object> out = new LinkedHashMap<>(elytraFly(flyParams));
-                // With no usable elytra the fallback walks, and a walk lives in the goto slot.
-                out.put("slot", "groundFallback".equals(out.get("mode")) ? "goto" : "elytra");
-                out.put("goal", goal.toString());
-                return out;
-            }
-            List<Goal> targets = new ArrayList<>();
-            for (BlockPos v : route.via()) targets.add(new Goal.Near(v, 1));
-            targets.add(goal);
-            startProcess(new IntentProcess(new Intent(targets,
-                    route.profile().bias(),
-                    route.profile().capability(),
-                    route.profile().constraints(),
-                    route.entityLeash()), eventEmitter));
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("ok", true);
-            out.put("started", true);
-            out.put("goal", goal.toString());
-            if (!route.via().isEmpty()) out.put("via", route.via().size());
-            return out;
-        });
+    public GotoOrders.Order planGoto(GotoContract.Params p) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (p.planId().isPresent()) return adoptPlan(p.planId().get());
+        GotoOrders.Resolution resolution = GotoOrders.resolve(p, player, waypoints, type -> nearestRenderedEntity(player, type));
+        if (!(resolution instanceof GotoOrders.Resolved r)) return (GotoOrders.Refuse) resolution;
+        if (p.plan().isEmpty()) return GotoOrders.start(r, player, eventEmitter);
+        PreviewSearch.Request req = new PreviewSearch.Request(player.blockPosition(), GotoOrders.targets(r),
+                r.route().profile(), p.includePath(), world, scopeOf(player));
+        return new GotoOrders.Launch(action -> preview.submit(req, action));
+    }
+
+    /** Client thread: {@code plan: 'score'}, the caller's own line priced without a search. */
+    @Override
+    public GotoContract.Scored scoreGoto(GotoContract.Params p) {
+        RouteContract.Route route = p.route().orElseThrow();
+        List<BlockPos> points = new ArrayList<>();
+        for (var c : route.corridor().orElseThrow().points()) points.add(new BlockPos(c.x(), c.y(), c.z()));
+        return PreviewSearch.score(points, RouteParams.parse(route).profile(), scopeOf(Minecraft.getInstance().player));
     }
 
     /**
@@ -286,11 +221,12 @@ public final class BotApiImpl implements BotApi {
      * walker refused it (the bot is no longer near its start). Later segments of a via plan search
      * as usual: adoption only ever guaranteed the route the bot starts on.
      */
-    private Map<String, Object> adoptPlan(LocalPlayer player, String planId) {
+    private GotoOrders.Order adoptPlan(String planId) {
         PreviewSearch.Plan plan = preview.take(planId);
         if (plan == null) {
-            return Map.of("ok", false, "error", "planId '" + planId + "' is unknown or expired (a preview is kept "
-                    + PreviewSearch.TTL_MS / 1000 + " s, the last " + PreviewSearch.KEEP + " of them)");
+            return new GotoOrders.Refuse(ActionContract.RefusalReason.INVALID_WORLD_TARGET, "planId '" + planId
+                    + "' is unknown or expired (a preview is kept " + PreviewSearch.TTL_MS / 1000 + " s, the last "
+                    + PreviewSearch.KEEP + " of them)");
         }
         IntentProcess process = new IntentProcess(new Intent(plan.goals, plan.profile.bias(),
                 plan.profile.capability(), plan.profile.constraints(), null), eventEmitter);
@@ -299,19 +235,13 @@ public final class BotApiImpl implements BotApi {
         if (plan.bestEffort()) why = "the preview did not reach the goal (bestEffort)";
         else if (System.currentTimeMillis() - plan.createdMs > PreviewSearch.TTL_MS) why = "the preview is older than 60 s";
         else {
-            adopted = WalkerPlanAdoption.adopt(process.walker(), plan.legs.get(0), world, player.blockPosition());
+            adopted = WalkerPlanAdoption.adopt(process.walker(), plan.legs.get(0), world, Minecraft.getInstance().player.blockPosition());
             if (!adopted) why = "the walker refused the route: the bot is no longer near its start, or its first stretch is no longer walkable";
         }
-        startProcess(process);
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ok", true);
-        out.put("started", true);
-        out.put("goal", plan.goals.get(plan.goals.size() - 1).toString());
-        out.put("planId", planId);
-        out.put("adopted", adopted);
-        if (why != null) out.put("adoptReason", why + " — searching normally instead");
-        if (plan.goals.size() > 1) out.put("via", plan.goals.size() - 1);
-        return out;
+        GotoContract.Adoption adoption = new GotoContract.Adoption(planId, adopted,
+                java.util.Optional.ofNullable(why == null ? null : why + "; searched normally instead"));
+        return new GotoOrders.Start(process, new GotoContract.Trip(plan.goals.get(plan.goals.size() - 1).toString(),
+                plan.goals.size() - 1, GotoContract.Travel.WALK, java.util.Optional.of(adoption)));
     }
 
     /**

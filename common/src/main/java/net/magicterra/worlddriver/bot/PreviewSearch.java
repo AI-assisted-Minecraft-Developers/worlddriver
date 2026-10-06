@@ -6,10 +6,19 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.action.ActionHandle;
+import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.GotoContract;
+import net.magicterra.worlddriver.api.methods.GotoContract.Exposure;
+import net.magicterra.worlddriver.api.methods.GotoContract.Preview;
+import net.magicterra.worlddriver.api.methods.GotoContract.Scored;
+import net.magicterra.worlddriver.api.methods.GotoContract.Segment;
+import net.magicterra.worlddriver.api.methods.GotoContract.SegmentRisk;
 import net.magicterra.worlddriver.bot.movement.PathSmoothing;
 import net.magicterra.worlddriver.bot.pathfinder.Constraint;
 import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
@@ -27,7 +36,7 @@ import net.magicterra.worlddriver.bot.pathfinder.modifiers.AvoidRegion;
 import net.minecraft.core.BlockPos;
 
 /**
- * Look before walking: {@code mc.bot.goto} with {@code plan: true}. A preview is a search that
+ * Look before walking: {@code mc.bot.goto} with {@code plan: 'preview'}. A preview is a search that
  * does NOT go through the user task chain — {@code UserTaskChain.setProcess} cancels the current
  * process first, so a preview started that way would cut short the walk in progress, and the
  * whole point of previewing while walking (an event arrives, the LLM wants to look at another
@@ -35,13 +44,12 @@ import net.minecraft.core.BlockPos;
  * own thin slice ({@link BotConfig#pathfinderPreviewSliceMs}), one preview at a time, the rest
  * queued. It touches no {@code Walker}.
  *
- * <p>Asynchronous, like every search here: a preview returns {@code {started, slot: "plan",
- * planId}} at once and the result lands in the {@code plan} slot of {@code mc.bot.status}, which
- * an {@code awaitMs} waits on. The result is not the cells (those come only with
- * {@code includePath}) but the route's <b>risk in segments</b>: where the exposure, the nearest
- * mob and the regions change, a new segment starts — "the first 31 cells are safe, the next 21
- * are in skeleton 1203's sight for 9 of them" rather than 87 coordinates. Segments are cut over
- * the string-pulled route the walker would drive; the A* result itself is cached under the
+ * <p>Each preview is an action of its own, which this object ends: succeeded with the
+ * {@link Preview}, or failed when the search could not run. The result is not the cells (those come
+ * only with {@code includePath}) but the route's <b>risk in segments</b>: where the exposure, the
+ * nearest mob and the regions change, a new segment starts — "the first 31 cells are safe, the next
+ * 21 are in skeleton 1203's sight" rather than 87 coordinates. Segments are cut over the
+ * string-pulled route the walker would drive; the A* result itself is cached under the
  * {@code planId} for {@code WalkerPlanAdoption}, which straightens on its own.
  *
  * <p>Client only in this version: the verb lives there, and the server-side player has no caller
@@ -64,28 +72,29 @@ public final class PreviewSearch {
         public final List<Goal> goals;
         public final SearchProfile profile;
         public final List<PathFinder.Result> legs;
-        public final Map<String, Object> summary;
+        public final Preview summary;
 
         Plan(String id, long createdMs, List<Goal> goals, SearchProfile profile, List<PathFinder.Result> legs,
-             Map<String, Object> summary) {
+             Preview summary) {
             this.id = id;
             this.createdMs = createdMs;
             this.goals = List.copyOf(goals);
             this.profile = profile;
             this.legs = List.copyOf(legs);
-            this.summary = Map.copyOf(summary);
+            this.summary = summary;
         }
 
-        public boolean bestEffort() { return Boolean.TRUE.equals(summary.get("bestEffort")); }
+        public boolean bestEffort() { return summary.bestEffort(); }
         public boolean expired(long nowMs) { return nowMs - createdMs > TTL_MS; }
     }
 
     private static final class Pending {
         final String id;
         final Request req;
+        final ActionHandle action;
         final long submittedMs = System.currentTimeMillis();
         final List<PathFinder.Result> legs = new ArrayList<>();
-        final List<Map<String, Object>> segments = new ArrayList<>();
+        final List<Segment> segments = new ArrayList<>();
         final List<List<BlockPos>> shown = new ArrayList<>();
         PathFinder.Search search;
         int legIndex;
@@ -94,7 +103,11 @@ public final class PreviewSearch {
         long ms;
         double cost;
 
-        Pending(String id, Request req) { this.id = id; this.req = req; }
+        Pending(String id, Request req, ActionHandle action) {
+            this.id = id;
+            this.req = req;
+            this.action = action;
+        }
     }
 
     private final BotState state;
@@ -105,12 +118,13 @@ public final class PreviewSearch {
 
     public PreviewSearch(BotState state) { this.state = state; }
 
-    // ------------------------------------------------------------------ submit / take
+    // ------------------------------------------------------------------ submit / take / cancel
 
-    /** Queues a preview; the id is the {@code planId} its result and adoption go by. */
-    public synchronized String submit(Request req) {
+    /** Queues a preview that {@code action} stands for; the id is the {@code planId} adoption goes by. */
+    public synchronized String submit(Request req, ActionHandle action) {
         String id = "p-" + seq.incrementAndGet();
-        queue.add(new Pending(id, req));
+        queue.add(new Pending(id, req, action));
+        action.bindStopper(why -> cancel(id));
         state.plan.active = true;
         state.plan.goal = req.goals().get(req.goals().size() - 1).toString();
         state.plan.target = req.goals().get(req.goals().size() - 1).targetPos();
@@ -121,6 +135,13 @@ public final class PreviewSearch {
         queued.put("queued", queue.size() + (current == null ? 0 : 1));
         state.planResult = queued;
         return id;
+    }
+
+    /** Drop a preview that has not finished; its action was already marked cancelled. */
+    synchronized void cancel(String planId) {
+        queue.removeIf(p -> p.id.equals(planId));
+        if (current != null && current.id.equals(planId)) current = null;
+        state.plan.active = current != null || !queue.isEmpty();
     }
 
     /** The cached plan, or null when unknown, evicted or older than {@link #TTL_MS}. */
@@ -204,71 +225,59 @@ public final class PreviewSearch {
     }
 
     private void finish(Pending cur, String error) {
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("planId", cur.id);
-        if (error != null) {
-            out.put("ok", false);
-            out.put("error", error);
-        } else {
-            boolean reached = !cur.legs.isEmpty() && cur.legs.get(cur.legs.size() - 1).goalReached()
-                    && cur.legs.size() == cur.req.goals().size();
-            int cells = 0;
-            double length = 0;
-            List<Object> path = new ArrayList<>();
-            for (List<BlockPos> leg : cur.shown) {
-                cells += leg.size();
-                length += length(leg);
-                if (cur.req.includePath()) for (BlockPos c : leg) path.add(List.of(c.getX(), c.getY(), c.getZ()));
-            }
-            Goal lastGoal = cur.req.goals().get(cur.req.goals().size() - 1);
-            BlockPos end = lastGoal.targetPos() != null ? lastGoal.targetPos()
-                    : cur.shown.isEmpty() ? cur.req.start() : last(cur.shown.get(cur.shown.size() - 1), cur.req.start());
-            out.put("ok", true);
-            out.put("reached", reached);
-            out.put("cells", cells);
-            out.put("cost", Math.round(cur.cost));
-            out.put("legs", cur.legs.size());
-            out.put("segments", cur.segments);
-            out.put("detourRatio", detourRatio(length, cur.req.start(), end));
-            out.put("bestEffort", !reached);
-            out.put("sightBudgetExhausted", cur.sightDropped);
-            out.put("snapshotTruncated", cur.truncated);
-            out.put("expanded", cur.expanded);
-            out.put("ms", cur.ms);
-            if (cur.req.includePath()) out.put("path", path);
-        }
+        Preview preview = error == null ? describe(cur) : null;
         synchronized (this) {
-            if (error == null) {
-                plans.put(cur.id, new Plan(cur.id, System.currentTimeMillis(), cur.req.goals(), cur.req.profile(), cur.legs, out));
+            if (current == cur) current = null;
+            if (!cur.action.running()) return;  // cancelled while its last slice ran
+            if (preview != null) {
+                plans.put(cur.id, new Plan(cur.id, System.currentTimeMillis(), cur.req.goals(), cur.req.profile(), cur.legs, preview));
                 evict();
             }
-            state.planResult = out;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> shown = preview != null ? (Map<String, Object>) GotoContract.RESULT.encode(preview)
+                    : Map.of("planId", cur.id, "ok", false, "error", error);
+            state.planResult = shown;
             state.plan.lastError = error;
-            state.plan.goalReached = error == null && Boolean.TRUE.equals(out.get("reached"));
-            state.plan.endReason = error != null ? "error" : Boolean.TRUE.equals(out.get("reached")) ? "reached" : "bestEffort";
+            state.plan.goalReached = preview != null && preview.reached();
+            state.plan.endReason = preview == null ? "error" : preview.reached() ? "reached" : "bestEffort";
             state.plan.active = !queue.isEmpty();
-            if (current == cur) current = null;
         }
-        WorldDriverCommon.LOG.info("[preview] {} {} in {} ms ({} ticks queued behind)", cur.id,
-                error == null ? out.get("reached").equals(Boolean.TRUE) ? "reached" : "bestEffort" : "failed",
+        if (preview != null) cur.action.succeed(preview);
+        else cur.action.fail(error);
+        WorldDriverCommon.LOG.info("[preview] {} {} in {} ms ({} queued behind)", cur.id,
+                preview == null ? "failed" : preview.reached() ? "reached" : "bestEffort",
                 System.currentTimeMillis() - cur.submittedMs, queue.size());
+    }
+
+    private static Preview describe(Pending cur) {
+        boolean reached = !cur.legs.isEmpty() && cur.legs.get(cur.legs.size() - 1).goalReached()
+                && cur.legs.size() == cur.req.goals().size();
+        int cells = 0;
+        double length = 0;
+        List<BlockPosition> path = new ArrayList<>();
+        for (List<BlockPos> leg : cur.shown) {
+            cells += leg.size();
+            length += length(leg);
+            if (cur.req.includePath()) for (BlockPos c : leg) path.add(new BlockPosition(c.getX(), c.getY(), c.getZ()));
+        }
+        Goal lastGoal = cur.req.goals().get(cur.req.goals().size() - 1);
+        BlockPos end = lastGoal.targetPos() != null ? lastGoal.targetPos()
+                : cur.shown.isEmpty() ? cur.req.start() : last(cur.shown.get(cur.shown.size() - 1), cur.req.start());
+        return new Preview(cur.id, reached, cells, Math.round(cur.cost), cur.legs.size(), List.copyOf(cur.segments),
+                detourRatio(length, cur.req.start(), end), !reached, cur.sightDropped, cur.truncated, cur.expanded,
+                cur.ms, cur.req.includePath() ? Optional.of(path) : Optional.empty());
     }
 
     // ------------------------------------------------------------------ scoring a drawn line
 
     /**
-     * {@code plan: "score"}: the caller's polyline, discretised into cells, priced by the same
+     * {@code plan: 'score'}: the caller's polyline, discretised into cells, priced by the same
      * conditions as a preview — without a search and without checking walkability. Synchronous:
      * one entity scan and the rays over those cells, on the calling (game) thread.
      */
-    public static Map<String, Object> score(List<BlockPos> points, SearchProfile profile, ScopeSource scope) {
+    public static Scored score(List<BlockPos> points, SearchProfile profile, ScopeSource scope) {
         List<BlockPos> cells = polylineCells(points);
-        Map<String, Object> out = new LinkedHashMap<>();
-        if (cells.isEmpty()) {
-            out.put("ok", false);
-            out.put("error", "plan: \"score\" needs route.corridor.points");
-            return out;
-        }
+        if (cells.isEmpty()) throw new IllegalArgumentException("a scored line needs at least one point");
         boolean sightDropped = false;
         boolean truncated = false;
         if (scope != null) {
@@ -277,21 +286,15 @@ public final class PreviewSearch {
             for (CostModifier m : profile.bias()) if (m instanceof SearchAware sa) sa.beginSearch(sc);
             for (Constraint c : profile.constraints()) if (c instanceof SearchAware sa && !profile.bias().contains(c)) sa.beginSearch(sc);
         }
-        List<Map<String, Object>> segments;
+        List<Segment> segments;
         try {
             segments = segments(cells, new ProfileRisk(profile), -1);
         } catch (SightExposure.RayBudgetExhausted e) {
             sightDropped = true;
             segments = List.of();
         }
-        out.put("ok", true);
-        out.put("scored", true);
-        out.put("cells", cells.size());
-        out.put("segments", segments);
-        out.put("detourRatio", detourRatio(length(cells), cells.get(0), cells.get(cells.size() - 1)));
-        out.put("sightBudgetExhausted", sightDropped);
-        out.put("snapshotTruncated", truncated);
-        return out;
+        return new Scored(cells.size(), segments, detourRatio(length(cells), cells.get(0), cells.get(cells.size() - 1)),
+                sightDropped, truncated);
     }
 
     /** The cells a polyline passes through: each segment sampled at one cell per longest-axis step. */
@@ -367,14 +370,13 @@ public final class PreviewSearch {
     /**
      * Cuts a route into segments where its risk changes: a new segment starts at the first cell
      * whose set of seeing observers or set of regions differs from the previous cell's. Each
-     * segment carries {@code from}/{@code to} (cell indices, {@code to} exclusive), and a
-     * {@code risk} of {@code exposedTo} (observer id, type, how many of the segment's cells it
-     * sees — all of them, by construction), {@code nearestMob} (the minimum over the segment,
-     * absent without a mob) and {@code regions}. When {@code leg} is not negative it is added as
-     * the {@code leg} key: the index of the goal whose route the segment belongs to.
+     * segment carries {@code from}/{@code to} (cell indices, {@code to} exclusive), and a risk of
+     * the observers seeing it (each sees all of the segment's cells, by construction), the nearest
+     * mob (the minimum over the segment, absent without a mob) and the regions. When {@code leg} is
+     * not negative it is the index of the goal whose route the segment belongs to.
      */
-    public static List<Map<String, Object>> segments(List<BlockPos> cells, RiskAt risk, int leg) {
-        List<Map<String, Object>> out = new ArrayList<>();
+    public static List<Segment> segments(List<BlockPos> cells, RiskAt risk, int leg) {
+        List<Segment> out = new ArrayList<>();
         if (cells.isEmpty()) return out;
         int from = 0;
         String key = null;
@@ -405,26 +407,13 @@ public final class PreviewSearch {
         return ids.keySet() + "|" + regions;
     }
 
-    private static Map<String, Object> segment(int from, int to, List<ThreatSnapshot.Threat> seeing, List<String> regions,
-                                               double nearest, int leg) {
-        Map<String, Object> seg = new LinkedHashMap<>();
-        if (leg >= 0) seg.put("leg", leg);
-        seg.put("from", from);
-        seg.put("to", to);
-        Map<String, Object> risk = new LinkedHashMap<>();
-        List<Object> exposed = new ArrayList<>();
-        for (ThreatSnapshot.Threat t : seeing) {
-            Map<String, Object> o = new LinkedHashMap<>();
-            o.put("id", t.id());
-            o.put("type", t.type());
-            o.put("cells", to - from);
-            exposed.add(o);
-        }
-        risk.put("exposedTo", exposed);
-        if (!Double.isInfinite(nearest)) risk.put("nearestMob", Math.round(nearest * 10) / 10.0);
-        risk.put("regions", regions);
-        seg.put("risk", risk);
-        return seg;
+    private static Segment segment(int from, int to, List<ThreatSnapshot.Threat> seeing, List<String> regions,
+                                   double nearest, int leg) {
+        List<Exposure> exposed = new ArrayList<>();
+        for (ThreatSnapshot.Threat t : seeing) exposed.add(new Exposure(t.id(), t.type(), to - from));
+        Optional<Double> mob = Double.isInfinite(nearest) ? Optional.empty() : Optional.of(Math.round(nearest * 10) / 10.0);
+        return new Segment(leg >= 0 ? Optional.of(leg) : Optional.empty(), from, to,
+                new SegmentRisk(List.copyOf(exposed), mob, List.copyOf(regions)));
     }
 
     // ------------------------------------------------------------------ geometry

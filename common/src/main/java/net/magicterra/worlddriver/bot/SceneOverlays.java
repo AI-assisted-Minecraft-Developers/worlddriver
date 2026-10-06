@@ -80,7 +80,7 @@ public final class SceneOverlays {
         SightExposure s = null;
         for (CostModifier m : profile.bias()) if (m instanceof SightExposure se) { s = se; break; }
         if (s == null) for (Constraint c : profile.constraints()) if (c instanceof SightExposure se) { s = se; break; }
-        if (s == null) s = RouteParams.sight(Map.of("of", "ranged"));
+        if (s == null) s = RouteParams.rangedSight();
         int cells = (2 * radius + 1) * (2 * radius + 1);
         // Enough for every cell against a handful of observers; past that the rows say '?'.
         return s.withRayBudget(Math.max(BotConfig.sightRaysPerSearch, cells * 8));
@@ -89,7 +89,7 @@ public final class SceneOverlays {
     /** The route's mob component, or the {@code risk: safe} one. */
     static MobCluster mobsOf(SearchProfile profile) {
         for (CostModifier m : profile.bias()) if (m instanceof MobCluster mc) return mc;
-        return RouteParams.mobs(Map.of(), RouteParams.SAFE_CLUSTER);
+        return RouteParams.mobs(null, RouteParams.SAFE_CLUSTER);
     }
 
     /** {observers:[{id,type,name}], rows, exposedCells, budgetExhausted?, snapshotTruncated?}. */

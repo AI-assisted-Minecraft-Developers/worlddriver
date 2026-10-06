@@ -272,7 +272,7 @@ var p = Driver.observe.player();
 var trees = Driver.query({q: 'blocks', center: p.pos,
                           filter: {in_radius: 12, type: 'minecraft:oak_log'}});
 console.log('found ' + trees.length);
-trees.length ? Driver.bot.goto({pos: trees[0].pos}) : 'nothing nearby'
+trees.length ? Driver.bot.goto({target: {kind: 'position', pos: trees[0].pos}}) : 'nothing nearby'
 ```
 
 - The last expression is the result. The return value is `{result, error, log, ms}`, and

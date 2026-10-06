@@ -208,7 +208,7 @@ The JSON is plain and meant to be edited by hand for the things markers cannot s
 
 The `config` keys are bot setting names and are restored when the run ends. Each entry of
 `legs` is one task. A `goto` task takes the same `route` object as
-`mc.bot.goto`. An `escape` task with a `targetY` below the feet descends and above them climbs. Positions are relative to the origin throughout.
+`mc.bot.goto`, except that its `via` is a list of `[x, y, z]` arrays relative to the origin. An `escape` task with a `targetY` below the feet descends and above them climbs. Positions are relative to the origin throughout.
 
 ## Accept: the run you judged becomes the standard
 
@@ -278,7 +278,7 @@ them by name through the `body` parameter. Spawn one, find it, send it somewhere
 ```bash
 RPC="uv run --with websockets .agents/skills/worlddriver-rpc/rpc.py --port $(cat fabric/run-dogfood/worlddriver-rpc.port)"
 $RPC mc.bot.status '{}'                                      # bodies: [{id:"player:alex", kind, entityId, pos, busy}]
-$RPC mc.bot.goto '{"body":"player:alex","pos":{"x":100010,"y":200,"z":100000},"awaitMs":30000}'
+$RPC mc.bot.goto '{"body":"player:alex","target":{"kind":"position","pos":{"x":100010,"y":200,"z":100000}},"awaitMs":30000}'
 $RPC mc.bot.status '{"body":"player:alex"}'                  # its busy flag and slots
 $RPC mc.bot.runAway '{"body":"player:alex","minDist":8}'
 $RPC mc.bot.cancel '{"body":"player:alex","process":"runAway"}'

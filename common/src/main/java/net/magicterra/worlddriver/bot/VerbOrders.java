@@ -8,7 +8,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import net.magicterra.worlddriver.bot.process.BboxFillProcess;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.process.BridgeProcess;
 import net.magicterra.worlddriver.bot.process.BuildProcess;
@@ -312,11 +311,9 @@ public final class VerbOrders {
         if (entityType == null && name == null) return Order.refuse("entityType or name required");
         // The same route object goto takes, minus what a follow has no use for: it already tracks an
         // entity, so via points, an entity leash and the fly mode are refused rather than silently dropped.
-        RouteParams.Parsed route;
-        try { route = RouteParams.parse(p.getMap("route")); }
-        catch (IllegalArgumentException e) { return Order.refuse(e.getMessage()); }
+        RouteParams.Parsed route = RouteParams.parse(p.getMap("route"));
         if (!route.via().isEmpty()) return Order.refuse("route.via: follow has no waypoints");
-        if (route.entityLeash() != null) return Order.refuse("route.leash.entity: follow already tracks an entity; give a center");
+        if (route.entityLeash() != null) return Order.refuse("route.leash.anchor: follow already tracks an entity; anchor to a point or column");
         if (route.fly()) return Order.refuse("route.mode: follow cannot fly");
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("ok", true); r.put("started", true);

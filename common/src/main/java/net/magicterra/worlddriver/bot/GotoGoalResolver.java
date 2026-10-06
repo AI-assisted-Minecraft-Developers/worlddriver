@@ -1,31 +1,30 @@
 package net.magicterra.worlddriver.bot;
 
-import net.magicterra.worlddriver.model.Params;
+import java.util.Map;
+import java.util.function.Function;
+
+import net.magicterra.worlddriver.api.methods.GotoContract;
+import net.magicterra.worlddriver.api.methods.GotoContract.GoalMode;
+import net.magicterra.worlddriver.api.methods.GotoContract.Target;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
-import java.util.Locale;
-import java.util.Map;
-import java.util.function.Function;
-
 import static net.magicterra.worlddriver.bot.GoalResolver.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
 
 /**
- * Goal parsing for {@code mc.bot.goto}. Extracted verbatim from BotApiImpl;
- * {@code mcGoto} delegates here. The {@code waypoints} map (named positions
- * owned by the bot impl) is passed in so a {@code waypoint:} selector resolves.
+ * The goal of {@code mc.bot.goto}: a decoded target resolved against the body and the live world, on
+ * the body's own thread. The shape is already checked by the contract, so everything thrown here is
+ * about the world: no such block in range, no such entity, no such waypoint.
  *
- * <p>Only the GOAL lives here — the part that needs the player and the live world. The route
- * conditions ({@code route}: bias, capability, hard constraints, via, the entity leash) are
- * {@link RouteParams#parse}, a pure function shared with {@code mc.bot.follow} and with the
- * dedicated-server scenes.
+ * <p>Only the GOAL lives here. The route conditions are {@link RouteParams#parse}, a pure function
+ * shared with {@code mc.bot.follow} and with the dedicated-server scenes.
  *
  * <p><b>Free of client types, like {@link GoalResolver}</b>, because a server-side bot resolves its
- * goal here too. The one selector whose answer depends on the side is {@code entity:}: the client
+ * goal here too. The one target whose answer depends on the side is {@code entityType}: the client
  * looks through what it has loaded for rendering, a server through its level. So the caller passes
  * that lookup in.
  */
@@ -33,112 +32,80 @@ public final class GotoGoalResolver {
 
     private GotoGoalResolver() {}
 
+    /** A target the world cannot satisfy now; the request itself was valid. */
+    public static final class Unavailable extends RuntimeException {
+        public Unavailable(String message) { super(message, null, false, false); }
+    }
+
     /**
-     * Resolve a goal from goto params on the bot's own thread (some selectors need
-     * the player's position or live world state). Throws IllegalArgumentException
-     * with a descriptive message when a selector matches but cannot be resolved
-     * (e.g. block not found in radius, entity id stale, unknown direction);
-     * returns null when no selector is recognized so the caller can emit the
-     * "missing goal" error.
-     *
-     * @param nearestOfType the nearest entity of a registry id the bot can see, or null
+     * @param waypoints     the body's saved waypoints; empty for a body that keeps none
+     * @param nearestOfType the nearest entity of a registry id the body can see, or null
      */
-    public static Goal resolveGoal(Params p, Entity self, Map<String, BlockPos> waypoints,
-                                   Function<String, Entity> nearestOfType) {
-        Goal base = resolveBaseGoal(p, self, waypoints, nearestOfType);
-        if (base == null) return null;
+    public static Goal resolve(Target target, boolean invert, Entity self, Map<String, BlockPos> waypoints,
+                               Function<String, Entity> nearestOfType) {
+        Goal base = base(target, self, waypoints, nearestOfType);
         // Baritone GoalInverted: flee whatever the resolved goal converges on.
-        return p.getBool("invert") ? new Goal.Inverted(base) : base;
+        return invert ? new Goal.Inverted(base) : base;
     }
 
-    /**
-     * Resolve the goal before the optional {@code invert} wrapper. {@code goalMode}
-     * picks how a positional target is satisfied — Baritone's distinction between
-     * GoalBlock / GoalTwoBlocks / GoalGetToBlock:
-     *   "in" (default) → stand exactly on the block,
-     *   "two"          → stand inside it at foot or eye level,
-     *   "adjacent"     → stand next to / above / below it (chests, furnaces).
-     * {@code near>0} always wins and relaxes to a Euclidean radius (GoalNear).
-     */
-    private static Goal resolveBaseGoal(Params p, Entity self, Map<String, BlockPos> waypoints,
-                                        Function<String, Entity> nearestOfType) {
-        // GoalAxis: reach the nearest world axis/diagonal at the configured Y.
-        if (p.getBool("axis")) return new Goal.Axis(BotConfig.axisHeight);
-
-        String mode = p.get("goalMode") instanceof String s ? s.trim().toLowerCase(Locale.ROOT) : "in";
-
-        Goal classic = parseGoal(p);
-        if (classic != null) {
-            // parseGoal already honored near/xz/y; only a bare pos respects goalMode.
-            if (classic instanceof Goal.Block b && !"in".equals(mode)) return targetGoal(b.target(), mode, 0);
-            return classic;
-        }
-
-        if (p.get("block") instanceof String blockId && !blockId.isBlank()) {
-            int radius = p.getIntClamped("radius", 32, 1, 64);
-            BlockPos stand = findNearestStandForBlock(self, blockId, radius);
-            if (stand == null) throw new IllegalArgumentException(
-                    "no reachable '" + blockId + "' within radius " + radius);
-            return new Goal.Block(stand);
-        }
-        if (p.get("entityId") instanceof Number eidn) {
-            int eid = eidn.intValue();
-            Level lvl = self.level();
-            Entity e = (lvl == null) ? null : lvl.getEntity(eid);
-            if (e == null) throw new IllegalArgumentException("no entity with id " + eid);
-            int near = p.getIntClamped("near", 3, 0, 16);
-            return targetGoal(blockPosOf(e), mode, near);
-        }
-        if (p.get("entity") instanceof String entType && !entType.isBlank()) {
-            Entity e = nearestOfType == null ? null : nearestOfType.apply(entType);
-            if (e == null) throw new IllegalArgumentException("no '" + entType + "' visible nearby");
-            int near = p.getIntClamped("near", 3, 0, 16);
-            return targetGoal(blockPosOf(e), mode, near);
-        }
-        if (p.get("direction") instanceof String dirName && !dirName.isBlank()) {
-            String d = dirName.trim().toLowerCase(Locale.ROOT);
-            // Baritone GoalStrictDirection: keep boring this way with no fixed
-            // endpoint (the best-effort fallback carries it as far as it can).
-            if (p.getBool("strict")) {
-                BlockPos origin = blockPosOf(self.getX(), self.getY(), self.getZ());
-                int[] step = horizontalStep(self, d);
-                if (step == null) throw new IllegalArgumentException(
-                        "strict direction must be horizontal (north|south|east|west|forward|backward|left|right), got '" + dirName + "'");
-                return new Goal.StrictDirection(origin, step[0], step[1]);
+    private static Goal base(Target target, Entity self, Map<String, BlockPos> waypoints,
+                             Function<String, Entity> nearestOfType) {
+        return switch (target) {
+            case GotoContract.Position t -> cellGoal(new BlockPos(t.pos().x(), t.pos().y(), t.pos().z()), t.goalMode(), t.near());
+            case GotoContract.Column t -> new Goal.XZ(t.x(), t.z(), t.near());
+            case GotoContract.Level t -> new Goal.YLevel(t.y());
+            case GotoContract.Axis t -> new Goal.Axis(BotConfig.axisHeight);
+            case GotoContract.BlockTarget t -> {
+                BlockPos stand = findNearestStandForBlock(self, t.block(), t.radius());
+                if (stand == null) throw new Unavailable("no reachable '" + t.block() + "' within radius " + t.radius());
+                yield new Goal.Block(stand);
             }
-            int distance = p.getIntClamped("distance", 8, 1, 256);
-            BlockPos target = applyDirection(self, dirName, distance);
-            if (target == null) throw new IllegalArgumentException(
-                    "unknown direction '" + dirName + "' (north|south|east|west|up|down|forward|backward|left|right)");
-            int near = p.getIntClamped("near", 0, 0, 64);
-            // Pure-horizontal directions → XZ goal (free Y), vertical → YLevel,
-            // mixed (rare — only via 'forward'/'backward' which is horizontal) →
-            // Block. `near>0` always uses Near to relax the constraint.
-            if (near > 0) return new Goal.Near(target, near);
-            if ("up".equals(d) || "down".equals(d)) return new Goal.YLevel(target.getY());
-            return new Goal.XZ(target.getX(), target.getZ());
-        }
-        if (p.get("waypoint") instanceof String wpName && !wpName.isBlank()) {
-            BlockPos wpPos = waypoints.get(wpName);
-            if (wpPos == null) throw new IllegalArgumentException("no waypoint named '" + wpName + "'");
-            int near = p.getIntClamped("near", 0, 0, 64);
-            return targetGoal(wpPos, mode, near);
-        }
-        return null;
+            case GotoContract.EntityTarget t -> {
+                Level lvl = self.level();
+                Entity e = lvl == null ? null : lvl.getEntity(t.entityId());
+                if (e == null) throw new Unavailable("no entity with id " + t.entityId());
+                yield cellGoal(blockPosOf(e), t.goalMode(), t.near());
+            }
+            case GotoContract.EntityType t -> {
+                Entity e = nearestOfType == null ? null : nearestOfType.apply(t.type());
+                if (e == null) throw new Unavailable("no '" + t.type() + "' visible nearby");
+                yield cellGoal(blockPosOf(e), t.goalMode(), t.near());
+            }
+            case GotoContract.Heading t -> {
+                // Baritone GoalStrictDirection: keep boring this way with no fixed endpoint.
+                int[] step = horizontalStep(self, t.direction().wireName());
+                yield new Goal.StrictDirection(blockPosOf(self.getX(), self.getY(), self.getZ()), step[0], step[1]);
+            }
+            case GotoContract.DirectionTarget t -> {
+                BlockPos cell = applyDirection(self, t.direction().wireName(), t.distance());
+                if (t.near() > 0) yield new Goal.Near(cell, t.near());
+                yield t.direction().vertical() ? new Goal.YLevel(cell.getY()) : new Goal.XZ(cell.getX(), cell.getZ());
+            }
+            case GotoContract.Waypoint t -> {
+                BlockPos pos = waypoints.get(t.name());
+                if (pos == null) throw new Unavailable("no waypoint named '" + t.name() + "'");
+                yield cellGoal(pos, t.goalMode(), t.near());
+            }
+        };
     }
 
-    /** {@code route.requireTool: 'minecraft:iron_pickaxe'} — fail the goto up front unless the
-     *  item is in the player inventory. Presence-only: the Walker already auto-equips the best
-     *  tool per dig (Hands.selectTool), and mid-run tool loss is out of scope here. */
-    public static void checkRequiredTool(String id, Player player) {
-        if (id == null || id.isBlank()) return;
-        String want = id.contains(":") ? id : "minecraft:" + id;
+    /** {@code near > 0} always wins and relaxes to a Euclidean radius (GoalNear). */
+    private static Goal cellGoal(BlockPos cell, GoalMode mode, int near) {
+        if (near > 0) return new Goal.Near(cell, near);
+        return switch (mode) {
+            case IN -> new Goal.Block(cell);
+            case TWO -> new Goal.TwoBlocks(cell);
+            case ADJACENT -> new Goal.GetToBlock(cell);
+        };
+    }
+
+    /** {@code route.requireTool}: the item is somewhere in the inventory. Presence only: the walker
+     *  equips the best tool per dig itself, and losing it mid-run is not watched. */
+    public static boolean carries(Player player, String id) {
         for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
             var stack = player.getInventory().getItem(slot);
-            if (!stack.isEmpty()
-                    && BuiltInRegistries.ITEM.getKey(stack.getItem()).toString().equals(want))
-                return;
+            if (!stack.isEmpty() && BuiltInRegistries.ITEM.getKey(stack.getItem()).toString().equals(id)) return true;
         }
-        throw new IllegalArgumentException("required tool not in inventory: " + want);
+        return false;
     }
 }

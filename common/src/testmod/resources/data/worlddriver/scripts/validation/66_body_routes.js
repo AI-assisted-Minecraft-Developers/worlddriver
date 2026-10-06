@@ -27,8 +27,7 @@ function viaEveryTransport(method, params) {
 }
 
 ScriptTest.run("66_body_routes: an unknown body refuses every verb that takes body alike on every transport", function(t) {
-    var calls = [["mc.bot.goto", { body: NOBODY, pos: { x: 0, y: 64, z: 0 } }],
-                 ["mc.bot.cancel", { body: NOBODY }],
+    var calls = [["mc.bot.cancel", { body: NOBODY }],
                  ["mc.bot.status", { body: NOBODY }],
                  ["mc.bot.mine", { body: NOBODY, blocks: ["minecraft:stone"] }],
                  ["mc.bot.escape", { body: NOBODY }],
@@ -48,9 +47,23 @@ ScriptTest.run("66_body_routes: an unknown body refuses every verb that takes bo
 });
 
 ScriptTest.run("66_body_routes: a typed body task refuses an unknown body as body_unavailable on every transport", function(t) {
-    var r = viaEveryTransport("mc.bot.clearArea", { body: NOBODY, target: { kind: "tunnel", distance: 1 } });
+    var calls = [["mc.bot.clearArea", { body: NOBODY, target: { kind: "tunnel", distance: 1 } }],
+                 ["mc.bot.goto", { body: NOBODY, target: { kind: "position", pos: { x: 0, y: 64, z: 0 } } }]];
+    for (var i = 0; i < calls.length; i++) {
+        var method = calls[i][0];
+        var r = viaEveryTransport(method, calls[i][1]);
+        t.assertEqual(r[0].outcome, "refused", method + " outcome, got: " + JSON.stringify(r[0]));
+        t.assertEqual(r[0].reason, "body_unavailable", method + " reason");
+        t.assertEqual(jsonStable(r[0]), jsonStable(r[1]), method + ": in-JVM and TCP must agree");
+        t.assertEqual(jsonStable(r[0]), jsonStable(r[2]), method + ": in-JVM and MCP must agree");
+    }
+});
+
+ScriptTest.run("66_body_routes: another bot takes no waypoint, preview or plan on every transport", function(t) {
+    var r = viaEveryTransport("mc.bot.goto", { body: NOBODY, target: { kind: "waypoint", name: "home" } });
+    // No bot is registered under NOBODY, so the body is what refuses first; the self-only refusal
+    // itself is the dedicated-server scenes' (wd.bodyRoute*), which have a bot to address.
     t.assertEqual(r[0].outcome, "refused", "outcome, got: " + JSON.stringify(r[0]));
-    t.assertEqual(r[0].reason, "body_unavailable", "reason");
     t.assertEqual(jsonStable(r[0]), jsonStable(r[1]), "in-JVM and TCP must agree");
     t.assertEqual(jsonStable(r[0]), jsonStable(r[2]), "in-JVM and MCP must agree");
 });

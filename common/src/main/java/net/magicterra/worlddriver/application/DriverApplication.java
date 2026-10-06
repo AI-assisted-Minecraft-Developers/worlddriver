@@ -364,7 +364,6 @@ public final class DriverApplication extends DriverApi {
         BodyRoutes bodies = new BodyRoutes(this);
         routes.put("mc.bot.cancel", p -> BodyRoutes.isSelf(p) ? requireBot().cancel(p) : bodies.cancel(p));
         routes.put("mc.bot.status", bodies::status);
-        putBodyVerb(bodies, "mc.bot.goto",      "goto",    BotApi::mcGoto,    bodies::mcGoto);
         putBodyVerb(bodies, "mc.bot.mine",      "mine",    BotApi::mine,      BodyRoutes.order(VerbOrders::mine));
         putBodyVerb(bodies, "mc.bot.bunker",    "bunker",  BotApi::bunker,    BodyRoutes.order(VerbOrders::bunker));
         putBodyVerb(bodies, "mc.bot.escape",    null,      BotApi::escape,    BodyRoutes.order(VerbOrders::escape));
@@ -545,9 +544,7 @@ public final class DriverApplication extends DriverApi {
      * existing impls that don't know about it stay happy.
      *
      * <p><b>Which slot is waited on</b> is {@link #slotToAwait}: the impl's own {@code slot} when
-     * its reply carries one, else the literal the route table passed. {@code mc.bot.goto} answers
-     * with {@code slot: "elytra"} when {@code route.mode} is {@code ["fly"]} and hands the intent
-     * to elytra, so waiting on {@code goto} would return at once.
+     * its reply carries one, else the literal the route table passed.
      */
     private Map<String, Object> awaitable(Map<String, Object> params, String slot,
                                           Function<Map<String, Object>, Map<String, Object>> impl) {

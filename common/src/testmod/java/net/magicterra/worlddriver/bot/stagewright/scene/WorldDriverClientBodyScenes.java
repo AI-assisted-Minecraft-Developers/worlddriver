@@ -37,8 +37,9 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
 
     private static final int GROUND = 20;
 
-    private static Map<String, Object> pos(BlockPos p) {
-        return Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ());
+    /** A goto target: the cell {@code p}. */
+    private static Map<String, Object> at(BlockPos p) {
+        return Map.of("kind", "position", "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ()));
     }
 
     private static Map<?, ?> call(SceneContext ctx, String tag, String method, Map<String, Object> params) {
@@ -73,15 +74,16 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
             }
         });
         helm.sync(20, () -> {
-            Map<?, ?> alive = call(ctx, "alive.goto", "mc.bot.goto", Map.of("pos", pos(start)));
-            ctx.check(Boolean.TRUE.equals(alive.get("started"))).as("A: while the player is alive, goto accepts the request: " + alive).isTrue();
+            Map<?, ?> alive = call(ctx, "alive.goto", "mc.bot.goto", Map.of("target", at(start)));
+            ctx.check("accepted".equals(alive.get("outcome"))).as("A: while the player is alive, goto accepts the request: " + alive).isTrue();
             call(ctx, "alive.cancel", "mc.bot.cancel", Map.of("process", "goto"));
             body.kill();
             ctx.await(body::isDeadOrDying).within(60).then(() -> helm.sync(15, () -> {
-                Map<?, ?> dead = call(ctx, "dead.goto", "mc.bot.goto", Map.of("pos", pos(start)));
-                ctx.check(Boolean.FALSE.equals(dead.get("ok")) && "dead".equals(dead.get("reason")))
-                        .as("B: after death, goto is refused with reason=dead: " + dead).isTrue();
-                ctx.check(!Boolean.TRUE.equals(dead.get("started"))).as("C: the refused request did not start: " + dead).isTrue();
+                Map<?, ?> dead = call(ctx, "dead.goto", "mc.bot.goto", Map.of("target", at(start)));
+                ctx.check("refused".equals(dead.get("outcome")) && "body_unavailable".equals(dead.get("reason"))
+                                && String.valueOf(dead.get("message")).contains("dead"))
+                        .as("B: after death, goto is refused as body_unavailable, saying the player is dead: " + dead).isTrue();
+                ctx.check(dead.get("action") == null).as("C: the refused request did not start: " + dead).isTrue();
                 Map<?, ?> status = call(ctx, "dead.status", "mc.bot.status", Map.of());
                 ctx.check(!status.isEmpty() && status.get("reason") == null)
                         .as("D: read-only methods are unaffected by the player's death: " + status.keySet()).isTrue();
@@ -95,8 +97,8 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
                     ServerPlayer again = SceneBody.humanPlayers(ctx).get(0);
                     again.teleportTo(ctx.level(), start.getX() + 0.5, start.getY(), start.getZ() + 0.5, Set.of(), 0f, 0f);
                     helm.sync(20, () -> {
-                        Map<?, ?> back = call(ctx, "respawned.goto", "mc.bot.goto", Map.of("pos", pos(start)));
-                        ctx.check(Boolean.TRUE.equals(back.get("started"))).as("E: after respawn, the same request is accepted again: " + back).isTrue();
+                        Map<?, ?> back = call(ctx, "respawned.goto", "mc.bot.goto", Map.of("target", at(start)));
+                        ctx.check("accepted".equals(back.get("outcome"))).as("E: after respawn, the same request is accepted again: " + back).isTrue();
                         call(ctx, "respawned.cancel", "mc.bot.cancel", Map.of("process", "goto"));
                     });
                 });

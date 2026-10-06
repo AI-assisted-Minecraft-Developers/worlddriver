@@ -15,7 +15,12 @@ import net.magicterra.worlddriver.bot.world.WorldModel;
  * action implicitly cancels the previous one of the same kind.
  */
 public interface BotApi {
-    Map<String, Object> mcGoto(Map<String, Object> params);
+    /** {@code mc.bot.goto} on this client's player, with its waypoints, preview queue and plan cache. Client thread. */
+    GotoOrders.Order planGoto(net.magicterra.worlddriver.api.methods.GotoContract.Params params);
+
+    /** {@code mc.bot.goto} with {@code plan: 'score'}. Client thread. */
+    net.magicterra.worlddriver.api.methods.GotoContract.Scored scoreGoto(net.magicterra.worlddriver.api.methods.GotoContract.Params params);
+
     Map<String, Object> mine(Map<String, Object> params);
     Map<String, Object> bunker(Map<String, Object> params);
     Map<String, Object> escape(Map<String, Object> params);

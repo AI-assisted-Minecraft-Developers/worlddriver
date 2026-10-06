@@ -8,21 +8,15 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.GotoGoalResolver;
-import net.magicterra.worlddriver.bot.RouteParams;
 import net.magicterra.worlddriver.bot.VerbOrders;
 import net.magicterra.worlddriver.bot.body.BodyHost;
 import net.magicterra.worlddriver.bot.body.BodyRegistry;
-import net.magicterra.worlddriver.bot.process.Intent;
-import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
 
 /**
  * The {@code mc.bot.*} verbs that take {@code body}, for the bots {@link BodyRegistry} names. An
@@ -83,78 +77,9 @@ final class BodyRoutes {
         };
     }
 
-    /**
-     * {@code mc.bot.goto}: the goal forms {@code self} takes, less the three the client holds. A
-     * waypoint lives in its memory, and a preview and {@code planId} are its planner.
-     */
-    Map<String, Object> mcGoto(BodyHost host, Params p) {
-        if (p.get("waypoint") != null) return error("waypoint is only accepted with body=self");
-        if (p.get("planId") != null) return error("planId is only accepted with body=self");
-        if (planned(p.get("plan"))) return error("plan is only accepted with body=self");
-        LivingEntity self = host.entity();
-        Goal goal;
-        RouteParams.Parsed route;
-        try {
-            goal = GotoGoalResolver.resolveGoal(p, self, Map.of(), type -> nearestOfType(self, type));
-            route = RouteParams.parse(p.getMap("route"));
-        } catch (IllegalArgumentException e) {
-            return error(e.getMessage());
-        }
-        if (planned(route.plan())) return error("route.plan is only accepted with body=self");
-        if (goal == null) return error("missing goal — provide pos|xz|y|block|entity|entityId|direction");
-        String tool = route.requireTool();
-        if (tool != null && !tool.isBlank()) {
-            if (!(self instanceof Player player)) {
-                return error("route.requireTool reads an inventory, and bot " + host.id() + " has none");
-            }
-            try { GotoGoalResolver.checkRequiredTool(tool, player); }
-            catch (IllegalArgumentException e) { return error(e.getMessage()); }
-        }
-        if (route.fly()) return fly(host, goal);
-        List<Goal> targets = new ArrayList<>();
-        for (BlockPos v : route.via()) targets.add(new Goal.Near(v, 1));
-        targets.add(goal);
-        host.start(new IntentProcess(new Intent(targets,
-                route.profile().bias(),
-                route.profile().capability(),
-                route.profile().constraints(),
-                route.entityLeash()), api::emitExternal));
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ok", true);
-        out.put("started", true);
-        out.put("body", host.id());
-        out.put("goal", goal.toString());
-        if (!route.via().isEmpty()) out.put("via", route.via().size());
-        return out;
-    }
-
-    /**
-     * {@code route.mode} fly: {@code mc.bot.elytraFly}'s order for the goal's cell, walking there when the
-     * bot wears no usable elytra, as on {@code self}. The reply names the slot the order lives in, so
-     * {@code awaitMs} waits on {@code elytra} for a flight and on {@code goto} for the walk.
-     */
-    private static Map<String, Object> fly(BodyHost host, Goal goal) {
-        BlockPos target = goal.targetPos();
-        if (target == null) return error("route.mode fly needs a goal with a target cell (pos/entity), got " + goal);
-        Map<String, Object> cell = Map.of("x", target.getX(), "y", target.getY(), "z", target.getZ());
-        VerbOrders.Order o = VerbOrders.elytraFly(Params.of(Map.of("pos", cell, "groundFallback", true)), host.entity());
-        if (o.refused()) return o.reply();
-        host.start(o.process());
-        Map<String, Object> out = new LinkedHashMap<>(o.reply());
-        out.put("slot", o.process() instanceof IntentProcess ? "goto" : "elytra");
-        out.put("goal", goal.toString());
-        out.put("body", host.id());
-        return out;
-    }
-
-    /** {@code plan: false} is the same as no plan, on {@code self} too. */
-    private static boolean planned(Object plan) {
-        return plan != null && !Boolean.FALSE.equals(plan);
-    }
-
     /** The nearest loaded entity of {@code typeId} in the bot's level: for another bot, what the
      *  client's scan of rendered entities is for {@code self}. */
-    private static Entity nearestOfType(Entity self, String typeId) {
+    static Entity nearestOfType(Entity self, String typeId) {
         if (!(self.level() instanceof ServerLevel level)) return null;
         Entity best = null;
         double bestD = Double.MAX_VALUE;

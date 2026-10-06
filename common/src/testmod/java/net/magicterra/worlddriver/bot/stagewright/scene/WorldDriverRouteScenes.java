@@ -249,8 +249,8 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);
-        Map<String, Object> box = Map.of("shape", "box", "min", List.of(cx + 7, y, cz - 4),
-                "max", List.of(cx + 13, y + 4, cz + 4), "mode", "forbid");
+        Map<String, Object> box = Map.of("shape", "box", "min", Map.of("x", cx + 7, "y", y, "z", cz - 4),
+                "max", Map.of("x", cx + 13, "y", y + 4, "z", cz + 4), "mode", "forbid");
         RouteParams.Parsed route = RouteParams.parse(Map.of("regions", List.of(box)));
         PathFinder.Result res = new PathFinder(w, route.profile()).findPath(start, new Goal.Block(goal));
         String reason = res.blockedBy(route.constraintNames());
@@ -274,7 +274,8 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);
         RouteParams.Parsed route = RouteParams.parse(Map.of("corridor", Map.of(
-                "points", List.of(List.of(cx, y + 1, cz), List.of(cx + 10, y + 1, cz - 6), List.of(cx + 20, y + 1, cz)),
+                "points", List.of(Map.of("x", cx, "y", y + 1, "z", cz), Map.of("x", cx + 10, "y", y + 1, "z", cz - 6),
+                        Map.of("x", cx + 20, "y", y + 1, "z", cz)),
                 "radius", 2)));
         Corridor corridor = component(route.profile(), Corridor.class);
         PathFinder.Result plain = new PathFinder(w, SearchProfile.NONE).findPath(start, new Goal.Block(goal));

@@ -189,7 +189,6 @@ Driver.client = {
 };
 
 Driver.bot = {
-    goto:      function (opts) { return Driver.invoke('mc.bot.goto',      opts || {}); },
     mine:      function (opts) { return Driver.invoke('mc.bot.mine',      opts || {}); },
     farm:      function (opts) { return Driver.invoke('mc.bot.farm',      opts || {}); },
     sleep:     function (opts) { return Driver.invoke('mc.bot.sleep',     opts || {}); },
@@ -239,7 +238,7 @@ Driver.bot = {
     waypoint:   function (opts) { return Driver.invoke('mc.bot.waypoint', opts || {}); },
     saveWaypoint:   function (name, pos) { return Driver.invoke('mc.bot.waypoint', { op: 'save', name: name, pos: pos }); },
     gotoWaypoint:   function (name, opts) {
-        var p = Object.assign({ waypoint: name }, opts || {});
+        var p = Object.assign({ target: { kind: 'waypoint', name: name } }, opts || {});
         return Driver.invoke('mc.bot.goto', p);
     },
     listWaypoints:  function () { return Driver.invoke('mc.bot.waypoint', { op: 'list' }); },

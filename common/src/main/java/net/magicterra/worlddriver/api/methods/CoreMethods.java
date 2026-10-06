@@ -14,6 +14,7 @@ public final class CoreMethods {
 
     public static List<MethodSpec<?, ?>> all() {
         return List.of(
+                GotoContract.SPEC,
                 ClearAreaContract.SPEC,
                 WaitResultContract.SPEC);
     }

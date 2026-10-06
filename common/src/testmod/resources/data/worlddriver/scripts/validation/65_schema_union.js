@@ -42,33 +42,45 @@ ScriptTest.run("65_schema_union: combat.target rejects array", function(t) {
         "array target must be rejected by the union, got: " + msg);
 });
 
-// ---- mc.bot.goto / mc.bot.follow route.leash.entity: ["string","integer"] --------
-// The route object's unions are NESTED (route → leash → entity), so these also prove the
-// validator descends into object props: the old top-level hugShore union went away with
-// the route hard cut, and a union two levels down is the one an LLM client now sees.
+// ---- the route object's tagged unions, two levels down (route → leash → anchor) ----
+// A typed route has no untagged unions left: a leash anchor names its kind, and an entity
+// anchor is a string even when it holds an id. The paths prove the decoder descends.
 
-ScriptTest.run("65_schema_union: goto route.leash.entity accepts a name", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.bot.goto", { route: { leash: { entity: "PlayerB", radius: 8 } } }); });
-    t.assertTrue(msg === null || msg.indexOf("must be one of types") < 0,
-        "string leash.entity must not be rejected by the union, got: " + msg);
+function issuePath(call) {
+    try { call(); } catch (e) { return e.issues && e.issues.length ? e.issues[0].path : String(e); }
+    return null;
+}
+
+var AXIS = { kind: "axis" };
+
+ScriptTest.run("65_schema_union: goto route.leash entity anchor takes a name or an id as a string", function(t) {
+    [ "PlayerB", "3298" ].forEach(function(who) {
+        var p = issuePath(function() {
+            Driver.invoke("mc.bot.goto", { target: AXIS, route: { leash: { anchor: { kind: "entity", entity: who }, radius: 8 } } });
+        });
+        t.assertTrue(p === null, "entity anchor " + who + " must decode, got issue at " + p);
+    });
 });
 
-ScriptTest.run("65_schema_union: goto route.leash.entity accepts an id", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.bot.goto", { route: { leash: { entity: 3298, radius: 8 } } }); });
-    t.assertTrue(msg === null || msg.indexOf("must be one of types") < 0,
-        "integer leash.entity must not be rejected by the union, got: " + msg);
+ScriptTest.run("65_schema_union: goto route.leash entity anchor rejects a number", function(t) {
+    var p = issuePath(function() {
+        Driver.invoke("mc.bot.goto", { target: AXIS, route: { leash: { anchor: { kind: "entity", entity: 3298 }, radius: 8 } } });
+    });
+    t.assertEqual(p, "/route/leash/anchor/entity", "path");
 });
 
-ScriptTest.run("65_schema_union: goto route.leash.entity rejects an object", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.bot.goto", { route: { leash: { entity: { id: 3298 }, radius: 8 } } }); });
-    t.assertTrue(msg !== null && msg.indexOf("must be one of types") >= 0,
-        "object leash.entity must be rejected by the union, got: " + msg);
+ScriptTest.run("65_schema_union: goto route.leash anchor needs its kind", function(t) {
+    var p = issuePath(function() {
+        Driver.invoke("mc.bot.goto", { target: AXIS, route: { leash: { anchor: { entity: "PlayerB" }, radius: 8 } } });
+    });
+    t.assertEqual(p, "/route/leash/anchor/kind", "path");
 });
 
-ScriptTest.run("65_schema_union: follow route.sight.of accepts a list", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.bot.follow", { name: "nobody_65", route: { sight: { of: ["minecraft:skeleton"] } } }); });
-    t.assertTrue(msg === null || msg.indexOf("must be one of types") < 0,
-        "array sight.of must not be rejected by the union, got: " + msg);
+ScriptTest.run("65_schema_union: follow route.sight takes a list of observers", function(t) {
+    var p = issuePath(function() {
+        Driver.invoke("mc.bot.follow", { name: "nobody_65", route: { sight: { observers: ["minecraft:skeleton"] } } });
+    });
+    t.assertTrue(p === null || p.indexOf("/route") !== 0, "observers must decode, got issue at " + p);
 });
 
 // ---- deep-equal / arbitrary-payload sites: ["object","array","string","number","boolean"] ----

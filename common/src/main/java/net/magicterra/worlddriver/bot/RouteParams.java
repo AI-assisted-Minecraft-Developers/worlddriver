@@ -4,10 +4,26 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.DecodeContext;
+import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.RouteContract;
+import net.magicterra.worlddriver.api.methods.RouteContract.BoxRegion;
+import net.magicterra.worlddriver.api.methods.RouteContract.BreakPolicy;
+import net.magicterra.worlddriver.api.methods.RouteContract.EntityAnchor;
+import net.magicterra.worlddriver.api.methods.RouteContract.Enforcement;
+import net.magicterra.worlddriver.api.methods.RouteContract.Leash;
+import net.magicterra.worlddriver.api.methods.RouteContract.PlacePolicy;
+import net.magicterra.worlddriver.api.methods.RouteContract.PointAnchor;
+import net.magicterra.worlddriver.api.methods.RouteContract.RegionSpec;
+import net.magicterra.worlddriver.api.methods.RouteContract.Risk;
+import net.magicterra.worlddriver.api.methods.RouteContract.Route;
+import net.magicterra.worlddriver.api.methods.RouteContract.SphereRegion;
+import net.magicterra.worlddriver.api.methods.RouteContract.TravelMode;
+import net.magicterra.worlddriver.api.methods.RouteContract.YRange;
 import net.magicterra.worlddriver.bot.pathfinder.Capability;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.pathfinder.Constraint;
@@ -33,330 +49,204 @@ import net.magicterra.worlddriver.bot.pathfinder.modifiers.PreferBreak;
 import net.magicterra.worlddriver.bot.pathfinder.modifiers.PreferYBand;
 import net.magicterra.worlddriver.bot.pathfinder.modifiers.ShorelineHug;
 import net.magicterra.worlddriver.bot.process.EntityLeash;
-import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * The {@code route} object of {@code mc.bot.goto} / {@code mc.bot.follow}, parsed into what the
- * planner consumes. A pure function of the map: no player, no level, no world — so a scene can
- * hand it a JSON object on a dedicated server and give the resulting {@link SearchProfile} to a
- * headless server-side player, and a unit test can hold every field. The goal itself is not here (that is
- * {@code GotoGoalResolver}, which needs the player), nor is the tool check ({@code requireTool}
- * is only read out).
+ * A decoded {@link Route} turned into what the planner consumes. A pure function of the route and the
+ * settings: no player, no level, no world, so a scene can build a {@link SearchProfile} for a headless
+ * server-side player and a unit test can hold every field. The goal itself is not here (that is
+ * {@code GotoGoalResolver}, which needs the player), nor is the tool check ({@code requireTool} is only
+ * read out).
  *
- * <p>Every field is documented in the route design; the short version:
  * <ul>
- *   <li>{@code via}: waypoints, in order, before the goal.</li>
- *   <li>{@code mode}: {@code walk | swim | dive | fly}, several allowed. No {@code swim} and no
- *       {@code dive} → {@link NoWater}; {@code dive} → the {@link Capability#DIVE} opt-in (and
- *       swim); {@code fly} only alone and without {@code via}, and hands the intent to elytra.</li>
+ *   <li>{@code mode}: no {@code swim} and no {@code dive} → {@link NoWater}; {@code dive} → the
+ *       {@link Capability#DIVE} opt-in (and swim); {@code fly} hands the intent to elytra.</li>
  *   <li>{@code break}: {@code never} → {@link NoBreak}; {@code prefer} → {@link PreferBreak};
- *       {@code allow} (default) → nothing, the global {@code allowBreak} stays the master switch.</li>
- *   <li>{@code place}: {@code never} → {@link NoPlace}.</li>
- *   <li>{@code parkour: false} → PARKOUR forbidden.</li>
+ *       {@code allow} → nothing, the global {@code allowBreak} stays the master switch.</li>
  *   <li>{@code risk}: {@code safe} adds a mob berth with a forbid cluster and a soft sight condition
- *       against ranged mobs; {@code normal} (default) adds the mob berth only when the global
- *       {@code avoidMobs} is on; {@code bold} adds neither, whatever {@code avoidMobs} says. An
- *       explicit {@code mobs} / {@code sight} always wins over the preset.</li>
- *   <li>Detail: {@code yRange}, {@code hug}, {@code leash}, {@code regions}, {@code mobs},
- *       {@code sight}, {@code corridor}, {@code requireTool}.</li>
+ *       against ranged mobs; {@code normal} adds the mob berth only when the global {@code avoidMobs} is
+ *       on; {@code bold} adds neither. An explicit {@code mobs} / {@code sight} always wins.</li>
  * </ul>
- * Malformed values throw {@link IllegalArgumentException} naming the field; the transports'
- * schema check catches the shape errors first, so what reaches here is mostly a bad enum value.
  */
 public final class RouteParams {
     private RouteParams() {}
 
-    /** Default per-block cost beyond a soft corridor's radius. */
-    public static final double CORRIDOR_PENALTY = 20;
-    /** Default cost per exposed cell for a soft {@code sight}. */
-    public static final double SIGHT_PENALTY = 120;
     /** Default eye height a sight ray is aimed at: a standing player's. */
     public static final double SIGHT_EYE = 1.62;
     /** {@code risk: safe}'s cluster: three mobs within six blocks make a cell impassable. */
     public static final MobCluster.Cluster SAFE_CLUSTER = new MobCluster.Cluster(3, 6, true, 0);
+    private static final double SIGHT_PENALTY = 120;
 
     /**
      * What a {@code route} parses to.
      *
      * @param profile         bias, capability and hard constraints for the search
-     * @param via             waypoints to reach in order before the goal
+     * @param via             cells to reach in order before the goal
      * @param entityLeash     a leash anchored to a moving entity, resolved per re-plan; null if none
      * @param requireTool     the item id the caller must carry, or null
-     * @param fly             {@code mode: ["fly"]} — the intent goes to elytra, not A*
-     * @param plan            the raw {@code plan} value ({@code false}, {@code true}, {@code "score"})
+     * @param fly             {@code mode: ["fly"]}: the intent goes to elytra, not A*
      * @param constraintNames names of the hard constraints this route declared, for
      *                        {@code route.blocked} attribution
      */
     public record Parsed(SearchProfile profile, List<BlockPos> via, EntityLeash entityLeash, String requireTool,
-                         boolean fly, Object plan, Set<String> constraintNames) {}
+                         boolean fly, Set<String> constraintNames) {}
 
+    /**
+     * A route still in its JSON form (a scene's literal, a method not yet typed): decoded by the
+     * contract, so a malformed one is {@code invalid_params} at {@code /route/...} like a typed call's.
+     */
     public static Parsed parse(Map<String, Object> route) {
-        Params r = Params.of(route == null ? Map.of() : route);
+        DecodeContext at = DecodeContext.root().field("route");
+        Route r = RouteContract.ROUTE.decode(route == null ? Map.of() : route, at);
+        if (!at.issues().isEmpty()) throw ApiException.invalidParams(at.issues());
+        return parse(r);
+    }
+
+    public static Parsed parse(Route r) {
         List<CostModifier> bias = new ArrayList<>();
         List<Constraint> cons = new ArrayList<>();
-        Set<String> names = new LinkedHashSet<>();
 
-        // via
         List<BlockPos> via = new ArrayList<>();
-        Object viaRaw = r.get("via");
-        if (viaRaw != null) {
-            if (!(viaRaw instanceof List<?> vl)) throw bad("via", "must be a list of points");
-            for (Object o : vl) via.add(blockPos(o, "via"));
-        }
+        for (BlockPosition p : r.via()) via.add(cell(p));
 
-        // mode
-        Set<String> modes = new LinkedHashSet<>();
-        Object modeRaw = r.get("mode");
-        if (modeRaw instanceof String s) modes.add(s.trim().toLowerCase(Locale.ROOT));
-        else if (modeRaw instanceof List<?> ml) for (Object o : ml) modes.add(String.valueOf(o).trim().toLowerCase(Locale.ROOT));
-        else if (modeRaw != null) throw bad("mode", "must be a string or a list of strings");
-        for (String m : modes) {
-            if (!m.equals("walk") && !m.equals("swim") && !m.equals("dive") && !m.equals("fly"))
-                throw bad("mode", "unknown mode '" + m + "' (walk|swim|dive|fly)");
-        }
-        boolean fly = modes.contains("fly");
-        if (fly && modes.size() > 1) throw bad("mode", "fly cannot be combined with another mode yet");
-        if (fly && !via.isEmpty()) throw bad("mode", "fly does not take via points yet");
-        boolean modeGiven = !modes.isEmpty();
-        boolean dive = modes.contains("dive");
-        boolean swim = modes.contains("swim") || dive;
-        if (modeGiven && !fly && !swim) cons.add(new NoWater());
+        Set<TravelMode> modes = r.mode().map(EnumSet::copyOf).orElse(EnumSet.noneOf(TravelMode.class));
+        boolean fly = modes.contains(TravelMode.FLY);
+        boolean dive = modes.contains(TravelMode.DIVE);
+        boolean swim = modes.contains(TravelMode.SWIM) || dive;
+        if (!modes.isEmpty() && !fly && !swim) cons.add(new NoWater());
 
-        // break / place / parkour
-        String brk = enumOf(r, "break", "allow", "never", "allow", "prefer");
-        if (brk.equals("never")) cons.add(new NoBreak());
-        else if (brk.equals("prefer")) bias.add(new PreferBreak(10));
-        String place = enumOf(r, "place", "allow", "never", "allow");
-        if (place.equals("never")) cons.add(new NoPlace());
-        boolean parkour = r.getBool("parkour", true);
-        Set<Capability> forbidden = parkour ? EnumSet.noneOf(Capability.class) : EnumSet.of(Capability.PARKOUR);
+        if (r.breakPolicy() == BreakPolicy.NEVER) cons.add(new NoBreak());
+        else if (r.breakPolicy() == BreakPolicy.PREFER) bias.add(new PreferBreak(10));
+        if (r.place() == PlacePolicy.NEVER) cons.add(new NoPlace());
+        Set<Capability> forbidden = r.parkour() ? EnumSet.noneOf(Capability.class) : EnumSet.of(Capability.PARKOUR);
         Set<Capability> optIn = dive ? EnumSet.of(Capability.DIVE) : EnumSet.noneOf(Capability.class);
         CapabilityProfile capability = (forbidden.isEmpty() && optIn.isEmpty())
                 ? CapabilityProfile.ALL : new CapabilityProfile(forbidden, optIn);
 
-        // yRange
-        Map<String, Object> yr = r.getMap("yRange");
-        if (!yr.isEmpty()) {
-            Object lo = yr.get("min"), hi = yr.get("max");
-            if (!(lo instanceof Number) && !(hi instanceof Number)) throw bad("yRange", "needs min and/or max");
-            boolean hard = Boolean.TRUE.equals(yr.get("hard"));
-            if (hard) {
-                if (lo instanceof Number n) cons.add(new YFloor((int) Math.floor(n.doubleValue())));
-                if (hi instanceof Number n) cons.add(new YCeil((int) Math.floor(n.doubleValue())));
-            } else {
-                int loY = lo instanceof Number n ? (int) Math.floor(n.doubleValue()) : Integer.MIN_VALUE / 2;
-                int hiY = hi instanceof Number n ? (int) Math.floor(n.doubleValue()) : Integer.MAX_VALUE / 2;
-                bias.add(new PreferYBand(Math.min(loY, hiY), Math.max(loY, hiY), Params.toDouble(yr.get("weight"), 10.0)));
-            }
-        }
-
-        // hug — an empty object is the default hug (shore, weight 30): every key is optional, so
-        // {} is a legitimate way to ask for it, unlike the empty maps below where nothing is named.
-        Map<String, Object> hug = r.getMap("hug");
-        if (r.get("hug") != null) {
-            if (!(r.get("hug") instanceof Map)) throw bad("hug", "must be an object");
-            String what = hug.get("what") == null ? "shore" : String.valueOf(hug.get("what")).trim().toLowerCase(Locale.ROOT);
-            if (!what.equals("shore")) throw bad("hug", "unknown what '" + what + "' (shore)");
-            bias.add(new ShorelineHug(Params.toDouble(hug.get("weight"), 30.0)));
-        }
-
-        // leash
-        EntityLeash entityLeash = null;
-        Map<String, Object> leash = r.getMap("leash");
-        if (!leash.isEmpty()) {
-            double radius = Params.toDouble(leash.get("radius"), Double.NaN);
-            if (Double.isNaN(radius) || radius <= 0) throw bad("leash", "needs a radius > 0");
-            boolean hard = Boolean.TRUE.equals(leash.get("hard"));
-            double weight = Params.toDouble(leash.get("weight"), 20.0);
-            boolean xz = leash.get("axis") != null;
-            if (xz && !"xz".equalsIgnoreCase(String.valueOf(leash.get("axis")))) throw bad("leash", "axis must be \"xz\"");
-            Object ent = leash.get("entity");
-            if (ent != null) {
-                if (xz) throw bad("leash", "axis is for a fixed center, not an entity anchor");
-                String key = ent instanceof Number n ? String.valueOf(n.longValue()) : String.valueOf(ent).trim();
-                if (key.isEmpty()) throw bad("leash", "entity is empty");
-                entityLeash = new EntityLeash(key, radius, hard ? 0 : weight, hard);
-            } else {
-                double[] c = numbers(leash.get("center"), "leash.center");
-                if (xz) {
-                    if (c.length != 2 && c.length != 3) throw bad("leash", "center must be [x, z] or [x, y, z]");
-                    double cx = c[0], cz = c[c.length - 1];
-                    if (hard) cons.add(new ColumnRadius(cx + 0.5, cz + 0.5, radius));
-                    else bias.add(new ColumnAnchor(cx + 0.5, cz + 0.5, radius, weight));
-                } else {
-                    if (c.length != 3) throw bad("leash", "center must be [x, y, z]");
-                    if (hard) cons.add(new LeashHardRadius(c[0], c[1], c[2], radius));
-                    else bias.add(new LeashAnchor(c[0], c[1], c[2], radius, weight));
-                }
-            }
-        }
-
-        // regions
-        Object regionsRaw = r.get("regions");
-        if (regionsRaw != null) {
-            if (!(regionsRaw instanceof List<?> rl)) throw bad("regions", "must be a list");
-            for (Object o : rl) {
-                if (!(o instanceof Map<?, ?> m)) throw bad("regions", "each region must be an object");
-                Region region = region(m);
-                String mode = modeOf(m, "regions", "forbid");
-                if (mode.equals("forbid")) cons.add(new ForbidRegion(region));
-                else bias.add(new AvoidRegion(region, Params.toDouble(m.get("penalty"), 250.0)));
-            }
-        }
-
-        // corridor
-        Map<String, Object> corridor = r.getMap("corridor");
-        if (!corridor.isEmpty()) {
+        r.yRange().ifPresent(y -> yRange(y, bias, cons));
+        r.hug().ifPresent(h -> bias.add(new ShorelineHug(h.weight())));
+        EntityLeash entityLeash = r.leash().map(l -> leash(l, bias, cons)).orElse(null);
+        for (RegionSpec spec : r.regions()) region(spec, bias, cons);
+        r.corridor().ifPresent(c -> {
             List<Vec3> pts = new ArrayList<>();
-            if (!(corridor.get("points") instanceof List<?> pl) || pl.isEmpty()) throw bad("corridor", "needs points");
-            for (Object o : pl) {
-                double[] c = numbers(o, "corridor.points");
-                if (c.length != 3) throw bad("corridor", "each point must be [x, y, z]");
-                pts.add(new Vec3(c[0] + 0.5, c[1], c[2] + 0.5));
-            }
-            double radius = Params.toDouble(corridor.get("radius"), 3.0);
-            String mode = modeOf(corridor, "corridor", "forbid");
-            Corridor c = new Corridor(pts, radius, mode.equals("forbid"), Params.toDouble(corridor.get("penalty"), CORRIDOR_PENALTY));
-            if (c.hard()) cons.add(c); else bias.add(c);
-        }
+            for (BlockPosition p : c.points()) pts.add(new Vec3(p.x() + 0.5, p.y(), p.z() + 0.5));
+            Corridor corridor = new Corridor(pts, c.radius(), c.mode() == Enforcement.FORBID, c.penalty());
+            if (corridor.hard()) cons.add(corridor); else bias.add(corridor);
+        });
 
-        // risk, mobs, sight
-        String risk = enumOf(r, "risk", "normal", "safe", "normal", "bold");
-        Map<String, Object> mobs = r.getMap("mobs");
-        Map<String, Object> sight = r.getMap("sight");
         MobCluster mobCluster = null;
-        if (!mobs.isEmpty()) mobCluster = mobs(mobs, null);
-        else if (risk.equals("safe")) mobCluster = mobs(Map.of(), SAFE_CLUSTER);
-        else if (risk.equals("normal") && BotConfig.avoidMobs) mobCluster = mobs(Map.of(), null);
+        if (r.mobs().isPresent()) mobCluster = mobs(r.mobs().get(), null);
+        else if (r.risk() == Risk.SAFE) mobCluster = mobs(null, SAFE_CLUSTER);
+        else if (r.risk() == Risk.NORMAL && BotConfig.avoidMobs) mobCluster = mobs(null, null);
         if (mobCluster != null) {
             bias.add(mobCluster);
             if (mobCluster.cluster() != null && mobCluster.cluster().hard()) cons.add(mobCluster);
         }
         SightExposure sightExposure = null;
-        if (!sight.isEmpty()) sightExposure = sight(sight);
-        else if (risk.equals("safe")) sightExposure = sight(Map.of("of", "ranged", "mode", "avoid"));
+        if (r.sight().isPresent()) sightExposure = sight(r.sight().get());
+        else if (r.risk() == Risk.SAFE) sightExposure = rangedSight();
         if (sightExposure != null) {
             if (sightExposure.hard()) cons.add(sightExposure); else bias.add(sightExposure);
         }
 
-        // requireTool
-        String requireTool = r.get("requireTool") instanceof String s && !s.isBlank() ? s.trim() : null;
-
+        Set<String> names = new LinkedHashSet<>();
         for (Constraint c : cons) names.add(c.name());
-        return new Parsed(new SearchProfile(bias, capability, cons), via, entityLeash, requireTool,
-                fly, r.get("plan"), names);
+        return new Parsed(new SearchProfile(bias, capability, cons), via, entityLeash, r.requireTool().orElse(null),
+                fly, names);
     }
 
     // ------------------------------------------------------------------ pieces
 
-    static MobCluster mobs(Map<String, Object> m, MobCluster.Cluster presetCluster) {
-        double radius = Params.toDouble(m.get("radius"), BotConfig.mobAvoidRadius);
-        double ranged = Params.toDouble(m.get("rangedRadius"), BotConfig.rangedAvoidRadius);
-        double penalty = Params.toDouble(m.get("penalty"), BotConfig.mobAvoidPenalty);
+    private static void yRange(YRange y, List<CostModifier> bias, List<Constraint> cons) {
+        if (y.hard()) {
+            y.min().ifPresent(lo -> cons.add(new YFloor(lo)));
+            y.max().ifPresent(hi -> cons.add(new YCeil(hi)));
+            return;
+        }
+        int lo = y.min().orElse(Integer.MIN_VALUE / 2);
+        int hi = y.max().orElse(Integer.MAX_VALUE / 2);
+        bias.add(new PreferYBand(Math.min(lo, hi), Math.max(lo, hi), y.weight()));
+    }
+
+    /** The entity leash, or null when the anchor is fixed and went into the profile. */
+    private static EntityLeash leash(Leash l, List<CostModifier> bias, List<Constraint> cons) {
+        switch (l.anchor()) {
+            case EntityAnchor e -> {
+                return new EntityLeash(e.entity(), l.radius(), l.hard() ? 0 : l.weight(), l.hard());
+            }
+            case RouteContract.ColumnAnchor c -> {
+                if (l.hard()) cons.add(new ColumnRadius(c.x() + 0.5, c.z() + 0.5, l.radius()));
+                else bias.add(new ColumnAnchor(c.x() + 0.5, c.z() + 0.5, l.radius(), l.weight()));
+            }
+            case PointAnchor p -> {
+                BlockPosition c = p.pos();
+                if (l.hard()) cons.add(new LeashHardRadius(c.x(), c.y(), c.z(), l.radius()));
+                else bias.add(new LeashAnchor(c.x(), c.y(), c.z(), l.radius(), l.weight()));
+            }
+        }
+        return null;
+    }
+
+    private static void region(RegionSpec spec, List<CostModifier> bias, List<Constraint> cons) {
+        Region region;
+        Enforcement mode;
+        double penalty;
+        switch (spec) {
+            case BoxRegion b -> {
+                region = new Region.Box(b.min().x(), b.min().y(), b.min().z(), b.max().x(), b.max().y(), b.max().z());
+                mode = b.mode();
+                penalty = b.penalty();
+            }
+            case SphereRegion s -> {
+                region = new Region.Sphere(s.center().x() + 0.5, s.center().y(), s.center().z() + 0.5, s.radius());
+                mode = s.mode();
+                penalty = s.penalty();
+            }
+        }
+        if (mode == Enforcement.FORBID) cons.add(new ForbidRegion(region));
+        else bias.add(new AvoidRegion(region, penalty));
+    }
+
+    /** The berth {@code m} describes; null {@code m} is the settings' own berth with {@code presetCluster}. */
+    static MobCluster mobs(RouteContract.Mobs m, MobCluster.Cluster presetCluster) {
+        double radius = m == null ? BotConfig.mobAvoidRadius : m.radius().orElse(BotConfig.mobAvoidRadius);
+        double ranged = m == null ? BotConfig.rangedAvoidRadius : m.rangedRadius().orElse((double) BotConfig.rangedAvoidRadius);
+        double penalty = m == null ? BotConfig.mobAvoidPenalty : m.penalty().orElse(BotConfig.mobAvoidPenalty);
         MobCluster.Cluster cluster = presetCluster;
-        if (m.get("cluster") instanceof Map<?, ?> cm) {
-            int count = cm.get("count") instanceof Number n ? n.intValue() : 3;
-            if (count < 1) throw bad("mobs.cluster", "count must be >= 1");
-            double cr = Params.toDouble(cm.get("radius"), 6.0);
-            String mode = modeOf(cm, "mobs.cluster", "forbid");
-            cluster = new MobCluster.Cluster(count, cr, mode.equals("forbid"), Params.toDouble(cm.get("penalty"), 300.0));
+        if (m != null && m.cluster().isPresent()) {
+            RouteContract.Cluster c = m.cluster().get();
+            cluster = new MobCluster.Cluster(c.count(), c.radius(), c.mode() == Enforcement.FORBID, c.penalty());
         }
         Set<String> types = new LinkedHashSet<>();
-        for (String t : Params.toStringList(m.get("types"))) types.add(ThreatSnapshot.Threat.qualify(t));
+        if (m != null) for (String t : m.types()) types.add(ThreatSnapshot.Threat.qualify(t));
         return new MobCluster(radius, ranged, penalty, cluster, types);
     }
 
-    static SightExposure sight(Map<String, Object> m) {
-        SightExposure.Of of;
-        List<String> listed = List.of();
-        Object ofRaw = m.get("of");
-        if (ofRaw == null || "ranged".equals(ofRaw)) of = SightExposure.Of.RANGED;
-        else if ("hostile".equals(ofRaw)) of = SightExposure.Of.HOSTILE;
-        else if ("players".equals(ofRaw)) of = SightExposure.Of.PLAYERS;
-        else if (ofRaw instanceof List<?> l) {
-            of = SightExposure.Of.LISTED;
-            List<String> ids = new ArrayList<>();
-            for (Object o : l) ids.add(o instanceof Number n ? String.valueOf(n.longValue()) : String.valueOf(o));
-            listed = ids;
-        } else if (ofRaw instanceof String s) {
-            of = SightExposure.Of.LISTED;
-            listed = List.of(s);
-        } else throw bad("sight", "of must be ranged|hostile|players or a list of ids/names/types");
-        double range = Params.toDouble(m.get("range"), 0);
-        String mode = modeOf(m, "sight", "avoid");
-        return new SightExposure(of, listed, range, mode.equals("forbid"),
-                Params.toDouble(m.get("penalty"), SIGHT_PENALTY), Params.toDouble(m.get("eye"), SIGHT_EYE),
+    /** {@code risk: safe}'s sight condition: avoid the lines of sight of ranged mobs. */
+    static SightExposure rangedSight() {
+        return new SightExposure(SightExposure.Of.RANGED, List.of(), 0, false, SIGHT_PENALTY, SIGHT_EYE,
                 BotConfig.sightRaysPerSearch);
     }
 
-    static Region region(Map<?, ?> m) {
-        String shape = m.get("shape") == null ? null : String.valueOf(m.get("shape")).trim().toLowerCase(Locale.ROOT);
-        if (shape == null) shape = m.containsKey("center") ? "sphere" : "box";
-        switch (shape) {
-            case "box" -> {
-                double[] lo = numbers(m.get("min"), "regions.min"), hi = numbers(m.get("max"), "regions.max");
-                if (lo.length != 3 || hi.length != 3) throw bad("regions", "box needs min and max as [x, y, z]");
-                return new Region.Box(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
-            }
-            case "sphere" -> {
-                double[] c = numbers(m.get("center"), "regions.center");
-                if (c.length != 3) throw bad("regions", "sphere needs center as [x, y, z]");
-                double radius = Params.toDouble(m.get("radius"), 8.0);
-                if (radius <= 0) throw bad("regions", "sphere radius must be > 0");
-                return new Region.Sphere(c[0] + 0.5, c[1], c[2] + 0.5, radius);
-            }
-            default -> throw bad("regions", "unknown shape '" + shape + "' (box|sphere)");
+    static SightExposure sight(RouteContract.Sight s) {
+        SightExposure.Of of;
+        List<String> listed = List.of();
+        if (s.observers().isPresent()) {
+            of = SightExposure.Of.LISTED;
+            listed = s.observers().get();
+        } else {
+            of = switch (s.of().orElse(RouteContract.SightOf.RANGED)) {
+                case RANGED -> SightExposure.Of.RANGED;
+                case HOSTILE -> SightExposure.Of.HOSTILE;
+                case PLAYERS -> SightExposure.Of.PLAYERS;
+            };
         }
+        return new SightExposure(of, listed, s.range(), s.mode() == Enforcement.FORBID, s.penalty(), s.eye(),
+                BotConfig.sightRaysPerSearch);
     }
 
-    // ------------------------------------------------------------------ helpers
-
-    private static String enumOf(Params p, String key, String dflt, String... allowed) {
-        Object v = p.get(key);
-        if (v == null) return dflt;
-        String s = String.valueOf(v).trim().toLowerCase(Locale.ROOT);
-        for (String a : allowed) if (a.equals(s)) return s;
-        throw bad(key, "unknown value '" + s + "' (" + String.join("|", allowed) + ")");
-    }
-
-    private static String modeOf(Map<?, ?> m, String field, String dflt) {
-        Object v = m.get("mode");
-        if (v == null) return dflt;
-        String s = String.valueOf(v).trim().toLowerCase(Locale.ROOT);
-        if (s.equals("forbid") || s.equals("avoid")) return s;
-        throw bad(field, "mode must be forbid|avoid, got '" + s + "'");
-    }
-
-    /** A point as {@code [x, y, z]}, {@code {x, y, z}} or {@code "x,y,z"}. */
-    static BlockPos blockPos(Object o, String field) {
-        if (o instanceof List<?> l) {
-            double[] c = numbers(o, field);
-            if (c.length != 3) throw bad(field, "a point must be [x, y, z]");
-            return new BlockPos((int) Math.floor(c[0]), (int) Math.floor(c[1]), (int) Math.floor(c[2]));
-        }
-        BlockPos p = Params.toPos(o);
-        if (p == null) throw bad(field, "a point must be [x, y, z], {x, y, z} or \"x,y,z\"");
-        return p;
-    }
-
-    private static double[] numbers(Object o, String field) {
-        if (o instanceof Map<?, ?> m && m.get("x") instanceof Number x && m.get("z") instanceof Number z) {
-            return m.get("y") instanceof Number y
-                    ? new double[] { x.doubleValue(), y.doubleValue(), z.doubleValue() }
-                    : new double[] { x.doubleValue(), z.doubleValue() };
-        }
-        if (!(o instanceof List<?> l)) throw bad(field, "must be a list of numbers");
-        double[] out = new double[l.size()];
-        for (int i = 0; i < out.length; i++) {
-            if (!(l.get(i) instanceof Number n)) throw bad(field, "must be a list of numbers");
-            out[i] = n.doubleValue();
-        }
-        return out;
-    }
-
-    private static IllegalArgumentException bad(String field, String why) {
-        return new IllegalArgumentException("route." + field + ": " + why);
+    static BlockPos cell(BlockPosition p) {
+        return new BlockPos(p.x(), p.y(), p.z());
     }
 }

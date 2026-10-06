@@ -100,12 +100,8 @@ if (!clientAvailable()) {
         // WALKING through the test rather than completing immediately.
         var me = Driver.invoke("mc.observe.player", {});
         if (me && me.present && me.pos) {
-            // A block goal needs the nested `pos` form — a flat {x,y,z} with y
-            // equal to the current level resolves to a YLevel goal that's already
-            // satisfied and completes instantly. pos targets the actual block.
-            Driver.invoke("mc.bot.goto", {
-                pos: { x: Math.round(me.pos.x) + 24, y: Math.round(me.pos.y), z: Math.round(me.pos.z) }
-            });
+            Driver.invoke("mc.bot.goto", { target: { kind: "position",
+                pos: { x: Math.round(me.pos.x) + 24, y: Math.round(me.pos.y), z: Math.round(me.pos.z) } } });
             Driver.system.waitTicks(2);
         }
         var running = Driver.invoke("mc.bot.status", {});

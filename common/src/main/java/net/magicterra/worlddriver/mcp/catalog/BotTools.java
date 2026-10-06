@@ -70,94 +70,6 @@ public final class BotTools {
         };
     }
 
-    /**
-     * The {@code route} object shared by goto and follow: every route CONDITION lives here, the
-     * top level of each tool keeps only goal selection. One object with a few enums is cheaper in
-     * every prompt than the fifteen booleans it replaced, and it reads the way the caller thinks:
-     * how do I want to travel, may I change the terrain, how afraid am I. Parsed by
-     * {@code RouteParams.parse}; the old top-level names ({@code forbidDig}, {@code hugShore}, …)
-     * are gone without a compatibility layer, so an old caller gets {@code unexpected key} from
-     * the schema check and the description here says where each moved.
-     *
-     * @param withVia goto takes waypoints; follow, already tracking an entity, does not
-     */
-    private static Schema.Obj routeSchema(boolean withVia) {
-        Schema.Obj r = object();
-        if (withVia) r.prop("via", array(array(number()))
-                .desc("Waypoints [x,y,z] reached in order before the goal (within 1 block each)."));
-        return r
-            .prop("mode", array(stringEnum("walk", "swim", "dive", "fly"))
-                .desc("How to travel; several allowed. Default walk+swim. No swim and no dive → water is "
-                    + "never entered. dive → planned surface dives to an underwater goal (implies swim; "
-                    + "off otherwise — unplanned dives fight buoyancy). fly → alone, no via: the whole "
-                    + "intent goes to mc.bot.elytraFly (reply carries slot:'elytra')."))
-            .prop("break", stringEnum("never", "allow", "prefer")
-                .desc("Block breaking: never (no digging edge is planned), allow (default; the global "
-                    + "allowBreak setting stays the master switch), prefer (non-digging edges cost +10, "
-                    + "so tunnelling through wins ties)."))
-            .prop("place", stringEnum("never", "allow")
-                .desc("Block placing (bridge/pillar): never or allow (default; global allowPlace stays the master switch)."))
-            .prop("parkour", bool().desc("false → no gap-jumping moves. Default true."))
-            .prop("risk", stringEnum("safe", "normal", "bold")
-                .desc("Preset. safe: berth around hostile mobs, a cell with 3+ mobs within 6 blocks is "
-                    + "impassable, and cells in a ranged mob's line of sight cost extra. normal (default): "
-                    + "terrain danger only, plus the mob berth when the avoidMobs setting is on. bold: "
-                    + "terrain danger only, whatever avoidMobs says. Explicit mobs/sight below override the preset."))
-            .prop("yRange", object().prop("min", number()).prop("max", number())
-                    .prop("hard", bool()).prop("weight", number())
-                .desc("Stay within [min,max] Y (either side optional). hard:true prunes outside cells; "
-                    + "else weight/block outside (default 10). E.g. keep out of caves, stay on the 2nd floor."))
-            .prop("hug", object().prop("what", stringEnum("shore")).prop("weight", number())
-                .desc("Follow the shoreline: cells with no adjacent water cost weight (default 30, keep it ≫ 10 the "
-                    + "per-cell walk cost). Pair with mode:['walk'] to stay dry."))
-            .prop("leash", object()
-                    .prop("center", array(number()))
-                    .prop("entity", union("string", "integer"))
-                    .prop("radius", number()).prop("hard", bool()).prop("weight", number())
-                    .prop("axis", stringEnum("xz"))
-                .desc("Stay near an anchor: center [x,y,z] or entity (player name / type id / entity id, "
-                    + "followed as it moves — to lead the way: goto the destination + leash:{entity:'PlayerB'}). "
-                    + "hard:true = may not leave the radius at all (routes straight back in when outside); "
-                    + "else weight/block beyond it (default 20). axis:'xz' measures horizontally only "
-                    + "(center may be [x,z]): with a vertical goal (y:N / direction up|down) and radius 1-2 "
-                    + "this pins a straight shaft up/down the start column — the reliable-ascent and "
-                    + "dig-to-Y recipe (bare y:N searches drown in sideways branches)."))
-            .prop("regions", array(object()
-                    .prop("shape", stringEnum("box", "sphere"))
-                    .prop("min", array(number())).prop("max", array(number()))
-                    .prop("center", array(number())).prop("radius", number())
-                    .prop("mode", stringEnum("forbid", "avoid")).prop("penalty", number()))
-                .desc("Areas to keep out of: box {min,max} or sphere {center,radius}. mode forbid "
-                    + "(default) prunes; avoid costs penalty (default 250, ramping to 0 at a sphere's edge)."))
-            .prop("mobs", object()
-                    .prop("radius", number()).prop("rangedRadius", number()).prop("penalty", number())
-                    .prop("cluster", object().prop("count", integer()).prop("radius", number())
-                        .prop("mode", stringEnum("forbid", "avoid")).prop("penalty", number()))
-                    .prop("types", array(string()))
-                .desc("Berth around hostile mobs seen when the search starts (client and server-side bots "
-                    + "alike): cost ramps from penalty at the mob to 0 at radius / rangedRadius (defaults: the mobAvoid* "
-                    + "settings). cluster: a cell with count+ mobs within its radius is pruned (forbid) or "
-                    + "charged penalty (avoid). types: only these ids (default all hostiles)."))
-            .prop("sight", object()
-                    .prop("of", union("string", "array")).prop("range", number())
-                    .prop("mode", stringEnum("forbid", "avoid")).prop("penalty", number()).prop("eye", number())
-                .desc("Stay out of lines of sight. of: 'ranged' (default) | 'hostile' | 'players' | [ids, "
-                    + "names or types]. range: observer reach (default per kind: skeleton 16, pillager 8, "
-                    + "ghast 64, player 32). avoid (default) costs penalty (120) per seeing observer; "
-                    + "forbid prunes seen cells. eye: the height tested (1.62; 1.27 evaluates as if "
-                    + "sneaking, the walk itself does not sneak). Geometry only, no light/aggro rules; "
-                    + "a search may fire at most sightRaysPerSearch rays, past that it reruns without sight."))
-            .prop("corridor", object()
-                    .prop("points", array(array(number()))).prop("radius", number())
-                    .prop("mode", stringEnum("forbid", "avoid")).prop("penalty", number())
-                .desc("Keep within radius (default 3) of your own polyline [[x,y,z],...]: forbid (default) "
-                    + "prunes farther cells, avoid costs penalty/block (20) beyond. You draw the line, A* "
-                    + "does the per-cell work."))
-            .prop("requireTool", string()
-                .desc("Fail at once unless this item id is in the inventory (e.g. 'minecraft:iron_pickaxe'); "
-                    + "equipping while digging is automatic, mid-run loss is not monitored."));
-    }
-
     /** The verbs that start a process or use the hands, which also take {@code body}; api/BodyRoutes
      *  answers them. goto, status and cancel declare theirs with their own words. */
     private static final java.util.Set<String> VERBS_A_BODY_TAKES = java.util.Set.of(
@@ -180,103 +92,6 @@ public final class BotTools {
 
     public static List<ToolSchema> tools() {
         List<ToolSchema> all = List.of(
-            wrTool("mc.bot.goto",
-                "Pathfind and walk the local player to a goal. Async (see category note); pass " +
-                "`awaitMs` to block until completion. Implicitly cancels any prior mc.bot.goto. " +
-                "Goal forms (provide one — Baritone-style selectors):\n" +
-                "  - pos:{x,y,z}              → walk to that exact block; pair with near:N\n" +
-                "  - xz:{x,z}                 → reach this XZ column at any Y\n" +
-                "  - y:N                      → reach this Y level. DIG-TO-Y RECIPE: for 'dig down to " +
-                "Y=-54' / 'dig up to the surface' in open terrain, COMBINE y:N with " +
-                "route.leash:{center:[x,z],radius:2,hard:true,axis:'xz'} around your current column — or " +
-                "the search drowns in sideways branches and times out (measured: 16205 nodes timeout bare " +
-                "vs 68 nodes reached with the leash). Add route.requireTool:'minecraft:iron_pickaxe' to insist on the tool\n" +
-                "  LONG AIRBORNE TRAVEL (returning by elytra): don't goto across thousands of blocks — use " +
-                "route.mode:['fly'] (or mc.bot.elytraFly directly: reactive glide control, firework boost, groundFallback when no elytra)\n" +
-                "  UNDERWATER BASE (swimming into an underwater base): goto pos:{base} + route:{mode:['dive'], break:'never'} — dive is " +
-                "opt-in; without it the planner treats water as an obstacle and routes ashore\n" +
-                "  - block:'minecraft:foo'    → nearest matching block within radius (default 32); " +
-                "Baritone 'goto <block>'. Accepts a '#tag' selector too — block:'#minecraft:logs' " +
-                "walks to the nearest tree of any species\n" +
-                "  - entity:'minecraft:cow'   → nearest entity of this type\n" +
-                "  - entityId:N               → specific entity by id (mc.query q='entities' supplies it)\n" +
-                "  - direction:'forward'+distance:N → Baritone 'thisway N'/'tunnel N'; " +
-                "directions: north/south/east/west/up/down/forward/backward/left/right\n" +
-                "  - waypoint:'name'          → previously saved via mc.bot.waypoint\n" +
-                "  - axis:true                → reach nearest world axis/diagonal at Y=axisHeight (Baritone GoalAxis)\n" +
-                "Goal modifiers:\n" +
-                "  - goalMode:'in'|'two'|'adjacent' → for pos/entity/waypoint targets: stand on the block " +
-                "(GoalBlock, default), inside it at foot/eye level (GoalTwoBlocks), or beside/above/below it " +
-                "(GoalGetToBlock — use for chests/furnaces). Ignored when near>0.\n" +
-                "  - direction + strict:true  → keep heading that cardinal with no fixed endpoint " +
-                "(Baritone GoalStrictDirection); ignores distance.\n" +
-                "  - invert:true              → flee the resolved goal instead of reaching it (Baritone GoalInverted).\n" +
-                "ROUTE CONDITIONS all live in the `route` object: via (waypoints), mode, break, place, " +
-                "parkour, risk, then the detail fields yRange / hug / leash / regions / mobs / sight / " +
-                "corridor / requireTool — see the route property. The former top-level fields moved there: " +
-                "forbidDig→break:'never'; forbidWater→mode without swim/dive; dive→mode:['dive']; " +
-                "forbidParkour, capability:'walk'→parkour:false; avoid→regions[{shape:'sphere',center,radius,mode:'avoid',penalty}]; " +
-                "preferY→yRange{min,max,weight}; yFloor/yCeil→yRange{min,max,hard:true}; hugShore→hug{what:'shore',weight}; " +
-                "leash/leashHard→leash{center|entity,radius,hard}; column→leash{center:[x,z],radius,hard:true,axis:'xz'}; requireTool→route.requireTool.\n" +
-                "Optional near:N relaxes target to a Euclidean radius. block selector also takes " +
-                "radius:N (search box, 1-64). " +
-                "Returns {ok, started, goal, via?} or {ok:false, error}.\n" +
-                "LOOK BEFORE WALKING: plan:true previews the route without walking or interrupting a walk " +
-                "in progress — returns {started, slot:'plan', planId} at once; the result lands in " +
-                "mc.bot.status.plan (use awaitMs): {reached, cells, cost, segments:[{from,to,risk:{exposedTo:[{id,type,cells}]," +
-                "nearestMob,regions}}], detourRatio, bestEffort, sightBudgetExhausted, snapshotTruncated, path?}. " +
-                "Segments are where the risk changes, so read 'the first 31 cells are safe, the next 21 are in " +
-                "skeleton 1203's sight'. Each preview spends a whole search budget beside the walk: tighten the " +
-                "conditions and converge in two or three rounds. Then goto {planId} walks exactly that route " +
-                "(reply adopted:true; adopted:false + adoptReason falls back to a normal search: expired after 60 s, " +
-                "bestEffort, or the bot moved away). plan:'score' prices the polyline in route.corridor.points " +
-                "as if walked (no search, no planId).",
-                object()
-                    .prop("pos", pos())
-                    .prop("near", integer(0, 64)
-                        .desc("Acceptable Euclidean radius around the target. 0 = exact."))
-                    .prop("xz", xz())
-                    .prop("y", integer().desc("Target Y level."))
-                    .prop("block", string()
-                        .desc("Find nearest matching block id (or '#tag' selector, e.g. "
-                            + "'#minecraft:logs'), then walk to a standable adjacent."))
-                    .prop("entity", string()
-                        .desc("Find nearest entity of this registry id (e.g. minecraft:cow)."))
-                    .prop("entityId", integer().min(0)
-                        .desc("Entity.getId() from mc.query q='entities'."))
-                    .prop("direction", stringEnum("north", "south", "east", "west", "up", "down",
-                            "forward", "backward", "left", "right")
-                        .desc("Move this many blocks in the given direction. Forward/back/left/right honor current yaw."))
-                    .prop("distance", integer(1, 256)
-                        .desc("Step length for the direction selector. Default 8."))
-                    .prop("waypoint", string()
-                        .desc("Name of a waypoint previously saved via mc.bot.waypoint."))
-                    .prop("radius", integer(1, 64)
-                        .desc("block selector: how far to scan. Default 32."))
-                    .prop("axis", bool()
-                        .desc("Reach the nearest world axis (x=0, z=0, or x=±z diagonal) at Y=pathfinder.axisHeight."))
-                    .prop("goalMode", stringEnum("in", "two", "adjacent")
-                        .desc("How a positional target is satisfied: in=stand on it (default), two=stand inside at foot/eye, adjacent=stand beside/above/below (chests)."))
-                    .prop("strict", bool()
-                        .desc("With direction: keep heading that cardinal indefinitely (no fixed endpoint)."))
-                    .prop("invert", bool()
-                        .desc("Flee the resolved goal instead of reaching it."))
-                    .prop("route", routeSchema(true)
-                        .desc("Route conditions: via, mode, break, place, parkour, risk, and the detail "
-                            + "fields. Omit for plain walking."))
-                    .prop("plan", union("boolean", "string")
-                        .desc("true: preview only (async, slot 'plan'); 'score': price route.corridor.points as the route."))
-                    .prop("planId", string()
-                        .desc("Walk a previewed route by its id; the goal and route come from the preview."))
-                    .prop("includePath", bool()
-                        .desc("With plan:true, also return the route's cells as [x,y,z]."))
-                    .prop("awaitMs", awaitMs())
-                    .prop("body", bodyId()
-                        .desc("Which bot walks: 'self' (default) or an id from the bodies list of "
-                            + "mc.bot.status. Any other bot refuses waypoint, plan and planId, and "
-                            + "route.requireTool unless it is a player."))
-                ),
-
             wrTool("mc.bot.waypoint",
                 "Manage named in-memory waypoints (no disk). op:\n" +
                 "  save   — store {name, pos}; pos defaults to player block position\n" +
@@ -315,8 +130,8 @@ public final class BotTools {
                     .prop("giveUpTicks", integer(0, 100000)
                         .desc("Ticks without reaching the standoff or gaining a block before ending `unreachable`. "
                             + "Default 600; 0 = never."))
-                    .prop("route", routeSchema(false)
-                        .desc("Route conditions as in mc.bot.goto, minus via."))
+                    .prop("route", any()
+                        .desc("Route conditions: the Route object of mc.bot.goto, without via, an entity leash anchor or fly."))
                     .prop("awaitMs", awaitMs())
                 ),
 

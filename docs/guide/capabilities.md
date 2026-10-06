@@ -187,7 +187,7 @@ hands, so verbs that need them answer `no_hands`.
 
 | Method | What it does | Notable parameters |
 |---|---|---|
-| `mc.bot.goto` | **Asynchronous.** Pathfinds and walks to a goal. Implicitly cancels any previous `goto`. | See the selectors and route conditions below |
+| `mc.bot.goto` | **An action.** Pathfinds and walks to a target, replacing whatever the body was doing; the old action ends `superseded`. | `target`, `route`, `invert`, `plan`, `planId`; see below |
 | `mc.bot.follow` | **Asynchronous.** Follows an entity, re-aiming whenever it moves to another block. Ends with `unreachable` after five failed replans in a row, or after `giveUpTicks` (default 600, 30 s) without reaching the standoff or getting a block closer. | `entityType` or `name`, `radius` (1–16, default 3), `maxIdleTicks`, `giveUpTicks` (0 = never), `route` |
 | `mc.bot.explore` | **Asynchronous.** Wanders to unvisited chunk centres in a spiral, to reveal terrain. | `centerX`, `centerZ`, `maxChunks` (1–64, default 16) |
 | `mc.bot.runAway` | **Asynchronous.** Walks to any reachable point at least `minDist` blocks from a position. | `from`, `minDist` (4–64, default 16) |
@@ -196,59 +196,64 @@ hands, so verbs that need them answer `no_hands`.
 | `mc.bot.lookAt` | Aims the view, at a block centre or at explicit angles. Instant, unless the `smoothLook` setting is on, in which case it starts a panning process. The new rotation reaches the server entity one tick later. | `pos`, or `yaw` and `pitch` |
 | `mc.bot.waypoint` | Manages named in-memory positions, which `goto` can then target by name. Not persisted to disk. | `op` (`save`, `get`, `list`, `delete`, `clear`), `name`, `pos` |
 
-#### Goal selectors for `goto`
+#### Targets for `goto`
 
-Give exactly one. They are deliberately close to Baritone's vocabulary.
+`target` names its `kind`. The kinds are deliberately close to Baritone's vocabulary.
 
-| Selector | Reaches |
+| `kind` | Reaches |
 |---|---|
-| `pos: {x, y, z}` | That exact block. Pair with `near` to relax it. |
-| `xz: {x, z}` | That column, at any height. |
-| `y: N` | That height. |
-| `block: 'minecraft:oak_log'` | The nearest matching block within `radius`, default 32. A `#tag` selector works too, so `block: '#minecraft:logs'` walks to the nearest tree of any species. |
-| `entity: 'minecraft:cow'` | The nearest entity of that type. |
-| `entityId: N` | One specific entity, by the id `mc.query` returns. |
-| `direction: 'forward'` with `distance: N` | N blocks that way. The cardinals plus `up`, `down`, `forward`, `backward`, `left`, `right`; the relative ones honour the current yaw. |
-| `waypoint: 'name'` | A position saved earlier with `mc.bot.waypoint`. |
-| `axis: true` | The nearest world axis or diagonal, at the configured axis height. |
+| `position`, with `pos: {x, y, z}` | That exact block. `near` relaxes it to a radius. |
+| `column`, with `x`, `z` | That column, at any height. |
+| `level`, with `y` | That height. |
+| `block`, with `block: 'minecraft:oak_log'` | The nearest matching block within `radius`, default 32. A tag works too, so `block: '#minecraft:logs'` walks to the nearest tree of any species. |
+| `entityType`, with `type: 'minecraft:cow'` | The nearest entity of that type. |
+| `entity`, with `entityId` | One specific entity, by the id `mc.query` returns. |
+| `direction`, with `direction` and `distance` | That many blocks that way. The cardinals plus `up`, `down`, `forward`, `backward`, `left`, `right`; the relative ones honour the current yaw. |
+| `heading`, with a horizontal `direction` | Keep going that way, with no endpoint. |
+| `waypoint`, with `name` | A position saved earlier with `mc.bot.waypoint`. Your own player only. |
+| `axis` | The nearest world axis or diagonal, at the configured axis height. |
 
-Three modifiers change how a goal is satisfied. `near: N` relaxes the target to a Euclidean
-radius. `goalMode` chooses between standing on the block (`in`, the default), standing
-inside it at foot and eye level (`two`), and standing beside, above or below it
-(`adjacent`, which is what you want for a chest or a furnace); it is ignored when `near` is
-set. `invert: true` flees the resolved goal instead of reaching it, and `strict: true` with
-a direction keeps that heading with no fixed endpoint.
+`goalMode`, on the positional kinds, chooses between standing on the block (`in`, the
+default), standing inside it at foot and eye level (`two`), and standing beside, above or
+below it (`adjacent`, which is what you want for a chest or a furnace); it is ignored when
+`near` is set. `invert: true` flees the resolved target instead of reaching it.
 
-`plan: true` previews a route without walking and without interrupting a walk already in
-progress. It returns at once with a `planId`, and the result lands in the `plan` slot of
-`mc.bot.status`: whether the goal was reached, the cell and cost counts, and the route split
-into segments at each point where the risk changes, so you can read "the first thirty-one
-cells are safe, the next twenty-one are in a skeleton's line of sight". Passing that
-`planId` back to `goto` walks exactly that route; the reply says `adopted: true`, or
-`adopted: false` with a reason when it had to fall back to a fresh search, which happens if
-the preview is more than sixty seconds old, was a best-effort result, or the bot has moved
-away.
+A malformed target is `invalid_params` at its path (`/target/direction`). A well-formed one
+the world cannot satisfy — no such block in range, no such entity, no such waypoint — is
+`refused` with `invalid_world_target`, and nothing starts.
+
+`plan: 'preview'` searches a route without walking it and without interrupting a walk
+already in progress. It is an action of its own; its result is whether the goal was reached,
+the cell and cost counts, a `planId`, and the route split into segments at each point where
+the risk changes, so you can read "the first thirty-one cells are safe, the next twenty-one
+are in a skeleton's line of sight". `goto` with that `planId` and nothing else walks exactly
+that route; the walk's result says `plan.adopted: true`, or `false` with a reason when it had
+to fall back to a fresh search, which happens if the preview is more than sixty seconds old,
+was a best-effort result, or the bot has moved away. `plan: 'score'` prices the polyline in
+`route.corridor.points` as if walked, with no search, and answers at once with
+`outcome: 'scored'`. Previews, plans and waypoints are your own player's; another bot refuses
+them as `unsupported_capability`.
 
 #### Route conditions
 
 Every condition about *how* to travel lives in one `route` object, which `goto` and
-`follow` share. The top level of each verb keeps only goal selection.
+`follow` share. Points are `{x, y, z}` objects throughout.
 
 | Key | Controls |
 |---|---|
-| `via` | Waypoints reached in order before the goal. `goto` only. |
-| `mode` | How to travel: `walk`, `swim`, `dive`, `fly`. Default is walk and swim. Neither `swim` nor `dive` means water is never entered. `dive` is opt-in, because an unplanned dive fights buoyancy; without it the planner treats water as an obstacle and routes ashore. `fly` hands the whole intent to `elytraFly`. |
+| `via` | Cells reached in order before the goal. `goto` only. |
+| `mode` | A list of how to travel: `walk`, `swim`, `dive`, `fly`. Default is walk and swim. Neither `swim` nor `dive` means water is never entered. `dive` is opt-in, because an unplanned dive fights buoyancy; without it the planner treats water as an obstacle and routes ashore. `fly` stands alone, takes no `via`, and hands the trip to the elytra, walking when none is worn. |
 | `break` | `never`, `allow` (default), or `prefer`, which makes tunnelling win ties by charging non-digging edges more. |
 | `place` | `never` or `allow` (default). |
 | `parkour` | `false` removes gap-jumping moves. |
 | `risk` | A preset: `safe` keeps a berth around hostiles, prunes cells with three or more mobs nearby and charges extra for standing in a ranged mob's line of sight; `normal` is terrain danger only plus the mob berth when that setting is on; `bold` is terrain danger only. |
 | `yRange` | Stay within a height band, softly by weight or hard by pruning. |
-| `leash` | Stay near an anchor — a point, or an entity followed as it moves. With `axis: 'xz'` and a radius of one or two this pins a straight vertical shaft, which is the reliable way to dig to a depth; a bare `y: N` goal drowns in sideways branches. |
-| `regions` | Boxes or spheres to keep out of, either forbidden outright or charged a penalty. |
+| `leash` | Stay near an `anchor`: `{kind: 'point', pos}`, `{kind: 'column', x, z}` measured horizontally, or `{kind: 'entity', entity}` followed as it moves. A column anchor with a radius of one or two pins a straight vertical shaft, which is the reliable way to dig to a depth; a bare `level` target drowns in sideways branches. |
+| `regions` | Boxes (`shape: 'box'`, `min`, `max`) or spheres (`shape: 'sphere'`, `center`, `radius`) to keep out of, either forbidden outright or charged a penalty. |
 | `mobs` | The berth around hostiles: radius, penalty, and a cluster rule. |
-| `sight` | Stay out of lines of sight, by observer kind or by explicit ids. Geometry only — no light or aggro rules. |
+| `sight` | Stay out of lines of sight, by observer kind (`of`) or by explicit ids, names or types (`observers`). Geometry only — no light or aggro rules. |
 | `corridor` | Keep within a radius of a polyline you supply. |
-| `requireTool` | Fail immediately unless that item is in the inventory. |
+| `requireTool` | Refuse at once unless that item is in the inventory. |
 
 `break` and `place` are per-call route conditions. The global switches described next are
 the master over both: a route asking for `break: 'allow'` still cannot dig if `allowBreak`
@@ -260,7 +265,7 @@ is off.
 |---|---|---|
 | `mc.bot.mine` | **Asynchronous.** Mines matching blocks until the quantity is reached or none is reachable, swapping to the best tool, then walks back over the break sites to collect the drops. `broken` counts destroyed blocks, not inventory gained. | `blocks` (ids or `#tag` selectors), `quantity` (1–256), `radius` (1–64, default 16) |
 | `mc.bot.build` | **Asynchronous.** Places blocks from a schematic, bottom-up. Takes either a procedural object or base64 Sponge `.schem` bytes. Cap 4096 blocks. | `origin`, `schematic` or `schematicBase64` |
-| `mc.bot.clearArea` | **Asynchronous.** Three modes in one verb: clear every non-air cell in a box; clear and then fill with an id; or replace one block type with another. Bottom-up, so fresh blocks support higher layers. Volume capped at 4096. | `from`, `to`, `fill`, `replace` |
+| `mc.bot.clearArea` | **An action.** Works the cells of a box, or of a tunnel measured from the body: clears them, clears and fills them with a block, or replaces one block with another. Bottom-up, so fresh blocks support higher layers. Capped at 4096 cells. | `target` (`box` or `tunnel`), `edit` (`clear`, `fill`, `replace`) |
 | `mc.bot.construct` | **Asynchronous.** Constructive movement: `tower` pillars straight up to a height or an absolute level, `bridge` sneak-walks forward placing blocks underfoot. | `mode`, `height` or `targetY`, `direction`, `distance`, `block` |
 | `mc.bot.farm` | **Asynchronous.** Walks a field, harvests mature wheat, carrots, potatoes and beetroots, and replants the seed. Capped at 4096 cells of volume, Y included, because the whole box is rescanned after every harvest; a larger box, or a Y outside the world, is an invalid-argument error. | `from`, `to`, `crops`, `replant` |
 | `mc.bot.craft` | **Asynchronous.** Crafts an item, resolving the whole sub-recipe tree from the inventory and using the inventory grid for 2×2 recipes or a crafting table for 3×3. Fails up front if a leaf material is missing. Smelting is not followed — use `smelt`. | `item`, `count` |
@@ -304,8 +309,14 @@ between 1 ms and ten minutes rather than rejected, and if the verb refused to st
 the reply comes back immediately without polling.
 
 ```jsonc
-{"name":"mc.bot.goto","arguments":{"pos":{"x":120,"y":64,"z":-40},"awaitMs":30000}}
+{"name":"mc.bot.mine","arguments":{"blocks":["minecraft:iron_ore"],"quantity":3,"awaitMs":30000}}
 ```
+
+`goto` and `clearArea` are already actions: they answer `{outcome: 'accepted', action}`
+with an `actionId` at once, or `{outcome: 'refused', reason}` with nothing started, and
+`awaitMs` waits on the action itself. Read one later with
+`mc.wait.result {kind: 'action', actionId}`; its `state` is `running`, `succeeded` (with the
+`result`), `failed`, `cancelled` or `superseded`.
 
 **Poll yourself.** Call `mc.bot.status` and read the slot. Each slot carries `active`,
 `pathLen`, `pathStep` and `lastError`. A slot's `lastError` is not a failure flag on its own:

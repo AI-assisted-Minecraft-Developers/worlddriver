@@ -28,6 +28,22 @@ if (read.kind === 'action' && read.action.state === 'succeeded' && read.action.r
     void read.action.result.to;
 }
 
+const walk = Driver.bot.goto({
+    target: { kind: 'block', block: '#minecraft:logs', radius: 24 },
+    route: { mode: ['walk'], break: 'never', leash: { anchor: { kind: 'column', x: 0, z: 0 }, radius: 2, hard: true } },
+});
+if (walk.outcome === 'scored') {
+    void walk.segments[0].risk.exposedTo;
+} else if (walk.outcome === 'accepted' && walk.action.state === 'succeeded' && walk.action.result.kind === 'routePreview') {
+    const planId: string = walk.action.result.planId;
+    driver('mc.bot.goto', { planId });
+}
+Driver.bot.goto({ plan: 'score', route: { corridor: { points: [{ x: 0, y: 64, z: 0 }] } } });
+
+// @ts-expect-error a leash anchor names its kind
+Driver.bot.goto({ target: { kind: 'axis' }, route: { leash: { anchor: { entity: 'PlayerB' }, radius: 4 } } });
+// @ts-expect-error plan is preview or score
+Driver.bot.goto({ target: { kind: 'axis' }, plan: true });
 // @ts-expect-error a string where a number belongs
 Driver.bot.clearArea({ target: { kind: 'tunnel', distance: '12' } });
 // @ts-expect-error another variant's field

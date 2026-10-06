@@ -15,7 +15,8 @@ public final class ActionResults {
     private ActionResults() {}
 
     private static final List<UnionType<?>> PER_METHOD = List.of(
-            ClearAreaContract.SUMMARY);
+            ClearAreaContract.SUMMARY,
+            GotoContract.RESULT);
 
     public static final UnionType<Object> UNION = union();
 

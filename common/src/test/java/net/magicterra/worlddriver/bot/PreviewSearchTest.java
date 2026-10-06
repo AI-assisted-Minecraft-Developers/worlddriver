@@ -2,13 +2,14 @@ package net.magicterra.worlddriver.bot;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
+import net.magicterra.worlddriver.api.methods.GotoContract;
+import net.magicterra.worlddriver.api.methods.GotoContract.Segment;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.pathfinder.Region;
 import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
@@ -47,34 +48,37 @@ class PreviewSearchTest {
 
     @Test
     void segmentsCutWhereTheRiskChanges() {
-        List<Map<String, Object>> segs = PreviewSearch.segments(line(10), TABLE, -1);
+        List<Segment> segs = PreviewSearch.segments(line(10), TABLE, -1);
         assertEquals(4, segs.size(), segs.toString());
-        assertEquals(List.of(0, 3), List.of(segs.get(0).get("from"), segs.get(0).get("to")));
-        assertEquals(List.of(3, 6), List.of(segs.get(1).get("from"), segs.get(1).get("to")));
-        assertEquals(List.of(6, 8), List.of(segs.get(2).get("from"), segs.get(2).get("to")));
-        assertEquals(List.of(8, 10), List.of(segs.get(3).get("from"), segs.get(3).get("to")));
-        Map<?, ?> exposedRisk = (Map<?, ?>) segs.get(1).get("risk");
-        List<?> exposed = (List<?>) exposedRisk.get("exposedTo");
-        assertEquals(1, exposed.size());
-        Map<?, ?> obs = (Map<?, ?>) exposed.get(0);
-        assertEquals(7, obs.get("id"));
-        assertEquals("minecraft:skeleton", obs.get("type"));
-        assertEquals(3, obs.get("cells"));
-        assertEquals(2.0, exposedRisk.get("nearestMob"), "the minimum over the segment");
-        assertEquals(9.5, ((Map<?, ?>) segs.get(0).get("risk")).get("nearestMob"));
-        assertEquals(List.of("avoid#1"), ((Map<?, ?>) segs.get(3).get("risk")).get("regions"));
-        assertTrue(((List<?>) ((Map<?, ?>) segs.get(0).get("risk")).get("exposedTo")).isEmpty());
-        assertFalse(segs.get(0).containsKey("leg"));
+        assertEquals(List.of(0, 3), List.of(segs.get(0).from(), segs.get(0).to()));
+        assertEquals(List.of(3, 6), List.of(segs.get(1).from(), segs.get(1).to()));
+        assertEquals(List.of(6, 8), List.of(segs.get(2).from(), segs.get(2).to()));
+        assertEquals(List.of(8, 10), List.of(segs.get(3).from(), segs.get(3).to()));
+        GotoContract.SegmentRisk exposedRisk = segs.get(1).risk();
+        assertEquals(List.of(new GotoContract.Exposure(7, "minecraft:skeleton", 3)), exposedRisk.exposedTo());
+        assertEquals(Optional.of(2.0), exposedRisk.nearestMob(), "the minimum over the segment");
+        assertEquals(Optional.of(9.5), segs.get(0).risk().nearestMob());
+        assertEquals(List.of("avoid#1"), segs.get(3).risk().regions());
+        assertTrue(segs.get(0).risk().exposedTo().isEmpty());
+        assertTrue(segs.get(0).leg().isEmpty());
     }
 
     @Test
     void segmentsCarryTheLegAndSurviveAnEmptyRoute() {
         assertTrue(PreviewSearch.segments(List.of(), TABLE, 0).isEmpty());
-        List<Map<String, Object>> one = PreviewSearch.segments(line(2), TABLE, 1);
+        List<Segment> one = PreviewSearch.segments(line(2), TABLE, 1);
         assertEquals(1, one.size());
-        assertEquals(1, one.get(0).get("leg"));
-        assertEquals(0, one.get(0).get("from"));
-        assertEquals(2, one.get(0).get("to"));
+        assertEquals(Optional.of(1), one.get(0).leg());
+        assertEquals(0, one.get(0).from());
+        assertEquals(2, one.get(0).to());
+    }
+
+    @Test
+    void aSegmentEncodesToTheDeclaredShape() {
+        Object wire = GotoContract.SEGMENT.encode(PreviewSearch.segments(line(10), TABLE, 2).get(1));
+        // Compared as text: the encoder's number classes are its own business, the order and values are not.
+        assertEquals("{leg=2, from=3, to=6, risk={exposedTo=[{id=7, type=minecraft:skeleton, cells=3}], nearestMob=2.0, regions=[]}}",
+                String.valueOf(wire));
     }
 
     @Test
@@ -114,9 +118,9 @@ class PreviewSearchTest {
         assertTrue(risk.regions(new BlockPos(3, Y, 0)).isEmpty());
         assertTrue(risk.seeing(new BlockPos(3, Y, 0)).isEmpty());
         assertTrue(Double.isInfinite(risk.nearestMob(new BlockPos(3, Y, 0))));
-        List<Map<String, Object>> segs = PreviewSearch.segments(line(10), risk, -1);
+        List<Segment> segs = PreviewSearch.segments(line(10), risk, -1);
         // sphere r=2 holds cells 0..1, the box 5..6 (inclusive block range), the forbid box 9
-        assertEquals(List.of(0, 2, 5, 7, 9), segs.stream().map(s -> s.get("from")).toList());
-        assertNull(((Map<?, ?>) segs.get(0).get("risk")).get("nearestMob"), "no mob condition, no number");
+        assertEquals(List.of(0, 2, 5, 7, 9), segs.stream().map(Segment::from).toList());
+        assertTrue(segs.get(0).risk().nearestMob().isEmpty(), "no mob condition, no number");
     }
 }
