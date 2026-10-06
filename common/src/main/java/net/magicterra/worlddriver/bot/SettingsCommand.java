@@ -44,17 +44,21 @@ public final class SettingsCommand {
                 }
                 yield out;
             }
-            case CONFIG_FIELD -> {
-                Field f = SettingsRegistry.backingField(key);
-                if (f == null) throw new IllegalArgumentException(key + " has no value to read");
-                try {
-                    Object v = f.get(null);
-                    yield v instanceof Float fl ? (Object) fl.doubleValue() : v;
-                } catch (IllegalAccessException e) {
-                    throw new IllegalStateException("cannot read BotConfig." + f.getName(), e);
-                }
-            }
+            case CONFIG_FIELD -> fieldValue(key);
         };
+    }
+
+    // Its own method, not a switch arm: a yield inside a try kills the code generation of the sources
+    // jar's remapper (Mercury's bundled JDT), which then leaves most of the jar out.
+    private static Object fieldValue(String key) {
+        Field f = SettingsRegistry.backingField(key);
+        if (f == null) throw new IllegalArgumentException(key + " has no value to read");
+        try {
+            Object v = f.get(null);
+            return v instanceof Float fl ? (Object) fl.doubleValue() : v;
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("cannot read BotConfig." + f.getName(), e);
+        }
     }
 
     /**
