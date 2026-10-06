@@ -11,16 +11,25 @@ import java.lang.reflect.Proxy;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.QueryContract;
+import net.magicterra.worlddriver.api.methods.QueryContract.BlockRow;
+import net.magicterra.worlddriver.api.methods.QueryContract.BlockRows;
+import net.magicterra.worlddriver.api.methods.QueryContract.EntityRow;
+import net.magicterra.worlddriver.api.methods.QueryContract.EntityRows;
 import net.magicterra.worlddriver.client.ClientDriverApi;
 import net.minecraft.world.level.ChunkPos;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@code mc.query} on a client with no server attached must answer in the server path's shape —
- * a flat array of rows — and honour the same filters, radius bounds, {@code select} keys and
- * unloaded-chunk refusal, or a caller written against one path breaks on the other.
+ * {@code mc.query} on a client with no server attached must answer in the server path's shape and
+ * honour the same filters, radius bounds, {@code select} fields and unloaded-chunk refusal, or a
+ * caller written against one path breaks on the other.
  */
 class ClientQueryFallbackTest {
 
@@ -52,44 +61,54 @@ class ClientQueryFallbackTest {
                 });
     }
 
-    private static List<?> query(Map<String, Object> params) {
-        Object out = ClientQueryFallback.query(client(), params);
-        return assertInstanceOf(List.class, out, "the client fallback must return the server's flat array");
+    /** The request as the dispatcher hands it over: decoded by the method's own contract. */
+    private static Object query(ClientDriverApi c, Map<String, Object> params) {
+        return ClientQueryFallback.query(c, QueryContract.PARAMS.decode(params));
     }
 
-    private static Set<Object> types(List<?> rows) {
-        return rows.stream().map(r -> ((Map<?, ?>) r).get("type")).collect(java.util.stream.Collectors.toSet());
+    private static List<EntityRow> entities(Map<String, Object> params) {
+        return assertInstanceOf(EntityRows.class, query(client(), params)).entities();
+    }
+
+    private static Set<String> types(List<EntityRow> rows) {
+        return rows.stream().map(r -> r.type().orElseThrow()).collect(Collectors.toSet());
     }
 
     @Test
-    void entitiesComeBackAsAFlatArray() {
-        assertEquals(3, query(Map.of("q", "entities")).size());
+    void entitiesComeBackAsServerRowsPlusWhatOnlyTheClientMeasures() {
+        List<EntityRow> rows = entities(Map.of("q", "entities"));
+        assertEquals(3, rows.size());
+        EntityRow zombie = rows.get(0);
+        assertEquals(Optional.of(new BlockPosition(1, 64, 2)), zombie.blockPos());
+        assertEquals(Optional.of(true), zombie.hostile());
+        assertTrue(zombie.effects().isEmpty(), "a client is not told other entities' effects");
+        assertTrue(rows.get(1).health().isEmpty(), "an item is not living");
+        // Every row satisfies the reply contract the server's rows do.
+        QueryContract.REPLY.encode(new EntityRows(rows));
     }
 
     @Test
     void filterTypeRestrictsToOneIdAndAcceptsABarePath() {
-        assertEquals(Set.of("minecraft:zombie"),
-                types(query(Map.of("q", "entities", "filter", Map.of("type", "zombie")))));
-        assertEquals(Set.of("minecraft:cow"),
-                types(query(Map.of("q", "entities", "filter", Map.of("type", "minecraft:cow")))));
+        assertEquals(Set.of("minecraft:zombie"), types(entities(Map.of("q", "entities", "filter", Map.of("type", "zombie")))));
+        assertEquals(Set.of("minecraft:cow"), types(entities(Map.of("q", "entities", "filter", Map.of("type", "minecraft:cow")))));
     }
 
     @Test
     void filterIsLivingSplitsLivingFromNonLiving() {
         assertEquals(Set.of("minecraft:zombie", "minecraft:cow"),
-                types(query(Map.of("q", "entities", "filter", Map.of("is_living", true)))));
-        assertEquals(Set.of("minecraft:item"),
-                types(query(Map.of("q", "entities", "filter", Map.of("is_living", false)))));
+                types(entities(Map.of("q", "entities", "filter", Map.of("is_living", true)))));
+        assertEquals(Set.of("minecraft:item"), types(entities(Map.of("q", "entities", "filter", Map.of("is_living", false)))));
     }
 
     @Test
-    void selectProjectsAndRejectsUnknownKeys() {
-        List<?> rows = query(Map.of("q", "entities", "select", List.of("id", "distance")));
-        for (Object r : rows) assertEquals(Set.of("id", "distance"), ((Map<?, ?>) r).keySet());
-
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> ClientQueryFallback.query(client(), Map.of("q", "entities", "select", List.of("bogus"))));
-        assertTrue(e.getMessage().contains("bogus"), e.getMessage());
+    void selectProjectsAndRejectsUnknownFields() {
+        for (EntityRow r : entities(Map.of("q", "entities", "select", List.of("id", "distance")))) {
+            assertTrue(r.id().isPresent() && r.distance().isPresent());
+            assertTrue(r.type().isEmpty() && r.pos().isEmpty() && r.hostile().isEmpty(), String.valueOf(r));
+        }
+        ApiException e = assertThrows(ApiException.class,
+                () -> query(client(), Map.of("q", "entities", "select", List.of("bogus"))));
+        assertEquals("/select/0", e.error().issues().get(0).path());
     }
 
     private static Map<String, Object> blockRow(int x, String type, Map<String, Object> state) {
@@ -118,12 +137,12 @@ class ClientQueryFallbackTest {
                 });
     }
 
-    private static Object blocks(ClientDriverApi c, Map<String, Object> filter, List<String> select) {
+    private static List<BlockRow> blocks(ClientDriverApi c, Map<String, Object> filter, List<String> select) {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("q", "blocks");
         if (filter != null) params.put("filter", filter);
         if (select != null) params.put("select", select);
-        return ClientQueryFallback.query(c, params);
+        return assertInstanceOf(BlockRows.class, query(c, params)).blocks();
     }
 
     @Test
@@ -136,21 +155,21 @@ class ClientQueryFallbackTest {
         assertEquals(BlockQuery.MAX_RADIUS, seen[0]);
 
         seen[0] = -1;
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+        ApiException e = assertThrows(ApiException.class,
                 () -> blocks(blockClient(null, seen), Map.of("in_radius", BlockQuery.MAX_RADIUS + 1), null));
-        assertTrue(e.getMessage().contains("max " + BlockQuery.MAX_RADIUS), e.getMessage());
+        assertEquals("/filter/in_radius", e.error().issues().get(0).path());
         assertEquals(-1, seen[0], "a refused radius must not reach the client scan");
     }
 
     @Test
-    void blocksSelectProjectsWithTheServerKeySet() {
-        List<?> rows = assertInstanceOf(List.class, blocks(blockClient(null, new int[1]), null, List.of("type")));
+    void blocksSelectProjectsWithTheServerFieldSet() {
+        List<BlockRow> rows = blocks(blockClient(null, new int[1]), null, List.of("type"));
         assertEquals(2, rows.size());
-        for (Object r : rows) assertEquals(Set.of("type"), ((Map<?, ?>) r).keySet());
+        for (BlockRow r : rows) assertTrue(r.type().isPresent() && r.pos().isEmpty() && r.state().isEmpty(), String.valueOf(r));
+        assertEquals(Optional.of(Map.of("facing", "north")), blocks(blockClient(null, new int[1]), null, null).get(1).state());
 
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> blocks(blockClient(null, new int[1]), null, List.of("hostile")));
-        assertTrue(e.getMessage().contains("hostile"), e.getMessage());
+        // hostile is an entity field; a block query has its own.
+        assertThrows(ApiException.class, () -> blocks(blockClient(null, new int[1]), null, List.of("hostile")));
     }
 
     @Test

@@ -1,10 +1,13 @@
 package net.magicterra.worlddriver.bot;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
+import net.magicterra.worlddriver.api.methods.ObserveContracts.DensityOverlay;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.Observer;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.SightOverlay;
+import net.magicterra.worlddriver.api.methods.RouteContract.Route;
 import net.magicterra.worlddriver.bot.pathfinder.Constraint;
 import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
 import net.magicterra.worlddriver.bot.pathfinder.SearchAware;
@@ -51,18 +54,19 @@ public final class SceneOverlays {
         };
     }
 
+    /** The overlays that were asked for. */
+    public record Result(Optional<SightOverlay> sight, Optional<DensityOverlay> mobDensity) {}
+
     /**
-     * Adds the requested overlays to {@code out}. {@code route} may be null or empty.
+     * The requested overlays, counting the observers and mobs {@code route} names.
      * Runs on the server thread: one entity scan, then the rays.
      *
      * @param selfId the entity the scene is centred on, excluded from the snapshot; -1 for none
      */
-    public static void apply(Map<String, Object> out, Level level, BlockPos center, int radius, Surface surface,
-                             List<String> overlays, Map<String, Object> route, int selfId) {
-        boolean wantSight = overlays.contains("sight");
-        boolean wantMobs = overlays.contains("mobDensity");
-        if (!wantSight && !wantMobs) return;
-        RouteParams.Parsed parsed = RouteParams.parse(route == null ? Map.of() : route);
+    public static Result apply(Level level, BlockPos center, int radius, Surface surface, boolean wantSight,
+                               boolean wantMobs, Route route, int selfId) {
+        if (!wantSight && !wantMobs) return new Result(Optional.empty(), Optional.empty());
+        RouteParams.Parsed parsed = RouteParams.parse(route);
         SightExposure sight = wantSight ? sightOf(parsed.profile(), radius) : null;
         MobCluster mobs = wantMobs ? mobsOf(parsed.profile()) : null;
         List<CostModifier> parts = new ArrayList<>();
@@ -71,8 +75,9 @@ public final class SceneOverlays {
         SearchProfile probe = new SearchProfile(parts, parsed.profile().capability(), List.of());
         SearchScope scope = SearchScope.gather(level, selfId, center, new Goal.Block(center), probe);
         for (CostModifier m : parts) ((SearchAware) m).beginSearch(scope);
-        if (sight != null) out.put("sight", sightOverlay(sight, center, radius, surface, scope.truncated()));
-        if (mobs != null) out.put("mobDensity", densityOverlay(mobs, center, radius, surface, scope.truncated()));
+        return new Result(
+                sight == null ? Optional.empty() : Optional.of(sightOverlay(sight, center, radius, surface, scope.truncated())),
+                mobs == null ? Optional.empty() : Optional.of(densityOverlay(mobs, center, radius, surface, scope.truncated())));
     }
 
     /** The route's sight component, or the {@code risk: safe} one; with a budget for the whole grid. */
@@ -92,19 +97,14 @@ public final class SceneOverlays {
         return RouteParams.mobs(null, RouteParams.SAFE_CLUSTER);
     }
 
-    /** {observers:[{id,type,name}], rows, exposedCells, budgetExhausted?, snapshotTruncated?}. */
-    public static Map<String, Object> sightOverlay(SightExposure sight, BlockPos center, int radius, Surface surface,
-                                                   boolean truncated) {
-        Map<String, Object> o = new LinkedHashMap<>();
-        List<Object> observers = new ArrayList<>();
+    /** Who sees each standable cell; the name only when it is more than the type. */
+    public static SightOverlay sightOverlay(SightExposure sight, BlockPos center, int radius, Surface surface,
+                                            boolean truncated) {
+        List<Observer> observers = new ArrayList<>();
         for (ThreatSnapshot.Threat t : sight.observers()) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", t.id());
-            m.put("type", t.type());
-            if (t.name() != null && !t.name().isEmpty() && !t.name().equals(t.type())) m.put("name", t.name());
-            observers.add(m);
+            boolean named = t.name() != null && !t.name().isEmpty() && !t.name().equals(t.type());
+            observers.add(new Observer(t.id(), t.type(), named ? Optional.of(t.name()) : Optional.empty()));
         }
-        o.put("observers", observers);
         List<String> rows = new ArrayList<>();
         int exposed = 0;
         boolean spent = false;
@@ -130,23 +130,15 @@ public final class SceneOverlays {
             }
             rows.add(sb.toString());
         }
-        o.put("rows", rows);
-        o.put("exposedCells", exposed);
-        if (spent) o.put("budgetExhausted", true);
-        if (truncated) o.put("snapshotTruncated", true);
-        return o;
+        return new SightOverlay(observers, rows, exposed, flag(spent), flag(truncated));
     }
 
-    /** {mobs, radius, count, rows, maxDensity, clusteredCells, snapshotTruncated?}. */
-    public static Map<String, Object> densityOverlay(MobCluster mobs, BlockPos center, int radius, Surface surface,
-                                                     boolean truncated) {
-        Map<String, Object> o = new LinkedHashMap<>();
+    /** How many hostiles stand within the cluster radius of each standable cell. */
+    public static DensityOverlay densityOverlay(MobCluster mobs, BlockPos center, int radius, Surface surface,
+                                                boolean truncated) {
         MobCluster.Cluster cl = mobs.cluster();
         double r = cl != null ? cl.radius() : RouteParams.SAFE_CLUSTER.radius();
         int count = cl != null ? cl.count() : RouteParams.SAFE_CLUSTER.count();
-        o.put("mobs", mobs.count(center, 1e6));
-        o.put("radius", r);
-        o.put("count", count);
         List<String> rows = new ArrayList<>();
         int max = 0, clustered = 0;
         for (int dz = -radius; dz <= radius; dz++) {
@@ -165,11 +157,12 @@ public final class SceneOverlays {
             }
             rows.add(sb.toString());
         }
-        o.put("rows", rows);
-        o.put("maxDensity", max);
-        o.put("clusteredCells", clustered);
-        if (truncated) o.put("snapshotTruncated", true);
-        return o;
+        return new DensityOverlay(mobs.count(center, 1e6), r, count, rows, max, clustered, flag(truncated));
+    }
+
+    /** A flag that is only ever sent as true. */
+    private static Optional<Boolean> flag(boolean on) {
+        return on ? Optional.of(true) : Optional.empty();
     }
 
     private static char glyph(int n) {

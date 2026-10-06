@@ -1,55 +1,70 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.ServerThreadGuard;
-import net.magicterra.worlddriver.BuildStamp;
-import net.minecraft.core.BlockPos;
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ScheduledFuture;
 
-/**
- * {@code mc.system.*} handlers, extracted from {@code DriverApplication}. Holds an
- * {@link DriverApplication} back-reference for the shared server handle + start clock;
- * dispatch still flows through {@code DriverApplication.route} (single source of truth).
- */
+import net.magicterra.worlddriver.BuildStamp;
+import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.api.ApiTimers;
+import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.WaitPermits;
+import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.SystemContracts;
+import net.magicterra.worlddriver.api.methods.SystemContracts.Version;
+import net.magicterra.worlddriver.api.methods.SystemContracts.Waited;
+
+/** {@code mc.system.*}: what answers without a world. */
 public final class SystemApi {
     private final DriverApplication api;
     SystemApi(DriverApplication api) { this.api = api; }
 
-    /**
-     * {@code {modid, version, uptimeMs}} plus {@link BuildStamp#asMap()} — where the running
-     * code was loaded from and when that file was written. The version string is pinned and
-     * cannot tell two builds apart; the stamp can, which is what makes this usable as evidence
-     * that a fix actually reached the game.
-     */
-    public Map<String, Object> version() {
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("modid", "worlddriver");
-        out.put("version", BuildStamp.VERSION);
-        out.put("uptimeMs", (System.nanoTime() - api.startNanos) / 1_000_000L);
-        out.putAll(BuildStamp.asMap());
-        return out;
+    List<ApiMethod<?, ?>> methods() {
+        return List.of(
+                new ApiMethod<>(SystemContracts.VERSION, (p, ctx) -> CompletableFuture.completedFuture(version())),
+                new ApiMethod<>(SystemContracts.TEST_ORIGIN, (p, ctx) -> CompletableFuture.completedFuture(testOrigin())),
+                new ApiMethod<>(SystemContracts.WAIT_TICKS, (p, ctx) -> waitTicks(p.ticks(), ctx)));
     }
 
-    public BlockPos testOrigin() { return DriverApplication.ORIGIN; }
+    public Version version() {
+        Map<String, Object> s = BuildStamp.asMap();
+        return new Version("worlddriver", BuildStamp.VERSION, (System.nanoTime() - api.startNanos) / 1_000_000L,
+                String.valueOf(s.get("loadedFrom")), String.valueOf(s.get("loadedKind")),
+                Optional.ofNullable((String) s.get("builtAt")), Optional.ofNullable((Long) s.get("builtMs")),
+                Optional.ofNullable((Long) s.get("sizeBytes")), Optional.ofNullable((String) s.get("stampError")));
+    }
+
+    public static BlockPosition testOrigin() {
+        return new BlockPosition(DriverApplication.ORIGIN.getX(), DriverApplication.ORIGIN.getY(), DriverApplication.ORIGIN.getZ());
+    }
 
     /**
-     * Block the calling thread for {@code ticks * 50ms} (the nominal MC tick period).
-     * Approximate — server lag is not compensated. Refuses to run on the server
-     * thread itself so it cannot deadlock the game loop. Returns {@code {waited:N}};
-     * if interrupted, {@code waited} reflects elapsed ticks and {@code interrupted:true}
-     * is set.
+     * Completes on the timer thread after {@code ticks} × 50 ms, holding no thread meanwhile. A request that is
+     * cancelled or whose budget runs out first answers with the ticks that did pass, marked interrupted.
      */
-    public Map<String, Object> waitTicks(int ticks) {
-        if (ticks <= 0) return Map.of("waited", 0);
-        ServerThreadGuard.refuseBlocking("waitTicks");
+    private CompletionStage<Waited> waitTicks(int ticks, CallContext ctx) {
+        if (ticks == 0) return CompletableFuture.completedFuture(new Waited(0, Optional.empty()));
+        ctx.requireBlockingAllowed("mc.system.waitTicks");
+        WaitPermits.Lease lease = ctx.waits().tryAcquire();
+        if (lease == null) throw ApiException.of(ApiError.Code.SERVER_BUSY, "server busy: every wait slot is in use; retry");
         long t0 = System.nanoTime();
-        try {
-            Thread.sleep(ticks * 50L);
-            return Map.of("waited", ticks);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            int waited = (int)((System.nanoTime() - t0) / 50_000_000L);
-            return Map.of("waited", waited, "interrupted", true);
-        }
+        long fullMs = ticks * 50L;
+        CompletableFuture<Waited> out = new CompletableFuture<>();
+        Runnable cut = () -> out.complete(new Waited((int) Math.min(ticks, (System.nanoTime() - t0) / 50_000_000L),
+                Optional.of(true)));
+        ScheduledFuture<?> full = ApiTimers.schedule(() -> out.complete(new Waited(ticks, Optional.empty())), fullMs);
+        ScheduledFuture<?> deadline = ctx.remainingMillis() < fullMs ? ApiTimers.schedule(cut, ctx.remainingMillis()) : null;
+        AutoCloseable gone = ctx.requestCancelled().onCancel(cut);
+        return out.whenComplete((r, t) -> {
+            full.cancel(false);
+            if (deadline != null) deadline.cancel(false);
+            try { gone.close(); } catch (Exception ignored) { /* nothing to release */ }
+            lease.close();
+        });
     }
 }

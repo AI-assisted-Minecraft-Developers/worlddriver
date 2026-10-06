@@ -3,7 +3,7 @@ ScriptTest.run("03_events_since: cursor + setblock destroy produces block.break 
     var origin = Driver.system.testOrigin();
     // Destroy one of the seeded stones
     var cmd = "setblock " + origin.x + " " + origin.y + " " + origin.z + " air destroy";
-    var r = Driver.action.runCommand(cmd);
+    var r = Driver.action.runCommand({ cmd: cmd });
     t.assertEqual(r.ok, true, "runCommand should succeed");
 
     var events = Driver.observe.eventsSince(cursorBefore);

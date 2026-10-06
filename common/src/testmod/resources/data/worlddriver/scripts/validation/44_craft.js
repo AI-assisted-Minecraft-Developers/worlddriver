@@ -26,20 +26,19 @@ function give(item, n) {
 // inventory and wrongly report it missing.
 function giveAndWait(item, n) {
     give(item, n);
-    for (var i = 0; i < 40 && hotbarHas(item) < (n || 1); i += 2) Driver.system.waitTicks(2);
+    for (var i = 0; i < 40 && hotbarHas(item) < (n || 1); i += 2) Driver.system.waitTicks({ ticks: 2 });
 }
 
-// observe.player exposes the hotbar (crafted/smelted results shift-click into the
-// hotbar first), so a hotbar scan confirms the output actually materialised.
+// Crafted/smelted results shift-click into the hotbar first, so a scan of inventory slots 0–8
+// plus the offhand (slot 40) confirms the output actually materialised.
 function hotbarHas(item) {
-    var me = Driver.invoke("mc.observe.player", {});
-    if (!me.present || !me.hotbar) return 0;
+    var me = Driver.invoke("mc.observe.player", {}).player;
+    if (!me) return 0;
     var n = 0;
-    for (var i = 0; i < me.hotbar.length; i++) {
-        var s = me.hotbar[i];
-        if (s && !s.empty && s.id === item) n += s.count;
+    for (var i = 0; i < me.inventory.length; i++) {
+        var s = me.inventory[i];
+        if ((s.slot < 9 || s.slot === 40) && s.id === item) n += s.count;
     }
-    if (me.offHand && !me.offHand.empty && me.offHand.id === item) n += me.offHand.count;
     return n;
 }
 
@@ -53,7 +52,7 @@ function awaitAction(started, maxTicks) {
     for (var waited = 0; waited < maxTicks; waited += 5) {
         var a = Driver.invoke("mc.wait.result", { kind: "action", actionId: id }).action;
         if (a.state !== "running") return a;
-        Driver.system.waitTicks(5);
+        Driver.system.waitTicks({ ticks: 5 });
     }
     return Driver.invoke("mc.wait.result", { kind: "action", actionId: id }).action;
 }
@@ -80,7 +79,7 @@ if (!clientAvailable()) {
 
     ScriptTest.run("44_craft: mc.bot.craft reports missing materials, not a crash", function(t) {
         cleanup();
-        Driver.system.waitTicks(2);
+        Driver.system.waitTicks({ ticks: 2 });
         // Empty inventory → an iron pickaxe is entirely unobtainable.
         var a = awaitAction(Driver.bot.craft({ item: "minecraft:iron_pickaxe", count: 1 }), 40);
         t.assertEqual(a.state, "failed", "fails: " + JSON.stringify(a));
@@ -91,7 +90,7 @@ if (!clientAvailable()) {
 
     ScriptTest.run("44_craft: 2x2 inventory craft makes a crafting table from planks", function(t) {
         cleanup();
-        Driver.system.waitTicks(2);
+        Driver.system.waitTicks({ ticks: 2 });
         giveAndWait("minecraft:oak_planks", 4);
         var a = awaitAction(Driver.bot.craft({ item: "minecraft:crafting_table", count: 1 }), 120);
         t.assertEqual(a.state, "succeeded", "craft succeeded: " + JSON.stringify(a));
@@ -103,7 +102,7 @@ if (!clientAvailable()) {
 
     ScriptTest.run("44_craft: 3x3 table craft makes a wooden pickaxe (places + opens a table)", function(t) {
         cleanup();
-        Driver.system.waitTicks(2);
+        Driver.system.waitTicks({ ticks: 2 });
         // Give all leaves so the only step is the 3x3 pickaxe, plus a table to place.
         giveAndWait("minecraft:oak_planks", 3);
         giveAndWait("minecraft:stick", 2);
@@ -116,7 +115,7 @@ if (!clientAvailable()) {
 
     ScriptTest.run("44_craft: smelt raw iron into an iron ingot in a furnace", function(t) {
         cleanup();
-        Driver.system.waitTicks(2);
+        Driver.system.waitTicks({ ticks: 2 });
         giveAndWait("minecraft:furnace", 1);
         giveAndWait("minecraft:coal", 1);
         giveAndWait("minecraft:raw_iron", 1);

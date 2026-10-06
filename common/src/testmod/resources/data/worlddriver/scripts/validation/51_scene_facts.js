@@ -25,7 +25,6 @@ ScriptTest.run("51_scene_facts: flat platform -> not cornered", function (t) {
     fill(ox - 4, oy,     oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
 
     var s = scene({ x: ox, y: oy, z: oz }, 1);
-    t.assertEqual(s.present, true, "scene present");
     t.assertEqual(s.hazardSummary.cornered, false,
         "flat stone neighbours are standable and non-lethal -> not cornered");
 });
@@ -47,7 +46,6 @@ ScriptTest.run("51_scene_facts: walled ring -> cornered", function (t) {
     fill(ox, oy, oz, ox, oy + 1, oz, "minecraft:air");
 
     var s = scene({ x: ox, y: oy, z: oz }, 1);
-    t.assertEqual(s.present, true, "scene present");
     t.assertEqual(s.hazardSummary.cornered, true,
         "all 8 neighbours solid at feet and head height -> no standable exit -> cornered");
 });
@@ -62,8 +60,8 @@ ScriptTest.run("51_scene_facts: render rows are byte-stable and middle row is '.
     fill(ox - 4, oy,     oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
 
     var center = { x: ox, y: oy, z: oz };
-    var s1 = scene(center, 1, "map");
-    var s2 = scene(center, 1, "map");
+    var s1 = scene(center, 1, "map").map;
+    var s2 = scene(center, 1, "map").map;
 
     t.assertTrue(Array.isArray(s1.rows) && s1.rows.length === 3,
         "radius=1 -> 3 rows");
@@ -88,9 +86,9 @@ ScriptTest.run("51_scene_facts: rows JSON identical across in-JVM / RPC / MCP", 
     var viaTcp = Driver.system.rpcRoundtrip("mc.observe.scene", args);
     var viaMcp = Driver.system.mcpRoundtrip("mc.observe.scene", args);
 
-    var rowsDirect = JSON.stringify(direct.rows);
-    var rowsTcp    = JSON.stringify(viaTcp.rows);
-    var rowsMcp    = JSON.stringify(viaMcp.rows);
+    var rowsDirect = JSON.stringify(direct.map.rows);
+    var rowsTcp    = JSON.stringify(viaTcp.map.rows);
+    var rowsMcp    = JSON.stringify(viaMcp.map.rows);
 
     t.assertEqual(rowsTcp, rowsDirect,
         "RPC rows must match in-JVM rows");

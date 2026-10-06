@@ -1,0 +1,89 @@
+package net.magicterra.worlddriver.api.methods;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
+import java.util.Optional;
+
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.contract.ApiType;
+import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.protocol.JsonCodec;
+import org.junit.jupiter.api.Test;
+
+/**
+ * The system, observe, query, world, action and recipe methods: the rules their params carry
+ * across fields, the shapes their replies take, and which of them a watcher may poll.
+ */
+class WorldReadWriteContractsTest {
+
+    private static <T> T decode(ApiType<T> type, String json) {
+        return type.decode(JsonCodec.decode(json));
+    }
+
+    private static ApiIssue issue(ApiType<?> type, String json) {
+        List<ApiIssue> issues = assertThrows(ApiException.class, () -> decode(type, json)).error().issues();
+        assertEquals(1, issues.size(), issues.toString());
+        return issues.get(0);
+    }
+
+    @Test
+    void boundedReadsArePollableAndWaitingIsNot() {
+        for (MethodSpec<?, ?> m : List.of(SystemContracts.VERSION, SystemContracts.TEST_ORIGIN, PlayerContract.SPEC,
+                ObserveContracts.THREATS, ObserveContracts.BOSS_SPEC, WorldContracts.BLOCK))
+            assertTrue(m.pollable(), m.name());
+        for (MethodSpec<?, ?> m : List.of(SystemContracts.WAIT_TICKS, QueryContract.SPEC, ObserveContracts.SCENE,
+                WorldContracts.SNAPSHOT, WorldContracts.RUN_COMMAND))
+            assertFalse(m.pollable(), m.name());
+        assertEquals(MethodSpec.Blocking.MAY_WAIT, SystemContracts.WAIT_TICKS.blocking());
+        assertEquals("/ticks", issue(SystemContracts.WAIT_TICKS_PARAMS, "{\"ticks\":201}").path());
+    }
+
+    @Test
+    void aQueryTakesOnlyItsOwnVariantsFilters() {
+        assertEquals("/filter/is_hostile",
+                issue(QueryContract.PARAMS, "{\"q\":\"blocks\",\"filter\":{\"is_hostile\":true}}").path());
+        assertEquals("/select/0", issue(QueryContract.PARAMS, "{\"q\":\"blocks\",\"select\":[\"health\"]}").path());
+        assertEquals("/filter/in_radius",
+                issue(QueryContract.PARAMS, "{\"q\":\"blocks\",\"filter\":{\"in_radius\":16}}").path());
+        QueryContract.Entities e = assertInstanceOf(QueryContract.Entities.class,
+                decode(QueryContract.PARAMS, "{\"q\":\"entities\"}"));
+        assertEquals(16, e.filter().inRadius());
+        assertEquals("{\"q\":\"blocks\",\"blocks\":[]}",
+                JsonCodec.encode(QueryContract.REPLY.encode(new QueryContract.BlockRows(List.of()))));
+    }
+
+    @Test
+    void aBoxPastTheCellBudgetIsRefusedAtItsFarCorner() {
+        String far = "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":{\"x\":32,\"y\":31,\"z\":31}";
+        assertEquals("/to", issue(WorldContracts.SNAPSHOT_PARAMS, far + "}").path());
+        assertEquals("/to", issue(WorldContracts.FILL_PARAMS, far + ",\"type\":\"minecraft:stone\"}").path());
+        decode(WorldContracts.FILL_PARAMS,
+                "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":{\"x\":31,\"y\":31,\"z\":31},\"type\":\"minecraft:stone\"}");
+    }
+
+    @Test
+    void eventsAreThereOnlyWhenAskedFor() {
+        assertEquals("{\"placed\":3}",
+                JsonCodec.encode(WorldContracts.PLACED.encode(new WorldContracts.Placed(3, Optional.empty()))));
+        assertEquals("/blocks", issue(WorldContracts.PLACE_MANY_PARAMS, "{\"blocks\":[]}").path());
+    }
+
+    @Test
+    void aLookupSearchesOneWay() {
+        assertEquals("/ingredient", issue(RecipeContracts.LOOKUP_PARAMS,
+                "{\"result\":\"minecraft:stick\",\"ingredient\":\"minecraft:oak_planks\"}").path());
+        assertEquals(20, decode(RecipeContracts.LOOKUP_PARAMS, "{}").limit());
+    }
+
+    @Test
+    void anAbsentPlayerIsAnAbsentField() {
+        assertEquals("{}", JsonCodec.encode(PlayerContract.READING.encode(new PlayerContract.PlayerReading(Optional.empty()))));
+        assertEquals("{\"type\":\"miss\"}", JsonCodec.encode(PlayerContract.CROSSHAIR.encode(new PlayerContract.Miss())));
+    }
+}

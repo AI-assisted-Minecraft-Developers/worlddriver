@@ -3,8 +3,8 @@ ScriptTest.run("05_query: entities + select restricts fields", function(t) {
         q: "entities",
         filter: { in_radius: 16, is_hostile: false },
         select: ["pos", "type"]
-    });
-    t.assertTrue(Array.isArray(res), "query must return array");
+    }).entities;
+    t.assertTrue(Array.isArray(res), "query must answer an entities array");
     // Count the seeded props, not every row. A player is a non-hostile entity and is returned
     // like any other, so "exactly 2" only held while the player happened to be standing somewhere
     // else — an accidental precondition that broke the moment the suite started running with the
@@ -23,7 +23,7 @@ ScriptTest.run("05_query: blocks q returns at least the seeded stones", function
         q: "blocks",
         filter: { in_radius: 4 },
         select: ["pos", "type"]
-    });
+    }).blocks;
     var stones = res.filter(function(r) { return r.type === "minecraft:stone"; });
     t.assertTrue(stones.length >= 1, "expected at least 1 stone via query DSL");
 });

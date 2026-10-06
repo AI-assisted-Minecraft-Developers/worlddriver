@@ -12,7 +12,7 @@
 // from escaping (build with the existing placeBlock/fill primitives before calling).
 (function () {
     function boss()     { return Driver.invoke('mc.observe.boss', { radius: 48 }); }
-    function player()   { return Driver.invoke('mc.observe.player', {}); }
+    function player()   { return Driver.invoke('mc.observe.player', {}).player; }
     function aborting()  { return Driver.invoke('mc.bot.playbook', { op: 'status' }).stopping; }
 
     var summon = !(typeof PLAYBOOK !== 'undefined' && PLAYBOOK.summon === false);
@@ -21,12 +21,12 @@
     //     slots are filled and a sword is in hand; abort to the planner otherwise.
     try { Driver.invoke('mc.bot.equip', { profile: 'best' }); } catch (e) {}
     var me = player();
-    var armor = (me && me.armor) || {};
+    var gear = me ? me.equipment : { armor: {} };
     var missing = [];
     ['head', 'chest', 'legs', 'feet'].forEach(function (s) {
-        if (!armor[s] || armor[s].empty || !armor[s].id) missing.push(s);
+        if (!gear.armor[s]) missing.push(s);
     });
-    var hasSword = !!(me && me.mainHand && me.mainHand.id && String(me.mainHand.id).indexOf('sword') >= 0);
+    var hasSword = !!(gear.mainHand && gear.mainHand.id.indexOf('sword') >= 0);
     if (missing.length > 0 || !hasSword) {
         return { ok: false, note: 'gear check failed — need full armor + a sword before summoning a wither',
                  missingArmor: missing, hasSword: hasSword };
@@ -37,19 +37,18 @@
     // --- Summon (optional). The wither stays invulnerable ~220 ticks, then
     //     detonates a large explosion — back off and let it blow before closing in.
     if (summon) {
-        var b0 = boss();
-        if (!b0 || !b0.present) {
+        if (!boss().boss) {
             var p = player();
-            if (p && p.pos) {
+            if (p) {
                 var sx = Math.floor(p.pos.x) + 4, sy = Math.floor(p.pos.y), sz = Math.floor(p.pos.z);
                 Driver.invoke('mc.action.runCommand', { cmd: 'summon minecraft:wither ' + sx + ' ' + sy + ' ' + sz });
             }
-            Driver.system.waitTicks(10);
+            Driver.system.waitTicks({ ticks: 10 });
         }
     }
 
-    var b = boss();
-    if (!b || !b.present || b.type !== 'wither') {
+    var b = boss().boss;
+    if (!b || b.type !== 'wither') {
         return { ok: true, note: summon ? 'summon failed or no wither present' : 'no wither present' };
     }
 
@@ -60,13 +59,13 @@
         if (aborting())           return { ok: false, note: 'aborted', rounds: rounds };
         if (++rounds > maxRounds) return { ok: false, note: 'maxRounds exceeded', rounds: rounds };
 
-        b = boss();
-        if (!b || !b.present)     return { ok: true, note: 'wither defeated', rounds: rounds };
+        b = boss().boss;
+        if (!b)                   return { ok: true, note: 'wither defeated', rounds: rounds };
 
         if (b.invulTicks > 0) {
             // Spawning: stay clear of the imminent explosion.
             if (!backedOff) { try { Driver.invoke('mc.bot.runAway', { minDist: 12 }); } catch (e) {} backedOff = true; }
-            Driver.system.waitTicks(10);
+            Driver.system.waitTicks({ ticks: 10 });
             continue;
         }
         backedOff = false;
@@ -74,6 +73,6 @@
         // Both phases: melee the wither and chase. T0 autoDodge handles the skulls;
         // autoHeal/autoTotem cover the wither debuff's chip damage.
         Driver.invoke('mc.bot.combat', { mode: 'kill', target: { kind: 'entityType', type: 'minecraft:wither' } });
-        Driver.system.waitTicks(10);
+        Driver.system.waitTicks({ ticks: 10 });
     }
 })();

@@ -27,8 +27,8 @@
     }
 
     var b = boss();
-    if (!b || !b.present || b.type !== 'ender_dragon') {
-        return { ok: true, note: 'no ender dragon present', crystals: (b && b.crystals ? b.crystals.length : 0) };
+    if (!b.boss || b.boss.type !== 'ender_dragon') {
+        return { ok: true, note: 'no ender dragon present', crystals: b.crystals.length };
     }
 
     // T0 survival reflexes on for the whole fight.
@@ -44,9 +44,9 @@
         if (++rounds > maxRounds)  return { ok: false, note: 'maxRounds exceeded', rounds: rounds };
 
         b = boss();
-        if (!b || !b.present)      return { ok: true, note: 'dragon defeated', rounds: rounds, crystalsCleared: crystalsCleared };
+        if (!b.boss)               return { ok: true, note: 'dragon defeated', rounds: rounds, crystalsCleared: crystalsCleared };
 
-        var crystals = b.crystals || [];
+        var crystals = b.crystals;
         if (crystals.length > 0) {
             // Phase 1 — clear crystals (hard gate; the dragon heals while any live).
             var c = nearest(crystals);
@@ -56,20 +56,21 @@
                 Driver.invoke('mc.bot.goto', { target: { kind: 'position', pos: { x: c.pos.x, y: c.pos.y, z: c.pos.z }, near: c.caged ? 2 : 4 } });
             } catch (e) {}
             Driver.invoke('mc.bot.combat', { mode: 'kill', target: { kind: 'entity', entityId: c.id } });
-            Driver.system.waitTicks(12);
+            Driver.system.waitTicks({ ticks: 12 });
             continue;
         }
 
         crystalsCleared = true;
         // Phase 2 — engage the dragon itself (target by type: combat resolves the
         // main EnderDragon entity, whose hurt() routes through the bot part).
-        if (b.perched && b.head) {
+        var head = b.boss.head;
+        if (b.boss.perched) {
             // Perch is the prime damage window — close on the head, then melee.
             try {
-                Driver.invoke('mc.bot.goto', { target: { kind: 'position', pos: { x: Math.floor(b.head.x), y: Math.floor(b.head.y), z: Math.floor(b.head.z) }, near: 3 } });
+                Driver.invoke('mc.bot.goto', { target: { kind: 'position', pos: { x: Math.floor(head.pos.x), y: Math.floor(head.pos.y), z: Math.floor(head.pos.z) }, near: 3 } });
             } catch (e) {}
         }
         Driver.invoke('mc.bot.combat', { mode: 'kill', target: { kind: 'entityType', type: 'minecraft:ender_dragon' } });
-        Driver.system.waitTicks(12);
+        Driver.system.waitTicks({ ticks: 12 });
     }
 })();

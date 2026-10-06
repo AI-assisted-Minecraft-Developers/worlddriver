@@ -64,8 +64,8 @@ ScriptTest.run("58_query_type: entities filter.type restricts rows", function(t)
         q: "entities",
         center: { x: origin.x + 6, y: origin.y + 1, z: origin.z + 6 },
         filter: { in_radius: 8, type: "minecraft:armor_stand" }
-    });
-    t.assertTrue(Array.isArray(rows), "query must return array");
+    }).entities;
+    t.assertTrue(Array.isArray(rows), "query must answer an entities array");
     t.assertEqual(rows.length, 2, "exactly the 2 tagged stands, got " + rows.length);
     for (var i = 0; i < rows.length; i++) {
         t.assertEqual(rows[i].type, "minecraft:armor_stand");
@@ -75,7 +75,7 @@ ScriptTest.run("58_query_type: entities filter.type restricts rows", function(t)
         q: "entities",
         center: { x: origin.x + 6, y: origin.y + 1, z: origin.z + 6 },
         filter: { in_radius: 8, type: "armor_stand" }
-    });
+    }).entities;
     t.assertEqual(bare.length, 2, "bare id should namespace to minecraft:");
 
     // Cleanup so entity-count-sensitive tests stay deterministic on reruns.

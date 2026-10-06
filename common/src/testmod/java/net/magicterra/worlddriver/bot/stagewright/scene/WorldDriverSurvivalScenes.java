@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
-import net.magicterra.worlddriver.application.ObserveApi;
+import net.magicterra.worlddriver.application.PlayerSnapshots;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -1150,13 +1150,13 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         ServerPlayer fp = driver.fakePlayer();
         fp.setAirSupply(42);
 
-        java.util.Map<String, Object> snap = ObserveApi.playerSnapshot(fp);
-        WorldDriverCommon.LOG.info("[wd.serverObserveAirSupply] air={} maxAir={}", snap.get("air"), snap.get("maxAir"));
-        if (!(snap.get("air") instanceof Number an) || an.intValue() != 42)
-            ctx.fail("gap#70: observe.player carries no (or wrong) `air` field — got " + snap.get("air")
+        var vitals = PlayerSnapshots.of(fp, java.util.Optional.empty()).vitals();
+        WorldDriverCommon.LOG.info("[wd.serverObserveAirSupply] air={} maxAir={}", vitals.air(), vitals.maxAir());
+        if (vitals.air() != 42)
+            ctx.fail("gap#70: observe.player reports the wrong `air` — got " + vitals.air()
                     + ", wanted 42 (fp.setAirSupply(42))");
-        if (!(snap.get("maxAir") instanceof Number mn) || mn.intValue() != fp.getMaxAirSupply())
-            ctx.fail("gap#70: observe.player carries no (or wrong) `maxAir` field — got " + snap.get("maxAir"));
+        if (vitals.maxAir() != fp.getMaxAirSupply())
+            ctx.fail("gap#70: observe.player reports the wrong `maxAir` — got " + vitals.maxAir());
     }
 
     // ==================================================================================

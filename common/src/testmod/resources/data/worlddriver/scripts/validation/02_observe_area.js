@@ -1,15 +1,17 @@
 // mc.observe.area was folded into mc.query — these tests now exercise the
-// q='blocks' shape directly (flat array) and the prelude's back-compat
-// helper (Driver.observe.area returning {blocks:[...]}).
+// q='blocks' shape directly ({q, blocks}) and the prelude's back-compat
+// helper (Driver.observe.area taking a top-level radius).
 
 ScriptTest.run("02_observe_area: query q='blocks' returns stones, respects filter.type", function(t) {
     var origin = Driver.system.testOrigin();
-    var rows = Driver.invoke("mc.query", {
+    var reply = Driver.invoke("mc.query", {
         q: "blocks",
         center: origin,
         filter: { in_radius: 4, type: "minecraft:stone" }
     });
-    t.assertTrue(Array.isArray(rows), "result must be array");
+    t.assertEqual(reply.q, "blocks", "the reply names its variant");
+    var rows = reply.blocks;
+    t.assertTrue(Array.isArray(rows), "blocks must be an array");
     t.assertTrue(rows.length > 0, "expected at least one stone in 4-radius around origin");
     var allStone = true;
     for (var i = 0; i < rows.length; i++) {

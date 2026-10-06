@@ -42,6 +42,24 @@ public final class CoreMethods {
                 WaitResultContract.SPEC,
                 ScriptContracts.EVAL,
                 ScriptContracts.SKILL,
-                ScriptContracts.PLAYBOOK);
+                ScriptContracts.PLAYBOOK,
+                SystemContracts.VERSION,
+                SystemContracts.TEST_ORIGIN,
+                SystemContracts.WAIT_TICKS,
+                PlayerContract.SPEC,
+                ObserveContracts.THREATS,
+                ObserveContracts.BOSS_SPEC,
+                ObserveContracts.SCENE,
+                ObserveContracts.MAP,
+                QueryContract.SPEC,
+                WorldContracts.BLOCK,
+                WorldContracts.SNAPSHOT,
+                WorldContracts.RESTORE,
+                WorldContracts.RUN_COMMAND,
+                WorldContracts.FILL,
+                WorldContracts.PLACE_MANY,
+                RecipeContracts.LOOKUP,
+                RecipeContracts.RESOLVE,
+                RecipeContracts.ACQUIRE);
     }
 }

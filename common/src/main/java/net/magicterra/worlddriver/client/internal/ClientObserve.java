@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
+import net.magicterra.worlddriver.api.methods.ObserveContracts;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.minecraft.world.entity.Entity;
@@ -289,13 +290,11 @@ public final class ClientObserve {
         });
     }
 
-    public static Map<String, Object> observeThreats(int radius) {
+    public static ObserveContracts.Threats observeThreats(int radius) {
         return runOnClient(() -> {
             Minecraft mc = Minecraft.getInstance();
-            if (mc.level == null || mc.player == null) {
-                return Map.of("threats", List.of(), "incomingProjectiles", List.of());
-            }
-            return ThreatScanner.toMap(ClientThreatScanner.compute(mc, radius));
+            if (mc.level == null || mc.player == null) return new ObserveContracts.Threats(List.of(), List.of());
+            return ThreatScanner.reading(ClientThreatScanner.compute(mc, radius));
         });
     }
 

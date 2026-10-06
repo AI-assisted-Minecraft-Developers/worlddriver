@@ -1,15 +1,16 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
-import net.magicterra.worlddriver.application.ObserveApi;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.methods.PlayerContract;
+import net.magicterra.worlddriver.application.PlayerSnapshots;
 import net.magicterra.worlddriver.application.RecipeApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.CraftProcess;
@@ -19,7 +20,6 @@ import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.model.Params;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -425,19 +425,15 @@ public final class WorldDriverStationScenes implements SceneProvider {
         worn.setDamageValue(245);
         fp.getInventory().setItem(4, worn);
 
-        Map<String, Object> snap = ObserveApi.playerSnapshot(fp);
+        PlayerContract.PlayerState snap = PlayerSnapshots.of(fp, Optional.empty());
+        // The contract the wire answer is checked against holds the server-built record too.
+        PlayerContract.PLAYER_STATE.encode(snap);
 
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> inv = (List<Map<String, Object>>) snap.get("inventory");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> items = (Map<String, Object>) snap.get("items");
-        WorldDriverCommon.LOG.info("[wd.serverObservePlayerInventory] invRows={} items={}",
-                inv == null ? -1 : inv.size(), items);
-        if (inv == null)
-            ctx.fail("wd.serverObservePlayerInventory: observe.player carries no `inventory` field at all — "
-                    + "the bot cannot see its own bag through the only verb a server avatar has");
-        Map<Integer, Map<String, Object>> bySlot = new LinkedHashMap<>();
-        for (Map<String, Object> row : inv) bySlot.put(((Number) row.get("slot")).intValue(), row);
+        List<PlayerContract.InventorySlot> inv = snap.inventory();
+        Map<String, Integer> items = snap.items();
+        WorldDriverCommon.LOG.info("[wd.serverObservePlayerInventory] invRows={} items={}", inv.size(), items);
+        Map<Integer, PlayerContract.InventorySlot> bySlot = new LinkedHashMap<>();
+        for (PlayerContract.InventorySlot row : inv) bySlot.put(row.slot(), row);
         if (bySlot.size() != 6)
             ctx.fail("wd.serverObservePlayerInventory: expected exactly the 6 stacks placed, got " + inv);
         for (int hidden : new int[]{9, 20, 33}) {
@@ -445,32 +441,23 @@ public final class WorldDriverStationScenes implements SceneProvider {
                 ctx.fail("wd.serverObservePlayerInventory: hidden main-inventory slot " + hidden
                         + " is still invisible (this is the whole gap): " + inv);
         }
-        if (!"minecraft:bread".equals(bySlot.get(33).get("id"))
-                || !Integer.valueOf(3).equals(bySlot.get(33).get("count")))
+        if (!"minecraft:bread".equals(bySlot.get(33).id()) || bySlot.get(33).count() != 3)
             ctx.fail("wd.serverObservePlayerInventory: slot 33 misreported: " + bySlot.get(33));
-        if (!bySlot.containsKey(40) || !"minecraft:torch".equals(bySlot.get(40).get("id")))
+        if (!bySlot.containsKey(40) || !"minecraft:torch".equals(bySlot.get(40).id()))
             ctx.fail("wd.serverObservePlayerInventory: offhand (slot 40) not reported: " + inv);
 
-        Map<String, Object> pick = bySlot.get(4);
-        if (pick == null || !"minecraft:iron_pickaxe".equals(pick.get("id")))
+        PlayerContract.InventorySlot pick = bySlot.get(4);
+        if (pick == null || !"minecraft:iron_pickaxe".equals(pick.id()))
             ctx.fail("wd.serverObservePlayerInventory: worn pickaxe missing from slot 4: " + inv);
-        if (pick.get("durability") == null)
+        if (pick.durability().isEmpty())
             ctx.fail("wd.serverObservePlayerInventory: tool wear is invisible to the agent — a "
                     + "nearly-broken pickaxe reads identical to a fresh one: " + pick);
-        if (!Integer.valueOf(5).equals(pick.get("durability"))
-                || !Integer.valueOf(245).equals(pick.get("damage")))
+        if (!Optional.of(5).equals(pick.durability()) || !Optional.of(245).equals(pick.damage()))
             ctx.fail("wd.serverObservePlayerInventory: `durability` must be points REMAINING (maxDamage-damage): " + pick);
-        if (bySlot.get(9).containsKey("durability"))
+        if (bySlot.get(9).durability().isPresent())
             ctx.fail("wd.serverObservePlayerInventory: a stackable (cobblestone) must carry no wear fields: "
                     + bySlot.get(9));
 
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> hotbar = (List<Map<String, Object>>) snap.get("hotbar");
-        if (hotbar == null || hotbar.size() != 9)
-            ctx.fail("wd.serverObservePlayerInventory: the `hotbar` field must survive unchanged, got " + hotbar);
-
-        if (items == null)
-            ctx.fail("wd.serverObservePlayerInventory: observe.player must emit an aggregated `items` map (the `have` shape)");
         if (!Integer.valueOf(5).equals(items.get("minecraft:cobblestone"))
                 || !Integer.valueOf(4).equals(items.get("minecraft:torch")))
             ctx.fail("wd.serverObservePlayerInventory: `items` must aggregate hidden slots + offhand: " + items);
@@ -478,8 +465,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
             ctx.fail("wd.serverObservePlayerInventory: `items` ids must be namespaced — a bare id is silently "
                     + "have-nothing to the resolver: " + items);
 
-        Map<String, Integer> have = new LinkedHashMap<>();
-        for (var e : items.entrySet()) have.put(e.getKey(), ((Number) e.getValue()).intValue());
+        Map<String, Integer> have = new LinkedHashMap<>(items);
         RecipeResolver.Plan plan = RecipeResolver.resolve(
                 level.getServer().getRecipeManager(), level.registryAccess(),
                 "minecraft:stone_pickaxe", 1, have, Set.of());
@@ -519,7 +505,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         RecipeManager rm = level.getServer().getRecipeManager();
         HolderLookup.Provider ra = level.registryAccess();
 
-        Map<String, Integer> dflt = RecipeApi.resolveHave(Params.of(Map.of()), fp);
+        Map<String, Integer> dflt = RecipeApi.resolveHave(Optional.empty(), fp);
         WorldDriverCommon.LOG.info("[wd.serverPlanHaveDefaultsToBag] defaultHave={}", dflt);
         if (!Integer.valueOf(208).equals(dflt.get("minecraft:cobblestone")))
             ctx.fail("wd.serverPlanHaveDefaultsToBag: omitting `have` must plan against the REAL bag "
@@ -531,9 +517,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
                     + " for a bot that is carrying every ingredient — planner and executor "
                     + "are measuring different bags");
 
-        Map<String, Object> emptyHave = new LinkedHashMap<>();
-        emptyHave.put("have", new LinkedHashMap<String, Object>());
-        Map<String, Integer> hypo = RecipeApi.resolveHave(Params.of(emptyHave), fp);
+        Map<String, Integer> hypo = RecipeApi.resolveHave(Optional.of(Map.of()), fp);
         if (!hypo.isEmpty())
             ctx.fail("wd.serverPlanHaveDefaultsToBag: an explicit empty `have` must stay the "
                     + "'suppose I had nothing' hypothesis, got " + hypo);
@@ -543,16 +527,12 @@ public final class WorldDriverStationScenes implements SceneProvider {
             ctx.fail("wd.serverPlanHaveDefaultsToBag: what-if planning is broken: an empty hypothesis "
                     + "must still lack the ingredients");
 
-        Map<String, Object> given = new LinkedHashMap<>();
-        Map<String, Object> inner = new LinkedHashMap<>();
-        inner.put("minecraft:cobblestone", 3);
-        given.put("have", inner);
-        Map<String, Integer> verbatim = RecipeApi.resolveHave(Params.of(given), fp);
+        Map<String, Integer> verbatim = RecipeApi.resolveHave(Optional.of(Map.of("minecraft:cobblestone", 3)), fp);
         if (verbatim.size() != 1 || !Integer.valueOf(3).equals(verbatim.get("minecraft:cobblestone")))
             ctx.fail("wd.serverPlanHaveDefaultsToBag: an explicit `have` must be used verbatim, not "
                     + "merged with the bag, got " + verbatim);
 
-        if (!RecipeApi.resolveHave(Params.of(Map.of()), (Player) null).isEmpty())
+        if (!RecipeApi.resolveHave(Optional.empty(), (Player) null).isEmpty())
             ctx.fail("wd.serverPlanHaveDefaultsToBag: a null bot must fall back to have-nothing");
     }
 

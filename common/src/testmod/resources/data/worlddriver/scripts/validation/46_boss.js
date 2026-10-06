@@ -15,7 +15,7 @@ function boss(r) { return Driver.invoke("mc.observe.boss", r ? { radius: r } : {
 function has(s, needle) { return typeof s === "string" && s.indexOf(needle) >= 0; }
 
 function selfPos() {
-    var me = Driver.invoke("mc.observe.player", {});
+    var me = Driver.invoke("mc.observe.player", {}).player;
     return { x: Math.floor(me.pos.x), y: Math.floor(me.pos.y), z: Math.floor(me.pos.z) };
 }
 
@@ -36,7 +36,7 @@ function cleanupBosses() {
     // old 4-tick wait plus the dragon check's own 6 never once cleared it — the bug was
     // present every run and only the symptom was intermittent, depending on which of the
     // two bosses the scan happened to reach first.
-    for (var i = 0; i < 30 && boss(64).present; i++) Driver.system.waitTicks(2);
+    for (var i = 0; i < 30 && boss(64).boss; i++) Driver.system.waitTicks({ ticks: 2 });
 }
 
 // Poll the runner until the background playbook goes idle; return final status.
@@ -45,7 +45,7 @@ function waitPlaybookIdle(timeoutTicks) {
     for (var i = 0; i < (timeoutTicks || 60); i++) {
         s = Driver.invoke("mc.bot.playbook", { op: "status" });
         if (s && !s.active) break;
-        Driver.system.waitTicks(2);
+        Driver.system.waitTicks({ ticks: 2 });
     }
     return s;
 }
@@ -57,7 +57,7 @@ if (!clientAvailable()) {
     ScriptTest.run("46_boss: observe.boss reports absent with no boss", function (t) {
         cleanupBosses();
         var b = boss();
-        t.assertEqual(b.present, false, "no boss present");
+        t.assertTrue(b.boss === undefined, "no boss present");
         t.assertTrue(Array.isArray(b.crystals), "crystals is always an array");
     });
 
@@ -66,7 +66,7 @@ if (!clientAvailable()) {
         var p = selfPos();
         cmd("summon minecraft:end_crystal " + (p.x + 3) + " " + p.y + " " + p.z);
         cmd("summon minecraft:end_crystal " + p.x + " " + p.y + " " + (p.z + 3));
-        Driver.system.waitTicks(6);
+        Driver.system.waitTicks({ ticks: 6 });
         var b = boss(32);
         t.assertTrue(b.crystals.length >= 2, "two crystals sensed (" + b.crystals.length + ")");
         var c = b.crystals[0];
@@ -79,18 +79,17 @@ if (!clientAvailable()) {
         cleanupBosses();
         var p = selfPos();
         cmd("summon minecraft:wither " + (p.x + 6) + " " + p.y + " " + p.z);
-        Driver.system.waitTicks(6);
-        var b = boss(48);
-        t.assertEqual(b.present, true, "wither present");
-        t.assertEqual(b.type, "wither", "type = wither");
+        Driver.system.waitTicks({ ticks: 6 });
+        var b = boss(48).boss || {};
+        t.assertEqual(b.type, "wither", "wither present, type = wither");
         t.assertTrue(b.maxHealth >= 100, "wither maxHealth ~300 (" + b.maxHealth + ")");
         // /summon skips the soul-sand build sequence, so a summoned wither has no
         // spawn invul (invulTicks 0) — only naturally-built ones get the 220t shield.
         // Assert the fields exist and are well-formed rather than a specific value.
         t.assertEqual(typeof b.invulTicks, "number", "invulTicks exposed");
         t.assertEqual(typeof b.powered, "boolean", "powered flag exposed");
-        t.assertTrue(b.phase === 1 || b.phase === 2 || b.phase === "spawning",
-            "phase is 1|2|spawning (" + b.phase + ")");
+        t.assertTrue(b.phase === "first" || b.phase === "second" || b.phase === "spawning",
+            "phase is first|second|spawning (" + b.phase + ")");
         cleanupBosses();
     });
 
@@ -98,14 +97,13 @@ if (!clientAvailable()) {
         cleanupBosses();
         var p = selfPos();
         cmd("summon minecraft:ender_dragon " + p.x + " " + (p.y + 5) + " " + p.z);
-        Driver.system.waitTicks(6);
-        var b = boss(64);
-        t.assertEqual(b.present, true, "dragon present");
-        t.assertEqual(b.type, "ender_dragon", "type = ender_dragon");
+        Driver.system.waitTicks({ ticks: 6 });
+        var b = boss(64).boss || {};
+        t.assertEqual(b.type, "ender_dragon", "dragon present, type = ender_dragon");
         t.assertTrue(b.maxHealth >= 100, "dragon maxHealth = 200 (" + b.maxHealth + ")");
         t.assertTrue(typeof b.phase === "string" && b.phase.length > 0, "phase string (" + b.phase + ")");
         t.assertEqual(typeof b.perched, "boolean", "perched flag");
-        t.assertTrue(b.head && typeof b.head.x === "number", "head position exposed");
+        t.assertTrue(b.head && typeof b.head.pos.x === "number", "head position exposed");
         cleanupBosses();
     });
 
@@ -131,7 +129,7 @@ if (!clientAvailable()) {
     ScriptTest.run("46_boss: wither playbook aborts on failed gear gate", function (t) {
         cleanupBosses();
         cmd("clear @s");
-        Driver.system.waitTicks(4);
+        Driver.system.waitTicks({ ticks: 4 });
         Driver.invoke("mc.bot.playbook", { op: "start", name: "wither", args: { summon: false } });
         var s = waitPlaybookIdle(80);
         t.assertTrue(s && !s.active, "playbook finished");

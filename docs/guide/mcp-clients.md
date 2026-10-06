@@ -233,7 +233,7 @@ Two ops on the `mc.events` tool work from any transport:
 
 // Emit an event on a rising edge: poll a route, fire when the predicate flips false to true.
 {"name":"mc.events","arguments":{"op":"watch","invoke":"mc.observe.player",
-                                 "field":"health","below":6,"emitAs":"player.lowHealth"}}
+                                 "field":"player.vitals.health","below":6,"emitAs":"player.lowHealth"}}
 
 {"name":"mc.events","arguments":{"op":"list"}}
 {"name":"mc.events","arguments":{"op":"unwatch","id":1}}

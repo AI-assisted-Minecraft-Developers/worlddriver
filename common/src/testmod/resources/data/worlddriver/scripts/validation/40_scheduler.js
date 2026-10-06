@@ -34,13 +34,13 @@ function resetScheduler() {
 // idle. Summon a stationary hostile near the player — exactly like 41_defense — so
 // the forced-retreat/preempt checks exercise the real scheduler path deterministically.
 function summonRetreatThreat() {
-    var me = Driver.invoke("mc.observe.player", {});
-    if (!me || !me.present || !me.pos) return false;
+    var me = Driver.invoke("mc.observe.player", {}).player;
+    if (!me) return false;
     var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
     Driver.invoke("mc.action.runCommand", {
         cmd: "summon zombie " + x + " " + y + " " + (z + 3) + " {NoAI:1b,PersistenceRequired:1b}"
     });
-    Driver.system.waitTicks(4);
+    Driver.system.waitTicks({ ticks: 4 });
     return true;
 }
 
@@ -69,7 +69,7 @@ if (!clientAvailable()) {
 
     ScriptTest.run("40_scheduler: status exposes scheduler fields with idle defaults", function(t) {
         resetScheduler();
-        Driver.system.waitTicks(2);
+        Driver.system.waitTicks({ ticks: 2 });
         var r = status().reflexes;
         t.assertTrue(typeof r.chains === "object" && r.chains !== null, "chains is an object");
         // Idle + retreat off: nobody bids, channel empty, user task not suspended.
@@ -85,7 +85,7 @@ if (!clientAvailable()) {
         summonRetreatThreat();   // task#92: a hostile to flee, so RetreatChain bids
         // Force retreat permanently active (threshold == max HP) with a threat present.
         Driver.bot.patchSettings({ autoRetreat: true, retreatHpThreshold: 20 });
-        Driver.system.waitTicks(3);
+        Driver.system.waitTicks({ ticks: 3 });
         var r = status().reflexes;
         t.assertEqual(r.activeChain, "retreat", "retreat chain holds the channel");
         t.assertTrue(r.chains.retreat.priority >= 100, "retreat bid is in the survival band");
@@ -97,11 +97,11 @@ if (!clientAvailable()) {
         resetScheduler();
         // Aim a goto at a reachable point ~24 blocks away so the user task stays
         // WALKING through the test rather than completing immediately.
-        var me = Driver.invoke("mc.observe.player", {});
-        if (me && me.present && me.pos) {
+        var me = Driver.invoke("mc.observe.player", {}).player;
+        if (me) {
             Driver.invoke("mc.bot.goto", { target: { kind: "position",
                 pos: { x: Math.round(me.pos.x) + 24, y: Math.round(me.pos.y), z: Math.round(me.pos.z) } } });
-            Driver.system.waitTicks(2);
+            Driver.system.waitTicks({ ticks: 2 });
         }
         var running = status();
         if (running.activeProcess !== "goto") {
@@ -115,7 +115,7 @@ if (!clientAvailable()) {
         // user task must report suspended (but still held as activeProcess).
         summonRetreatThreat();   // task#92: a hostile to flee, so RetreatChain bids
         Driver.bot.patchSettings({ autoRetreat: true, retreatHpThreshold: 20 });
-        Driver.system.waitTicks(3);
+        Driver.system.waitTicks({ ticks: 3 });
         var preempted = status();
         t.assertEqual(preempted.reflexes.activeChain, "retreat", "retreat preempts the goto");
         t.assertEqual(preempted.reflexes.userTaskSuspended, true, "user task reports suspended");
@@ -123,7 +123,7 @@ if (!clientAvailable()) {
 
         // Drop retreat's bid — the suspended goto must regain the channel.
         Driver.bot.patchSettings({ autoRetreat: false });
-        Driver.system.waitTicks(3);
+        Driver.system.waitTicks({ ticks: 3 });
         var resumed = status();
         if (resumed.activeProcess === "goto") {
             t.assertEqual(resumed.reflexes.activeChain, "user", "user task resumes the channel");
@@ -140,7 +140,7 @@ if (!clientAvailable()) {
         function(t) {
             resetScheduler();
             Driver.bot.patchSettings({ autoRetreat: true, retreatHpThreshold: 20 });
-            Driver.system.waitTicks(3);
+            Driver.system.waitTicks({ ticks: 3 });
             var args = {};
             var direct = Driver.invoke("mc.bot.status", args);
             var viaTcp = Driver.system.rpcRoundtrip("mc.bot.status", args);

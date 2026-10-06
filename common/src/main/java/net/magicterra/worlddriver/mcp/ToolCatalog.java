@@ -20,9 +20,7 @@ import static net.magicterra.worlddriver.mcp.schema.Schemas.tool;
 
 import net.magicterra.worlddriver.mcp.catalog.ClientTools;
 import net.magicterra.worlddriver.mcp.catalog.ObserveActionTools;
-import net.magicterra.worlddriver.mcp.catalog.RecipeTools;
 import net.magicterra.worlddriver.mcp.catalog.ScriptTools;
-import net.magicterra.worlddriver.mcp.catalog.SystemTools;
 import net.magicterra.worlddriver.mcp.catalog.WaitTools;
 import net.magicterra.worlddriver.mcp.schema.Schema;
 import net.magicterra.worlddriver.mcp.schema.ToolSchema;
@@ -123,7 +121,7 @@ public final class ToolCatalog {
      *
      * <p><b>Baseline guard.</b> After the namespace policy passes, the name is checked
      * against the driver-owned baseline — every name in the curated fixed sections
-     * ({@code SystemTools} … {@code BotTools}) plus {@link #HIDDEN_TOOLS}. A match
+     * ({@code ScriptTools} … {@code ClientTools}) plus {@link #HIDDEN_TOOLS}. A match
      * throws {@link IllegalArgumentException}: it closes the hole where a caller
      * granted the {@code mc.test.*} namespace (or, before this guard, any {@code mc.*}
      * name it could otherwise slip past a looser check) could pick a name equal to a
@@ -240,10 +238,8 @@ public final class ToolCatalog {
      */
     private static List<ToolSchema> fixedCurated() {
         ArrayList<ToolSchema> all = new ArrayList<>();
-        all.addAll(SystemTools.tools());
         all.addAll(ScriptTools.tools());
         all.addAll(ObserveActionTools.tools());
-        all.addAll(RecipeTools.tools());
         all.addAll(WaitTools.tools());
         all.addAll(ClientTools.tools());
         return all;

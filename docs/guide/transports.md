@@ -87,7 +87,7 @@ A request:
 A success response, then a failure response:
 
 ```json
-{"id": 1, "result": {"present": true, "name": "Dev", "pos": {"x": 0, "y": 200, "z": 0}}}
+{"id": 1, "result": {"player": {"name": "Dev", "pos": {"x": 0.5, "y": 200.0, "z": 0.5}, "…": "…"}}}
 {"id": 1, "error": "unknown block: foo", "code": -32602}
 ```
 
@@ -268,9 +268,9 @@ worker thread, off the server thread, so routes that marshal onto the server tic
 deadlock it, and it gets a fresh scope per call, so nothing leaks between calls.
 
 ```js
-var p = Driver.observe.player();
-var trees = Driver.query({q: 'blocks', center: p.pos,
-                          filter: {in_radius: 12, type: 'minecraft:oak_log'}});
+var p = Driver.observe.player().player;
+var trees = Driver.query({q: 'blocks', center: p.blockPos,
+                          filter: {in_radius: 12, type: 'minecraft:oak_log'}}).blocks;
 console.log('found ' + trees.length);
 trees.length ? Driver.bot.goto({target: {kind: 'position', pos: trees[0].pos}}) : 'nothing nearby'
 ```
@@ -285,10 +285,11 @@ trees.length ? Driver.bot.goto({target: {kind: 'position', pos: trees[0].pos}}) 
   take those bodies over until the actions end. Running out of time stops the run and cancels
   them; returning leaves them running. A `mc.script.eval` made from inside a script joins the
   outer run and its deadline.
-- The scope has `Driver.invoke(method, params)` plus the typed helpers `Driver.system`,
-  `observe`, `action`, `query`, `plan`, `skill`, `events`, `wait`, `client` and `bot`.
-  Anything without a helper is reachable by name through `Driver.invoke`, which is the whole
-  route table.
+- The scope has `Driver.invoke(method, params)` plus one helper per method, named after it
+  and taking its params object: `mc.system.waitTicks` is `Driver.system.waitTicks({ticks: 5})`,
+  `mc.query` is `Driver.query({...})`. A few sugar helpers sit beside them, such as
+  `Driver.observe.area` and `Driver.action.placeBlock`. Anything without a helper is reachable
+  by name through `Driver.invoke`, which is the whole route table.
 - `javaClassName(v)` names the Java class of a wrapped Java object, such as
   `java.util.ArrayList`, since this Rhino offers no `obj.getClass()`. It is null for null,
   undefined, JS objects, and anything `typeof` calls a string, number or boolean. A Minecraft
@@ -320,7 +321,6 @@ This scope is the `mc.script.eval` prelude plus extras that only make sense on d
 - `ScriptEvents.onAttach(fn)` and `ScriptEvents.tick(fn)` register callbacks at load time.
   `tick` fires from the server tick; `attach` fires once after loading finishes. Callbacks
   are wiped and re-registered on every reload.
-- `Driver.world.block`, `Driver.world.snapshot` and `Driver.world.restore`.
 - `Driver.invokeRpc(method, params)` and `Driver.invokeMcp(method, params)` make the same
   call the long way, out through the RPC or MCP socket and back. They exist for the
   parity checks that assert all three doors agree; ordinary scripts want plain

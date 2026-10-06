@@ -1,19 +1,32 @@
 package net.magicterra.worlddriver.application;
 
+import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.WorldCell;
 
-import net.magicterra.worlddriver.model.Params;
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.WorldContracts;
+import net.magicterra.worlddriver.api.methods.WorldContracts.BlockParams;
+import net.magicterra.worlddriver.api.methods.WorldContracts.BlockReading;
+import net.magicterra.worlddriver.api.methods.WorldContracts.Light;
+import net.magicterra.worlddriver.api.methods.WorldContracts.RestoreParams;
+import net.magicterra.worlddriver.api.methods.WorldContracts.Restored;
+import net.magicterra.worlddriver.api.methods.WorldContracts.SnapshotParams;
+import net.magicterra.worlddriver.api.methods.WorldContracts.Snapshotted;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.Property;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -21,27 +34,29 @@ import java.util.concurrent.atomic.AtomicLong;
  * restores an axis-aligned box of block states (plus block-entity NBT) into an
  * in-memory store so a test can stash a region, mutate it, then put it back
  * verbatim — the deterministic setup/teardown primitive the GameTest YAML layer
- * (proposal §4.1 C) builds on. Dispatch still flows through {@code DriverApplication.route}
- * (single source of truth); all reads/writes bounce through
- * {@code DriverApplication.onServerThread}.
+ * (proposal §4.1 C) builds on. All reads and writes run on the server thread.
  *
  * <p>Snapshots hold live {@link BlockState} / {@link CompoundTag} objects rather
  * than serialized bytes — restore is then an exact identity put with no
- * (de)serialization round-trip. The store is bounded ({@link #MAX_SNAPSHOTS}) and
+ * (de)serialization round-trip. The store is bounded ({@link WorldContracts#MAX_SNAPSHOTS}) and
  * cleared when the server detaches; it is JVM-local and never persisted.
  */
 public final class WorldApi {
     /** Same per-call cell budget as {@code mc.action.fill} (= 32^3). */
-    static final int MAX_VOLUME = 32768;
-    /** Cap on retained snapshots; a new id past this throws rather than evict
-     *  silently (a silent eviction would turn a later restore into a no-op). */
-    static final int MAX_SNAPSHOTS = 64;
+    static final int MAX_VOLUME = WorldContracts.MAX_VOLUME;
 
     private final DriverApplication api;
     private final Map<String, Snapshot> store = new LinkedHashMap<>();
     private final AtomicLong autoId = new AtomicLong();
 
     WorldApi(DriverApplication api) { this.api = api; }
+
+    List<ApiMethod<?, ?>> methods() {
+        return List.of(
+                new ApiMethod<>(WorldContracts.BLOCK, this::block),
+                new ApiMethod<>(WorldContracts.SNAPSHOT, this::snapshot),
+                new ApiMethod<>(WorldContracts.RESTORE, this::restore));
+    }
 
     /** Immutable captured region. Indexing is x-major, then y, then z. */
     private static final class Snapshot {
@@ -94,77 +109,44 @@ public final class WorldApi {
      * an {@code execute if block … run setblock <scratch>} hack. This is the
      * verify half of the build→verify loop, one round-trip, no side effects.
      */
-    public Map<String, Object> block(Map<String, Object> params) {
-        Params p = Params.of(params);
-        BlockPos pos = p.getPos("pos");
-        if (pos == null) throw new IllegalArgumentException("pos required");
-        boolean withNbt = p.getBool("nbt", false);
+    CompletionStage<BlockReading> block(BlockParams p, CallContext ctx) {
+        BlockPos pos = ObserveApi.pos(p.pos());
         ServerLevel level = api.level();
-        return api.onServerThread(() -> {
+        return api.requireServerHop().submit(() -> {
             BlockState st = level.getBlockState(pos);
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("pos", new BlockPos(pos.getX(), pos.getY(), pos.getZ()));
-            out.put("type", ApiSupport.blockId(st));
-            if (!st.getProperties().isEmpty()) {
-                Map<String, Object> stateMap = new LinkedHashMap<>();
-                for (var prop : st.getProperties()) {
-                    stateMap.put(prop.getName(), propValue(st, prop));
-                }
-                out.put("state", stateMap);
-            }
-            Map<String, Object> light = new LinkedHashMap<>();
-            light.put("block", level.getBrightness(LightLayer.BLOCK, pos));
-            light.put("sky", level.getBrightness(LightLayer.SKY, pos));
-            out.put("light", light);
-            if (withNbt) {
+            Light light = new Light(level.getBrightness(LightLayer.BLOCK, pos), level.getBrightness(LightLayer.SKY, pos));
+            Optional<String> nbt = Optional.empty();
+            if (p.nbt()) {
                 BlockEntity be = level.getBlockEntity(pos);
-                out.put("blockEntity", be == null
-                        ? null : be.saveWithFullMetadata(level.registryAccess()).toString());
+                if (be != null) nbt = Optional.of(be.saveWithFullMetadata(level.registryAccess()).toString());
             }
-            return out;
-        });
-    }
-
-    /** Property value as the string a /setblock predicate would use ("true", "north", "3"). */
-    private static <T extends Comparable<T>> String propValue(BlockState st, Property<T> prop) {
-        return prop.getName(st.getValue(prop));
+            return new BlockReading(p.pos(), ApiSupport.blockId(st), BlockQuery.state(st), light, nbt);
+        }, ctx);
     }
 
     /**
      * Capture the inclusive box {@code from}..{@code to} under a caller-named
      * {@code id} (auto-generated when omitted). Re-using an id overwrites it.
      * {@code blockEntities:false} skips NBT capture (states only — cheaper, but
-     * a chest's contents won't survive a restore). Returns
-     * {@code {ok, id, from, to, blocks, nonAir, blockEntities}}.
+     * a chest's contents won't survive a restore). The contract has held the box
+     * to {@link #MAX_VOLUME}.
      */
-    public Map<String, Object> snapshot(Map<String, Object> params) {
-        Params p = Params.of(params);
-        BlockPos from = p.getPos("from");
-        BlockPos to = p.getPos("to");
-        if (from == null || to == null) throw new IllegalArgumentException("from and to required");
-        boolean withBe = p.getBool("blockEntities", true);
-
-        int minX = Math.min(from.getX(), to.getX()), maxX = Math.max(from.getX(), to.getX());
-        int minY = Math.min(from.getY(), to.getY()), maxY = Math.max(from.getY(), to.getY());
-        int minZ = Math.min(from.getZ(), to.getZ()), maxZ = Math.max(from.getZ(), to.getZ());
+    CompletionStage<Snapshotted> snapshot(SnapshotParams p, CallContext ctx) {
+        int minX = Math.min(p.from().x(), p.to().x()), maxX = Math.max(p.from().x(), p.to().x());
+        int minY = Math.min(p.from().y(), p.to().y()), maxY = Math.max(p.from().y(), p.to().y());
+        int minZ = Math.min(p.from().z(), p.to().z()), maxZ = Math.max(p.from().z(), p.to().z());
         int sx = maxX - minX + 1, sy = maxY - minY + 1, sz = maxZ - minZ + 1;
-        long volume = (long) sx * sy * sz;
-        if (volume > MAX_VOLUME) {
-            throw new IllegalArgumentException("volume too large: " + volume + " > " + MAX_VOLUME);
-        }
 
-        String id = p.getNonBlank("id");
-        if (id == null) id = "snap-" + autoId.incrementAndGet();
-        final String snapId = id;
+        String snapId = p.id().orElseGet(() -> "snap-" + autoId.incrementAndGet());
         synchronized (store) {
-            if (!store.containsKey(snapId) && store.size() >= MAX_SNAPSHOTS) {
-                throw new IllegalStateException("snapshot store full (" + MAX_SNAPSHOTS
+            if (!store.containsKey(snapId) && store.size() >= WorldContracts.MAX_SNAPSHOTS) {
+                throw new IllegalStateException("snapshot store full (" + WorldContracts.MAX_SNAPSHOTS
                         + "); restore with discard:true or pick an existing id");
             }
         }
 
         ServerLevel level = api.level();
-        return api.onServerThread(() -> {
+        return api.requireServerHop().submit(() -> {
             Snapshot snap = new Snapshot(minX, minY, minZ, sx, sy, sz);
             BlockPos.MutableBlockPos cur = new BlockPos.MutableBlockPos();
             for (int dx = 0; dx < sx; dx++)
@@ -175,7 +157,7 @@ public final class WorldApi {
                         int i = snap.idx(dx, dy, dz);
                         snap.states[i] = st;
                         if (!st.isAir()) snap.nonAir++;
-                        if (withBe) {
+                        if (p.blockEntities()) {
                             BlockEntity be = level.getBlockEntity(cur);
                             if (be != null) {
                                 snap.beTags[i] = be.saveWithFullMetadata(level.registryAccess());
@@ -184,35 +166,24 @@ public final class WorldApi {
                         }
                     }
             synchronized (store) { store.put(snapId, snap); }
-
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("ok", true);
-            out.put("id", snapId);
-            out.put("from", new BlockPos(minX, minY, minZ));
-            out.put("to", new BlockPos(maxX, maxY, maxZ));
-            out.put("blocks", sx * sy * sz);
-            out.put("nonAir", snap.nonAir);
-            out.put("blockEntities", snap.blockEntities);
-            return out;
-        });
+            return new Snapshotted(snapId, new BlockPosition(minX, minY, minZ), new BlockPosition(maxX, maxY, maxZ),
+                    sx * sy * sz, snap.nonAir, snap.blockEntities);
+        }, ctx);
     }
 
     /**
-     * Put a previously-captured region back verbatim. {@code id} required; unknown
-     * id throws. {@code discard:true} frees the snapshot after a successful
-     * restore. Returns {@code {ok, id, restored, blockEntities}}.
+     * Put a previously-captured region back verbatim. An unknown id is refused.
+     * {@code discard:true} frees the snapshot after a successful restore.
      */
-    public Map<String, Object> restore(Map<String, Object> params) {
-        Params p = Params.of(params);
-        String id = p.getNonBlank("id");
-        if (id == null) throw new IllegalArgumentException("id required");
-        boolean discard = p.getBool("discard", false);
+    CompletionStage<Restored> restore(RestoreParams p, CallContext ctx) {
+        String id = p.id();
         Snapshot snap;
         synchronized (store) { snap = store.get(id); }
-        if (snap == null) throw new IllegalArgumentException("unknown snapshot id: " + id);
+        if (snap == null) throw ApiException.invalidParam("/id", ApiIssue.Code.INVALID_VALUE, "unknown snapshot id: " + id);
 
         ServerLevel level = api.level();
-        Map<String, Object> result = api.onServerThread(() -> {
+        long cursor = api.eventCursor();
+        return api.requireServerHop().submit(() -> {
             // Build the cell list while counting, then delegate the actual block
             // writes to the shared restoreCells helper.
             List<WorldCell> cells = new ArrayList<>(snap.sx * snap.sy * snap.sz);
@@ -227,17 +198,10 @@ public final class WorldApi {
                         if (tag != null) beRestored++;
                     }
             restoreCells(level, cells);
-            int restored = cells.size();
             api.emit("world.restore", new BlockPos(snap.minX, snap.minY, snap.minZ),
-                    id + "@" + restored + " blocks");
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("ok", true);
-            out.put("id", id);
-            out.put("restored", restored);
-            out.put("blockEntities", beRestored);
-            return out;
-        });
-        if (discard) synchronized (store) { store.remove(id); }
-        return result;
+                    id + "@" + cells.size() + " blocks");
+            if (p.discard()) synchronized (store) { store.remove(id); }
+            return new Restored(id, cells.size(), beRestored, api.eventsAfter(cursor, p.returnEvents()));
+        }, ctx);
     }
 }

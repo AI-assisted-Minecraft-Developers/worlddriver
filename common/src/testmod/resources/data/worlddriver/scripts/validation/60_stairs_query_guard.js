@@ -27,7 +27,7 @@ ScriptTest.run("60_stairs: every placed stair variant is returned by query", fun
             q: "blocks",
             center: { x: x, y: y, z: z },
             filter: { in_radius: 1, type: stairs[i] }
-        });
+        }).blocks;
         t.assertEqual(rows.length, 1, stairs[i] + st + " must appear in query results");
         t.assertEqual(rows[0].type, stairs[i]);
         t.assertEqual(rows[0].pos.x, x);
@@ -39,7 +39,7 @@ ScriptTest.run("60_stairs: every placed stair variant is returned by query", fun
             center: { x: x, y: y, z: z },
             filter: { in_radius: 1 },
             select: ["pos", "type"]
-        });
+        }).blocks;
         var found = false;
         for (var k = 0; k < hood.length; k++) {
             if (hood[k].type === stairs[i]) { found = true; break; }

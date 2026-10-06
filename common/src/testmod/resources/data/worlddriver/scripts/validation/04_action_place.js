@@ -3,7 +3,6 @@ ScriptTest.run("04_action_place: placeMany then observe shows new block", functi
     var target = { x: origin.x, y: origin.y + 3, z: origin.z };
     var r = Driver.invoke("mc.action.placeMany",
         { blocks: [{ pos: target, type: "minecraft:cobblestone" }] });
-    t.assertEqual(r.ok, true, "placeMany should succeed");
     t.assertEqual(r.placed, 1, "exactly one block should be placed");
 
     var after = Driver.observe.area({ center: target, radius: 0 });

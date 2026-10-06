@@ -23,7 +23,7 @@ ScriptTest.run("59_proj: entity effects/uuid/id round-trip", function(t) {
         q: "entities",
         center: { x: x, y: y, z: z },
         filter: { in_radius: 4, type: "minecraft:zombie" }
-    });
+    }).entities;
     t.assertEqual(rows.length, 1, "exactly the tagged zombie, got " + rows.length);
     var row = rows[0];
     t.assertHasKey(row, "uuid");
@@ -48,7 +48,7 @@ ScriptTest.run("59_proj: is_living filter drops item entities", function(t) {
         q: "entities",
         center: { x: x, y: y, z: z },
         filter: { in_radius: 4, is_living: true }
-    });
+    }).entities;
     for (var i = 0; i < living.length; i++) {
         t.assertFalse(living[i].type === "minecraft:item",
             "is_living:true must not return item entities");
@@ -57,7 +57,7 @@ ScriptTest.run("59_proj: is_living filter drops item entities", function(t) {
         q: "entities",
         center: { x: x, y: y, z: z },
         filter: { in_radius: 4, is_living: false }
-    });
+    }).entities;
     t.assertEqual(nonLiving.length, 1, "only the dropped item is non-living");
     t.assertEqual(nonLiving[0].type, "minecraft:item");
     t.assertFalse("health" in nonLiving[0], "non-living rows carry no health");
@@ -94,7 +94,7 @@ ScriptTest.run("59_proj: blocks rows carry blockstate properties", function(t) {
         center: { x: x, y: y, z: z },
         filter: { in_radius: 0 },
         select: ["pos", "type", "state"]
-    });
+    }).blocks;
     t.assertEqual(rows.length, 1, "the stair cell must be returned");
     t.assertEqual(rows[0].type, "minecraft:oak_stairs");
     t.assertHasKey(rows[0], "state");
@@ -109,7 +109,7 @@ ScriptTest.run("59_proj: blocks rows carry blockstate properties", function(t) {
         q: "blocks",
         center: { x: x, y: y + 1, z: z },
         filter: { in_radius: 0 }
-    });
+    }).blocks;
     t.assertEqual(plain.length, 1);
     t.assertFalse("state" in plain[0], "stone has no properties, so no state key");
 

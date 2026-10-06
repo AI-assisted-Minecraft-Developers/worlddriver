@@ -54,21 +54,18 @@ Driver.invoke = function (method, params) {
     return reply.result;
 };
 
-Driver.system = {
-    version:    function ()      { return Driver.invoke('mc.system.version',    {}); },
-    testOrigin: function ()      { return Driver.invoke('mc.system.testOrigin', {}); },
-    waitTicks:  function (ticks) { return Driver.invoke('mc.system.waitTicks', { ticks: ticks | 0 }); }
-};
+// mc.system.*, mc.observe.{player,threats,boss,scene,map}, mc.query, mc.world.*, the
+// mc.action.{runCommand,fill,placeMany} writes, mc.recipe.* and mc.plan.acquire come from the
+// generated wrappers: each takes the method's own params object.
 
 Driver.observe = {
-    // Sugar over mc.query q='blocks' — returns {blocks:[...]} for the same
-    // shape callers used before observe.area was merged into query.
+    // Sugar over mc.query q='blocks' taking {radius, center?, filter?} — the radius at the top
+    // level is the shape callers used before observe.area was merged into query.
     area: function (p) {
         var q = { q: 'blocks', filter: { in_radius: (p && p.radius) | 0 } };
         if (p && p.center) q.center = p.center;
         if (p && p.filter && p.filter.type) q.filter.type = p.filter.type;
-        var rows = Driver.invoke('mc.query', q);
-        return { blocks: rows || [] };
+        return { blocks: Driver.invoke('mc.query', q).blocks };
     },
     cursor:      function ()  { return Driver.invoke('mc.observe.cursor', {}); },
     eventsSince: function (c, opts) {
@@ -77,36 +74,16 @@ Driver.observe = {
         if (opts && opts.limit !== undefined) p.limit = opts.limit;
         return Driver.invoke('mc.observe.eventsSince', p);
     },
-    player:    function (name) { return Driver.invoke('mc.observe.player', name ? { name: name } : {}); },
-    container: function (pos)  { return Driver.invoke('mc.observe.container', { pos: pos }); },
-    // Phase G boss sensing — nearest dragon/wither + End-crystal list.
-    boss:      function (opts)  { return Driver.invoke('mc.observe.boss', opts || {}); },
-    // Hazard-field spatial scene — opts {radius?, center?, render?, overlays?}.
-    scene:     function (opts)  { return Driver.invoke('mc.observe.scene', opts || {}); },
-    // ASCII spatial map — opts {plane:'xz'|'xy'|'zy', radius, height, center?}.
-    // Top-down heightmap (xz) or vertical cross-section (xy/zy); mobs overlaid.
-    map:       function (opts)  { return Driver.invoke('mc.observe.map', opts || {}); }
+    container: function (pos)  { return Driver.invoke('mc.observe.container', { pos: pos }); }
 };
 
 Driver.action = {
+    // Sugar over placeMany for the single-block case: {pos, type, returnEvents?}.
     placeBlock: function (p) {
-        // Sugar over placeMany for the single-block case.
-        var ev = (p && p.returnEvents) || undefined;
         var args = { blocks: [{ pos: p.pos, type: p.type }] };
-        if (ev) args.returnEvents = true;
+        if (p.returnEvents) args.returnEvents = true;
         return Driver.invoke('mc.action.placeMany', args);
-    },
-    placeMany:  function (blocks)         { return Driver.invoke('mc.action.placeMany', { blocks: blocks }); },
-    fill:       function (from, to, type) { return Driver.invoke('mc.action.fill', { from: from, to: to, type: type }); },
-    runCommand: function (c)              { return Driver.invoke('mc.action.runCommand', { cmd: c }); }
-};
-
-Driver.query = function (p) { return Driver.invoke('mc.query', p); };
-
-// Phase H — goal-directed acquisition planner: "I want X" → ordered mine/farm/
-// smelt/craft steps (recipe.resolve + how to get every missing leaf).
-Driver.plan = {
-    acquire: function (opts) { return Driver.invoke('mc.plan.acquire', opts || {}); }
+    }
 };
 
 // Driver→agent event channel (server-side surface). The live push rides the

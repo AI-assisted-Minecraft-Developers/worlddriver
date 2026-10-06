@@ -62,12 +62,11 @@ final class ReplayInstaller {
             net.magicterra.worlddriver.api.DriverApi api =
                     net.magicterra.worlddriver.WorldDriverCommon.api();
             if (api != null) {
-                try {
-                    api.route("mc.action.runCommand",
-                            Map.of("cmd", String.format(Locale.ROOT, "tp %.1f %d %.1f", tx, start.getY(), tz)));
-                } catch (RuntimeException ignored) {
-                    // /tp unavailable (no server) — the client moveTo below still positions the bot.
-                }
+                // Sent, not awaited: this is the client thread, which may not wait for the server's.
+                // With no server the call just fails; the client moveTo below still positions the bot.
+                api.dispatch("mc.action.runCommand",
+                        Map.of("cmd", String.format(Locale.ROOT, "tp %.1f %d %.1f", tx, start.getY(), tz)),
+                        net.magicterra.worlddriver.api.CallContext.standalone());
             }
             player.moveTo(tx, ty, tz, player.getYRot(), player.getXRot());
 
@@ -117,12 +116,11 @@ final class ReplayInstaller {
 
             double tx = start.getX() + 0.5, ty = start.getY(), tz = start.getZ() + 0.5;
             if (api != null) {
-                try {
-                    api.route("mc.action.runCommand",
-                            Map.of("cmd", String.format(Locale.ROOT, "tp %.1f %d %.1f", tx, start.getY(), tz)));
-                } catch (RuntimeException ignored) {
-                    // /tp unavailable (no server) — the client moveTo below still positions the bot.
-                }
+                // Sent, not awaited: this is the client thread, which may not wait for the server's.
+                // With no server the call just fails; the client moveTo below still positions the bot.
+                api.dispatch("mc.action.runCommand",
+                        Map.of("cmd", String.format(Locale.ROOT, "tp %.1f %d %.1f", tx, start.getY(), tz)),
+                        net.magicterra.worlddriver.api.CallContext.standalone());
             }
             player.moveTo(tx, ty, tz, player.getYRot(), player.getXRot());
 

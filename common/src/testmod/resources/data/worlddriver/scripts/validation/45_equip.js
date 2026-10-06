@@ -19,7 +19,7 @@ function cleanup() {
     Driver.invoke("mc.bot.cancel", { process: "all" });
     Driver.invoke("mc.action.runCommand", { cmd: "clear @s" });
     Driver.bot.patchSettings({ autoEquip: false });
-    Driver.system.waitTicks(4);
+    Driver.system.waitTicks({ ticks: 4 });
 }
 
 function give(item) {
@@ -33,14 +33,16 @@ function has(s, needle) { return typeof s === "string" && s.indexOf(needle) >= 0
 // loadout. This rides out the /give → inventory sync lag: a click issued before
 // the item has reached the server is reverted, so we re-issue until it sticks
 // (exactly what a real agent would do). `slot` is "head".."feet" (checked against
-// observe.armor) or "mainHand" (checked against observe.mainHand).
+// equipment.armor) or "mainHand" (checked against equipment.mainHand).
+function equipment() { return Driver.invoke("mc.observe.player", {}).player.equipment; }
+
 function equipUntil(profile, slot, wantNeedle) {
     var r = null;
     for (var i = 0; i < 14; i++) {
-        Driver.system.waitTicks(4);
+        Driver.system.waitTicks({ ticks: 4 });
         r = Driver.invoke("mc.bot.equip", { profile: profile });
-        var me = Driver.invoke("mc.observe.player", {});
-        var worn = slot === "mainHand" ? me.mainHand : (me.armor ? me.armor[slot] : null);
+        var gear = equipment();
+        var worn = slot === "mainHand" ? gear.mainHand : gear.armor[slot];
         if (worn && has(worn.id, wantNeedle)) break;
     }
     return r;
@@ -71,20 +73,19 @@ if (!clientAvailable()) {
         // click issued before a /give has reached the server is reverted, so we
         // re-issue until each slot sticks (what a real agent does). observe is
         // server-authoritative; the client loadout can read optimistically-worn.
-        var me = null, r = null;
+        var a = {}, r = null;
         for (var i = 0; i < 16; i++) {
             r = Driver.invoke("mc.bot.equip", { profile: "best" });
-            Driver.system.waitTicks(4);
-            me = Driver.invoke("mc.observe.player", {});
-            var a = me.armor || {};
+            Driver.system.waitTicks({ ticks: 4 });
+            a = equipment().armor;
             if (has(a.head && a.head.id, "diamond_helmet") && has(a.chest && a.chest.id, "diamond_chestplate")
                     && has(a.legs && a.legs.id, "diamond_leggings") && has(a.feet && a.feet.id, "diamond_boots")) break;
         }
         t.assertEqual(r.outcome, "done", "equip done");
-        t.assertTrue(has(me.armor.head.id, "diamond_helmet"), "worn head = diamond (" + JSON.stringify(me.armor.head) + ")");
-        t.assertTrue(has(me.armor.chest.id, "diamond_chestplate"), "worn chest = diamond (" + JSON.stringify(me.armor.chest) + ")");
-        t.assertTrue(has(me.armor.legs.id, "diamond_leggings"), "worn legs = diamond (" + JSON.stringify(me.armor.legs) + ")");
-        t.assertTrue(has(me.armor.feet.id, "diamond_boots"), "worn feet = diamond (" + JSON.stringify(me.armor.feet) + ")");
+        t.assertTrue(has(a.head && a.head.id, "diamond_helmet"), "worn head = diamond (" + JSON.stringify(a.head) + ")");
+        t.assertTrue(has(a.chest && a.chest.id, "diamond_chestplate"), "worn chest = diamond (" + JSON.stringify(a.chest) + ")");
+        t.assertTrue(has(a.legs && a.legs.id, "diamond_leggings"), "worn legs = diamond (" + JSON.stringify(a.legs) + ")");
+        t.assertTrue(has(a.feet && a.feet.id, "diamond_boots"), "worn feet = diamond (" + JSON.stringify(a.feet) + ")");
         t.assertEqual(r.missing.length, 0, "nothing missing with a full set");
         cleanup();
     });
