@@ -28,6 +28,19 @@ if (read.kind === 'action' && read.action.state === 'succeeded' && read.action.r
     void read.action.result.to;
 }
 
+const page = Driver.observe.eventsSince({ cursor: Driver.observe.cursor().cursor, types: ['block.break'] });
+const seq: string = page.events[0].seq;
+void seq;
+const arrived = Driver.wait.event({ cursor: page.cursor, timeoutMs: 1000 });
+if (arrived.outcome === 'done' && !arrived.timedOut) {
+    void arrived.events[0].type;
+} else if (arrived.outcome === 'started') {
+    void Driver.wait.result({ kind: 'wait', waitId: arrived.waitId });
+}
+Driver.events({ op: 'watch', invoke: 'mc.bot.status', field: 'status.busy', value: false, once: true });
+// @ts-expect-error a cursor is a decimal string
+Driver.wait.event({ cursor: 5 });
+
 const walk = Driver.bot.goto({
     target: { kind: 'block', block: '#minecraft:logs', radius: 24 },
     route: { mode: ['walk'], break: 'never', leash: { anchor: { kind: 'column', x: 0, z: 0 }, radius: 2, hard: true } },

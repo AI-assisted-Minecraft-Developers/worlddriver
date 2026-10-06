@@ -143,15 +143,14 @@ def want(etype):
 
 def render_event(ev):
     etype = ev.get("type", "event")
+    # data is any JSON value and is omitted when the event has none.
     raw = ev.get("data", "")
-    summary = raw
-    if isinstance(raw, str) and raw[:1] in "{[":
-        try:
-            parsed = json.loads(raw)
-            if isinstance(parsed, dict):
-                summary = " ".join(f"{k}={v}" for k, v in parsed.items())
-        except ValueError:
-            pass
+    if isinstance(raw, dict):
+        summary = " ".join(f"{k}={json.dumps(v) if isinstance(v, (dict, list)) else v}" for k, v in raw.items())
+    elif isinstance(raw, list):
+        summary = json.dumps(raw)
+    else:
+        summary = raw
     pos = ev.get("pos")
     poss = ""
     if isinstance(pos, dict) and "x" in pos:
@@ -163,6 +162,7 @@ def handle_event(ev, level):
     etype = ev.get("type")
     if not etype or not want(etype):
         return
+    # seq is a decimal string on the wire (64-bit); it is never parsed as a number here.
     meta = {"type": etype, "seq": str(ev.get("seq", ""))}
     if level:
         meta["level"] = str(level)

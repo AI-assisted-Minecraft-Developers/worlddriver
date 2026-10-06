@@ -80,19 +80,17 @@ ScriptTest.run("65_schema_union: follow route.sight takes a list of observers", 
 // ---- deep-equal / arbitrary-payload sites: ["object","array","string","number","boolean"] ----
 
 ScriptTest.run("65_schema_union: wait.condition.value accepts an object compare target", function(t) {
-    var msg = errOf(function() {
-        Driver.invoke("mc.wait.condition", { invoke: "mc.system.version", value: { any: 1 }, timeoutMs: 100 });
+    var p = issuePath(function() {
+        Driver.invoke("mc.wait.condition", { invoke: "mc.observe.cursor", value: { any: 1 }, timeoutMs: 100 });
     });
-    t.assertTrue(msg === null || msg.indexOf("'value'") < 0,
-        "object value must not be rejected by the union, got: " + msg);
+    t.assertTrue(p === null, "object value must decode, got issue at " + p);
 });
 
 ScriptTest.run("65_schema_union: wait.condition.value accepts an array compare target", function(t) {
-    var msg = errOf(function() {
-        Driver.invoke("mc.wait.condition", { invoke: "mc.system.version", value: [1, 2], timeoutMs: 100 });
+    var p = issuePath(function() {
+        Driver.invoke("mc.wait.condition", { invoke: "mc.observe.cursor", value: [1, 2], timeoutMs: 100 });
     });
-    t.assertTrue(msg === null || msg.indexOf("'value'") < 0,
-        "array value must not be rejected by the union, got: " + msg);
+    t.assertTrue(p === null, "array value must decode, got issue at " + p);
 });
 
 ScriptTest.run("65_schema_union: skill.args accepts an array", function(t) {
@@ -128,9 +126,10 @@ ScriptTest.run("65_schema_union: events.data accepts an array (emit)", function(
 });
 
 ScriptTest.run("65_schema_union: events.value accepts an object (watch predicate)", function(t) {
-    var msg = errOf(function() {
-        Driver.invoke("mc.events", { op: "watch", invoke: "mc.system.version", value: { a: 1 }, once: true });
+    var w = null;
+    var p = issuePath(function() {
+        w = Driver.invoke("mc.events", { op: "watch", invoke: "mc.observe.cursor", value: { a: 1 }, once: true });
     });
-    t.assertTrue(msg === null || msg.indexOf("'value'") < 0,
-        "object value must not be rejected by the union, got: " + msg);
+    if (w !== null) Driver.invoke("mc.events", { op: "unwatch", id: w.id });
+    t.assertTrue(p === null, "object value must decode, got issue at " + p);
 });

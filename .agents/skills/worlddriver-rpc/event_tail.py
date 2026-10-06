@@ -6,9 +6,9 @@ Monitor at this script gives real-time push of in-game events (deaths, chat/syst
 messages, joins/leaves) while a bot runs — the game-side complement to live-screen-watch.
 
 HOW: it reuses the ready-made rpc.py client (its port/host resolvers + `call` helper) and
-long-polls `mc.wait.event` on ONE persistent websocket, chaining the cursor. wait.event
-returns the instant a matching event arrives (or times out with a fresh cursor), so there
-is no polling interval to tune and no gap between calls. Do NOT hand-roll a socket.
+long-polls `mc.wait.event` on ONE persistent websocket, chaining the cursor (a decimal
+string). wait.event returns as soon as a matching event arrives (or times out keeping the
+cursor), so there is no gap between calls. Do NOT hand-roll a socket.
 
 USE (as a Monitor command):    python3 <this-dir>/event_tail.py     (persistent: true)
      standalone to eyeball it:  python3 event_tail.py
@@ -58,9 +58,10 @@ async def stream():
             async with websockets.connect(uri, max_size=16 * 1024 * 1024,
                                           ping_interval=None) as ws:
                 rid += 1
-                ok, cur = await rpc.call(ws, rid, "mc.observe.cursor", {}, 15)
+                ok, seed = await rpc.call(ws, rid, "mc.observe.cursor", {}, 15)
                 if not ok:
-                    raise RuntimeError(f"cursor seed failed: {cur}")
+                    raise RuntimeError(f"cursor seed failed: {seed}")
+                cur = seed["cursor"]  # a decimal string; passed back as-is, never parsed
                 print(f"[event-tail] armed at cursor {cur}  types={TYPES}",
                       file=sys.stderr, flush=True)
                 while True:

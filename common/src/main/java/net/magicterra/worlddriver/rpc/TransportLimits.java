@@ -29,8 +29,9 @@ public final class TransportLimits {
     /**
      * Requests one WebSocket connection may have running at once. Past it a request is
      * answered at once with {@link ServerBusyException#CODE} instead of taking a thread: a
-     * long {@code mc.wait.*} holds its worker for up to two minutes, so an unbounded loop on
-     * one socket would otherwise exhaust the JVM's native threads and take the game down.
+     * slow call holds its worker until it answers, so an unbounded loop on one socket would
+     * otherwise exhaust the JVM's native threads and take the game down. A wait gives its
+     * worker back and counts against {@link #RPC_MAX_WAITS_PER_CONNECTION} instead.
      */
     public static final int RPC_MAX_IN_FLIGHT_PER_CONNECTION = 16;
 

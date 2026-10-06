@@ -209,16 +209,18 @@ server-initiated notification any MCP-aware client already consumes. The comment
 ```jsonc
 {"jsonrpc":"2.0","method":"notifications/message","params":{
    "level":"warning","logger":"minecraft.events",
-   "data":{"seq":42,"timestamp":1780400527904,"type":"threat.appeared",
+   "data":{"seq":"42","timestamp":1780400527904,"type":"threat.appeared",
            "pos":{"x":3,"y":64,"z":1},
            "data":{"type":"minecraft:zombie","id":3,"distance":1.0,"score":0.63}}}}
 ```
 
 `params.level` is a display severity derived from the event type; the full event object
 rides in `params.data`. There is no `id`, which is how you tell a notification from a
-response. The inner `data` is the event's payload as a value rather than as text: an object
-for structured events and a plain string for scalar ones, such as the block id on a
-`block.place`.
+response. `seq` is a decimal string, since a 64-bit number would be rounded by a JavaScript
+number; `timestamp` stays a number. The inner `data` is the event's payload as a value
+rather than as text: an object for structured events and a plain string for scalar ones,
+such as the block id on a `block.place`; `pos` and `data` are omitted when the event has
+none.
 
 The MCP stream has no type filter — `logging/setLevel` is accepted but deliberately not
 applied to driver events, and the URL takes no query parameters. Filter on the client, or
@@ -231,7 +233,7 @@ Two ops on the `mc.events` tool work from any transport:
 // Inject a custom event into the stream.
 {"name":"mc.events","arguments":{"op":"emit","type":"my.signal","data":{"x":1}}}
 
-// Emit an event on a rising edge: poll a route, fire when the predicate flips false to true.
+// Emit an event on a rising edge: poll a read, fire when the predicate flips false to true.
 {"name":"mc.events","arguments":{"op":"watch","invoke":"mc.observe.player",
                                  "field":"health","below":6,"emitAs":"player.lowHealth"}}
 
@@ -239,13 +241,15 @@ Two ops on the `mc.events` tool work from any transport:
 {"name":"mc.events","arguments":{"op":"unwatch","id":1}}
 ```
 
-A watcher polls its route every `everyMs`, default 1000, and emits `emitAs`, default
-`condition.met`, the first time its predicate becomes true. The predicate is `value` for
-deep equality, `above` or `below` for a numeric comparison, and otherwise plain JavaScript
-truthiness. `once: true` cancels the watcher after it fires. An `invoke` that names no
-registered route is refused with an error when the watcher is registered; once registered,
-a poll that fails (a world-bound route while no world is loaded) counts as "not true" and
-the watcher keeps running.
+A watcher polls its method every `everyMs`, default 1000, and emits `emitAs`, default
+`condition.met`, each time its predicate turns true. The predicate is one of `value` for
+equality, `above` or `below` for a numeric comparison, and otherwise plain JavaScript
+truthiness. `once: true` cancels the watcher after it fires. Only a pollable read may be
+watched, such as `mc.bot.status` or an `mc.observe.*` method: a write, a script, a wait or
+`mc.events` itself is refused with `invalid_params` at `/invoke`, and `params` is checked
+against that method's own parameters, both when the watcher is registered. At most 16
+watchers run at once. Once registered, a poll that fails (a read that needs a world while
+none is loaded) counts as "not true" and the watcher keeps running.
 
 ## Writing your own client
 

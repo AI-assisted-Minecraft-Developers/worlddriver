@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.rpc;
 
+import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.application.DriverApplication;
 
 import net.magicterra.worlddriver.application.WaitApi;
@@ -71,10 +72,10 @@ class RpcServerLifecycleTest {
     void theInJvmClientSurvivesACallLongerThanTheWindow() throws Exception {
         // Driver.invokeRpc opens one RpcClient per call, and an awaitMs call may block for
         // minutes; the client must answer pings meanwhile or the server hangs up on it.
-        try (RpcServer server = new RpcServer(new DriverApplication(), "127.0.0.1", 0, 200, 1_000);
+        try (RpcServer server = new RpcServer(ProbeMethods.install(new DriverApplication()), "127.0.0.1", 0, 200, 1_000);
              RpcClient client = new RpcClient("127.0.0.1", server.port())) {
-            Object r = client.call("mc.wait.condition", Map.of("invoke", "mc.events",
-                    "params", Map.of("op", "list"), "field", "nope", "timeoutMs", 2_500, "pollMs", 100));
+            Object r = client.call("mc.wait.condition", Map.of("invoke", "probe.echo",
+                    "field", "nope", "timeoutMs", 2_500, "pollMs", 100));
             assertEquals(Boolean.FALSE, ((Map<?, ?>) r).get("satisfied"), String.valueOf(r));
         }
     }

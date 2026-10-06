@@ -306,6 +306,37 @@ class RpcFramingTest {
         return assertInstanceOf(Map.class, frame.get("result"), "not a result frame: " + frame);
     }
 
+    /**
+     * The push is the shared event value inside {@code notifications/message}: seq a string, the filter
+     * applied, nothing after unsubscribe. The two control calls are connection state, not methods.
+     */
+    @Test
+    void aSubscribedConnectionIsPushedTheEventValueItAskedFor() throws Exception {
+        DriverApplication api = new DriverApplication();
+        try (RpcServer server = new RpcServer(api, 0);
+             WsTestClient raw = new WsTestClient(server.port())) {
+            assertTrue(!api.methods().contains("mc.events.subscribe") && !api.methods().contains("mc.events.unsubscribe"),
+                    "subscription is the transport's, not a registered method");
+            result(raw.roundTrip("{\"id\":8,\"method\":\"mc.events.subscribe\",\"params\":{\"types\":[\"probe.kept\"]}}"));
+            api.emitExternal("probe.dropped", null, "no");
+            api.emitExternal("probe.kept", new net.minecraft.core.BlockPos(1, 2, 3), Map.of("n", 4));
+            Map<?, ?> frame = WsTestClient.decode(raw.poll(5_000));
+            assertEquals("notifications/message", frame.get("method"));
+            assertTrue(!frame.containsKey("id"), "a push carries no id: " + frame);
+            Map<?, ?> event = (Map<?, ?>) ((Map<?, ?>) frame.get("params")).get("data");
+            assertEquals("probe.kept", event.get("type"), "the filter must drop other types: " + event);
+            assertEquals("2", event.get("seq"), "the second event of a fresh application, as a string");
+            assertEquals(Map.of("x", 1L, "y", 2L, "z", 3L), event.get("pos"));
+            assertEquals(Map.of("n", 4L), event.get("data"));
+
+            Map<?, ?> stray = raw.roundTrip("{\"id\":9,\"method\":\"mc.events.unsubscribe\",\"params\":{\"types\":[]}}");
+            assertEquals("-32602", code(stray), "unsubscribe takes no params: " + stray);
+            result(raw.roundTrip("{\"id\":10,\"method\":\"mc.events.unsubscribe\"}"));
+            api.emitExternal("probe.kept", null, "late");
+            assertNull(raw.poll(500), "nothing is pushed after unsubscribe");
+        }
+    }
+
     @Test
     void anApiErrorTravelsAsTheStandardErrorObjectWithItsDataAttached() throws Exception {
         // JSON-RPC 2.0 error shape: {code, message, data}; data is the ApiError a caller
