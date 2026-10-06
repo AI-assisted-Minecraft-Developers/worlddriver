@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.mcp;
 import net.magicterra.worlddriver.application.DriverApplication;
 
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.ProbeMethods;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -10,9 +11,13 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The MCP Streamable HTTP endpoint's request contract, over a real socket. */
@@ -65,7 +70,7 @@ class McpHttpTest {
     void anIdLessToolCallIsAcknowledgedButNotRun() throws Exception {
         DriverApi api = new DriverApplication();
         AtomicInteger calls = new AtomicInteger();
-        api.addRoute("test.probe", p -> calls.incrementAndGet());
+        ProbeMethods.counting(api, "test.probe", calls);
         try (McpServer server = new McpServer(api, 0)) {
             HttpResponse<String> r = post(server.port(), "application/json",
                     "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"test.probe\"}}");
@@ -76,6 +81,37 @@ class McpHttpTest {
                     "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"test.probe\"}}");
             assertEquals(1, calls.get(), "the same call with an id runs");
         }
+    }
+
+    @Test
+    void aBatchThatChangesTheToolListIsAnnouncedOnTheOpenStream() throws Exception {
+        DriverApi api = new DriverApplication();
+        try (McpServer server = new McpServer(api, 0)) {
+            HttpRequest get = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + "/mcp"))
+                    .header("Accept", "text/event-stream").GET().build();
+            BlockingQueue<String> lines = new LinkedBlockingQueue<>();
+            HttpClient.newHttpClient().sendAsync(get, HttpResponse.BodyHandlers.ofLines())
+                    .thenAccept(r -> new Thread(() -> r.body().forEach(lines::add), "test-sse-reader").start());
+            assertEquals(": connected", lines.poll(10, TimeUnit.SECONDS));
+
+            // A hidden method changes nothing the list shows, so only the listed one is announced.
+            ProbeMethods.publish(api, "probe.hidden", true);
+            ProbeMethods.publish(api, "probe.listed", false);
+            String frame = nextData(lines);
+            assertTrue(frame.contains("notifications/tools/list_changed"), frame);
+            assertTrue(McpTools.list(api).stream().anyMatch(t -> "probe.listed".equals(t.get("name"))));
+            assertTrue(McpTools.list(api).stream().noneMatch(t -> "probe.hidden".equals(t.get("name"))));
+            for (String l = lines.poll(300, TimeUnit.MILLISECONDS); l != null; l = lines.poll(300, TimeUnit.MILLISECONDS)) {
+                assertFalse(l.startsWith("data:"), "a second announcement: " + l);
+            }
+        }
+    }
+
+    private static String nextData(BlockingQueue<String> lines) throws InterruptedException {
+        for (String l = lines.poll(10, TimeUnit.SECONDS); l != null; l = lines.poll(10, TimeUnit.SECONDS)) {
+            if (l.startsWith("data:")) return l;
+        }
+        throw new AssertionError("no frame on the stream");
     }
 
     @Test

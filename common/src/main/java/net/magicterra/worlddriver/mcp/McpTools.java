@@ -2,41 +2,25 @@ package net.magicterra.worlddriver.mcp;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
+import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
-import net.magicterra.worlddriver.mcp.schema.ToolSchema;
 
 /**
  * The MCP view of the method registry: {@code tools/list} entries and the image adaptation of a
- * result. A typed method's entry comes from its {@link MethodSpec} (input and output schema,
- * annotations); a method not yet typed keeps its catalog {@link ToolSchema}.
+ * result. Each entry comes from the method's {@link MethodSpec}: input and output schema, annotations.
  */
 public final class McpTools {
     private McpTools() {}
 
-    /** Every listed tool, in the catalog's section order, then typed methods the catalog does not name. */
+    /** Every listed method in registration order; a hidden spec is callable but not advertised. */
     public static List<Map<String, Object>> list(DriverApi api) {
         List<Map<String, Object>> out = new ArrayList<>();
-        Set<String> done = new LinkedHashSet<>();
-        Set<String> callable = api.methods();
-        for (ToolSchema s : ToolCatalog.schemas()) {
-            if (!callable.contains(s.name()) || !done.add(s.name())) continue;
-            MethodSpec<?, ?> spec = api.spec(s.name());
-            if (spec != null) {
-                if (spec.listedInMcp()) out.add(entry(spec));
-            } else if (!s.hidden()) {
-                out.add(s.mcpTool());
-            }
-        }
-        for (String name : callable) {
-            if (done.contains(name)) continue;
-            MethodSpec<?, ?> spec = api.spec(name);
-            if (spec != null && spec.listedInMcp()) out.add(entry(spec));
+        for (ApiMethod<?, ?> m : api.registry().snapshot().methods().values()) {
+            if (m.spec().listedInMcp()) out.add(entry(m.spec()));
         }
         return List.copyOf(out);
     }

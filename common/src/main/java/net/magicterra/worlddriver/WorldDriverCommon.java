@@ -7,9 +7,6 @@ import com.mojang.brigadier.context.CommandContext;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.mcp.McpServer;
-import net.magicterra.worlddriver.mcp.ToolCatalog;
-import net.magicterra.worlddriver.mcp.schema.Schema;
-import net.magicterra.worlddriver.mcp.schema.SchemaValidator;
 import net.magicterra.worlddriver.rpc.RpcServer;
 import net.magicterra.worlddriver.script.ScriptManager;
 import net.magicterra.worlddriver.script.McpBridge;
@@ -68,66 +65,16 @@ public final class WorldDriverCommon {
                 // Scripts, skills and playbooks, all allow-everything unless -Dworlddriver.sandbox=on
                 // (see ScriptClassFilter; nothing in the build sets it).
                 app.setScriptHost(new ScriptService(app, userScriptsDir().resolve("skills")));
-                // Wire the paired-verb route sink so ToolCatalog.registerVerb can install
-                // routes on this api instance without importing it (Hard Rule #1 — only the
-                // (name, handler) data-flow crosses the seam, mirroring setParamsValidator).
-                ToolCatalog.wireRouteSink(api::addRoute);
-                // The mc.test.* verbs (reset / run / input.*) used to be registered from right here,
-                // on the driver's own boot path, even though they belong to StageWright. They are now
-                // registered by StageWright itself at SERVER_STARTED — strictly after this sink is
-                // wired, which is the ordering registerVerb requires. The driver no longer names its
-                // test framework at boot, and a server without StageWright installed simply has no
-                // mc.test.* surface.
+                // Every method is typed and validated by its own contract, so nothing more needs wiring
+                // before a socket listens. StageWright publishes mc.test.* as its own batch at
+                // SERVER_STARTED; a server without it simply has no mc.test.* surface.
             }
         } catch (Exception e) {
             LOG.error("[{}] failed to start RPC server", MOD_ID, e);
         }
-        // Params validator + convergence guard — installed BEFORE the RpcServer
-        // constructor below so no listening socket ever exists without param
-        // validation in place (task#89 boot-window close). This block used to run
-        // AFTER the server was already listening, leaving a boot window in which a
-        // client that connected fast enough had its params dispatched with NO schema
-        // validation — the exact #280-shaped hole. It sits OUTSIDE the catch above so
-        // it hard-fails: a route with no MCP ToolSchema is a programming error (see
-        // DriverApi.requireSchemasFor / ToolCatalog), not a recoverable startup hiccup
-        // — let it abort mod init rather than limp on with a half-specified tool
-        // surface. It runs on the first successful ensureRpcUp() pass only — the
-        // method early-returns above once api/rpcServer exist, so it does NOT re-run
-        // on later calls. Verb registrations that happen after this point (optional
-        // subsystems, mods) are covered instead by the dispatch-time throw in
-        // setParamsValidator below plus registerExtra's own cache invalidation — not
-        // by this guard re-running.
-        if (api != null) {
-            api.requireSchemasFor(ToolCatalog.declaredMethodNames());
-            // Route-layer schema validation — same typed Schema the catalog renders
-            // for tools/list (single source; see SchemaValidator). schemaByName() is
-            // looked up per call: it is a cached volatile read, and registerExtra
-            // invalidates the cache so late-registered extras validate too.
-            api.setParamsValidator((method, params) -> {
-                Schema s = ToolCatalog.schemaByName().get(method);
-                // Schema-less dispatch is now a loud programming error, not a silent skip.
-                // requireSchemasFor (above) guarantees every route has a schema at boot;
-                // post-boot the only route additions are the paired ToolCatalog.registerVerb
-                // (self-checked) — so a missing schema here means a raw DriverApi.addRoute was
-                // used WITHOUT a matching declared ToolSchema. Refuse to dispatch rather than
-                // run an unvalidated verb (the #280-shaped hole: no schema ⇒ no param check).
-                if (s == null) {
-                    throw new IllegalStateException(
-                            "worlddriver: route '" + method + "' has no MCP ToolSchema — schema-less "
-                            + "dispatch is refused. Register game-affecting verbs via the paired "
-                            + "ToolCatalog.registerVerb(schema, handler); a raw DriverApi.addRoute must "
-                            + "be matched by a declared ToolSchema (see DriverApi.requireSchemasFor).");
-                }
-                SchemaValidator.validate(method, s, params);
-            });
-        }
 
-        // RpcServer construction opens the listening socket. Sequenced AFTER the
-        // validator install above so a live socket never exists without validation
-        // (task#89 invariant: validator installed before any socket listens).
-        // Guarded by api != null: a failed API init above leaves api null and must
-        // not yield a live socket — mirroring the pre-split behavior, where an init
-        // exception skipped this block entirely.
+        // RpcServer construction opens the listening socket. Guarded by api != null: a failed
+        // API init above leaves api null and must not yield a live socket.
         try {
             if (api != null && rpcServer == null) {
                 int wantPort = Integer.getInteger("worlddriver.rpcPort", 0);

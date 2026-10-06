@@ -111,7 +111,7 @@ public final class SceneVerbs {
     static void install() {
         LifecycleEvent.SERVER_STARTED.register(s -> {
             server = s;
-            registerVerbs();
+            publishVerbs();
         });
         LifecycleEvent.SERVER_STOPPING.register(s -> server = null);
         // The in-place runner has no harness to advance it; the testmod subscribes its own tick.
@@ -119,7 +119,7 @@ public final class SceneVerbs {
         CommandRegistrationEvent.EVENT.register((dispatcher, context, selection) -> SceneCommands.register(dispatcher));
     }
 
-    private static void registerVerbs() {
+    private static void publishVerbs() {
         DriverApi api = WorldDriverCommon.api();
         if (api == null) {
             WorldDriverCommon.LOG.warn("[{}] scene verbs not registered: the driver API is not up", WorldDriverCommon.MOD_ID);

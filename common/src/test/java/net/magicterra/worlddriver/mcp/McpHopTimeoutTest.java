@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.util.Map;
 
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 import org.junit.jupiter.api.Test;
@@ -29,29 +30,25 @@ class McpHopTimeoutTest {
     @Test
     void theTwoTimeoutsCarryTheirOwnCodesAndOtherFailuresStayToolErrors() throws Exception {
         DriverApi api = new DriverApplication();
-        api.addRoute("mc.test.notExecuted", p -> {
-            throw new ServerThreadHop.NotExecutedException("withdrawn");
-        });
-        api.addRoute("mc.test.outcomeUnknown", p -> {
-            throw new RuntimeException(new ServerThreadHop.OutcomeUnknownException("still running"));
-        });
-        api.addRoute("mc.test.badArg", p -> {
-            throw new IllegalArgumentException("bad arg");
-        });
+        ProbeMethods.failing(api, "probe.notExecuted", () -> new ServerThreadHop.NotExecutedException("withdrawn"));
+        // A handler may wrap what the hop threw; the classification must survive that.
+        ProbeMethods.failing(api, "probe.outcomeUnknown",
+                () -> new RuntimeException(new ServerThreadHop.OutcomeUnknownException("still running")));
+        ProbeMethods.failing(api, "probe.badArg", () -> new IllegalArgumentException("bad arg"));
         try (McpServer server = new McpServer(api, 0)) {
             HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
-            Map<?, ?> ne = call(http, server.port(), 1, "mc.test.notExecuted");
+            Map<?, ?> ne = call(http, server.port(), 1, "probe.notExecuted");
             Map<?, ?> neErr = assertInstanceOf(Map.class, ne.get("error"), "reply: " + ne);
             assertEquals("-32001", String.valueOf(neErr.get("code")), "reply: " + ne);
             assertTrue(String.valueOf(neErr.get("message")).contains("withdrawn"), "reply: " + ne);
 
-            Map<?, ?> ou = call(http, server.port(), 2, "mc.test.outcomeUnknown");
+            Map<?, ?> ou = call(http, server.port(), 2, "probe.outcomeUnknown");
             Map<?, ?> ouErr = assertInstanceOf(Map.class, ou.get("error"), "reply: " + ou);
             assertEquals("-32002", String.valueOf(ouErr.get("code")), "reply: " + ou);
             assertTrue(String.valueOf(ouErr.get("message")).contains("still running"), "reply: " + ou);
 
-            Map<?, ?> bad = call(http, server.port(), 3, "mc.test.badArg");
+            Map<?, ?> bad = call(http, server.port(), 3, "probe.badArg");
             Map<?, ?> result = assertInstanceOf(Map.class, bad.get("result"), "reply: " + bad);
             assertEquals(Boolean.TRUE, result.get("isError"), "reply: " + bad);
         }

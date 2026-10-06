@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.api;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.api.contract.ApiField;
 import net.magicterra.worlddriver.api.contract.ApiTypes;
@@ -31,6 +33,36 @@ public final class ProbeMethods {
                     ApiField.field("ms", ApiTypes.integer(0, 60_000)).required().forGetter(Slow::ms),
                     Slow::new),
             ECHO_TYPE, "Holds the calling thread for ms, then answers {value: ms}.");
+
+    public record None() {}
+
+    private static final RecordType<None> NONE = ApiTypes.record("ProbeNone", None::new);
+
+    /** Publish {@code name} on {@code api}: no parameters, and every call fails with what {@code failure} makes. */
+    public static void failing(DriverApi api, String name, Supplier<? extends RuntimeException> failure) {
+        publish(api, name, ApiHandlers.immediate((None p) -> { throw failure.get(); }));
+    }
+
+    /** Publish {@code name} on {@code api}: no parameters; each call counts into {@code calls} and answers the count. */
+    public static void counting(DriverApi api, String name, AtomicInteger calls) {
+        publish(api, name, ApiHandlers.immediate((None p) -> new Echo(calls.incrementAndGet())));
+    }
+
+    /** Publish {@code name} on {@code api} as its own batch: no parameters, answers {@code {value: 1}}. */
+    public static ApiBatch publish(DriverApi api, String name, boolean hidden) {
+        return publish(api, name, hidden, ApiHandlers.immediate((None p) -> new Echo(1)));
+    }
+
+    private static void publish(DriverApi api, String name, ApiHandler<None, Echo> handler) {
+        publish(api, name, false, handler);
+    }
+
+    private static ApiBatch publish(DriverApi api, String name, boolean hidden, ApiHandler<None, Echo> handler) {
+        MethodSpec<None, Echo> spec = MethodSpec.of(name, NONE, ECHO_TYPE, "A test probe.");
+        ApiBatch batch = new ApiBatch("probe", name, List.of(new ApiMethod<>(hidden ? spec.hidden() : spec, handler)));
+        api.registry().registerBatch(batch);
+        return batch;
+    }
 
     /** {@code api} with both probes registered. */
     public static <T extends DriverApi> T install(T api) {

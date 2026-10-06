@@ -1,16 +1,9 @@
-// Union-type schema nodes for the catalog's former any() sites (gap#67-④). Root cause: a typeless
-// Schema.Any node renders NO "type" key at all (JSON-Schema's own "accept anything"
-// form) — live repro showed at least one MCP client treats a typeless field as license
-// to JSON-stringify the value before tools/call: mc.bot.combat {target:99999} (a JSON
-// number) arrived server-side as targetType:"minecraft:99999", and {"id":99999}
-// arrived as the literal string '{"id": 99999}'. raw RPC (no schema lookup) was
-// unaffected. Fix: Schema.Union renders "type":[...] (a JSON array) so the client has
-// something to preserve. This suite exercises SchemaValidator's acceptance of every
-// declared union member (still permissive, like Any) and its rejection of a type
-// outside the union (same strictness as the six concrete kinds). The rendering side
-// (tools/list inputSchema actually carrying the "type" array) is asserted separately as
-// a Java-level matrix — AgentGameTest.schemaUnionRendering — since no JS bridge reaches
-// raw MCP tools/list (only tools/call is exposed to this Rhino suite).
+// The fields that used to be typeless "accept anything" schema nodes. A live repro showed an MCP
+// client treating a typeless field as licence to JSON-stringify the value before tools/call:
+// mc.bot.combat {target:99999} arrived as targetType:"minecraft:99999". Those fields are now
+// tagged unions or open JSON with every kind spelled out in the schema. This suite exercises the
+// typed decoder's acceptance of every declared member and its rejection of a kind outside them;
+// only tools/call is reachable from this Rhino suite, so the rendered schemas are not checked here.
 
 function errOf(fn) {
     try { fn(); return null; } catch (e) { return String(e); }

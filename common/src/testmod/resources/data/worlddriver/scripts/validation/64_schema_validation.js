@@ -1,7 +1,6 @@
-// Route-layer schema validation (feedback 2026-07-10 §4) — the validator runs
-// inside DriverApi.route(), so violations surface as thrown errors (wrapped by
-// Rhino), NOT as {ok:false} results. Server-side routes work headless; no
-// clientAvailable guard needed for runCommand/query cases.
+// Strict parameter decoding: every method's contract decodes its params before the handler runs, so a
+// violation surfaces as a thrown invalid_params error whose issues carry {path, code, message}.
+// Server-side methods work headless; no clientAvailable guard needed for runCommand/query cases.
 
 /** The issues a call is refused with, as "path code" strings; null when it was not refused. */
 function issuesOf(fn) {

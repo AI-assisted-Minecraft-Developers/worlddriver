@@ -20,6 +20,7 @@ import io.netty.handler.codec.http.websocketx.ContinuationWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import org.junit.jupiter.api.Test;
 
@@ -200,18 +201,15 @@ class RpcFramingTest {
     @Test
     void aServerThreadTimeoutSaysWhetherTheTaskCanStillApply() throws Exception {
         DriverApi api = new DriverApplication();
-        api.addRoute("mc.test.notExecuted", p -> {
-            throw new ServerThreadHop.NotExecutedException("withdrawn");
-        });
-        // Routes may wrap what the hop threw; the classification must survive that.
-        api.addRoute("mc.test.outcomeUnknown", p -> {
-            throw new RuntimeException(new ServerThreadHop.OutcomeUnknownException("still running"));
-        });
+        ProbeMethods.failing(api, "probe.notExecuted", () -> new ServerThreadHop.NotExecutedException("withdrawn"));
+        // Handlers may wrap what the hop threw; the classification must survive that.
+        ProbeMethods.failing(api, "probe.outcomeUnknown",
+                () -> new RuntimeException(new ServerThreadHop.OutcomeUnknownException("still running")));
         try (RpcServer server = new RpcServer(api, 0);
              WsTestClient raw = new WsTestClient(server.port())) {
-            Map<?, ?> ne = raw.roundTrip("{\"id\":21,\"method\":\"mc.test.notExecuted\",\"params\":{}}");
+            Map<?, ?> ne = raw.roundTrip("{\"id\":21,\"method\":\"probe.notExecuted\",\"params\":{}}");
             assertEquals("-32001", code(ne), "reply: " + ne);
-            Map<?, ?> ou = raw.roundTrip("{\"id\":22,\"method\":\"mc.test.outcomeUnknown\",\"params\":{}}");
+            Map<?, ?> ou = raw.roundTrip("{\"id\":22,\"method\":\"probe.outcomeUnknown\",\"params\":{}}");
             assertEquals("-32002", code(ou), "reply: " + ou);
         }
     }
@@ -221,12 +219,10 @@ class RpcFramingTest {
         // The background-wait cap refuses inside a route, past the transport's own cap check;
         // it must reach the client with the same busy code the transport cap answers with.
         DriverApi api = new DriverApplication();
-        api.addRoute("mc.test.busy", p -> {
-            throw new ServerBusyException("busy: all background waits are running");
-        });
+        ProbeMethods.failing(api, "probe.busy", () -> new ServerBusyException("busy: all background waits are running"));
         try (RpcServer server = new RpcServer(api, 0);
              WsTestClient raw = new WsTestClient(server.port())) {
-            Map<?, ?> r = raw.roundTrip("{\"id\":23,\"method\":\"mc.test.busy\",\"params\":{}}");
+            Map<?, ?> r = raw.roundTrip("{\"id\":23,\"method\":\"probe.busy\",\"params\":{}}");
             assertEquals(String.valueOf(ServerBusyException.CODE), code(r), "reply: " + r);
         }
     }

@@ -1,15 +1,16 @@
 package net.magicterra.worlddriver.application;
 
+import net.magicterra.worlddriver.api.ApiBatch;
+import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.api.ApiRegistry;
+import net.magicterra.worlddriver.api.EventWire;
 import net.magicterra.worlddriver.api.WorldCell;
 import net.magicterra.worlddriver.api.ServerThreadGuard;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.WireValues;
-import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.methods.EventContracts;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.model.DriverEvent;
-import net.magicterra.worlddriver.model.Params;
-import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -19,27 +20,25 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import net.magicterra.worlddriver.client.ClientHooks;
 import net.magicterra.worlddriver.client.ClientDriverApi;
-import java.util.Set;
 
 /* Ring buffer cap keeps memory bounded for long-running servers. Old events
  * roll off; eventsSince(cursor) on an out-of-window cursor returns whatever
  * is still retained. */
 
 /**
- * Single source of truth for both in-JVM (Rhino) and external (TCP/MCP) callers.
- * Operates on the live ServerLevel, dispatching writes to the server thread.
+ * The core methods' handlers, bound to their contracts and published as the {@code worlddriver/core}
+ * batch. Operates on the live ServerLevel, dispatching writes to the server thread.
  *
  * The {@code mc.system/observe/action/wait} verb groups are implemented in the
  * sibling {@link SystemApi} / {@link ObserveApi} / {@link ActionApi} /
  * {@link WaitApi} handlers (each holding a back-reference to this instance for
  * the shared server handle, event ring buffer, and server-thread hop); pure
- * parse/encode helpers live in {@link ApiSupport}. Every transport still routes
- * through {@link #route(String, Map)} — that is the single dispatch point, and
- * the only place new game-affecting behavior may be wired.
+ * parse/encode helpers live in {@link ApiSupport}. Every transport dispatches
+ * through the registry {@link DriverApi} holds, so a core method is wired here
+ * and in {@link CoreMethods}, nowhere else.
  */
 public final class DriverApplication extends DriverApi {
     public final SystemApi system = new SystemApi(this);
@@ -81,13 +80,11 @@ public final class DriverApplication extends DriverApi {
         registry().registerBatch(coreBatch);
     }
 
-    /** The typed core methods, published once; a retry would hand over this same object. */
-    private final net.magicterra.worlddriver.api.ApiBatch coreBatch =
-            new net.magicterra.worlddriver.api.ApiBatch(net.magicterra.worlddriver.api.ApiRegistry.CORE_OWNER, "core",
-                    coreMethods());
+    /** The core methods, published once; a retry would hand over this same object. */
+    private final ApiBatch coreBatch = new ApiBatch(ApiRegistry.CORE_OWNER, "core", coreMethods());
 
-    private List<net.magicterra.worlddriver.api.ApiMethod<?, ?>> coreMethods() {
-        List<net.magicterra.worlddriver.api.ApiMethod<?, ?>> all = new ArrayList<>(new BotActions(this).methods());
+    private List<ApiMethod<?, ?>> coreMethods() {
+        List<ApiMethod<?, ?>> all = new ArrayList<>(new BotActions(this).methods());
         all.addAll(new ScriptMethods(() -> scriptHost).methods());
         all.addAll(eventsApi.methods());
         all.addAll(wait.methods());
@@ -233,8 +230,6 @@ public final class DriverApplication extends DriverApi {
     /** The attached server, or null. */
     MinecraftServer server() { return server; }
 
-    private int num(Object o) { return Params.toInt(o, 0); }
-
     /** The server hop, or the capability error a detached application answers with. */
     ServerThreadHop requireServerHop() {
         ServerThreadHop hop = serverHop();
@@ -250,9 +245,9 @@ public final class DriverApplication extends DriverApi {
      * {@code returnEvents:true} answers, so a caller needs no separate cursor read. Unrelated work emitting in
      * the same window shows up too, which is rare as the writes run on the server thread.
      */
-    Optional<List<net.magicterra.worlddriver.api.methods.EventContracts.Event>> eventsAfter(long cursor, boolean wanted) {
+    Optional<List<EventContracts.Event>> eventsAfter(long cursor, boolean wanted) {
         if (!wanted) return Optional.empty();
         return Optional.of(observe.eventsSince(cursor, null, EVENT_BUFFER_CAP).stream()
-                .map(net.magicterra.worlddriver.api.EventWire::dto).toList());
+                .map(EventWire::dto).toList());
     }
 }
