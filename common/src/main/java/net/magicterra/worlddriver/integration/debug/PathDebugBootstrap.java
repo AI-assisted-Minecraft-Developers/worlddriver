@@ -1,46 +1,64 @@
 package net.magicterra.worlddriver.integration.debug;
 
 import net.magicterra.worlddriver.bot.debug.*;
+import net.magicterra.worlddriver.api.ApiBatch;
+import net.magicterra.worlddriver.api.ApiHandlers;
+import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.api.ApiRegistry;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.methods.DebugContracts;
+import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.pathfinder.MultiTrace;
 import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
-import net.magicterra.worlddriver.mcp.ToolCatalog;
+import java.util.List;
 import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * One-time wiring for the path-debug subsystem. Registers the recorder as the active
- * {@link PathTraceHolder#SINK}, the {@code mc.debug.pathChart} route (via the generic
- * {@link DriverApi#addRoute}), and its schema (via {@link ToolCatalog#registerExtra}).
+ * One-time wiring for the path-debug subsystem: installs the recorder as the active
+ * {@link PathTraceHolder#SINK} and publishes {@code mc.debug.*} as a batch of their own.
  *
  * Release strip: delete the {@code bot.debug} package and the single call to this method
  * in {@code ClientHooks.register}. Core compiles unchanged.
  */
 public final class PathDebugBootstrap {
     private static final Logger LOG = LoggerFactory.getLogger("agent-pathdebug");
-    private static DriverApi registeredApi;
     private static boolean recordersInstalled;
 
     private PathDebugBootstrap() {}
 
-    /** Register on each API; keep the recorder and schema supplier unique in this JVM. */
+    /** Install the recorders once per JVM; publish the methods on {@code api}, which ignores a repeat. */
     public static synchronized void init(DriverApi api) {
         Objects.requireNonNull(api, "WorldDriver API is not ready");
-        if (api == registeredApi) return;
         if (!recordersInstalled) {
             PathDebugRecorder recorder = new PathDebugRecorder();
             PathArchiveRecorder archive = new PathArchiveRecorder();
             PathArchiveRecorder.activate(archive);
             PathTraceHolder.SINK = new MultiTrace(recorder, archive);
             PathChartTool.bind(recorder);
-            ToolCatalog.registerExtra(DebugTools::tools);
             recordersInstalled = true;
         }
-        api.addRoute("mc.debug.pathChart", PathChartTool::render);
-        api.addRoute("mc.debug.plan", PlanProbeTool::plan);
-        api.addRoute("mc.debug.replay", ReplayTool::replay);
-        registeredApi = api;
-        LOG.info("[pathdebug] initialised — mc.debug.pathChart + mc.debug.plan + mc.debug.replay ready (set pathDebug:true to capture)");
+        if (api.registry().registerBatch(batch(api))) {
+            LOG.info("[pathdebug] initialised — mc.debug.pathChart + mc.debug.plan + mc.debug.replay ready (patch pathDebug on to capture)");
+        }
+    }
+
+    private static DriverApi batchApi;
+    private static ApiBatch batch;
+
+    /** One batch object per API, so publishing it again is recognised as a retry. */
+    private static ApiBatch batch(DriverApi api) {
+        if (api != batchApi) {
+            batchApi = api;
+            batch = new ApiBatch(ApiRegistry.CORE_OWNER, "debug", List.<ApiMethod<?, ?>>of(
+                    new ApiMethod<>(DebugContracts.PATH_CHART, ApiHandlers.immediate(PathChartTool::render)),
+                    new ApiMethod<>(DebugContracts.PLAN, (p, ctx) -> {
+                        if (BotHooks.impl() == null) throw new IllegalStateException("mc.debug.plan reads this client's world, and there is none");
+                        return BotHooks.impl().clientHop().submit(() -> PlanProbeTool.plan(p), ctx);
+                    }),
+                    new ApiMethod<>(DebugContracts.REPLAY, (p, ctx) -> ReplayTool.replay(api, p, ctx))));
+        }
+        return batch;
     }
 }

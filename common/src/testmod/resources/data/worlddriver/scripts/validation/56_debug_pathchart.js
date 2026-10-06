@@ -22,7 +22,7 @@ if (!clientAvailable() || !routeAvailable()) {
 
     ScriptTest.run("56_debug_pathchart: render returns a non-trivial PNG", function (t) {
         var r = Driver.invoke("mc.debug.pathChart", { width: 800, height: 600 });
-        t.assertEqual(r.ok, true, "render must succeed");
+        t.assertEqual(r.view, "dashboard", "the default view");
         t.assertEqual(r.width, 800, "width honoured");
         t.assertEqual(r.height, 600, "height honoured");
         t.assertTrue(typeof r.path === "string" && r.path.length > 0, "returns a file path");
@@ -34,8 +34,9 @@ if (!clientAvailable() || !routeAvailable()) {
         var direct = Driver.invoke("mc.debug.pathChart", args);
         var viaTcp = Driver.system.rpcRoundtrip("mc.debug.pathChart", args);
         var viaMcp = Driver.system.mcpRoundtrip("mc.debug.pathChart", args);
-        t.assertEqual(viaTcp.ok, direct.ok, "RPC.ok parity");
-        t.assertEqual(viaMcp.ok, direct.ok, "MCP.ok parity");
+        t.assertEqual(viaTcp.view, direct.view, "RPC.view parity");
+        t.assertEqual(viaMcp.view, direct.view, "MCP.view parity");
         t.assertEqual(viaTcp.width, direct.width, "RPC.width parity");
+        t.assertEqual(direct.path, undefined, "save:false writes no file");
     });
 }

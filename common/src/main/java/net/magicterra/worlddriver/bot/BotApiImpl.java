@@ -3,7 +3,6 @@ package net.magicterra.worlddriver.bot;
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import net.magicterra.worlddriver.bot.process.RouteEvents;
 
-import net.magicterra.worlddriver.api.WorldCell;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.ActionContract;
 import net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse;
@@ -253,37 +252,21 @@ public final class BotApiImpl implements BotApi {
     }
 
     /**
-     * Install a replay run: the caller ({@code mc.debug.replay} / ReplayTool) has
-     * already parsed the archive and built the cell list + concatenated plan/edges.
-     * On the client thread this (1) restores the block envelope via the server
-     * thread, (2) teleports the bot to the recorded start, (3) arms the path-archive
-     * recorder for replay capture, and (4) installs a {@link ReplayProcess} that
-     * drives {@link Walker#beginReplay} so the wedge reproduces with no re-planning.
-     *
-     * <p>Logic lives in {@link ReplayInstaller}; kept here as the public entry point
-     * ReplayTool calls.
+     * Walk a stored plan from {@code start} with no re-planning ({@code mc.debug.replay}, replan false). The
+     * caller has restored the terrain and teleported the player. Client thread only; logic in
+     * {@link ReplayInstaller}.
      */
-    public Map<String, Object> startReplay(java.util.List<WorldCell> cells,
-                                            List<BlockPos> plan, List<Move.Edge> edges,
-                                            BlockPos start, Goal endGoal, BlockPos startFoot,
-                                            String archiveName, boolean restoreBlocks) {
-        return ReplayInstaller.startReplay(this, cells, plan, edges, start, endGoal, startFoot,
-                archiveName, restoreBlocks);
+    public void startReplay(List<BlockPos> plan, List<Move.Edge> edges, BlockPos start, Goal endGoal,
+                            BlockPos startFoot, String archiveName) {
+        ReplayInstaller.startReplay(this, plan, edges, start, endGoal, startFoot, archiveName);
     }
 
-    /** Faithful re-run replay (mc.debug.replay replan mode): restore the recorded
-     *  terrain, teleport to the recorded start, and re-issue the ORIGINAL goal through
-     *  the normal {@link net.magicterra.worlddriver.bot.process.IntentProcess} (full planning). Unlike {@link #startReplay}, the
-     *  recorded plan is not consulted — A* re-derives it deterministically in the
-     *  restored terrain, so emergent live behaviour (repaths, execution wedges)
-     *  reproduces. A normal path archive of the re-run is captured when pathArchive is on.
-     *
-     *  <p>Logic lives in {@link ReplayInstaller}; kept here as the public entry point
-     *  ReplayTool calls. */
-    public Map<String, Object> startReplayReplan(java.util.List<WorldCell> cells,
-                                                 BlockPos start, Goal goal,
-                                                 String archiveName, boolean restoreBlocks) {
-        return ReplayInstaller.startReplayReplan(this, cells, start, goal, archiveName, restoreBlocks);
+    /**
+     * Re-issue a recorded goal from {@code start} with normal planning ({@code mc.debug.replay}, the
+     * default). The caller has restored the terrain and teleported the player. Client thread only.
+     */
+    public void startReplayReplan(BlockPos start, Goal goal) {
+        ReplayInstaller.startReplayReplan(this, start, goal);
     }
 
     @Override

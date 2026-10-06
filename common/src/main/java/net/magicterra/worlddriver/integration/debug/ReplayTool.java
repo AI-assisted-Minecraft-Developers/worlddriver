@@ -2,13 +2,21 @@ package net.magicterra.worlddriver.integration.debug;
 
 import net.magicterra.worlddriver.bot.debug.*;
 
+import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.WorldCell;
+import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.methods.DebugContracts.ReplayParams;
+import net.magicterra.worlddriver.api.methods.DebugContracts.ReplayReply;
+import net.magicterra.worlddriver.api.methods.DebugContracts.Replanned;
+import net.magicterra.worlddriver.api.methods.DebugContracts.Replayed;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.magicterra.worlddriver.bot.BotApiImpl;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
-import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -22,139 +30,100 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletionStage;
 import java.util.stream.Stream;
 
 /**
- * {@code mc.debug.replay} route handler. Loads a recorded path archive, force-
- * restores its block envelope into the world, teleports the bot to the recorded
- * start, and re-issues the recorded goal with normal planning ({@code replan}, the
- * default) or, with {@code replan:false}, re-executes the stored plan through the
- * Walker in replay mode, so a pathfinding wedge reproduces deterministically. The run is
- * captured as a {@code replay-run-*.json} with the actual trajectory + per-step
- * deviation (written async by {@link PathArchiveRecorder} on terminal).
+ * {@code mc.debug.replay}. Loads a recorded path archive, restores its block envelope, teleports this
+ * client's player to the recorded start, and re-issues the recorded goal with normal planning (replan, the
+ * default) or, with replan false, re-executes the stored plan through the Walker in replay mode, so a
+ * pathfinding wedge reproduces deterministically. The run is captured as a {@code replay-run-*.json} with
+ * the actual trajectory and per-step deviation (written by {@link PathArchiveRecorder} when it ends).
  *
- * <p>Registered via {@link PathDebugBootstrap}, mirroring {@code mc.debug.pathChart}
- * / {@code mc.debug.plan} (the established strippable debug-tool seam).</p>
+ * <p>The server's half (restore, teleport) runs here, on the calling worker, before the client's half is
+ * handed to the client thread: a game thread may not wait on another, and the teleport is a server command.
  */
-public final class ReplayTool {
+final class ReplayTool {
     private static final Path REPLAY_DIR = Path.of("config", "worlddriver", "replays");
 
     private ReplayTool() {}
 
-    public static Object replay(Map<String, Object> params) {
-        Params p = Params.of(params);
-        boolean restoreBlocks = p.getBool("restoreBlocks", true);
-        // fromStep is accepted for forward-compat but IGNORED in the MVP: honoring it
-        // means rebuilding a partial plan + teleporting to a mid-step foot, which the
-        // Walker's anchor logic does not yet support cleanly. The whole plan replays
-        // from node 0. Reported back as fromStepHonored:false.
-        int fromStep = p.getInt("fromStep", 0);
-        // replan (default): FAITHFUL re-run. Restore the recorded terrain, teleport to
-        // the recorded start, and re-issue the ORIGINAL goal with normal planning — A*
-        // is deterministic in identical terrain, so the live run (including its repaths
-        // and any emergent execution wedge) reproduces exactly. replan:false keeps the
-        // legacy RIGID mode: walk the recorded plan nodes with no re-planning (good for
-        // isolating a pure pathing wedge, but diverges where the live run repathed).
-        boolean replan = p.getBool("replan", true);
-
-        // 1. Resolve the archive file.
-        Path archivePath;
-        String fileName = p.getNonBlank("file");
-        try {
-            archivePath = (fileName != null) ? REPLAY_DIR.resolve(fileName) : newestPlanArchive();
-        } catch (RuntimeException e) {
-            return Map.of("ok", false, "error", "could not resolve archive: " + e.getMessage());
+    static CompletionStage<ReplayReply> replay(DriverApi api, ReplayParams p, CallContext ctx) {
+        ctx.requireBlockingAllowed("mc.debug.replay");
+        if (!(BotHooks.impl() instanceof BotApiImpl bot)) {
+            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "replay drives this client's player, and there is none");
         }
-        if (archivePath == null || !Files.isRegularFile(archivePath)) {
-            return Map.of("ok", false, "error",
-                    "archive not found" + (fileName != null ? ": " + fileName
-                            : " (no replay-*.json plan archive under " + REPLAY_DIR + ")"));
+        Path archivePath = p.file().map(REPLAY_DIR::resolve).orElseGet(ReplayTool::newestPlanArchive);
+        if (archivePath == null) {
+            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no replay-*.json plan archive under " + REPLAY_DIR);
         }
-
+        if (!Files.isRegularFile(archivePath)) {
+            throw ApiException.invalidParam("/file", ApiIssue.Code.INVALID_VALUE, "no archive " + archivePath.getFileName());
+        }
+        String file = archivePath.getFileName().toString();
         PathArchive a;
         try {
             a = PathArchive.fromJson(Files.readString(archivePath));
         } catch (Exception e) {
-            return Map.of("ok", false, "error", "unreadable archive: " + e.getMessage());
+            throw ApiException.invalidParam("/file", ApiIssue.Code.INVALID_VALUE, "unreadable archive " + file + ": " + e.getMessage());
         }
 
-        // 2. Build the cell list from the envelope. Schema-v2 cells carry the FULL
-        //    block state as SNBT + block-entity NBT, so restore is faithful (stair
-        //    facing, slab half, water level, waterlogged, chest contents, ...). v1
-        //    cells (state==null) fall back to defaultBlockState() from the block id.
+        // Schema-v2 cells carry the FULL block state as SNBT plus block-entity NBT, so restore is faithful
+        // (stair facing, slab half, water level, waterlogged, chest contents, ...). v1 cells (state==null)
+        // fall back to defaultBlockState() from the block id.
         List<WorldCell> cells = new ArrayList<>();
-        int defaultedCells = 0;
-        if (restoreBlocks) {
+        int defaulted = 0;
+        if (p.restoreBlocks()) {
             for (PathArchive.EnvelopeCell ec : a.envelope()) {
                 int[] pos = ec.pos();
                 BlockState st = parseState(ec.state());
                 if (st == null) {
-                    ResourceLocation rl = ResourceLocation.parse(ec.block());
-                    Block b = BuiltInRegistries.BLOCK.get(rl);
+                    Block b = BuiltInRegistries.BLOCK.get(ResourceLocation.parse(ec.block()));
                     st = b.defaultBlockState();
-                    defaultedCells++;
+                    defaulted++;
                 }
-                CompoundTag beTag = parseNbt(ec.nbt());
-                cells.add(new WorldCell(new BlockPos(pos[0], pos[1], pos[2]), st, beTag));
+                cells.add(new WorldCell(new BlockPos(pos[0], pos[1], pos[2]), st, parseNbt(ec.nbt())));
             }
         }
+        String fidelity = defaulted == 0 ? "full (block state SNBT + block-entity NBT)"
+                : "mixed (" + defaulted + " v1 cells defaulted; rest full)";
 
-        // 2b. FAITHFUL re-run (default): restore the recorded terrain, teleport to the
-        //     recorded start, and re-issue the ORIGINAL goal with normal planning. The
-        //     recorded plan/edges are NOT used — A* re-derives them deterministically.
-        if (replan) {
+        if (p.replan()) {
+            // A* is deterministic in identical terrain, so re-issuing the recorded goal reproduces the live run,
+            // repaths and execution wedges included; the recorded plan is not used.
             int[] hs = a.header().start();
-            if (hs == null) {
-                return Map.of("ok", false, "error", "archive has no recorded start to replay from");
-            }
+            if (hs == null) throw ApiException.invalidParam("/file", ApiIssue.Code.INVALID_VALUE, file + " has no recorded start");
             Goal goal = reconstructGoal(a.header());
             if (goal == null) {
-                return Map.of("ok", false, "error",
-                        "could not reconstruct goal from header (goalDesc=" + a.header().goalDesc()
-                                + "); pass replan:false for rigid plan replay");
+                throw ApiException.invalidParam("/file", ApiIssue.Code.INVALID_VALUE, file + " records no goal to re-issue "
+                        + "(goalDesc=" + a.header().goalDesc() + "); replay it with replan: false");
             }
-            if (!(BotHooks.impl() instanceof BotApiImpl bot)) {
-                return Map.of("ok", false, "error", "mc.bot.* not available (bot impl not registered)");
-            }
-            Map<String, Object> res = bot.startReplayReplan(
-                    cells, new BlockPos(hs[0], hs[1], hs[2]), goal,
-                    archivePath.getFileName().toString(), restoreBlocks);
-            if (Boolean.FALSE.equals(res.get("ok"))) return res;
-            java.util.LinkedHashMap<String, Object> out = new java.util.LinkedHashMap<>(res);
-            out.put("file", archivePath.getFileName().toString());
-            out.put("mode", "replan");
-            out.put("envelopeCells", a.envelope().size());
-            out.put("blockStateFidelity", defaultedCells == 0
-                    ? "full (block state SNBT + block-entity NBT)"
-                    : "mixed (" + defaultedCells + " v1 cells defaulted; rest full)");
-            return out;
+            BlockPos start = new BlockPos(hs[0], hs[1], hs[2]);
+            int restored = prepare(api, cells, start, ctx);
+            return bot.clientHop().submit(() -> {
+                bot.startReplayReplan(start, goal);
+                return new Replanned(file, goal.toString(), a.envelope().size(), restored, fidelity);
+            }, ctx);
         }
 
-        // 3. Concatenate the plan across all segments, deduping the shared boundary
-        //    node and re-aligning edges so edge i enters plan node i (edge[0] = null
-        //    sentinel, as live paths use; the recorder strips those nulls when writing).
+        // Concatenate the plan across all segments, deduping the shared boundary node and re-aligning edges so
+        // edge i enters plan node i (edge[0] = null sentinel, as live paths use; the recorder strips those nulls).
         List<BlockPos> plan = new ArrayList<>();
         List<Move.Edge> edges = new ArrayList<>();
         for (PathArchive.Segment seg : a.segments()) {
             List<int[]> segPath = seg.path();
             if (segPath.isEmpty()) continue;
-            // Re-insert the leading null sentinel the recorder dropped, so segEdges
-            // aligns 1:1 with segPath (segEdges.get(i) enters segPath.get(i)).
             List<Move.Edge> segEdges = new ArrayList<>(segPath.size());
             segEdges.add(null);
             for (PathArchive.EdgeRec er : seg.edges()) segEdges.add(toEdge(er));
-            // Pad/trim defensively in case a malformed archive has a mismatched count.
-            while (segEdges.size() < segPath.size()) segEdges.add(null);
-
+            while (segEdges.size() < segPath.size()) segEdges.add(null);   // a malformed archive's short edge list
             int from = 0;
-            // Dedup the boundary node shared with the previous segment.
             if (!plan.isEmpty()) {
                 int[] first = segPath.get(0);
                 BlockPos last = plan.get(plan.size() - 1);
-                if (last.getX() == first[0] && last.getY() == first[1] && last.getZ() == first[2]) {
-                    from = 1; // skip the duplicate node AND its (null) entering edge
-                }
+                if (last.getX() == first[0] && last.getY() == first[1] && last.getZ() == first[2]) from = 1;
             }
             for (int i = from; i < segPath.size(); i++) {
                 int[] n = segPath.get(i);
@@ -162,52 +131,41 @@ public final class ReplayTool {
                 edges.add(i < segEdges.size() ? segEdges.get(i) : null);
             }
         }
-
-        if (plan.isEmpty()) {
-            return Map.of("ok", false, "error", "archive has no plan nodes to replay");
-        }
-
+        if (plan.isEmpty()) throw ApiException.invalidParam("/file", ApiIssue.Code.INVALID_VALUE, file + " has no plan nodes");
         BlockPos startFoot = plan.get(0);
-        BlockPos lastNode = plan.get(plan.size() - 1);
         int[] hStart = a.header().start();
-        BlockPos start = (hStart != null) ? new BlockPos(hStart[0], hStart[1], hStart[2]) : startFoot;
-        Goal endGoal = new Goal.Block(lastNode);
-
-        // 4-6. Hand off to the bot impl: restore blocks (server thread), teleport, arm
-        //      the replay recorder, and install the ReplayProcess (drives beginReplay).
-        if (!(BotHooks.impl() instanceof BotApiImpl bot)) {
-            return Map.of("ok", false, "error", "mc.bot.* not available (bot impl not registered)");
-        }
-        Map<String, Object> res = bot.startReplay(
-                cells, plan, edges, start, endGoal, startFoot, archivePath.getFileName().toString(), restoreBlocks);
-
-        if (Boolean.FALSE.equals(res.get("ok"))) return res;
-
-        // Enrich the response with the archive context + MVP caveats.
-        java.util.LinkedHashMap<String, Object> out = new java.util.LinkedHashMap<>(res);
-        out.put("file", archivePath.getFileName().toString());
-        out.put("segments", a.segments().size());
-        out.put("fromStepRequested", fromStep);
-        out.put("fromStepHonored", false);
-        out.put("blockStateFidelity", defaultedCells == 0
-                ? "full (block state SNBT + block-entity NBT)"
-                : "mixed (" + defaultedCells + " v1 cells defaulted; rest full)");
-        return out;
+        BlockPos start = hStart != null ? new BlockPos(hStart[0], hStart[1], hStart[2]) : startFoot;
+        Goal endGoal = new Goal.Block(plan.get(plan.size() - 1));
+        int restored = prepare(api, cells, start, ctx);
+        return bot.clientHop().submit(() -> {
+            bot.startReplay(plan, edges, start, endGoal, startFoot, file);
+            return new Replayed(file, a.segments().size(), plan.size(), restored, fidelity);
+        }, ctx);
     }
 
-    /** Parse a schema-v2 block-state SNBT back to a {@link BlockState}, or null when
-     *  absent (v1 archive) / unparseable (caller falls back to defaultBlockState). */
+    /** The server's half: restore the envelope and teleport to the start's block centre. Off the game threads. */
+    private static int prepare(DriverApi api, List<WorldCell> cells, BlockPos start, CallContext ctx) {
+        int restored = cells.isEmpty() ? 0 : api.restoreCellsOnServer(cells);
+        String tp = String.format(Locale.ROOT, "tp %.1f %d %.1f", start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
+        try {
+            DriverApi.await(api.dispatch("mc.action.runCommand", Map.of("cmd", tp), ctx), ctx.remainingMillis());
+        } catch (RuntimeException noServer) {
+            // No server to command: the client places its player at the start anyway.
+        }
+        return restored;
+    }
+
+    /** A schema-v2 block-state SNBT as a {@link BlockState}, or null when absent (v1) or unparseable. */
     private static BlockState parseState(String snbt) {
         if (snbt == null) return null;
         try {
-            CompoundTag tag = TagParser.parseTag(snbt);
-            return NbtUtils.readBlockState(BuiltInRegistries.BLOCK.asLookup(), tag);
+            return NbtUtils.readBlockState(BuiltInRegistries.BLOCK.asLookup(), TagParser.parseTag(snbt));
         } catch (CommandSyntaxException | RuntimeException e) {
             return null;
         }
     }
 
-    /** Parse a block-entity SNBT back to a {@link CompoundTag}, or null when absent. */
+    /** A block-entity SNBT as a {@link CompoundTag}, or null when absent. */
     private static CompoundTag parseNbt(String snbt) {
         if (snbt == null) return null;
         try {
@@ -241,20 +199,19 @@ public final class ReplayTool {
         return m.find() ? Integer.parseInt(m.group(1)) : 0;
     }
 
-    /** Newest {@code replay-*.json} under the replays dir that is NOT a replay-run. */
+    /** Newest {@code replay-*.json} under the replays dir that is NOT a replay-run, or null. */
     private static Path newestPlanArchive() {
         if (!Files.isDirectory(REPLAY_DIR)) return null;
         try (Stream<Path> s = Files.list(REPLAY_DIR)) {
             return s.filter(Files::isRegularFile)
                     .filter(f -> {
                         String n = f.getFileName().toString();
-                        return n.startsWith("replay-") && n.endsWith(".json")
-                                && !n.startsWith("replay-run-");
+                        return n.startsWith("replay-") && n.endsWith(".json") && !n.startsWith("replay-run-");
                     })
                     .max(Comparator.comparingLong(f -> f.toFile().lastModified()))
                     .orElse(null);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw ApiException.of(ApiError.Code.INTERNAL_ERROR, "listing " + REPLAY_DIR + " failed: " + e.getMessage());
         }
     }
 
