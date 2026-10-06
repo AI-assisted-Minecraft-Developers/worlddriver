@@ -65,6 +65,10 @@ class WorldReadWriteContractsTest {
         assertEquals("/to", issue(WorldContracts.FILL_PARAMS, far + ",\"type\":\"minecraft:stone\"}").path());
         decode(WorldContracts.FILL_PARAMS,
                 "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":{\"x\":31,\"y\":31,\"z\":31},\"type\":\"minecraft:stone\"}");
+        // Three 2^32 spans multiply to 2^96, which a long wraps to 0.
+        String min = "-2147483648", max = "2147483647";
+        assertEquals("/to", issue(WorldContracts.SNAPSHOT_PARAMS, "{\"from\":{\"x\":" + min + ",\"y\":" + min + ",\"z\":" + min
+                + "},\"to\":{\"x\":" + max + ",\"y\":" + max + ",\"z\":" + max + "}}").path());
     }
 
     @Test

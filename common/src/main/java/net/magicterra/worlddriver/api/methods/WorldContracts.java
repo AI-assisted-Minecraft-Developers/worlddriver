@@ -37,8 +37,11 @@ public final class WorldContracts {
 
     private static final ApiType<Integer> COUNT = ApiTypes.integer(0, Integer.MAX_VALUE);
 
+    /** Cells in the box, saturating at {@code Long.MAX_VALUE}: three spans of up to 2^32 each overflow a long. */
     private static long volume(BlockPosition a, BlockPosition b) {
-        return (Math.abs((long) a.x() - b.x()) + 1) * (Math.abs((long) a.y() - b.y()) + 1) * (Math.abs((long) a.z() - b.z()) + 1);
+        long dx = Math.abs((long) a.x() - b.x()) + 1, dy = Math.abs((long) a.y() - b.y()) + 1, dz = Math.abs((long) a.z() - b.z()) + 1;
+        if (dx > MAX_VOLUME || dy > MAX_VOLUME || dz > MAX_VOLUME) return Long.MAX_VALUE;
+        return dx * dy * dz;
     }
 
     private static void withinVolume(BlockPosition from, BlockPosition to, DecodeContext at) {
