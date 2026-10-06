@@ -1,149 +1,171 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.ServerThreadGuard;
-import net.magicterra.worlddriver.api.WireValues;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
+import net.magicterra.worlddriver.api.ApiErrors;
+import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.api.ApiRegistry;
+import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.CancellationToken;
+import net.magicterra.worlddriver.api.EventWire;
+import net.magicterra.worlddriver.api.WaitPermits;
 import net.magicterra.worlddriver.api.action.ActionRegistry;
+import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.api.methods.EventContracts.Event;
+import net.magicterra.worlddriver.api.methods.WaitContracts;
+import net.magicterra.worlddriver.api.methods.WaitContracts.ConditionParams;
+import net.magicterra.worlddriver.api.methods.WaitContracts.ConditionResult;
+import net.magicterra.worlddriver.api.methods.WaitContracts.EventParams;
+import net.magicterra.worlddriver.api.methods.WaitContracts.EventsArrived;
+import net.magicterra.worlddriver.api.methods.WaitContracts.Outcome;
+import net.magicterra.worlddriver.api.methods.WaitContracts.Started;
+import net.magicterra.worlddriver.api.methods.WaitContracts.WaitDone;
+import net.magicterra.worlddriver.api.methods.WaitContracts.WorldReady;
+import net.magicterra.worlddriver.api.methods.WaitContracts.WorldReadyParams;
 import net.magicterra.worlddriver.api.methods.WaitResultContract;
-import net.magicterra.worlddriver.protocol.JsonCodec;
-import java.util.Optional;
-
 import net.magicterra.worlddriver.model.DriverEvent;
-import net.magicterra.worlddriver.model.Params;
-import net.magicterra.worlddriver.protocol.ServerBusyException;
-import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
 
 /**
- * {@code mc.wait.*} long-polling handlers, extracted from {@code DriverApplication}. All
- * wait methods block the calling thread (HTTP / WS worker, or script-eval pool)
- * — never the server thread — and bound the wait by a hard wall-clock deadline
- * so a stuck condition can't hang a client. Inner work re-uses the same routes
- * everyone else calls via an {@link DriverApplication} back-reference, so policy stays in
- * one place (e.g., {@code observe.container} requires server; {@code wait.condition}
- * inherits that requirement transparently).
+ * {@code mc.wait.event}, {@code mc.wait.worldReady}, {@code mc.wait.condition} and the wait half of
+ * {@code mc.wait.result}. A wait polls through {@link Polling}, so between two polls it holds no thread;
+ * what it holds is a wait permit, the caller's for a foreground wait and this class's own for a
+ * background one.
  *
- * <p><b>Background mode.</b> An LLM agent issues tool calls SERIALLY: a blocking
- * wait holds its single channel for the whole budget, during which it can neither
- * act nor react to the live {@code <channel>} event stream (it goes blind to
- * threats/death). Pass {@code background:true} to any wait.* tool and it returns a
- * {@code waitId} IMMEDIATELY; the poll loop runs on a daemon thread and, when it
- * finishes, (a) stores the result for {@code mc.wait.result{waitId}} and (b) emits
- * a {@code wait.done} event on the push channel. The agent stays responsive and
- * either polls {@code mc.wait.result} or watches for the event.
+ * <p><b>Background mode.</b> An LLM agent issues tool calls serially, so a foreground wait blinds it to
+ * the live event stream for the whole budget. With {@code background:true} the reply is a
+ * {@code waitId} at once; when the wait ends its reply is (a) kept for {@code mc.wait.result} and (b)
+ * pushed as a {@code wait.done} event.
  */
 public final class WaitApi {
     private final DriverApplication api;
+
     WaitApi(DriverApplication api) { this.api = api; }
 
-    /** {@code background:true} waits running at once, across the JVM. Each holds a thread for
-     *  up to its whole budget, and starting one is a single cheap call, so a loop could
-     *  otherwise start them faster than they finish. */
-    public static final int MAX_BACKGROUND = 32;
+    public static final int MAX_BACKGROUND = WaitContracts.MAX_BACKGROUND;
 
-    /** Maximum wall-clock budget any wait.* tool will accept, in ms. Keeps a
-     *  runaway script from squatting on a worker thread for hours. Public because the
-     *  WebSocket liveness window must outlast it. */
-    public static final long MAX_BUDGET_MS = 120_000L;
+    /** Public because the WebSocket liveness window must outlast it. */
+    public static final long MAX_BUDGET_MS = WaitContracts.MAX_TIMEOUT_MS;
 
-    // ---- background wait machinery (see class javadoc) -------------------------
-    /** Bounded with no queue: a queued wait would silently eat its own budget before it
-     *  started, so past the cap the caller is told at once instead. */
-    private static final ExecutorService BG = new ThreadPoolExecutor(0, WaitApi.MAX_BACKGROUND,
-            60L, TimeUnit.SECONDS, new SynchronousQueue<>(), r -> {
-        Thread t = new Thread(r, "agent-wait-bg");
-        t.setDaemon(true);
-        return t;
-    });
+    /** Margin kept off the caller's deadline so the answer is written before the caller gives up. */
+    private static final long REPLY_MARGIN_MS = 250;
+
+    /** One read of a condition; a target that takes longer has failed this poll, and the wait with it. */
+    private static final long POLL_BUDGET_MS = 10_000;
+
+    private static final WaitPermits BACKGROUND = WaitPermits.bounded(MAX_BACKGROUND);
     private static final AtomicLong WAIT_SEQ = new AtomicLong();
     private static final int MAX_RESULTS = 64;
-    /** waitId → finished result. Bounded and INSERTION-ORDERED so the genuinely
-     *  oldest entry is evicted on overflow. A ConcurrentHashMap iterates in hash
-     *  order, so its "drop the first key" eviction could discard a just-finished
-     *  result the agent hasn't fetched yet, hanging its mc.wait.result poll. Wrapped
-     *  synchronized since it's touched from the agent-wait-bg daemon and result()'s
-     *  handler thread; removeEldestEntry makes put() self-bounding (atomic). */
-    private static final Map<String, Map<String, Object>> RESULTS =
-            Collections.synchronizedMap(new LinkedHashMap<>() {
-                @Override protected boolean removeEldestEntry(Map.Entry<String, Map<String, Object>> eldest) {
-                    return size() > MAX_RESULTS;
-                }
-            });
-    /** waitIds whose callback is still running. Without it an id missing from RESULTS is
-     *  ambiguous — still running, or gone — and reading it as "pending" hung agents. */
+    /**
+     * waitId → how it ended. Bounded and insertion-ordered so the genuinely oldest is evicted: a hash
+     * order could drop a result the agent has not fetched yet.
+     */
+    private static final Map<String, WaitDone> RESULTS = Collections.synchronizedMap(new LinkedHashMap<>() {
+        @Override protected boolean removeEldestEntry(Map.Entry<String, WaitDone> eldest) {
+            return size() > MAX_RESULTS;
+        }
+    });
+    /** waitIds still running: without it an id missing from RESULTS could be running or gone. */
     private static final Set<String> IN_FLIGHT = ConcurrentHashMap.newKeySet();
 
+    List<ApiMethod<?, ?>> methods() {
+        return List.of(
+                new ApiMethod<>(WaitContracts.EVENT, this::event),
+                new ApiMethod<>(WaitContracts.WORLD_READY, this::worldReady),
+                new ApiMethod<>(WaitContracts.CONDITION, this::condition));
+    }
+
+    /** How a wait runs once its request is checked: within {@code budgetMs}, until {@code cancelled}. */
+    @FunctionalInterface
+    private interface Body {
+        CompletionStage<Outcome> start(long budgetMs, CancellationToken cancelled);
+    }
+
     /**
-     * Run a wait callback either inline (blocking, default) or — when {@code background:true}
-     * — on a daemon thread, returning a {@code waitId} ack immediately. Caller-side
-     * validation (e.g. {@code api.level()}) must run BEFORE this so a bad request
-     * still fails fast rather than being acked and failing on the background thread.
+     * Run {@code body} in the foreground or in the background. Everything that can refuse the request
+     * runs before this, so a bad request is never acknowledged and then failed in the background.
      */
-    private Map<String, Object> run(Params p, String kind, Supplier<Map<String, Object>> body) {
-        if (!p.getBool("background", false)) {
-            ServerThreadGuard.refuseBlocking("mc.wait." + kind + " without background:true");
-            return body.get();
+    private CompletionStage<Outcome> run(MethodSpec<?, Outcome> spec, String kind, boolean background,
+                                         int timeoutMs, CallContext ctx, Body body) {
+        if (!background) {
+            ctx.requireBlockingAllowed(spec.name() + " without background:true");
+            WaitPermits.Lease lease = ctx.waits().tryAcquire();
+            if (lease == null) {
+                throw ApiException.of(ApiError.Code.SERVER_BUSY,
+                        "server busy: every wait slot is in use; retry, or pass background:true");
+            }
+            long budget = Math.min(timeoutMs, Math.max(0, ctx.remainingMillis() - REPLY_MARGIN_MS));
+            try {
+                return body.start(budget, ctx.requestCancelled()).whenComplete((r, t) -> lease.close());
+            } catch (RuntimeException e) {
+                lease.close();
+                throw e;
+            }
+        }
+        WaitPermits.Lease lease = BACKGROUND.tryAcquire();
+        if (lease == null) {
+            throw ApiException.of(ApiError.Code.SERVER_BUSY, "server busy: " + MAX_BACKGROUND
+                    + " background waits are already running; wait for one to finish (mc.wait.result or the "
+                    + "wait.done event) before starting another");
         }
         String waitId = kind + "-" + WAIT_SEQ.incrementAndGet();
         IN_FLIGHT.add(waitId);
+        CompletionStage<Outcome> stage;
         try {
-            startInBackground(waitId, kind, body);
-        } catch (RejectedExecutionException full) {
+            stage = body.start(timeoutMs, CancellationToken.NEVER);
+        } catch (RuntimeException e) {
             IN_FLIGHT.remove(waitId);
-            throw new ServerBusyException("busy: " + WaitApi.MAX_BACKGROUND
-                    + " background waits are already running; wait for one to finish (mc.wait.result "
-                    + "or the wait.done event) before starting another");
+            lease.close();
+            throw e;
         }
-        Map<String, Object> ack = new LinkedHashMap<>();
-        ack.put("waitId", waitId);
-        ack.put("background", true);
-        ack.put("started", true);
-        return ack;
+        stage.whenComplete((r, t) -> finish(spec, waitId, r, t, lease));
+        return CompletableFuture.completedFuture(new Started(waitId));
     }
 
-    private void startInBackground(String waitId, String kind, Supplier<Map<String, Object>> body) {
-        BG.execute(() -> {
-            Map<String, Object> result;
-            try {
-                result = body.get();
-            } catch (Throwable t) {
-                result = new LinkedHashMap<>();
-                result.put("error", String.valueOf(t.getMessage()));
-            }
-            result.put("waitId", waitId);
-            result.put("kind", kind);
-            try {
-                RESULTS.put(waitId, result);  // self-bounding via removeEldestEntry
-            } finally {
-                // After the put, so a concurrent result() never sees the id in neither place.
-                IN_FLIGHT.remove(waitId);
-            }
-            api.emit("wait.done", null, result);
-        });
+    private void finish(MethodSpec<?, Outcome> spec, String waitId, Outcome reply, Throwable failure,
+                        WaitPermits.Lease lease) {
+        WaitDone done;
+        try {
+            done = failure == null
+                    ? new WaitDone(waitId, spec.name(), Optional.of(JsonValue.of(spec.output().encode(reply))), Optional.empty())
+                    : failed(spec, waitId, failure);
+        } catch (RuntimeException broken) {
+            done = failed(spec, waitId, broken);
+        }
+        try {
+            RESULTS.put(waitId, done);
+        } finally {
+            // After the put, so a concurrent result() never sees the id in neither place.
+            IN_FLIGHT.remove(waitId);
+            lease.close();
+        }
+        api.emit("wait.done", null, WaitContracts.WAIT_DONE.encode(done));
+    }
+
+    private static WaitDone failed(MethodSpec<?, ?> spec, String waitId, Throwable t) {
+        ApiError e = ApiRegistry.asApi(t).error();
+        return new WaitDone(waitId, spec.name(), Optional.empty(), Optional.of(JsonValue.of(ApiErrors.toTree(e))));
     }
 
     /**
-     * Fetch the result of a background wait. Returns {@code {pending:true}} while
-     * the wait is running, then the full result (and removes it unless
-     * {@code consume:false}). An id that is neither running nor stored — never
-     * issued, already consumed, or evicted by newer results — is an error.
+     * Read an action, or a background wait: {@code pending} while it runs, then how it ended (dropped
+     * after reading unless {@code consume:false}). An id neither running nor kept is an error.
      */
     public WaitResultContract.Reply result(WaitResultContract.Query query) {
         return switch (query) {
@@ -155,181 +177,85 @@ public final class WaitApi {
 
     private WaitResultContract.Reply waitResult(String waitId, boolean consume) {
         // In-flight first: the finisher stores the result before it clears the flag.
-        if (IN_FLIGHT.contains(waitId)) return new WaitResultContract.WaitReply(waitId, true, Optional.empty());
-        Map<String, Object> r = consume ? RESULTS.remove(waitId) : RESULTS.get(waitId);
+        if (IN_FLIGHT.contains(waitId)) {
+            return new WaitResultContract.WaitReply(waitId, true, Optional.empty(), Optional.empty());
+        }
+        WaitDone r = consume ? RESULTS.remove(waitId) : RESULTS.get(waitId);
         if (r == null) {
             throw ApiException.invalidParam("/waitId", ApiIssue.Code.INVALID_VALUE, "unknown waitId '" + waitId
                     + "': never started, already consumed, or evicted (only the " + MAX_RESULTS
                     + " newest unread results are kept)");
         }
-        // The stored result is an untyped map of the legacy wait verbs; its wire tree is what is returned.
-        return new WaitResultContract.WaitReply(waitId, false,
-                Optional.of(JsonValue.of(JsonCodec.decode(WireValues.encode(r)))));
+        return new WaitResultContract.WaitReply(waitId, false, r.result(), r.error());
     }
 
-    /**
-     * Long-poll for the next event(s) since {@code cursor} matching {@code types}.
-     * Returns as soon as at least one event is available, or {@code {timedOut:true}}
-     * on deadline. {@code cursor} in the response is the seq of the last event
-     * returned — pass it back on the next call to chain. Pass {@code background:true}
-     * to return a {@code waitId} immediately (see class javadoc).
-     */
-    public Map<String, Object> event(Map<String, Object> params) {
-        api.level();
-        Params p = Params.of(params);
-        long cursor = p.getLong("cursor");
-        Set<String> types = null;
-        if (p.get("types") instanceof List<?>) {
-            types = new LinkedHashSet<>(p.getStringList("types"));
-            if (types.isEmpty()) types = null;
-        }
-        int limit = p.getIntClamped("limit", 32, 1, 256);
-        long budgetMs = p.getLongClamped("timeoutMs", 5000L, 100L, MAX_BUDGET_MS);
-        long pollMs = p.getLongClamped("pollMs", 100L, 50L, 2000L);
-        Set<String> finalTypes = types;
+    // ------------------------------------------------------------------ the three waits
 
-        return run(p, "event", () -> {
+    CompletionStage<Outcome> event(EventParams p, CallContext ctx) {
+        api.level(); // needs a server; refused now rather than on the first poll
+        Set<String> types = p.types().filter(l -> !l.isEmpty()).<Set<String>>map(LinkedHashSet::new).orElse(null);
+        return run(WaitContracts.EVENT, "event", p.background(), p.timeoutMs(), ctx, (budget, cancelled) -> {
             long t0 = System.nanoTime();
-            long deadlineNanos = t0 + budgetMs * 1_000_000L;
-            while (true) {
-                List<DriverEvent> page = api.observe.eventsSince(cursor, finalTypes, limit);
-                if (!page.isEmpty()) {
-                    long ms = (System.nanoTime() - t0) / 1_000_000L;
-                    long newCursor = page.get(page.size() - 1).seq;
-                    Map<String, Object> out = new LinkedHashMap<>();
-                    out.put("events", page);
-                    out.put("timedOut", false);
-                    out.put("cursor", newCursor);
-                    out.put("ms", ms);
-                    return out;
-                }
-                if (sleepUntil(deadlineNanos, pollMs)) {
-                    long ms = (System.nanoTime() - t0) / 1_000_000L;
-                    Map<String, Object> out = new LinkedHashMap<>();
-                    out.put("events", List.of());
-                    out.put("timedOut", true);
-                    out.put("cursor", cursor);
-                    out.put("ms", ms);
-                    return out;
-                }
-            }
+            return Polling.until(budget, p.pollMs(), cancelled, () -> {
+                List<DriverEvent> page = api.observe.eventsSince(p.cursor(), types, p.limit());
+                if (page.isEmpty()) return CompletableFuture.completedFuture(Optional.empty());
+                List<Event> events = new ArrayList<>(page.size());
+                for (DriverEvent e : page) events.add(EventWire.dto(e));
+                return CompletableFuture.completedFuture(Optional.of(
+                        new EventsArrived(events, false, page.get(page.size() - 1).seq, msSince(t0))));
+            }, () -> new EventsArrived(List.of(), true, p.cursor(), msSince(t0)));
         });
     }
 
-    /**
-     * Wait until the client is fully in-world (a player exists and a world is
-     * loaded). Does NOT require {@code DriverApplication} to be attached to a server —
-     * the whole point is to wait until that happens. On dedicated server (no
-     * client bound) throws "mc.client.* not available" immediately.
-     */
-    public Map<String, Object> worldReady(Map<String, Object> params) {
-        Params p = Params.of(params);
-        long budgetMs = p.getLongClamped("timeoutMs", 30_000L, 100L, MAX_BUDGET_MS);
-        long pollMs = p.getLongClamped("pollMs", 250L, 50L, 2000L);
-
-        return run(p, "worldReady", () -> {
+    /** Needs a client but no server: the point is to wait until there is a world to attach to. */
+    CompletionStage<Outcome> worldReady(WorldReadyParams p, CallContext ctx) {
+        DriverApplication.requireClient();
+        return run(WaitContracts.WORLD_READY, "worldReady", p.background(), p.timeoutMs(), ctx, (budget, cancelled) -> {
             long t0 = System.nanoTime();
-            long deadlineNanos = t0 + budgetMs * 1_000_000L;
-            Map<String, Object> info = null;
-            while (true) {
-                info = DriverApplication.requireClient().screenInfo();
+            AtomicReference<Map<String, Object>> last = new AtomicReference<>();
+            return Polling.until(budget, p.pollMs(), cancelled, () -> {
+                Map<String, Object> info = DriverApplication.requireClient().screenInfo();
+                last.set(info);
                 boolean ready = Boolean.TRUE.equals(info.get("worldOpen")) && Boolean.TRUE.equals(info.get("hasPlayer"));
-                if (ready) {
-                    long ms = (System.nanoTime() - t0) / 1_000_000L;
-                    Map<String, Object> out = new LinkedHashMap<>();
-                    out.put("ready", true);
-                    out.put("ms", ms);
-                    out.put("info", info);
-                    return out;
-                }
-                if (sleepUntil(deadlineNanos, pollMs)) {
-                    long ms = (System.nanoTime() - t0) / 1_000_000L;
-                    Map<String, Object> out = new LinkedHashMap<>();
-                    out.put("ready", false);
-                    out.put("ms", ms);
-                    out.put("info", info);
-                    return out;
-                }
-            }
+                return CompletableFuture.completedFuture(ready
+                        ? Optional.of(new WorldReady(true, msSince(t0), infoOf(info))) : Optional.empty());
+            }, () -> new WorldReady(false, msSince(t0), infoOf(last.get())));
         });
     }
 
-    /**
-     * Generic poll-until-truthy. Calls {@code invoke}/{@code params} every {@code pollMs};
-     * walks {@code field} (dotted path) into the result; succeeds when the value is truthy
-     * (or, if {@code value} is provided, deep-equals it). Use for things like:
-     *
-     *   {invoke:"mc.observe.container", params:{pos:{...}}, field:"slots.2.count"} —
-     *   wait for a furnace's output slot to be non-empty.
-     *
-     * Pass {@code background:true} to return a {@code waitId} immediately (see class
-     * javadoc) — strongly recommended for long phase/time waits in LIVE play so the
-     * agent stays responsive to the threat/hurt/death stream.
-     */
-    public Map<String, Object> condition(Map<String, Object> raw) {
-        Params p = Params.of(raw);
-        String method = p.getString("invoke");
-        if (method == null || method.isBlank()) throw new IllegalArgumentException("invoke method name required");
-        Map<String, Object> params = p.getMap("params");
-        String field = p.getString("field");
-        boolean strict = p.has("value");
-        Object target = p.get("value");
-        long budgetMs = p.getLongClamped("timeoutMs", 30_000L, 100L, MAX_BUDGET_MS);
-        long pollMs = p.getLongClamped("pollMs", 500L, 50L, 5000L);
-
-        return run(p, "condition", () -> {
+    CompletionStage<Outcome> condition(ConditionParams p, CallContext ctx) {
+        Polling.Target target = Polling.target(api, p.invoke(), p.params());
+        return run(WaitContracts.CONDITION, "condition", p.background(), p.timeoutMs(), ctx, (budget, cancelled) -> {
             long t0 = System.nanoTime();
-            long deadlineNanos = t0 + budgetMs * 1_000_000L;
-            Object lastValue = null;
-            while (true) {
-                Object result = api.route(method, params);
-                Object value = (field == null || field.isEmpty()) ? result : ApiSupport.walkPath(result, field);
-                lastValue = value;
-                if (strict && DIAG_LOGGED.compareAndSet(false, true)) {
-                    LOG.info("[wait.condition] strict compare value={} ({}) target={} ({}) looseEq={}",
-                            value, value == null ? "null" : value.getClass().getSimpleName(),
-                            target, target == null ? "null" : target.getClass().getSimpleName(),
-                            looseEquals(value, target));
-                }
-                boolean ok = strict ? looseEquals(value, target) : ApiSupport.isTruthy(value);
-                if (ok) {
-                    long ms = (System.nanoTime() - t0) / 1_000_000L;
-                    Map<String, Object> out = new LinkedHashMap<>();
-                    out.put("satisfied", true);
-                    out.put("value", value);
-                    out.put("ms", ms);
-                    return out;
-                }
-                if (sleepUntil(deadlineNanos, pollMs)) {
-                    long ms = (System.nanoTime() - t0) / 1_000_000L;
-                    Map<String, Object> out = new LinkedHashMap<>();
-                    out.put("satisfied", false);
-                    out.put("value", lastValue);
-                    out.put("ms", ms);
-                    return out;
-                }
-            }
+            AtomicReference<Optional<JsonValue>> last = new AtomicReference<>(Optional.empty());
+            return Polling.until(budget, p.pollMs(), cancelled,
+                    () -> target.read(api, Math.min(POLL_BUDGET_MS, Math.max(1, budget))).thenApply(result -> {
+                        Optional<JsonValue> value = Polling.field(result, p.field());
+                        last.set(value);
+                        Object tree = value.map(JsonValue::tree).orElse(null);
+                        boolean ok = p.value().isPresent() ? looseEquals(tree, p.value().get().tree()) : ApiSupport.isTruthy(tree);
+                        return ok ? Optional.<Outcome>of(new ConditionResult(true, value, msSince(t0))) : Optional.<Outcome>empty();
+                    }),
+                    () -> new ConditionResult(false, last.get(), msSince(t0)));
         });
     }
 
-    /** One-shot diagnostic so the first strict comparison logs its operand types. */
-    private static final AtomicBoolean DIAG_LOGGED = new AtomicBoolean(false);
+    private static Optional<JsonValue> infoOf(Map<String, Object> info) {
+        return EventWire.json(info);
+    }
+
+    private static long msSince(long t0) {
+        return (System.nanoTime() - t0) / 1_000_000L;
+    }
 
     /**
-     * Type-tolerant equality for {@code value}-target comparison. The live field
-     * value is a RAW Java object from the handler (Boolean / Integer / Long /
-     * Double / String), while the {@code value} param arrives through a JSON
-     * decoder that may box it differently (numbers as Long vs Double, etc.), so
-     * {@link Objects#equals} alone yields false negatives — e.g. field count
-     * {@code Integer 1} vs target {@code Long 1}, or a boolean field vs a
-     * stringified target. Compare numbers by double value and fall back to a
-     * string-form match so an honest equal never reads as "not satisfied".
+     * Equality across number types: a result tree holds Long, BigDecimal or Double where the target
+     * may hold another, and an honest equal must not read as unsatisfied. Numbers compare by value; a
+     * boolean or number also matches its string form, as targets written in a script sometimes are.
      */
     static boolean looseEquals(Object fieldVal, Object target) {
         if (Objects.equals(fieldVal, target)) return true;
         if (fieldVal == null || target == null) return false;
-        // Numeric compare when both sides are numbers OR a numeric string (handles
-        // field Float 20.0 / Integer 1 vs target String "20" / "1").
         Double a = asNumber(fieldVal), b = asNumber(target);
         if (a != null && b != null) return a.doubleValue() == b.doubleValue();
         if (fieldVal instanceof Boolean || target instanceof Boolean)
@@ -337,7 +263,6 @@ public final class WaitApi {
         return String.valueOf(fieldVal).equals(String.valueOf(target));
     }
 
-    /** Coerce a number or numeric string to Double; null if it isn't numeric. */
     private static Double asNumber(Object o) {
         if (o instanceof Number n) return n.doubleValue();
         if (o instanceof CharSequence s) {
@@ -345,20 +270,5 @@ public final class WaitApi {
             catch (NumberFormatException e) { return null; }
         }
         return null;
-    }
-
-    /** Sleep up to {@code pollMs}, but not past the deadline. Returns true when the
-     *  deadline has been reached (the caller should bail), false to keep looping. */
-    private boolean sleepUntil(long deadlineNanos, long pollMs) {
-        long now = System.nanoTime();
-        if (now >= deadlineNanos) return true;
-        long remainingMs = (deadlineNanos - now) / 1_000_000L;
-        try {
-            Thread.sleep(Math.max(1L, Math.min(pollMs, remainingMs)));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("interrupted while waiting");
-        }
-        return false;
     }
 }

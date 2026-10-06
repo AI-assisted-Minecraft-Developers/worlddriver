@@ -20,15 +20,7 @@ public final class WireValues {
             out.put("z", pos.getZ());
             return out;
         }
-        if (value instanceof DriverEvent event) {
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("seq", event.seq);
-            out.put("timestamp", event.timestamp);
-            out.put("type", event.type);
-            out.put("pos", event.pos);
-            out.put("data", event.data);
-            return out;
-        }
+        if (value instanceof DriverEvent event) return EventWire.tree(event);
         return value;
     }
 }

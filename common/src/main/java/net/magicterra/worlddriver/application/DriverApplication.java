@@ -87,19 +87,6 @@ public final class DriverApplication extends DriverApi {
         routes.put("mc.system.testOrigin", p -> system.testOrigin());
         routes.put("mc.system.waitTicks", p -> system.waitTicks(num(p.get("ticks"))));
         // mc.observe.area merged into mc.query — call with {q:'blocks', center?, filter:{in_radius,type?}}.
-        routes.put("mc.observe.cursor", p -> observe.cursor());
-        routes.put("mc.observe.eventsSince", p -> {
-            long cursor = (p.get("cursor") instanceof Number n0) ? n0.longValue() : 0L;
-            Object t = p.get("types");
-            Set<String> types = null;
-            if (t instanceof List<?> l) {
-                types = new LinkedHashSet<>();
-                for (Object o : l) if (o instanceof String s) types.add(s);
-                if (types.isEmpty()) types = null;
-            }
-            int limit = (p.get("limit") instanceof Number n) ? Math.max(1, Math.min(EVENT_BUFFER_CAP, n.intValue())) : 256;
-            return observe.eventsSince(cursor, types, limit);
-        });
         routes.put("mc.observe.player", p -> {
             // On a client MCP without a server attached (client connected to a
             // remote dedicated server), fall back to the client-side LocalPlayer
@@ -151,9 +138,6 @@ public final class DriverApplication extends DriverApi {
             }
             return observe.container(p);
         });
-        routes.put("mc.wait.event",       p -> wait.event(p));
-        routes.put("mc.wait.worldReady",  p -> wait.worldReady(p));
-        routes.put("mc.wait.condition",   p -> wait.condition(p));
         // Action routes — optional `returnEvents:true` bracket-captures events emitted
         // during the call so a script doesn't need a separate cursor/eventsSince pair.
         // mc.action.placeBlock removed — single-block placement = mc.action.placeMany({blocks:[{pos,type}]}).
@@ -170,10 +154,6 @@ public final class DriverApplication extends DriverApi {
         routes.put("mc.recipe.lookup",     p -> recipe.lookup(p));
         routes.put("mc.recipe.resolve",    p -> recipe.resolve(p));
         routes.put("mc.plan.acquire",      p -> recipe.planAcquire(p));
-        // Driver→agent event channel (server-side surface). op=emit|watch|unwatch|list.
-        // The live push itself rides the transports: subscribe over WebSocket
-        // (mc.events.subscribe frame) or the MCP SSE stream at /mcp/events.
-        routes.put("mc.events",            p -> eventsApi.dispatch(p));
         routes.put("mc.query", p -> {
             // Client-MCP fallback — server-side query() asserts attached server.
             String q = (String) p.get("q");
@@ -196,6 +176,8 @@ public final class DriverApplication extends DriverApi {
     private List<net.magicterra.worlddriver.api.ApiMethod<?, ?>> coreMethods() {
         List<net.magicterra.worlddriver.api.ApiMethod<?, ?>> all = new ArrayList<>(new BotActions(this).methods());
         all.addAll(new ScriptMethods(() -> scriptHost).methods());
+        all.addAll(eventsApi.methods());
+        all.addAll(wait.methods());
         return all;
     }
 

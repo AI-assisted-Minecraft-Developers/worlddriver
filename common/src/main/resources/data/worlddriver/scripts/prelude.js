@@ -70,13 +70,6 @@ Driver.observe = {
         var rows = Driver.invoke('mc.query', q);
         return { blocks: rows || [] };
     },
-    cursor:      function ()  { return Driver.invoke('mc.observe.cursor', {}); },
-    eventsSince: function (c, opts) {
-        var p = { cursor: c };
-        if (opts && opts.types) p.types = opts.types;
-        if (opts && opts.limit !== undefined) p.limit = opts.limit;
-        return Driver.invoke('mc.observe.eventsSince', p);
-    },
     player:    function (name) { return Driver.invoke('mc.observe.player', name ? { name: name } : {}); },
     container: function (pos)  { return Driver.invoke('mc.observe.container', { pos: pos }); },
     // Phase G boss sensing — nearest dragon/wither + End-crystal list.
@@ -107,38 +100,6 @@ Driver.query = function (p) { return Driver.invoke('mc.query', p); };
 // smelt/craft steps (recipe.resolve + how to get every missing leaf).
 Driver.plan = {
     acquire: function (opts) { return Driver.invoke('mc.plan.acquire', opts || {}); }
-};
-
-// Driver→agent event channel (server-side surface). The live push rides the
-// transports (subscribe over WebSocket / the MCP SSE stream at /mcp/events);
-// these helpers cover injecting custom events and registering condition watchers.
-Driver.events = {
-    // Inject a custom event into the stream (the manual "custom condition met" path).
-    emit:    function (type, data, pos) {
-        var p = { op: 'emit', type: type };
-        if (data !== undefined) p.data = data;
-        if (pos !== undefined) p.pos = pos;
-        return Driver.invoke('mc.events', p);
-    },
-    // Register a rising-edge watcher. opts: {invoke, params?, field?, value?|above?|
-    // below?, emitAs?, everyMs?, once?}. First poll where the predicate flips
-    // false→true emits emitAs (default 'condition.met') into the stream.
-    watch:   function (opts) {
-        var p = Object.assign({ op: 'watch' }, opts || {});
-        return Driver.invoke('mc.events', p);
-    },
-    unwatch: function (id) { return Driver.invoke('mc.events', { op: 'unwatch', id: id }); },
-    list:    function ()   { return Driver.invoke('mc.events', { op: 'list' }); }
-};
-
-// Wait helpers — convenience wrappers; full options accepted on the opts object.
-Driver.wait = {
-    worldReady: function (opts) { return Driver.invoke('mc.wait.worldReady', opts || {}); },
-    event:      function (cursor, opts) {
-        var p = Object.assign({ cursor: cursor | 0 }, opts || {});
-        return Driver.invoke('mc.wait.event', p);
-    },
-    condition:  function (opts) { return Driver.invoke('mc.wait.condition', opts || {}); }
 };
 
 // Client helpers — symmetric with system/observe/action. On dedicated server

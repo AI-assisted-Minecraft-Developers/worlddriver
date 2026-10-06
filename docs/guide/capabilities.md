@@ -103,24 +103,34 @@ only to plan a hypothesis; an explicit `{}` means "suppose I had nothing".
 
 | Method | What it does | Notable parameters |
 |---|---|---|
-| `mc.wait.event` | Long-polls for events newer than a cursor, optionally filtered by type. Returns as soon as one arrives. | `cursor`, `types`, `limit`, `timeoutMs` (default 5000, max 120000), `background` |
-| `mc.wait.worldReady` | Blocks until the client has finished loading into a world, player and world both ready. Does not need an attached server. | `timeoutMs` (default 30000), `background` |
-| `mc.wait.condition` | Polls any route until a dotted field in its result is truthy, or deep-equals a value you give. | `invoke`, `params`, `field`, `value`, `timeoutMs` (default 30000, max 120000), `pollMs`, `background` |
-| `mc.wait.result` | Fetches the result of a wait started with `background: true`. Returns `{pending: true}` until it finishes. An id that is not running and not stored — never issued, already consumed, or evicted because only the 64 newest unread results are kept — is an error. | `waitId`, `consume` |
+| `mc.wait.event` | Waits for events newer than a cursor, optionally filtered by type. Returns as soon as one arrives, with the cursor to pass next. | `cursor` (a decimal string), `types`, `limit`, `timeoutMs` (default 5000, max 120000), `background` |
+| `mc.wait.worldReady` | Waits until the client has finished loading into a world, player and world both ready. Does not need an attached server. | `timeoutMs` (default 30000), `background` |
+| `mc.wait.condition` | Polls a read until a dotted field in its result is truthy, or equals a value you give. Only a pollable read may be polled (`mc.bot.status`, `mc.observe.*`); a write such as `mc.bot.goto`, a script or another wait is refused before the wait starts. | `invoke`, `params`, `field`, `value`, `timeoutMs` (default 30000, max 120000), `pollMs`, `background` |
+| `mc.wait.result` | With `kind: 'wait'`, fetches the result of a wait started with `background: true`: `pending: true` until it finishes, then its reply, or the error that ended it. An id that is not running and not stored — never issued, already consumed, or evicted because only the 64 newest unread results are kept — is an error. | `kind`, `waitId`, `consume` |
 
-In live play, prefer `background: true` for any long wait. A blocking wait freezes the
-agent for the whole budget and blinds it to threat, damage and death events while it runs;
-a background wait returns a `waitId` immediately and the result arrives through
-`mc.wait.result` or a `wait.done` event. At most 32 background waits run at once; starting
-another while that many are running is refused with a "busy" error rather than queued.
+Every wait answers `{outcome: 'done', …}` when it ends, whether it was satisfied or ran out
+of time. While it waits it holds no request thread, so the same connection can still observe
+and cancel.
+
+In live play, prefer `background: true` for any long wait. A wait in the foreground keeps
+an agent that sends one call at a time from reacting to threat, damage and death events
+until it returns; a background wait answers `{outcome: 'started', waitId}` immediately and
+the result arrives through `mc.wait.result` or a `wait.done` event. At most 32 background
+waits run at once; starting another while that many are running is refused with a "busy"
+error rather than queued.
 
 ## Events
 
 | Method | What it does | Notable parameters |
 |---|---|---|
-| `mc.observe.cursor` | The latest event sequence number. Save it and pass it as the next `eventsSince` cursor. | none |
-| `mc.observe.eventsSince` | Pulls events newer than a cursor. The ring buffer holds 4096, so an older cursor returns what is left. | `cursor`, `types`, `limit` (default 256, max 4096) |
-| `mc.events` | Injects a custom event (`op: 'emit'`), or registers a rising-edge watcher that polls a route and emits when a predicate first becomes true (`op: 'watch'`), plus `list` and `unwatch`. | `op`, `type`, `data`, `invoke`, `field`, `value` / `above` / `below`, `emitAs`, `everyMs`, `once` |
+| `mc.observe.cursor` | The latest event's sequence number, as `{cursor}`. Save it and pass it as the next `eventsSince` cursor. | none |
+| `mc.observe.eventsSince` | Pulls events newer than a cursor, as `{events, cursor}`. The ring buffer holds 4096, so an older cursor returns what is left. | `cursor`, `types`, `limit` (default 256, max 4096) |
+| `mc.events` | Injects a custom event (`op: 'emit'`), or registers a rising-edge watcher that polls a pollable read and emits when a predicate becomes true (`op: 'watch'`, at most 16 at once), plus `list` and `unwatch`. | `op`, `type`, `data`, `invoke`, `field`, `value` / `above` / `below`, `emitAs`, `everyMs`, `once` |
+
+Every event has one shape, wherever it reaches you: `{seq, timestamp, type, pos?, data?}`.
+`seq`, and so every cursor, is a decimal string, because it is a 64-bit number that a
+JavaScript number would round; pass it back as you got it. `timestamp` is epoch
+milliseconds as a number, and numbers inside `data` stay numbers.
 
 Polling is the fallback. The driver also pushes every event that is not muted, live, over
 both network transports; see [Transports](transports.md) for the WebSocket subscription and
@@ -340,8 +350,8 @@ Slots are shared by related verbs, which matters when you are choosing what to p
 `build`, `clearArea`, `farm` and `construct` all report in the `builder` slot, and `sleep`
 reports in `goto`.
 
-`mc.wait.condition` can do the polling for you against any field of any route, and with
-`background: true` it does so without blocking the agent.
+`mc.wait.condition` can do the polling for you against any field of `mc.bot.status`, and
+with `background: true` it does so without blocking the agent.
 
 ### What `setting` toggles
 

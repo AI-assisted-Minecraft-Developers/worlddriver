@@ -31,8 +31,12 @@ public final class WaitResultContract {
 
     public record ActionReply(ActionSnapshot<Object> action) implements Reply {}
 
-    /** {@code result} is present once {@code pending} is false. */
-    public record WaitReply(String waitId, boolean pending, Optional<JsonValue> result) implements Reply {}
+    /**
+     * Once {@code pending} is false, exactly one of {@code result} (the wait's {@code {outcome:'done', …}}
+     * reply) and {@code error} (the ApiError that ended it) is present.
+     */
+    public record WaitReply(String waitId, boolean pending, Optional<JsonValue> result, Optional<JsonValue> error)
+            implements Reply {}
 
     public static final UnionType<Query> PARAMS = ApiTypes.taggedUnion("WaitResultParams", "kind",
             ApiTypes.variant("action", ActionQuery.class, ApiTypes.record(null,
@@ -53,6 +57,7 @@ public final class WaitResultContract {
                     ApiField.field("waitId", ApiTypes.string(1, 128)).required().forGetter(WaitReply::waitId),
                     ApiField.field("pending", ApiTypes.bool()).required().forGetter(WaitReply::pending),
                     ApiField.field("result", ApiTypes.jsonObject()).optional().forGetter(WaitReply::result),
+                    ApiField.field("error", ApiTypes.jsonObject()).optional().forGetter(WaitReply::error),
                     WaitReply::new)));
 
     public static final MethodSpec<Query, Reply> SPEC = MethodSpec.of(METHOD, PARAMS, REPLY,

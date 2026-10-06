@@ -42,6 +42,12 @@ public final class CoreMethods {
                 WaitResultContract.SPEC,
                 ScriptContracts.EVAL,
                 ScriptContracts.SKILL,
-                ScriptContracts.PLAYBOOK);
+                ScriptContracts.PLAYBOOK,
+                EventContracts.CURSOR,
+                EventContracts.EVENTS_SINCE,
+                EventContracts.EVENTS,
+                WaitContracts.EVENT,
+                WaitContracts.WORLD_READY,
+                WaitContracts.CONDITION);
     }
 }

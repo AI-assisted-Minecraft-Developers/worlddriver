@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.rpc;
 
+import net.magicterra.worlddriver.api.EventWire;
 import net.magicterra.worlddriver.api.WireValues;
 
 import net.magicterra.worlddriver.model.DriverEvent;
@@ -17,8 +18,9 @@ import java.util.Map;
  * <pre>{@code
  * {"jsonrpc":"2.0","method":"notifications/message",
  *  "params":{"level":"warning","logger":"minecraft.events",
- *            "data":{seq,timestamp,type,pos,data}}}
+ *            "data":{seq,timestamp,type,pos?,data?}}}
  * }</pre>
+ * {@code data} is the shared {@code EventContracts.Event}: {@code seq} a decimal string.
  */
 public final class EventNotifications {
     private EventNotifications() {}
@@ -28,7 +30,7 @@ public final class EventNotifications {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("level", levelFor(e.type));
         params.put("logger", "minecraft.events");
-        params.put("data", e); // WireValues encodes DriverEvent → {seq,timestamp,type,pos,data}
+        params.put("data", EventWire.tree(e));
         Map<String, Object> msg = new LinkedHashMap<>();
         msg.put("jsonrpc", "2.0");
         msg.put("method", "notifications/message");

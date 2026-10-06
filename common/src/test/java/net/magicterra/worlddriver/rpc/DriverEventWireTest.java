@@ -19,7 +19,6 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -73,21 +72,41 @@ class DriverEventWireTest {
     }
 
     @Test
-    void absentPayloadEncodesAsNull() {
+    void absentPayloadAndPositionAreOmittedNotNull() {
         DriverEvent e = new DriverEvent(5, "x", null, null);
-        assertNull(encodeThenDecode(e).get("data"));
+        Map<?, ?> wire = encodeThenDecode(e);
+        assertFalse(wire.containsKey("data"), wire.toString());
+        assertFalse(wire.containsKey("pos"), wire.toString());
     }
 
     @Test
-    void envelopeFieldsAreUnchanged() {
+    void envelopeFieldsKeepTheirDeclaredTypes() {
         DriverEvent e = new DriverEvent(9, "block.place", new BlockPos(4, 5, 6), "minecraft:stone");
         Map<?, ?> wire = encodeThenDecode(e);
-        assertEquals(9L, wire.get("seq"));
+        assertEquals("9", wire.get("seq"), "seq is a 64-bit number, so it travels as a decimal string");
         assertEquals("block.place", wire.get("type"));
         Map<?, ?> pos = assertInstanceOf(Map.class, wire.get("pos"));
         assertEquals(4L, pos.get("x"));
         assertEquals(6L, pos.get("z"));
-        assertInstanceOf(Long.class, wire.get("timestamp"));
+        assertInstanceOf(Long.class, wire.get("timestamp"), "a timestamp stays a number");
+    }
+
+    /** 2^53 + 1 is the first seq a JavaScript number would round. */
+    @Test
+    void aSeqPastJavaScriptPrecisionArrivesExact() {
+        DriverEvent e = new DriverEvent(9_007_199_254_740_993L, "x", null, "y");
+        assertEquals("9007199254740993", encodeThenDecode(e).get("seq"));
+        Map<?, ?> frame = assertInstanceOf(Map.class, JsonCodec.decode(EventNotifications.frame(e)));
+        assertEquals("9007199254740993", ((Map<?, ?>) ((Map<?, ?>) frame.get("params")).get("data")).get("seq"));
+    }
+
+    /** An entity id inside a payload is a 32-bit int: only seq is stringified, never every number. */
+    @Test
+    void numbersInsideThePayloadStayNumbers() {
+        DriverEvent e = new DriverEvent(4, "entity.death", null, Map.of("id", 123, "health", 2.5));
+        Map<?, ?> data = assertInstanceOf(Map.class, encodeThenDecode(e).get("data"));
+        assertEquals(123L, data.get("id"));
+        assertInstanceOf(Number.class, data.get("health"));
     }
 
     /** Either encoder, qualified or not: the guard is only as good as the names it knows. */

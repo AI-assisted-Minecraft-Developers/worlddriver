@@ -59,9 +59,9 @@ class ServerThreadGuardTest {
 
     @Test
     void aForegroundWaitIsRefused() {
-        DriverApplication api = new DriverApplication();
-        assertRefusedFast("mc.wait.condition", () -> api.wait.condition(Map.of(
-                "invoke", "mc.events", "params", Map.of("op", "list"), "field", "nope", "timeoutMs", 5000)));
+        DriverApplication api = ProbeMethods.install(new DriverApplication());
+        assertRefusedFast("mc.wait.condition", () -> api.route("mc.wait.condition", Map.of(
+                "invoke", "probe.echo", "field", "nope", "timeoutMs", 5000)));
     }
 
     /**
@@ -77,9 +77,9 @@ class ServerThreadGuardTest {
 
     @Test
     void aBackgroundWaitIsStillAllowed() {
-        DriverApplication api = new DriverApplication();
-        Map<String, Object> ack = api.wait.condition(Map.of(
-                "invoke", "mc.events", "params", Map.of("op", "list"), "background", true));
+        DriverApplication api = ProbeMethods.install(new DriverApplication());
+        Map<?, ?> ack = (Map<?, ?>) api.route("mc.wait.condition", Map.of(
+                "invoke", "probe.echo", "background", true));
         assertTrue(ack.containsKey("waitId"), ack.toString());
     }
 

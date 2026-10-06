@@ -61,7 +61,7 @@ async def record(args):
                     "effect give @p minecraft:instant_health 1 10 true",
                     "effect give @p minecraft:saturation 1 10 true", *KIT, compass):
             await _call(ws, st, "mc.action.runCommand", {"cmd": cmd})
-        cursor = await _call(ws, st, "mc.observe.cursor")
+        cursor = (await _call(ws, st, "mc.observe.cursor"))["cursor"]  # a decimal string
         await asyncio.sleep(2.0)                                   # let chunks settle after the tp
         # The body can settle ~1 block off the tp target; measure "moved" from where it came to rest.
         rest = (await _call(ws, st, "mc.client.player"))["pos"]
@@ -91,7 +91,7 @@ async def record(args):
                 if math.hypot(x - rx, z - rz) > 0.5:
                     t0 = now
                     # Edits made while waiting (a goal beacon being built) are not the run's.
-                    cursor = await _call(ws, st, "mc.observe.cursor")
+                    cursor = (await _call(ws, st, "mc.observe.cursor"))["cursor"]
                     print("[rec] 计时开始", flush=True)
                 else:
                     await asyncio.sleep(1 / HZ)
@@ -101,9 +101,9 @@ async def record(args):
                    "g": p.get("onGround"), "w": p.get("inWater"), "uw": p.get("underWater"),
                    "sn": p.get("crouching"), "hp": p.get("health"), "slot": p.get("selectedSlot")}
             if now >= next_ev:
-                evs = await _call(ws, st, "mc.observe.eventsSince", {"cursor": cursor, "limit": 200})
-                for e in evs:
-                    cursor = max(cursor, e.get("seq", cursor))
+                page = await _call(ws, st, "mc.observe.eventsSince", {"cursor": cursor, "limit": 200})
+                cursor = page["cursor"]
+                for e in page["events"]:
                     if e.get("type") in PLACEABLE_HINT:
                         rec.setdefault("ev", []).append([e["type"], e.get("pos"), e.get("data")])
                 next_ev = now + 0.5

@@ -1,226 +1,195 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.model.Params;
-import net.minecraft.core.BlockPos;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import net.magicterra.worlddriver.api.ApiHandlers;
+import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.api.ApiTimers;
+import net.magicterra.worlddriver.api.EventWire;
+import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.methods.EventContracts;
+import net.magicterra.worlddriver.api.methods.EventContracts.Emit;
+import net.magicterra.worlddriver.api.methods.EventContracts.Emitted;
+import net.magicterra.worlddriver.api.methods.EventContracts.Event;
+import net.magicterra.worlddriver.api.methods.EventContracts.EventsOp;
+import net.magicterra.worlddriver.api.methods.EventContracts.EventsReply;
+import net.magicterra.worlddriver.api.methods.EventContracts.ListWatchers;
+import net.magicterra.worlddriver.api.methods.EventContracts.Unwatch;
+import net.magicterra.worlddriver.api.methods.EventContracts.Unwatched;
+import net.magicterra.worlddriver.api.methods.EventContracts.Watch;
+import net.magicterra.worlddriver.api.methods.EventContracts.Watchers;
+import net.magicterra.worlddriver.api.methods.EventContracts.Watching;
+import net.magicterra.worlddriver.model.DriverEvent;
+import net.minecraft.core.BlockPos;
+
 /**
- * {@code mc.events} handler — the server-side surface of the driver→agent event
- * channel (the push channel itself lives in the transports: WebSocket frames in
- * {@code RpcServer}, an SSE stream in {@code McpServer}). Every event still funnels
- * through {@link DriverApplication#emit}, so a watcher firing here reaches subscribers on
- * both transports exactly like a block/chat/death event does — single source of
- * truth.
+ * The event stream's methods: {@code mc.observe.cursor}, {@code mc.observe.eventsSince} and
+ * {@code mc.events}. The live push rides the transports (WebSocket frames in {@code RpcServer}, SSE in
+ * {@code McpServer}); every event, a watcher's included, goes through {@link DriverApplication#emit},
+ * so each reaches both transports and the replay buffer alike.
  *
- * Ops ({@code op}):
- *   - {@code emit}  — inject a custom event into the stream ({@code type}, optional
- *     {@code data}/{@code pos}). The manual "custom condition met" path: an agent that
- *     computed its own condition can publish it for other subscribers.
- *   - {@code watch} — register a server-side rising-edge watcher. Polls a route
- *     ({@code invoke}/{@code params}) every {@code everyMs}, walks {@code field}
- *     into the result, and the first tick the predicate flips false→true it emits
- *     {@code emitAs} (default {@code condition.met}). This is the automatic
- *     "custom condition met" path — e.g. watch {@code mc.observe.player} field {@code health}
- *     {@code below} 6 to get pushed a low-health alert. {@code once:true} self-cancels
- *     after the first fire.
- *   - {@code unwatch} — cancel a watcher by {@code id}.
- *   - {@code list} — list active watchers.
- *
- * Predicate (checked against the walked field value, in order): {@code value}
- * (deep-equals), {@code above} (numeric &gt;), {@code below} (numeric &lt;),
- * otherwise JS-truthy.
+ * <p>A watcher polls a pollable method through {@link Polling}: between polls it holds no thread, a
+ * poll that is still running delays the next instead of overlapping it, and each poll has its own budget.
  */
 public final class EventsApi {
+    /** One watcher poll; a read that takes longer counts as not satisfied. */
+    private static final long WATCH_POLL_BUDGET_MS = 2_000;
+
     private final DriverApplication api;
-    private final ScheduledExecutorService exec;
     private final Map<Integer, Watcher> watchers = new ConcurrentHashMap<>();
     private final AtomicInteger seq = new AtomicInteger();
 
     EventsApi(DriverApplication api) {
         this.api = api;
-        this.exec = Executors.newScheduledThreadPool(2, r -> {
-            Thread t = new Thread(r, "agent-event-watch-" + System.identityHashCode(r));
-            t.setDaemon(true);
-            return t;
-        });
     }
 
-    public Object dispatch(Map<String, Object> raw) {
-        Params p = Params.of(raw);
-        String op = p.getString("op", "");
-        switch (op) {
-            case "emit":    return emit(p);
-            case "watch":   return watch(p);
-            case "unwatch": return unwatch(p);
-            case "list":    return list();
-            default:
-                throw new IllegalArgumentException(
-                        "mc.events: op must be one of emit|watch|unwatch|list (got '" + op + "')");
+    List<ApiMethod<?, ?>> methods() {
+        return List.of(
+                new ApiMethod<>(EventContracts.CURSOR, ApiHandlers.immediate(p -> new EventContracts.Cursor(api.observe.cursor()))),
+                new ApiMethod<>(EventContracts.EVENTS_SINCE, ApiHandlers.immediate(this::since)),
+                new ApiMethod<>(EventContracts.EVENTS, ApiHandlers.immediate(this::dispatch)));
+    }
+
+    private EventContracts.Page since(EventContracts.SinceParams p) {
+        Set<String> types = p.types().filter(l -> !l.isEmpty()).<Set<String>>map(LinkedHashSet::new).orElse(null);
+        List<DriverEvent> page = api.observe.eventsSince(p.cursor(), types, p.limit());
+        List<Event> events = new ArrayList<>(page.size());
+        for (DriverEvent e : page) events.add(EventWire.dto(e));
+        return new EventContracts.Page(events, page.isEmpty() ? p.cursor() : page.get(page.size() - 1).seq);
+    }
+
+    private EventsReply dispatch(EventsOp op) {
+        return switch (op) {
+            case Emit e -> emit(e);
+            case Watch w -> watch(w);
+            case Unwatch u -> unwatch(u);
+            case ListWatchers l -> list();
+        };
+    }
+
+    private Emitted emit(Emit e) {
+        BlockPos pos = e.pos().map(p -> new BlockPos(p.x(), p.y(), p.z())).orElse(null);
+        // The caller's value as given: an object stays an object on the wire.
+        long n = api.emit(e.type(), pos, e.data().map(JsonValue::tree).orElse(null));
+        return new Emitted(n, e.type());
+    }
+
+    private Watching watch(Watch w) {
+        // Checked here because a poll swallows its failures (a world detach must not kill the watcher),
+        // which would otherwise turn a bad target into a watcher that silently never fires.
+        Polling.Target target = Polling.target(api, w.invoke(), w.params());
+        Watcher live = new Watcher(seq.incrementAndGet(), w, target);
+        synchronized (watchers) {
+            if (watchers.size() >= EventContracts.MAX_WATCHERS) {
+                throw ApiException.of(ApiError.Code.SERVER_BUSY, EventContracts.MAX_WATCHERS
+                        + " watchers are already running; unwatch one first (op:'list' shows them)");
+            }
+            watchers.put(live.id, live);
         }
+        live.schedule();
+        return new Watching(live.id, w.invoke(), w.emitAs(), w.everyMs());
     }
 
-    // ---- emit -------------------------------------------------------------
-    private Map<String, Object> emit(Params p) {
-        String type = p.getString("type");
-        if (type == null || type.isBlank()) throw new IllegalArgumentException("emit: type required");
-        BlockPos pos = p.getPos("pos"); // may be null
-        // Pass the caller's value through untouched — a Map stays a Map and reaches
-        // the wire as an object. It used to be flattened to a JSON string here, so a
-        // script that emitted {hello:'world'} read it back as the text
-        // "{\"hello\":\"world\"}" and had to JSON.parse its own payload.
-        // Absent data stays "" rather than becoming null, so events emitted without
-        // a payload keep the shape every existing consumer already sees.
-        Object data = p.get("data");
-        long n = api.emit(type, pos, data == null ? "" : data);
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ok", true);
-        out.put("seq", n);
-        out.put("type", type);
-        return out;
+    private Unwatched unwatch(Unwatch u) {
+        Watcher w = watchers.remove(u.id());
+        if (w != null) w.stop();
+        return new Unwatched(w != null);
     }
 
-    // ---- watch ------------------------------------------------------------
-    private Map<String, Object> watch(Params p) {
-        String invoke = p.getString("invoke");
-        if (invoke == null || invoke.isBlank()) throw new IllegalArgumentException("watch: invoke route name required");
-        // Checked here because tick() must swallow poll failures (a world detach is not
-        // fatal), which would otherwise turn a misspelled route into a silent no-op.
-        if (!api.methods().contains(invoke)) {
-            throw new IllegalArgumentException("watch: unknown method: " + invoke);
-        }
-        Map<String, Object> params = p.getMap("params");
-        String field = p.getString("field");
-        String emitAs = p.getString("emitAs", "condition.met");
-        long everyMs = p.getLongClamped("everyMs", 1000L, 200L, 60_000L);
-        boolean once = Boolean.TRUE.equals(p.get("once"));
-
-        Watcher w = new Watcher();
-        w.id = seq.incrementAndGet();
-        w.invoke = invoke;
-        w.params = params;
-        w.field = field;
-        w.emitAs = emitAs;
-        w.everyMs = everyMs;
-        w.once = once;
-        w.hasValue = p.has("value");
-        w.targetValue = p.get("value");
-        w.above = p.has("above") ? num(p.get("above")) : null;
-        w.below = p.has("below") ? num(p.get("below")) : null;
-        watchers.put(w.id, w);
-        w.future = exec.scheduleWithFixedDelay(() -> tick(w), everyMs, everyMs, TimeUnit.MILLISECONDS);
-
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ok", true);
-        out.put("watching", true);
-        out.put("id", w.id);
-        out.put("emitAs", emitAs);
-        out.put("everyMs", everyMs);
-        return out;
-    }
-
-    private void tick(Watcher w) {
-        Object value;
-        try {
-            Object result = api.route(w.invoke, w.params);
-            value = (w.field == null || w.field.isEmpty()) ? result : ApiSupport.walkPath(result, w.field);
-        } catch (Throwable t) {
-            // Route not ready (e.g. world detached) — treat as not-satisfied and
-            // keep the watcher alive; never let a poll throw out of the executor.
-            w.lastOk = false;
-            return;
-        }
-        boolean ok = test(w, value);
-        boolean rising = ok && !w.lastOk;
-        w.lastOk = ok;
-        if (!rising) return;
-        w.fired++;
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("watch", w.id);
-        data.put("invoke", w.invoke);
-        if (w.field != null) data.put("field", w.field);
-        data.put("value", value);
-        api.emit(w.emitAs, null, data);
-        if (w.once) {
-            watchers.remove(w.id);
-            if (w.future != null) w.future.cancel(false);
-        }
-    }
-
-    private boolean test(Watcher w, Object value) {
-        if (w.hasValue) return Objects.equals(value, w.targetValue);
-        if (w.above != null) { Double v = num(value); return v != null && v > w.above; }
-        if (w.below != null) { Double v = num(value); return v != null && v < w.below; }
-        return ApiSupport.isTruthy(value);
-    }
-
-    // ---- unwatch / list ---------------------------------------------------
-    private Map<String, Object> unwatch(Params p) {
-        int id = (p.get("id") instanceof Number n) ? n.intValue() : -1;
-        Watcher w = watchers.remove(id);
-        if (w != null && w.future != null) w.future.cancel(false);
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ok", true);
-        out.put("removed", w != null);
-        return out;
-    }
-
-    private Map<String, Object> list() {
-        List<Map<String, Object>> rows = new ArrayList<>();
+    private Watchers list() {
+        List<EventContracts.Watcher> rows = new ArrayList<>();
         for (Watcher w : watchers.values()) {
-            Map<String, Object> r = new LinkedHashMap<>();
-            r.put("id", w.id);
-            r.put("invoke", w.invoke);
-            if (w.field != null) r.put("field", w.field);
-            r.put("emitAs", w.emitAs);
-            r.put("everyMs", w.everyMs);
-            r.put("once", w.once);
-            r.put("fired", w.fired);
-            rows.add(r);
+            rows.add(new EventContracts.Watcher(w.id, w.spec.invoke(), w.spec.field(), w.spec.emitAs(),
+                    w.spec.everyMs(), w.spec.once(), w.fired));
         }
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("watchers", rows);
-        out.put("count", rows.size());
-        return out;
+        rows.sort((a, b) -> Integer.compare(a.id(), b.id()));
+        return new Watchers(rows, rows.size());
     }
 
-    /** Cancel every watcher — called when the server detaches (world unload). */
+    /** Cancel every watcher: called when the server detaches. */
     void clear() {
-        for (Watcher w : watchers.values()) {
-            if (w.future != null) w.future.cancel(false);
-        }
+        for (Watcher w : watchers.values()) w.stop();
         watchers.clear();
     }
 
-    private static Double num(Object o) {
+    private final class Watcher {
+        final int id;
+        final Watch spec;
+        final Polling.Target target;
+        volatile boolean lastOk;
+        volatile int fired;
+        volatile boolean stopped;
+        volatile ScheduledFuture<?> next;
+
+        Watcher(int id, Watch spec, Polling.Target target) {
+            this.id = id;
+            this.spec = spec;
+            this.target = target;
+        }
+
+        /** The next poll, {@code everyMs} after the previous one ended. */
+        void schedule() {
+            if (!stopped) next = ApiTimers.schedule(() -> Polling.execute(this::poll), spec.everyMs());
+        }
+
+        void stop() {
+            stopped = true;
+            ScheduledFuture<?> n = next;
+            if (n != null) n.cancel(false);
+        }
+
+        void poll() {
+            if (stopped) return;
+            target.read(api, Math.min(WATCH_POLL_BUDGET_MS, spec.everyMs())).whenComplete((result, failure) -> {
+                try {
+                    // A failed read (no world right now) is not satisfied, and the watcher lives on.
+                    Optional<JsonValue> value = failure == null ? Polling.field(result, spec.field()) : Optional.empty();
+                    boolean ok = failure == null && test(value.map(JsonValue::tree).orElse(null));
+                    boolean rising = ok && !lastOk;
+                    lastOk = ok;
+                    if (rising && !stopped) fire(value);
+                } finally {
+                    schedule();
+                }
+            });
+        }
+
+        private boolean test(Object v) {
+            if (spec.value().isPresent()) return WaitApi.looseEquals(v, spec.value().get().tree());
+            if (spec.above().isPresent()) { Double d = number(v); return d != null && d > spec.above().get(); }
+            if (spec.below().isPresent()) { Double d = number(v); return d != null && d < spec.below().get(); }
+            return ApiSupport.isTruthy(v);
+        }
+
+        private void fire(Optional<JsonValue> value) {
+            fired++;
+            if (spec.once()) {
+                stopped = true;
+                watchers.remove(id);
+            }
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("watch", id);
+            data.put("invoke", spec.invoke());
+            spec.field().ifPresent(f -> data.put("field", f));
+            value.ifPresent(v -> data.put("value", v.tree()));
+            api.emit(spec.emitAs(), null, data);
+        }
+    }
+
+    private static Double number(Object o) {
         if (o instanceof Number n) return n.doubleValue();
         if (o instanceof String s) { try { return Double.parseDouble(s); } catch (NumberFormatException e) { return null; } }
         return null;
-    }
-
-    private static final class Watcher {
-        int id;
-        String invoke;
-        Map<String, Object> params;
-        String field;
-        String emitAs;
-        long everyMs;
-        boolean once;
-        boolean hasValue;
-        Object targetValue;
-        Double above;
-        Double below;
-        volatile boolean lastOk;
-        volatile int fired;
-        ScheduledFuture<?> future;
     }
 }

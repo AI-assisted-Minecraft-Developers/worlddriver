@@ -154,8 +154,11 @@ acknowledgement carries `allTypes`, because `types: []` alone reads like "none" 
 means "all":
 
 ```json
-{"id": 2, "result": {"ok": true, "subscribed": true, "types": [], "allTypes": true}}
+{"id": 2, "result": {"subscribed": true, "types": [], "allTypes": true}}
 ```
+
+Subscribing again replaces the filter. Unknown keys in `params` are refused like a bad
+filter.
 
 Event type names are open-world — scripts mint their own — so a typo cannot be rejected and
 simply yields silence. Check the echoed `types` in the acknowledgement.
@@ -166,15 +169,19 @@ transport pushes over its event stream:
 ```json
 {"jsonrpc": "2.0", "method": "notifications/message",
  "params": {"level": "warning", "logger": "minecraft.events",
-            "data": {"seq": 41, "timestamp": 1234, "type": "player.hurt",
+            "data": {"seq": "41", "timestamp": 1234, "type": "player.hurt",
                      "pos": {"x": 3, "y": 64, "z": 1}, "data": {}}}}
 ```
+
+`params.data` is the same event value `mc.observe.eventsSince` returns. `seq` is a decimal
+string, because it is a 64-bit number a JavaScript number would round; `pos` and `data` are
+omitted when the event has none.
 
 `level` is a severity label for display, not a filter: `player.death` maps to `error`, a
 handful of high-attention types such as `threat.appeared` and `player.hurt` map to
 `warning`, `entity.death` maps to `notice`, and everything else to `info`. The driver
-forwards every event that is not muted regardless of the label. `mc.events.unsubscribe`
-stops the stream. The single push filter is the per-type opt-out in the bot settings, which
+forwards every event that is not muted regardless of the label. `mc.events.unsubscribe`,
+which takes no params, stops the stream and answers `{"subscribed": false}`. The single push filter is the per-type opt-out in the bot settings, which
 `DriverApi` applies before any transport sees the event.
 
 Subscription is transport state, not a game verb: it controls which frames this socket

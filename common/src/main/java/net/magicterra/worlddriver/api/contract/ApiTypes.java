@@ -592,8 +592,14 @@ public final class ApiTypes {
 
         @Override protected Object write(JsonValue value) { return value.tree(); }
 
+        /**
+         * Every non-null kind spelled out rather than an empty schema: an MCP client was seen to read a
+         * typeless field as licence to send the value JSON-stringified.
+         */
         @Override protected Map<String, Object> schemaBody() {
-            return objectOnly ? new LinkedHashMap<>(Map.of("type", "object")) : new LinkedHashMap<>();
+            Map<String, Object> s = new LinkedHashMap<>();
+            s.put("type", objectOnly ? "object" : List.of("object", "array", "string", "number", "boolean"));
+            return s;
         }
 
         @Override public String ts(TsContext ts) {

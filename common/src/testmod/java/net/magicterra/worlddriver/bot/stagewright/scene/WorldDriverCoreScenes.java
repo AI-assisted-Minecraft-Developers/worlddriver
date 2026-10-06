@@ -39,7 +39,7 @@ import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.client.internal.ClientChatLog;
-import net.magicterra.worlddriver.mcp.ToolCatalog;
+import net.magicterra.worlddriver.mcp.McpTools;
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.test.ScriptTest;
 import net.magicterra.worlddriver.testcontent.TestArena;
@@ -503,32 +503,30 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     /** Ported from {@code AgentGameTest#schemaUnionRendering}: pure-CPU rendering matrix for
-     *  gap #67-④ — the top-level catalog sites that used to declare {@code any()} must now render
-     *  a {@code Schema.Union} (a JSON array {@code "type"}). Reads {@link ToolCatalog#tools()}
-     *  directly. The goto/follow {@code hugShore} union moved into the {@code route} object
-     *  ({@code route.leash.entity}, {@code route.sight.of}); the validation suite's
-     *  {@code 65_schema_union.js} covers those nested ones through the validator. */
+     *  gap #67-④ — an open JSON field must render a JSON array {@code "type"}, never a typeless
+     *  schema, which one MCP client took as licence to send the value JSON-stringified. Reads the
+     *  real {@code tools/list} ({@link McpTools#list}); a field of a tagged union is looked up in
+     *  each {@code oneOf} variant. The validation suite's {@code 65_schema_union.js} covers the
+     *  nested unions through the decoder. */
     private static void schemaUnionRendering(SceneContext ctx) {
-        assertUnionType(ctx, "mc.wait.condition", "value", List.of("object", "array", "string", "number", "boolean"));
-        assertUnionType(ctx, "mc.events", "data", List.of("object", "array", "string", "number", "boolean"));
-        assertUnionType(ctx, "mc.events", "value", List.of("object", "array", "string", "number", "boolean"));
+        List<String> anyJson = List.of("object", "array", "string", "number", "boolean");
+        assertUnionType(ctx, "mc.wait.condition", "value", anyJson);
+        assertUnionType(ctx, "mc.events", "data", anyJson);
+        assertUnionType(ctx, "mc.events", "value", anyJson);
+        assertUnionType(ctx, "mc.skill", "args", anyJson);
     }
 
-    @SuppressWarnings("unchecked")
     private static void assertUnionType(SceneContext ctx, String toolName, String propName, List<String> expectedTypes) {
         Map<String, Object> tool = null;
-        for (Map<String, Object> t : ToolCatalog.tools()) {
+        for (Map<String, Object> t : McpTools.list(WorldDriverCommon.api())) {
             if (toolName.equals(t.get("name"))) { tool = t; break; }
         }
-        if (tool == null) { ctx.fail("schemaUnionRendering: tool not found in ToolCatalog.tools(): " + toolName); return; }
+        if (tool == null) { ctx.fail("schemaUnionRendering: tool not found in tools/list: " + toolName); return; }
 
         Object inputSchemaObj = tool.get("inputSchema");
         if (!(inputSchemaObj instanceof Map<?, ?> inputSchema)) {
             ctx.fail("schemaUnionRendering: " + toolName + ": inputSchema not an object: " + inputSchemaObj); return; }
-        Object propsObj = inputSchema.get("properties");
-        if (!(propsObj instanceof Map<?, ?> props)) {
-            ctx.fail("schemaUnionRendering: " + toolName + ": inputSchema.properties not an object: " + propsObj); return; }
-        Object propSchemaObj = props.get(propName);
+        Object propSchemaObj = property(inputSchema, propName);
         if (!(propSchemaObj instanceof Map<?, ?> propSchema)) {
             ctx.fail("schemaUnionRendering: " + toolName + "." + propName + ": property schema not an object: " + propSchemaObj); return; }
 
@@ -539,6 +537,17 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         if (!(type instanceof List<?> typeList) || !typeList.equals(expectedTypes))
             ctx.fail("schemaUnionRendering: " + toolName + "." + propName + ": type must be " + expectedTypes
                     + ", got " + type);
+    }
+
+    /** {@code name}'s schema among an object schema's properties, or those of any of its {@code oneOf} variants. */
+    private static Object property(Map<?, ?> schema, String name) {
+        if (schema.get("properties") instanceof Map<?, ?> props && props.get(name) != null) return props.get(name);
+        if (schema.get("oneOf") instanceof List<?> variants) {
+            for (Object v : variants) {
+                if (v instanceof Map<?, ?> m && property(m, name) instanceof Object found) return found;
+            }
+        }
+        return null;
     }
 
     /** Ported from {@code AgentGameTest#pathArchiveJsonArena}: JSON round-trip gate for
@@ -1973,8 +1982,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         AtomicLong cursor = new AtomicLong(-1);
         int[] settled = {0};
         ctx.await(() -> ++settled[0] >= 20).within(80).then(() -> {
-            cursor.set(api.route("mc.observe.cursor", Map.of()) instanceof Number n
-                    ? n.longValue() : 0L);
+            cursor.set(api.route("mc.observe.cursor", Map.of()) instanceof Map<?, ?> m
+                    && m.get("cursor") instanceof String s ? Long.parseLong(s) : 0L);
             // out_of_world is in BYPASSES_INVULNERABILITY, so it lands whichever gamemode the run's
             // template put the player in. Toggling /gamemode instead would be a far wider blast
             // radius for a scene that only needs two points of damage.
@@ -2026,9 +2035,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     /** The {@code player.hurt} payloads emitted since {@code cursor}, oldest first. */
     private static List<Map<?, ?>> hurtPayloads(DriverApi api, long cursor) {
         Object r = api.route("mc.observe.eventsSince",
-                Map.of("cursor", cursor, "types", List.of("player.hurt")));
+                Map.of("cursor", Long.toString(cursor), "types", List.of("player.hurt")));
         List<Map<?, ?>> out = new ArrayList<>();
-        if (r instanceof List<?> list)
+        if (r instanceof Map<?, ?> page && page.get("events") instanceof List<?> list)
             for (Object e : list)
                 if (e instanceof Map<?, ?> ev && ev.get("data") instanceof Map<?, ?> m) out.add(m);
         return out;

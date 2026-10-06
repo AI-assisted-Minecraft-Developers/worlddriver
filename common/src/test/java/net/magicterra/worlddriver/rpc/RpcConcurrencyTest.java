@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.rpc;
 
+import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.application.DriverApplication;
 
 import net.magicterra.worlddriver.protocol.ServerBusyException;
@@ -25,17 +26,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Timeout(60)
 class RpcConcurrencyTest {
 
-    /** A request that holds its worker for {@code ms} without needing a world. */
+    /** A request that holds its worker for {@code ms} without needing a world; a wait would give it back. */
     private static String slowWait(int id, int ms) {
-        return "{\"id\":" + id + ",\"method\":\"mc.wait.condition\",\"params\":{\"invoke\":\"mc.events\","
-                + "\"params\":{\"op\":\"list\"},\"field\":\"nope\",\"timeoutMs\":" + ms + ",\"pollMs\":100}}";
+        return "{\"id\":" + id + ",\"method\":\"probe.slow\",\"params\":{\"ms\":" + ms + "}}";
+    }
+
+    private static DriverApplication app() {
+        return ProbeMethods.install(new DriverApplication());
     }
 
     @Test
     void requestsPastThePerConnectionCapAreRefusedWithABusyError() throws Exception {
         int cap = TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION;
         int extra = 4;
-        try (RpcServer server = new RpcServer(new DriverApplication(), 0);
+        try (RpcServer server = new RpcServer(app(), 0);
              WsTestClient client = new WsTestClient(server.port())) {
             for (int i = 1; i <= cap + extra; i++) client.send(slowWait(i, 4_000));
 
@@ -62,10 +66,35 @@ class RpcConcurrencyTest {
         }
     }
 
+    /** More waits than the connection has request slots, and an observe behind them still answers at once. */
+    @Test
+    void waitsGiveTheirWorkerBack() throws Exception {
+        int waits = TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION + 4;
+        try (RpcServer server = new RpcServer(app(), 0);
+             WsTestClient client = new WsTestClient(server.port())) {
+            for (int i = 1; i <= waits; i++) {
+                client.send("{\"id\":" + i + ",\"method\":\"mc.wait.condition\",\"params\":{\"invoke\":\"probe.echo\","
+                        + "\"field\":\"nope\",\"timeoutMs\":4000,\"pollMs\":200}}");
+            }
+            Thread.sleep(300);
+            client.send("{\"id\":999,\"method\":\"mc.events\",\"params\":{\"op\":\"list\"}}");
+            String first = client.poll(2_000);
+            assertTrue(first != null, "nothing answered while the waits were suspended");
+            Map<?, ?> r = WsTestClient.decode(first);
+            assertEquals(999L, ((Number) r.get("id")).longValue(), "the observe should answer first: " + r);
+            for (int i = 0; i < waits; i++) {
+                String s = client.poll(10_000);
+                assertTrue(s != null, "wait " + i + " never answered");
+                Map<?, ?> w = (Map<?, ?>) WsTestClient.decode(s).get("result");
+                assertEquals(Boolean.FALSE, w.get("satisfied"), s);
+            }
+        }
+    }
+
     @Test
     void theCapIsPerConnection() throws Exception {
         int cap = TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION;
-        try (RpcServer server = new RpcServer(new DriverApplication(), 0);
+        try (RpcServer server = new RpcServer(app(), 0);
              WsTestClient busy = new WsTestClient(server.port());
              WsTestClient other = new WsTestClient(server.port())) {
             for (int i = 1; i <= cap; i++) busy.send(slowWait(i, 3_000));

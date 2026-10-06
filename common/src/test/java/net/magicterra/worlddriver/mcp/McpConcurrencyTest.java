@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.mcp;
 
+import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.application.DriverApplication;
 
 import net.magicterra.worlddriver.protocol.ServerBusyException;
@@ -30,10 +31,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Timeout(60)
 class McpConcurrencyTest {
 
+    /** A call that holds its worker, as a slow read does; a wait would give the worker back. */
     private static HttpRequest slowCall(int port, int id) {
         String body = "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"method\":\"tools/call\",\"params\":{"
-                + "\"name\":\"mc.wait.condition\",\"arguments\":{\"invoke\":\"mc.events\","
-                + "\"params\":{\"op\":\"list\"},\"field\":\"nope\",\"timeoutMs\":3000,\"pollMs\":100}}}";
+                + "\"name\":\"probe.slow\",\"arguments\":{\"ms\":3000}}}";
         return HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/mcp"))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build();
@@ -43,7 +44,7 @@ class McpConcurrencyTest {
     void postsPastTheCapAreRefusedWithABusyError() throws Exception {
         int cap = McpLimits.MCP_MAX_IN_FLIGHT;
         int extra = 6;
-        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
+        try (McpServer server = new McpServer(ProbeMethods.install(new DriverApplication()), 0)) {
             HttpClient http = HttpClient.newHttpClient();
             List<CompletableFuture<HttpResponse<String>>> calls = new ArrayList<>();
             for (int i = 1; i <= cap + extra; i++) {

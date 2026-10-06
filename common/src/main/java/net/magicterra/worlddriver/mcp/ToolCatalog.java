@@ -21,9 +21,7 @@ import static net.magicterra.worlddriver.mcp.schema.Schemas.tool;
 import net.magicterra.worlddriver.mcp.catalog.ClientTools;
 import net.magicterra.worlddriver.mcp.catalog.ObserveActionTools;
 import net.magicterra.worlddriver.mcp.catalog.RecipeTools;
-import net.magicterra.worlddriver.mcp.catalog.ScriptTools;
 import net.magicterra.worlddriver.mcp.catalog.SystemTools;
-import net.magicterra.worlddriver.mcp.catalog.WaitTools;
 import net.magicterra.worlddriver.mcp.schema.Schema;
 import net.magicterra.worlddriver.mcp.schema.ToolSchema;
 
@@ -241,10 +239,8 @@ public final class ToolCatalog {
     private static List<ToolSchema> fixedCurated() {
         ArrayList<ToolSchema> all = new ArrayList<>();
         all.addAll(SystemTools.tools());
-        all.addAll(ScriptTools.tools());
         all.addAll(ObserveActionTools.tools());
         all.addAll(RecipeTools.tools());
-        all.addAll(WaitTools.tools());
         all.addAll(ClientTools.tools());
         return all;
     }

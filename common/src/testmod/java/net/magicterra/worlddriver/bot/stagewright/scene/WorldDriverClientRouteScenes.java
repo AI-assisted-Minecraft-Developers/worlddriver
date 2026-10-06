@@ -219,7 +219,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         BlockPos goal = ctx.rel(10, GROUND + 1, 0);
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         helm.sync(30, () -> {
-            long cursor = ((Number) WorldDriverCommon.api().route("mc.observe.cursor", Map.of())).longValue();
+            String cursor = (String) ((Map<?, ?>) WorldDriverCommon.api().route("mc.observe.cursor", Map.of())).get("cursor");
             Map<String, Object> box = Map.of("shape", "box",
                     "min", pos(goal.offset(-3, -1, -5)),
                     "max", pos(goal.offset(4, 3, 5)),
@@ -230,7 +230,8 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
             ctx.await(() -> {
                 Object evs = WorldDriverCommon.api().route("mc.observe.eventsSince",
                         Map.of("cursor", cursor, "types", List.of("route.blocked")));
-                if (evs instanceof List<?> l) for (Object o : l) if (o instanceof Map<?, ?> e && !got.contains(e)) got.add(e);
+                if (evs instanceof Map<?, ?> page && page.get("events") instanceof List<?> l)
+                    for (Object o : l) if (o instanceof Map<?, ?> e && !got.contains(e)) got.add(e);
                 return !got.isEmpty();
             }).within(300).then(() -> {
                 ctx.record("event", got.isEmpty() ? "no route.blocked within 300 ticks" : got.get(0).get("type") + " " + got.get(0).get("data"));
