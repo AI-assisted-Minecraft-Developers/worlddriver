@@ -44,6 +44,11 @@ function summonRetreatThreat() {
     return true;
 }
 
+/** This client's player's status: its slots, activeProcess, and the reflexes that bid against its task. */
+function status() {
+    return Driver.bot.status({}).status;
+}
+
 if (!clientAvailable()) {
     ScriptTest.run("40_scheduler: skipped (no client api — dedicated server)", function(t) {
         // PASS
@@ -67,17 +72,14 @@ if (!clientAvailable()) {
     ScriptTest.run("40_scheduler: status exposes scheduler fields with idle defaults", function(t) {
         resetScheduler();
         Driver.system.waitTicks(2);
-        var s = Driver.invoke("mc.bot.status", {});
-        t.assertTrue("activeChain" in s, "activeChain present");
-        t.assertTrue("userTaskSuspended" in s, "userTaskSuspended present");
-        t.assertTrue(typeof s.chainPriorities === "object" && s.chainPriorities !== null,
-            "chainPriorities is an object");
+        var r = status().reflexes;
+        t.assertTrue(typeof r.chains === "object" && r.chains !== null, "chains is an object");
         // Idle + retreat off: nobody bids, channel empty, user task not suspended.
-        t.assertEqual(s.userTaskSuspended, false, "no user task → not suspended");
-        t.assertTrue("user" in s.chainPriorities, "user chain registered");
-        t.assertTrue("retreat" in s.chainPriorities, "retreat chain registered");
-        t.assertEqual(s.chainPriorities.user, 0, "idle user task bids 0");
-        t.assertEqual(s.chainPriorities.retreat, 0, "retreat off bids 0");
+        t.assertEqual(r.userTaskSuspended, false, "no user task → not suspended");
+        t.assertTrue("user" in r.chains, "user chain registered");
+        t.assertTrue("retreat" in r.chains, "retreat chain registered");
+        t.assertEqual(r.chains.user.priority, 0, "idle user task bids 0");
+        t.assertEqual(r.chains.retreat.priority, 0, "retreat off bids 0");
     });
 
     ScriptTest.run("40_scheduler: forced retreat outbids and holds the movement channel", function(t) {
@@ -86,11 +88,10 @@ if (!clientAvailable()) {
         // Force retreat permanently active (threshold == max HP) with a threat present.
         Driver.invoke("mc.bot.setting", { autoRetreat: true, retreatHpThreshold: 20 });
         Driver.system.waitTicks(3);
-        var s = Driver.invoke("mc.bot.status", {});
-        t.assertEqual(s.activeChain, "retreat", "retreat chain holds the channel");
-        t.assertTrue(s.chainPriorities.retreat >= 100, "retreat bid is in the survival band");
-        t.assertTrue(s.chainPriorities.retreat > s.chainPriorities.user,
-            "retreat outbids the user task");
+        var r = status().reflexes;
+        t.assertEqual(r.activeChain, "retreat", "retreat chain holds the channel");
+        t.assertTrue(r.chains.retreat.priority >= 100, "retreat bid is in the survival band");
+        t.assertTrue(r.chains.retreat.priority > r.chains.user.priority, "retreat outbids the user task");
         resetScheduler();
     });
 
@@ -104,7 +105,7 @@ if (!clientAvailable()) {
                 pos: { x: Math.round(me.pos.x) + 24, y: Math.round(me.pos.y), z: Math.round(me.pos.z) } } });
             Driver.system.waitTicks(2);
         }
-        var running = Driver.invoke("mc.bot.status", {});
+        var running = status();
         if (running.activeProcess !== "goto") {
             // Goto didn't stay active (geometry-dependent) — preempt assertion is
             // best-effort; the forced-retreat test above already proved the bid.
@@ -117,22 +118,22 @@ if (!clientAvailable()) {
         summonRetreatThreat();   // task#92: a hostile to flee, so RetreatChain bids
         Driver.invoke("mc.bot.setting", { autoRetreat: true, retreatHpThreshold: 20 });
         Driver.system.waitTicks(3);
-        var preempted = Driver.invoke("mc.bot.status", {});
-        t.assertEqual(preempted.activeChain, "retreat", "retreat preempts the goto");
-        t.assertEqual(preempted.userTaskSuspended, true, "user task reports suspended");
+        var preempted = status();
+        t.assertEqual(preempted.reflexes.activeChain, "retreat", "retreat preempts the goto");
+        t.assertEqual(preempted.reflexes.userTaskSuspended, true, "user task reports suspended");
         t.assertEqual(preempted.activeProcess, "goto", "suspended goto is still held");
 
         // Drop retreat's bid — the suspended goto must regain the channel.
         Driver.invoke("mc.bot.setting", { autoRetreat: false });
         Driver.system.waitTicks(3);
-        var resumed = Driver.invoke("mc.bot.status", {});
+        var resumed = status();
         if (resumed.activeProcess === "goto") {
-            t.assertEqual(resumed.activeChain, "user", "user task resumes the channel");
-            t.assertEqual(resumed.userTaskSuspended, false, "no longer suspended");
+            t.assertEqual(resumed.reflexes.activeChain, "user", "user task resumes the channel");
+            t.assertEqual(resumed.reflexes.userTaskSuspended, false, "no longer suspended");
         } else {
             // Goto finished while suspended/after resume — acceptable; the channel
             // must at least no longer be held by retreat.
-            t.assertTrue(resumed.activeChain !== "retreat", "retreat released the channel");
+            t.assertTrue(resumed.reflexes.activeChain !== "retreat", "retreat released the channel");
         }
         resetScheduler();
     });
@@ -146,10 +147,9 @@ if (!clientAvailable()) {
             var direct = Driver.invoke("mc.bot.status", args);
             var viaTcp = Driver.system.rpcRoundtrip("mc.bot.status", args);
             var viaMcp = Driver.system.mcpRoundtrip("mc.bot.status", args);
-            t.assertEqual(viaTcp.activeChain, direct.activeChain, "RPC activeChain mismatch");
-            t.assertEqual(viaMcp.activeChain, direct.activeChain, "MCP activeChain mismatch");
-            t.assertEqual(viaTcp.userTaskSuspended, direct.userTaskSuspended, "RPC suspended mismatch");
-            t.assertEqual(viaMcp.userTaskSuspended, direct.userTaskSuspended, "MCP suspended mismatch");
+            function part(s) { return JSON.stringify([s.status.reflexes.activeChain, s.status.reflexes.userTaskSuspended]); }
+            t.assertEqual(part(viaTcp), part(direct), "RPC activeChain/suspended mismatch");
+            t.assertEqual(part(viaMcp), part(direct), "MCP activeChain/suspended mismatch");
             resetScheduler();
         });
 

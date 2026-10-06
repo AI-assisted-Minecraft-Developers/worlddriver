@@ -30,6 +30,14 @@ public final class CoreMethods {
                 MoveContracts.SLEEP,
                 MoveContracts.ELYTRA_FLY,
                 CombatContract.SPEC,
+                HandContracts.LOOK_AT,
+                HandContracts.HOLD_ITEM,
+                HandContracts.USE_ITEM,
+                HandContracts.ATTACK_ENTITY,
+                HandContracts.EQUIP,
+                ControlContracts.STATUS,
+                ControlContracts.CANCEL,
+                ControlContracts.WAYPOINT_SPEC,
                 WaitResultContract.SPEC);
     }
 }

@@ -65,7 +65,7 @@ python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.setting '{"allowParkourPlac
 
 # no-param read (omit the JSON)
 python3 .claude/skills/worlddriver-rpc/rpc.py mc.observe.player
-python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.status --jq lastPath
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.status --jq status.reflexes.lastPath
 
 # multi-step setup: one call per line "<method> [json]", '#' comments
 python3 .claude/skills/worlddriver-rpc/rpc.py --batch - <<'EOF'
@@ -152,11 +152,11 @@ Two related building blocks for conditions the raw event types don't cover:
 
 ## Gotchas (learned live)
 
-- **`completed:true` ≠ success.** Async bot methods (`goto`/`mine`/… with
-  `awaitMs`) report `completed` when the process slot goes idle — a *no-path
-  failure* also reports completed. Confirm via `mc.bot.status`:
-  `status.<slot>.lastError` and `status.lastPath.{goalReached,finalCost}`, or
-  re-`mc.observe.player`. (`finalCost` even tells you *which* move was used.)
+- **Read the action's `state`, not the slot.** A task's `succeeded`/`failed` is on
+  its action (`mc.wait.result{kind:"action",actionId}`). For *why* it failed, read
+  `mc.bot.status`: `status.slots.<slot>.lastError` and
+  `status.reflexes.lastPath.{goalReached,finalCost}`, or re-`mc.observe.player`.
+  (`finalCost` even tells you *which* move was used.)
 - **Don't poll readiness with long curl/sleep loops** — it's slow and annoying.
   After a relaunch, probe `mc.system.version` once; it errors until up (~30–60s)
   then returns a fresh `uptimeMs`. If you must wait on the port, one loop is fine:

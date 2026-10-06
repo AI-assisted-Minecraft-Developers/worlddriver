@@ -26,8 +26,10 @@ ScriptTest.run("64_schema_validation: unknown key on a valid call is rejected", 
 
 ScriptTest.run("64_schema_validation: enum violation names the allowed set", function(t) {
     // mc.bot.useItem hand is enum ["main","off"]
-    var msg = errOf(function() { Driver.invoke("mc.bot.useItem", { hand: "left" }); });
-    t.assertTrue(msg !== null && msg.indexOf("must be one of") >= 0, "got: " + msg);
+    var issue = null;
+    try { Driver.invoke("mc.bot.useItem", { hand: "left" }); } catch (e) { issue = e.issues[0]; }
+    t.assertEqual(issue.path, "/hand", "path");
+    t.assertTrue(issue.message.indexOf("main") >= 0 && issue.message.indexOf("off") >= 0, "got: " + issue.message);
 });
 
 ScriptTest.run("64_schema_validation: integral double passes an integer slot", function(t) {

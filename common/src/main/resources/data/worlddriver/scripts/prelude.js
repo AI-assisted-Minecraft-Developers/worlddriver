@@ -188,13 +188,11 @@ Driver.client = {
     scene:      function ()     { return Driver.invoke('mc.client.scene',  {}); }
 };
 
-// The body tasks (goto, mine, craft, …) come from the generated wrappers loaded after this file.
+// The body tasks (goto, mine, craft, …), the hand verbs (lookAt, useItem, …), status, cancel and
+// waypoint come from the generated wrappers loaded after this file.
 Driver.bot = {
-    lookAt:    function (opts) { return Driver.invoke('mc.bot.lookAt',    opts || {}); },
     // Pass key/value pairs to write tuning settings; pass {} (or no arg) to read.
     setting:   function (opts) { return Driver.invoke('mc.bot.setting',   opts || {}); },
-    status:    function ()     { return Driver.invoke('mc.bot.status',    {}); },
-    cancel:    function (opts) { return Driver.invoke('mc.bot.cancel',    opts || {}); },
     // Phase G boss playbooks — {name:'dragon'|'wither'} to start (async, background),
     // {op:'status'} to poll, {op:'cancel'} to stop.
     playbook:  function (opts) { return Driver.invoke('mc.bot.playbook',  opts || {}); },
@@ -218,9 +216,12 @@ Driver.bot = {
         if (opts && opts.radius !== undefined) p.autoBackfillRadius = opts.radius | 0;
         return Driver.invoke('mc.bot.setting', p);
     },
-    // Baritone-style waypoints — see mc.bot.waypoint for op semantics.
-    waypoint:   function (opts) { return Driver.invoke('mc.bot.waypoint', opts || {}); },
-    saveWaypoint:   function (name, pos) { return Driver.invoke('mc.bot.waypoint', { op: 'save', name: name, pos: pos }); },
+    // Baritone-style waypoints — sugar over mc.bot.waypoint; pos defaults to where the player stands.
+    saveWaypoint:   function (name, pos) {
+        var op = { op: 'save', name: name };
+        if (pos !== undefined) op.pos = pos;
+        return Driver.invoke('mc.bot.waypoint', op);
+    },
     gotoWaypoint:   function (name, opts) {
         var p = Object.assign({ target: { kind: 'waypoint', name: name } }, opts || {});
         return Driver.invoke('mc.bot.goto', p);

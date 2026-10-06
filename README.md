@@ -71,7 +71,7 @@ a saved waypoint or a bearing; mine, farm, build, clear an area, tower, bridge a
 craft a full sub-recipe tree from what is in the inventory, drive a furnace, and fit the best
 armour and weapon it owns; follow, explore, flee, fight, fly with an elytra, dig itself an
 emergency shelter, and cut a staircase out of a pit. Long-running verbs are asynchronous:
-poll `mc.bot.status` or pass `awaitMs`. `mc.bot.setting` tunes the whole subsystem — a few
+read the action with `mc.wait.result` or pass `awaitMs`. `mc.bot.setting` tunes the whole subsystem — a few
 hundred keys, generated from the settings registry rather than hand-listed, so the
 `inputSchema` of that one method is the authoritative list. Two of those keys decide whether
 the pathfinder may modify the world: `allowBreak` lets it mine through an obstruction and

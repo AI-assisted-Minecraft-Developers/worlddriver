@@ -1,9 +1,6 @@
-// Client-only — mc.bot.useItem now covers BOTH the bare right-click ("use the
-// held item") and the right-click-on-block ("use the held item on a face")
-// modes. Pass `pos` to switch into the second mode; the tool routes through
-// MultiPlayerGameMode.useItem / useItemOn with a synthetic BlockHitResult.
-// On dedicated server / GameTest CI the client classes aren't loaded; record
-// a single skipped-PASS so headless runs stay green.
+// mc.bot.useItem: a right-click in the air, on a block face with `pos`, or on an entity with
+// `entityId`. The request checks read no body and run on every topology; the clicks themselves need
+// this client's own player, so a dedicated server only sees self refused as unavailable.
 
 function clientAvailable() {
     try {
@@ -14,99 +11,74 @@ function clientAvailable() {
     }
 }
 
+/** The first issue of the DriverApiError a call throws, or null when it returned. */
+function issueOf(params) {
+    try { Driver.bot.useItem(params); } catch (e) { return e.issues[0]; }
+    return null;
+}
+
+ScriptTest.run("12_use_item: a pos is an object and an entityId an integer", function(t) {
+    t.assertEqual(issueOf({ pos: "not-a-pos" }).path, "/pos", "string pos");
+    t.assertEqual(issueOf({ entityId: "abc" }).path, "/entityId", "string entityId");
+    t.assertEqual(issueOf({ hand: "left" }).path, "/hand", "unknown hand");
+});
+
+ScriptTest.run("12_use_item: one target at a time, and its modifiers only with it", function(t) {
+    t.assertEqual(issueOf({ pos: { x: 0, y: 200, z: 0 }, entityId: 1 }).path, "/entityId", "pos and entityId");
+    t.assertEqual(issueOf({ face: "up" }).path, "/face", "face without pos");
+    t.assertEqual(issueOf({ pos: { x: 0, y: 200, z: 0 }, sneak: true }).path, "/sneak", "sneak without entityId");
+});
+
 if (!clientAvailable()) {
-    ScriptTest.run("12_use_item: skipped (no client api — dedicated server)", function(t) {
-        // no-op: PASS so headless runs stay green
+    ScriptTest.run("12_use_item: self is unavailable on a dedicated server", function(t) {
+        var r = Driver.bot.useItem({});
+        t.assertEqual(r.outcome, "refused", "outcome");
+        t.assertEqual(r.reason, "body_unavailable", "reason");
     });
 } else {
 
-    ScriptTest.run("12_use_item: useItem returns shape with empty hand (no crash)", function(t) {
-        var info = Driver.invoke("mc.client.screen.info", {});
-        if (!info.hasPlayer) {
-            var res = Driver.invoke("mc.bot.useItem", {});
-            t.assertEqual(res.ok, false, "useItem with no player must report ok:false");
-            t.assertTrue(typeof res.error === "string", "must include error string");
-            return;
-        }
-        var res = Driver.invoke("mc.bot.useItem", { hand: "main" });
-        t.assertTrue(res.ok, "useItem must succeed when a player exists (got " + JSON.stringify(res) + ")");
+    ScriptTest.run("12_use_item: in the air with an empty hand answers done", function(t) {
+        var res = Driver.bot.useItem({ hand: "main" });
+        t.assertEqual(res.outcome, "done", "outcome (got " + JSON.stringify(res) + ")");
         t.assertEqual(res.hand, "main", "hand must round-trip");
-        t.assertTrue(typeof res.result === "string", "result must be an InteractionResult name string");
+        t.assertEqual(res.on.kind, "air", "used in the air");
+        t.assertTrue(typeof res.result === "string", "result names the interaction");
         t.assertEqual(typeof res.consumed, "boolean", "consumed must be a boolean");
     });
 
-    ScriptTest.run("12_use_item: pos-mode rejects malformed pos", function(t) {
-        // Route-layer schema validation rejects string pos before the tool runs.
-        var msg = null;
-        try { Driver.invoke("mc.bot.useItem", { pos: "not-a-pos" }); } catch (e) { msg = String(e); }
-        t.assertTrue(msg !== null && msg.indexOf("must be object") >= 0,
-            "string pos must be rejected by schema validation, got: " + msg);
-    });
-
-    ScriptTest.run("12_use_item: pos-mode echoes effective face", function(t) {
-        var info = Driver.invoke("mc.client.screen.info", {});
-        if (!info.hasPlayer) {
-            var res = Driver.invoke("mc.bot.useItem", { pos: { x: 0, y: 200, z: 0 }, face: "up" });
-            t.assertTrue(res.ok === false || typeof res.error === "string" || res.ok === undefined,
-                "no-player path must not pretend success");
-            return;
-        }
-        var res = Driver.invoke("mc.bot.useItem", {
-            pos:  { x: 0, y: 200, z: 0 },
-            face: "up",
-            lookAt: false
-        });
-        t.assertTrue(res.ok, "pos-mode against test arena stone must route (got " + JSON.stringify(res) + ")");
-        t.assertEqual(res.face, "up", "face must echo back as requested");
+    ScriptTest.run("12_use_item: on a block echoes the face it was given", function(t) {
+        var res = Driver.bot.useItem({ pos: { x: 0, y: 200, z: 0 }, face: "up", lookAt: false });
+        t.assertEqual(res.outcome, "done", "outcome (got " + JSON.stringify(res) + ")");
+        t.assertEqual(res.on.kind, "block", "used on a block");
+        t.assertEqual(res.on.face, "up", "face must echo back as requested");
         t.assertEqual(res.hand, "main", "hand default must be main");
-        t.assertEqual(res.pos.x, 0, "pos.x must round-trip");
-        t.assertEqual(res.pos.y, 200, "pos.y must round-trip");
-        t.assertEqual(res.pos.z, 0, "pos.z must round-trip");
-        t.assertTrue(typeof res.result === "string", "result must be an InteractionResult name");
+        t.assertEqual(res.on.pos.x, 0, "pos.x must round-trip");
+        t.assertEqual(res.on.pos.y, 200, "pos.y must round-trip");
+        t.assertEqual(res.on.pos.z, 0, "pos.z must round-trip");
     });
 
-    ScriptTest.run("12_use_item: pos-mode auto-picks face when omitted", function(t) {
-        var info = Driver.invoke("mc.client.screen.info", {});
-        if (!info.hasPlayer) return;
-        var res = Driver.invoke("mc.bot.useItem", {
-            pos: { x: 0, y: 200, z: 0 },
-            lookAt: false
-        });
-        t.assertTrue(res.ok, "pos-mode without explicit face must still route");
-        t.assertTrue(typeof res.face === "string" && res.face.length > 0,
-            "auto-picked face must be returned (got " + JSON.stringify(res) + ")");
+    ScriptTest.run("12_use_item: on a block picks a face when none is given", function(t) {
+        var res = Driver.bot.useItem({ pos: { x: 0, y: 200, z: 0 }, lookAt: false });
+        t.assertEqual(res.outcome, "done", "outcome (got " + JSON.stringify(res) + ")");
         var allowed = ["up", "down", "north", "south", "east", "west"];
-        t.assertTrue(allowed.indexOf(res.face) >= 0,
-            "auto-picked face must be a cardinal direction, got '" + res.face + "'");
+        t.assertTrue(allowed.indexOf(res.on.face) >= 0, "a face of the block, got '" + res.on.face + "'");
     });
 
-    ScriptTest.run("12_use_item: entity-mode rejects non-integer entityId", function(t) {
-        // Route-layer schema validation rejects string entityId before the tool runs.
-        var msg = null;
-        try { Driver.invoke("mc.bot.useItem", { entityId: "abc" }); } catch (e) { msg = String(e); }
-        t.assertTrue(msg !== null && msg.indexOf("must be integer") >= 0,
-            "non-integer entityId must be rejected by schema validation, got: " + msg);
-    });
-
-    ScriptTest.run("12_use_item: entity-mode rejects nonexistent entity id", function(t) {
+    ScriptTest.run("12_use_item: an entity that does not exist is refused", function(t) {
         // 2^30 is well past any real entity id in a fresh world
-        var r = Driver.invoke("mc.bot.useItem", { entityId: 1073741824 });
-        t.assertEqual(r.ok, false, "nonexistent entity must be ok:false");
-        t.assertTrue(typeof r.error === "string", "must include error string");
+        var r = Driver.bot.useItem({ entityId: 1073741824 });
+        t.assertEqual(r.outcome, "refused", "outcome");
+        t.assertEqual(r.reason, "invalid_world_target", "reason");
     });
 
-    ScriptTest.run("12_use_item: entity-mode mounts a boat with an empty hand", function(t) {
-        var info = Driver.invoke("mc.client.screen.info", {});
-        if (!info.hasPlayer) return;
+    ScriptTest.run("12_use_item: on a boat with an empty hand mounts it", function(t) {
         var me = Driver.invoke("mc.observe.player", {});
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
-        // Mounting needs an EMPTY main hand (a held saddle/item would saddle/feed
-        // per the tool doc instead of mounting) — clear it before summoning.
+        // Mounting needs an EMPTY main hand: a held item would be used on the boat instead.
         Driver.invoke("mc.action.runCommand", { cmd: "item replace entity @p weapon.mainhand with minecraft:air" });
         Driver.invoke("mc.action.runCommand",
             { cmd: "summon minecraft:boat " + x + " " + y + " " + z + " {Tags:[\"t12_boat\"]}" });
         try {
-            // center is REQUIRED on mc.query — it defaults to world origin otherwise.
             var rows = Driver.invoke("mc.query", {
                 q: "entities",
                 center: { x: x, y: y, z: z },
@@ -115,16 +87,18 @@ if (!clientAvailable()) {
             });
             t.assertTrue(Array.isArray(rows) && rows.length >= 1,
                 "boat must be findable via mc.query, got " + JSON.stringify(rows));
-            var res = Driver.invoke("mc.bot.useItem", { entityId: rows[0].id });
-            t.assertEqual(res.ok, true, "useItem on boat must succeed (got " + JSON.stringify(res) + ")");
-            t.assertEqual(res.riding, "minecraft:boat", "riding must report the mounted boat type");
+            // mc.query reads the server, which spawned the boat; self clicks from the client, which
+            // learns of it a tick or more later and until then answers that there is no such entity.
+            var res = null;
+            for (var i = 0; i < 20; i++) {
+                res = Driver.bot.useItem({ entityId: rows[0].id });
+                if (!(res.outcome === "refused" && res.reason === "invalid_world_target")) break;
+                Driver.system.waitTicks(1);
+            }
+            t.assertEqual(res.outcome, "done", "useItem on the boat (got " + JSON.stringify(res) + ")");
+            // The answer rereads the vehicle after the click until the server's mount arrives.
+            t.assertEqual(res.on.riding, "minecraft:boat", "riding must report the mounted boat type");
         } finally {
-            // This suite runs on a worker (RPC) thread, never the client thread, so
-            // the post-interact poll in useItemOnEntity always runs and 'riding' above
-            // reflects the server-applied mount — safe by construction. Guards a
-            // future "move validation onto the client thread" refactor: that would
-            // hit the new isSameThread() skip, and this assertion would need to wait
-            // and re-check riding explicitly instead of trusting the immediate return.
             Driver.invoke("mc.action.runCommand", { cmd: "ride @p dismount" });
             Driver.invoke("mc.action.runCommand", { cmd: "kill @e[tag=t12_boat]" });
         }

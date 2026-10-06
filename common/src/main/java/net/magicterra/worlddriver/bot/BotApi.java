@@ -28,47 +28,46 @@ public interface BotApi {
      */
     void engage(net.magicterra.worlddriver.api.methods.CombatContract.Params params,
                 net.magicterra.worlddriver.api.action.ActionHandle action);
-    /**
-     * Phase F — equip the best armor in every armor slot and (unless
-     * {@code armorOnly}) the best weapon in the main hand, scoring material tier
-     * then enchantments. Synchronous; returns {equipped, loadout, lowDurability,
-     * missing} so the caller (T2) can go repair / craft a missing piece.
-     */
-    Map<String, Object> equip(Map<String, Object> params);
-    Map<String, Object> lookAt(Map<String, Object> params);
-    /**
-     * Use the held item without targeting a block — eat food, drink potion, draw
-     * bow, throw snowball/ender-pearl, etc. Synchronous, instant; no process slot.
-     */
-    Map<String, Object> useItem(Map<String, Object> params);
+    /** {@code mc.bot.equip}: the best armour, and unless armour only the best weapon. Client thread. */
+    net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse equip(
+            net.magicterra.worlddriver.api.methods.HandContracts.EquipParams params);
 
-    /** {@code mc.bot.holdItem} — put a specific inventory item ({@code item} id) into
-     *  the main hand: hotbar select or main-inventory swap. Synchronous;
-     *  returns {@code {ok, held}} or {@code {ok:false, error, held}}. */
-    Map<String, Object> holdItem(Map<String, Object> params);
+    /** {@code mc.bot.holdItem} on this client's player: hotbar select or main-inventory swap. Client thread. */
+    net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse holdItem(
+            net.magicterra.worlddriver.api.methods.HandContracts.HoldParams params);
+
     /**
-     * Use the held item on a target block face — bone-meal grass, bucket
-     * fill/empty, flint-and-steel, shears, dye, or simply place a block at the
-     * adjacent face. Synthesizes the BlockHitResult so we don't depend on
-     * {@code Minecraft.hitResult} (which is one frame stale from our tick).
-     * Synchronous, instant; no process slot.
+     * {@code mc.bot.useItem} on this client's player: the click a right mouse button sends, in the air, on
+     * a block face or on an entity. A use on an entity reports the vehicle and screen as they were before
+     * the click, since the server's answer arrives on a later tick; {@link #afterUse} reads them again.
+     * Client thread.
      */
-    Map<String, Object> useItemOn(Map<String, Object> params);
-    /** Right-click an entity (mount / trade / shear / milk / feed / leash). */
-    Map<String, Object> useItemOnEntity(Map<String, Object> params);
+    net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse useItem(
+            net.magicterra.worlddriver.api.methods.HandContracts.UseParams params);
+
+    /** {@code on} with the vehicle and screen this client's player has now. Client thread. */
+    net.magicterra.worlddriver.api.methods.HandContracts.OnEntity afterUse(
+            net.magicterra.worlddriver.api.methods.HandContracts.OnEntity on);
+
     /**
-     * Attack an entity by entity id — the same path as left-clicking a mob
-     * in-game. Routes through {@code MultiPlayerGameMode.attack(player, target)}
-     * so the server applies vanilla damage (current weapon, attack cooldown,
-     * critical hit, sweeping) and the player swings the held arm. One call =
-     * one attack; spam by polling. Use {@code mc.query q='entities'} / nearby
-     * entity query to pick the target id first.
-     * Synchronous, instant; no process slot.
+     * {@code mc.bot.attackEntity} on this client's player: one left click on an entity, through
+     * {@code MultiPlayerGameMode.attack}, so the server applies the weapon, the cooldown, crits and
+     * sweeps. Client thread.
      */
-    Map<String, Object> attackEntity(Map<String, Object> params);
+    net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse attackEntity(
+            net.magicterra.worlddriver.api.methods.HandContracts.AttackParams params);
     // pause/resume removed — set via mc.bot.setting{paused:bool} instead.
-    Map<String, Object> cancel(Map<String, Object> params);
+    /**
+     * {@code mc.bot.cancel} on this client's player: {@code which} is all, a process kind or a reflex chain.
+     * Answers what it stopped; all answers {@code [all]}, a best-effort broadcast.
+     */
+    java.util.List<String> cancel(String which);
+
+    /** The slots as an untyped tree, for the in-JVM readers that poll one slot by name. */
     Map<String, Object> status();
+
+    /** {@code mc.bot.status} for this client's player. Client thread. */
+    net.magicterra.worlddriver.api.methods.ControlContracts.BodyStatus bodyStatus();
     Map<String, Object> setting(Map<String, Object> params);
     /**
      * {@code mc.test.reset} client-pool entry reset (testkit P2b). Runs on the
@@ -106,13 +105,11 @@ public interface BotApi {
      */
     Map<String, Object> useOnBlock(Map<String, Object> params);
     /**
-     * Manage named in-memory waypoints. {@code op} = {@code save|list|get|delete|clear}.
-     * Stored for the lifetime of the bot impl (no disk persistence); a saved
-     * name can be reused as {@code mc.bot.goto{waypoint:"name"}}. With
-     * {@code save} and no {@code pos}, the player's current block position is
-     * captured. Synchronous, no process slot.
+     * {@code mc.bot.waypoint}: named positions kept for the lifetime of the bot impl, for goto's waypoint
+     * target. A save without {@code pos} takes the player's block. Client thread.
      */
-    Map<String, Object> waypoint(Map<String, Object> params);
+    net.magicterra.worlddriver.api.methods.ControlContracts.WaypointReply waypoint(
+            net.magicterra.worlddriver.api.methods.ControlContracts.WaypointOp op);
 
     /**
      * Per-tick derived-facts blackboard updated on the client tick. Returns the

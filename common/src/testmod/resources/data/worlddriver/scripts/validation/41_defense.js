@@ -88,14 +88,14 @@ if (!clientAvailable()) {
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
         Driver.invoke("mc.action.runCommand", { cmd: "summon creeper " + (x + 2) + " " + y + " " + z });
         Driver.system.waitTicks(3);
-        var s = Driver.invoke("mc.bot.status", {});
+        var s = Driver.bot.status({}).status.reflexes;
         // Assert engagement (not survival) — deterministic and safe; we kill the
         // creeper immediately after so it never detonates.
         t.assertEqual(s.activeChain, "panic", "panic chain holds the channel");
-        t.assertTrue(s.chainPriorities.panic >= 1000, "panic priority in the panic band");
+        t.assertTrue(s.chains.panic.priority >= 1000, "panic priority in the panic band");
         cleanup();
         Driver.system.waitTicks(3);
-        var after = Driver.invoke("mc.bot.status", {});
+        var after = Driver.bot.status({}).status.reflexes;
         t.assertTrue(after.activeChain !== "panic", "panic releases once the creeper is gone");
     });
 
@@ -116,7 +116,7 @@ if (!clientAvailable()) {
         var sensed = false;
         waitUntil(function () {
             var threats = Driver.invoke("mc.observe.threats", { radius: 24 });
-            var s = Driver.invoke("mc.bot.status", {});
+            var s = Driver.bot.status({}).status.reflexes;
             sensed = threats.incomingProjectiles.length > 0 || s.activeChain === "dodge";
             return sensed;
         }, 20);

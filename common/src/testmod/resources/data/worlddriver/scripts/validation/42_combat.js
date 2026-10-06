@@ -117,7 +117,7 @@ if (!clientAvailable()) {
         Driver.bot.combat({ mode: "kill", target: { kind: "entity", entityId: sk.id } });   // non-blocking
         Driver.system.waitTicks(50);
 
-        var s = Driver.invoke("mc.bot.status", {});
+        var s = Driver.bot.status({}).status.reflexes;
         var now = Driver.invoke("mc.observe.player", {});
         var d = dist(now.pos, { x: sx + 0.5, y: sy, z: sz + 0.5 });
         // A melee bot would have closed to < combatReach (3); the kite backs AWAY,
@@ -141,17 +141,18 @@ if (!clientAvailable()) {
         t.assertEqual(started.outcome, "accepted", "outcome");
         var id = started.action.actionId;
         Driver.system.waitTicks(4);
-        var s = Driver.invoke("mc.bot.status", {});
-        t.assertEqual(s.combat.active, true, "combat slot active while engaged");
-        t.assertEqual(s.activeChain, "combat", "combat chain holds the movement channel");
-        t.assertTrue(s.chainPriorities.combat >= 60, "combat bid in the COMBAT band");
+        var s = Driver.bot.status({}).status;
+        t.assertEqual(s.slots.combat.active, true, "combat slot active while engaged");
+        t.assertEqual(s.reflexes.activeChain, "combat", "combat chain holds the movement channel");
+        t.assertTrue(s.reflexes.chains.combat.priority >= 60, "combat bid in the COMBAT band");
         t.assertEqual(action(id).state, "running", "the fight's action runs while engaged");
 
-        Driver.invoke("mc.bot.cancel", { process: "combat" });
+        var stopped = Driver.bot.cancel({ process: "combat" });
+        t.assertEqual(JSON.stringify(stopped.cancelled), "[\"combat\"]", "names what it stopped: " + JSON.stringify(stopped));
         Driver.system.waitTicks(3);
-        var after = Driver.invoke("mc.bot.status", {});
-        t.assertEqual(after.combat.active, false, "cancel deactivated the combat slot");
-        t.assertTrue(after.activeChain !== "combat", "combat chain released the channel");
+        var after = Driver.bot.status({}).status;
+        t.assertEqual(after.slots.combat.active, false, "cancel deactivated the combat slot");
+        t.assertTrue(after.reflexes.activeChain !== "combat", "combat chain released the channel");
         var ended = action(id);
         t.assertEqual(ended.state, "cancelled", "the cancel ended the action: " + JSON.stringify(ended));
         t.assertEqual(ended.reason, "requested", "reason");

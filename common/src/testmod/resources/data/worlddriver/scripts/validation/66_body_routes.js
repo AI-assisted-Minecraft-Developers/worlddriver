@@ -26,29 +26,26 @@ function viaEveryTransport(method, params) {
             Driver.system.mcpRoundtrip(method, params)];
 }
 
-ScriptTest.run("66_body_routes: an unknown body refuses every verb that takes body alike on every transport", function(t) {
+/** The DriverApiError a call throws, or null when it returned. */
+function errorOf(call) {
+    try { call(); } catch (e) { return e; }
+    return null;
+}
+
+ScriptTest.run("66_body_routes: every verb that takes body refuses an unknown one as body_unavailable on every transport", function(t) {
     var calls = [["mc.bot.cancel", { body: NOBODY }],
                  ["mc.bot.status", { body: NOBODY }],
-                 ["mc.bot.lookAt", { body: NOBODY, yaw: 0, pitch: 0 }],
-                 ["mc.bot.useItem", { body: NOBODY }]];
-    for (var i = 0; i < calls.length; i++) {
-        var method = calls[i][0];
-        var r = viaEveryTransport(method, calls[i][1]);
-        t.assertEqual(r[0].ok, false, method + " must refuse, got: " + JSON.stringify(r[0]));
-        t.assertEqual(r[0].reason, "unknown_body", method + " reason, got: " + JSON.stringify(r[0]));
-        t.assertEqual(jsonStable(r[0]), jsonStable(r[1]), method + ": in-JVM and TCP must agree");
-        t.assertEqual(jsonStable(r[0]), jsonStable(r[2]), method + ": in-JVM and MCP must agree");
-    }
-});
-
-ScriptTest.run("66_body_routes: a typed body task refuses an unknown body as body_unavailable on every transport", function(t) {
-    var calls = [["mc.bot.clearArea", { body: NOBODY, target: { kind: "tunnel", distance: 1 } }],
+                 ["mc.bot.clearArea", { body: NOBODY, target: { kind: "tunnel", distance: 1 } }],
                  ["mc.bot.goto", { body: NOBODY, target: { kind: "position", pos: { x: 0, y: 64, z: 0 } } }],
                  ["mc.bot.mine", { body: NOBODY, blocks: ["minecraft:stone"] }],
                  ["mc.bot.escape", { body: NOBODY }],
                  ["mc.bot.combat", { body: NOBODY, mode: "defend" }],
                  ["mc.bot.runAway", { body: NOBODY }],
-                 ["mc.bot.elytraFly", { body: NOBODY }]];
+                 ["mc.bot.elytraFly", { body: NOBODY }],
+                 ["mc.bot.lookAt", { body: NOBODY, yaw: 0, pitch: 0 }],
+                 ["mc.bot.holdItem", { body: NOBODY, item: "minecraft:stone" }],
+                 ["mc.bot.useItem", { body: NOBODY }],
+                 ["mc.bot.attackEntity", { body: NOBODY, entityId: 1 }]];
     for (var i = 0; i < calls.length; i++) {
         var method = calls[i][0];
         var r = viaEveryTransport(method, calls[i][1]);
@@ -82,9 +79,9 @@ ScriptTest.run("66_body_routes: status lists the same bodies on every transport"
     t.assertEqual(names(r[0]), names(r[2]), "in-JVM and MCP must list the same bots");
 });
 
-ScriptTest.run("66_body_routes: a verb that does not route by body rejects it as an unknown key", function(t) {
-    var msg = null;
-    try { Driver.invoke("mc.bot.waypoint", { op: "list", body: NOBODY }); }
-    catch (e) { msg = String(e); }
-    t.assertTrue(msg !== null && msg.indexOf("unexpected key 'body'") >= 0, "got: " + msg);
+ScriptTest.run("66_body_routes: a verb that does not route by body rejects it as an unknown field", function(t) {
+    var e = errorOf(function() { Driver.invoke("mc.bot.waypoint", { op: "list", body: NOBODY }); });
+    t.assertTrue(e !== null && Array.isArray(e.issues), "must throw a validation error, got: " + e);
+    t.assertEqual(e.issues[0].path, "/body", "path");
+    t.assertEqual(e.issues[0].code, "unknown_field", "issue code");
 });

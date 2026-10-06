@@ -310,9 +310,11 @@ public final class CraftProcess implements BotProcess {
         AbstractContainerMenu menu = p.containerMenu;
         ItemStack result = menu.slots.isEmpty() ? ItemStack.EMPTY : menu.getSlot(0).getItem();
         if (!result.isEmpty()) {
+            // Counted before the click: the client's prediction empties this same stack as it moves it.
+            int made = result.getCount();
             // Shift-click the result → crafts once, output to inventory, grid empties.
             menus.containerClick(menu.containerId, 0, 0, ClickType.QUICK_MOVE);
-            crafted += result.getCount();
+            crafted += made;
             waited = 0;
             st = St.AWAIT_TAKE;
             return;

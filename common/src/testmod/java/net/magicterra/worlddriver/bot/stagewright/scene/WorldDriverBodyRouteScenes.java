@@ -128,8 +128,8 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
 
         ctx.await(() -> !player.busy() && !npc.busy()).within(400).then(() -> {
             BlockPos playerAt = b.driver().fakePlayer().blockPosition(), npcAt = b.npcBody().entity().blockPosition();
-            Object playerSlot = call(api, "mc.bot.status", Map.of("body", player.id())).get("goto");
-            Object npcSlot = call(api, "mc.bot.status", Map.of("body", npc.id())).get("goto");
+            Object playerSlot = slots(bodyStatus(api, player.id())).get("goto");
+            Object npcSlot = slots(bodyStatus(api, npc.id())).get("goto");
             Map<?, ?> playerAction = read(api, actionId(playerGo)), npcAction = read(api, actionId(npcGo));
             ctx.record("player.goto", playerSlot + " " + playerAction);
             ctx.record("npc.goto", npcSlot + " " + npcAction);
@@ -140,10 +140,10 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
 
             Map<String, Object> back = call(api, "mc.bot.goto", Map.of("body", npc.id(), "target", at(npcStart)));
             Map<String, Object> cancelled = call(api, "mc.bot.cancel", Map.of("body", npc.id(), "process", "goto"));
-            Map<String, Object> after = call(api, "mc.bot.status", Map.of("body", npc.id()));
+            Map<?, ?> after = bodyStatus(api, npc.id());
             Map<?, ?> backAction = read(api, actionId(back));
             ctx.record("npc.cancel", back + " / " + cancelled + " / busy=" + after.get("busy") + " / " + backAction);
-            ctx.check("goto".equals(cancelled.get("cancelled")) && Boolean.FALSE.equals(after.get("busy"))
+            ctx.check(List.of("goto").equals(cancelled.get("cancelled")) && Boolean.FALSE.equals(after.get("busy"))
                             && "cancelled".equals(backAction.get("state")) && "requested".equals(backAction.get("reason")))
                     .as("cancelling the NPC's second goto by name ends its action as cancelled: " + cancelled + ", afterwards busy="
                             + after.get("busy") + " action=" + backAction)
@@ -193,19 +193,20 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         // hands to hold, use or swing with, and says so before anything happens.
         b.driver().fakePlayer().getInventory().items.set(5,
                 new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.STONE, 4));
-        Map<String, Object> hold = call(api, "mc.bot.holdItem", Map.of("body", player.id(), "item", "stone"));
+        Map<String, Object> hold = call(api, "mc.bot.holdItem", Map.of("body", player.id(), "item", "minecraft:stone"));
         Map<String, Object> look = call(api, "mc.bot.lookAt", Map.of("body", player.id(), "yaw", 90, "pitch", 10));
         float yaw = b.driver().fakePlayer().getYRot();
         ctx.record("player.hands", hold + " / " + look + " / yRot=" + yaw);
-        ctx.check("minecraft:stone".equals(hold.get("held")) && Boolean.TRUE.equals(look.get("ok")) && Math.abs(yaw - 90f) < 0.01f)
+        ctx.check("done".equals(hold.get("outcome")) && "minecraft:stone".equals(hold.get("held"))
+                        && "done".equals(look.get("outcome")) && Math.abs(yaw - 90f) < 0.01f)
                 .as("the server-side player, addressed by name, holds the stone and turns to yaw 90: " + hold + " / " + look + " / yRot=" + yaw).isTrue();
-        Map<String, Object> npcHold = call(api, "mc.bot.holdItem", Map.of("body", npc.id(), "item", "stone"));
+        Map<String, Object> npcHold = call(api, "mc.bot.holdItem", Map.of("body", npc.id(), "item", "minecraft:stone"));
         Map<String, Object> npcUse = call(api, "mc.bot.useItem", Map.of("body", npc.id()));
         Map<String, Object> npcHit = call(api, "mc.bot.attackEntity", Map.of("body", npc.id(),
                 "entityId", b.driver().fakePlayer().getId()));
         ctx.record("npc.hands", npcHold + " / " + npcUse + " / " + npcHit);
-        ctx.check(List.of(npcHold, npcUse, npcHit).stream().allMatch(r -> "no_hands".equals(r.get("reason"))))
-                .as("the NPC refuses holdItem/useItem/attackEntity with no_hands: " + npcHold + " / " + npcUse + " / " + npcHit)
+        ctx.check(List.of(npcHold, npcUse, npcHit).stream().allMatch(r -> refusedAs(r, "unsupported_capability")))
+                .as("the NPC has no hands, so holdItem/useItem/attackEntity are refused: " + npcHold + " / " + npcUse + " / " + npcHit)
                 .isTrue();
 
         Map<String, Object> mine = call(api, "mc.bot.mine", Map.of("body", npc.id(), "blocks", List.of("minecraft:stone"),
@@ -262,6 +263,15 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
     /** A goto slot that ended with the foot in the goal, not with the path merely spent. */
     private static boolean endedArrived(Object slot) {
         return slot instanceof Map<?, ?> m && "arrived".equals(m.get("endReason"));
+    }
+
+    /** One bot's {@code status}, as {@code mc.bot.status{body}} answers it. */
+    private static Map<?, ?> bodyStatus(DriverApi api, String id) {
+        return call(api, "mc.bot.status", Map.of("body", id)).get("status") instanceof Map<?, ?> s ? s : Map.of();
+    }
+
+    private static Map<?, ?> slots(Map<?, ?> status) {
+        return status.get("slots") instanceof Map<?, ?> s ? s : Map.of();
     }
 
     private static List<Object> ids(Map<String, Object> status) {

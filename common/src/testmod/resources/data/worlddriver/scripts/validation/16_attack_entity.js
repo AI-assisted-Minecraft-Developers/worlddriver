@@ -1,7 +1,5 @@
-// Client-only — mc.bot.attackEntity needs Minecraft.gameMode and a real entity.
-// On dedicated-server / GameTest CI the client classes aren't loaded; record a
-// skipped-PASS so headless runs stay green. Live exercise lives in fabric
-// runClient sessions where mobs actually exist.
+// mc.bot.attackEntity: one left click on an entity. The request checks read no body and run on every
+// topology; a click needs this client's own player, so a dedicated server only sees self refused.
 
 function clientAvailable() {
     try {
@@ -12,46 +10,44 @@ function clientAvailable() {
     }
 }
 
+/** The DriverApiError a call throws, or null when it returned. */
+function errorOf(call) {
+    try { call(); } catch (e) { return e; }
+    return null;
+}
+
+ScriptTest.run("16_attack_entity: entityId is required", function(t) {
+    var e = errorOf(function() { Driver.invoke("mc.bot.attackEntity", {}); });
+    t.assertEqual(e.issues[0].path, "/entityId", "path");
+    t.assertEqual(e.issues[0].code, "required", "issue code");
+});
+
+ScriptTest.run("16_attack_entity: entityId is an integer", function(t) {
+    var e = errorOf(function() { Driver.invoke("mc.bot.attackEntity", { entityId: "abc" }); });
+    t.assertEqual(e.issues[0].path, "/entityId", "path");
+});
+
+ScriptTest.run("16_attack_entity: the same answer over in-JVM, RPC and MCP", function(t) {
+    var args = { entityId: 1073741824 };
+    var direct = Driver.invoke("mc.bot.attackEntity", args);
+    var viaTcp = Driver.system.rpcRoundtrip("mc.bot.attackEntity", args);
+    var viaMcp = Driver.system.mcpRoundtrip("mc.bot.attackEntity", args);
+    t.assertEqual(JSON.stringify(viaTcp), JSON.stringify(direct), "RPC");
+    t.assertEqual(JSON.stringify(viaMcp), JSON.stringify(direct), "MCP");
+});
+
 if (!clientAvailable()) {
-    ScriptTest.run("16_attack_entity: skipped (no client api — dedicated server)", function(t) {
-        // PASS
+    ScriptTest.run("16_attack_entity: self is unavailable on a dedicated server", function(t) {
+        var r = Driver.bot.attackEntity({ entityId: 1 });
+        t.assertEqual(r.outcome, "refused", "outcome");
+        t.assertEqual(r.reason, "body_unavailable", "reason");
     });
 } else {
-
-    ScriptTest.run("16_attack_entity: rejects missing entityId", function(t) {
-        // Route-layer schema validation rejects the missing required key before the tool runs.
-        var msg = null;
-        try { Driver.invoke("mc.bot.attackEntity", {}); } catch (e) { msg = String(e); }
-        t.assertTrue(msg !== null && msg.indexOf("missing required 'entityId'") >= 0,
-            "missing entityId must be rejected by schema validation, got: " + msg);
-    });
-
-    ScriptTest.run("16_attack_entity: rejects non-integer entityId", function(t) {
-        // Route-layer schema validation rejects the type violation before the tool runs.
-        var msg = null;
-        try { Driver.invoke("mc.bot.attackEntity", { entityId: "abc" }); } catch (e) { msg = String(e); }
-        t.assertTrue(msg !== null && msg.indexOf("must be integer") >= 0,
-            "non-integer entityId must be rejected by schema validation, got: " + msg);
-    });
-
-    ScriptTest.run("16_attack_entity: rejects nonexistent entity id", function(t) {
+    ScriptTest.run("16_attack_entity: an entity that does not exist is refused", function(t) {
         // 2^30 is well past any real entity id in a fresh world
-        var r = Driver.invoke("mc.bot.attackEntity", { entityId: 1073741824 });
-        // Either "no entity with id ..." (level loaded) or "no player" (title screen) — both ok:false
-        t.assertEqual(r.ok, false, "nonexistent entity must be ok:false");
-        t.assertTrue(typeof r.error === "string", "must include error string");
+        var r = Driver.bot.attackEntity({ entityId: 1073741824 });
+        t.assertEqual(r.outcome, "refused", "outcome");
+        t.assertEqual(r.reason, "invalid_world_target", "reason");
+        t.assertTrue(r.message.indexOf("1073741824") >= 0, "names the id: " + r.message);
     });
-
-    ScriptTest.run("16_attack_entity: byte-identical results across in-JVM, RPC, MCP transports",
-        function(t) {
-            var args = { entityId: 1073741824 };
-            var direct = Driver.invoke("mc.bot.attackEntity", args);
-            var viaTcp = Driver.system.rpcRoundtrip("mc.bot.attackEntity", args);
-            var viaMcp = Driver.system.mcpRoundtrip("mc.bot.attackEntity", args);
-            t.assertEqual(viaTcp.ok, direct.ok, "RPC.ok mismatch");
-            t.assertEqual(viaMcp.ok, direct.ok, "MCP.ok mismatch");
-            t.assertEqual(viaTcp.error, direct.error, "RPC.error mismatch");
-            t.assertEqual(viaMcp.error, direct.error, "MCP.error mismatch");
-        });
-
 }

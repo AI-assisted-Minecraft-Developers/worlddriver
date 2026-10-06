@@ -64,7 +64,7 @@ external MCP client            in-game JS script              external WS client
 前往某个坐标、某种方块、某个实体、某个已保存的路径点或某个方位；可以挖掘、耕种、建造、清理
 区域、立柱、搭桥与睡觉；可以从背包出发解析整棵子配方树、驱动熔炉、给每个部位配上自己拥有的
 最好护甲与武器；可以跟随、探索、逃离、战斗、用鞘翅飞行、给自己挖出应急掩体，以及在坑里凿出
-楼梯爬上来。长任务是异步的：轮询 `mc.bot.status`，或者传 `awaitMs`。`mc.bot.setting` 调节整个
+楼梯爬上来。长任务是异步的：用 `mc.wait.result` 读取动作结果，或者传 `awaitMs`。`mc.bot.setting` 调节整个
 子系统 —— 键有数百个，且由设置注册表生成而非手工罗列，所以该方法的 `inputSchema` 才是权威清
 单。其中两个键决定寻路器是否可以改变世界：`allowBreak` 允许它挖穿障碍，`allowPlace` 允许它
 搭出一格桥，**两者默认都是开启的**，也就是说除非你关掉它们，否则 `goto` 与 `follow` 会改变地

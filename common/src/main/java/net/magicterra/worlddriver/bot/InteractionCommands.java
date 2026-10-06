@@ -1,8 +1,15 @@
 package net.magicterra.worlddriver.bot;
 
+import net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse;
+import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
+import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
+import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.HandContracts;
+import net.magicterra.worlddriver.api.methods.HandContracts.Face;
+import net.magicterra.worlddriver.api.methods.HandContracts.Hand;
+import net.magicterra.worlddriver.api.methods.HandContracts.Interaction;
+import net.magicterra.worlddriver.api.methods.HandContracts.OnEntity;
 import net.magicterra.worlddriver.bot.body.ClientPlayerBody;
-import net.magicterra.worlddriver.bot.process.LookProcess;
-import net.magicterra.worlddriver.model.Params;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -15,312 +22,140 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Locale;
+import java.util.Optional;
 
 import static net.magicterra.worlddriver.bot.util.BotInteract.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
 
 /**
- * Direct hand/interaction verbs ({@code mc.bot.useItem/useItemOn/attackEntity/
- * lookAt}). Extracted verbatim from BotApiImpl; the impl's {@code @Override}
- * methods delegate here. {@code lookAt} takes the {@link BotApiImpl} to start a
- * smooth-look process via its package-private {@code startProcess}.
+ * {@code mc.bot.holdItem}, {@code useItem} and {@code attackEntity} on this client's player: what the
+ * mouse buttons send. Called on the client thread with a player present.
  */
 final class InteractionCommands {
 
     private InteractionCommands() {}
 
-    static Map<String, Object> lookAt(BotApiImpl bot, Map<String, Object> params) {
-        if (params == null) return Map.of("ok", false, "error", "missing pos or yaw/pitch");
-        Params q = Params.of(params);
-        BlockPos at = q.getPos("pos");
-        Object yawO = q.get("yaw"), pitchO = q.get("pitch");
-        return onClient(() -> {
-            LocalPlayer p = Minecraft.getInstance().player;
-            if (p == null) return Map.of("ok", false, "error", "no player");
-            float yaw, pitch;
-            if (at != null) {
-                Vec3 eye = p.getEyePosition();
-                double dx = at.getX() + 0.5 - eye.x, dy = at.getY() + 0.5 - eye.y, dz = at.getZ() + 0.5 - eye.z;
-                yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-                pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-            } else if (yawO instanceof Number yn && pitchO instanceof Number pn) {
-                yaw = yn.floatValue();
-                pitch = pn.floatValue();
-            } else {
-                return Map.of("ok", false, "error", "provide pos or both yaw+pitch");
-            }
-            // smoothLook → hand off to a per-tick LookProcess that pans the
-            // camera toward the target; otherwise snap (unchanged contract).
-            if (BotConfig.smoothLook) {
-                bot.startProcess(new LookProcess(at, yaw, pitch));
-                return Map.of("ok", true, "started", true, "smooth", true, "yaw", yaw, "pitch", pitch);
-            }
-            p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
-            return Map.of("ok", true, "yaw", yaw, "pitch", pitch);
-        });
+    /** Hotbar select, else a swap up from the main inventory: the reach every process already trusts. */
+    static ImmediateResponse holdItem(HandContracts.HoldParams params) {
+        Minecraft mc = Minecraft.getInstance();
+        boolean ok = ensureHolding(mc, stk -> !stk.isEmpty()
+                && BuiltInRegistries.ITEM.getKey(stk.getItem()).toString().equals(params.item()));
+        var held = mc.player.getInventory().getSelected();
+        return ok ? new HandContracts.Held(BuiltInRegistries.ITEM.getKey(held.getItem()).toString())
+                : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no " + params.item() + " in the inventory");
     }
 
-    /** {@code mc.bot.holdItem} — put a specific inventory item into the main hand:
-     *  select its hotbar slot, else swap it up from the main inventory
-     *  (BotInteract.ensureHolding — the reach every process already trusts, #27/#56
-     *  family). First-class survival prelude to useItem: bucket scoops, flint &
-     *  steel, eating a chosen food. Matched by registry-key string so no Item
-     *  object resolution is needed. */
-    static Map<String, Object> holdItem(Map<String, Object> params) {
-        Object idRaw = params == null ? null : params.get("item");
-        String idIn = idRaw instanceof String s ? s : null;
-        if (idIn == null || idIn.isBlank()) return Map.of("ok", false, "error", "item required");
-        String id = idIn.contains(":") ? idIn : "minecraft:" + idIn;
-        return onClient(() -> {
-            Minecraft mc = Minecraft.getInstance();
-            LocalPlayer p = mc.player;
-            if (p == null) return Map.of("ok", false, "error", "no player");
-            boolean ok = ensureHolding(mc, stk -> !stk.isEmpty()
-                    && BuiltInRegistries.ITEM.getKey(stk.getItem()).toString().equals(id));
-            var held = p.getInventory().getSelected();
-            String heldId = held.isEmpty() ? "minecraft:air"
-                    : BuiltInRegistries.ITEM.getKey(held.getItem()).toString();
-            return ok ? Map.of("ok", true, "held", heldId)
-                      : Map.of("ok", false, "error", "not in inventory: " + id, "held", heldId);
-        });
+    static ImmediateResponse useItem(HandContracts.UseParams p) {
+        if (p.entityId().isPresent()) return useOnEntity(p, p.entityId().get());
+        if (p.pos().isPresent()) return useOnBlock(p, p.pos().get());
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer player = mc.player;
+        InteractionHand hand = hand(p.hand());
+        // A process may have left keyShift down; vanilla's useItem does not read it, but the next click would.
+        player.setShiftKeyDown(false);
+        InteractionResult result = mc.gameMode.useItem(player, hand);
+        if (result.consumesAction()) player.swing(hand);
+        return new HandContracts.Used(p.hand(), interaction(result), result.consumesAction(), new HandContracts.InAir());
     }
 
-    static Map<String, Object> useItem(Map<String, Object> params) {
-        InteractionHand hand = parseHand(Params.of(params).get("hand"));
-        return onClient(() -> {
-            Minecraft mc = Minecraft.getInstance();
-            LocalPlayer p = mc.player;
-            if (p == null || mc.gameMode == null) return Map.of("ok", false, "error", "no player");
-            // Prevent the secondary-use shortcut from short-circuiting an item's
-            // primary behavior — vanilla useItem itself doesn't read it, but a
-            // prior process may have left keyShift down.
-            p.setShiftKeyDown(false);
-            InteractionResult result = mc.gameMode.useItem(p, hand);
-            if (result.consumesAction()) p.swing(hand);
-            return Map.of(
-                "ok", true,
-                "hand", hand == InteractionHand.MAIN_HAND ? "main" : "off",
-                "result", result.name(),
-                "consumed", result.consumesAction()
-            );
-        });
-    }
-
-    static Map<String, Object> attackEntity(Map<String, Object> params) {
-        if (params == null) return Map.of("ok", false, "error", "missing entityId");
-        Params q = Params.of(params);
-        Object idObj = q.get("entityId");
-        if (!(idObj instanceof Number)) return Map.of("ok", false, "error", "entityId required (integer)");
-        final int entityId = ((Number) idObj).intValue();
-        return onClient(() -> {
-            Minecraft mc = Minecraft.getInstance();
-            LocalPlayer p = mc.player;
-            if (p == null || mc.gameMode == null || mc.level == null) {
-                return Map.of("ok", false, "error", "no player");
-            }
-            Entity target = mc.level.getEntity(entityId);
-            if (target == null) {
-                return Map.of("ok", false, "error", "no entity with id " + entityId);
-            }
-            if (target == p) return Map.of("ok", false, "error", "cannot attack self");
-            // The same swing path the bot processes take — Hands.attackEntity, whose default
-            // method carries the BlastFooting rule — rather than a second copy of the guard in
-            // front of a direct mc.gameMode.attack. This verb used to be that second copy, and an
-            // invariant enforced on two paths is one that comes back through whichever forgot it.
-            // Swung BEFORE the aim, so a refusal returns with the player not yet turned toward
-            // something it declined to hit; the server's attack handling reads the packet's
-            // target and the distance, never the rotation, so the order costs nothing.
-            ClientPlayerBody hands = new ClientPlayerBody(mc);
-            hands.attackEntity(target);
-            String refusal = hands.lastAttackRefusal();
-            if (refusal != null) {
-                return Map.of(
-                    "ok", false,
-                    "error", refusal,
-                    "entityId", entityId,
-                    "type", BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()).toString(),
-                    "alive", target.isAlive(),
-                    "distance", Math.sqrt(p.distanceToSqr(target))
-                );
-            }
-            // Then what the vanilla MouseHandler does around a left-click on an entity: face it
-            // and swing the main arm (the attack itself went through MultiPlayerGameMode above,
-            // so the server applies weapon damage + cooldown + crit/sweep rules).
-            p.setShiftKeyDown(false);
-            float[] aim = aimAnglesAt(p, target);
-            p.setYRot(aim[0]); p.setXRot(aim[1]);
-            p.swing(InteractionHand.MAIN_HAND);
-            return Map.of(
-                "ok", true,
-                "entityId", entityId,
-                "type", BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()).toString(),
-                "alive", target.isAlive(),
-                "distance", Math.sqrt(p.distanceToSqr(target))
-            );
-        });
-    }
-
-    static Map<String, Object> useItemOnEntity(Map<String, Object> params) {
-        if (params == null) return Map.of("ok", false, "error", "missing entityId");
-        Params q = Params.of(params);
-        Object idObj = q.get("entityId");
-        if (!(idObj instanceof Number)) return Map.of("ok", false, "error", "entityId required (integer)");
-        final int entityId = ((Number) idObj).intValue();
-        InteractionHand hand = parseHand(q.get("hand"));
-        boolean wantLookAt = q.getBool("lookAt", true);
-        boolean sneak = q.getBool("sneak", false);
-        Map<String, Object> partial = onClient(() -> {
-            Minecraft mc = Minecraft.getInstance();
-            LocalPlayer p = mc.player;
-            if (p == null || mc.gameMode == null || mc.level == null) {
-                return Map.of("ok", false, "error", "no player");
-            }
-            Entity target = mc.level.getEntity(entityId);
-            if (target == null) {
-                return Map.of("ok", false, "error", "no entity with id " + entityId);
-            }
-            if (target == p) return Map.of("ok", false, "error", "cannot interact with self");
-            if (wantLookAt) {
-                float[] aim = aimAnglesAt(p, target);
-                p.setYRot(aim[0]); p.yHeadRot = aim[0]; p.yBodyRot = aim[0]; p.setXRot(aim[1]);
-            }
-            // The interact packets snapshot isShiftKeyDown — sneak-gated
-            // interactions (open tamed horse inventory, armor-stand pickup)
-            // need it held for exactly this call.
-            p.setShiftKeyDown(sneak);
-            try {
-                // Snapshot pre-interact state; the server applies the mount /
-                // opens the menu and syncs back on a later tick, so this call's
-                // post-interact p.getVehicle()/mc.screen still show the old state.
-                String vehicleBefore = vehicleTypeOf(p);
-                String screenBefore = screenNameOf(mc);
-                // Vanilla Minecraft.startUseItem ENTITY branch: interactAt
-                // first, fall through to interact when not consumed.
-                EntityHitResult hit = new EntityHitResult(target);
-                InteractionResult result = mc.gameMode.interactAt(p, target, hit, hand);
-                if (!result.consumesAction()) result = mc.gameMode.interact(p, target, hand);
-                if (result.consumesAction()) p.swing(hand);
-                Map<String, Object> m = new HashMap<>();
-                m.put("ok", true);
-                m.put("entityId", entityId);
-                m.put("type", BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()).toString());
-                m.put("hand", hand == InteractionHand.MAIN_HAND ? "main" : "off");
-                m.put("result", result.name());
-                m.put("consumed", result.consumesAction());
-                m.put("distance", Math.sqrt(p.distanceToSqr(target)));
-                m.put("vehicleBefore", vehicleBefore);
-                m.put("screenBefore", screenBefore);
-                return m;
-            } finally {
-                p.setShiftKeyDown(false);
-            }
-        });
-        if (!Boolean.TRUE.equals(partial.get("ok"))) return partial;
-
-        String vehicleBefore = (String) partial.remove("vehicleBefore");
-        String screenBefore = (String) partial.remove("screenBefore");
-        // Can't sleep on the client thread — packet processing (the very mount/
-        // menu-open we're waiting on) runs in the client tick, so blocking it
-        // deadlocks. Poll from this (RPC) thread instead, each attempt a short
-        // onClient() sample, until the server-applied state actually changes.
-        String riding = vehicleBefore;
-        String screen = screenBefore;
-        // If we're already ON the client thread (BotUtil.onClient runs its lambda
-        // inline rather than dispatching when isSameThread() is true — e.g. a
-        // process step calling useItemOnEntity directly during a client tick),
-        // skip the poll entirely and keep the pre-interact snapshot: the
-        // Thread.sleep(50) below would freeze the client for up to 250ms AND
-        // deadlock the very packet processing (the mount/menu sync this loop
-        // waits on) it's blocking, since that processing runs on this same thread.
-        if (!Minecraft.getInstance().isSameThread()) {
-            for (int attempt = 0; attempt < 6; attempt++) {
-                Map<String, String> sample = onClient(() -> {
-                    Minecraft mc = Minecraft.getInstance();
-                    LocalPlayer p = mc.player;
-                    return Map.of("riding", p == null ? "none" : vehicleTypeOf(p), "screen", screenNameOf(mc));
-                });
-                riding = sample.get("riding");
-                screen = sample.get("screen");
-                if (!riding.equals(vehicleBefore) || !screen.equals(screenBefore)) break;
-                if (attempt < 5) {
-                    try {
-                        Thread.sleep(50);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
-            }
+    private static ImmediateResponse useOnBlock(HandContracts.UseParams p, BlockPosition at) {
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer player = mc.player;
+        BlockPos blockPos = new BlockPos(at.x(), at.y(), at.z());
+        InteractionHand hand = hand(p.hand());
+        // Omitted, the face is the one toward the player, so the synthetic hit looks like a real ray from the eye.
+        Direction face = p.face().map(f -> Direction.byName(f.wireName())).orElseGet(() -> pickFaceTowardsPlayer(blockPos, player));
+        // The centre of that face: the server's reach check reads it, and so do items keyed off the hit
+        // (a slab's top or bottom half).
+        double cx = blockPos.getX() + 0.5 + face.getStepX() * 0.5;
+        double cy = blockPos.getY() + 0.5 + face.getStepY() * 0.5;
+        double cz = blockPos.getZ() + 0.5 + face.getStepZ() * 0.5;
+        if (p.lookAt()) {
+            // So the server-side rotation matches the synthetic ray, which a modded server's checks may read.
+            Vec3 eye = player.getEyePosition();
+            double dx = cx - eye.x, dy = cy - eye.y, dz = cz - eye.z;
+            float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
+            float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+            player.setYRot(yaw); player.yHeadRot = yaw; player.yBodyRot = yaw; player.setXRot(pitch);
         }
-        partial.put("riding", riding);
-        partial.put("screen", screen);
-        return partial;
+        player.setShiftKeyDown(false);
+        InteractionResult result = mc.gameMode.useItemOn(player, hand, new BlockHitResult(new Vec3(cx, cy, cz), face, blockPos, false));
+        if (result.consumesAction()) player.swing(hand);
+        return new HandContracts.Used(p.hand(), interaction(result), result.consumesAction(),
+                new HandContracts.OnBlock(at, Face.valueOf(face.name())));
     }
 
-    private static String vehicleTypeOf(LocalPlayer p) {
-        Entity vehicle = p.getVehicle();
-        return vehicle == null ? "none" : BuiltInRegistries.ENTITY_TYPE.getKey(vehicle.getType()).toString();
+    private static ImmediateResponse useOnEntity(HandContracts.UseParams p, int entityId) {
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer player = mc.player;
+        Entity target = mc.level.getEntity(entityId);
+        if (target == null) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + entityId);
+        if (target == player) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot interact with self");
+        InteractionHand hand = hand(p.hand());
+        if (p.lookAt()) {
+            float[] aim = aimAnglesAt(player, target);
+            player.setYRot(aim[0]); player.yHeadRot = aim[0]; player.yBodyRot = aim[0]; player.setXRot(aim[1]);
+        }
+        // The interact packets snapshot isShiftKeyDown, and sneak-gated interactions (a tamed horse's
+        // inventory, an armour stand) need it held for exactly this call.
+        player.setShiftKeyDown(p.sneak());
+        try {
+            // Taken before the click: the server mounts or opens the menu on a later tick.
+            OnEntity before = afterUse(new OnEntity(entityId, typeOf(target), Math.sqrt(player.distanceToSqr(target)),
+                    Optional.empty(), Optional.empty(), Optional.empty()));
+            // Vanilla's startUseItem entity branch: interactAt, then interact when that did not consume.
+            InteractionResult result = mc.gameMode.interactAt(player, target, new EntityHitResult(target), hand);
+            if (!result.consumesAction()) result = mc.gameMode.interact(player, target, hand);
+            if (result.consumesAction()) player.swing(hand);
+            return new HandContracts.Used(p.hand(), interaction(result), result.consumesAction(), before);
+        } finally {
+            player.setShiftKeyDown(false);
+        }
     }
 
-    private static String screenNameOf(Minecraft mc) {
-        return mc.screen == null ? "none" : mc.screen.getClass().getSimpleName();
+    /** {@code on} with the vehicle and the screen the player has now. */
+    static OnEntity afterUse(OnEntity on) {
+        Minecraft mc = Minecraft.getInstance();
+        Entity vehicle = mc.player == null ? null : mc.player.getVehicle();
+        return new OnEntity(on.entityId(), on.type(), on.distance(),
+                vehicle == null ? Optional.empty() : Optional.of(typeOf(vehicle)),
+                mc.screen == null ? Optional.empty() : Optional.of(mc.screen.getClass().getSimpleName()),
+                Optional.empty());
     }
 
-    static Map<String, Object> useItemOn(Map<String, Object> params) {
-        if (params == null) return Map.of("ok", false, "error", "missing pos");
-        Params q = Params.of(params);
-        BlockPos blockPos = q.getPos("pos");
-        if (blockPos == null) return Map.of("ok", false, "error", "pos required");
-        Direction face = parseFace(q.get("face"));
-        InteractionHand hand = parseHand(q.get("hand"));
-        boolean wantLookAt = q.getBool("lookAt", true);
+    static ImmediateResponse attackEntity(HandContracts.AttackParams p) {
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer player = mc.player;
+        Entity target = mc.level.getEntity(p.entityId());
+        if (target == null) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + p.entityId());
+        if (target == player) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot attack self");
+        // The same swing path the bot processes take — Hands.attackEntity, whose default method carries the
+        // BlastFooting rule — rather than a second copy of the guard in front of a direct mc.gameMode.attack:
+        // an invariant enforced on two paths comes back through whichever forgot it. Swung BEFORE the aim, so
+        // a refusal leaves the player not yet turned toward what it declined to hit; the server's attack
+        // handling reads the target and the distance, never the rotation.
+        ClientPlayerBody hands = new ClientPlayerBody(mc);
+        hands.attackEntity(target);
+        String refusal = hands.lastAttackRefusal();
+        if (refusal != null) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, refusal);
+        // Then what the MouseHandler does around a left click on an entity: face it and swing the main arm.
+        player.setShiftKeyDown(false);
+        float[] aim = aimAnglesAt(player, target);
+        player.setYRot(aim[0]); player.setXRot(aim[1]);
+        player.swing(InteractionHand.MAIN_HAND);
+        return new HandContracts.Attacked(p.entityId(), typeOf(target), target.isAlive(), Math.sqrt(player.distanceToSqr(target)));
+    }
 
-        return onClient(() -> {
-            Minecraft mc = Minecraft.getInstance();
-            LocalPlayer p = mc.player;
-            if (p == null || mc.gameMode == null || mc.level == null) return Map.of("ok", false, "error", "no player");
+    private static InteractionHand hand(Hand h) {
+        return h == Hand.OFF ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+    }
 
-            // The face parameter is "the face of `pos` we're clicking" — i.e. the
-            // outward-facing face of the click target. If omitted, pick the face
-            // closest to the player (so the synthetic hit looks like a real
-            // ray-cast from the player's eye).
-            Direction effFace = face != null ? face : pickFaceTowardsPlayer(blockPos, p);
+    static Interaction interaction(InteractionResult r) {
+        return Interaction.valueOf(r.name().toUpperCase(Locale.ROOT));
+    }
 
-            // Click location = center of that face. The integrated server uses
-            // it for ranged interaction checks AND for items that key off the
-            // exact hit Vec3 (e.g. slab top/bottom selection).
-            double cx = blockPos.getX() + 0.5 + effFace.getStepX() * 0.5;
-            double cy = blockPos.getY() + 0.5 + effFace.getStepY() * 0.5;
-            double cz = blockPos.getZ() + 0.5 + effFace.getStepZ() * 0.5;
-            Vec3 hitLoc = new Vec3(cx, cy, cz);
-            BlockHitResult hit = new BlockHitResult(hitLoc, effFace, blockPos, false);
-
-            if (wantLookAt) {
-                // Aim at the hit location so the server-side rotation matches
-                // the synthetic ray. Without this, server-side checks that look
-                // at view direction (e.g. anti-cheat in modded servers) may
-                // reject; in single-player it's harmless cosmetic.
-                Vec3 eye = p.getEyePosition();
-                double dx = cx - eye.x, dy = cy - eye.y, dz = cz - eye.z;
-                float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-                float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-                p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
-            }
-            p.setShiftKeyDown(false);
-
-            InteractionResult result = mc.gameMode.useItemOn(p, hand, hit);
-            if (result.consumesAction()) p.swing(hand);
-
-            return Map.of(
-                "ok", true,
-                "hand", hand == InteractionHand.MAIN_HAND ? "main" : "off",
-                "pos", posMap(blockPos),
-                "face", effFace.getName(),
-                "result", result.name(),
-                "consumed", result.consumesAction()
-            );
-        });
+    private static String typeOf(Entity e) {
+        return BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
     }
 }

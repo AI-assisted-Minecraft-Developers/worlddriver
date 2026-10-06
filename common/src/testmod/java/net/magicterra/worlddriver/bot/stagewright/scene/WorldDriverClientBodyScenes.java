@@ -7,7 +7,6 @@ import java.util.Set;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
@@ -16,16 +15,18 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
+
 /**
  * The precondition in front of every verb that moves or acts through the player ({@code BodyReady}),
  * on the client's real player:
- * a dead player is refused with {@code {ok:false, reason:"dead"}} instead of {@code started:true},
+ * a dead player is refused as {@code body_unavailable} instead of accepted,
  * a read ({@code mc.bot.status}) still answers, and the same order is taken again once the player
  * has respawned. The lab world found this the hard way — a player that died on joining sat on its
  * death screen while every {@code goto} reported it had started.
  *
  * <p>Adopts the player through {@link ClientHelm}, so it skips on a dedicated server like every
- * {@code wd.client*} scene; every call goes through {@code DriverApi.route}, the door all transports
+ * {@code wd.client*} scene; every call goes through {@code DriverApi.dispatch}, the door all transports
  * share.
  */
 public final class WorldDriverClientBodyScenes implements SceneProvider {
@@ -42,10 +43,11 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
         return Map.of("kind", "position", "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ()));
     }
 
-    private static Map<?, ?> call(SceneContext ctx, String tag, String method, Map<String, Object> params) {
-        Object r = WorldDriverCommon.api().route(method, params);
-        ctx.record(tag, String.valueOf(r));
-        return r instanceof Map<?, ?> m ? m : Map.of();
+    /** Stops the action a goto started, by its id. */
+    private static void cancel(SceneContext ctx, String tag, Map<?, ?> started) {
+        if (started.get("action") instanceof Map<?, ?> a && a.get("actionId") instanceof String id) {
+            ask(ctx, tag, "mc.bot.cancel", Map.of("actionId", id), r -> { });
+        }
     }
 
     private static void refusedWhileDead(SceneContext ctx) {
@@ -73,36 +75,35 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
                 p.teleportTo(was.serverLevel(), hx, hy, hz, Set.of(), hYaw, hPitch);
             }
         });
-        helm.sync(20, () -> {
-            Map<?, ?> alive = call(ctx, "alive.goto", "mc.bot.goto", Map.of("target", at(start)));
+        helm.sync(20, () -> ask(ctx, "alive.goto", "mc.bot.goto", Map.of("target", at(start)), alive -> {
             ctx.check("accepted".equals(alive.get("outcome"))).as("A: while the player is alive, goto accepts the request: " + alive).isTrue();
-            call(ctx, "alive.cancel", "mc.bot.cancel", Map.of("process", "goto"));
+            cancel(ctx, "alive.cancel", alive);
             body.kill();
-            ctx.await(body::isDeadOrDying).within(60).then(() -> helm.sync(15, () -> {
-                Map<?, ?> dead = call(ctx, "dead.goto", "mc.bot.goto", Map.of("target", at(start)));
+            ctx.await(body::isDeadOrDying).within(60).then(() -> helm.sync(15, () ->
+                    ask(ctx, "dead.goto", "mc.bot.goto", Map.of("target", at(start)), dead -> {
                 ctx.check("refused".equals(dead.get("outcome")) && "body_unavailable".equals(dead.get("reason"))
                                 && String.valueOf(dead.get("message")).contains("dead"))
                         .as("B: after death, goto is refused as body_unavailable, saying the player is dead: " + dead).isTrue();
                 ctx.check(dead.get("action") == null).as("C: the refused request did not start: " + dead).isTrue();
-                Map<?, ?> status = call(ctx, "dead.status", "mc.bot.status", Map.of());
-                ctx.check(!status.isEmpty() && status.get("reason") == null)
-                        .as("D: read-only methods are unaffected by the player's death: " + status.keySet()).isTrue();
-                // The client's own Respawn button, sent from here: the packet handler runs on this thread.
-                body.connection.handleClientCommand(new ServerboundClientCommandPacket(
-                        ServerboundClientCommandPacket.Action.PERFORM_RESPAWN));
-                ctx.await(() -> {
-                    List<ServerPlayer> h = SceneBody.humanPlayers(ctx);
-                    return !h.isEmpty() && !h.get(0).isDeadOrDying();
-                }).within(100).then(() -> {
-                    ServerPlayer again = SceneBody.humanPlayers(ctx).get(0);
-                    again.teleportTo(ctx.level(), start.getX() + 0.5, start.getY(), start.getZ() + 0.5, Set.of(), 0f, 0f);
-                    helm.sync(20, () -> {
-                        Map<?, ?> back = call(ctx, "respawned.goto", "mc.bot.goto", Map.of("target", at(start)));
-                        ctx.check("accepted".equals(back.get("outcome"))).as("E: after respawn, the same request is accepted again: " + back).isTrue();
-                        call(ctx, "respawned.cancel", "mc.bot.cancel", Map.of("process", "goto"));
+                ask(ctx, "dead.status", "mc.bot.status", Map.of(), status -> {
+                    ctx.check("done".equals(status.get("outcome")) && status.get("status") instanceof Map<?, ?>)
+                            .as("D: read-only methods are unaffected by the player's death: " + status).isTrue();
+                    // The client's own Respawn button, sent from here: the packet handler runs on this thread.
+                    body.connection.handleClientCommand(new ServerboundClientCommandPacket(
+                            ServerboundClientCommandPacket.Action.PERFORM_RESPAWN));
+                    ctx.await(() -> {
+                        List<ServerPlayer> h = SceneBody.humanPlayers(ctx);
+                        return !h.isEmpty() && !h.get(0).isDeadOrDying();
+                    }).within(100).then(() -> {
+                        ServerPlayer again = SceneBody.humanPlayers(ctx).get(0);
+                        again.teleportTo(ctx.level(), start.getX() + 0.5, start.getY(), start.getZ() + 0.5, Set.of(), 0f, 0f);
+                        helm.sync(20, () -> ask(ctx, "respawned.goto", "mc.bot.goto", Map.of("target", at(start)), back -> {
+                            ctx.check("accepted".equals(back.get("outcome"))).as("E: after respawn, the same request is accepted again: " + back).isTrue();
+                            cancel(ctx, "respawned.cancel", back);
+                        }));
                     });
                 });
-            }));
-        });
+            })));
+        }));
     }
 }

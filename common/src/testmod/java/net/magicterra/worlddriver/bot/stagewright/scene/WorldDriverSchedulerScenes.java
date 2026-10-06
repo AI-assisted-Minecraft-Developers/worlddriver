@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
-import java.util.Map;
 import java.util.function.BiConsumer;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
@@ -898,22 +897,13 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         check.accept(!st.bunker.active && "CANCELLED".equals(st.bunker.endReason),
                 "incident: slot reset with honest endReason — active=" + st.bunker.active
                         + " endReason=" + st.bunker.endReason);
-        Map<String, Object> r = CancelRouting.honestResult(plan.labels(), "bunker");
-        check.accept(Boolean.TRUE.equals(r.get("ok"))
-                        && "duskSecure/bunker-process".equals(r.get("cancelled")),
-                "incident: result must name the real target — got " + r);
 
-        // ② nothing active anywhere: cancel{process:"bunker"} must be an honest miss
-        // (the old unconditional ok:true is the live lie).
+        // ② nothing active anywhere: cancel{process:"bunker"} must be an honest miss — the labels
+        // are what mc.bot.cancel answers as `cancelled`, so an empty list is the miss.
         CancelRouting.Plan miss = CancelRouting.resolve("bunker", null, chains);
         check.accept(!miss.cancelUserProcess() && miss.episodeTargets().isEmpty()
                         && miss.labels().isEmpty(),
                 "empty world: no targets — got " + miss.labels());
-        Map<String, Object> rm = CancelRouting.honestResult(miss.labels(), "bunker");
-        check.accept(Boolean.FALSE.equals(rm.get("ok")),
-                "empty world: ok must be false, not the unconditional true — got " + rm);
-        check.accept("no-active-target".equals(rm.get("reason")),
-                "empty world: reason=no-active-target — got " + rm);
 
         // ③ P1-⑦ regression: USER-verb bunker (kind in the user slot) still routes to
         // the user slot; an idle duskSecure must not be dragged in.
@@ -937,9 +927,6 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
                         + both.episodeTargets());
         check.accept(List.of("bunker-episode", "duskSecure/bunker-process").equals(both.labels()),
                 "name+kind: distinguishable labels — got " + both.labels());
-        check.accept("bunker-episode,duskSecure/bunker-process".equals(
-                        CancelRouting.honestResult(both.labels(), "bunker").get("cancelled")),
-                "name+kind: cancelled joins all hits");
         bunkerChain.resetEpisodeState();
         dusk.cancelEpisodeState("cleanup");
 

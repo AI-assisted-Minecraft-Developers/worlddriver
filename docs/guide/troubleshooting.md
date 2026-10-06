@@ -105,21 +105,21 @@ players there. See [Capabilities](capabilities.md) for which verbs take `body` a
 
 ## The bot accepts a command and does not move
 
-**Symptom.** The call returns `{ok: true, started: true}` and nothing happens in the world.
+**Symptom.** The call returns `{outcome: "accepted", action}` and nothing happens in the world.
 
 Start by separating this from the case where the call *did* tell you. A bot that cannot act
-right now refuses before the verb runs, and the reply is `{ok: false, error, reason}` with
-`reason` one of `no_player`, `loading`, `dead`, `paused`, `sleeping` or `chunk_unloaded`,
-and `error` a sentence saying what to do about it. If you got `ok: true`, none of those
-applied.
+right now refuses before the verb runs, and the reply is `{outcome: "refused", reason:
+"body_unavailable", message}`, the `message` saying why (no player, still loading, dead,
+paused, asleep, chunk not loaded) and what to do about it. If the call was accepted, none of
+those applied.
 
 **Cause: the bot is paused.** The `paused` setting halts every bot process and releases the
 held keys, and a verb issued while it is set still reports that it started — the process
-exists, the tick loop just returns early. `mc.bot.status` reports `paused` at its top level.
+exists, the tick loop just returns early. `mc.bot.status` reports `status.reflexes.paused`.
 Clear it with `mc.bot.setting {"paused": false}`.
 
 **Cause: there is no route.** The search ran and found nothing. `mc.bot.status` carries
-`lastPath` from the most recent search: `{expanded, ms, goalReached, finalCost, pathLen}`.
+`status.reflexes.lastPath` from the most recent search: `{expanded, ms, goalReached, finalCost, pathLen}`.
 Few expanded nodes together with `goalReached: false` means the goal was unreachable under
 the constraints in force, not that the search was slow. Many expanded nodes with
 `goalReached: false` means it exhausted its budget instead, which the `pathfinder.*` settings
@@ -136,8 +136,8 @@ focus, and a paused world advances nothing. This one *does* surface as a refusal
 `reason: "paused"` when the verb is issued, but a run that was already moving simply stops.
 Launch with `-Dworlddriver.pauseOnLostFocus=false` for an unattended client.
 
-**The check, in order.** Read `mc.bot.status`: the top-level `paused` flag first, then the
-relevant process slot's `active` and `lastError`, then `lastPath`. Those three answer almost
+**The check, in order.** Read `mc.bot.status`: the `reflexes.paused` flag first, then the
+relevant slot's `active` and `lastError` under `slots`, then `reflexes.lastPath`. Those three answer almost
 every instance of this symptom, and each points at a different fix.
 
 ## A screenshot comes back empty, or is the same picture twice

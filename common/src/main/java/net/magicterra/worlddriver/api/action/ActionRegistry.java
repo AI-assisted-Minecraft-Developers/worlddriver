@@ -58,38 +58,70 @@ public final class ActionRegistry {
      * something cancels it.
      */
     public Admission admit(String body, ActionHandle.Scope scope, Optional<RunContext> run, Supplier<?> result) {
-        RunContext caller = run.orElse(null);
-        if (caller != null && caller.stopped().isCancelled()) {
-            throw new ApiException(new ApiError(ApiError.Code.CAPABILITY_UNAVAILABLE, caller + " was stopped and starts nothing more",
-                    List.of(), ApiError.Execution.NOT_STARTED));
-        }
+        RunContext caller = requireRunning(run);
         ActionHandle handle;
-        boolean watch = false;
+        boolean watch;
         synchronized (this) {
-            RunContext owner = owners.get(body);
-            if (owner != null && !holds(owner, body)) {
-                owners.remove(body);
-                owner = null;
-            }
-            if (owner != null && owner != caller) {
-                return new Denied(RefusalReason.BUSY, body + " is held by " + owner + " until its actions end");
-            }
+            Denied busy = busy(body, caller);
+            if (busy != null) return busy;
             if (active.size() >= MAX_ACTIVE) {
                 return new Denied(RefusalReason.ACTION_LIMIT, MAX_ACTIVE + " actions are running; wait for one to end or cancel one");
             }
             String id = "a" + epoch + "-" + seq.incrementAndGet();
             handle = new ActionHandle(this, id, body, scope, caller == null ? null : caller.runId(), result);
             active.put(id, handle);
-            if (caller != null) {
-                owners.put(body, caller);
-                watch = watchedRuns.putIfAbsent(caller.runId(), caller) == null;
-            }
+            watch = own(body, caller);
         }
-        if (watch) {
-            caller.stopped().onCancel(() -> endRun(caller.runId(), CancelReason.REQUESTED));
-            caller.ended().onCancel(() -> forgetRunIfIdle(caller));
-        }
+        if (watch) watch(caller);
         return new Admitted(handle);
+    }
+
+    /**
+     * For a write that ends within the call (holding an item, one click): null when {@code body} is free for
+     * {@code run}, which then holds it as a first write does; otherwise why not.
+     */
+    public Denied claim(String body, Optional<RunContext> run) {
+        RunContext caller = requireRunning(run);
+        boolean watch;
+        synchronized (this) {
+            Denied busy = busy(body, caller);
+            if (busy != null) return busy;
+            watch = own(body, caller);
+        }
+        if (watch) watch(caller);
+        return null;
+    }
+
+    private static RunContext requireRunning(Optional<RunContext> run) {
+        RunContext caller = run.orElse(null);
+        if (caller != null && caller.stopped().isCancelled()) {
+            throw new ApiException(new ApiError(ApiError.Code.CAPABILITY_UNAVAILABLE, caller + " was stopped and starts nothing more",
+                    List.of(), ApiError.Execution.NOT_STARTED));
+        }
+        return caller;
+    }
+
+    /** Monitor held. */
+    private Denied busy(String body, RunContext caller) {
+        RunContext owner = owners.get(body);
+        if (owner != null && !holds(owner, body)) {
+            owners.remove(body);
+            owner = null;
+        }
+        return owner != null && owner != caller
+                ? new Denied(RefusalReason.BUSY, body + " is held by " + owner + " until its actions end") : null;
+    }
+
+    /** Monitor held: {@code caller} holds {@code body}; true when its run is new here and needs {@link #watch}. */
+    private boolean own(String body, RunContext caller) {
+        if (caller == null) return false;
+        owners.put(body, caller);
+        return watchedRuns.putIfAbsent(caller.runId(), caller) == null;
+    }
+
+    private void watch(RunContext caller) {
+        caller.stopped().onCancel(() -> endRun(caller.runId(), CancelReason.REQUESTED));
+        caller.ended().onCancel(() -> forgetRunIfIdle(caller));
     }
 
     /** Whether {@code run} still holds {@code body}: it has not ended, or one of its actions there runs. Monitor held. */

@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.bot.scheduler;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Pure routing for a targeted {@code mc.bot.cancel{process:<name>}} (gap#72-②).
@@ -66,18 +65,5 @@ public final class CancelRouting {
             }
         }
         return new Plan(user, List.copyOf(targets), List.copyOf(labels));
-    }
-
-    /**
-     * Shape the RPC result from the executed hits: {@code {ok:true, cancelled:
-     * "<label>[,<label>…]"}} naming what was ACTUALLY cancelled, or an honest
-     * {@code {ok:false, reason:"no-active-target", requested:<which>}} when nothing
-     * matched — never the old unconditional ok:true (#280 silent-swallow shape).
-     */
-    public static Map<String, Object> honestResult(List<String> cancelledLabels, String which) {
-        if (cancelledLabels.isEmpty()) {
-            return Map.of("ok", false, "reason", "no-active-target", "requested", which);
-        }
-        return Map.of("ok", true, "cancelled", String.join(",", cancelledLabels));
     }
 }

@@ -7,7 +7,6 @@ import java.util.Map;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.SleepProcess;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
@@ -20,6 +19,8 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.properties.BedPart;
+
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 
 /**
  * The scheduler's contract on the client's real player, where every chain is registered and the
@@ -119,12 +120,6 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
         });
     }
 
-    private static Map<?, ?> call(SceneContext ctx, String tag, String method, Map<String, Object> params) {
-        Object r = WorldDriverCommon.api().route(method, params);
-        ctx.record(tag, String.valueOf(r));
-        return r instanceof Map<?, ?> m ? m : Map.of();
-    }
-
     /**
      * Exposed at night on a beach with {@code autoSecureAtDusk}: the sand beside the bot is wet, so
      * even a one-deep niche floods and the bunker process ends with {@code unsafe-site} on its first
@@ -210,9 +205,9 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
                 ctx.record("beforeCancel", helm.where() + String.format(Locale.ROOT, ", %.2f blocks from the bed; goto=%s",
                         gap, helm.slot("goto")));
                 ctx.check(gap > 2.0).as("test setup: at cancellation the bot is still on its way to the bed (" + gap + " blocks from the bed)").isTrue();
-                call(ctx, "cancel", "mc.bot.cancel", Map.of("process", "sleep"));
-                helm.sync(5, () -> {
-                    Map<?, ?> status = call(ctx, "afterCancel.status", "mc.bot.status", Map.of());
+                ask(ctx, "cancel", "mc.bot.cancel", Map.of("process", "sleep"), stopped -> helm.sync(5, () ->
+                        ask(ctx, "afterCancel.status", "mc.bot.status", Map.of(), reply -> {
+                    Map<?, ?> status = reply.get("status") instanceof Map<?, ?> s ? s : Map.of();
                     Map<?, ?> go = helm.slot("goto");
                     ctx.check(Boolean.FALSE.equals(go.get("active")))
                             .as("A: after the sleep task is cancelled, the goto slot is no longer active: " + go).isTrue();
@@ -221,7 +216,7 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
                     Object end = status.get("lastProcessEnd");
                     ctx.check(end instanceof Map<?, ?> m && "sleep".equals(m.get("kind")))
                             .as("C: the most recent process end is recorded as sleep: " + end).isTrue();
-                });
+                })));
             });
         });
     }

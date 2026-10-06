@@ -72,9 +72,15 @@ public final class ActionContract {
      */
     public interface ActionResponse<R> {}
 
+    /**
+     * What a method that acts on a body within the call answers (holding an item, one click): {@code done}
+     * with what came of it, or {@link Refused} with the same reasons a task is refused for.
+     */
+    public interface ImmediateResponse {}
+
     /** {@code waitTimedOut}: the call's wait ran out with the action still running; always false for awaitMs 0. */
     public record Accepted<R>(ActionSnapshot<R> action, boolean waitTimedOut) implements ActionResponse<R> {}
-    public record Refused<R>(RefusalReason reason, String message) implements ActionResponse<R> {}
+    public record Refused<R>(RefusalReason reason, String message) implements ActionResponse<R>, ImmediateResponse {}
 
     /** {@code self}, {@code player:<name>} or {@code npc:<name>}. */
     public static final ApiType<String> BODY_REF = ApiTypes.pattern("self|(player|npc):[^\\s:]+",
@@ -146,14 +152,27 @@ public final class ActionContract {
                         .describe("True only when awaitMs ran out with the action still running.")
                         .required().forGetter(Accepted<R>::waitTimedOut),
                 Accepted::new);
-        RecordType<Refused<R>> refused = ApiTypes.record(null,
-                ApiField.field("reason", REFUSAL_REASON).required().forGetter(Refused<R>::reason),
-                ApiField.field("message", ApiTypes.string()).required().forGetter(Refused<R>::message),
-                Refused::new);
         UnionType.Variant[] all = new UnionType.Variant[2 + extra.length];
         all[0] = ApiTypes.variant("accepted", (Class) Accepted.class, (RecordType) accepted);
-        all[1] = ApiTypes.variant("refused", (Class) Refused.class, (RecordType) refused);
+        all[1] = ApiTypes.variant("refused", (Class) Refused.class, (RecordType) refused());
         System.arraycopy(extra, 0, all, 2, extra.length);
         return ApiTypes.taggedUnion(name + "Response", "outcome", all);
+    }
+
+    /** {@code <name>Response}, tagged on {@code outcome}: {@code done} as {@code done} describes it, or refused. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static <D extends ImmediateResponse> UnionType<ImmediateResponse> immediate(String name, Class<D> type,
+                                                                                    RecordType<D> done) {
+        return ApiTypes.taggedUnion(name + "Response", "outcome",
+                ApiTypes.variant("done", type, done),
+                (UnionType.Variant) ApiTypes.variant("refused", (Class) Refused.class, (RecordType) refused()));
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static RecordType<Refused<?>> refused() {
+        return (RecordType) ApiTypes.record(null,
+                ApiField.field("reason", REFUSAL_REASON).required().forGetter(Refused<?>::reason),
+                ApiField.field("message", ApiTypes.string()).required().forGetter(Refused<?>::message),
+                (RefusalReason r, String m) -> new Refused<>(r, m));
     }
 }

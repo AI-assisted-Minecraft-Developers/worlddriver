@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -17,6 +18,8 @@ import net.magicterra.worlddriver.model.DriverEvent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
+
 /**
  * The verb layer of route selection, on the client's REAL player: {@code mc.bot.goto} with a
  * {@code route}, {@code plan: 'preview'}, {@code planId}, and the {@code route.blocked} event. This layer
@@ -24,7 +27,7 @@ import net.minecraft.world.level.block.Blocks;
  * player through {@link ClientHelm} and skips on a dedicated server — the constraint layer under it
  * is covered there by {@code wd.route*}.
  *
- * <p>Every call goes through {@link DriverApi#route}: the same door every transport uses, with the
+ * <p>Every call goes through {@link SceneCalls#ask}, into the same door every transport uses, with the
  * schema validation in front of it, so "the schema refused it" is a thing these scenes can say.
  */
 public final class WorldDriverClientRouteScenes implements SceneProvider {
@@ -54,17 +57,11 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         return Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ());
     }
 
-    private static Map<?, ?> call(SceneContext ctx, String tag, String method, Map<String, Object> params) {
-        Object r = WorldDriverCommon.api().route(method, params);
-        ctx.record(tag, String.valueOf(r));
-        return r instanceof Map<?, ?> m ? m : Map.of();
-    }
-
     /** {@code mc.bot.goto} to the cell {@code p}, with {@code extra} beside the target. */
-    private static Map<?, ?> goTo(SceneContext ctx, String tag, BlockPos p, Map<String, Object> extra) {
+    private static void goTo(SceneContext ctx, String tag, BlockPos p, Map<String, Object> extra, Consumer<Map<?, ?>> then) {
         Map<String, Object> params = new java.util.LinkedHashMap<>(extra);
         params.put("target", Map.of("kind", "position", "pos", pos(p)));
-        return call(ctx, tag, "mc.bot.goto", params);
+        ask(ctx, tag, "mc.bot.goto", params, then);
     }
 
     /** The action an accepted reply carries; empty when the call was refused. */
@@ -114,8 +111,10 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         BlockPos goal = ctx.rel(12, GROUND + 1, 0);
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         BotConfig.walkerDebug = true;
-        helm.sync(30, () -> {
-            Map<?, ?> planned = goTo(ctx, "preview.reply", goal, Map.of("plan", "preview", "route", Map.of("risk", "normal")));
+        // The baseline spends the goal node from 0.67 away, which ends the walk a cell short and fails
+        // the action before its result can say whether the plan was adopted.
+        BotConfig.walkerHoldLastNodeUntilStanding = true;
+        helm.sync(30, () -> goTo(ctx, "preview.reply", goal, Map.of("plan", "preview", "route", Map.of("risk", "normal")), planned -> {
             ctx.check(!action(planned).isEmpty()).as("A: the preview is accepted as an action: " + planned).isTrue();
             awaitEnd(ctx, actionId(planned), 200, t -> { }, preview -> {
                 Map<?, ?> plan = result(preview);
@@ -123,7 +122,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                 ctx.check("succeeded".equals(preview.get("state")) && Boolean.TRUE.equals(plan.get("reached")))
                         .as("B: the preview reaches the goal: state=" + preview.get("state") + " reached=" + plan.get("reached")).isTrue();
                 Walker.lastStats = null;
-                Map<?, ?> walked = call(ctx, "adopt.reply", "mc.bot.goto", Map.of("planId", String.valueOf(plan.get("planId"))));
+                ask(ctx, "adopt.reply", "mc.bot.goto", Map.of("planId", String.valueOf(plan.get("planId"))), walked -> {
                 final int[] arrived = { -1 };
                 final int[] searches = { 0 };
                 final Walker.PathStats[] seen = { null };
@@ -148,7 +147,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                     // until that is re-homed the count here documents the cost rather than gating on it.
                     ctx.record("E full searches after adoption (not judged)", String.valueOf(searches[0]));
                     // Part two: preview the way back, then stand six cells off the line.
-                    Map<?, ?> back = goTo(ctx, "preview2.reply", start, Map.of("plan", "preview", "route", Map.of("risk", "normal")));
+                    goTo(ctx, "preview2.reply", start, Map.of("plan", "preview", "route", Map.of("risk", "normal")), back ->
                     awaitEnd(ctx, actionId(back), 200, t -> { }, backPreview -> {
                         String backId = String.valueOf(result(backPreview).get("planId"));
                         BlockPos off = ctx.rel(12, GROUND + 1, -6);
@@ -156,7 +155,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                                 java.util.Set.of(), 90f, 0f);
                         helm.sync(20, () -> {
                             ctx.record("offset.afterSync", helm.where());
-                            Map<?, ?> declined = call(ctx, "adopt2.reply", "mc.bot.goto", Map.of("planId", backId));
+                            ask(ctx, "adopt2.reply", "mc.bot.goto", Map.of("planId", backId), declined -> {
                             ctx.check(!action(declined).isEmpty())
                                     .as("G: when it declines, the goto still starts its own search: " + declined).isTrue();
                             awaitEnd(ctx, actionId(declined), 400, t -> { }, trip2 -> {
@@ -165,11 +164,13 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                                         .as("F: with the bot 6 blocks away from the preview's start, the goto declines to adopt and gives a reason: "
                                                 + trip2).isTrue();
                             });
+                            });
                         });
-                    });
+                    }));
+                });
                 });
             });
-        });
+        }));
     }
 
     /**
@@ -184,12 +185,10 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         BlockPos far = ctx.rel(40, GROUND + 1, 0);
         BlockPos other = ctx.rel(30, GROUND + 1, -5);
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
-        helm.sync(30, () -> {
-            Map<?, ?> walk = goTo(ctx, "longGoto.reply", far, Map.of());
+        helm.sync(30, () -> goTo(ctx, "longGoto.reply", far, Map.of(), walk -> {
             ctx.check(!action(walk).isEmpty()).as("A: the long-distance goto starts: " + walk).isTrue();
             String walkId = actionId(walk);
-            helm.sync(15, () -> {
-                Map<?, ?> preview = goTo(ctx, "preview.reply", other, Map.of("plan", "preview", "route", Map.of("risk", "safe")));
+            helm.sync(15, () -> goTo(ctx, "preview.reply", other, Map.of("plan", "preview", "route", Map.of("risk", "safe")), preview -> {
                 Object previewState = read(actionId(preview)).get("state");
                 Object walkState = read(walkId).get("state");
                 ctx.record("preview.atSubmit", "preview=" + previewState + " walk=" + walkState + ", bot at " + helm.where());
@@ -205,8 +204,8 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                     ctx.check("running".equals(walking) || helm.flatDistance(far) <= 1.5)
                             .as("F: the walk is still in progress (or has arrived) when the preview ends: " + walking).isTrue();
                 });
-            });
-        });
+            }));
+        }));
     }
 
     /**
@@ -225,7 +224,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                     "min", pos(goal.offset(-3, -1, -5)),
                     "max", pos(goal.offset(4, 3, 5)),
                     "mode", "forbid");
-            Map<?, ?> reply = goTo(ctx, "goto.reply", goal, Map.of("route", Map.of("regions", List.of(box))));
+            goTo(ctx, "goto.reply", goal, Map.of("route", Map.of("regions", List.of(box))), reply -> {
             ctx.check(!action(reply).isEmpty()).as("A: the goto starts: " + reply).isTrue();
             final List<Map<?, ?>> got = new ArrayList<>();
             ctx.await(() -> {
@@ -240,6 +239,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                 ctx.check("constraint:ForbidRegion".equals(reason))
                         .as("C: the reason names the hard constraint declared by this call: " + reason).isTrue();
             });
+            });
         });
     }
 
@@ -253,19 +253,12 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         BlockPos start = ctx.rel(0, GROUND + 1, 0);
         BlockPos goal = ctx.rel(4, GROUND + 1, 0);
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
-        helm.sync(20, () -> {
-            List<ApiIssue> issues = List.of();
-            try {
-                WorldDriverCommon.api().route("mc.bot.goto",
-                        Map.of("target", Map.of("kind", "position", "pos", pos(goal)), "forbidDig", true));
-            } catch (ApiException e) {
-                issues = e.error().issues();
-            }
-            ctx.record("oldField.rejection", issues.isEmpty() ? "not rejected" : issues.toString());
+        helm.sync(20, () -> goTo(ctx, "oldField.reply", goal, Map.of("forbidDig", true), rejected -> {
+            List<ApiIssue> issues = rejected.get("error") instanceof ApiException e ? e.error().issues() : List.of();
             ctx.check(issues.stream().anyMatch(i -> i.path().equals("/forbidDig") && i.code() == ApiIssue.Code.UNKNOWN_FIELD))
-                    .as("A: forbidDig is refused as an unknown field at its own path").isTrue();
-            Map<?, ?> ok = goTo(ctx, "route.break.reply", goal, Map.of("route", Map.of("break", "never")));
-            ctx.check(!action(ok).isEmpty()).as("B: route:{break:'never'} starts: " + ok).isTrue();
-        });
+                    .as("A: forbidDig is refused as an unknown field at its own path: " + issues).isTrue();
+            goTo(ctx, "route.break.reply", goal, Map.of("route", Map.of("break", "never")), ok ->
+                    ctx.check(!action(ok).isEmpty()).as("B: route:{break:'never'} starts: " + ok).isTrue());
+        }));
     }
 }

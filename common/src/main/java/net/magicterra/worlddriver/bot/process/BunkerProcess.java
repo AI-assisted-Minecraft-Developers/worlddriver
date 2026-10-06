@@ -72,10 +72,10 @@ public final class BunkerProcess implements BotProcess {
      *  SEALED never returns true (it holds the channel until an external cancel), so
      *  finish() is unreachable for the success case — instead the hold branch stamps
      *  endReason/goalReached in place, ONCE, without reset() and without changing the
-     *  return value. awaitable's slot fold then carries
+     *  return value. The status slot then carries
      *  {active:true, endReason:"SEALED", goalReached:<enclosed>} = the caller can
-     *  read "genuinely enclosed and holding position" even though the await itself times out (by design —
-     *  the process keeps holding the pocket). */
+     *  read "genuinely enclosed and holding position" while the process keeps holding the pocket;
+     *  {@link #achieved} is what ends the action. */
     private boolean sealedVerdictStamped;
 
     public BunkerProcess(int depth) {

@@ -1,7 +1,6 @@
 // ROADMAP Phase F — equipment management (T1 verb + T0 autoEquip). mc.bot.equip is
-// client-only (reads the client inventory menu + slot-clicks), so the tests self-skip
-// with a recorded PASS on the dedicated GameTest server and run for real in fabric
-// runClient. ScriptTest is CREATIVE — /give drops items into the inventory (not worn),
+// client-only (reads the client inventory menu + slot-clicks), so a dedicated server only
+// sees self refused, and the real checks run in fabric runClient. ScriptTest is CREATIVE — /give drops items into the inventory (not worn),
 // and the client inventory lags the server /give by a few ticks, so we equip on a
 // short retry loop (the verb is idempotent) rather than a fixed sleep.
 
@@ -41,8 +40,19 @@ function equipUntil(profile, slot, wantNeedle) {
     return r;
 }
 
+ScriptTest.run("45_equip: an unknown profile names the ones there are", function(t) {
+    var e = null;
+    try { Driver.bot.equip({ profile: "fancy" }); } catch (x) { e = x; }
+    t.assertEqual(e.issues[0].path, "/profile", "path");
+    t.assertTrue(e.issues[0].message.indexOf("armor") >= 0, "names them: " + e.issues[0].message);
+});
+
 if (!clientAvailable()) {
-    ScriptTest.run("45_equip: skipped (no client api — dedicated server)", function(t) {});
+    ScriptTest.run("45_equip: self is unavailable on a dedicated server", function(t) {
+        var r = Driver.bot.equip({});
+        t.assertEqual(r.outcome, "refused", "outcome");
+        t.assertEqual(r.reason, "body_unavailable", "reason");
+    });
 } else {
 
     ScriptTest.run("45_equip: equips the best armor on every slot (diamond over iron)", function(t) {
@@ -64,7 +74,7 @@ if (!clientAvailable()) {
             if (has(a.head && a.head.id, "diamond_helmet") && has(a.chest && a.chest.id, "diamond_chestplate")
                     && has(a.legs && a.legs.id, "diamond_leggings") && has(a.feet && a.feet.id, "diamond_boots")) break;
         }
-        t.assertEqual(r.ok, true, "equip ok");
+        t.assertEqual(r.outcome, "done", "equip done");
         t.assertTrue(has(me.armor.head.id, "diamond_helmet"), "worn head = diamond (" + JSON.stringify(me.armor.head) + ")");
         t.assertTrue(has(me.armor.chest.id, "diamond_chestplate"), "worn chest = diamond (" + JSON.stringify(me.armor.chest) + ")");
         t.assertTrue(has(me.armor.legs.id, "diamond_leggings"), "worn legs = diamond (" + JSON.stringify(me.armor.legs) + ")");

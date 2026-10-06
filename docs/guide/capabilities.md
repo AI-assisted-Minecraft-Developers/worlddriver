@@ -181,8 +181,12 @@ path that names no client class at all, which is why the same verbs answer for s
 players on a dedicated server. `mc.bot.status` itself works everywhere. The exceptions —
 `equip`, `setting`, `waypoint` and `playbook` — take no `body` and are client-only. A bot
 that is not your own player has no reflexes, and a bot that is not a player entity has no
-hands, so a task that needs them is refused as `unsupported_capability`, and the hand verbs
-(`lookAt`, `holdItem`, `useItem`, `attackEntity`) answer `no_hands`.
+hands, so a task or a hand verb that needs them is refused as `unsupported_capability`.
+
+The hand verbs (`lookAt`, `holdItem`, `useItem`, `attackEntity`, `equip`) act within the call
+and answer `{outcome: 'done', …}` with what came of it, or `{outcome: 'refused', reason, message}`
+with the same reasons a task is refused for: a missing entity, an item not in the inventory or a
+target out of reach is `invalid_world_target`.
 
 ### Movement
 
@@ -194,8 +198,8 @@ hands, so a task that needs them is refused as `unsupported_capability`, and the
 | `mc.bot.runAway` | **An action.** Walks to any reachable point at least `minDist` blocks from a position. The result says where it stopped. | `from` (default where the body stands), `minDist` (4–64, default 16) |
 | `mc.bot.escape` | **An action.** Carves a staircase up the driest wall and climbs out of a pit or well the pathfinder cannot solve, or digs a stair down when `targetY` is below the feet. Needs block breaking on and a solid, non-falling wall. A `targetY` outside the build height is refused. | `targetY` (default 32 above the feet) |
 | `mc.bot.elytraFly` | **An action.** Glides with an equipped elytra. With `reactive` it steers toward `pos` and boosts with rockets; otherwise it holds a fixed-heading glide. Needs to be airborne already. Without a usable elytra it is refused as `unsupported_capability`, unless `groundFallback` asks it to walk to `pos` instead. | `pos`, `yaw`, `pitch`, `reactive`, `fireworks`, `ticks`, `stopXZDist`, `groundFallback` |
-| `mc.bot.lookAt` | Aims the view, at a block centre or at explicit angles. Instant, unless the `smoothLook` setting is on, in which case it starts a panning process. The new rotation reaches the server entity one tick later. | `pos`, or `yaw` and `pitch` |
-| `mc.bot.waypoint` | Manages named in-memory positions, which `goto` can then target by name. Not persisted to disk. | `op` (`save`, `get`, `list`, `delete`, `clear`), `name`, `pos` |
+| `mc.bot.lookAt` | Aims the view, at a block centre or at explicit angles, and answers `done`. With the `smoothLook` setting on it is instead an action that pans over the next ticks, replacing the body's task. On your own player the new rotation reaches the server entity one tick later. | `pos`, or `yaw` and `pitch` |
+| `mc.bot.waypoint` | Manages named in-memory positions, which `goto` can then target by name. Not persisted to disk. The answer is tagged with the same `op`. | `op` (`save`, `get`, `list`, `delete`, `clear`), with `name` and `pos` where the op takes them |
 
 #### Targets for `goto`
 
@@ -278,8 +282,8 @@ is off.
 | Method | What it does | Notable parameters |
 |---|---|---|
 | `mc.bot.combat` | **An action.** Runs the tick-level fight loop: picks a target, closes to weapon range and lands cooldown-gated hits, pre-jumping for critical hits. Melee orbits a swarm; a bow or crossbow in hand kites instead. It pre-empts the running task and resumes it when the area clears. It fails below a frailty threshold unless you pass `force`, and a second fight supersedes the first. | `mode` (`engage`, `defend`, `kill`), `target` (`kill` only: `{kind: 'entity', entityId}` or `{kind: 'entityType', type}`), `force` |
-| `mc.bot.attackEntity` | One left click on an entity, with the yaw and pitch snapped first. Synchronous; spam it by polling. Read `attack` on the player snapshot first: a swing sent early still lands, but for a fraction of the weapon's damage. | `entityId` |
-| `mc.bot.equip` | Synchronous. Equips the best armour on every slot and, unless `armorOnly`, the best weapon in hand, scoring material tier and then enchantments. Returns what it put on, what is low on durability and which slots are still empty. | `profile`, `armorOnly` |
+| `mc.bot.attackEntity` | One left click on an entity, facing it. Read `attack` on the player snapshot first: a swing sent early still lands, but for a fraction of the weapon's damage. A blast that would take the block underfoot (an end crystal hit from its cage) is refused. | `entityId` |
+| `mc.bot.equip` | Equips the best armour on every slot and, unless `armorOnly`, the best weapon in hand, scoring material tier and then enchantments. Answers with what it put on, the `loadout`, what is low on durability and which slots are still empty. Your own player only. | `profile`, `armorOnly` |
 | `mc.bot.bunker` | **An action.** The no-gear emergency shelter: digs straight down and seals the roof with a dug block, making a pocket nothing can reach. Needs hand-mineable material below to supply the cap, and fails over water, lava or bedrock. The action succeeds once the roof is sealed; the body keeps holding the pocket until something else is asked of it. | `depth` (1–5) |
 | `mc.bot.playbook` | **Asynchronous, on a background thread.** Runs a multi-phase boss script — a hot-reloadable script that orchestrates combat, movement, gear and sensing into a whole fight, because that is minutes of work rather than the thirty seconds `mc.script.eval` allows. One at a time. | `op` (`start`, `status`, `cancel`), `name`, and any extra keys, which are injected into the script |
 
@@ -287,15 +291,15 @@ is off.
 
 | Method | What it does | Notable parameters |
 |---|---|---|
-| `mc.bot.holdItem` | Synchronous. Puts a specific item into the main hand, selecting its hotbar slot or swapping it up from the main inventory — so it reaches anywhere in the bag, not just the hotbar. The prelude to `useItem`. | `item` |
-| `mc.bot.useItem` | Synchronous. Right-clicks with the held item in one of three modes: in mid-air with neither `pos` nor `entityId`, on a block face with `pos`, or on an entity with `entityId`. The outcome depends on what is held — an empty hand mounts, a saddle saddles, food feeds. | `pos`, `entityId`, `face`, `hand`, `lookAt`, `sneak` |
+| `mc.bot.holdItem` | Puts a specific item into the main hand, selecting its hotbar slot or swapping it up from the main inventory — so it reaches anywhere in the bag, not just the hotbar. The prelude to `useItem`. | `item` (a full id such as `minecraft:water_bucket`) |
+| `mc.bot.useItem` | Right-clicks with the held item in one of three modes: in mid-air with neither `pos` nor `entityId`, on a block face with `pos`, or on an entity with `entityId` (not both). The outcome depends on what is held — an empty hand mounts, a saddle saddles, food feeds. The answer's `on` says what it was used on; on an entity it carries the vehicle and screen afterwards, reread until the server's answer arrives. | `pos`, `entityId`, `face` (with `pos`), `hand`, `lookAt`, `sneak` (with `entityId`) |
 
 ### Control and inspection
 
 | Method | What it does | Notable parameters |
 |---|---|---|
-| `mc.bot.status` | The snapshot of every process slot, plus the list of addressable bots. Available on a dedicated server. | `body` |
-| `mc.bot.cancel` | Cancels running processes, releases the held inputs, and names what it actually cancelled. `all` is a best-effort broadcast. | `process`, `body` |
+| `mc.bot.status` | The list of addressable bots, and one body's `status`: every process slot, how its last task ended, and — for your own player — its reflexes. Available on a dedicated server; an unknown body is refused as `body_unavailable`. | `body` |
+| `mc.bot.cancel` | Cancels one action by `actionId`, or a body's processes by `process`, releasing the held inputs; `cancelled` lists what it actually stopped, empty when nothing matched. `all` is a best-effort broadcast. | `actionId`, or `process` and `body` |
 | `mc.bot.setting` | Reads or writes the tuning and toggle surface. Empty parameters reads; any key writes, applied on the next tick. | See below |
 
 ### Running a long verb
@@ -316,17 +320,17 @@ and answers with the action as it then stands; `waitTimedOut: true` says it was 
 fields say what it did — `broken`, `placed`, `crafted`, …), `failed` (with a `message`),
 `cancelled` or `superseded`. A body runs one task at a time, so a new one supersedes the old.
 
-**Poll the status.** Call `mc.bot.status` and read the slot. Each slot carries `active`,
+**Poll the status.** Call `mc.bot.status` and read `status.slots`. Each slot carries `active`,
 `pathLen`, `pathStep` and `lastError`. A slot's `lastError` is not a failure flag on its own:
 `build`, `clearArea`, `farm`, `construct`, `explore` and `sleep` also leave their success summary
 there (`"done (placed=12, skipped=0)"`, `"not needed (…)"`), and so does the auto-backfill
 (`"backfill done"`). Whether the last user task did what it was asked is `lastProcessEnd`,
-`{kind, error}` at the top level of the status: `error` is null only when it did, and otherwise
+`{kind, error?}` beside the slots: `error` is absent only when it did, and otherwise
 says why it stopped — a give-up (a goto that ended short of its goal, a build that skipped
 blocks, a follow that could not close in), an exception, or a cancel. A goto with `invert` or a
 strict `direction` has no goal to reach, so it is done when it stops. The auto-backfill is not a
 user task and leaves `lastProcessEnd` as it was. A named bot's status (`body: "player:…"` or
-`"npc:…"`) carries its own `lastProcessEnd` in the same shape. `lastPath` holds the
+`"npc:…"`) carries its own `lastProcessEnd` in the same shape. `reflexes.lastPath` holds the
 statistics of the most recent search — how many nodes were expanded, how long it took, and
 whether the goal was reached — which is the first thing to read when the answer to "why is
 it not moving" is not obvious: few expanded nodes together with `goalReached: false` means

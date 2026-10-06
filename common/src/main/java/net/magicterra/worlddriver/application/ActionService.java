@@ -5,7 +5,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.api.ApiTimers;
@@ -74,6 +76,9 @@ final class ActionService {
     /** Start nothing: a valid request this body cannot take now. */
     record Refuse<R>(RefusalReason reason, String message) implements Plan<R> {}
 
+    private static final String NO_CLIENT = "self is this client's own player, and there is no client here "
+            + "(a dedicated server); name a bot with body: player:<name> or npc:<name>";
+
     /** Margin kept off the caller's deadline so the answer is written before the caller gives up. */
     private static final long REPLY_MARGIN_MS = 250;
 
@@ -110,10 +115,7 @@ final class ActionService {
 
     private <R> CompletionStage<ActionResponse<R>> startOnSelf(CallContext ctx, Planner<R> planner) {
         BotApi bot = BotHooks.impl();
-        if (bot == null) {
-            return refused(RefusalReason.BODY_UNAVAILABLE, "self is this client's own player, and there is no client here "
-                    + "(a dedicated server); name a bot with body: player:<name> or npc:<name>");
-        }
+        if (bot == null) return refused(RefusalReason.BODY_UNAVAILABLE, NO_CLIENT);
         long generation = actions.generation(ActionHandle.Scope.CLIENT);
         ServerThreadHop hop = bot.clientHop();
         Executor client = bot.clientExecutor();
@@ -154,6 +156,42 @@ final class ActionService {
                 });
                 host.start(process, h);
             });
+        }, ctx);
+    }
+
+    /**
+     * Work that ends within the call, on the body's game thread: {@code onSelf} on the client thread with
+     * this client's player, {@code onHost} on the server thread with a named bot. A body that cannot act,
+     * or that another run holds, is answered through {@code refuse} with nothing done.
+     */
+    <T> CompletionStage<T> within(String body, CallContext ctx, BiFunction<RefusalReason, String, T> refuse,
+                                  BiFunction<BotApi, LivingEntity, T> onSelf, Function<BodyHost, T> onHost) {
+        if (BodyRegistry.isSelf(body)) {
+            BotApi bot = BotHooks.impl();
+            if (bot == null) return CompletableFuture.completedFuture(refuse.apply(RefusalReason.BODY_UNAVAILABLE, NO_CLIENT));
+            return bot.clientHop().submit(() -> {
+                Map<String, Object> refusal = bot.bodyRefusal();
+                LivingEntity self = bot.selfEntity();
+                if (refusal != null || self == null) {
+                    return refuse.apply(RefusalReason.BODY_UNAVAILABLE, refusal == null ? "self has no player"
+                            : String.valueOf(refusal.get("error")));
+                }
+                ActionRegistry.Denied busy = actions.claim(BodyRegistry.SELF, ctx.run());
+                return busy != null ? refuse.apply(busy.reason(), busy.message()) : onSelf.apply(bot, self);
+            }, ctx);
+        }
+        ServerThreadHop hop = app.serverHop();
+        if (hop == null) {
+            return CompletableFuture.completedFuture(refuse.apply(RefusalReason.BODY_UNAVAILABLE,
+                    body + " is unavailable: no server is attached"));
+        }
+        return hop.submit(() -> {
+            BodyHost host = BodyRegistry.get(body);
+            if (host == null) return refuse.apply(RefusalReason.BODY_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots");
+            Map<String, Object> refusal = host.refusal();
+            if (refusal != null) return refuse.apply(RefusalReason.BODY_UNAVAILABLE, String.valueOf(refusal.get("error")));
+            ActionRegistry.Denied busy = actions.claim(host.id(), ctx.run());
+            return busy != null ? refuse.apply(busy.reason(), busy.message()) : onHost.apply(host);
         }, ctx);
     }
 

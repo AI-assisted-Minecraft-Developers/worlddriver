@@ -30,7 +30,8 @@ public final class ActionResults {
             MoveContracts.RUN_AWAY_RESULT,
             MoveContracts.SLEEP_RESULT,
             MoveContracts.ELYTRA_RESULT,
-            CombatContract.RESULT);
+            CombatContract.RESULT,
+            HandContracts.LOOK_RESULT);
 
     public static final UnionType<Object> UNION = union();
 

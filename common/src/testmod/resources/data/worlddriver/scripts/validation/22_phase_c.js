@@ -28,17 +28,16 @@ if (!clientAvailable()) {
     });
 
     ScriptTest.run("22_phase_c: status returns canonical shape (lastPath optional)", function(t) {
-        var s = Driver.invoke("mc.bot.status", {});
-        // status returns the BotState slots + paused + activeProcess; lastPath
-        // is only present after a goto/mine/etc has actually run A*. Don't
+        var s = Driver.bot.status({}).status;
+        // lastPath is only present after a goto/mine/etc has actually run A*. Don't
         // require it — but if present, must have the documented fields.
-        t.assertTrue(typeof s === "object", "status is object");
-        t.assertTrue("paused" in s, "paused present");
-        t.assertTrue("goto" in s, "goto slot present");
-        if (s.lastPath) {
-            t.assertTrue(typeof s.lastPath.expanded === "number", "lastPath.expanded is number");
-            t.assertTrue(typeof s.lastPath.ms === "number", "lastPath.ms is number");
-            t.assertTrue(typeof s.lastPath.goalReached === "boolean", "lastPath.goalReached is boolean");
+        t.assertEqual(s.body, "self", "self's status");
+        t.assertTrue(typeof s.reflexes.paused === "boolean", "paused present");
+        t.assertTrue("goto" in s.slots, "goto slot present");
+        if (s.reflexes.lastPath) {
+            t.assertTrue(typeof s.reflexes.lastPath.expanded === "number", "lastPath.expanded is number");
+            t.assertTrue(typeof s.reflexes.lastPath.ms === "number", "lastPath.ms is number");
+            t.assertTrue(typeof s.reflexes.lastPath.goalReached === "boolean", "lastPath.goalReached is boolean");
         }
     });
 

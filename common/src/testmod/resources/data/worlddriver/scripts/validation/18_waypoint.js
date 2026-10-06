@@ -1,6 +1,5 @@
-// Client-only — mc.bot.waypoint storage lives in the bot impl, which the
-// dedicated server / GameTest harness doesn't bind. Record a skipped-PASS
-// so headless runs stay green; the round-trip lives in fabric runClient.
+// mc.bot.waypoint: named positions this client keeps. The request checks read nothing and run on every
+// topology; storing needs the bot impl, which a dedicated server does not bind.
 
 function clientAvailable() {
     try {
@@ -11,74 +10,64 @@ function clientAvailable() {
     }
 }
 
+/** The DriverApiError a call throws, or null when it returned. */
+function errorOf(call) {
+    try { call(); } catch (e) { return e; }
+    return null;
+}
+
+ScriptTest.run("18_waypoint: an unknown op names the ones there are", function(t) {
+    var e = errorOf(function() { Driver.bot.waypoint({ op: "wiggle" }); });
+    t.assertEqual(e.issues[0].path, "/op", "path");
+    t.assertTrue(e.issues[0].message.indexOf("save") >= 0, "names them: " + e.issues[0].message);
+});
+
+ScriptTest.run("18_waypoint: save needs a name", function(t) {
+    var e = errorOf(function() { Driver.bot.waypoint({ op: "save" }); });
+    t.assertEqual(e.issues[0].path, "/name", "path");
+    t.assertEqual(e.issues[0].code, "required", "issue code");
+});
+
+ScriptTest.run("18_waypoint: the same error over in-JVM, RPC and MCP", function(t) {
+    var args = { op: "wiggle" };
+    var direct = errorOf(function() { Driver.invoke("mc.bot.waypoint", args); });
+    var viaTcp = errorOf(function() { Driver.system.rpcRoundtrip("mc.bot.waypoint", args); });
+    var viaMcp = errorOf(function() { Driver.system.mcpRoundtrip("mc.bot.waypoint", args); });
+    t.assertEqual(JSON.stringify(viaTcp.issues), JSON.stringify(direct.issues), "RPC issues");
+    t.assertEqual(JSON.stringify(viaMcp.issues), JSON.stringify(direct.issues), "MCP issues");
+});
+
 if (!clientAvailable()) {
-    ScriptTest.run("18_waypoint: skipped (no client api — dedicated server)", function(t) {
-        // PASS
+    ScriptTest.run("18_waypoint: a dedicated server keeps none", function(t) {
+        var e = errorOf(function() { Driver.bot.waypoint({ op: "list" }); });
+        t.assertEqual(e.code, "capability_unavailable", "code");
     });
 } else {
 
     // Ensure clean slate.
-    try { Driver.invoke("mc.bot.waypoint", { op: "clear" }); } catch (e) {}
+    Driver.bot.waypoint({ op: "clear" });
 
     ScriptTest.run("18_waypoint: save with explicit pos round-trips", function(t) {
-        var pos = { x: 10, y: 64, z: 20 };
-        var s = Driver.invoke("mc.bot.waypoint", { op: "save", name: "home", pos: pos });
-        t.assertEqual(s.ok, true, "save must succeed");
+        var s = Driver.bot.waypoint({ op: "save", name: "home", pos: { x: 10, y: 64, z: 20 } });
+        t.assertEqual(s.op, "save", "op");
         t.assertEqual(s.name, "home", "echoed name");
         t.assertEqual(s.pos.x, 10, "pos round-trips x");
         t.assertEqual(s.pos.y, 64, "pos round-trips y");
         t.assertEqual(s.pos.z, 20, "pos round-trips z");
-
-        var g = Driver.invoke("mc.bot.waypoint", { op: "get", name: "home" });
-        t.assertEqual(g.ok, true, "get must succeed");
+        var g = Driver.bot.waypoint({ op: "get", name: "home" });
         t.assertEqual(g.pos.x, 10, "get returns saved x");
     });
 
     ScriptTest.run("18_waypoint: list reports stored entries", function(t) {
-        var l = Driver.invoke("mc.bot.waypoint", { op: "list" });
-        t.assertEqual(l.ok, true, "list must succeed");
-        t.assertTrue(Array.isArray(l.waypoints), "waypoints must be array");
-        t.assertTrue(l.count >= 1, "count must reflect stored entries");
+        var l = Driver.bot.waypoint({ op: "list" });
+        t.assertTrue(Array.isArray(l.waypoints) && l.waypoints.length >= 1, "stored entries: " + JSON.stringify(l));
     });
 
     ScriptTest.run("18_waypoint: delete removes the entry", function(t) {
-        Driver.invoke("mc.bot.waypoint", { op: "save", name: "tmp", pos: { x: 1, y: 2, z: 3 } });
-        var d = Driver.invoke("mc.bot.waypoint", { op: "delete", name: "tmp" });
-        t.assertEqual(d.ok, true, "delete must succeed");
+        Driver.bot.waypoint({ op: "save", name: "tmp", pos: { x: 1, y: 2, z: 3 } });
+        var d = Driver.bot.waypoint({ op: "delete", name: "tmp" });
         t.assertEqual(d.existed, true, "must report existed=true");
-        var g = Driver.invoke("mc.bot.waypoint", { op: "get", name: "tmp" });
-        t.assertEqual(g.ok, false, "get after delete must fail");
+        var e = errorOf(function() { Driver.bot.waypoint({ op: "get", name: "tmp" }); });
+        t.assertEqual(e.issues[0].path, "/name", "a deleted name is no waypoint");
     });
-
-    ScriptTest.run("18_waypoint: save without name is rejected", function(t) {
-        var r = Driver.invoke("mc.bot.waypoint", { op: "save" });
-        t.assertEqual(r.ok, false, "missing name must be ok:false");
-        t.assertTrue(r.error.indexOf("name") >= 0, "error must mention 'name'");
-    });
-
-    ScriptTest.run("18_waypoint: unknown op is rejected", function(t) {
-        // Route-layer schema validation rejects the enum violation before the tool
-        // runs; the validator message echoes the offending value.
-        var msg = null;
-        try { Driver.invoke("mc.bot.waypoint", { op: "wiggle" }); } catch (e) { msg = String(e); }
-        t.assertTrue(msg !== null && msg.indexOf("wiggle") >= 0,
-            "unknown op must be rejected by schema validation echoing the bad op, got: " + msg);
-    });
-
-    ScriptTest.run("18_waypoint: schema-reject surfaces identically across in-JVM, RPC, MCP transports",
-        function(t) {
-            // The validator runs inside DriverApi.route(), shared by all three
-            // transports — each must surface the SAME core violation message
-            // (each transport adds its own wrapper prefix, so we compare cores).
-            var args = { op: "wiggle" };
-            var core = "invalid params for mc.bot.waypoint:";
-            function thrownMsg(fn) { try { fn(); return null; } catch (e) { return String(e); } }
-            var direct = thrownMsg(function() { Driver.invoke("mc.bot.waypoint", args); });
-            var viaTcp = thrownMsg(function() { Driver.system.rpcRoundtrip("mc.bot.waypoint", args); });
-            var viaMcp = thrownMsg(function() { Driver.system.mcpRoundtrip("mc.bot.waypoint", args); });
-            t.assertTrue(direct !== null && direct.indexOf(core) >= 0, "in-JVM must throw validator error, got: " + direct);
-            t.assertTrue(viaTcp !== null && viaTcp.indexOf(core) >= 0, "RPC must surface the validator error, got: " + viaTcp);
-            t.assertTrue(viaMcp !== null && viaMcp.indexOf(core) >= 0, "MCP must surface the validator error, got: " + viaMcp);
-        });
-
 }

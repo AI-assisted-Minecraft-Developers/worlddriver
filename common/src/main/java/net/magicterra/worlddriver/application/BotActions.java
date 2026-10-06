@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.application;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -62,8 +63,10 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 
@@ -81,6 +84,13 @@ final class BotActions {
     }
 
     List<ApiMethod<?, ?>> methods() {
+        List<ApiMethod<?, ?>> all = new ArrayList<>(tasks());
+        all.addAll(new HandMethods(actions).methods());
+        all.addAll(new ControlMethods(app).methods());
+        return all;
+    }
+
+    private List<ApiMethod<?, ?>> tasks() {
         return List.of(
                 new ApiMethod<>(ClearAreaContract.SPEC, this::clearArea),
                 new ApiMethod<>(GotoContract.SPEC, this::goTo),
@@ -233,10 +243,24 @@ final class BotActions {
             if (selfOnly != null) {
                 return ActionService.unsupported(selfOnly + " is only taken by self: waypoints, previews and plans are the client's");
             }
-            GotoOrders.Resolution r = GotoOrders.resolve(p, body, Map.of(), type -> BodyRoutes.nearestOfType(body, type));
+            GotoOrders.Resolution r = GotoOrders.resolve(p, body, Map.of(), type -> nearestOfType(body, type));
             if (r instanceof GotoOrders.Refuse refuse) return plan(refuse);
             return plan(GotoOrders.start((GotoOrders.Resolved) r, body, app::emitExternal));
         });
+    }
+
+    /** The nearest loaded entity of {@code typeId} in the bot's level: for another bot, what the
+     *  client's scan of rendered entities is for {@code self}. Server thread. */
+    private static Entity nearestOfType(Entity self, String typeId) {
+        if (!(self.level() instanceof ServerLevel level)) return null;
+        Entity best = null;
+        double bestD = Double.MAX_VALUE;
+        for (Entity e : level.getAllEntities()) {
+            if (e == self || !typeId.equals(BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString())) continue;
+            double d = e.distanceToSqr(self);
+            if (d < bestD) { bestD = d; best = e; }
+        }
+        return best;
     }
 
     /** {@code plan: 'score'}: answered at once on the client thread; starts nothing. */
@@ -279,7 +303,7 @@ final class BotActions {
         }
     }
 
-    private static String requireRegistered(Registry<?> registry, String what, String path, String id) {
+    static String requireRegistered(Registry<?> registry, String what, String path, String id) {
         ResourceLocation rl = ResourceLocation.tryParse(id);
         if (rl == null || !registry.containsKey(rl)) {
             throw ApiException.invalidParam(path, ApiIssue.Code.INVALID_VALUE, "no " + what + " " + id + " in this game");

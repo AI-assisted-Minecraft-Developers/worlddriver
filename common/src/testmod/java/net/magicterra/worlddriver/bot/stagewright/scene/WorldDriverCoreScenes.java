@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
@@ -249,10 +250,10 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // bid of 50 from here until the drown scenes minutes later. AutoSwim's in-process backstop
         // stands down only when the scheduler is idle, so it surfaced the bot that
         // wd.drownEscapeClientStaysDownDisarmed needs to keep under. Cancel everything on the way
-        // out, on FAIL and TIMEOUT too. The verb is client-only; a dedicated server has no bot and
-        // the route would throw.
+        // out, on FAIL and TIMEOUT too. A dedicated server has no bot. Sent without waiting: self's
+        // cancel runs on the client thread, which a cleanup on the server thread may not wait for.
         if (BotHooks.isAvailable()) {
-            ctx.cleanup(() -> WorldDriverCommon.api().route("mc.bot.cancel", Map.of()));
+            ctx.cleanup(() -> WorldDriverCommon.api().dispatch("mc.bot.cancel", Map.of(), CallContext.standalone()));
         }
 
         AtomicReference<Integer> result = new AtomicReference<>();
@@ -323,8 +324,11 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  never self-skipped) retired with the mc.test.yaml harness; 254 until 66_body_routes.js
      *  (3 checks, both topologies, needs no bot player) was added; 257 until the build stamp (1 check,
      *  both topologies) and the capture's frame check (1 check, client-face) were added; 259 until
-     *  11_script_eval.js's javaClassName check (1 check, both topologies) was added. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 260;
+     *  11_script_eval.js's javaClassName check (1 check, both topologies) was added; 260 until the typed
+     *  body-task and hand verbs replaced their self-skips with request checks that run everywhere; 270
+     *  until 18_waypoint merged its three rejection checks into two and 66_body_routes its two
+     *  unknown-body checks into one. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 269;
 
     /** task#92 — the same suite's check count on the DEDICATED topology, where the ~35 client-face
      *  scripts each self-skip to a single "no client" placeholder (their real branch needs a client).
@@ -333,8 +337,10 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  INTEGRATED note above. 145 until the build stamp was added: it needs no client, so it is the
      *  one of that pair that lands here too. 146 until the javaClassName check was added; 147 until
      *  the typed clearArea and goto contracts added their refusal, issue-path and parity checks; 164
-     *  until the typed body-task verbs did the same, their request checks no longer self-skipping. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 184;
+     *  until the typed body-task verbs did the same, their request checks no longer self-skipping; 184
+     *  until the hand verbs did too; 190 until waypoint's request checks stopped self-skipping and
+     *  66_body_routes folded its two unknown-body checks into one. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 192;
 
     /** task#92 — allow-list of check-name substrings permitted to record a {@code SKIP(task#92)} PASS on
      *  a topology whose precondition isn't met. Every skipped check MUST match one of these; any other
@@ -1882,7 +1888,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // One click pending, not two: the driver counts one before the event so a mod that polls
         // consumeClick() sees it, and vanilla's keyPress counts one of its own inside that event.
         // Two would make every poll-driven binding act twice.
-        ctx.expect(m.get("clicks")).as("clicks left pending on the mapping").isEqualTo(1);
+        ctx.expect(m.get("clicks") instanceof Number n ? n.intValue() : m.get("clicks"))
+                .as("clicks left pending on the mapping").isEqualTo(1);
         // What the keystroke left open, which is what routes the caller's NEXT one. A driver lost
         // four readings to a screen it did not know was there, so the reply names it.
         ctx.expect(m.get("screenAfter")).as("the screen this keystroke left standing")

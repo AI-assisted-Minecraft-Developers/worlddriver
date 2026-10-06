@@ -44,8 +44,8 @@ public final class BotState {
      *  (goalReached = block-level enclosure ground truth, NOT hazardSummary.cornered). */
     public final ProcessSlot bunker = new ProcessSlot("bunker");
     /** A route preview ({@code mc.bot.goto} with {@code plan: true}, {@code PreviewSearch}). Not a
-     *  process: it drives nothing and is not in {@link #activeName()}. Exists because
-     *  {@code awaitable} waits on a slot's {@code active}, and a missing slot reads as finished. */
+     *  process: it drives nothing and is not in {@link #activeName()}. Exists so a status poll sees the
+     *  search running: a missing slot reads as finished. */
     public final ProcessSlot plan = new ProcessSlot("plan");
     /** The latest preview's result, merged into the {@code plan} slot's snapshot. */
     public volatile Map<String, Object> planResult;
@@ -229,7 +229,7 @@ public final class BotState {
         public volatile long startedAtMs;
         public volatile String lastError;  // null if last run ok or in-progress
         /** gap#68-R2: honest terminal verdict of the LAST run. Null/−1 until a run ends.
-         *  Kept across reset() (like lastError) so awaitable/wait.condition can read it. */
+         *  Kept across reset() (like lastError) so a status read or wait.condition can read it. */
         public volatile Boolean goalReached;
         public volatile String endReason;
         public volatile double finalDist = -1;

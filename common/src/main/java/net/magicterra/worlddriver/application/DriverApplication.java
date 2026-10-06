@@ -21,7 +21,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -271,20 +270,9 @@ public final class DriverApplication extends DriverApi {
     }
 
     private void registerBotRoutes() {
-        // Bot routes — client-side; unavailable on dedicated server.
-        // Async actions accept an optional `awaitMs` that, when set, makes the
-        // route block on bot.status until the named slot goes idle (or times
-        // out), folding the final status snapshot into the response.
-        // Verbs that drive the player go through body(): BodyReady's refusal answers
-        // first when the player is missing, dead, paused, in bed, loading or off a
-        // loaded chunk. status/cancel/setting/waypoint stay open while it is down.
-        // The verbs that also take `body` are in putBodyRoutes().
-        putBodyRoutes();
-        routes.put("mc.bot.equip",     body(p -> requireBot().equip(p)));
-        // pause/resume are reachable through mc.bot.setting{paused:bool} —
-        // same vol-toggle handler in BotApiImpl.setting absorbs both.
+        // Bot routes — client-side; unavailable on dedicated server. setting stays open while the
+        // player is down. pause/resume are reachable through mc.bot.setting{paused:bool}.
         routes.put("mc.bot.setting",   p -> requireBot().setting(p));
-        routes.put("mc.bot.waypoint",  p -> requireBot().waypoint(p));
         // Phase G boss playbooks — Rhino scripts run on a background thread by the
         // PlaybookRunner (bound at startup, like scriptHandler). op=start|status|cancel.
         routes.put("mc.bot.playbook", p -> {
@@ -345,48 +333,6 @@ public final class DriverApplication extends DriverApi {
         BotApi b = BotHooks.impl();
         if (b == null) throw new IllegalStateException("mc.bot.* not available (client only; bot impl not registered)");
         return b;
-    }
-
-    /** A player-driving verb behind the client's {@link BotApi#bodyRefusal()}: the refusal is the answer when there is one. */
-    private static Function<Map<String, Object>, Object> body(Function<Map<String, Object>, Object> verb) {
-        return p -> {
-            Map<String, Object> refused = requireBot().bodyRefusal();
-            return refused != null ? refused : verb.apply(p);
-        };
-    }
-
-    /**
-     * The verbs that also take {@code body}: anything but self goes to {@link BodyRoutes}, which
-     * never touches the client bot, so these answer for server-side bots on a dedicated server.
-     */
-    private void putBodyRoutes() {
-        BodyRoutes bodies = new BodyRoutes(this);
-        routes.put("mc.bot.cancel", p -> BodyRoutes.isSelf(p) ? requireBot().cancel(p) : bodies.cancel(p));
-        routes.put("mc.bot.status", bodies::status);
-        putBodyVerb(bodies, "mc.bot.lookAt",       null, BotApi::lookAt,       BodyInteractions::lookAt);
-        putBodyVerb(bodies, "mc.bot.holdItem",     null, BotApi::holdItem,     BodyInteractions::holdItem);
-        putBodyVerb(bodies, "mc.bot.attackEntity", null, BotApi::attackEntity, BodyInteractions::attackEntity);
-        // mc.bot.useItem dispatches based on params: pass `entityId` to right-click
-        // an entity (mount / trade / shear / milk / feed / leash); pass `pos` to use
-        // the held item ON a block face (place / bone-meal / shears / etc.); omit both
-        // to use the item in mid-air (eat / draw bow / throw snowball).
-        putBodyVerb(bodies, "mc.bot.useItem", null, (bot, p) -> p != null && p.get("entityId") != null ? bot.useItemOnEntity(p)
-                : p != null && p.get("pos") != null ? bot.useItemOn(p) : bot.useItem(p), BodyInteractions::useItem);
-    }
-
-    /**
-     * {@code method} on self through {@code onSelf} behind {@link #body}, on another bot through
-     * {@code onHost} by way of {@link BodyRoutes#onHost}. {@code slot} is what {@code awaitMs} waits
-     * on, or null for a verb that does not wait.
-     */
-    private void putBodyVerb(BodyRoutes bodies, String method, String slot,
-                             BiFunction<BotApi, Map<String, Object>, Map<String, Object>> onSelf,
-                             BiFunction<net.magicterra.worlddriver.bot.body.BodyHost, Params, Map<String, Object>> onHost) {
-        Function<Map<String, Object>, Map<String, Object>> self = p -> onSelf.apply(requireBot(), p);
-        Function<Map<String, Object>, Map<String, Object>> other = p -> bodies.onHost(p, onHost);
-        Function<Map<String, Object>, Object> selfRoute = body(slot == null ? self::apply : p -> awaitable(p, slot, self));
-        routes.put(method, p -> BodyRoutes.isSelf(p) ? selfRoute.apply(p)
-                : slot == null ? other.apply(p) : awaitable(p, slot, other, bodies.slotsOf(p)));
     }
 
     public void attachServer(MinecraftServer s) {
@@ -507,97 +453,6 @@ public final class DriverApplication extends DriverApi {
     private double numD(Object o) { return Params.toDouble(o, 0.0); }
 
     /**
-     * The status slot an awaited verb waits on: the reply's own non-blank {@code slot} string
-     * wins, else the route table's literal. NOT "only the reply's": the other fourteen awaitable
-     * verbs never answer with a slot, and reading only the reply would send them into the
-     * "slot disappeared → completed" branch, making their {@code awaitMs} return at once without
-     * an error. Package-visible for the unit test that pins this.
-     */
-    static String slotToAwait(Map<String, Object> started, String routeSlot) {
-        return started != null && started.get("slot") instanceof String s && !s.isBlank() ? s : routeSlot;
-    }
-
-    /**
-     * Bot async-route wrapper. If {@code params.awaitMs} is set, invoke the
-     * underlying impl, then poll {@code mc.bot.status} until {@code <slot>.active}
-     * becomes falsy (success), the slot's {@code lastError} appears (failure), or
-     * the deadline elapses (timeout). Folds the started-response and the final
-     * status snapshot into one merged Map. Without {@code awaitMs}, behaves
-     * identically to the previous fire-and-forget call.
-     *
-     * The {@code awaitMs} key is stripped from params before calling the impl so
-     * existing impls that don't know about it stay happy.
-     *
-     * <p><b>Which slot is waited on</b> is {@link #slotToAwait}: the impl's own {@code slot} when
-     * its reply carries one, else the literal the route table passed.
-     */
-    private Map<String, Object> awaitable(Map<String, Object> params, String slot,
-                                          Function<Map<String, Object>, Map<String, Object>> impl) {
-        return awaitable(params, slot, impl, () -> requireBot().status());
-    }
-
-    /** {@link #awaitable} polling {@code statusSource} for the slot: how an order to a bot named by
-     *  {@code body} waits on that bot's slots rather than the client bot's. */
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> awaitable(Map<String, Object> params, String slot,
-                                          Function<Map<String, Object>, Map<String, Object>> impl,
-                                          Supplier<Map<String, Object>> statusSource) {
-        Object awaitObj = params.get("awaitMs");
-        if (!(awaitObj instanceof Number)) {
-            return impl.apply(params);
-        }
-        ServerThreadGuard.refuseBlocking("awaitMs");
-        long budgetMs = ApiSupport.clamp(((Number) awaitObj).longValue(), 1L, 600_000L);
-        Map<String, Object> innerParams = new LinkedHashMap<>(params);
-        innerParams.remove("awaitMs");
-        Map<String, Object> started = impl.apply(innerParams);
-
-        // If the impl rejected (ok:false / started:false), don't bother polling.
-        Object startedFlag = started.get("started");
-        if (Boolean.FALSE.equals(startedFlag) || Boolean.FALSE.equals(started.get("ok"))) {
-            return started;
-        }
-        slot = slotToAwait(started, slot);
-
-        long t0 = System.nanoTime();
-        long deadlineNanos = t0 + budgetMs * 1_000_000L;
-        long pollMs = 200L;
-        Map<String, Object> finalStatus = null;
-        boolean completed = false;
-        while (true) {
-            Map<String, Object> status = statusSource.get();
-            finalStatus = status;
-            Object slotObj = status.get(slot);
-            if (slotObj instanceof Map<?, ?> slotMap) {
-                Object active = slotMap.get("active");
-                if (!Boolean.TRUE.equals(active)) {
-                    completed = true;
-                    break;
-                }
-            } else {
-                // Slot disappeared — treat as completed.
-                completed = true;
-                break;
-            }
-            if (sleepUntilNanos(deadlineNanos, pollMs)) break;
-        }
-        long ms = (System.nanoTime() - t0) / 1_000_000L;
-        Map<String, Object> out = new LinkedHashMap<>(started);
-        out.put("awaited", true);
-        out.put("completed", completed);
-        out.put("ms", ms);
-        if (finalStatus != null) {
-            Object slotObj = finalStatus.get(slot);
-            if (slotObj instanceof Map<?, ?> slotMap) {
-                out.put("status", slotObj);
-                Object gr = ((Map<String, Object>) slotMap).get("goalReached");
-                if (gr != null) out.put("goalReached", gr);
-            }
-        }
-        return out;
-    }
-
-    /**
      * Action-route wrapper. When {@code params.returnEvents == true}, capture the
      * event cursor before {@code impl} runs and append any new events to the
      * response under the {@code events} key. Saves the
@@ -618,21 +473,6 @@ public final class DriverApplication extends DriverApi {
         Map<String, Object> out = new LinkedHashMap<>(result);
         out.put("events", page);
         return out;
-    }
-
-    /** Sleep up to pollMs without exceeding deadlineNanos. Returns true when the
-     *  deadline has been reached (caller should bail). */
-    private static boolean sleepUntilNanos(long deadlineNanos, long pollMs) {
-        long now = System.nanoTime();
-        if (now >= deadlineNanos) return true;
-        long remainingMs = (deadlineNanos - now) / 1_000_000L;
-        try {
-            Thread.sleep(Math.max(1L, Math.min(pollMs, remainingMs)));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return true;
-        }
-        return false;
     }
 
 

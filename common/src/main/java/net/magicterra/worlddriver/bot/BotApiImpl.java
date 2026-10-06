@@ -6,8 +6,15 @@ import net.magicterra.worlddriver.bot.process.RouteEvents;
 import net.magicterra.worlddriver.api.WorldCell;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.ActionContract;
+import net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.CombatContract;
+import net.magicterra.worlddriver.api.methods.CommonTypes;
+import net.magicterra.worlddriver.api.methods.ControlContracts;
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.methods.GotoContract;
+import net.magicterra.worlddriver.api.methods.HandContracts;
+import java.util.Optional;
 import net.magicterra.worlddriver.api.methods.RouteContract;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.model.Params;
@@ -280,56 +287,43 @@ public final class BotApiImpl implements BotApi {
     }
 
     @Override
-    public Map<String, Object> waypoint(Map<String, Object> params) {
-        final Params p = Params.of(params);
-        final String op = (p.get("op") instanceof String s && !s.isBlank()) ? s.trim().toLowerCase(Locale.ROOT) : "list";
-        return onClient(() -> {
-            switch (op) {
-                case "save" -> {
-                    String name = p.getNonBlank("name");
-                    if (name == null) return Map.of("ok", false, "error", "name required");
-                    BlockPos pos = p.getPos("pos");
-                    if (pos == null) {
-                        LocalPlayer pl = Minecraft.getInstance().player;
-                        if (pl == null) return Map.of("ok", false, "error", "no pos provided and no player");
-                        pos = blockPosOf(pl.getX(), pl.getY(), pl.getZ());
-                    }
-                    waypoints.put(name, pos);
-                    return Map.of("ok", true, "op", "save", "name", name, "pos", posMap(pos), "count", waypoints.size());
+    public ControlContracts.WaypointReply waypoint(ControlContracts.WaypointOp op) {
+        return switch (op) {
+            case ControlContracts.Save s -> {
+                BlockPos pos;
+                if (s.pos().isPresent()) {
+                    pos = new BlockPos(s.pos().get().x(), s.pos().get().y(), s.pos().get().z());
+                } else {
+                    LocalPlayer pl = Minecraft.getInstance().player;
+                    if (pl == null) throw new IllegalStateException("no pos given and no player to take one from");
+                    pos = blockPosOf(pl.getX(), pl.getY(), pl.getZ());
                 }
-                case "delete" -> {
-                    String name = p.getNonBlank("name");
-                    if (name == null) return Map.of("ok", false, "error", "name required");
-                    BlockPos prev = waypoints.remove(name);
-                    return Map.of("ok", true, "op", "delete", "name", name, "existed", prev != null, "count", waypoints.size());
-                }
-                case "clear" -> {
-                    int n = waypoints.size();
-                    waypoints.clear();
-                    return Map.of("ok", true, "op", "clear", "cleared", n);
-                }
-                case "list" -> {
-                    List<Map<String, Object>> entries = new ArrayList<>();
-                    for (var e : waypoints.entrySet()) {
-                        Map<String, Object> row = new LinkedHashMap<>();
-                        row.put("name", e.getKey());
-                        row.put("pos", posMap(e.getValue()));
-                        entries.add(row);
-                    }
-                    return Map.of("ok", true, "op", "list", "waypoints", entries, "count", entries.size());
-                }
-                case "get" -> {
-                    String name = p.getNonBlank("name");
-                    if (name == null) return Map.of("ok", false, "error", "name required");
-                    BlockPos pos = waypoints.get(name);
-                    if (pos == null) return Map.of("ok", false, "error", "no waypoint named '" + name + "'");
-                    return Map.of("ok", true, "op", "get", "name", name, "pos", posMap(pos));
-                }
-                default -> {
-                    return Map.of("ok", false, "error", "unknown op '" + op + "' (save|list|get|delete|clear)");
-                }
+                waypoints.put(s.name(), pos);
+                yield new ControlContracts.Saved(s.name(), position(pos), waypoints.size());
             }
-        });
+            case ControlContracts.Get g -> {
+                BlockPos pos = waypoints.get(g.name());
+                if (pos == null) {
+                    throw ApiException.invalidParam("/name", ApiIssue.Code.INVALID_VALUE, "no waypoint named '" + g.name() + "'");
+                }
+                yield new ControlContracts.Got(g.name(), position(pos));
+            }
+            case ControlContracts.ListAll l -> new ControlContracts.Listed(waypoints.entrySet().stream()
+                    .map(e -> new ControlContracts.Waypoint(e.getKey(), position(e.getValue()))).toList());
+            case ControlContracts.Delete d -> {
+                boolean existed = waypoints.remove(d.name()) != null;
+                yield new ControlContracts.Deleted(d.name(), existed, waypoints.size());
+            }
+            case ControlContracts.Clear c -> {
+                int n = waypoints.size();
+                waypoints.clear();
+                yield new ControlContracts.Cleared(n);
+            }
+        };
+    }
+
+    private static CommonTypes.BlockPosition position(BlockPos p) {
+        return new CommonTypes.BlockPosition(p.getX(), p.getY(), p.getZ());
     }
 
     @Override
@@ -340,25 +334,18 @@ public final class BotApiImpl implements BotApi {
     }
 
     @Override
-    public Map<String, Object> equip(Map<String, Object> params) {
-        Params p = Params.of(params);
-        // profile: "best"/"combat" → armor + weapon; "armor" → armor only.
-        String profile = p.get("profile") instanceof String s ? s.trim().toLowerCase() : "best";
-        boolean armorOnly = p.getBool("armorOnly", false) || "armor".equals(profile);
-        return onClient(() -> {
-            LocalPlayer player = Minecraft.getInstance().player;
-            if (player == null) return Map.of("ok", false, "error", "no player");
-            AutoEquip.Result r = AutoEquip.equipBest(
-                    Minecraft.getInstance(), player, !armorOnly, BotConfig.equipDurabilityThreshold);
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("ok", true);
-            out.put("profile", armorOnly ? "armor" : profile);
-            out.put("equipped", r.equipped());
-            out.put("loadout", r.loadout());
-            out.put("lowDurability", r.lowDurability());
-            out.put("missing", r.missing());
-            return out;
-        });
+    public ImmediateResponse equip(HandContracts.EquipParams params) {
+        boolean armorOnly = params.armorOnly() || params.profile() == HandContracts.Profile.ARMOR;
+        LocalPlayer player = Minecraft.getInstance().player;
+        AutoEquip.Result r = AutoEquip.equipBest(Minecraft.getInstance(), player, !armorOnly, BotConfig.equipDurabilityThreshold);
+        return new HandContracts.Equipped(armorOnly ? HandContracts.Profile.ARMOR : params.profile(), r.equipped(),
+                new HandContracts.Loadout(slot(r, "head"), slot(r, "chest"), slot(r, "legs"), slot(r, "feet"), slot(r, "mainHand")),
+                r.lowDurability(),
+                r.missing().stream().map(s -> HandContracts.ArmorSlot.valueOf(s.toUpperCase(java.util.Locale.ROOT))).toList());
+    }
+
+    private static Optional<String> slot(AutoEquip.Result r, String name) {
+        return r.loadout().get(name) instanceof String id ? Optional.of(id) : Optional.empty();
     }
 
     @Override public Map<String, Object> bodyRefusal() {
@@ -429,10 +416,32 @@ public final class BotApiImpl implements BotApi {
         return snap;
     }
 
-    @Override public Map<String, Object> cancel(Map<String, Object> params) {
-        Params p = Params.of(params);
+    @Override public ControlContracts.BodyStatus bodyStatus() {
+        BotProcess c = userTask.process();
+        Map<String, ControlContracts.ChainState> chains = new LinkedHashMap<>();
+        Map<String, Float> prios = scheduler.lastPriorities();
+        for (Chain ch : scheduler.chains()) {
+            Float pr = prios.get(ch.name());
+            ProcessScheduler.Bail bail = scheduler.bailOf(ch);
+            chains.put(ch.name(), new ControlContracts.ChainState(pr == null ? 0 : pr, Optional.ofNullable(ch.episodePhase()),
+                    bail == null ? Optional.empty() : Optional.of(new ControlContracts.Bail(bail.reason(), bail.ticksLeft()))));
+        }
+        Walker.PathStats ps = Walker.lastStats;
+        Optional<ControlContracts.PathStats> lastPath = ps == null ? Optional.empty()
+                : Optional.of(new ControlContracts.PathStats(ps.expanded(), ps.ms(), ps.goalReached(), ps.finalCost(), ps.pathLen(),
+                        ps.sightBudgetExhausted(), ps.snapshotTruncated()));
+        ControlContracts.Reflexes reflexes = new ControlContracts.Reflexes(paused,
+                c == null ? Optional.empty() : Optional.ofNullable(c.statusDetail()),
+                Optional.ofNullable(scheduler.currentName()), c != null && scheduler.current() != userTask, chains, lastPath,
+                String.valueOf(CLUTCH.phase()),
+                new ControlContracts.CombatTally(state.combatSwings, state.combatWellTimed, state.combatCrits, state.combatKills));
+        return new ControlContracts.BodyStatus(net.magicterra.worlddriver.bot.body.BodyRegistry.SELF, c != null,
+                c == null ? Optional.empty() : Optional.of(c.kind()), StatusView.end(userTask.lastEnd()),
+                StatusView.slots(state), Optional.of(reflexes));
+    }
+
+    @Override public List<String> cancel(String which) {
         return onClient(() -> {
-            String which = p.get("process") instanceof String s ? s : "all";
             List<String> hits = new ArrayList<>();
             // Combat lives in its own chain, not the user-task slot — cancel it directly.
             if ("all".equals(which) || "combat".equals(which)) {
@@ -443,13 +452,13 @@ public final class BotApiImpl implements BotApi {
                     hits.add("combat");
                 }
             }
-            // gap#68-⑦/⑫: "cancel all" stays a best-effort broadcast (always ok:true) —
+            // gap#68-⑦/⑫: "cancel all" stays a best-effort broadcast —
             // every chain episode + the user slot + the orphan backfill queue.
             if ("all".equals(which)) {
                 cancelCurrent("user-cancel");
                 scheduler.cancelAllEpisodes("user-cancel");
                 backfillTracker.clear();
-                return Map.of("ok", true, "cancelled", "all");
+                return List.of("all");
             }
             // gap#72-②: a NAMED cancel routes through the shared resolver — user slot
             // by kind, chain episode by NAME, then any chain-HELD process by KIND
@@ -461,40 +470,30 @@ public final class BotApiImpl implements BotApi {
             if (plan.cancelUserProcess()) cancelCurrent("user-cancel");
             for (Chain target : plan.episodeTargets()) target.cancelEpisode("user-cancel");
             hits.addAll(plan.labels());
-            return CancelRouting.honestResult(hits, which);
+            return List.copyOf(hits);
         });
     }
 
     // pause/resume removed — handled inside setting() via the {paused:bool} key.
 
     @Override
-    public Map<String, Object> lookAt(Map<String, Object> params) {
-        return InteractionCommands.lookAt(this, params);
-    }
-
-    @Override
-    public Map<String, Object> useItem(Map<String, Object> params) {
+    public ImmediateResponse useItem(HandContracts.UseParams params) {
         return InteractionCommands.useItem(params);
     }
 
     @Override
-    public Map<String, Object> holdItem(Map<String, Object> params) {
+    public HandContracts.OnEntity afterUse(HandContracts.OnEntity on) {
+        return InteractionCommands.afterUse(on);
+    }
+
+    @Override
+    public ImmediateResponse holdItem(HandContracts.HoldParams params) {
         return InteractionCommands.holdItem(params);
     }
 
     @Override
-    public Map<String, Object> attackEntity(Map<String, Object> params) {
+    public ImmediateResponse attackEntity(HandContracts.AttackParams params) {
         return InteractionCommands.attackEntity(params);
-    }
-
-    @Override
-    public Map<String, Object> useItemOn(Map<String, Object> params) {
-        return InteractionCommands.useItemOn(params);
-    }
-
-    @Override
-    public Map<String, Object> useItemOnEntity(Map<String, Object> params) {
-        return InteractionCommands.useItemOnEntity(params);
     }
 
     @Override
@@ -938,9 +937,8 @@ public final class BotApiImpl implements BotApi {
         // path brakes prevent walking/falling INTO the flow; this one prevents
         // dying in place while the planner deliberates.
         if (mc.player != null) net.magicterra.worlddriver.bot.auto.LavaProximityEscape.tick(mc, mc.player);
-        // Keep the combat status slot's liveness in sync with the chain so the
-        // awaitable mc.bot.combat route (which polls combat.active) completes the
-        // moment the fight ends. Counters/goal/lastError persist for post-mortem.
+        // Keep the combat status slot's liveness in sync with the chain, so a status poll reads the
+        // fight's end the moment it comes. Counters/goal/lastError persist for post-mortem.
         state.combat.active = combatChain.engaged();
         // STREAM-GRADE CAMERA (AIRI): single chokepoint, AFTER every actuator above
         // has written the player's rotation. Rate-limits this tick's net yaw/pitch
