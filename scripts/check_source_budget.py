@@ -68,7 +68,6 @@ GRANDFATHERED = {
     "ElytraProcess.java::tick": 228,
     "WalkerTickEdgeGuards.java::run": 241,
     "BotApiImpl.java::clientTick": 239,
-    "ObserveActionTools.java::tools": 234,
     "WalkerTickRepath.java::run": 177,
     "Walker.java::adoptPath": 206,
 }
