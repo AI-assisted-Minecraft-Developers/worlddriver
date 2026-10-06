@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
+import static net.magicterra.worlddriver.bot.ActionTickets.of;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -63,7 +64,7 @@ class ActionEndingTest {
     @Test
     void aProcessThatDidItsJobSucceedsWithTheStartedSummary() {
         ActionHandle h = admit("self");
-        chain.setProcess(new Step(2, null, false), h);
+        chain.setProcess(new Step(2, null, false), of(h));
         chain.tick(null, null, st);
         assertInstanceOf(Running.class, h.snapshot(), "one tick in, still running");
         chain.tick(null, null, st);
@@ -74,7 +75,7 @@ class ActionEndingTest {
     @Test
     void aGiveUpFailsWithTheProcessesOwnWords() {
         ActionHandle h = admit("self");
-        chain.setProcess(new Step(1, "goal not reached", false), h);
+        chain.setProcess(new Step(1, "goal not reached", false), of(h));
         chain.tick(null, null, st);
         Failed<?> f = assertInstanceOf(Failed.class, h.snapshot());
         assertEquals("goal not reached", f.message());
@@ -83,7 +84,7 @@ class ActionEndingTest {
     @Test
     void aThrowFailsTheAction() {
         ActionHandle h = admit("self");
-        chain.setProcess(new Step(1, null, true), h);
+        chain.setProcess(new Step(1, null, true), of(h));
         chain.tick(null, null, st);
         Failed<?> f = assertInstanceOf(Failed.class, h.snapshot());
         assertTrue(f.message().contains("kaboom"), f.message());
@@ -93,8 +94,8 @@ class ActionEndingTest {
     void aNewExplicitTaskSupersedesByItsId() {
         ActionHandle first = admit("self");
         ActionHandle second = admit("self");
-        chain.setProcess(new Step(5, null, false), first);
-        chain.setProcess(new Step(5, null, false), second);
+        chain.setProcess(new Step(5, null, false), of(first));
+        chain.setProcess(new Step(5, null, false), of(second));
         Superseded<?> s = assertInstanceOf(Superseded.class, first.snapshot());
         assertEquals(second.id(), s.replacementActionId());
         assertInstanceOf(Running.class, second.snapshot());
@@ -103,7 +104,7 @@ class ActionEndingTest {
     @Test
     void aSuspensionByAHigherChainIsNotAnEnding() {
         ActionHandle h = admit("self");
-        chain.setProcess(new Step(3, null, false), h);
+        chain.setProcess(new Step(3, null, false), of(h));
         chain.tick(null, null, st);
         chain.onInterrupt(null);
         chain.onResume();
@@ -116,8 +117,8 @@ class ActionEndingTest {
     @Test
     void aCancelRecordsTheReasonItWasGiven() {
         ActionHandle h = admit("self");
-        chain.setProcess(new Step(5, null, false), h);
-        chain.cancel("mc.test.reset", a -> a.cancelled(CancelReason.TEST_RESET));
+        chain.setProcess(new Step(5, null, false), of(h));
+        chain.cancel("mc.test.reset", a -> a.cancelled(Ticket.Stop.TEST_RESET));
         assertEquals(CancelReason.TEST_RESET, assertInstanceOf(Cancelled.class, h.snapshot()).reason());
     }
 
@@ -125,16 +126,16 @@ class ActionEndingTest {
     void aStopForAnActionThatAlreadyLeftDoesNotTouchItsSuccessor() {
         ActionHandle first = admit("self");
         ActionHandle second = admit("self");
-        chain.setProcess(new Step(5, null, false), first);
-        chain.setProcess(new Step(5, null, false), second);
-        assertFalse(chain.cancelAction(first, "late"));
+        chain.setProcess(new Step(5, null, false), of(first));
+        chain.setProcess(new Step(5, null, false), of(second));
+        assertFalse(chain.cancelAction(of(first), "late"));
         assertInstanceOf(Running.class, second.snapshot());
     }
 
     @Test
     void theFirstEndingWins() {
         ActionHandle h = admit("self");
-        chain.setProcess(new Step(5, null, false), h);
+        chain.setProcess(new Step(5, null, false), of(h));
         chain.cancel("player-death", a -> a.fail("the body died"));
         chain.cancel("user-cancel");
         assertInstanceOf(Failed.class, h.snapshot());
@@ -143,19 +144,19 @@ class ActionEndingTest {
     @Test
     void theServerExecutorEndsActionsTheSameWay() {
         ActionHandle ok = admit("player:a");
-        held.start(new Step(1, null, false), ok);
+        held.start(new Step(1, null, false), of(ok));
         held.finished();
         assertInstanceOf(Succeeded.class, ok.snapshot());
 
         ActionHandle crashed = admit("player:a");
-        held.start(new Step(1, null, false), crashed);
+        held.start(new Step(1, null, false), of(crashed));
         held.crashed(new IllegalStateException("tick blew up"));
         assertTrue(assertInstanceOf(Failed.class, crashed.snapshot()).message().contains("tick blew up"));
 
         ActionHandle a = admit("player:a");
         ActionHandle b = admit("player:a");
-        held.start(new Step(5, null, false), a);
-        held.start(new Step(5, null, false), b);
+        held.start(new Step(5, null, false), of(a));
+        held.start(new Step(5, null, false), of(b));
         assertEquals(b.id(), assertInstanceOf(Superseded.class, a.snapshot()).replacementActionId());
     }
 }

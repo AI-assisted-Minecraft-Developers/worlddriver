@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright;
 import java.util.Map;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
+import net.magicterra.worlddriver.bot.ActionTickets;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.body.BodyHost;
 import net.magicterra.worlddriver.bot.movement.Walker;
@@ -56,13 +57,13 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
     @Override public Map<String, Object> lastProcessEnd() { return held.lastEnd(); }
 
     @Override public void start(BotProcess p, ActionHandle action) {
-        held.start(p, action);
+        held.start(p, ActionTickets.of(action));
         finished = false;
         ServerAvatarManager.register(this);
     }
 
     @Override public boolean cancelAction(ActionHandle action, String reason) {
-        if (!held.cancelAction(action, reason)) return false;
+        if (!held.cancelAction(ActionTickets.of(action), reason)) return false;
         finished = true;
         return true;
     }

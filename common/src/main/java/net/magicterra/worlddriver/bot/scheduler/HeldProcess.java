@@ -1,7 +1,5 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
-import net.magicterra.worlddriver.api.action.ActionHandle;
-import net.magicterra.worlddriver.api.methods.ActionContract.CancelReason;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 
@@ -22,7 +20,7 @@ import java.util.function.Consumer;
 public final class HeldProcess {
     private final BotState state;
     private volatile BotProcess process;
-    private volatile ActionHandle action;
+    private volatile Ticket action;
     private SlotClaim claim = SlotClaim.NONE;
 
     public HeldProcess(BotState state) {
@@ -33,7 +31,7 @@ public final class HeldProcess {
     public BotProcess process() { return process; }
 
     /** The action the held process carries out, or null. */
-    public ActionHandle action() { return action; }
+    public Ticket action() { return action; }
 
     /** Attach and hold {@code next}, cancelling whatever was held before. */
     public void start(BotProcess next) {
@@ -44,9 +42,9 @@ public final class HeldProcess {
      * Attach and hold {@code next} for {@code nextAction} (null: none), ending the held action as
      * superseded by it, or as cancelled when {@code next} carries no action.
      */
-    public void start(BotProcess next, ActionHandle nextAction) {
+    public void start(BotProcess next, Ticket nextAction) {
         stop("superseded", nextAction != null ? h -> h.supersede(nextAction.id())
-                : h -> h.cancelled(CancelReason.REQUESTED));
+                : h -> h.cancelled(Ticket.Stop.REQUESTED));
         claim = SlotClaim.attach(next, state);
         action = nextAction;
         process = next;
@@ -57,25 +55,25 @@ public final class HeldProcess {
      * {@code reason} as their error and go inactive. Returns the process, or null when none was held.
      */
     public BotProcess cancel(String reason) {
-        return stop(reason, h -> h.cancelled(CancelReason.REQUESTED));
+        return stop(reason, h -> h.cancelled(Ticket.Stop.REQUESTED));
     }
 
     /** {@link #cancel} ending the held action with {@code ending} rather than as requested. */
-    public BotProcess cancel(String reason, Consumer<ActionHandle> ending) {
+    public BotProcess cancel(String reason, Consumer<Ticket> ending) {
         return stop(reason, ending);
     }
 
     /** Stop the held process if it is still {@code which}'s; false when that action has left. */
-    public boolean cancelAction(ActionHandle which, String reason) {
-        if (which == null || action != which) return false;
+    public boolean cancelAction(Ticket which, String reason) {
+        if (which == null || !which.equals(action)) return false;
         stop(reason, h -> {});
         return true;
     }
 
-    private BotProcess stop(String reason, Consumer<ActionHandle> ending) {
+    private BotProcess stop(String reason, Consumer<Ticket> ending) {
         BotProcess prev = process;
         if (prev == null) return null;
-        ActionHandle a = action;
+        Ticket a = action;
         process = null;
         action = null;
         prev.onCancelled(reason);
@@ -89,7 +87,7 @@ public final class HeldProcess {
      *  its own verdict becomes the last ending. */
     public void finished() {
         BotProcess prev = process;
-        ActionHandle a = action;
+        Ticket a = action;
         process = null;
         action = null;
         release(null);
@@ -104,7 +102,7 @@ public final class HeldProcess {
 
     /** The held process ticked and runs on: its action succeeds if it says it {@linkplain BotProcess#achieved achieved} its goal. */
     public void ranOn() {
-        ActionHandle a = action;
+        Ticket a = action;
         BotProcess p = process;
         if (a != null && p != null && a.running() && p.achieved()) a.succeed();
     }
@@ -113,7 +111,7 @@ public final class HeldProcess {
     public void crashed(Throwable t) {
         String err = t.getClass().getSimpleName() + ": " + t.getMessage();
         if (process == null) return;
-        ActionHandle a = action;
+        Ticket a = action;
         try {
             stop(err, h -> h.fail(err));
         } catch (RuntimeException finalizeFailed) {

@@ -10,8 +10,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import net.magicterra.worlddriver.api.action.ActionHandle;
-import net.magicterra.worlddriver.api.methods.ActionContract.CancelReason;
 
 import static net.magicterra.worlddriver.bot.util.BotInteract.releaseKeys;
 
@@ -55,7 +53,7 @@ public final class UserTaskChain implements Chain {
      * Start a process for the accepted action {@code action}, superseding any current one. The held
      * action, if any, ends as superseded by this one; this one ends with the process.
      */
-    public void setProcess(BotProcess next, ActionHandle action) {
+    public void setProcess(BotProcess next, Ticket action) {
         install(next, true, action);
     }
 
@@ -65,7 +63,7 @@ public final class UserTaskChain implements Chain {
         install(next, false, null);
     }
 
-    private void install(BotProcess next, boolean asked, ActionHandle nextAction) {
+    private void install(BotProcess next, boolean asked, Ticket nextAction) {
         // An ambient process never replaces a caller's task (the backfill starts only when idle), so a
         // held action without a successor is replaced by a process no caller can name.
         stop("superseded", nextAction != null ? h -> h.supersede(nextAction.id())
@@ -78,16 +76,16 @@ public final class UserTaskChain implements Chain {
     }
 
     /** The accepted action the held process carries out, or null (none held, or one nobody can name). */
-    private volatile ActionHandle action;
+    private volatile Ticket action;
 
-    public ActionHandle action() { return action; }
+    public Ticket action() { return action; }
 
     /**
      * Stop the held process if it is still {@code which}'s: what a cancel requested off this thread
      * comes back to, once it has hopped here. False when {@code which} has already left the slot.
      */
-    public boolean cancelAction(ActionHandle which, String reason) {
-        if (which == null || action != which) return false;
+    public boolean cancelAction(Ticket which, String reason) {
+        if (which == null || !which.equals(action)) return false;
         stop(reason, h -> {});
         return true;
     }
@@ -103,18 +101,18 @@ public final class UserTaskChain implements Chain {
     /** Cancel the held process (if any) with a reason recorded on its slot.
      *  Mirrors the old {@code BotApiImpl.cancelCurrent}. */
     public void cancel(String reason) {
-        stop(reason, h -> h.cancelled(CancelReason.REQUESTED));
+        stop(reason, h -> h.cancelled(Ticket.Stop.REQUESTED));
     }
 
     /** {@link #cancel} that ends the held action with {@code ending} rather than as requested. */
-    public void cancel(String reason, Consumer<ActionHandle> ending) {
+    public void cancel(String reason, Consumer<Ticket> ending) {
         stop(reason, ending);
     }
 
-    private void stop(String reason, Consumer<ActionHandle> ending) {
+    private void stop(String reason, Consumer<Ticket> ending) {
         BotProcess c = process;
         if (c == null) return;
-        ActionHandle a = action;
+        Ticket a = action;
         action = null;
         c.onCancelled(reason);   // let the process finalize per-session observers (e.g. flush a path archive)
         endClaim(reason);
@@ -177,7 +175,7 @@ public final class UserTaskChain implements Chain {
         if (c == null) return;
         try {
             if (c.tick(body, w, st)) {
-                ActionHandle a = action;
+                Ticket a = action;
                 action = null;
                 String failure = c.failure();
                 endClaim(null);
@@ -190,12 +188,12 @@ public final class UserTaskChain implements Chain {
                 }
             } else {
                 drove = true;
-                ActionHandle a = action;
+                Ticket a = action;
                 if (a != null && a.running() && c.achieved()) a.succeed();
             }
         } catch (RuntimeException e) {
             String err = e.getClass().getSimpleName() + ": " + e.getMessage();
-            ActionHandle a = action;
+            Ticket a = action;
             action = null;
             try { c.onCancelled(err); } catch (RuntimeException ignored) { /* finalize must not mask the original */ }
             endClaim(err);

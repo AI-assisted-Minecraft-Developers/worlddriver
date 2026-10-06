@@ -41,6 +41,7 @@ import net.magicterra.worlddriver.bot.pathfinder.SearchScope;
 import net.magicterra.worlddriver.bot.process.*;
 import net.magicterra.worlddriver.bot.scheduler.BunkerChain;
 import net.magicterra.worlddriver.bot.scheduler.CancelRouting;
+import net.magicterra.worlddriver.bot.scheduler.Ticket;
 import net.magicterra.worlddriver.bot.scheduler.Chain;
 import net.magicterra.worlddriver.bot.scheduler.CombatChain;
 import net.magicterra.worlddriver.bot.scheduler.DodgeChain;
@@ -311,8 +312,9 @@ public final class BotApiImpl implements BotApi {
 
     @Override
     public void engage(CombatContract.Params p, ActionHandle action) {
-        action.bindStopper(why -> Minecraft.getInstance().execute(() -> combatChain.cancelAction(action)));
-        combatChain.engage(VerbOrders.mode(p.mode()), VerbOrders.entityId(p), VerbOrders.entityType(p), p.force(), action,
+        Ticket ticket = ActionTickets.of(action);
+        action.bindStopper(why -> Minecraft.getInstance().execute(() -> combatChain.cancelAction(ticket)));
+        combatChain.engage(VerbOrders.mode(p.mode()), VerbOrders.entityId(p), VerbOrders.entityType(p), p.force(), ticket,
                 new CombatContract.Fought(p.mode(), p.target()));
     }
 
@@ -534,11 +536,11 @@ public final class BotApiImpl implements BotApi {
             // keep driving the body through the next scene.
             BotProcess held = userTask.process();
             if (held != null) {
-                userTask.cancel("mc.test.reset", h -> h.cancelled(ActionContract.CancelReason.TEST_RESET));
+                userTask.cancel("mc.test.reset", h -> h.cancelled(Ticket.Stop.TEST_RESET));
                 reset.add(held.kind());
             }
             if (combatChain.engaged()) {
-                combatChain.standDown(h -> h.cancelled(ActionContract.CancelReason.TEST_RESET));
+                combatChain.standDown(h -> h.cancelled(Ticket.Stop.TEST_RESET));
                 state.combat.lastError = "mc.test.reset";
                 state.combat.active = false;
                 reset.add("combat");
@@ -957,13 +959,14 @@ public final class BotApiImpl implements BotApi {
 
     /** {@link #startProcess} for an accepted action, which the user task chain ends with the process. Client thread only. */
     @Override public void startAction(BotProcess next, ActionHandle action) {
-        userTask.setProcess(next, action);
+        userTask.setProcess(next, ActionTickets.of(action));
         paused = false;
     }
 
     /** Client thread only. */
     @Override public boolean cancelAction(ActionHandle action, String reason) {
-        return userTask.cancelAction(action, reason) || combatChain.cancelAction(action);
+        Ticket ticket = ActionTickets.of(action);
+        return userTask.cancelAction(ticket, reason) || combatChain.cancelAction(ticket);
     }
 
     @Override public net.magicterra.worlddriver.api.ServerThreadHop clientHop() {
@@ -980,11 +983,11 @@ public final class BotApiImpl implements BotApi {
      */
     public void onDisconnect() {
         if (combatChain.engaged()) {
-            combatChain.standDown(h -> h.cancelled(ActionContract.CancelReason.CONNECTION_CLOSED));
+            combatChain.standDown(h -> h.cancelled(Ticket.Stop.CONNECTION_CLOSED));
             state.combat.lastError = "disconnected";
             state.combat.active = false;
         }
-        userTask.cancel("disconnected", h -> h.cancelled(ActionContract.CancelReason.CONNECTION_CLOSED));
+        userTask.cancel("disconnected", h -> h.cancelled(Ticket.Stop.CONNECTION_CLOSED));
         scheduler.cancelAllEpisodes("disconnected");
         backfillTracker.clear();
     }

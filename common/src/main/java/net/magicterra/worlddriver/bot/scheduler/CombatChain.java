@@ -2,8 +2,6 @@ package net.magicterra.worlddriver.bot.scheduler;
 
 import java.util.function.Consumer;
 
-import net.magicterra.worlddriver.api.action.ActionHandle;
-import net.magicterra.worlddriver.api.methods.ActionContract.CancelReason;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.body.Body;
@@ -49,7 +47,7 @@ public final class CombatChain implements Chain {
     private CombatProcess process;
 
     /** The accepted action the explicit intent carries out, and what it reports when won. Client thread only. */
-    private ActionHandle intentAction;
+    private Ticket intentAction;
     private Object intentResult;
 
     /** Post-respawn autoFight suppression countdown (gap#68 grace). Tick thread only. */
@@ -93,13 +91,13 @@ public final class CombatChain implements Chain {
      * is won, failed when it gives up or the health gate refuses it, superseded by the next explicit
      * fight. A retreat or dodge that interrupts the fight only pauses it. Client thread only.
      */
-    public void engage(CombatProcess.Mode mode, Integer id, String type, boolean force, ActionHandle action, Object result) {
-        ActionHandle prev = intentAction;
+    public void engage(CombatProcess.Mode mode, Integer id, String type, boolean force, Ticket action, Object result) {
+        Ticket prev = intentAction;
         intentAction = action;
         intentResult = result;
         if (prev != null) {
             if (action != null) prev.supersede(action.id());
-            else prev.cancelled(CancelReason.REQUESTED);
+            else prev.cancelled(Ticket.Stop.REQUESTED);
         }
         this.intentMode = mode;
         this.intentId = id;
@@ -117,11 +115,11 @@ public final class CombatChain implements Chain {
     /** Drop any combat intent and release the channel (the {@code mc.bot.cancel}
      *  path). Telemetry is kept for a post-mortem read, mirroring lastError. */
     public void standDown() {
-        standDown(h -> h.cancelled(CancelReason.REQUESTED));
+        standDown(h -> h.cancelled(Ticket.Stop.REQUESTED));
     }
 
     /** {@link #standDown}, ending the explicit fight's action with {@code ending}. */
-    public void standDown(Consumer<ActionHandle> ending) {
+    public void standDown(Consumer<Ticket> ending) {
         this.intentMode = null;
         this.intentId = null;
         this.intentType = null;
@@ -134,14 +132,14 @@ public final class CombatChain implements Chain {
     }
 
     /** Stand down if the explicit fight is still {@code action}'s; false when that action has left. */
-    public boolean cancelAction(ActionHandle action) {
-        if (action == null || intentAction != action) return false;
+    public boolean cancelAction(Ticket action) {
+        if (action == null || !action.equals(intentAction)) return false;
         standDown(h -> { });
         return true;
     }
 
-    private void endIntentAction(Consumer<ActionHandle> ending) {
-        ActionHandle a = intentAction;
+    private void endIntentAction(Consumer<Ticket> ending) {
+        Ticket a = intentAction;
         intentAction = null;
         intentResult = null;
         if (a != null) ending.accept(a);

@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.sim;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
+import net.magicterra.worlddriver.bot.ActionTickets;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
@@ -141,7 +142,7 @@ public class ServerWorldDriver implements BodyDriver {
 
     /** {@link #runProcess(BotProcess)} carrying out {@code action}, which ends with the process. */
     public ServerWorldDriver runProcess(BotProcess p, ActionHandle action) {
-        held.start(p, action);
+        held.start(p, ActionTickets.of(action));
         this.mineTarget = null;
         finished = false;
         tasked = true;
@@ -151,7 +152,7 @@ public class ServerWorldDriver implements BodyDriver {
 
     /** Stop the held process if it still carries {@code action}; what a cancel requested off the server thread comes back to. */
     public boolean cancelAction(ActionHandle action, String reason) {
-        if (!held.cancelAction(action, reason)) return false;
+        if (!held.cancelAction(ActionTickets.of(action), reason)) return false;
         mineTarget = null;
         finished = true;
         last = Walker.Step.FAILED;
