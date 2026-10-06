@@ -367,12 +367,11 @@ Every call names an `op`:
 ```jsonc
 {"op": "read"}                                         // every readable key
 {"op": "read", "keys": ["autoEat", "allowBreak"]}      // just these, in this order
-{"op": "patch", "updates": [{"key": "autoEat", "value": true},
-                            {"key": "pathfinder.maxNodes", "value": 40000}]}
-{"op": "apply", "update": {"key": "paused", "value": true}}
+{"op": "patch", "values": {"autoEat": true, "pathfinder.maxNodes": 40000}}
+{"op": "apply", "control": "paused", "value": true}
 ```
 
-Values travel as a list of `{key, value}` pairs, and each key has its own value type. The key
+Values travel as one `{key: value}` object, and each key has its own value type. The key
 set is not hand-listed anywhere: it is derived reflectively from the settable fields of
 `BotConfig`, rendered into this tool's input schema with a one-line explanation and a range
 per key, and a class-load check fails the build if a documented key stops existing. **Read
@@ -380,9 +379,9 @@ the schema from `tools/list`** — it is the only listing that cannot go stale.
 
 Three things about the write path are worth knowing before you script against it:
 
-- A patch is all-or-nothing. Every update is checked before any is written: an unknown key,
+- A patch is all-or-nothing. Every value is checked before any is written: an unknown key,
   a wrong type, a number outside the key's range or an unknown block id fails the whole call
-  with one issue per bad update, and nothing is applied.
+  with one issue per bad value, at `/values/<key>`, and nothing is applied.
 - A patch is saved to the settings file. `persisted: false` means it was not — persistence
   is off, or the write failed (`persistError` says which) — but the values are live anyway.
 - `paused` and `debugFly` are controls that act on your own player, not configuration, so

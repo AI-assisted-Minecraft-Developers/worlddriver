@@ -37,7 +37,7 @@ class SettingsRuntimeStateTest {
             assertFalse(SettingsRegistry.schemaProps().containsKey(key), key + " is in the schema");
             ApiIssue issue = assertThrows(ApiException.class,
                     () -> SettingsRangeTest.patch(key, true), key + " was accepted").error().issues().get(0);
-            assertEquals("/updates/0/key", issue.path(), key);
+            assertEquals("/values/" + key, issue.path(), key);
             assertTrue(issue.message().contains("unknown key"), issue.message());
         }
     }

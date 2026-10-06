@@ -305,9 +305,8 @@ trees.length ? Driver.bot.goto({target: {kind: 'position', pos: trees[0].pos}}) 
   outer run and its deadline.
 - The scope has `Driver.invoke(method, params)` plus one helper per method, named after it
   and taking its params object: `mc.system.waitTicks` is `Driver.system.waitTicks({ticks: 5})`,
-  `mc.query` is `Driver.query({...})`. A few sugar helpers sit beside them, such as
-  `Driver.observe.area` and `Driver.action.placeBlock`. Anything without a helper is reachable
-  by name through `Driver.invoke`, which is the whole route table.
+  `mc.query` is `Driver.query({...})`. There are no other helpers: a script sends the same
+  params as any other caller. `Driver.invoke` reaches any method by name.
 - `javaClassName(v)` names the Java class of a wrapped Java object, such as
   `java.util.ArrayList`, since this Rhino offers no `obj.getClass()`. It is null for null,
   undefined, JS objects, and anything `typeof` calls a string, number or boolean. A Minecraft

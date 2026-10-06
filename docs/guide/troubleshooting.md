@@ -116,7 +116,7 @@ those applied.
 **Cause: the bot is paused.** The `paused` setting halts every bot process and releases the
 held keys, and a verb issued while it is set still reports that it started — the process
 exists, the tick loop just returns early. `mc.bot.status` reports `status.reflexes.paused`.
-Clear it with `mc.bot.setting {"op": "apply", "update": {"key": "paused", "value": false}}`.
+Clear it with `mc.bot.setting {"op": "apply", "control": "paused", "value": false}`.
 
 **Cause: there is no route.** The search ran and found nothing. `mc.bot.status` carries
 `status.reflexes.lastPath` from the most recent search: `{expanded, ms, goalReached, finalCost, pathLen}`.

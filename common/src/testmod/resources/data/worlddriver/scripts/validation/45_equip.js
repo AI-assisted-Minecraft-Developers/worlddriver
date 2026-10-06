@@ -9,6 +9,9 @@ function clientAvailable() {
     catch (e) { return false; }
 }
 
+function read(keys) { return Driver.bot.setting({ op: "read", keys: keys }).values; }
+function patch(values) { return Driver.bot.setting({ op: "patch", values: values }).values; }
+
 /** The DriverApiError a call throws, or null when it returned. */
 function errorOf(call) {
     try { call(); } catch (e) { return e; }
@@ -18,7 +21,7 @@ function errorOf(call) {
 function cleanup() {
     Driver.invoke("mc.bot.cancel", { process: "all" });
     Driver.invoke("mc.action.runCommand", { cmd: "clear @s" });
-    Driver.bot.patchSettings({ autoEquip: false });
+    patch({ autoEquip: false });
     Driver.system.waitTicks({ ticks: 4 });
 }
 
@@ -126,13 +129,13 @@ if (!clientAvailable()) {
     });
 
     ScriptTest.run("45_equip: autoEquip + threshold settings round-trip", function(t) {
-        var was = Driver.bot.readSettings(["autoEquip", "equipDurabilityThreshold"]);
-        Driver.bot.patchSettings({ autoEquip: true, equipDurabilityThreshold: 0.25 });
-        var r = Driver.bot.readSettings(["autoEquip", "equipDurabilityThreshold"]);
+        var was = read(["autoEquip", "equipDurabilityThreshold"]);
+        patch({ autoEquip: true, equipDurabilityThreshold: 0.25 });
+        var r = read(["autoEquip", "equipDurabilityThreshold"]);
         t.assertEqual(r.autoEquip, true, "autoEquip committed");
         t.assertEqual(r.equipDurabilityThreshold, 0.25, "threshold committed");
-        var bad = errorOf(function() { Driver.bot.patchSettings({ equipDurabilityThreshold: 5 }); });
+        var bad = errorOf(function() { patch({ equipDurabilityThreshold: 5 }); });
         t.assertEqual(bad.issues[0].code, "out_of_range", "out-of-range threshold refused");
-        Driver.bot.patchSettings(was);
+        patch(was);
     });
 }

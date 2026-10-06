@@ -63,13 +63,12 @@ public final class SettingsCommand {
 
     /**
      * The block ids among {@code updates} that name no registered block, as issues at
-     * {@code <path>/<i>/value[/<j>]}. Empty when the patch can be committed.
+     * {@code <path>/<key>[/<j>]}. Empty when the patch can be committed.
      */
     public static List<ApiIssue> check(List<Entry> updates, String path) {
         List<ApiIssue> issues = new ArrayList<>();
-        for (int i = 0; i < updates.size(); i++) {
-            Entry u = updates.get(i);
-            String at = path + "/" + i + "/value";
+        for (Entry u : updates) {
+            String at = path + "/" + u.key();
             switch (u.key()) {
                 case "autoBackfillBlock" -> {
                     if (!isBlock((String) u.value())) issues.add(notABlock(at, (String) u.value()));

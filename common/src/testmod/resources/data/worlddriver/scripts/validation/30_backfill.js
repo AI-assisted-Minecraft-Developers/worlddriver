@@ -7,41 +7,44 @@ function errorOf(call) {
     return null;
 }
 
+function read(keys) { return Driver.bot.setting(keys === undefined ? { op: "read" } : { op: "read", keys: keys }).values; }
+function patch(values) { return Driver.bot.setting({ op: "patch", values: values }).values; }
+
 ScriptTest.run("30_backfill: a full read includes the autoBackfill keys", function(t) {
-    var s = Driver.bot.readSettings();
+    var s = read();
     t.assertEqual(typeof s.autoBackfill, "boolean", "autoBackfill is a boolean");
     t.assertEqual(typeof s.autoBackfillBlock, "string", "autoBackfillBlock is a string");
     t.assertEqual(typeof s.autoBackfillRadius, "number", "autoBackfillRadius is a number");
 });
 
 ScriptTest.run("30_backfill: autoBackfill toggle round-trips", function(t) {
-    var before = Driver.bot.readSettings(["autoBackfill"]).autoBackfill;
-    Driver.bot.patchSettings({ autoBackfill: !before });
-    t.assertEqual(Driver.bot.readSettings(["autoBackfill"]).autoBackfill, !before, "toggled");
-    Driver.bot.patchSettings({ autoBackfill: before });
+    var before = read(["autoBackfill"]).autoBackfill;
+    patch({ autoBackfill: !before });
+    t.assertEqual(read(["autoBackfill"]).autoBackfill, !before, "toggled");
+    patch({ autoBackfill: before });
 });
 
 ScriptTest.run("30_backfill: autoBackfillBlock refuses an unregistered id", function(t) {
-    var before = Driver.bot.readSettings(["autoBackfillBlock"]).autoBackfillBlock;
-    var e = errorOf(function() { Driver.bot.patchSettings({ autoBackfillBlock: "minecraft:not_a_real_block_xyz" }); });
-    t.assertEqual(e.issues[0].path, "/updates/0/value", "path");
+    var before = read(["autoBackfillBlock"]).autoBackfillBlock;
+    var e = errorOf(function() { patch({ autoBackfillBlock: "minecraft:not_a_real_block_xyz" }); });
+    t.assertEqual(e.issues[0].path, "/values/autoBackfillBlock", "path");
     t.assertTrue(e.issues[0].message.indexOf("not_a_real_block_xyz") >= 0, "names the id: " + e.issues[0].message);
-    t.assertEqual(Driver.bot.readSettings(["autoBackfillBlock"]).autoBackfillBlock, before, "unchanged");
+    t.assertEqual(read(["autoBackfillBlock"]).autoBackfillBlock, before, "unchanged");
 });
 
 ScriptTest.run("30_backfill: autoBackfillBlock accepts a real block id", function(t) {
-    var before = Driver.bot.readSettings(["autoBackfillBlock"]);
-    t.assertEqual(Driver.bot.patchSettings({ autoBackfillBlock: "minecraft:dirt" }).values[0].value, "minecraft:dirt", "dirt");
-    Driver.bot.patchSettings(before);
-    t.assertEqual(Driver.bot.readSettings(["autoBackfillBlock"]).autoBackfillBlock, before.autoBackfillBlock, "restored");
+    var before = read(["autoBackfillBlock"]);
+    t.assertEqual(patch({ autoBackfillBlock: "minecraft:dirt" }).autoBackfillBlock, "minecraft:dirt", "dirt");
+    patch(before);
+    t.assertEqual(read(["autoBackfillBlock"]).autoBackfillBlock, before.autoBackfillBlock, "restored");
 });
 
 ScriptTest.run("30_backfill: autoBackfillRadius range bound [1,16]", function(t) {
-    var before = Driver.bot.readSettings(["autoBackfillRadius"]);
-    t.assertEqual(errorOf(function() { Driver.bot.patchSettings({ autoBackfillRadius: 0 }); }).issues[0].code,
+    var before = read(["autoBackfillRadius"]);
+    t.assertEqual(errorOf(function() { patch({ autoBackfillRadius: 0 }); }).issues[0].code,
         "out_of_range", "0 refused");
-    t.assertEqual(errorOf(function() { Driver.bot.patchSettings({ autoBackfillRadius: 17 }); }).issues[0].code,
+    t.assertEqual(errorOf(function() { patch({ autoBackfillRadius: 17 }); }).issues[0].code,
         "out_of_range", "17 refused");
-    t.assertEqual(Driver.bot.patchSettings({ autoBackfillRadius: 4 }).values[0].value, 4, "4 committed");
-    Driver.bot.patchSettings(before);
+    t.assertEqual(patch({ autoBackfillRadius: 4 }).autoBackfillRadius, 4, "4 committed");
+    patch(before);
 });

@@ -778,10 +778,10 @@ public final class ApiTypes {
     }
 
     /**
-     * A {@code {key, value}} pair whose value has the type {@code types} gives its key, in that map's order;
+     * An object of optional members, each typed by {@code types} for its key, in that map's order;
      * {@code docs} describes the keys that have a description.
      */
-    public static KeyedValueType keyedValue(String name, Map<String, ApiType<?>> types, Map<String, String> docs) {
+    public static KeyedValueType keyedValues(String name, Map<String, ApiType<?>> types, Map<String, String> docs) {
         return new KeyedValueType(name, types, docs);
     }
 }

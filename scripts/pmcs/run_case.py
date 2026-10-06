@@ -73,8 +73,7 @@ def run_case(archive: str, flags: dict, arrive_x: int, cmp: str, timeout: int = 
     base = len(_read_log().splitlines())
     # walkerDebug switches the telemetry on; maxStuck/conformance cannot be measured without it,
     # independently of the candidate flags under test.
-    updates = [{"key": k, "value": v} for k, v in {"walkerDebug": True, **flags}.items()]
-    asyncio.run(_rpc("mc.bot.setting", {"op": "patch", "updates": updates}))
+    asyncio.run(_rpc("mc.bot.setting", {"op": "patch", "values": {"walkerDebug": True, **flags}}))
     asyncio.run(_rpc("mc.debug.replay", {"file": archive, "restoreBlocks": True}))
     arrived = False
     deadline = time.time() + timeout

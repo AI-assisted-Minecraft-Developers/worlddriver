@@ -123,7 +123,7 @@ gate compares, so an older baseline is no longer comparable.
 The three steps, in the order they are used:
 
 ```json
-mc.bot.setting {"op": "patch", "updates": [{"key": "pathArchive", "value": true}]}
+mc.bot.setting {"op": "patch", "values": {"pathArchive": true}}
 ```
 
 then a `goto`, which on completion writes `config/worlddriver/replays/replay-*.json` under

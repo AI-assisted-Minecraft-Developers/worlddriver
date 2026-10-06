@@ -248,9 +248,9 @@ public final class WorldDriverScenes implements SceneProvider {
      *       aliasing {@code walkerRepathEveryTicks}), {@code debugFly} (apply-only affordance):
      *       one of each provenance, so a regression that drops any single key class trips.</li>
      *   <li>{@code isKnown("definitelyNotAKnob") == false} — the unknown-key gate still says no.</li>
-     *   <li>{@code mc.bot.setting}'s contract is CLOSED and one-variant-per-key: a patch naming the
-     *       bogus key is invalid_params at {@code /updates/0/key}, and the contract's key set is the
-     *       registry's.</li>
+     *   <li>{@code mc.bot.setting}'s contract is CLOSED and typed per key: a patch naming the
+     *       bogus key is invalid_params at {@code /values/definitelyNotAKnob}, and the contract's key
+     *       set is the registry's.</li>
      *   <li>{@code mc.test.reset} is registered: the registry holds a typed spec for it, published
      *       by StageWright's batch. This is the assertion that goes RED on a loader whose boot path
      *       never called the registration hook.</li>
@@ -277,13 +277,12 @@ public final class WorldDriverScenes implements SceneProvider {
             ctx.fail("settingRegistry: bogus key 'definitelyNotAKnob' reported known — the "
                     + "unknown-key gate regressed");
 
-        // (4) mc.bot.setting's contract: one SettingValue variant per known key, and an unknown key refused.
+        // (4) mc.bot.setting's contract: one typed member per known key, and an unknown key refused.
         boolean closed = false;
         try {
-            SettingsContract.PARAMS.decode(Map.of("op", "patch",
-                    "updates", List.of(Map.of("key", "definitelyNotAKnob", "value", true))));
+            SettingsContract.PARAMS.decode(Map.of("op", "patch", "values", Map.of("definitelyNotAKnob", true)));
         } catch (ApiException e) {
-            closed = e.error().issues().stream().anyMatch(i -> i.path().equals("/updates/0/key"));
+            closed = e.error().issues().stream().anyMatch(i -> i.path().equals("/values/definitelyNotAKnob"));
         }
         if (!closed)
             ctx.fail("settingRegistry: mc.bot.setting accepted an unknown key — #280 would silently return");

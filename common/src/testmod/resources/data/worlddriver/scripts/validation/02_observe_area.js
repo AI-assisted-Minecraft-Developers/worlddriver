@@ -1,6 +1,5 @@
-// mc.observe.area was folded into mc.query — these tests now exercise the
-// q='blocks' shape directly ({q, blocks}) and the prelude's back-compat
-// helper (Driver.observe.area taking a top-level radius).
+// mc.observe.area was folded into mc.query — these tests exercise the q='blocks'
+// shape ({q, blocks}), through Driver.invoke and the generated Driver.query.
 
 ScriptTest.run("02_observe_area: query q='blocks' returns stones, respects filter.type", function(t) {
     var origin = Driver.system.testOrigin();
@@ -20,11 +19,10 @@ ScriptTest.run("02_observe_area: query q='blocks' returns stones, respects filte
     t.assertTrue(allStone, "filter.type should restrict to minecraft:stone");
 });
 
-ScriptTest.run("02_observe_area: oak_log found without filter (back-compat helper shape)", function(t) {
+ScriptTest.run("02_observe_area: oak_log found without a type filter", function(t) {
     var origin = Driver.system.testOrigin();
-    // Use the prelude helper to assert it still returns the legacy {blocks:[]} shape.
-    var result = Driver.observe.area({ center: origin, radius: 2 });
-    t.assertTrue(Array.isArray(result.blocks), "back-compat helper must wrap rows in {blocks}");
+    var result = Driver.query({ q: "blocks", center: origin, filter: { in_radius: 2 } });
+    t.assertTrue(Array.isArray(result.blocks), "rows come in {blocks}");
     var hasLog = false;
     for (var i = 0; i < result.blocks.length; i++) {
         if (result.blocks[i].type === "minecraft:oak_log") { hasLog = true; break; }

@@ -36,14 +36,14 @@ public final class SettingsContract {
 
     public sealed interface SettingsOp permits Read, Patch, Apply {}
     public record Read(Optional<List<String>> keys) implements SettingsOp {}
-    public record Patch(List<Entry> updates) implements SettingsOp {}
-    public record Apply(Entry update) implements SettingsOp {}
+    public record Patch(List<Entry> values) implements SettingsOp {}
+    public record Apply(String control, boolean value) implements SettingsOp {}
 
     public sealed interface SettingsReply permits Values, Patched, Applied {}
     public record Values(List<Entry> values) implements SettingsReply {}
     /** {@code values} are what the keys hold after the commit; a failed save leaves them committed. */
     public record Patched(List<Entry> values, boolean persisted, Optional<String> persistError) implements SettingsReply {}
-    public record Applied(Entry applied) implements SettingsReply {}
+    public record Applied(String control, boolean value) implements SettingsReply {}
 
     /** Written with {@code apply} only. */
     public static final Set<String> CONTROLS = Set.of("paused", "debugFly");
@@ -106,9 +106,11 @@ public final class SettingsContract {
         };
     }
 
-    public static final KeyedValueType SETTING_VALUE = ApiTypes.keyedValue("SettingValue", TYPES, docs());
+    public static final KeyedValueType SETTING_VALUES = ApiTypes.keyedValues("SettingValues", TYPES, docs());
 
-    private static final ApiType<String> SETTING_KEY = ApiTypes.string(1, 64).tsAlias("SettingKey", "SettingValue['key']");
+    private static final ApiType<String> SETTING_KEY = ApiTypes.string(1, 64).tsAlias("SettingKey", "keyof SettingValues");
+
+    private static final ApiType<String> CONTROL = ApiTypes.stringEnum("SettingsControl", "paused", "debugFly");
 
     private static final int MAX_KEYS = TYPES.size();
 
@@ -118,14 +120,15 @@ public final class SettingsContract {
                             .describe("Omitted: every readable key. Empty: none.").optional().forGetter(Read::keys),
                     Read::new)),
             ApiTypes.variant("patch", Patch.class, ApiTypes.record(null,
-                    ApiField.field("updates", ApiTypes.list(SETTING_VALUE, 1, MAX_KEYS))
-                            .describe("Each key once; validated together and committed together, so nothing is "
-                                    + "written unless every update is valid. Keys not named keep their values.")
-                            .required().forGetter(Patch::updates),
+                    ApiField.field("values", SETTING_VALUES.atLeast(1))
+                            .describe("The keys to write and their new values, e.g. {autoEat: true}; validated together "
+                                    + "and committed together, so nothing is written unless every value is valid. Keys not "
+                                    + "named keep their values.")
+                            .required().forGetter(Patch::values),
                     Patch::new)),
             ApiTypes.variant("apply", Apply.class, ApiTypes.record(null,
-                    ApiField.field("update", SETTING_VALUE).describe("A control: paused or debugFly.")
-                            .required().forGetter(Apply::update),
+                    ApiField.field("control", CONTROL).required().forGetter(Apply::control),
+                    ApiField.field("value", ApiTypes.bool()).required().forGetter(Apply::value),
                     Apply::new)))
             .withCheck(SettingsContract::check);
 
@@ -143,31 +146,25 @@ public final class SettingsContract {
                 }
             }
             case Patch p -> {
-                Set<String> seen = new HashSet<>();
-                for (int i = 0; i < p.updates().size(); i++) {
-                    String k = p.updates().get(i).key();
-                    DecodeContext here = at.field("updates").index(i).field("key");
-                    if (CONTROLS.contains(k)) here.fail(ApiIssue.Code.INVALID_VALUE, k + " is a control; write it with op: 'apply'");
-                    else if (!seen.add(k)) here.fail(ApiIssue.Code.INVALID_VALUE, k + " is updated twice");
+                for (Entry e : p.values()) {
+                    if (CONTROLS.contains(e.key())) {
+                        at.field("values").field(e.key()).fail(ApiIssue.Code.INVALID_VALUE,
+                                e.key() + " is a control; write it with op: 'apply'");
+                    }
                 }
             }
-            case Apply a -> {
-                if (!CONTROLS.contains(a.update().key())) {
-                    at.field("update").field("key").fail(ApiIssue.Code.INVALID_VALUE,
-                            a.update().key() + " is configuration; write it with op: 'patch'");
-                }
-            }
+            case Apply a -> { }
         }
     }
 
     public static final ApiType<SettingsReply> REPLY = ApiTypes.<SettingsReply>taggedUnion("SettingsReply", "op",
             ApiTypes.variant("read", Values.class, ApiTypes.record(null,
-                    ApiField.field("values", ApiTypes.list(SETTING_VALUE, MAX_KEYS)).describe("In the order asked for.")
+                    ApiField.field("values", SETTING_VALUES).describe("In the order asked for.")
                             .required().forGetter(Values::values),
                     Values::new)),
             ApiTypes.variant("patch", Patched.class, ApiTypes.record(null,
-                    ApiField.field("values", ApiTypes.list(SETTING_VALUE, MAX_KEYS))
-                            .describe("What each updated key holds after the commit, in the order sent.")
+                    ApiField.field("values", SETTING_VALUES)
+                            .describe("What each written key holds after the commit, in the order sent.")
                             .required().forGetter(Patched::values),
                     ApiField.field("persisted", ApiTypes.bool())
                             .describe("Whether the settings file was written; false leaves the values committed in memory.")
@@ -175,13 +172,15 @@ public final class SettingsContract {
                     ApiField.field("persistError", ApiTypes.string()).optional().forGetter(Patched::persistError),
                     Patched::new)),
             ApiTypes.variant("apply", Applied.class, ApiTypes.record(null,
-                    ApiField.field("applied", SETTING_VALUE).required().forGetter(Applied::applied),
+                    ApiField.field("control", CONTROL).required().forGetter(Applied::control),
+                    ApiField.field("value", ApiTypes.bool()).required().forGetter(Applied::value),
                     Applied::new)));
 
     public static final MethodSpec<SettingsOp, SettingsReply> SPEC = MethodSpec.of("mc.bot.setting", PARAMS, REPLY,
-                    "The bot's tuning surface. op 'read' answers the keys asked for, or every readable one. op 'patch' "
-                            + "validates every update, then commits them together and saves them; a failed save answers "
-                            + "persisted: false with the values still committed. op 'apply' runs one control: paused "
+                    "The bot's tuning surface. op 'read' answers {key: value} for the keys asked for, or every readable one. "
+                            + "op 'patch' takes values {key: value}, validates them all, then commits them together and saves "
+                            + "them; a failed save answers persisted: false with the values still committed. op 'apply' "
+                            + "runs one control, {control, value}: paused "
                             + "stops this client's bot and releases its keys, debugFly toggles creative flight. Values "
                             + "are shared by every bot in this game; paused and debugFly act on this client's player.")
             .effects(MethodSpec.Effect.CONFIG_WRITE);

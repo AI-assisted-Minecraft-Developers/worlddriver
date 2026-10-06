@@ -7,6 +7,9 @@ function clientAvailable() {
     catch (e) { return false; }
 }
 
+function read(keys) { return Driver.bot.setting({ op: "read", keys: keys }).values; }
+function patch(values) { return Driver.bot.setting({ op: "patch", values: values }).values; }
+
 // Poll a tick at a time instead of waiting a fixed number and reading once. waitTicks counts SERVER
 // ticks, but ThreatScanner is CLIENT-side — so a fixed server-tick wait does not guarantee the
 // client scanner has run even once, and on a loaded machine it sometimes had not. Polling also takes
@@ -24,7 +27,7 @@ function waitUntil(pred, maxTicks) {
 // Top-level (not inside a block) so the deferred ScriptTest.run callbacks can see it.
 function cleanup() {
     Driver.invoke("mc.action.runCommand", { cmd: "kill @e[type=!minecraft:player]" });
-    Driver.bot.patchSettings({ autoDodge: false });
+    patch({ autoDodge: false });
     Driver.invoke("mc.bot.cancel", { process: "all" });
 }
 
@@ -43,21 +46,21 @@ if (!clientAvailable()) {
     ScriptTest.run("41_defense: reflex toggles round-trip", function(t) {
         var keys = ["autoTotem", "autoShield", "autoHeal", "autoDodge", "healHpThreshold",
                     "creeperKeepDistance", "projectileDodgeRadius"];
-        var was = Driver.bot.readSettings(keys);
-        Driver.bot.patchSettings({
+        var was = read(keys);
+        patch({
             autoTotem: true, autoShield: true, autoHeal: true, autoDodge: true,
             healHpThreshold: 10, creeperKeepDistance: 4, projectileDodgeRadius: 10
         });
-        var r = Driver.bot.readSettings(keys);
+        var r = read(keys);
         ["autoTotem","autoShield","autoHeal","autoDodge"].forEach(function(k){
             t.assertEqual(r[k], true, k + " committed");
         });
         t.assertEqual(r.healHpThreshold, 10, "healHpThreshold committed");
         t.assertEqual(r.creeperKeepDistance, 4, "creeperKeepDistance committed");
         var bad = null;
-        try { Driver.bot.patchSettings({ creeperKeepDistance: 999 }); } catch (e) { bad = e; }
+        try { patch({ creeperKeepDistance: 999 }); } catch (e) { bad = e; }
         t.assertEqual(bad && bad.issues[0].code, "out_of_range", "out-of-range refused");
-        Driver.bot.patchSettings(was);
+        patch(was);
     });
 
     ScriptTest.run("41_defense: observe.threats detects and scores a summoned hostile", function(t) {
@@ -82,7 +85,7 @@ if (!clientAvailable()) {
         cleanup();
         // Widen keep-distance so a summon ~3.5 blocks away is comfortably inside it
         // (a +2 block summon lands at ~3.5 due to entity centring + rounding).
-        Driver.bot.patchSettings({ autoDodge: true, creeperKeepDistance: 6 });
+        patch({ autoDodge: true, creeperKeepDistance: 6 });
         var me = Driver.invoke("mc.observe.player", {}).player;
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
         Driver.invoke("mc.action.runCommand", { cmd: "summon creeper " + (x + 2) + " " + y + " " + z });
@@ -100,7 +103,7 @@ if (!clientAvailable()) {
 
     ScriptTest.run("41_defense: ThreatScanner senses an incoming projectile", function(t) {
         cleanup();
-        Driver.bot.patchSettings({ autoDodge: true });
+        patch({ autoDodge: true });
         var me = Driver.invoke("mc.observe.player", {}).player;
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y) + 1, z = Math.round(me.pos.z);
         // A slow arrow 14 blocks north, drifting south at the player. Slow + far so

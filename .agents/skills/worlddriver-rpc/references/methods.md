@@ -301,7 +301,7 @@ client's click is silently ignored, `useItem` on an entity answers `menu` instea
 | `mc.bot.waypoint` | tagged on `op`: `{op:"save",name,pos?}` (dflt where the player stands)\|`{op:"get",name}`\|`{op:"list"}`\|`{op:"delete",name}`\|`{op:"clear"}` | this client's in-memory named positions (no disk); use names in `goto{waypoint}`. Answers tagged on `op`: `{op:"save",name,pos,count}`, `{op:"get",name,pos}` (an unknown name is `invalid_params` at `/name`), `{op:"list",waypoints:[{name,pos}]}`, `{op:"delete",name,existed,count}`, `{op:"clear",cleared}`. No client → `capability_unavailable`. |
 | `mc.bot.status` | `body?` | `{outcome:"done", bodies:[{id, kind, entityId?, pos?, busy}], status?}`. `bodies` lists the other bots `body` can name (`player:<name>` from `/worlddriver server spawn <name>`, `npc:<name>` from the testmod) on every topology. `status` is the asked body's (dflt self; absent when no body was named and there is no client): `{body, busy, activeProcess?, lastProcessEnd?:{kind,error?}, slots:{goto,mine,builder,follow,explore,runAway,retreat,look,elytra,craft,smelt,escape,bunker,combat,plan}, reflexes?}`; each slot `{active, goal?, target?, pathLen, pathStep, startedAtMs?, lastError?, goalReached?, endReason?, finalDist?}`. Only self has `reflexes`: `{paused, activeProcessDetail?, activeChain?, userTaskSuspended, chains:{<name>:{priority, episode?, bail?}}, lastPath?:{expanded,ms,goalReached,finalCost,pathLen,…}, clutch, combat:{swings,wellTimed,crits,kills}}` — the primary "why isn't it moving" probe. Pollable. An unknown body is refused `body_unavailable`. |
 | `mc.bot.cancel` | `actionId?`, or `process?` (dflt `all`) with `body?` | stop an action, or a body's processes, releasing keys and leaving `lastError='user-cancel'` → `{outcome:"done", cancelled:[…], action?}`. With `actionId`: `cancelled` holds it when it was still running, `action` is its snapshot (an unknown id is `action_not_found`). With `process`: a process kind, or a reflex chain's own name (`retreat`/`duskSecure`/`bunker`/`combat`) for that chain's internal episode, and a kind also reaches a process held inside a chain; `cancelled` names each hit (`user/bunker-process`, `bunker-episode`, …), empty when nothing matched, `["all"]` for the best-effort broadcast. Another bot holds one process and no chains, so a named cancel matches its kind or nothing; an unknown body is refused `body_unavailable`. |
-| `mc.bot.setting` | tagged on `op`: `{op:"read",keys?}`\|`{op:"patch",updates:[{key,value}]}`\|`{op:"apply",update:{key,value}}` | the tuning + reflex/Baritone toggle surface → `{op:"read",values:[{key,value}]}`, `{op:"patch",values,persisted,persistError?}`, `{op:"apply",applied:{key,value}}`. See below. |
+| `mc.bot.setting` | tagged on `op`: `{op:"read",keys?}`\|`{op:"patch",values:{<key>:<value>,…}}`\|`{op:"apply",control,value}` | the tuning + reflex/Baritone toggle surface → `{op:"read",values:{<key>:<value>,…}}`, `{op:"patch",values,persisted,persistError?}`, `{op:"apply",control,value}`. See below. |
 
 ### `mc.bot.setting` keys
 Single source: **`SettingsRegistry.java`** — the ordered `HAND` list (canonical key
@@ -313,8 +313,8 @@ makes it a valid key with no second edit. Ranges live in **`SettingsDocs.java`**
 key's row opens with `[min,max]`, that row is the key's schema description, and the
 contract rejects any number outside it as `out_of_range` (an aliased field's own name,
 e.g. `walkerRepathEveryTicks`, is held to its alias's range). `SettingsContract.java`
-turns that table into one `{key,value}` variant per key, so the schema and the
-generated TypeScript (`SettingValue`) both know each key's value type.
+turns that table into one typed property per key, so the schema and the
+generated TypeScript (`SettingValues`) both know each key's value type.
 The set is large — **on the order of 200 keys** (currently ~120 boolean, ~70
 numeric, plus a handful of list/string keys); the great majority are `walker*` /
 `pathfinder*` movement-research toggles.
@@ -324,14 +324,14 @@ readable key and its value) — that is the authoritative, never-stale list. The
 below are a **curated highlight** of the commonly-used keys, not the whole surface;
 grep `SettingsRegistry.HAND` for the canonical ordered names.
 
-- **`patch` is all-or-nothing.** Every update is checked first — unknown key, wrong
-  type, out-of-range number, unknown block id, a key named twice — and any problem is
-  `invalid_params` with one issue per bad update at `/updates/<i>/…`; nothing is
-  written. Otherwise all of them commit together and are saved; `persisted:false`
-  (with `persistError`) means the save failed or persistence is off, and the values are
-  still live in memory. `values` echoes each updated key as it now stands.
+- **`patch` is all-or-nothing.** Every value is checked first — unknown key, wrong
+  type, out-of-range number, unknown block id — and any problem is `invalid_params`
+  with one issue per bad value at `/values/<key>…`; nothing is written. Otherwise all
+  of them commit together and are saved; `persisted:false` (with `persistError`) means
+  the save failed or persistence is off, and the values are still live in memory.
+  `values` echoes each written key as it now stands.
 - **`paused` and `debugFly` are controls, not configuration**: write them with
-  `{op:"apply",update:{key:"paused",value:true}}`, one at a time; a patch naming them
+  `{op:"apply",control:"paused",value:true}`, one at a time; a patch naming them
   is refused. They act on this client's player, so with no client `apply` is
   `capability_unavailable`. `debugFly` has nothing to read back.
 - Settings live on the client's thread when there is a client, else the server's, so

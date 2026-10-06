@@ -48,7 +48,7 @@ final class SettingsMethods {
             case Apply a -> {
                 if (bot == null) {
                     throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
-                            a.update().key() + " acts on this client's player, and there is no client here");
+                            a.control() + " acts on this client's player, and there is no client here");
                 }
                 yield bot.clientHop().<SettingsReply>submit(() -> apply(bot, a), ctx);
             }
@@ -87,23 +87,21 @@ final class SettingsMethods {
     }
 
     private static SettingsReply patch(BotApi bot, Patch p) {
-        List<ApiIssue> issues = SettingsCommand.check(p.updates(), "/updates");
+        List<ApiIssue> issues = SettingsCommand.check(p.values(), "/values");
         if (!issues.isEmpty()) throw ApiException.invalidParams(issues);
-        SettingsCommand.commit(bot, p.updates());
+        SettingsCommand.commit(bot, p.values());
         String saveError = BotConfig.save();
         List<Entry> values = new ArrayList<>();
-        for (Entry u : p.updates()) values.add(new Entry(u.key(), SettingsCommand.read(bot, u.key())));
+        for (Entry u : p.values()) values.add(new Entry(u.key(), SettingsCommand.read(bot, u.key())));
         return new Patched(values, saveError == null, Optional.ofNullable(saveError));
     }
 
     private static SettingsReply apply(BotApi bot, Apply a) {
-        Entry u = a.update();
-        boolean on = (Boolean) u.value();
-        switch (u.key()) {
-            case "paused" -> bot.setPaused(on);
-            case "debugFly" -> bot.debugFly(on);
-            default -> throw new IllegalArgumentException(u.key() + " is no control");
+        switch (a.control()) {
+            case "paused" -> bot.setPaused(a.value());
+            case "debugFly" -> bot.debugFly(a.value());
+            default -> throw new IllegalArgumentException(a.control() + " is no control");
         }
-        return new Applied(u);
+        return new Applied(a.control(), a.value());
     }
 }

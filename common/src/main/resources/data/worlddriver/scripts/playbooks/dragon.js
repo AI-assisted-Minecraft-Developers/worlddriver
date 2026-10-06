@@ -32,7 +32,7 @@
     }
 
     // T0 survival reflexes on for the whole fight.
-    Driver.bot.patchSettings({ autoTotem: true, autoHeal: true, autoEat: true, autoDodge: true });
+    Driver.bot.setting({ op: 'patch', values: { autoTotem: true, autoHeal: true, autoEat: true, autoDodge: true } });
     // Gear up if we are carrying anything better (idempotent — no-op once best is worn).
     try { Driver.invoke('mc.bot.equip', { profile: 'best' }); } catch (e) {}
 

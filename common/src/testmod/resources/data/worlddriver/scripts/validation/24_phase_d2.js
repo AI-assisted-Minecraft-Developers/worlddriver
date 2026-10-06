@@ -7,33 +7,29 @@ function errorOf(call) {
     return null;
 }
 
-/** Patch one key and answer what the reply says it now holds. */
-function patchOne(key, value) {
-    var p = {};
-    p[key] = value;
-    return Driver.bot.patchSettings(p).values[0].value;
-}
+function read(keys) { return Driver.bot.setting({ op: "read", keys: keys }).values; }
+function patch(values) { return Driver.bot.setting({ op: "patch", values: values }).values; }
 
 ScriptTest.run("24_phase_d2: allowParkour4 toggle round-trips", function(t) {
-    var was = Driver.bot.readSettings(["allowParkour4"]);
-    t.assertEqual(patchOne("allowParkour4", true), true, "allowParkour4=true");
-    t.assertEqual(patchOne("allowParkour4", false), false, "allowParkour4=false");
-    Driver.bot.patchSettings(was);
+    var was = read(["allowParkour4"]);
+    t.assertEqual(patch({ allowParkour4: true }).allowParkour4, true, "allowParkour4=true");
+    t.assertEqual(patch({ allowParkour4: false }).allowParkour4, false, "allowParkour4=false");
+    patch(was);
 });
 
 ScriptTest.run("24_phase_d2: autoTool toggle round-trips", function(t) {
-    var was = Driver.bot.readSettings(["autoTool"]);
-    t.assertEqual(patchOne("autoTool", true), true, "autoTool=true");
-    t.assertEqual(patchOne("autoTool", false), false, "autoTool=false");
-    Driver.bot.patchSettings(was);
+    var was = read(["autoTool"]);
+    t.assertEqual(patch({ autoTool: true }).autoTool, true, "autoTool=true");
+    t.assertEqual(patch({ autoTool: false }).autoTool, false, "autoTool=false");
+    patch(was);
 });
 
 ScriptTest.run("24_phase_d2: non-boolean for toggle leaves state unchanged", function(t) {
-    var before = Driver.bot.readSettings(["autoTool"]).autoTool;
-    var e = errorOf(function() { Driver.bot.patchSettings({ autoTool: "yes" }); });
-    t.assertEqual(e.issues[0].path, "/updates/0/value", "path");
+    var before = read(["autoTool"]).autoTool;
+    var e = errorOf(function() { patch({ autoTool: "yes" }); });
+    t.assertEqual(e.issues[0].path, "/values/autoTool", "path");
     t.assertEqual(e.issues[0].code, "type_mismatch", "a string for a boolean is a type mismatch");
-    t.assertEqual(Driver.bot.readSettings(["autoTool"]).autoTool, before, "the refused write left autoTool as it was");
+    t.assertEqual(read(["autoTool"]).autoTool, before, "the refused write left autoTool as it was");
 });
 
 ScriptTest.run("24_phase_d2: byte-identical setting reads across in-JVM/RPC/MCP", function(t) {

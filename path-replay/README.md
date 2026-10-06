@@ -19,7 +19,7 @@ block envelope and the per-tick trajectory, which is heavy on a long run. Turn i
 before the `goto` you want to capture:
 
 ```json
-mc.bot.setting {"op": "patch", "updates": [{"key": "pathArchive", "value": true}]}
+mc.bot.setting {"op": "patch", "values": {"pathArchive": true}}
 ```
 
 Completing or cancelling the `goto` then writes

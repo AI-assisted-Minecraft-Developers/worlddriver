@@ -39,11 +39,12 @@ ScriptTest.run("31_goal_types: the same error over in-JVM, RPC and MCP", functio
 });
 
 ScriptTest.run("31_goal_types: pathfinder.axisHeight round-trips and rejects out-of-range", function(t) {
-    var was = Driver.bot.readSettings(["pathfinder.axisHeight"]);
-    t.assertEqual(Driver.bot.patchSettings({ "pathfinder.axisHeight": 64 }).values[0].value, 64, "axisHeight=64");
-    var bad = errorOf(function() { Driver.bot.patchSettings({ "pathfinder.axisHeight": 9999 }); });
+    var was = Driver.bot.setting({ op: "read", keys: ["pathfinder.axisHeight"] }).values;
+    t.assertEqual(Driver.bot.setting({ op: "patch", values: { "pathfinder.axisHeight": 64 } }).values["pathfinder.axisHeight"],
+        64, "axisHeight=64");
+    var bad = errorOf(function() { Driver.bot.setting({ op: "patch", values: { "pathfinder.axisHeight": 9999 } }); });
     t.assertEqual(bad.issues[0].code, "out_of_range", "out-of-range axisHeight is refused");
-    Driver.bot.patchSettings(was);
+    Driver.bot.setting({ op: "patch", values: was });
 });
 
 if (!clientAvailable()) {

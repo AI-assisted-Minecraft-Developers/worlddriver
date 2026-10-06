@@ -26,20 +26,20 @@ class SettingsRangeTest {
     @AfterEach void restore() { BotConfig.restoreAll(saved); }
 
     static Map<String, Object> patchOf(String key, Object value) {
-        return Map.of("op", "patch", "updates", List.of(Map.of("key", key, "value", value)));
+        return Map.of("op", "patch", "values", Map.of(key, value));
     }
 
     /** Decode a one-key patch and commit it as the method would. */
     static void patch(String key, Object value) {
         SettingsContract.Patch p = (SettingsContract.Patch) SettingsContract.PARAMS.decode(patchOf(key, value));
-        SettingsCommand.commit(null, p.updates());
+        SettingsCommand.commit(null, p.values());
     }
 
     private static void assertRejectedAndUnchanged(String key, Object value, String field) throws ReflectiveOperationException {
         Object before = BotConfig.class.getField(field).get(null);
         List<ApiIssue> issues = assertThrows(ApiException.class, () -> patch(key, value), key + "=" + value + " was accepted")
                 .error().issues();
-        assertEquals("/updates/0/value", issues.get(0).path(), key + "=" + value + ": " + issues);
+        assertEquals("/values/" + key, issues.get(0).path(), key + "=" + value + ": " + issues);
         assertEquals(before, BotConfig.class.getField(field).get(null), key + "=" + value + " changed the field");
     }
 

@@ -1554,16 +1554,16 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         ask(ctx, "unknownKey", "mc.bot.setting", Map.of("op", "patch",
-                "updates", List.of(Map.of("key", "definitelyNotAKnob", "value", true))), refused -> {
+                "values", Map.of("definitelyNotAKnob", true)), refused -> {
             List<ApiIssue> issues = refused.get("error") instanceof ApiException e ? e.error().issues() : List.of();
-            ctx.expect(issues.stream().anyMatch(i -> i.path().equals("/updates/0/key") && i.message().contains("definitelyNotAKnob")))
+            ctx.expect(issues.stream().anyMatch(i -> i.path().equals("/values/definitelyNotAKnob") && i.message().contains("definitelyNotAKnob")))
                     .as("the unknown key is refused at its own path, by name: " + issues).isEqualTo(true);
             // The contract must not over-reach the other way: a KNOWN key commits, the reply carries
             // what it now holds, and a fresh read agrees. The pin restores it however this exits.
             ask(ctx, "read", "mc.bot.setting", Map.of("op", "read", "keys", List.of("autoEat")), before -> {
                 boolean orig = Boolean.TRUE.equals(settingOf(before, "autoEat"));
                 ask(ctx, "patch", "mc.bot.setting", Map.of("op", "patch",
-                        "updates", List.of(Map.of("key", "autoEat", "value", !orig))), write -> {
+                        "values", Map.of("autoEat", !orig)), write -> {
                     ctx.expect(settingOf(write, "autoEat")).as("the value the patch reports").isEqualTo(!orig);
                     ask(ctx, "reread", "mc.bot.setting", Map.of("op", "read", "keys", List.of("autoEat")), after ->
                             ctx.expect(settingOf(after, "autoEat")).as("a fresh read of autoEat").isEqualTo(!orig));
@@ -1574,10 +1574,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
 
     /** One key's value out of a {@code mc.bot.setting} reply's {@code values}. */
     private static Object settingOf(Map<?, ?> reply, String key) {
-        if (reply.get("values") instanceof List<?> values) {
-            for (Object o : values) if (o instanceof Map<?, ?> v && key.equals(v.get("key"))) return v.get("value");
-        }
-        return null;
+        return reply.get("values") instanceof Map<?, ?> values ? values.get(key) : null;
     }
 
     /**

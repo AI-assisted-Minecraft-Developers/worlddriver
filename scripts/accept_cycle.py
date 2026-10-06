@@ -26,13 +26,13 @@ def rpc(m, p): return asyncio.run(_rpc(m, p))
 
 def patch_settings(values):
     """Write the keys of `values` together through mc.bot.setting."""
-    return rpc('mc.bot.setting', {'op': 'patch', 'updates': [{'key': k, 'value': v} for k, v in values.items()]})
+    return rpc('mc.bot.setting', {'op': 'patch', 'values': values})
 
 
 def read_settings():
     """Every readable setting as {key: value}, or None when the call did not answer."""
     r = rpc('mc.bot.setting', {'op': 'read'})
-    return None if r is None else {e['key']: e['value'] for e in r.get('values', [])}
+    return None if r is None else r.get('values', {})
 
 
 def click_button(labels, gone_type=None, timeout=6.0):

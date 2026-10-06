@@ -31,7 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   including a world closing, a body leaving, a test reset and a dropped connection.
 - **Script runs own their actions.** `mc.script.eval`, skills and playbooks each run as one run whose
   actions are refused to anyone else and cancelled when the run stops. A timed-out script is stopped,
-  and encoding its result has its own budget.
+  and encoding its result has its own budget. A script calls the same methods with the same params as
+  any other caller: the prelude's helpers that reshaped params (`Driver.bot.patchSettings`,
+  `readSettings`, `pause`, the waypoint and auto-toggle shortcuts, `Driver.observe.area`,
+  `Driver.action.placeBlock`, `Driver.client.screen.openInventory`) are gone.
 - **Replies changed shape across the surface**, now that each is declared:
   - The event stream:
     - Event seqs and cursors are decimal strings, since a 64-bit seq does not survive a JavaScript number.
@@ -42,7 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `mc.query` answers `{q, blocks|entities}`.
   - `observe.boss` answers `{crystals, boss?}`, the boss tagged on `type`.
   - The world and recipe writes lost `ok`.
-  - Settings are read and written through `mc.bot.setting{op:"read"|"patch"|"apply"}`.
+  - Settings are read and written through `mc.bot.setting{op:"read"|"patch"|"apply"}`. `read` and
+    `patch` carry one `values` object, `{autoEat: true, …}`, each member typed by its key, and a bad
+    value is reported at `/values/<key>`. `apply` takes `{control, value}`.
   - Client screen writes:
     - They answer `{outcome:"done", …, contextId}` and take a `contextId` back, refused with `context_changed` when the screen changed in between.
     - `screen.tree` is a flat node list.

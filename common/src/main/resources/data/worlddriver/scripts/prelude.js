@@ -1,7 +1,8 @@
-// Prelude loaded into every mc.script.eval scope. Defines the global
-// console, Driver.invoke (with Java-exception-prefix stripping) and the
-// Driver.{system,observe,action,query,wait,client,bot} surface that wraps
-// the canonical MCP routes. Loaded from classpath by ScriptEvaluator.
+// Prelude loaded into every mc.script.eval scope. Defines the global console,
+// javaClassName, DriverApiError and Driver.invoke; every Driver.<group>.<verb>
+// comes from the generated wrappers loaded after it, one per method, taking that
+// method's own params. Nothing here reshapes a method's params: a shape that
+// needs sugar is a contract to fix.
 
 var __log = [];
 var __result = null, __error = null;
@@ -52,90 +53,4 @@ Driver.invoke = function (method, params) {
     var reply = JSON.parse(String(__api.invokeJson(method, params === undefined ? null : JSON.stringify(params))));
     if (reply.error) throw new DriverApiError(reply.error);
     return reply.result;
-};
-
-// mc.system.*, mc.observe.{player,threats,boss,scene,map}, mc.query, mc.world.*, the
-// mc.action.{runCommand,fill,placeMany} writes, mc.recipe.* and mc.plan.acquire come from the
-// generated wrappers: each takes the method's own params object.
-
-Driver.observe = {
-    // Sugar over mc.query q='blocks' taking {radius, center?, filter?} — the radius at the top
-    // level is the shape callers used before observe.area was merged into query.
-    area: function (p) {
-        var q = { q: 'blocks', filter: { in_radius: (p && p.radius) | 0 } };
-        if (p && p.center) q.center = p.center;
-        if (p && p.filter && p.filter.type) q.filter.type = p.filter.type;
-        return { blocks: Driver.invoke('mc.query', q).blocks };
-    }
-};
-
-Driver.action = {
-    // Sugar over placeMany for the single-block case: {pos, type, returnEvents?}.
-    placeBlock: function (p) {
-        var args = { blocks: [{ pos: p.pos, type: p.type }] };
-        if (p.returnEvents) args.returnEvents = true;
-        return Driver.invoke('mc.action.placeMany', args);
-    }
-};
-
-// The mc.client.* methods come from the generated wrappers loaded after this file
-// (Driver.client.screen.info(), Driver.client.input.click({x, y}), …). The inventory and pause
-// screens open through their bound keys, the path a player takes.
-Driver.client = {
-    screen: {
-        openInventory: function () { return Driver.invoke('mc.client.input.key', { key: 'E' }); },
-        openPause:     function () { return Driver.invoke('mc.client.input.key', { key: 'ESCAPE' }); }
-    }
-};
-
-// The body tasks (goto, mine, craft, …), the hand verbs (lookAt, useItem, …), status, cancel,
-// waypoint and setting come from the generated wrappers loaded after this file.
-Driver.bot = {
-    // Sugar over mc.bot.setting's {key, value} lists. patchSettings({autoEat: true, …}) writes those
-    // keys together and answers the method's reply; readSettings(['autoEat', …]) answers
-    // {autoEat: true, …}, every readable key when no list is given.
-    patchSettings: function (values) {
-        var updates = [];
-        for (var k in values) if (Object.prototype.hasOwnProperty.call(values, k)) updates.push({ key: k, value: values[k] });
-        return Driver.invoke('mc.bot.setting', { op: 'patch', updates: updates });
-    },
-    readSettings: function (keys) {
-        var p = { op: 'read' };
-        if (keys !== undefined) p.keys = keys;
-        var values = Driver.invoke('mc.bot.setting', p).values, out = {};
-        for (var i = 0; i < values.length; i++) out[values[i].key] = values[i].value;
-        return out;
-    },
-    pause:     function ()     { return Driver.invoke('mc.bot.setting', { op: 'apply', update: { key: 'paused', value: true } }); },
-    resume:    function ()     { return Driver.invoke('mc.bot.setting', { op: 'apply', update: { key: 'paused', value: false } }); },
-    // Baritone-style survival toggles — sugar over mc.bot.setting.
-    autoEat:    function (on, opts) {
-        var p = { autoEat: !!on };
-        if (opts && opts.threshold !== undefined) p.autoEatFoodThreshold = opts.threshold | 0;
-        return Driver.bot.patchSettings(p);
-    },
-    autoRespawn: function (on) { return Driver.bot.patchSettings({ autoRespawn: !!on }); },
-    // Baritone BackfillProcess analogue — when on, the bot tracks the cells its
-    // own digs break (never air it only walks through) and refills them with
-    // `block` (default cobblestone) whenever it would otherwise be idle. Pass
-    // {radius:N} to cap how far from the player the auto-fill considers
-    // (default 6, range 1..16).
-    autoBackfill: function (on, opts) {
-        var p = { autoBackfill: !!on };
-        if (opts && opts.block !== undefined)  p.autoBackfillBlock  = String(opts.block);
-        if (opts && opts.radius !== undefined) p.autoBackfillRadius = opts.radius | 0;
-        return Driver.bot.patchSettings(p);
-    },
-    // Baritone-style waypoints — sugar over mc.bot.waypoint; pos defaults to where the player stands.
-    saveWaypoint:   function (name, pos) {
-        var op = { op: 'save', name: name };
-        if (pos !== undefined) op.pos = pos;
-        return Driver.invoke('mc.bot.waypoint', op);
-    },
-    gotoWaypoint:   function (name, opts) {
-        var p = Object.assign({ target: { kind: 'waypoint', name: name } }, opts || {});
-        return Driver.invoke('mc.bot.goto', p);
-    },
-    listWaypoints:  function () { return Driver.invoke('mc.bot.waypoint', { op: 'list' }); },
-    deleteWaypoint: function (name) { return Driver.invoke('mc.bot.waypoint', { op: 'delete', name: name }); }
 };

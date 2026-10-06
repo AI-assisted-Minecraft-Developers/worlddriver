@@ -9,7 +9,7 @@
 // validates the gear gate and exits — handy for "am I ready for a wither yet?".
 // Notes for live tuning: vanilla phase 2 (powered, <=50% hp) is immune to
 // projectiles and burrows, so this melees throughout; a sealed bedrock box keeps it
-// from escaping (build with the existing placeBlock/fill primitives before calling).
+// from escaping (build with mc.action.placeMany/fill before calling).
 (function () {
     function boss()     { return Driver.invoke('mc.observe.boss', { radius: 48 }); }
     function player()   { return Driver.invoke('mc.observe.player', {}).player; }
@@ -32,7 +32,7 @@
                  missingArmor: missing, hasSword: hasSword };
     }
 
-    Driver.bot.patchSettings({ autoTotem: true, autoHeal: true, autoEat: true, autoDodge: true, autoRetreat: false });
+    Driver.bot.setting({ op: 'patch', values: { autoTotem: true, autoHeal: true, autoEat: true, autoDodge: true, autoRetreat: false } });
 
     // --- Summon (optional). The wither stays invulnerable ~220 ticks, then
     //     detonates a large explosion — back off and let it blow before closing in.

@@ -14,8 +14,8 @@ if (!clientAvailable() || !routeAvailable()) {
 } else {
 
     ScriptTest.run("56_debug_pathchart: settings round-trip", function (t) {
-        Driver.bot.patchSettings({ pathDebug: true, pathChartAutoDump: false, pathDebugMaxNodes: 4000 });
-        var r = Driver.bot.readSettings(["pathDebug", "pathDebugMaxNodes"]);
+        Driver.bot.setting({ op: "patch", values: { pathDebug: true, pathChartAutoDump: false, pathDebugMaxNodes: 4000 } });
+        var r = Driver.bot.setting({ op: "read", keys: ["pathDebug", "pathDebugMaxNodes"] }).values;
         t.assertEqual(r.pathDebug, true, "pathDebug committed");
         t.assertEqual(r.pathDebugMaxNodes, 4000, "maxNodes committed");
     });

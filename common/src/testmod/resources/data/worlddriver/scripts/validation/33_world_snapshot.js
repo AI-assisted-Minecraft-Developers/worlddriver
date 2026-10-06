@@ -25,17 +25,17 @@ ScriptTest.run("33_world_snapshot: block states restore after mutation", functio
     // Mutate: wipe the whole region to air.
     Driver.invoke("mc.action.fill", { from: from, to: to, type: "minecraft:air" });
     tick(1);
-    var mid = Driver.observe.area({ center: { x: o.x, y: y, z: o.z }, radius: 0 });
+    var mid = Driver.query({ q: "blocks", center: { x: o.x, y: y, z: o.z }, filter: { in_radius: 0 } });
     t.assertEqual(mid.blocks.length, 0, "center is air after the wipe");
 
     var res = Driver.invoke("mc.world.restore", { id: "states" });
     t.assertEqual(res.restored, 9, "all 9 cells restored");
     tick(1);
 
-    var center = Driver.observe.area({ center: { x: o.x, y: y, z: o.z }, radius: 0 });
+    var center = Driver.query({ q: "blocks", center: { x: o.x, y: y, z: o.z }, filter: { in_radius: 0 } });
     t.assertEqual(center.blocks[0].type, "minecraft:oak_planks", "center restored to oak_planks");
     var corner = { x: o.x - 1, y: y, z: o.z - 1 };
-    var back = Driver.observe.area({ center: corner, radius: 0 });
+    var back = Driver.query({ q: "blocks", center: corner, filter: { in_radius: 0 } });
     t.assertEqual(back.blocks.length, 1, "wiped corner is non-air again");
     t.assertEqual(back.blocks[0].type, "minecraft:stone", "corner restored to stone");
 });

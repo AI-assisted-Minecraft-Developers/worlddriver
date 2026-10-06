@@ -11,6 +11,8 @@ function clientAvailable() {
     catch (e) { return false; }
 }
 
+function patch(values) { return Driver.bot.setting({ op: "patch", values: values }).values; }
+
 function dist(a, b) {
     var dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
     return Math.sqrt(dx * dx + dy * dy + dz * dz);
@@ -31,7 +33,7 @@ function findType(threats, needle) {
 function cleanup() {
     Driver.invoke("mc.bot.cancel", { process: "all" });
     Driver.invoke("mc.action.runCommand", { cmd: "kill @e[type=!minecraft:player]" });
-    Driver.bot.patchSettings({ autoFight: false, autoRetreat: false });
+    patch({ autoFight: false, autoRetreat: false });
     Driver.invoke("mc.action.runCommand", { cmd: "clear @s" });
     Driver.system.waitTicks({ ticks: 3 });
 }
@@ -99,7 +101,7 @@ if (!clientAvailable()) {
         cleanup();
         equip("minecraft:bow");
         Driver.invoke("mc.action.runCommand", { cmd: "give @s minecraft:arrow 64" });
-        Driver.bot.patchSettings({ kiteDistance: 8 });
+        patch({ kiteDistance: 8 });
         var me = Driver.invoke("mc.observe.player", {}).player;
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
         // Stationary skeleton 3 blocks away — inside the kite band, so the bot must

@@ -4,10 +4,10 @@
 ScriptTest.run("25_phase_d3: allowParkour4 still round-trips (gates parkour3d too)", function(t) {
     // Parkour3Diagonal shares the allowParkour4 gate — verify the toggle
     // still works after the new Move class is registered.
-    var was = Driver.bot.readSettings(["allowParkour4"]);
-    t.assertEqual(Driver.bot.patchSettings({ allowParkour4: true }).values[0].value, true, "allowParkour4 on");
-    t.assertEqual(Driver.bot.patchSettings({ allowParkour4: false }).values[0].value, false, "allowParkour4 off");
-    Driver.bot.patchSettings(was);
+    var was = Driver.bot.setting({ op: "read", keys: ["allowParkour4"] }).values;
+    t.assertEqual(Driver.bot.setting({ op: "patch", values: { allowParkour4: true } }).values.allowParkour4, true, "allowParkour4 on");
+    t.assertEqual(Driver.bot.setting({ op: "patch", values: { allowParkour4: false } }).values.allowParkour4, false, "allowParkour4 off");
+    Driver.bot.setting({ op: "patch", values: was });
 });
 
 ScriptTest.run("25_phase_d3: an unknown tunnel direction is invalid_params", function(t) {

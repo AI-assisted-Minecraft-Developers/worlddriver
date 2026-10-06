@@ -60,7 +60,7 @@ say `python3`; swap the name for your box. Run it from the `scripts/` directory 
 python3 .claude/skills/worlddriver-rpc/rpc.py mc.system.version
 
 # one-shot with params (params = a JSON object string)
-python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.setting '{"op":"patch","updates":[{"key":"allowParkourPlace","value":true}]}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.setting '{"op":"patch","values":{"allowParkourPlace":true}}'
 
 # no-param read (omit the JSON)
 python3 .claude/skills/worlddriver-rpc/rpc.py mc.observe.player
@@ -71,7 +71,7 @@ python3 .claude/skills/worlddriver-rpc/rpc.py --batch - <<'EOF'
 mc.action.runCommand {"cmd":"give @p minecraft:stone 64"}
 mc.action.runCommand {"cmd":"tp @p 20 -60 0"}
 mc.action.runCommand {"cmd":"fill 16 149 -1 20 149 1 minecraft:stone"}
-mc.bot.setting {"op":"patch","updates":[{"key":"allowParkourPlace","value":true},{"key":"walkerDebug","value":true}]}
+mc.bot.setting {"op":"patch","values":{"allowParkourPlace":true,"walkerDebug":true}}
 EOF
 ```
 

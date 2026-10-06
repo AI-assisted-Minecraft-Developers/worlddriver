@@ -19,10 +19,10 @@ if (!clientAvailable()) {
 } else {
 
     ScriptTest.run("22_phase_c: autoSwim toggle round-trips", function(t) {
-        var was = Driver.bot.readSettings(["autoSwim"]);
-        t.assertEqual(Driver.bot.patchSettings({ autoSwim: true }).values[0].value, true, "autoSwim=true");
-        t.assertEqual(Driver.bot.patchSettings({ autoSwim: false }).values[0].value, false, "autoSwim=false");
-        Driver.bot.patchSettings(was);
+        var was = Driver.bot.setting({ op: "read", keys: ["autoSwim"] }).values;
+        t.assertEqual(Driver.bot.setting({ op: "patch", values: { autoSwim: true } }).values.autoSwim, true, "autoSwim=true");
+        t.assertEqual(Driver.bot.setting({ op: "patch", values: { autoSwim: false } }).values.autoSwim, false, "autoSwim=false");
+        Driver.bot.setting({ op: "patch", values: was });
     });
 
     ScriptTest.run("22_phase_c: status returns canonical shape (lastPath optional)", function(t) {

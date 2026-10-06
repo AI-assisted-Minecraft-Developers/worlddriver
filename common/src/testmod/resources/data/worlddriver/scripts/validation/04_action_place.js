@@ -5,7 +5,7 @@ ScriptTest.run("04_action_place: placeMany then observe shows new block", functi
         { blocks: [{ pos: target, type: "minecraft:cobblestone" }] });
     t.assertEqual(r.placed, 1, "exactly one block should be placed");
 
-    var after = Driver.observe.area({ center: target, radius: 0 });
+    var after = Driver.query({ q: "blocks", center: target, filter: { in_radius: 0 } });
     t.assertEqual(after.blocks.length, 1, "expected exactly 1 block at target");
     t.assertEqual(after.blocks[0].type, "minecraft:cobblestone");
     t.assertEqual(after.blocks[0].pos.x, target.x);

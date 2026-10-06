@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
  * range so their "key" read {@code pathfinder.heuristicWeight[1.0,3.0]}.
  *
  * <p>Now each string is attached to the key it describes and rendered as the description of
- * that key's {@code SettingValue} variant. {@link SettingsRegistry#assertDocsResolve()} fails at
+ * that key's property of {@code SettingValues}. {@link SettingsRegistry#assertDocsResolve()} fails at
  * class load if a key here is not a real setting, so a renamed or deleted flag cannot leave
  * orphaned prose behind. A row's opening {@code [lo,hi]} is also the range the contract enforces.
  *
