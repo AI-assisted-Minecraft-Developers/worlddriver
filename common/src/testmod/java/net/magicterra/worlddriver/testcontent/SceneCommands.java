@@ -150,7 +150,7 @@ public final class SceneCommands {
         CommandSourceStack src = ctx.getSource();
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("name", StringArgumentType.getString(ctx, "name"));
-        params.put("verdict", StringArgumentType.getString(ctx, "verdict"));
+        params.put("verdict", StringArgumentType.getString(ctx, "verdict").toLowerCase(java.util.Locale.ROOT));
         if (!note.isBlank()) params.put("note", note.trim());
         return route(src, "worlddriver.scene.verdict", params,
                 r -> "verdict recorded in " + r.get("file"));

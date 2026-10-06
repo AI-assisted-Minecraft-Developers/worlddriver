@@ -56,19 +56,20 @@ a block that must become air.
 
 ### Every operation is a driver verb; the command is a thin caller
 
-`worlddriver.mark` and the `worlddriver.scene.*` family are registered through
-`ToolCatalog.registerVerb`, and the slash commands do nothing but translate arguments into one
+`worlddriver.mark` and the `worlddriver.scene.*` family are typed methods the testmod publishes as one
+`ApiBatch` under its own owner, and the slash commands do nothing but translate arguments into one
 `DriverApi.route` call. That keeps game-affecting behaviour inside `DriverApi`, as the architecture
 requires, and it means the whole workflow is available over RPC and from scripts — a nightly job can
 run every local scene and leave the results for somebody to read in the morning, without anyone being
 in the game.
 
-The verbs use hidden tool schemas, so they do not appear in the Model Context Protocol tool list.
+Their specs are marked hidden, so they do not appear in the Model Context Protocol tool list.
 Every advertised tool's schema is sent in every prompt to every language-model client, and these verbs
 are for a human tester, not for the model.
 
 The namespace is `worlddriver.` rather than `mc.`, because `mc.*` is reserved for the core surface and
-the extension point admits any other dotted name. A mod's own id is the natural prefix.
+the registry's namespace policy lets any other owner publish a name outside `mc.`. A mod's own id is
+the natural prefix.
 
 ### Architectury API became a mandatory dependency
 
