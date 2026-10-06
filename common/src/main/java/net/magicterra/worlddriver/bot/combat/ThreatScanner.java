@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.combat;
 
+import net.magicterra.worlddriver.api.methods.CommonTypes;
+import net.magicterra.worlddriver.api.methods.ObserveContracts;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
@@ -18,7 +20,6 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -228,43 +229,21 @@ public final class ThreatScanner {
 
     // === verb serialization (mc.observe.threats) =============================
 
-    public static Map<String, Object> toMap(Scan s) {
-        Map<String, Object> out = new LinkedHashMap<>();
-        List<Object> threats = new ArrayList<>();
+    public static ObserveContracts.Threats reading(Scan s) {
+        List<ObserveContracts.Threat> threats = new ArrayList<>();
         for (Threat t : s.threats()) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", t.id());
-            m.put("type", t.type());
-            m.put("pos", posMap(t.entity().position()));
-            m.put("distance", t.distance());
-            m.put("hostile", true);
-            m.put("canSeeMe", t.canSeeMe());
-            m.put("facingMe", t.facingMe());
-            m.put("charging", t.charging() ? "bow" : "none");
-            m.put("creeperSwell", (double) t.creeperSwell());
-            m.put("attackedMe", t.attackedMe());
-            m.put("threat", t.score());
-            threats.add(m);
+            threats.add(new ObserveContracts.Threat(t.id(), t.type(), point(t.entity().position()), t.distance(),
+                    t.canSeeMe(), t.facingMe(), t.charging(), t.creeperSwell(), t.attackedMe(), t.score()));
         }
-        List<Object> proj = new ArrayList<>();
+        List<ObserveContracts.Projectile> proj = new ArrayList<>();
         for (Incoming in : s.projectiles()) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", in.id());
-            m.put("type", in.type());
-            m.put("pos", posMap(in.pos()));
-            m.put("vel", posMap(in.vel()));
-            m.put("willHit", in.willHit());
-            m.put("ticksToImpact", in.ticksToImpact());
-            proj.add(m);
+            proj.add(new ObserveContracts.Projectile(in.id(), in.type(), point(in.pos()), point(in.vel()), in.willHit(),
+                    in.ticksToImpact()));
         }
-        out.put("threats", threats);
-        out.put("incomingProjectiles", proj);
-        return out;
+        return new ObserveContracts.Threats(threats, proj);
     }
 
-    private static Map<String, Object> posMap(Vec3 v) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("x", v.x); m.put("y", v.y); m.put("z", v.z);
-        return m;
+    private static CommonTypes.Point point(Vec3 v) {
+        return new CommonTypes.Point(v.x, v.y, v.z);
     }
 }

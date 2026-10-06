@@ -72,13 +72,14 @@ public final class WorldDriverQueryScenes implements SceneProvider {
 
         Object rows = api.route("mc.query", Map.of("q", "blocks", "center", pos(center),
                 "filter", Map.of("in_radius", MAX_RADIUS, "type", "minecraft:gold_block")));
-        ctx.check(rows instanceof List<?> l && l.stream().anyMatch(r -> r instanceof Map<?, ?> m
+        ctx.check(rows instanceof Map<?, ?> reply && reply.get("blocks") instanceof List<?> l
+                        && l.stream().anyMatch(r -> r instanceof Map<?, ?> m
                         && isCell(m.get("pos"), probe)))
                 .as("A the documented maximum radius answers and finds the probe block").isTrue();
 
         String refused = errorOf(() -> api.route("mc.query", Map.of("q", "blocks", "center", pos(center),
                 "filter", Map.of("in_radius", MAX_RADIUS + 1))));
-        ctx.check(refused != null && refused.contains("max " + MAX_RADIUS))
+        ctx.check(refused != null && refused.contains("0–" + MAX_RADIUS))
                 .as("B one past the maximum is refused and names the limit (" + refused + ")").isTrue();
 
         // Far enough that nothing else in the suite has a reason to have it loaded.

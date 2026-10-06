@@ -1,21 +1,18 @@
 package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.api.WorldCell;
-import net.magicterra.worlddriver.api.QueryParams;
 import net.magicterra.worlddriver.api.ServerThreadGuard;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.WireValues;
+import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.model.Params;
+import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.monster.Enemy;
-import net.minecraft.world.phys.AABB;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
@@ -83,49 +80,6 @@ public final class DriverApplication extends DriverApi {
     private volatile ScriptHost scriptHost;
 
     public DriverApplication() {
-        routes.put("mc.system.version", p -> system.version());
-        routes.put("mc.system.testOrigin", p -> system.testOrigin());
-        routes.put("mc.system.waitTicks", p -> system.waitTicks(num(p.get("ticks"))));
-        // mc.observe.area merged into mc.query — call with {q:'blocks', center?, filter:{in_radius,type?}}.
-        routes.put("mc.observe.player", p -> {
-            // On a client MCP without a server attached (client connected to a
-            // remote dedicated server), fall back to the client-side LocalPlayer
-            // snapshot — the only player the client knows about. The optional
-            // `name` parameter is ignored in that case; you can only observe
-            // yourself client-side.
-            if (server == null) {
-                var c = clientOrNull();
-                if (c != null) return c.observePlayer();
-            }
-            return observe.player((String) p.get("name"));
-        });
-        routes.put("mc.observe.threats", p -> {
-            // Client-only sensing (entity render set + creeper swell + projectile
-            // velocity are client state). No server-side equivalent; returns empty
-            // when no client is attached (e.g. dedicated-server GameTest).
-            int radius = p.get("radius") instanceof Number n
-                    ? Math.max(1, Math.min(64, n.intValue())) : 24;
-            var c = clientOrNull();
-            if (c != null) return c.observeThreats(radius);
-            return Map.of("threats", List.of(), "incomingProjectiles", List.of());
-        });
-        routes.put("mc.observe.boss", p -> {
-            // Phase G boss sensing — client-only (reads the ClientLevel entity set,
-            // dragon phaseManager, wither invul ticks). Returns absent on a
-            // dedicated server. Default radius 64 covers the End-pillar crystal ring.
-            int radius = p.get("radius") instanceof Number n
-                    ? Math.max(1, Math.min(256, n.intValue())) : 64;
-            var c = clientOrNull();
-            if (c != null) return c.observeBoss(radius);
-            return Map.of("present", false, "crystals", List.of());
-        });
-        // Server-side hazard scene: HazardField + SurvivalFacts + optional ASCII map.
-        // Works headless in GameTest; no client required.
-        routes.put("mc.observe.scene", p -> observe.scene(p));
-        // ASCII spatial map (top-down heightmap or vertical cross-section) — a
-        // compact, glanceable substitute for parsing block + threat JSON when
-        // making fast tactical/flee decisions. Server-side (works headless).
-        routes.put("mc.observe.map", p -> observe.map(p));
         routes.put("mc.observe.container", p -> {
             // No `pos` → look at whatever container menu is open client-side
             // (player inventory, crafting table, the chest the server just
@@ -137,31 +91,6 @@ public final class DriverApplication extends DriverApi {
                 if (c != null) return c.observeContainerMenu();
             }
             return observe.container(p);
-        });
-        // Action routes — optional `returnEvents:true` bracket-captures events emitted
-        // during the call so a script doesn't need a separate cursor/eventsSince pair.
-        // mc.action.placeBlock removed — single-block placement = mc.action.placeMany({blocks:[{pos,type}]}).
-        routes.put("mc.action.runCommand", p -> withEvents(p, () -> action.runCommand((String) p.get("cmd"))));
-        routes.put("mc.action.fill",       p -> withEvents(p, () -> action.fill(p)));
-        routes.put("mc.action.placeMany",  p -> withEvents(p, () -> action.placeMany(p)));
-        // World snapshot/restore — deterministic test setup/teardown. restore
-        // emits a world.restore event, so it honors returnEvents like the action.* group.
-        // Read-only single-cell inspection (blockstate + light + optional BE NBT)
-        // — the verify half of build→verify (docs/archive/feedback/2026-06-08).
-        routes.put("mc.world.block",       p -> world.block(p));
-        routes.put("mc.world.snapshot",    p -> world.snapshot(p));
-        routes.put("mc.world.restore",     p -> withEvents(p, () -> world.restore(p)));
-        routes.put("mc.recipe.lookup",     p -> recipe.lookup(p));
-        routes.put("mc.recipe.resolve",    p -> recipe.resolve(p));
-        routes.put("mc.plan.acquire",      p -> recipe.planAcquire(p));
-        routes.put("mc.query", p -> {
-            // Client-MCP fallback — server-side query() asserts attached server.
-            String q = (String) p.get("q");
-            if (server == null && ("entities".equals(q) || "blocks".equals(q))) {
-                var c = clientOrNull();
-                if (c != null) return ClientQueryFallback.query(c, p);
-            }
-            return query(QueryParams.from(p));
         });
 
         registerClientRoutes();
@@ -178,6 +107,12 @@ public final class DriverApplication extends DriverApi {
         all.addAll(new ScriptMethods(() -> scriptHost).methods());
         all.addAll(eventsApi.methods());
         all.addAll(wait.methods());
+        all.addAll(system.methods());
+        all.addAll(observe.methods());
+        all.add(new QueryApi(this).method());
+        all.addAll(world.methods());
+        all.addAll(action.methods());
+        all.addAll(recipe.methods());
         return all;
     }
 
@@ -395,112 +330,24 @@ public final class DriverApplication extends DriverApi {
     private int num(Object o) { return Params.toInt(o, 0); }
     private double numD(Object o) { return Params.toDouble(o, 0.0); }
 
+    /** The server hop, or the capability error a detached application answers with. */
+    ServerThreadHop requireServerHop() {
+        ServerThreadHop hop = serverHop();
+        if (hop == null) throw new IllegalStateException("DriverApplication not attached to a server");
+        return hop;
+    }
+
+    /** The last sequence number handed out; a {@code returnEvents} call reads past it once it is done. */
+    long eventCursor() { return eventSeq.get(); }
+
     /**
-     * Action-route wrapper. When {@code params.returnEvents == true}, capture the
-     * event cursor before {@code impl} runs and append any new events to the
-     * response under the {@code events} key. Saves the
-     * cursor→action→eventsSince round-trip an MCP client would otherwise need.
-     *
-     * Events are filtered to {@code seq > cursorBefore} — i.e. anything emitted
-     * during the impl call. Concurrent emissions from unrelated work would also
-     * leak in, but action handlers run on the server thread so the window is
-     * narrow in practice.
+     * With {@code wanted}, every event emitted after {@code cursor}, as the event stream carries it: what
+     * {@code returnEvents:true} answers, so a caller needs no separate cursor read. Unrelated work emitting in
+     * the same window shows up too, which is rare as the writes run on the server thread.
      */
-    private Object withEvents(Map<String, Object> params, Supplier<Map<String, Object>> impl) {
-        if (!Boolean.TRUE.equals(params.get("returnEvents"))) {
-            return impl.get();
-        }
-        long cursorBefore = eventSeq.get();
-        Map<String, Object> result = impl.get();
-        List<DriverEvent> page = observe.eventsSince(cursorBefore, null, EVENT_BUFFER_CAP);
-        Map<String, Object> out = new LinkedHashMap<>(result);
-        out.put("events", page);
-        return out;
-    }
-
-
-    // ---------------- Query DSL ----------------
-    public Object query(QueryParams p) {
-        BlockPos centerPos = (p.center != null) ? p.center : ORIGIN;
-        if ("blocks".equals(p.q)) {
-            BlockQuery blocks = BlockQuery.of(p);
-            ServerLevel level = level();
-            return onServerThread(() -> (Object) blocks.scan(level, centerPos));
-        }
-        ServerLevel level = level();
-        if ("entities".equals(p.q)) {
-            int r = Math.max(0, Math.min(128, num(p.filter.getOrDefault("in_radius", 16))));
-            Boolean wantHostile = (p.filter.get("is_hostile") instanceof Boolean b) ? b : null;
-            // filter.is_living drops non-living rows (dropped items, XP orbs) so
-            // health-delta assertions don't need client-side filtering
-            // (docs/archive/feedback/2026-06-04, bug #6).
-            Boolean wantLiving = (p.filter.get("is_living") instanceof Boolean b) ? b : null;
-            // filter.type restricts to one entity id (exact match; bare paths get the
-            // minecraft: namespace) — mirrors the blocks branch, which had it first.
-            Object entityTypeFilter = p.filter.get("type");
-            String wantType = (entityTypeFilter instanceof String s && !s.isBlank())
-                    ? (s.contains(":") ? s : "minecraft:" + s) : null;
-            checkSelect(p.select, ENTITY_SELECT_KEYS);
-            return onServerThread(() -> {
-                List<Map<String, Object>> out = new ArrayList<>();
-                BlockPos center = centerPos;
-                AABB box = new AABB(center).inflate(r);
-                for (Entity e : level.getEntities((Entity) null, box)) {
-                    boolean hostile = e instanceof Enemy;
-                    if (wantHostile != null && wantHostile != hostile) continue;
-                    if (wantLiving != null && wantLiving != (e instanceof LivingEntity)) continue;
-                    if (wantType != null && !wantType.equals(BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString())) continue;
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("pos", new BlockPos(e.blockPosition().getX(), e.blockPosition().getY(), e.blockPosition().getZ()));
-                    row.put("type", BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString());
-                    // uuid for stable identity across queries, numeric id for
-                    // attackEntity — parity with the client fallback path.
-                    row.put("uuid", e.getUUID().toString());
-                    row.put("id", e.getId());
-                    if (e instanceof LivingEntity le) {
-                        row.put("health", (double) le.getHealth());
-                        // Active MobEffects — the single biggest gap for testing
-                        // effect-based mechanics (docs/archive/feedback/2026-06-04, bug #4).
-                        // Same entry shape as mc.observe.player's effects.
-                        List<Object> fx = new ArrayList<>();
-                        for (var inst : le.getActiveEffects()) {
-                            Map<String, Object> fe = new LinkedHashMap<>();
-                            fe.put("id", BuiltInRegistries.MOB_EFFECT.getKey(inst.getEffect().value()).toString());
-                            fe.put("amplifier", inst.getAmplifier());
-                            fe.put("durationTicks", inst.getDuration());
-                            fx.add(fe);
-                        }
-                        row.put("effects", fx);
-                    }
-                    out.add(project(row, p.select));
-                }
-                return (Object) out;
-            });
-        }
-        return List.of();
-    }
-
-    /** Every key a q='entities' row can carry — {@link #checkSelect} validates against it. */
-    static final Set<String> ENTITY_SELECT_KEYS =
-            Set.of("pos", "type", "uuid", "id", "health", "effects");
-
-    /** Unknown select keys used to be silently ignored, misleading callers into
-     *  "field not supported" detours (docs/archive/feedback/2026-06-04, bug #3). Reject
-     *  them instead; the transport layers surface the message as isError. */
-    static void checkSelect(List<String> select, Set<String> allowed) {
-        if (select == null) return;
-        for (String k : select) {
-            if (!allowed.contains(k)) {
-                throw new IllegalArgumentException(
-                        "unknown select key '" + k + "' (allowed: " + String.join(", ", allowed) + ")");
-            }
-        }
-    }
-
-    static Map<String, Object> project(Map<String, Object> row, List<String> select) {
-        if (select == null || select.isEmpty()) return row;
-        Map<String, Object> out = new LinkedHashMap<>();
-        for (String k : select) if (row.containsKey(k)) out.put(k, row.get(k));
-        return out;
+    Optional<List<net.magicterra.worlddriver.api.methods.EventContracts.Event>> eventsAfter(long cursor, boolean wanted) {
+        if (!wanted) return Optional.empty();
+        return Optional.of(observe.eventsSince(cursor, null, EVENT_BUFFER_CAP).stream()
+                .map(net.magicterra.worlddriver.api.EventWire::dto).toList());
     }
 }

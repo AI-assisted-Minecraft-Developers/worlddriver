@@ -34,7 +34,7 @@ if (!clientAvailable()) {
         }
         Driver.invoke("mc.client.input.key", { key: "E" });
         // Keybind processing runs on the next client tick; give it a beat.
-        Driver.system.waitTicks(2);
+        Driver.system.waitTicks({ ticks: 2 });
         var tree = Driver.invoke("mc.client.screen.tree", {});
         t.assertTrue(tree.hasScreen, "screen should be open after pressing E");
         t.assertTrue(tree.type && tree.type.length > 0, "screen type should be reported");

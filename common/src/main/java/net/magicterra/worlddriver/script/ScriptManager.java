@@ -72,8 +72,8 @@ public final class ScriptManager {
 
         // Harness-only extras the runtime prelude has no reason to carry: the
         // RPC/MCP transport round-trip bridges the transport-parity checks call
-        // (Driver.invokeRpc/invokeMcp + Driver.system.rpcRoundtrip/mcpRoundtrip),
-        // Driver.world.* read/snapshot/restore, and a console that prints to the
+        // (Driver.invokeRpc/invokeMcp + Driver.system.rpcRoundtrip/mcpRoundtrip)
+        // and a console that prints to the
         // server log instead of prelude.js's in-scope __log buffer.
         String harnessExtras =
             "var console = {" +
@@ -96,12 +96,7 @@ public final class ScriptManager {
             "  return __viaBridge(__mcp, method, params);" +
             "};" +
             "Driver.system.rpcRoundtrip = function(m, p) { return Driver.invokeRpc(m, p); };" +
-            "Driver.system.mcpRoundtrip = function(m, p) { return Driver.invokeMcp(m, p); };" +
-            "Driver.world = {" +
-            "  block:    function(p) { return Driver.invoke('mc.world.block',    p); }," +
-            "  snapshot: function(p) { return Driver.invoke('mc.world.snapshot', p); }," +
-            "  restore:  function(p) { return Driver.invoke('mc.world.restore',  p); }" +
-            "};";
+            "Driver.system.mcpRoundtrip = function(m, p) { return Driver.invokeMcp(m, p); };";
         cx.evaluateString(scope, harnessExtras, "<harness-extras>", 1, null);
 
         List<Path> files = new ArrayList<>();

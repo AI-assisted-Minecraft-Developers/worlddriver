@@ -1,5 +1,14 @@
 package net.magicterra.worlddriver.client.internal;
 
+import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.Boss;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.BossReading;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.Crystal;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.Dragon;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.DragonHead;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.DragonPhase;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.Wither;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.WitherPhase;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
@@ -15,45 +24,33 @@ import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.level.block.Blocks;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
 
 /**
  * Phase G — boss-specific sensing behind {@code mc.observe.boss}. Reads the
- * {@link ClientLevel} entity set (client-only, like {@link ClientObserve}), so
- * it returns {@code present:false} on a dedicated server. Picks the nearest
- * {@link EnderDragon} or {@link WitherBoss} within {@code radius} and projects a
- * JSON-friendly snapshot the Rhino playbooks key on:
+ * {@link ClientLevel} entity set (client-only, like {@link ClientObserve}), so a
+ * dedicated server sees no boss. Picks the nearest {@link EnderDragon} or
+ * {@link WitherBoss} within {@code radius}: for a dragon its coarse phase, whether
+ * it is perched (the melee window, {@code DragonPhaseInstance.isSitting()}) and its
+ * head part (the full-damage aim point); for a wither its spawn invulnerability
+ * and whether it is powered (≤50% hp, vanilla phase 2).
  *
- * <ul>
- *   <li>common: {@code type, present, id, health, maxHealth, healthPct, pos,
- *       distance}</li>
- *   <li>dragon: {@code phase} (coarse label), {@code perched} (the perch melee
- *       window = {@code DragonPhaseInstance.isSitting()}), {@code head:{x,y,z,id}}
- *       (the head part — full-damage aim point), {@code crystalsAlive}</li>
- *   <li>wither: {@code invulTicks} (>0 = spawn animation, about to explode),
- *       {@code powered} (≤50% hp, vanilla phase 2), {@code phase} (1/2/"spawning")</li>
- * </ul>
- *
- * <p>{@code crystals} is always present (a list of {@code {id, pos, distance,
- * caged}}) regardless of boss type — the dragon playbook clears them as a hard
- * gate, and it's harmless otherwise.
+ * <p>The End crystals in range are listed whatever the boss — the dragon playbook
+ * clears them as a hard gate, and it's harmless otherwise.
  */
 public final class ClientBoss {
     private ClientBoss() {}
 
-    public static Map<String, Object> observeBoss(int radius) {
+    public static BossReading observeBoss(int radius) {
         final int r = Math.max(1, Math.min(256, radius));
         return runOnClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             ClientLevel level = mc.level;
             LocalPlayer pl = mc.player;
-            if (level == null || pl == null) {
-                return Map.of("present", false, "crystals", List.of());
-            }
+            if (level == null || pl == null) return new BossReading(List.of(), Optional.empty());
             double px = pl.getX(), py = pl.getY(), pz = pl.getZ();
             double r2 = (double) r * r;
             LivingEntity boss = null;
@@ -69,50 +66,32 @@ public final class ClientBoss {
                 }
             }
 
-            Map<String, Object> out = new LinkedHashMap<>();
-            List<Object> cl = new ArrayList<>();
+            List<Crystal> cl = new ArrayList<>();
             for (EndCrystal ec : crystals) {
-                Map<String, Object> cm = new LinkedHashMap<>();
-                cm.put("id", ec.getId());
-                cm.put("pos", posMap(ec.getX(), ec.getY(), ec.getZ()));
-                cm.put("distance", Math.sqrt(ec.distanceToSqr(px, py, pz)));
-                cm.put("caged", isCaged(level, ec.blockPosition()));
-                cl.add(cm);
+                cl.add(new Crystal(ec.getId(), new Point(ec.getX(), ec.getY(), ec.getZ()), Math.sqrt(ec.distanceToSqr(px, py, pz)),
+                        isCaged(level, ec.blockPosition())));
             }
-            out.put("crystals", cl);
+            if (boss == null) return new BossReading(cl, Optional.empty());
 
-            if (boss == null) {
-                out.put("present", false);
-                return out;
-            }
-            out.put("present", true);
-            out.put("id", boss.getId());
-            out.put("health", (double) boss.getHealth());
-            out.put("maxHealth", (double) boss.getMaxHealth());
-            out.put("healthPct", boss.getMaxHealth() > 0 ? (double) boss.getHealth() / boss.getMaxHealth() : 0.0);
-            out.put("pos", posMap(boss.getX(), boss.getY(), boss.getZ()));
-            out.put("distance", Math.sqrt(bossD));
-
+            double health = boss.getHealth(), max = boss.getMaxHealth();
+            double pct = max > 0 ? Math.max(0, Math.min(1, health / max)) : 0.0;
+            Point pos = new Point(boss.getX(), boss.getY(), boss.getZ());
+            double dist = Math.sqrt(bossD);
+            Boss b;
             if (boss instanceof EnderDragon dragon) {
-                out.put("type", "ender_dragon");
                 DragonPhaseInstance inst = dragon.getPhaseManager().getCurrentPhase();
                 boolean perched = inst.isSitting();
-                out.put("phase", dragonPhaseName(inst.getPhase(), perched));
-                out.put("perched", perched);
                 EnderDragonPart head = dragon.head;
-                Map<String, Object> hm = posMap(head.getX(), head.getY(), head.getZ());
-                hm.put("id", head.getId());
-                out.put("head", hm);
-                out.put("crystalsAlive", crystals.size());
-            } else if (boss instanceof WitherBoss wither) {
-                out.put("type", "wither");
+                b = new Dragon(boss.getId(), health, max, pct, pos, dist, dragonPhase(inst.getPhase(), perched), perched,
+                        new DragonHead(head.getId(), new Point(head.getX(), head.getY(), head.getZ())), crystals.size());
+            } else {
+                WitherBoss wither = (WitherBoss) boss;
                 int invul = wither.getInvulnerableTicks();
                 boolean powered = wither.isPowered();
-                out.put("invulTicks", invul);
-                out.put("powered", powered);
-                out.put("phase", invul > 0 ? "spawning" : (powered ? 2 : 1));
+                b = new Wither(boss.getId(), health, max, pct, pos, dist,
+                        invul > 0 ? WitherPhase.SPAWNING : powered ? WitherPhase.SECOND : WitherPhase.FIRST, invul, powered);
             }
-            return out;
+            return new BossReading(cl, Optional.of(b));
         });
     }
 
@@ -129,21 +108,15 @@ public final class ClientBoss {
 
     /** Coarse, playbook-friendly phase label. The SITTING_* phases all collapse to
      *  "perch" (the melee window); everything else maps to its flight behaviour. */
-    private static String dragonPhaseName(EnderDragonPhase<?> ph, boolean perched) {
-        if (ph == EnderDragonPhase.HOLDING_PATTERN)  return "circling";
-        if (ph == EnderDragonPhase.STRAFE_PLAYER)    return "strafing";
-        if (ph == EnderDragonPhase.LANDING_APPROACH) return "approach";
-        if (ph == EnderDragonPhase.LANDING)          return "landing";
-        if (ph == EnderDragonPhase.TAKEOFF)          return "takeoff";
-        if (ph == EnderDragonPhase.CHARGING_PLAYER)  return "charging";
-        if (ph == EnderDragonPhase.DYING)            return "dying";
-        if (ph == EnderDragonPhase.HOVERING)         return "hovering";
-        return perched ? "perch" : "unknown";
-    }
-
-    private static Map<String, Object> posMap(double x, double y, double z) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("x", x); m.put("y", y); m.put("z", z);
-        return m;
+    private static DragonPhase dragonPhase(EnderDragonPhase<?> ph, boolean perched) {
+        if (ph == EnderDragonPhase.HOLDING_PATTERN)  return DragonPhase.CIRCLING;
+        if (ph == EnderDragonPhase.STRAFE_PLAYER)    return DragonPhase.STRAFING;
+        if (ph == EnderDragonPhase.LANDING_APPROACH) return DragonPhase.APPROACH;
+        if (ph == EnderDragonPhase.LANDING)          return DragonPhase.LANDING;
+        if (ph == EnderDragonPhase.TAKEOFF)          return DragonPhase.TAKEOFF;
+        if (ph == EnderDragonPhase.CHARGING_PLAYER)  return DragonPhase.CHARGING;
+        if (ph == EnderDragonPhase.DYING)            return DragonPhase.DYING;
+        if (ph == EnderDragonPhase.HOVERING)         return DragonPhase.HOVERING;
+        return perched ? DragonPhase.PERCH : DragonPhase.UNKNOWN;
     }
 }

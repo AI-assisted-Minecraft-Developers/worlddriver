@@ -101,15 +101,12 @@ public interface ClientDriverApi {
     Map<String, Object> queryEntities(int radius, Double cx, Double cy, Double cz, Boolean hostileFilter);
 
     /** Scored hostile + incoming-projectile assessment around the local player
-     *  (Phase B/C ThreatScanner). Returns {threats:[...], incomingProjectiles:[...]}. */
-    Map<String, Object> observeThreats(int radius);
+     *  (Phase B/C ThreatScanner): {@code mc.observe.threats}' reply. */
+    net.magicterra.worlddriver.api.methods.ObserveContracts.Threats observeThreats(int radius);
 
     /** Phase G boss sensing — nearest EnderDragon/WitherBoss within {@code radius}
-     *  plus the End-crystal list, projected for the Rhino boss playbooks. Returns
-     *  {present, type?, health?, maxHealth?, healthPct?, pos?, distance?,
-     *  phase?/perched?/head? (dragon) | invulTicks?/powered? (wither),
-     *  crystals:[{id,pos,distance,caged}]}. {@code present:false} with no boss. */
-    Map<String, Object> observeBoss(int radius);
+     *  plus the End-crystal list: {@code mc.observe.boss}' reply. */
+    net.magicterra.worlddriver.api.methods.ObserveContracts.BossReading observeBoss(int radius);
 
     /** Pops the current screen (equivalent to {@code mc.setScreen(null)}). */
     Map<String, Object> closeScreen();

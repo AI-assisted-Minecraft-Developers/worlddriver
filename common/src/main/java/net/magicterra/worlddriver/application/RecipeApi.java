@@ -1,9 +1,23 @@
 package net.magicterra.worlddriver.application;
 
+import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.methods.RecipeContracts;
+import net.magicterra.worlddriver.api.methods.RecipeContracts.AcquireAction;
+import net.magicterra.worlddriver.api.methods.RecipeContracts.AcquirePlan;
+import net.magicterra.worlddriver.api.methods.RecipeContracts.AcquireStep;
+import net.magicterra.worlddriver.api.methods.RecipeContracts.CraftPlan;
+import net.magicterra.worlddriver.api.methods.RecipeContracts.CraftStep;
+import net.magicterra.worlddriver.api.methods.RecipeContracts.ItemNeed;
+import net.magicterra.worlddriver.api.methods.RecipeContracts.LookupParams;
+import net.magicterra.worlddriver.api.methods.RecipeContracts.PlanParams;
+import net.magicterra.worlddriver.api.methods.RecipeContracts.Recipes;
+import net.magicterra.worlddriver.api.methods.RecipeContracts.Stack;
 import net.magicterra.worlddriver.bot.process.AcquireResolver;
 import net.magicterra.worlddriver.bot.process.CraftProcess;
 import net.magicterra.worlddriver.bot.process.RecipeResolver;
-import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -22,7 +36,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletionStage;
 
 /**
  * Phase D — read-only crafting knowledge over the game's own {@code RecipeManager}
@@ -34,14 +50,21 @@ import java.util.Set;
  *   <li>{@code mc.recipe.lookup} — find recipes by result or ingredient.</li>
  *   <li>{@code mc.recipe.resolve} — recursively expand "I want X" into an ordered
  *       craft plan plus the leaf materials still missing.</li>
+ *   <li>{@code mc.plan.acquire} — that plan plus how to get every missing leaf.</li>
  * </ul>
  *
- * All reads run on the server thread (recipes are server-authoritative) via
- * {@link DriverApplication#onServerThread}.
+ * All reads run on the server thread (recipes are server-authoritative).
  */
 public final class RecipeApi {
     private final DriverApplication api;
     RecipeApi(DriverApplication api) { this.api = api; }
+
+    List<ApiMethod<?, ?>> methods() {
+        return List.of(
+                new ApiMethod<>(RecipeContracts.LOOKUP, this::lookup),
+                new ApiMethod<>(RecipeContracts.RESOLVE, this::resolve),
+                new ApiMethod<>(RecipeContracts.ACQUIRE, this::planAcquire));
+    }
 
     /** The bot's server player, or {@code null} when there is none (headless / not yet
      *  joined). Used only to ask whether a crafting station is already within reach
@@ -56,16 +79,14 @@ public final class RecipeApi {
 
     // === mc.recipe.lookup ====================================================
 
-    Map<String, Object> lookup(Map<String, Object> params) {
-        Params p = Params.of(params);
-        String result = p.getNonBlank("result");
-        String ingredient = p.getNonBlank("ingredient");
-        int limit = p.getIntClamped("limit", 20, 1, 200);
+    CompletionStage<Recipes> lookup(LookupParams p, CallContext ctx) {
+        String result = p.result().orElse(null);
+        String ingredient = p.ingredient().orElse(null);
         ServerLevel level = api.level();
-        return api.onServerThread(() -> {
+        return api.requireServerHop().submit(() -> {
             RecipeManager rm = level.getRecipeManager();
             HolderLookup.Provider ra = level.registryAccess();
-            List<Map<String, Object>> out = new ArrayList<>();
+            List<RecipeContracts.Recipe> out = new ArrayList<>();
             for (RecipeHolder<?> h : rm.getRecipes()) {
                 Recipe<?> r = h.value();
                 ItemStack res = RecipeResolver.safeResult(r, ra);
@@ -75,83 +96,43 @@ public final class RecipeApi {
                 else if (ingredient != null) match = recipeUsesIngredient(r, ingredient);
                 else                         match = true;
                 if (!match) continue;
-                out.add(recipeToMap(h, r, res));
-                if (out.size() >= limit) break;
+                out.add(recipe(h, r, res));
+                if (out.size() >= p.limit()) break;
             }
-            Map<String, Object> env = new LinkedHashMap<>();
-            env.put("ok", true);
-            env.put("count", out.size());
-            env.put("recipes", out);
-            return env;
-        });
+            return new Recipes(out);
+        }, ctx);
     }
 
-    private Map<String, Object> recipeToMap(RecipeHolder<?> h, Recipe<?> r, ItemStack res) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("id", h.id().toString());
-        m.put("type", serializerId(r));
-        m.put("station", RecipeResolver.station(r));
-        Map<String, Object> rm = new LinkedHashMap<>();
-        rm.put("id", RecipeResolver.itemId(res));
-        rm.put("count", res.getCount());
-        m.put("result", rm);
-        List<Map<String, Object>> ings = new ArrayList<>();
+    private RecipeContracts.Recipe recipe(RecipeHolder<?> h, Recipe<?> r, ItemStack res) {
+        List<RecipeContracts.Ingredient> ings = new ArrayList<>();
         NonNullList<Ingredient> list = r.getIngredients();
         for (int i = 0; i < list.size(); i++) {
             Ingredient ing = list.get(i);
             if (ing.isEmpty()) continue;     // empty grid slot
-            ings.add(ingredientToMap(i, ing));
+            ings.add(new RecipeContracts.Ingredient(i, RecipeResolver.acceptedIds(ing), Optional.ofNullable(tagOf(ing))));
         }
-        m.put("ingredients", ings);
-        if (r instanceof ShapedRecipe sr) {
-            m.put("width", sr.getWidth());
-            m.put("height", sr.getHeight());
-            m.put("pattern", shapedPattern(sr));
-        }
-        return m;
-    }
-
-    private Map<String, Object> ingredientToMap(int slot, Ingredient ing) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("slot", slot);
-        m.put("accepts", RecipeResolver.acceptedIds(ing));
-        m.put("tag", tagOf(ing));
-        return m;
+        boolean shaped = r instanceof ShapedRecipe;
+        ShapedRecipe sr = shaped ? (ShapedRecipe) r : null;
+        return new RecipeContracts.Recipe(h.id().toString(), serializerId(r), RecipeResolver.station(r),
+                new Stack(RecipeResolver.itemId(res), res.getCount()), ings,
+                shaped ? Optional.of(sr.getWidth()) : Optional.empty(),
+                shaped ? Optional.of(sr.getHeight()) : Optional.empty(),
+                shaped ? Optional.of(shapedPattern(sr)) : Optional.empty());
     }
 
     // === mc.recipe.resolve ===================================================
 
-    Map<String, Object> resolve(Map<String, Object> params) {
-        return withPlanContext(params, (target, count, have, rm, ra, stations) -> {
+    CompletionStage<CraftPlan> resolve(PlanParams p, CallContext ctx) {
+        return withPlanContext(p, ctx, (target, count, have, rm, ra, stations) -> {
             // Resolution lives in RecipeResolver (single source of truth): the verb
-            // serializes the plan to JSON; CraftProcess executes the same Jobs.
+            // reports the plan; CraftProcess executes the same Jobs.
             RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, target, count, have, stations);
-
-            List<Map<String, Object>> steps = new ArrayList<>();
+            List<CraftStep> steps = new ArrayList<>();
             for (RecipeResolver.Job j : plan.jobs()) {
-                Map<String, Object> step = new LinkedHashMap<>();
-                step.put("craft", j.result());
-                step.put("count", j.total());
-                step.put("recipe", j.recipe().id().toString());
-                step.put("station", j.station());
-                step.put("from", String.join(" + ", j.fromParts()));
-                steps.add(step);
+                steps.add(new CraftStep(j.result(), j.total(), j.recipe().id().toString(), j.station(),
+                        String.join(" + ", j.fromParts())));
             }
-            List<Map<String, Object>> miss = new ArrayList<>();
-            for (var e : plan.missing().entrySet()) {
-                Map<String, Object> mm = new LinkedHashMap<>();
-                mm.put("item", e.getKey());
-                mm.put("count", e.getValue());
-                miss.add(mm);
-            }
-            Map<String, Object> env = new LinkedHashMap<>();
-            env.put("ok", true);
-            env.put("target", target);
-            env.put("count", count);
-            env.put("steps", steps);
-            env.put("missing", miss);
-            env.put("stations_needed", new ArrayList<>(plan.stations()));
-            return env;
+            return new CraftPlan(target, count, steps, needs(plan.missing()), new ArrayList<>(plan.stations()));
         });
     }
 
@@ -160,38 +141,25 @@ public final class RecipeApi {
     /** Goal-directed acquisition plan: the craft plan PLUS how to get every
      *  missing leaf (mine/farm/smelt). Pure computation over the recipe table,
      *  server-thread like resolve. See {@link AcquireResolver}. */
-    Map<String, Object> planAcquire(Map<String, Object> params) {
-        return withPlanContext(params, (target, count, have, rm, ra, stations) -> {
+    CompletionStage<AcquirePlan> planAcquire(PlanParams p, CallContext ctx) {
+        return withPlanContext(p, ctx, (target, count, have, rm, ra, stations) -> {
             AcquireResolver.Plan plan = AcquireResolver.plan(rm, ra, target, count, have, stations);
-
-            List<Map<String, Object>> steps = new ArrayList<>();
+            List<AcquireStep> steps = new ArrayList<>();
             for (AcquireResolver.Step s : plan.steps()) {
-                Map<String, Object> m = new LinkedHashMap<>();
-                m.put("action", s.action().name().toLowerCase());
-                m.put("item", s.item());
-                m.put("count", s.count());
-                if (s.station() != null) m.put("station", s.station());
-                if (s.blocks() != null && !s.blocks().isEmpty()) m.put("blocks", new ArrayList<>(s.blocks()));
-                if (s.input() != null) m.put("input", s.input());
-                if (s.from() != null && !s.from().isBlank()) m.put("from", s.from());
-                steps.add(m);
+                steps.add(new AcquireStep(AcquireAction.valueOf(s.action().name()), s.item(), s.count(),
+                        Optional.ofNullable(s.station()),
+                        s.blocks() == null || s.blocks().isEmpty() ? Optional.empty() : Optional.of(new ArrayList<>(s.blocks())),
+                        Optional.ofNullable(s.input()),
+                        s.from() == null || s.from().isBlank() ? Optional.empty() : Optional.of(s.from())));
             }
-            List<Map<String, Object>> unob = new ArrayList<>();
-            for (var e : plan.unobtainable().entrySet()) {
-                Map<String, Object> mm = new LinkedHashMap<>();
-                mm.put("item", e.getKey());
-                mm.put("count", e.getValue());
-                unob.add(mm);
-            }
-            Map<String, Object> env = new LinkedHashMap<>();
-            env.put("ok", true);
-            env.put("target", target);
-            env.put("count", count);
-            env.put("feasible", plan.feasible());
-            env.put("steps", steps);
-            env.put("unobtainable", unob);
-            return env;
+            return new AcquirePlan(target, count, plan.feasible(), steps, needs(plan.unobtainable()));
         });
+    }
+
+    private static List<ItemNeed> needs(Map<String, Integer> counts) {
+        List<ItemNeed> out = new ArrayList<>();
+        counts.forEach((item, n) -> out.add(new ItemNeed(item, n)));
+        return out;
     }
 
     /**
@@ -201,8 +169,7 @@ public final class RecipeApi {
      * <p>It was written twice, byte for byte — the id parse, the registry check, the bag read, the
      * recipe manager, the registry access, and the station scan. Two copies of a VALIDATION are the
      * expensive kind: the day one of them learns about a new way an id can be bad, the other keeps
-     * answering the old way, and the two verbs disagree about whether the same request is legal
-     * while both keep reporting {@code ok:false} with confident text.
+     * answering the old way, and the two verbs disagree about whether the same request is legal.
      *
      * <p>The station scan is part of the shared half on purpose. Both plans must be computed
      * against the SAME world-aware station check {@code CraftProcess} executes against (gap #275),
@@ -210,38 +177,30 @@ public final class RecipeApi {
      * one, and reporting otherwise calls a feasible craft infeasible. Passing it in from here is
      * what keeps that true for both verbs at once instead of once per copy.
      *
-     * <p>Only the front half. Each verb still owns its own resolver and its own JSON shape —
-     * {@code steps}/{@code missing}/{@code stations_needed} against
+     * <p>Only the front half. Each verb still owns its own resolver and its own reply —
+     * {@code steps}/{@code missing}/{@code stationsNeeded} against
      * {@code steps}/{@code unobtainable}/{@code feasible} — because those are the parts that really
      * do differ, and merging them would be the tidy-up this is not.
      */
-    private Map<String, Object> withPlanContext(Map<String, Object> params, PlanBody body) {
-        Params p = Params.of(params);
-        String target = p.getNonBlank("target");
-        if (target == null) return Map.of("ok", false, "error", "missing target");
-        int count = p.getIntClamped("count", 1, 1, 4096);
+    private <T> CompletionStage<T> withPlanContext(PlanParams p, CallContext ctx, PlanBody<T> body) {
+        String target = p.target();
+        if (!BuiltInRegistries.ITEM.containsKey(ResourceLocation.parse(target))) {
+            throw ApiException.invalidParam("/target", ApiIssue.Code.INVALID_VALUE, "unknown item: " + target);
+        }
         ServerLevel level = api.level();
-        return api.onServerThread(() -> {
-            ResourceLocation trl;
-            try { trl = ResourceLocation.parse(target); }
-            catch (Exception e) { return Map.of("ok", false, "error", "invalid item id: " + target); }
-            if (!BuiltInRegistries.ITEM.containsKey(trl)) {
-                return Map.of("ok", false, "error", "unknown item: " + target);
-            }
-            Map<String, Integer> have = resolveHave(p, botPlayer());   // reads the bag: server thread only
-            RecipeManager rm = level.getRecipeManager();
-            HolderLookup.Provider ra = level.registryAccess();
-            return body.plan(target, count, have, rm, ra,
+        return api.requireServerHop().submit(() -> {
+            Map<String, Integer> have = resolveHave(p.have(), botPlayer());   // reads the bag: server thread only
+            return body.plan(target, p.count(), have, level.getRecipeManager(), level.registryAccess(),
                     CraftProcess.availableStations(botPlayer(), level));
-        });
+        }, ctx);
     }
 
     /** The back half of a planning verb: everything after the target is known good and the world
      *  context is in hand. Runs ON the server thread — {@link #withPlanContext} has already hopped. */
     @FunctionalInterface
-    private interface PlanBody {
-        Map<String, Object> plan(String target, int count, Map<String, Integer> have,
-                                 RecipeManager rm, HolderLookup.Provider ra, Set<String> stations);
+    private interface PlanBody<T> {
+        T plan(String target, int count, Map<String, Integer> have,
+               RecipeManager rm, HolderLookup.Provider ra, Set<String> stations);
     }
 
     // === helpers =============================================================
@@ -316,27 +275,21 @@ public final class RecipeApi {
      * lesson (stations half) and this is its items half: with the old empty-map default a
      * bot carrying 208 cobblestone was planned to go mine cobblestone.
      *
-     * <p>An explicitly supplied map is a HYPOTHESIS and is used verbatim — including an
-     * explicit {@code {}}, which still means "suppose I had nothing". That keeps what-if
-     * planning available and leaves every caller that already passes {@code have}
-     * byte-for-byte unchanged; only the omitted case moves, and it moves from wrong to right.
+     * <p>A supplied map is a HYPOTHESIS and is used verbatim — including an explicit
+     * {@code {}}, which still means "suppose I had nothing". That keeps what-if planning
+     * available.
      *
      * <p>A null bot (headless / not yet joined) falls back to empty — the same
      * self-sufficient default {@link #botPlayer()} uses for stations.
      *
-     * <p>Static and player-taking so a gametest can drive it against a FakePlayer, which is
+     * <p>Static and player-taking so a scene can drive it against a FakePlayer, which is
      * NOT in the {@code PlayerList} and therefore invisible to {@link #botPlayer()} (gap #41).
      * Must be called on the server thread.
      */
-    public static Map<String, Integer> resolveHave(Params p, Player bot) {
+    public static Map<String, Integer> resolveHave(Optional<Map<String, Integer>> given, Player bot) {
+        if (given.isPresent()) return new LinkedHashMap<>(given.get());
         Map<String, Integer> have = new LinkedHashMap<>();
-        if (!p.present("have")) {
-            if (bot != null) have.putAll(CraftProcess.inventorySnapshot(bot));
-            return have;
-        }
-        for (var e : p.getMap("have").entrySet()) {
-            if (e.getValue() instanceof Number n) have.put(e.getKey(), n.intValue());
-        }
+        if (bot != null) have.putAll(CraftProcess.inventorySnapshot(bot));
         return have;
     }
 }

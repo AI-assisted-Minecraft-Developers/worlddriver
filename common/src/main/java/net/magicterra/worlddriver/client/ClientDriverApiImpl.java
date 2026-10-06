@@ -89,10 +89,14 @@ public final class ClientDriverApiImpl implements ClientDriverApi {
     }
 
     @Override
-    public Map<String, Object> observeThreats(int radius) { return ClientObserve.observeThreats(radius); }
+    public net.magicterra.worlddriver.api.methods.ObserveContracts.Threats observeThreats(int radius) {
+        return ClientObserve.observeThreats(radius);
+    }
 
     @Override
-    public Map<String, Object> observeBoss(int radius) { return ClientBoss.observeBoss(radius); }
+    public net.magicterra.worlddriver.api.methods.ObserveContracts.BossReading observeBoss(int radius) {
+        return ClientBoss.observeBoss(radius);
+    }
 
     @Override
     public Map<String, Object> observeContainerMenu() { return ClientObserve.observeContainerMenu(); }

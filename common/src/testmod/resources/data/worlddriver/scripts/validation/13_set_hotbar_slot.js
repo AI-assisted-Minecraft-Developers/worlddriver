@@ -20,7 +20,7 @@ function waitUntil(pred, maxTicks) {
     var budget = maxTicks || 40;
     for (var i = 0; i < budget; i++) {
         if (pred()) return true;
-        Driver.system.waitTicks(1);
+        Driver.system.waitTicks({ ticks: 1 });
     }
     return pred();
 }
@@ -47,22 +47,23 @@ if (!clientAvailable()) {
             t.assertEqual(r.ok, false, "no-player call must report ok:false");
             return;
         }
-        var before = Driver.observe.player();
-        var target = (before.selectedSlot + 1) % 9;
+        var selected = function () { return Driver.observe.player().player.equipment.selectedSlot; };
+        var before = selected();
+        var target = (before + 1) % 9;
         var r = Driver.invoke("mc.client.input.setHotbarSlot", { slot: target });
         t.assertTrue(r.ok, "switch must succeed (got " + JSON.stringify(r) + ")");
         t.assertEqual(r.slot, target, "echoed slot must match requested");
-        t.assertEqual(r.previous, before.selectedSlot, "previous must report prior slot");
+        t.assertEqual(r.previous, before, "previous must report prior slot");
         var after = before;
         waitUntil(function () {
-            after = Driver.observe.player();
-            return after.selectedSlot === target;
+            after = selected();
+            return after === target;
         }, 40);
-        t.assertEqual(after.selectedSlot, target,
+        t.assertEqual(after, target,
             "observe.player must report the new selectedSlot");
         // Restore so we don't leave the player on a different slot for the
         // next test in the file.
-        Driver.invoke("mc.client.input.setHotbarSlot", { slot: before.selectedSlot });
+        Driver.invoke("mc.client.input.setHotbarSlot", { slot: before });
     });
 
     ScriptTest.run("13_set_hotbar_slot: schema-reject surfaces identically across in-JVM, RPC, MCP transports",

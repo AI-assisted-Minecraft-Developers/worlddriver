@@ -21,8 +21,7 @@ function missingCount(missing, item) {
 
 ScriptTest.run("43_recipe: lookup by result finds the diamond pickaxe recipe", function(t) {
     var r = Driver.invoke("mc.recipe.lookup", { result: "minecraft:diamond_pickaxe" });
-    t.assertEqual(r.ok, true, "ok");
-    t.assertTrue(r.count >= 1, "at least one recipe produces a diamond pickaxe");
+    t.assertTrue(r.recipes.length >= 1, "at least one recipe produces a diamond pickaxe");
     var rec = findByResult(r.recipes, "minecraft:diamond_pickaxe");
     t.assertTrue(rec !== null, "recipe with diamond_pickaxe result present");
     t.assertEqual(rec.station, "crafting_table", "pickaxe needs a crafting table (3x3)");
@@ -42,8 +41,7 @@ ScriptTest.run("43_recipe: lookup by result finds the diamond pickaxe recipe", f
 
 ScriptTest.run("43_recipe: lookup by ingredient finds recipes that consume sticks", function(t) {
     var r = Driver.invoke("mc.recipe.lookup", { ingredient: "minecraft:stick", limit: 50 });
-    t.assertEqual(r.ok, true, "ok");
-    t.assertTrue(r.count >= 1, "something is made from sticks");
+    t.assertTrue(r.recipes.length >= 1, "something is made from sticks");
     // every returned recipe must actually list stick among some slot's accepts
     var allUseStick = true;
     for (var i = 0; i < r.recipes.length; i++) {
@@ -62,7 +60,6 @@ ScriptTest.run("43_recipe: resolve diamond pickaxe — plan ordered, diamonds mi
         target: "minecraft:diamond_pickaxe", count: 1,
         have: { "minecraft:oak_planks": 10 }
     });
-    t.assertEqual(r.ok, true, "ok");
     t.assertEqual(missingCount(r.missing, "minecraft:diamond"), 3, "3 diamonds missing");
     var si = stepIndex(r.steps, "minecraft:stick");
     var pi = stepIndex(r.steps, "minecraft:diamond_pickaxe");
@@ -70,7 +67,7 @@ ScriptTest.run("43_recipe: resolve diamond pickaxe — plan ordered, diamonds mi
     t.assertTrue(pi >= 0, "the pickaxe craft step exists");
     t.assertTrue(si < pi, "sticks are crafted before the pickaxe (topo order)");
     t.assertEqual(r.steps[pi].count, 1, "one pickaxe");
-    t.assertTrue(r.stations_needed.indexOf("crafting_table") >= 0, "crafting table needed");
+    t.assertTrue(r.stationsNeeded.indexOf("crafting_table") >= 0, "crafting table needed");
 });
 
 ScriptTest.run("43_recipe: resolve substitutes a tag member from inventory", function(t) {
@@ -79,7 +76,6 @@ ScriptTest.run("43_recipe: resolve substitutes a tag member from inventory", fun
         target: "minecraft:crafting_table", count: 1,
         have: { "minecraft:birch_planks": 4 }
     });
-    t.assertEqual(r.ok, true, "ok");
     t.assertEqual(r.missing.length, 0, "birch planks satisfy #planks — nothing missing");
     t.assertTrue(r.steps.length >= 1, "at least the table step");
     var top = r.steps[r.steps.length - 1];
@@ -93,15 +89,16 @@ ScriptTest.run("43_recipe: resolve a raw material terminates (storage-pair safe)
     // From an empty bag, as 47_plan plans: without `have` resolve reads the first player's inventory,
     // and on a server a client joined that is the real player, who picks up diamonds on the test pad.
     var r = Driver.invoke("mc.recipe.resolve", { target: "minecraft:diamond", count: 2, have: {} });
-    t.assertEqual(r.ok, true, "ok (did not hang)");
-    t.assertEqual(missingCount(r.missing, "minecraft:diamond"), 2, "raw diamond is missing, not decompressed");
+    t.assertEqual(missingCount(r.missing, "minecraft:diamond"), 2, "raw diamond is missing, not decompressed (did not hang)");
     t.assertEqual(r.steps.length, 0, "no nonsensical decompression steps");
 });
 
 ScriptTest.run("43_recipe: unknown item id is rejected, not crashed", function(t) {
-    var r = Driver.invoke("mc.recipe.resolve", { target: "minecraft:not_a_real_item", count: 1 });
-    t.assertEqual(r.ok, false, "ok:false for unknown item");
-    t.assertTrue(typeof r.error === "string", "carries an error message");
+    var e = null;
+    try { Driver.invoke("mc.recipe.resolve", { target: "minecraft:not_a_real_item", count: 1 }); } catch (x) { e = x; }
+    t.assertTrue(e !== null, "an unknown item is refused");
+    t.assertEqual(e.code, "invalid_params", "refused as a bad request");
+    t.assertEqual(e.issues[0].path, "/target", "names the field");
 });
 
 ScriptTest.run("43_recipe: lookup/resolve agree across in-JVM, RPC, MCP transports", function(t) {
@@ -109,8 +106,8 @@ ScriptTest.run("43_recipe: lookup/resolve agree across in-JVM, RPC, MCP transpor
     var ld = Driver.invoke("mc.recipe.lookup", la);
     var lt = Driver.system.rpcRoundtrip("mc.recipe.lookup", la);
     var lm = Driver.system.mcpRoundtrip("mc.recipe.lookup", la);
-    t.assertEqual(lt.count, ld.count, "RPC lookup count matches");
-    t.assertEqual(lm.count, ld.count, "MCP lookup count matches");
+    t.assertEqual(lt.recipes.length, ld.recipes.length, "RPC lookup count matches");
+    t.assertEqual(lm.recipes.length, ld.recipes.length, "MCP lookup count matches");
 
     var ra = { target: "minecraft:diamond_pickaxe", count: 1, have: { "minecraft:oak_planks": 10 } };
     var rd = Driver.invoke("mc.recipe.resolve", ra);

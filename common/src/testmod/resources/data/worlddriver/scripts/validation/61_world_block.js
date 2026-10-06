@@ -24,7 +24,7 @@ ScriptTest.run("61_world_block: blockstate + light round-trip (lit copper bulb)"
     for (var attempt = 0; attempt < 20; attempt++) {
         beside = Driver.world.block({ pos: { x: x + 1, y: y, z: z } });
         if (beside.light.block >= 13) break;
-        Driver.system.waitTicks(2);
+        Driver.system.waitTicks({ ticks: 2 });
     }
     t.assertTrue(beside.light.block >= 13,
         "neighbour block light should be lit-bulb bright, got " + beside.light.block);
@@ -46,11 +46,10 @@ ScriptTest.run("61_world_block: block-entity NBT via nbt:true", function(t) {
     t.assertTrue(String(cell.blockEntity).indexOf("minecraft:diamond") >= 0,
         "SNBT should contain the chest contents, got: " + cell.blockEntity);
 
-    // A plain cell reports null blockEntity (key present, value null) with nbt:true.
+    // A plain cell carries no blockEntity, even with nbt:true.
     var air = Driver.world.block({ pos: { x: x, y: y + 1, z: z }, nbt: true });
     t.assertEqual(air.type, "minecraft:air");
-    t.assertTrue(air.blockEntity === null || air.blockEntity === undefined,
-        "no block entity at air cell");
+    t.assertFalse("blockEntity" in air, "no block entity at air cell");
 
     // Cleanup the scratch cells, the chest emptied first so no diamonds can drop on the pad.
     Driver.invoke("mc.action.runCommand",

@@ -190,5 +190,4 @@ public abstract class DriverApi {
     public abstract void addEventListener(Consumer<DriverEvent> listener);
     public abstract void removeEventListener(Consumer<DriverEvent> listener);
     public abstract int restoreCellsOnServer(List<WorldCell> cells);
-    public abstract Object query(QueryParams params);
 }

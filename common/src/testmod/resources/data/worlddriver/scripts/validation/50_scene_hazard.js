@@ -37,8 +37,7 @@ ScriptTest.run("50_scene: flat ground -> no lethal cells", function (t) {
 
     var s = scene({ x: ox, y: oy, z: oz }, 3, "map");
 
-    t.assertEqual(s.present, true, "scene present on server");
-    t.assertTrue(typeof s.rows === "object" && s.rows.length > 0, "has rendered rows");
+    t.assertTrue(!!s.map && s.map.rows.length > 0, "has rendered rows");
     t.assertEqual(s.hazardSummary.lethalCount, 0, "flat stone ground has zero lethal cells");
 });
 
@@ -157,19 +156,18 @@ ScriptTest.run("50_scene: lava at body level renders '!' and is lethal", functio
     });
     t.assertTrue(s.hazardSummary.lethalCount >= 1,
         "lava cell at feet level is lethal (contactDamage)");
-    var mapStr = s.rows.join("\n");
+    var mapStr = s.map.rows.join("\n");
     t.assertTrue(mapStr.indexOf("!") >= 0,
         "lava at feet level renders as '!'");
 });
 
 // ── Test 7: radius clamps to 32 with truncation report ───────────────────────
-// Request radius=99 -> should clamp to 32 and report truncated:true, requested:99.
+// Request radius=99 -> should clamp to 32 and report requestedRadius:99.
 ScriptTest.run("50_scene: radius clamps to 32 with truncation report", function (t) {
     // Use a pre-built flat area (the test-5 platform at oz=200 works fine).
     var s = Driver.invoke("mc.observe.scene", { center: { x: 0, y: 200, z: 200 }, radius: 99 });
     t.assertEqual(s.radius, 32, "radius clamped to 32");
-    t.assertEqual(s.truncated, true, "reports truncated flag");
-    t.assertEqual(s.requested, 99, "reports original requested radius");
+    t.assertEqual(s.requestedRadius, 99, "reports original requested radius");
 });
 
 // ── Test 8: height overlay reports centerY / minY / maxY ─────────────────────
@@ -185,10 +183,11 @@ ScriptTest.run("50_scene: height overlay reports centerY/minY/maxY", function (t
         radius: 2,
         overlays: ["height"]
     });
-    t.assertEqual(s.centerY, 200, "centerY equals bot level (200)");
-    t.assertTrue("minY" in s && "maxY" in s, "height overlay populates minY and maxY");
-    t.assertEqual(s.minY, 200, "flat platform: minY == 200 (surface at center.y)");
-    t.assertEqual(s.maxY, 200, "flat platform: maxY == 200 (all cells same height)");
+    var h = s.height;
+    t.assertEqual(h.centerY, 200, "centerY equals bot level (200)");
+    t.assertTrue("minY" in h && "maxY" in h, "height overlay populates minY and maxY");
+    t.assertEqual(h.minY, 200, "flat platform: minY == 200 (surface at center.y)");
+    t.assertEqual(h.maxY, 200, "flat platform: maxY == 200 (all cells same height)");
 });
 
 // Rig teardown — release the chunk pin added by the first test in this file.

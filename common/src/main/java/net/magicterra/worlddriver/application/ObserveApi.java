@@ -1,30 +1,54 @@
 package net.magicterra.worlddriver.application;
 
+import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.ServerThreadHop;
+import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.ObserveContracts;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.AsciiMap;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.BossReading;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.FleeStep;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.HazardMap;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.HazardSummary;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.HeightStats;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.MapParams;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.Overlay;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.Plane;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.Render;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.Scene;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.SceneParams;
+import net.magicterra.worlddriver.api.methods.ObserveContracts.Threats;
+import net.magicterra.worlddriver.api.methods.PlayerContract;
+import net.magicterra.worlddriver.api.methods.PlayerContract.ClientView;
+import net.magicterra.worlddriver.api.methods.PlayerContract.PlayerParams;
+import net.magicterra.worlddriver.api.methods.PlayerContract.PlayerReading;
+import net.magicterra.worlddriver.api.methods.RouteContract;
+import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.SceneOverlays;
-import net.magicterra.worlddriver.bot.process.CraftProcess;
-import net.magicterra.worlddriver.bot.util.AttackSnap;
 import net.magicterra.worlddriver.bot.util.ItemSnap;
-import net.magicterra.worlddriver.bot.util.TimeSnap;
 import net.magicterra.worlddriver.bot.world.AsciiMapRenderer;
 import net.magicterra.worlddriver.bot.world.HazardCell;
 import net.magicterra.worlddriver.bot.world.HazardField;
-import net.magicterra.worlddriver.bot.world.SceneModel;
 import net.magicterra.worlddriver.bot.world.ServerWorldView;
 import net.magicterra.worlddriver.bot.world.SurvivalFacts;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
+import net.magicterra.worlddriver.client.ClientDriverApi;
+import net.magicterra.worlddriver.client.ClientHooks;
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -34,7 +58,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 
 /**
  * {@code mc.observe.*} handlers, extracted from {@code DriverApplication}. Reads the live
@@ -45,6 +72,17 @@ import java.util.Set;
 public final class ObserveApi {
     private final DriverApplication api;
     ObserveApi(DriverApplication api) { this.api = api; }
+
+    List<ApiMethod<?, ?>> methods() {
+        return List.of(
+                new ApiMethod<>(PlayerContract.SPEC, this::player),
+                new ApiMethod<>(ObserveContracts.THREATS, (p, ctx) -> onClient(ctx,
+                        c -> c.observeThreats(p.radius()), new Threats(List.of(), List.of()))),
+                new ApiMethod<>(ObserveContracts.BOSS_SPEC, (p, ctx) -> onClient(ctx,
+                        c -> c.observeBoss(p.radius()), new BossReading(List.of(), Optional.empty()))),
+                new ApiMethod<>(ObserveContracts.SCENE, this::scene),
+                new ApiMethod<>(ObserveContracts.MAP, this::map));
+    }
 
     public long cursor() {
         api.level(); // require server: pre-fix this returned 0 even with no world, which is misleading
@@ -112,119 +150,52 @@ public final class ObserveApi {
     }
 
     /**
-     * Snapshot a single player's state. When {@code name} is null/blank, returns
-     * the first player on the server (single-player default); otherwise looks up
-     * by exact GameProfile name. Returns {present:false} when nobody matches —
-     * never throws — so AI scripts can probe before connecting.
+     * The named player, or the first on the server. A client JVM with no server attached (joined to a remote
+     * server) knows one player, its own, and reads it on the client thread.
      */
-    public Map<String, Object> player(String name) {
-        api.level(); // assert attached
-        MinecraftServer s = api.server;
-        return api.onServerThread(() -> {
+    CompletionStage<PlayerReading> player(PlayerParams p, CallContext ctx) {
+        if (api.server == null) {
+            BotApi bot = BotHooks.impl();
+            ClientDriverApi c = ClientHooks.impl();
+            if (bot != null && c != null) return bot.clientHop().submit(() -> clientPlayer(bot, c, p.name()), ctx);
+        }
+        api.level(); // no server and no client: unavailable here
+        return serverHop().submit(() -> {
             ServerPlayer pl = null;
-            if (name != null && !name.isBlank()) {
-                pl = s.getPlayerList().getPlayerByName(name);
+            if (p.name().isPresent()) {
+                pl = api.server.getPlayerList().getPlayerByName(p.name().get());
             } else {
-                List<ServerPlayer> all = s.getPlayerList().getPlayers();
+                List<ServerPlayer> all = api.server.getPlayerList().getPlayers();
                 if (!all.isEmpty()) pl = all.get(0);
             }
-            if (pl == null) return Map.of("present", false);
-            return playerSnapshot(pl);
-        });
+            return new PlayerReading(pl == null ? Optional.empty() : Optional.of(PlayerSnapshots.of(pl, Optional.empty())));
+        }, ctx);
+    }
+
+    /** Client thread. The crosshair and the frame rate are the client's alone, read from its own snapshot. */
+    private static PlayerReading clientPlayer(BotApi bot, ClientDriverApi c, Optional<String> name) {
+        if (!(bot.selfEntity() instanceof Player self)) return new PlayerReading(Optional.empty());
+        if (name.isPresent() && !name.get().equals(self.getGameProfile().getName())) return new PlayerReading(Optional.empty());
+        Map<String, Object> own = c.observePlayer();
+        ClientView view = new ClientView(PlayerContract.CROSSHAIR.decode(own.get("hit")), ((Number) own.get("fps")).intValue());
+        return new PlayerReading(Optional.of(PlayerSnapshots.of(self, Optional.of(view))));
     }
 
     /**
-     * The body of {@link #player(String)}, split out so it can be driven against a
-     * {@link ServerPlayer} that is not in the {@code PlayerList} — a FakePlayer-backed
-     * avatar, which is exactly the carrier the gametest arenas use. Must be called on
-     * the server thread.
+     * A reading only a client can take, on the client thread; {@code none} where there is no client. The
+     * client's own scan helpers run inline there rather than queueing behind themselves.
      */
-    public static Map<String, Object> playerSnapshot(ServerPlayer pl) {
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("present", true);
-            out.put("name", pl.getGameProfile().getName());
-            out.put("uuid", pl.getUUID().toString());
-            out.put("dimension", pl.level().dimension().location().toString());
-            Map<String, Object> pos = new LinkedHashMap<>();
-            pos.put("x", pl.getX());
-            pos.put("y", pl.getY());
-            pos.put("z", pl.getZ());
-            out.put("pos", pos);
-            out.put("blockPos", new BlockPos(pl.blockPosition().getX(), pl.blockPosition().getY(), pl.blockPosition().getZ()));
-            Map<String, Object> look = new LinkedHashMap<>();
-            look.put("yaw", pl.getYRot());
-            look.put("pitch", pl.getXRot());
-            out.put("look", look);
-            out.put("onGround", pl.onGround());
-            out.put("health", pl.getHealth());
-            out.put("maxHealth", pl.getMaxHealth());
-            // gap#70 (live death #18): air was invisible on both observation paths — a
-            // bot sinking toward drowning gave no signal short of the one-shot
-            // player.enteredWater event. Mirrors ClientObserve's field of the same name.
-            out.put("air", pl.getAirSupply());
-            out.put("maxAir", pl.getMaxAirSupply());
-            out.put("food", pl.getFoodData().getFoodLevel());
-            out.put("xpLevel", pl.experienceLevel);
-            // Active MobEffects, mirroring the client-side snapshot
-            // (ClientObserve.observePlayer). The client path grew this first;
-            // headless dedicated servers — the main external-consumer scenario
-            // (docs/archive/feedback/2026-06-04, bug #4) — read the player through HERE,
-            // so the server snapshot must carry the same field.
-            List<Map<String, Object>> fx = new ArrayList<>();
-            for (var inst : pl.getActiveEffects()) {
-                Map<String, Object> fe = new LinkedHashMap<>();
-                fe.put("id", BuiltInRegistries.MOB_EFFECT.getKey(inst.getEffect().value()).toString());
-                fe.put("amplifier", inst.getAmplifier());
-                fe.put("durationTicks", inst.getDuration());
-                fx.add(fe);
-            }
-            out.put("effects", fx);
-            // World time so the Agent can plan around day/night — gather by day,
-            // hole up by night. phase: day | sunset | night | sunrise. Pair with
-            // mc.wait.condition{invoke:'mc.observe.player', field:'time.phase',
-            // value:'day'} to wait out a night after digging in.
-            if (pl.level() != null) {
-                out.put("time", TimeSnap.snapshot(pl.level().getDayTime()));
-            }
-            out.put("gameMode", pl.gameMode.getGameModeForPlayer().getName());
-            ItemStack main = pl.getMainHandItem();
-            out.put("mainHand", ApiSupport.itemSnapshot(main));
-            ItemStack off = pl.getOffhandItem();
-            out.put("offHand", ApiSupport.itemSnapshot(off));
-            List<Map<String, Object>> hotbar = new ArrayList<>();
-            for (int i = 0; i < 9; i++) hotbar.add(ApiSupport.itemSnapshot(pl.getInventory().getItem(i)));
-            out.put("hotbar", hotbar);
-            out.put("selectedSlot", pl.getInventory().selected);
-            // Melee cooldown of the held weapon. CombatProcess gates every swing on this
-            // (scale >= 1.0) but no verb ever reported it, so an agent swinging by hand via
-            // mc.bot.attackEntity (which does no cooldown check, by design) hit for a fraction
-            // of the weapon's damage with no way to know why. Same shape on the client.
-            out.put("attack", AttackSnap.snapshot(pl));
-            // Full inventory. Without it the agent saw 9 of 36 slots through THIS verb —
-            // three quarters of what the bot owns was invisible, so it could not tell
-            // whether it held the food/tool/blocks a decision turned on. The CLIENT
-            // snapshot (ClientObserve.observePlayer) has carried `inventory` all along;
-            // the server one never grew it — the same parity slip already recorded for
-            // `effects` a few lines up. It bites hardest exactly where there is no
-            // fallback: a client can also read every slot via mc.observe.container with
-            // the inventory screen open, but a server avatar cannot (a FakePlayer cannot
-            // open a menu), so for it this verb is the ONLY view of its own bag.
-            //
-            // Shape is byte-identical to the client's — same verb, same field, same rows — so an
-            // agent never has to know which side answered. That used to be a promise kept by
-            // hand, with the loop written out on both sides; it is now kept by construction,
-            // because both sides call ItemSnap.inventoryRows.
-            out.put("inventory", ItemSnap.inventoryRows(pl));
-            out.put("items", CraftProcess.inventorySnapshot(pl));
-            // Worn armor (head/chest/legs/feet) — lets the agent see its defensive
-            // loadout + durability (Phase F equip + Boss prep read this).
-            Map<String, Object> armor = new LinkedHashMap<>();
-            armor.put("head", ApiSupport.itemSnapshot(pl.getItemBySlot(EquipmentSlot.HEAD)));
-            armor.put("chest", ApiSupport.itemSnapshot(pl.getItemBySlot(EquipmentSlot.CHEST)));
-            armor.put("legs", ApiSupport.itemSnapshot(pl.getItemBySlot(EquipmentSlot.LEGS)));
-            armor.put("feet", ApiSupport.itemSnapshot(pl.getItemBySlot(EquipmentSlot.FEET)));
-            out.put("armor", armor);
-            return out;
+    private static <T> CompletionStage<T> onClient(CallContext ctx, java.util.function.Function<ClientDriverApi, T> read, T none) {
+        BotApi bot = BotHooks.impl();
+        ClientDriverApi c = ClientHooks.impl();
+        if (bot == null || c == null) return CompletableFuture.completedFuture(none);
+        return bot.clientHop().submit(() -> read.apply(c), ctx);
+    }
+
+    private ServerThreadHop serverHop() {
+        ServerThreadHop hop = api.serverHop();
+        if (hop == null) throw new IllegalStateException("DriverApplication not attached to a server");
+        return hop;
     }
 
     /**
@@ -241,23 +212,20 @@ public final class ObserveApi {
      * Hostile mobs overlay by initial (C creeper, K skeleton, s spider, Z zombie,
      * E enderman, D drowned, W witch, o slime, B blaze, P phantom, ? other); '@'
      * is the centre.
-     *
-     * <p>Returns {present, plane, center:{x,y,z}, radius, width, height, threats,
-     * legend, map:"&lt;newline-joined grid&gt;"}.
      */
-    public Map<String, Object> map(Map<String, Object> params) {
-        Params p = Params.of(params);
-        String plane = p.getString("plane", "xz").toLowerCase();
-        boolean cross = plane.equals("xy") || plane.equals("zy");
-        int r = p.getIntClamped("radius", 12, 1, 24);
-        int vr = p.getIntClamped("height", 7, 1, 24);
-        BlockPos explicit = p.getPos("center");
+    CompletionStage<AsciiMap> map(MapParams p, CallContext ctx) {
+        boolean cross = p.plane() != Plane.XZ;
+        String plane = p.plane().wireName();
+        int r = p.radius();
+        int vr = p.height();
         ServerLevel level = api.level();
-        return api.onServerThread(() -> {
-            BlockPos c = explicit;
-            if (c == null) {
+        return serverHop().submit(() -> {
+            BlockPos c;
+            if (p.center().isPresent()) {
+                c = pos(p.center().get());
+            } else {
                 List<ServerPlayer> all = api.server.getPlayerList().getPlayers();
-                if (all.isEmpty()) return Map.of("present", false, "error", "no player and no center");
+                if (all.isEmpty()) throw ApiException.invalidParam("/center", ApiIssue.Code.REQUIRED, "no player is on to center on; give center");
                 c = all.get(0).blockPosition();
             }
             AABB box = new AABB(c).inflate(Math.max(r, vr) + 2);
@@ -267,20 +235,12 @@ public final class ObserveApi {
 
             List<String> lines = cross ? renderCross(level, c, plane, r, vr, mobs)
                                        : renderTopDown(level, c, r, vr, mobs);
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("present", true);
-            out.put("plane", cross ? plane : "xz");
-            out.put("center", Map.of("x", c.getX(), "y", c.getY(), "z", c.getZ()));
-            out.put("radius", r);
-            out.put("width", lines.isEmpty() ? 0 : lines.get(0).length());
-            out.put("height", lines.size());
-            out.put("threats", mobs.size());
-            out.put("legend", cross
+            String legend = cross
                     ? "@=center #=solid .=air ~=water !=lava; mobs C/K/s/Z/E/D/W/o/B/P; up=+y, left=-axis"
-                    : "@=me .=walk #=wall(>=2up) v=cliff(>=3down) ~=water !=lava ' '=void; mobs C/K/s/Z/E/D/W/o/B/P; up=N(-z) left=W(-x)");
-            out.put("map", String.join("\n", lines));
-            return out;
-        });
+                    : "@=me .=walk #=wall(>=2up) v=cliff(>=3down) ~=water !=lava ' '=void; mobs C/K/s/Z/E/D/W/o/B/P; up=N(-z) left=W(-x)";
+            return new AsciiMap(p.plane(), position(c), r, lines.isEmpty() ? 0 : lines.get(0).length(), lines.size(),
+                    mobs.size(), legend, String.join("\n", lines));
+        }, ctx);
     }
 
     /** Top-down (x-z) heightmap rows, north (-z) first. */
@@ -377,23 +337,14 @@ public final class ObserveApi {
      * Server-side hazard scene: computes a {@link HazardField} over the server
      * world around a center point (default: first player, else test origin),
      * derives survival facts (lethalCount, cornered, safeFleeStep), and
-     * optionally renders an ASCII map. Works headless in GameTest.
-     *
-     * <p>Returns {present, center, radius, hazardSummary:{lethalCount, cornered,
-     * safeFleeStep?}, authority:"server"} plus, when {@code render=="map"},
-     * {rows:[...], legend:{...}}.
+     * optionally renders an ASCII map and the overlays. Works headless.
      */
-    public Map<String, Object> scene(Map<String, Object> params) {
-        Params p = Params.of(params);
-        BlockPos explicit = p.getPos("center");
-        int requestedRadius = p.getInt("radius", 12);
-        int radius = Params.clamp(requestedRadius, 1, BotConfig.sceneQueryMaxRadius);
-        String render = p.getString("render", "summary");
-        List<String> overlays = p.getStringList("overlays");
-        Map<String, Object> route = p.getMap("route");
+    CompletionStage<Scene> scene(SceneParams p, CallContext ctx) {
+        int radius = Math.min(p.radius(), BotConfig.sceneQueryMaxRadius);
+        Optional<Integer> requested = p.radius() > radius ? Optional.of(p.radius()) : Optional.empty();
         ServerLevel level = api.level();
-        return api.onServerThread(() -> {
-            BlockPos center = explicit;
+        return serverHop().submit(() -> {
+            BlockPos center = p.center().map(ObserveApi::pos).orElse(null);
             int selfId = -1;
             if (center == null) {
                 List<ServerPlayer> all = api.server.getPlayerList().getPlayers();
@@ -407,52 +358,49 @@ public final class ObserveApi {
             ServerWorldView w = new ServerWorldView(level);
             int survivable = SurvivalMath.survivableFall(20f); // assume full HP server-side
             HazardField f = HazardField.compute(w, center, radius, survivable, BotConfig.deepWaterMax);
-            int lethal = SurvivalFacts.lethalCount(f);
-            boolean cornered = SurvivalFacts.cornered(f);
             // (0,1) is a placeholder threat direction (south) for the server overview;
             // the real flee direction is derived client-side from actual nearby threats.
             int[] flee = SurvivalFacts.safeFleeStep(f, 0, 1);
-            SceneModel sm = new SceneModel(center, radius, f, lethal, cornered, flee);
-
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("present", true);
-            out.put("center", Map.of("x", center.getX(), "y", center.getY(), "z", center.getZ()));
-            out.put("radius", radius);
-            // Fix 2: report truncation when the requested radius exceeded the max.
-            if (requestedRadius > BotConfig.sceneQueryMaxRadius) {
-                out.put("truncated", true);
-                out.put("requested", requestedRadius);
-            }
-            out.put("hazardSummary", sm.summary());
-            if ("map".equals(render)) {
-                out.put("rows", AsciiMapRenderer.rows(f));
-                out.put("legend", AsciiMapRenderer.legend());
-            }
-            // Fix 3: height overlay — surface-Y statistics over all standable cells.
-            if (overlays.contains("height")) {
-                int centerY = center.getY();
-                int minY = Integer.MAX_VALUE;
-                int maxY = Integer.MIN_VALUE;
-                for (int dx = -radius; dx <= radius; dx++) {
-                    for (int dz = -radius; dz <= radius; dz++) {
-                        HazardCell c = f.at(dx, dz);
-                        if (c.standable()) {
-                            int surfaceY = centerY - c.cliffDropDepth();
-                            if (surfaceY < minY) minY = surfaceY;
-                            if (surfaceY > maxY) maxY = surfaceY;
-                        }
-                    }
-                }
-                out.put("centerY", centerY);
-                if (minY != Integer.MAX_VALUE) {
-                    out.put("minY", minY);
-                    out.put("maxY", maxY);
-                }
-            }
+            HazardSummary summary = new HazardSummary(SurvivalFacts.lethalCount(f), SurvivalFacts.cornered(f),
+                    flee == null ? Optional.empty() : Optional.of(new FleeStep(flee[0], flee[1])));
+            Optional<HazardMap> map = p.render() == Render.MAP
+                    ? Optional.of(new HazardMap(AsciiMapRenderer.rows(f), AsciiMapRenderer.legend()))
+                    : Optional.empty();
+            Optional<HeightStats> height = p.overlays().contains(Overlay.HEIGHT)
+                    ? Optional.of(heightStats(f, center, radius)) : Optional.empty();
             // sight / mobDensity: the route planner's own components over the same grid.
-            SceneOverlays.apply(out, level, center, radius, SceneOverlays.of(f, center), overlays, route, selfId);
-            out.put("authority", "server");
-            return out;
-        });
+            SceneOverlays.Result overlays = SceneOverlays.apply(level, center, radius, SceneOverlays.of(f, center),
+                    p.overlays().contains(Overlay.SIGHT), p.overlays().contains(Overlay.MOB_DENSITY),
+                    p.route().orElse(RouteContract.Route.NONE), selfId);
+            return new Scene(position(center), radius, requested, summary, map, height, overlays.sight(),
+                    overlays.mobDensity());
+        }, ctx);
+    }
+
+    /** Surface-Y range over every standable cell of the grid. */
+    private static HeightStats heightStats(HazardField f, BlockPos center, int radius) {
+        int centerY = center.getY();
+        int minY = Integer.MAX_VALUE;
+        int maxY = Integer.MIN_VALUE;
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                HazardCell c = f.at(dx, dz);
+                if (c.standable()) {
+                    int surfaceY = centerY - c.cliffDropDepth();
+                    if (surfaceY < minY) minY = surfaceY;
+                    if (surfaceY > maxY) maxY = surfaceY;
+                }
+            }
+        }
+        boolean any = minY != Integer.MAX_VALUE;
+        return new HeightStats(centerY, any ? Optional.of(minY) : Optional.empty(), any ? Optional.of(maxY) : Optional.empty());
+    }
+
+    static BlockPos pos(BlockPosition p) {
+        return new BlockPos(p.x(), p.y(), p.z());
+    }
+
+    static BlockPosition position(BlockPos p) {
+        return new BlockPosition(p.getX(), p.getY(), p.getZ());
     }
 }

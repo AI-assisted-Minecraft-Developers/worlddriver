@@ -16,7 +16,7 @@ function waitUntil(pred, maxTicks) {
     var budget = maxTicks || 40;
     for (var i = 0; i < budget; i++) {
         if (pred()) return true;
-        Driver.system.waitTicks(1);
+        Driver.system.waitTicks({ ticks: 1 });
     }
     return pred();
 }
@@ -62,18 +62,17 @@ if (!clientAvailable()) {
 
     ScriptTest.run("41_defense: observe.threats detects and scores a summoned hostile", function(t) {
         cleanup();
-        var me = Driver.invoke("mc.observe.player", {});
-        t.assertTrue(me.present, "player present");
+        var me = Driver.invoke("mc.observe.player", {}).player;
+        t.assertTrue(!!me, "player present");
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
         Driver.invoke("mc.action.runCommand", { cmd: "summon zombie " + x + " " + y + " " + (z + 4) });
-        Driver.system.waitTicks(4);
+        Driver.system.waitTicks({ ticks: 4 });
         var r = Driver.invoke("mc.observe.threats", { radius: 16 });
         var zombie = null;
         for (var i = 0; i < r.threats.length; i++) {
             if (r.threats[i].type.indexOf("zombie") >= 0) zombie = r.threats[i];
         }
         t.assertTrue(zombie !== null, "zombie shows up as a threat");
-        t.assertEqual(zombie.hostile, true, "marked hostile");
         t.assertTrue(zombie.threat > 0, "has a positive threat score");
         t.assertTrue(typeof zombie.canSeeMe === "boolean", "canSeeMe present");
         cleanup();
@@ -84,17 +83,17 @@ if (!clientAvailable()) {
         // Widen keep-distance so a summon ~3.5 blocks away is comfortably inside it
         // (a +2 block summon lands at ~3.5 due to entity centring + rounding).
         Driver.bot.patchSettings({ autoDodge: true, creeperKeepDistance: 6 });
-        var me = Driver.invoke("mc.observe.player", {});
+        var me = Driver.invoke("mc.observe.player", {}).player;
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
         Driver.invoke("mc.action.runCommand", { cmd: "summon creeper " + (x + 2) + " " + y + " " + z });
-        Driver.system.waitTicks(3);
+        Driver.system.waitTicks({ ticks: 3 });
         var s = Driver.bot.status({}).status.reflexes;
         // Assert engagement (not survival) — deterministic and safe; we kill the
         // creeper immediately after so it never detonates.
         t.assertEqual(s.activeChain, "panic", "panic chain holds the channel");
         t.assertTrue(s.chains.panic.priority >= 1000, "panic priority in the panic band");
         cleanup();
-        Driver.system.waitTicks(3);
+        Driver.system.waitTicks({ ticks: 3 });
         var after = Driver.bot.status({}).status.reflexes;
         t.assertTrue(after.activeChain !== "panic", "panic releases once the creeper is gone");
     });
@@ -102,7 +101,7 @@ if (!clientAvailable()) {
     ScriptTest.run("41_defense: ThreatScanner senses an incoming projectile", function(t) {
         cleanup();
         Driver.bot.patchSettings({ autoDodge: true });
-        var me = Driver.invoke("mc.observe.player", {});
+        var me = Driver.invoke("mc.observe.player", {}).player;
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y) + 1, z = Math.round(me.pos.z);
         // A slow arrow 14 blocks north, drifting south at the player. Slow + far so
         // the velocity tracker (needs ~2 ticks of position delta) catches it before

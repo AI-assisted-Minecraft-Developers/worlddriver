@@ -3,25 +3,30 @@
 // Rhino), NOT as {ok:false} results. Server-side routes work headless; no
 // clientAvailable guard needed for runCommand/query cases.
 
-function errOf(fn) {
-    try { fn(); return null; } catch (e) { return String(e); }
+/** The issues a call is refused with, as "path code" strings; null when it was not refused. */
+function issuesOf(fn) {
+    try { fn(); return null; } catch (e) {
+        return (e.issues || []).map(function (i) { return i.path + " " + i.code; });
+    }
 }
 
 ScriptTest.run("64_schema_validation: wrong field name names both the missing and the unexpected key", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.action.runCommand", { command: "time query daytime" }); });
-    t.assertTrue(msg !== null, "must reject");
-    t.assertTrue(msg.indexOf("missing required 'cmd'") >= 0, "must name missing 'cmd', got: " + msg);
-    t.assertTrue(msg.indexOf("unexpected key 'command'") >= 0, "must name unexpected 'command', got: " + msg);
+    var got = issuesOf(function() { Driver.invoke("mc.action.runCommand", { command: "time query daytime" }); });
+    t.assertTrue(got !== null, "must reject");
+    t.assertTrue(got.indexOf("/cmd required") >= 0, "must name missing 'cmd', got: " + got);
+    t.assertTrue(got.indexOf("/command unknown_field") >= 0, "must name unexpected 'command', got: " + got);
 });
 
 ScriptTest.run("64_schema_validation: type violation is rejected with both types named", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.action.runCommand", { cmd: 42 }); });
-    t.assertTrue(msg !== null && msg.indexOf("must be string") >= 0, "cmd:42 must be a type error, got: " + msg);
+    var e = null;
+    try { Driver.invoke("mc.action.runCommand", { cmd: 42 }); } catch (x) { e = x; }
+    t.assertEqual(e && e.issues[0].path + " " + e.issues[0].code, "/cmd type_mismatch", "cmd:42 must be a type error");
+    t.assertTrue(e.issues[0].message.indexOf("string") >= 0, "names the wanted type: " + e.issues[0].message);
 });
 
 ScriptTest.run("64_schema_validation: unknown key on a valid call is rejected", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.system.waitTicks", { ticks: 1, bogus: true }); });
-    t.assertTrue(msg !== null && msg.indexOf("unexpected key 'bogus'") >= 0, "got: " + msg);
+    var got = issuesOf(function() { Driver.invoke("mc.system.waitTicks", { ticks: 1, bogus: true }); });
+    t.assertTrue(got !== null && got.indexOf("/bogus unknown_field") >= 0, "got: " + got);
 });
 
 ScriptTest.run("64_schema_validation: enum violation names the allowed set", function(t) {
@@ -48,9 +53,9 @@ ScriptTest.run("64_schema_validation: integral double passes an integer slot", f
 ScriptTest.run("64_schema_validation: non-integral double on an integer slot is rejected", function(t) {
     // invokeJson answers with an envelope, {result} or {error}, instead of throwing.
     var res = JSON.parse(__api.invokeJson("mc.system.waitTicks", '{"ticks":1.5}'));
-    var msg = res.error ? res.error.message : null;
-    t.assertTrue(msg !== null && msg.indexOf("must be integer") >= 0,
-        "ticks:1.5 must reject as non-integer, got: " + msg);
+    var issue = res.error ? res.error.issues[0] : null;
+    t.assertTrue(issue !== null && issue.path === "/ticks" && issue.code === "type_mismatch",
+        "ticks:1.5 must reject as non-integer, got: " + JSON.stringify(res));
 });
 
 ScriptTest.run("64_schema_validation: free-form tuning rides in args, not beside it", function(t) {

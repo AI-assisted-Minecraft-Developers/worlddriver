@@ -72,7 +72,7 @@ if (!clientAvailable()) {
     });
 
     ScriptTest.run("12_use_item: on a boat with an empty hand mounts it", function(t) {
-        var me = Driver.invoke("mc.observe.player", {});
+        var me = Driver.invoke("mc.observe.player", {}).player;
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
         // Mounting needs an EMPTY main hand: a held item would be used on the boat instead.
         Driver.invoke("mc.action.runCommand", { cmd: "item replace entity @p weapon.mainhand with minecraft:air" });
@@ -84,7 +84,7 @@ if (!clientAvailable()) {
                 center: { x: x, y: y, z: z },
                 filter: { in_radius: 8, type: "boat" },
                 select: ["id"]
-            });
+            }).entities;
             t.assertTrue(Array.isArray(rows) && rows.length >= 1,
                 "boat must be findable via mc.query, got " + JSON.stringify(rows));
             // mc.query reads the server, which spawned the boat; self clicks from the client, which
@@ -93,7 +93,7 @@ if (!clientAvailable()) {
             for (var i = 0; i < 20; i++) {
                 res = Driver.bot.useItem({ entityId: rows[0].id });
                 if (!(res.outcome === "refused" && res.reason === "invalid_world_target")) break;
-                Driver.system.waitTicks(1);
+                Driver.system.waitTicks({ ticks: 1 });
             }
             t.assertEqual(res.outcome, "done", "useItem on the boat (got " + JSON.stringify(res) + ")");
             // The answer rereads the vehicle after the click until the server's mount arrives.

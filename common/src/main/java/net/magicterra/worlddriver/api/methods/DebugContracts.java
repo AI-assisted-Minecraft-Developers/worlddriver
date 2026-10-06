@@ -117,7 +117,7 @@ public final class DebugContracts {
                             long maxRegression, long totalExpanded, long hStart, long hFinal, List<Segment> trail)
             implements PlanReply {}
 
-    public static final ApiType<PlanParams> PLAN_PARAMS = ApiTypes.record("PlanParams",
+    public static final ApiType<PlanParams> PLAN_PARAMS = ApiTypes.record("PathPlanParams",
             ApiField.field("goal", COLUMN).required().forGetter(PlanParams::goal),
             ApiField.field("from", CommonTypes.BLOCK_POSITION).describe("The start foot. Omitted: where the player stands.")
                     .optional().forGetter(PlanParams::from),

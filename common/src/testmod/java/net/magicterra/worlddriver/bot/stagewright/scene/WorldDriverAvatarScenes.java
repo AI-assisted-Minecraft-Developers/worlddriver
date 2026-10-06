@@ -1,12 +1,14 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
-import net.magicterra.worlddriver.application.ObserveApi;
+import net.magicterra.worlddriver.api.methods.PlayerContract.Attack;
+import net.magicterra.worlddriver.application.PlayerSnapshots;
 
 import net.magicterra.worlddriver.application.DriverApplication;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.mojang.authlib.GameProfile;
@@ -248,18 +250,14 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
 
         DriverApi api = new DriverApplication();
         fp.resetAttackStrengthTicker();               // just swung: bar empty
-        @SuppressWarnings("unchecked")
-        Map<String, Object> a0 = (Map<String, Object>) ObserveApi.playerSnapshot(fp).get("attack");
+        Attack a0 = attackOf(fp);
         WorldDriverCommon.LOG.info("[wd.serverAttackCooldown] swordFresh={}", a0);
-        if (a0 == null)
-            ctx.fail("observe.player carries no `attack` field at all — "
-                    + "the agent cannot see the cooldown its own damage is scaled by (this is the gap)");
 
         // (A) Right after a swing the bar is empty: a hit sent NOW would land for ~0 damage.
-        float s0 = ((Number) a0.get("strengthScale")).floatValue();
-        int cd0 = ((Number) a0.get("cooldownTicks")).intValue();
-        int period = ((Number) a0.get("fullCooldownTicks")).intValue();
-        if (s0 > 0.01f || Boolean.TRUE.equals(a0.get("ready")))
+        float s0 = (float) a0.strengthScale();
+        int cd0 = a0.cooldownTicks();
+        int period = a0.fullCooldownTicks();
+        if (s0 > 0.01f || a0.ready())
             ctx.fail("bar must read empty right after a swing: " + a0);
         // Iron sword = 1.6 attacks/s = 12.5 ticks; must be the real recharge, not a guess.
         if (period != 13 || cd0 != 13)
@@ -271,11 +269,10 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         float prev = s0;
         for (int t = 1; t <= period + 2; t++) {
             driver.avatar().step();                   // the one tick-clock a FakePlayer gets
-            @SuppressWarnings("unchecked")
-            Map<String, Object> a = (Map<String, Object>) ObserveApi.playerSnapshot(fp).get("attack");
-            float s = ((Number) a.get("strengthScale")).floatValue();
-            int cd = ((Number) a.get("cooldownTicks")).intValue();
-            boolean ready = Boolean.TRUE.equals(a.get("ready"));
+            Attack a = attackOf(fp);
+            float s = (float) a.strengthScale();
+            int cd = a.cooldownTicks();
+            boolean ready = a.ready();
             if (s < prev)
                 ctx.fail("scale went backwards at t=" + t + ": " + a);
             if (ready != (s >= 1.0f))
@@ -293,13 +290,17 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
 
         // (C) The number tracks the HELD weapon, not the player: an axe recharges slower.
         equipMainHand(fp, new ItemStack(Items.IRON_AXE));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> axe = (Map<String, Object>) ObserveApi.playerSnapshot(fp).get("attack");
-        int axePeriod = ((Number) axe.get("fullCooldownTicks")).intValue();
+        Attack axe = attackOf(fp);
+        int axePeriod = axe.fullCooldownTicks();
         WorldDriverCommon.LOG.info("[wd.serverAttackCooldown] axe={}", axe);
         if (axePeriod <= period)
             ctx.fail("an axe swings slower than a sword; got axe=" + axePeriod
                     + " sword=" + period + " — the field is not reading the held weapon");
+    }
+
+    /** {@code mc.observe.player}'s attack readiness for a player the player list does not hold. */
+    private static Attack attackOf(ServerPlayer fp) {
+        return PlayerSnapshots.of(fp, Optional.empty()).attack();
     }
 
     // ==================================================================================

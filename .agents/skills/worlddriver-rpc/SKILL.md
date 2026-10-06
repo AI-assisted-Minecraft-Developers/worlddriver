@@ -143,7 +143,7 @@ as a `chat.message` (`"X was slain by …"`) — the latter is usually the clear
 
 Two related building blocks for conditions the raw event types don't cover:
 - **Health-drop / low-HP alarm** (no such event type exists): set a server-side watcher
-  with `mc.events {op:"watch", invoke:"mc.observe.player", field:"health", below:<hp>,
+  with `mc.events {op:"watch", invoke:"mc.observe.player", field:"player.vitals.health", below:<hp>,
   emitAs:"bot.lowhp", everyMs:500}` — it emits `bot.lowhp` into the same stream when
   health crosses the threshold, so add that to `AGENT_EVENT_TYPES` and it rides the same
   Monitor. A watcher (and `mc.wait.condition`) may only poll a *pollable* read; anything

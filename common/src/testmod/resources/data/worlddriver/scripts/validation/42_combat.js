@@ -33,14 +33,14 @@ function cleanup() {
     Driver.invoke("mc.action.runCommand", { cmd: "kill @e[type=!minecraft:player]" });
     Driver.bot.patchSettings({ autoFight: false, autoRetreat: false });
     Driver.invoke("mc.action.runCommand", { cmd: "clear @s" });
-    Driver.system.waitTicks(3);
+    Driver.system.waitTicks({ ticks: 3 });
 }
 
 // Put a weapon in hotbar slot 0 and select it; wait for the client inventory to sync.
 function equip(item) {
     Driver.invoke("mc.action.runCommand", { cmd: "item replace entity @s hotbar.0 with " + item });
     Driver.invoke("mc.client.input.setHotbarSlot", { slot: 0 });
-    Driver.system.waitTicks(6);
+    Driver.system.waitTicks({ ticks: 6 });
 }
 
 /** The DriverApiError a call throws, or null when it returned. */
@@ -100,7 +100,7 @@ if (!clientAvailable()) {
         equip("minecraft:bow");
         Driver.invoke("mc.action.runCommand", { cmd: "give @s minecraft:arrow 64" });
         Driver.bot.patchSettings({ kiteDistance: 8 });
-        var me = Driver.invoke("mc.observe.player", {});
+        var me = Driver.invoke("mc.observe.player", {}).player;
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
         // Stationary skeleton 3 blocks away — inside the kite band, so the bot must
         // back off toward kiteDistance (8) while drawing. NoAI keeps it as a fixed
@@ -109,16 +109,16 @@ if (!clientAvailable()) {
         Driver.invoke("mc.action.runCommand", {
             cmd: "summon skeleton " + sx + " " + sy + " " + sz + " {NoAI:1b,PersistenceRequired:1b}"
         });
-        Driver.system.waitTicks(3);
+        Driver.system.waitTicks({ ticks: 3 });
         var th = Driver.invoke("mc.observe.threats", { radius: 16 });
         var sk = findType(th.threats, "skeleton");
         t.assertTrue(sk !== null, "skeleton present");
 
         Driver.bot.combat({ mode: "kill", target: { kind: "entity", entityId: sk.id } });   // non-blocking
-        Driver.system.waitTicks(50);
+        Driver.system.waitTicks({ ticks: 50 });
 
         var s = Driver.bot.status({}).status.reflexes;
-        var now = Driver.invoke("mc.observe.player", {});
+        var now = Driver.invoke("mc.observe.player", {}).player;
         var d = dist(now.pos, { x: sx + 0.5, y: sy, z: sz + 0.5 });
         // A melee bot would have closed to < combatReach (3); the kite backs AWAY,
         // so distance from the spawn point grows. Drawing slows movement to a crawl,
@@ -131,16 +131,16 @@ if (!clientAvailable()) {
     ScriptTest.run("42_combat: status.combat carries telemetry + cancel stands the chain down", function(t) {
         cleanup();
         equip("minecraft:diamond_sword");
-        var me = Driver.invoke("mc.observe.player", {});
+        var me = Driver.invoke("mc.observe.player", {}).player;
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
         Driver.invoke("mc.action.runCommand", {
             cmd: "summon zombie " + (x + 3) + " " + y + " " + z + " {NoAI:1b,PersistenceRequired:1b}"
         });
-        Driver.system.waitTicks(3);
+        Driver.system.waitTicks({ ticks: 3 });
         var started = Driver.bot.combat({ mode: "engage" });   // non-blocking
         t.assertEqual(started.outcome, "accepted", "outcome");
         var id = started.action.actionId;
-        Driver.system.waitTicks(4);
+        Driver.system.waitTicks({ ticks: 4 });
         var s = Driver.bot.status({}).status;
         t.assertEqual(s.slots.combat.active, true, "combat slot active while engaged");
         t.assertEqual(s.reflexes.activeChain, "combat", "combat chain holds the movement channel");
@@ -149,7 +149,7 @@ if (!clientAvailable()) {
 
         var stopped = Driver.bot.cancel({ process: "combat" });
         t.assertEqual(JSON.stringify(stopped.cancelled), "[\"combat\"]", "names what it stopped: " + JSON.stringify(stopped));
-        Driver.system.waitTicks(3);
+        Driver.system.waitTicks({ ticks: 3 });
         var after = Driver.bot.status({}).status;
         t.assertEqual(after.slots.combat.active, false, "cancel deactivated the combat slot");
         t.assertTrue(after.reflexes.activeChain !== "combat", "combat chain released the channel");

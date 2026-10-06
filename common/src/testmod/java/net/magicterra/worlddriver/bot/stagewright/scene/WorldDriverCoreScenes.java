@@ -1608,7 +1608,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ctx.command("item replace entity " + name + " container.35 with minecraft:gold_ingot 3");
 
         Object obs = WorldDriverCommon.api().route("mc.observe.player", Map.of("name", name));
-        Object rows = obs instanceof Map<?, ?> m ? m.get("inventory") : null;
+        Object rows = obs instanceof Map<?, ?> m && m.get("player") instanceof Map<?, ?> p ? p.get("inventory") : null;
         ctx.expect(rows instanceof List<?>).as("observe.player carries an inventory list")
                 .isEqualTo(true);
         if (!(rows instanceof List<?> list)) return;
@@ -1681,7 +1681,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     /** {@code mc.observe.player}'s AttackSnap for one named player, or empty when absent. */
     private static Map<?, ?> attackSnap(String name) {
         Object obs = WorldDriverCommon.api().route("mc.observe.player", Map.of("name", name));
-        Object attack = obs instanceof Map<?, ?> m ? m.get("attack") : null;
+        Object attack = obs instanceof Map<?, ?> m && m.get("player") instanceof Map<?, ?> p ? p.get("attack") : null;
         return attack instanceof Map<?, ?> a ? a : Map.of();
     }
 

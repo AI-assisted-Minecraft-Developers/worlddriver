@@ -17,7 +17,6 @@ ScriptTest.run("33_world_snapshot: block states restore after mutation", functio
     tick(1);
 
     var snap = Driver.invoke("mc.world.snapshot", { id: "states", from: from, to: to });
-    t.assertEqual(snap.ok, true, "snapshot must succeed");
     t.assertEqual(snap.id, "states", "id echoed");
     t.assertEqual(snap.blocks, 9, "3x3x1 = 9 cells");
     t.assertEqual(snap.nonAir, 9, "all 9 cells were just filled");
@@ -30,7 +29,6 @@ ScriptTest.run("33_world_snapshot: block states restore after mutation", functio
     t.assertEqual(mid.blocks.length, 0, "center is air after the wipe");
 
     var res = Driver.invoke("mc.world.restore", { id: "states" });
-    t.assertEqual(res.ok, true, "restore must succeed");
     t.assertEqual(res.restored, 9, "all 9 cells restored");
     tick(1);
 
@@ -90,7 +88,7 @@ ScriptTest.run("33_world_snapshot: metadata identical across in-JVM, RPC, MCP", 
     var direct = Driver.invoke("mc.world.snapshot", args);
     var viaTcp = Driver.system.rpcRoundtrip("mc.world.snapshot", args);
     var viaMcp = Driver.system.mcpRoundtrip("mc.world.snapshot", args);
-    function key(r) { return [r.ok, r.id, r.blocks, r.nonAir, r.blockEntities].join(","); }
+    function key(r) { return [r.id,r.blocks, r.nonAir, r.blockEntities].join(","); }
     t.assertEqual(key(viaTcp), key(direct), "RPC metadata must match in-JVM");
     t.assertEqual(key(viaMcp), key(direct), "MCP metadata must match in-JVM");
 });

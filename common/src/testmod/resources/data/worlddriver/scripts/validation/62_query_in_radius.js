@@ -47,11 +47,11 @@ ScriptTest.run("62_radius: r=3 ring — every in-range stand returned, none outs
             q: "entities",
             center: { x: cx, y: cy, z: cz },
             filter: { in_radius: 3, type: "minecraft:armor_stand" }
-        });
-        // Map returned rows back to names by exact block pos.
+        }).entities;
+        // Map returned rows back to names by the cell each stands in (pos is the exact position).
         var got = {};
         for (var i = 0; i < rows.length; i++) {
-            var p = rows[i].pos;
+            var p = rows[i].blockPos;
             for (var n in inRange) {
                 var o = inRange[n];
                 if (p.x === cx + o[0] && p.y === cy + o[1] && p.z === cz + o[2]) got[n] = true;
@@ -86,7 +86,7 @@ ScriptTest.run("62_radius: r=0 returns only the center cell", function(t) {
             q: "entities",
             center: { x: cx, y: cy, z: cz },
             filter: { in_radius: 0, type: "minecraft:armor_stand" }
-        });
+        }).entities;
         t.assertEqual(rows.length, 1, "r=0 = just the center-cell stand, got " + rows.length);
     } finally {
         Driver.invoke("mc.action.runCommand", { cmd: "kill @e[tag=t62]" });

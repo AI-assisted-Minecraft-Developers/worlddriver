@@ -1,0 +1,85 @@
+package net.magicterra.worlddriver.api.methods;
+
+import java.util.Optional;
+
+import net.magicterra.worlddriver.api.contract.ApiField;
+import net.magicterra.worlddriver.api.contract.ApiType;
+import net.magicterra.worlddriver.api.contract.ApiTypes;
+import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.api.contract.RecordType;
+import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.EventStreamContract.NoParams;
+
+/** {@code mc.system.version}, {@code mc.system.testOrigin} and {@code mc.system.waitTicks}. */
+public final class SystemContracts {
+    private SystemContracts() {}
+
+    /** The parameters of a method that takes none; one shared object, so TypeScript sees one NoParams. */
+    public static final RecordType<NoParams> NO_PARAMS = EventStreamContract.NO_PARAMS;
+
+    // ------------------------------------------------------------------ version
+
+    /**
+     * {@code version} is pinned and never moves between builds; {@code loadedFrom} and the file's time and
+     * size are measured from the file the classes were loaded from, which is what tells two builds apart.
+     */
+    public record Version(String modid, String version, long uptimeMs, String loadedFrom, String loadedKind,
+                          Optional<String> builtAt, Optional<Long> builtMs, Optional<Long> sizeBytes,
+                          Optional<String> stampError) {}
+
+    public static final ApiType<Version> VERSION_REPLY = ApiTypes.record("Version",
+            ApiField.field("modid", ApiTypes.string()).required().forGetter(Version::modid),
+            ApiField.field("version", ApiTypes.string()).required().forGetter(Version::version),
+            ApiField.field("uptimeMs", ApiTypes.int64(0, Long.MAX_VALUE)).required().forGetter(Version::uptimeMs),
+            ApiField.field("loadedFrom", ApiTypes.string()).describe("The jar or class directory the running code came from.")
+                    .required().forGetter(Version::loadedFrom),
+            ApiField.field("loadedKind", ApiTypes.string()).describe("jar, classes, or the URL protocol when no file backs it.")
+                    .required().forGetter(Version::loadedKind),
+            ApiField.field("builtAt", ApiTypes.string()).describe("That file's modification time, ISO-8601 UTC.")
+                    .optional().forGetter(Version::builtAt),
+            ApiField.field("builtMs", ApiTypes.int64(Long.MIN_VALUE, Long.MAX_VALUE)).optional().forGetter(Version::builtMs),
+            ApiField.field("sizeBytes", ApiTypes.int64(0, Long.MAX_VALUE)).optional().forGetter(Version::sizeBytes),
+            ApiField.field("stampError", ApiTypes.string()).describe("Why the file could not be read.")
+                    .optional().forGetter(Version::stampError),
+            Version::new);
+
+    // Pollable: a constant plus a clock read, no world access.
+    public static final MethodSpec<NoParams, Version> VERSION = MethodSpec.of("mc.system.version", NO_PARAMS, VERSION_REPLY,
+                    "Probe the driver: call it first to confirm it answers. version is pinned; loadedFrom, builtAt and "
+                            + "sizeBytes name the file the running code was loaded from, which is what tells two builds "
+                            + "apart.")
+            .asPollable();
+
+    // ------------------------------------------------------------------ testOrigin
+
+    // Pollable: a constant.
+    public static final MethodSpec<NoParams, BlockPosition> TEST_ORIGIN = MethodSpec.of("mc.system.testOrigin", NO_PARAMS,
+                    CommonTypes.BLOCK_POSITION,
+                    "The test arena's origin cell. mc.query and mc.observe.scene search around it when given no center.")
+            .asPollable();
+
+    // ------------------------------------------------------------------ waitTicks
+
+    public record WaitTicksParams(int ticks) {}
+
+    /** {@code interrupted}: the call was cancelled or ran out of budget first, so fewer ticks passed. */
+    public record Waited(int waited, Optional<Boolean> interrupted) {}
+
+    public static final ApiType<WaitTicksParams> WAIT_TICKS_PARAMS = ApiTypes.record("WaitTicksParams",
+            ApiField.field("ticks", ApiTypes.integer(0, 200)).describe("Nominal ticks of 50 ms each.")
+                    .required().forGetter(WaitTicksParams::ticks),
+            WaitTicksParams::new);
+
+    public static final ApiType<Waited> WAITED = ApiTypes.record("Waited",
+            ApiField.field("waited", ApiTypes.integer(0, 200)).required().forGetter(Waited::waited),
+            ApiField.field("interrupted", ApiTypes.trueOnly()).optional().forGetter(Waited::interrupted),
+            Waited::new);
+
+    public static final MethodSpec<WaitTicksParams, Waited> WAIT_TICKS = MethodSpec.of("mc.system.waitTicks",
+                    WAIT_TICKS_PARAMS, WAITED,
+                    "Answer after ticks × 50 ms of wall time; server lag is not made up. Refused on a game thread. To "
+                            + "wait for something to happen rather than for time to pass, use mc.wait.*.")
+            .effects(MethodSpec.Effect.WAIT)
+            .execution(MethodSpec.ExecutionClass.WAIT)
+            .mayWait();
+}
