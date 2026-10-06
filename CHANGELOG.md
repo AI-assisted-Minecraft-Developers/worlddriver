@@ -5,6 +5,51 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-06
+
+- **Every method is a typed contract, and every caller sees the same one.** Each method's params and
+  reply are declared once, as Java records with their wire types, in a method registry; MCP
+  `tools/list`, the WebSocket RPC, the script wrappers, a generated `driver-api.d.ts`, JSON Schemas
+  and the reference all come from those declarations. The hand-written MCP catalog, the untyped
+  route table, `addRoute`, `ToolCatalog.registerVerb`/`registerExtra` and the separate parameter
+  validator are gone. A mod adds methods by publishing an `ApiBatch` under its own id
+  (`<modid>.<verb>`); `mc.*` stays the driver's and `mc.test.*` StageWright's, which now publishes
+  its harness verbs as one hidden typed batch. A batch published after an MCP session started is
+  announced with `notifications/tools/list_changed`.
+- **Params are decoded strictly.** An unknown field, a wrong type, a value out of range or a
+  duplicate JSON key is refused before anything runs, as `invalid_params` with one issue per problem:
+  `{path, code, message}`, `path` a JSON Pointer such as `/target/pos/x`. Nothing is coerced or
+  dropped silently any more.
+- **Errors are JSON-RPC error objects.** `{code, message, data}`, where `data` carries the API code
+  (`invalid_params`, `method_not_found`, `capability_unavailable`, `server_busy`, `action_not_found`,
+  `context_changed`, `not_executed`, `outcome_unknown`, `internal_error`), the issues, and whether the
+  call may have taken effect. The old string errors and `{ok:false}` replies are gone; a bot verb whose
+  body cannot act answers `{outcome:"refused", reason, message}` rather than failing.
+- **Bot tasks are actions.** A body-task verb answers `{actionId, state}` at once (or after `awaitMs`,
+  default 0) and the action ends `succeeded`, `failed`, `cancelled` or `superseded`, read with
+  `mc.wait.result{kind:"action"}` or cancelled with `mc.bot.cancel`. Every executor writes the ending,
+  including a world closing, a body leaving, a test reset and a dropped connection.
+- **Script runs own their actions.** `mc.script.eval`, skills and playbooks each run as one run whose
+  actions are refused to anyone else and cancelled when the run stops. A timed-out script is stopped,
+  and encoding its result has its own budget.
+- **Replies changed shape across the surface**, now that each is declared:
+  - The event stream:
+    - Event seqs and cursors are decimal strings, since a 64-bit seq does not survive a JavaScript number.
+    - `eventsSince` answers `{events, cursor}`.
+    - Waits are tagged on `outcome`.
+    - `wait.condition` and `events` watches accept only pollable targets.
+  - `observe.player` answers `{player?}`, grouped into `body`, `vitals`, `equipment` and `inventory`.
+  - `mc.query` answers `{q, blocks|entities}`.
+  - `observe.boss` answers `{crystals, boss?}`, the boss tagged on `type`.
+  - The world and recipe writes lost `ok`.
+  - Settings are read and written through `mc.bot.setting{op:"read"|"patch"|"apply"}`.
+  - Client screen writes:
+    - They answer `{outcome:"done", …, contextId}` and take a `contextId` back, refused with `context_changed` when the screen changed in between.
+    - `screen.tree` is a flat node list.
+  - Output never carries JSON `null`: an absent value is an omitted field. The reference in
+    `.agents/skills/worlddriver-rpc/references/methods.md` lists every shape.
+- **Only the local player is `self`, and only MCP 2025-06-18 is served.**
+
 ## 2026-10-03
 
 - **The route contract and its implementation have separate packages.** `api/DriverApi` remains
