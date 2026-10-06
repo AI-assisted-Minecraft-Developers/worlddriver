@@ -18,12 +18,14 @@ Reach for THIS script when the MCP tools can't express what you need:
   - You're driving the client headless (title→world, input, screenshots) the way
     into_world.py does, outside the MCP tool set.
 
-Wire format (NOT JSON-RPC 2.0 — a hand-rolled envelope):
+Wire format (JSON-RPC 2.0; the server does not require the "jsonrpc" member on requests):
     send {"id": N, "method": "mc.x.y", "params": {...}}
-    recv {"id": N,    "result": <any>}                    on success
-    recv {"id": N,    "error": "<msg>", "code": -326xx}   on failure
-    recv {"id": null, "error": "<msg>", "code": -32700}   too malformed to echo an id
-    recv {"method": "notifications/message", ...}         an event push, no "id" key
+    recv {"jsonrpc": "2.0", "id": N, "result": <any>}                          on success
+    recv {"jsonrpc": "2.0", "id": N, "error": {"code": -326xx, "message": "<msg>",
+          "data": {"code", "message", "issues": [{"path", "code", "message"}], "execution"}}}
+    recv {"jsonrpc": "2.0", "id": null, "error": {"code": -32700, "message": "<msg>"}}
+                                                       too malformed to echo an id
+    recv {"method": "notifications/message", ...}      an event push, no "id" key
 The "id" KEY is on every response and absent from every notification — that, not
 the id's value, is how the two are told apart.
 
@@ -138,8 +140,13 @@ async def call(ws, rid, method, params, timeout):
         if msg["id"] is not None and msg["id"] != rid:
             continue  # not our reply (shouldn't interleave, but be safe)
         if "error" in msg:
-            code = msg.get("code")
-            return False, f"{msg['error']} (code {code})" if code else msg["error"]
+            err = msg["error"]
+            if not isinstance(err, dict):
+                return False, str(err)
+            data = err.get("data")
+            # data is the API's {code, message, issues, execution}: show it whole, issues included.
+            detail = f" {json.dumps(data, ensure_ascii=False)}" if data else ""
+            return False, f"{err.get('message')} (code {err.get('code')}){detail}"
         return True, msg.get("result")
 
 
