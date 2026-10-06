@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot;
 
+import java.util.List;
 import java.util.Map;
+import net.magicterra.worlddriver.api.methods.TestInputContracts;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 
@@ -84,23 +86,23 @@ public interface BotApi {
      * client thread and brings the entry back to a neutral state between pooled
      * reuse runs: releases held movement keys, closes any open screen
      * ({@code setScreen(null)}), clears the chat readback log, and cancels a
-     * residual smooth-look process if the {@code look} slot is active. Returns
-     * {@code {ok:true, reset:[...]}} listing what it actually did. Client-only —
+     * residual smooth-look process if the {@code look} slot is active. Returns the tokens
+     * {@link TestInputContracts#RESET} describes, naming what it actually did. Client-only —
      * the verb throws loudly on a dedicated server (no bot impl registered).
      */
-    Map<String, Object> resetClientEntry();
+    List<String> resetClientEntry();
     /**
      * {@code mc.test.input.heldKeys} — instrument-grade held-key readback (task#90).
      * Reads {@link net.minecraft.client.KeyMapping#isDown()} on the client thread for
      * exactly the eight movement/action keymappings {@code BotInteract.releaseKeys()}
-     * clears — {@code keyUp/Down/Left/Right/Jump/Sprint/Attack/Shift} — and returns
-     * {@code {ok:true, keys:{up,down,left,right,jump,sprint,attack,shift:bool}}}. Pure
+     * clears — {@code keyUp/Down/Left/Right/Jump/Sprint/Attack/Shift}. Pure
      * observation (touches no player/world state); the readback the {@code reset.behavior}
      * keys sub-assertion lacked (the unconditional {@code reset[]} "keys" token proves
      * {@code releaseKeys()} RAN, not that any key was actually down and got cleared).
-     * Client-only — the verb throws loudly on a dedicated server.
+     * Throws {@link IllegalStateException} when the client has no options yet. Client-only —
+     * the verb throws loudly on a dedicated server.
      */
-    Map<String, Object> heldKeys();
+    TestInputContracts.HeldKeys heldKeys();
     /**
      * {@code mc.test.input.useOnBlock} — instrument-grade world right-click (task#90).
      * Synthesizes a {@link net.minecraft.world.phys.BlockHitResult} at the given block
@@ -109,11 +111,10 @@ public interface BotApi {
      * on the client thread. Deliberately NOT the behaviour face: no movement, no aiming
      * (no yaw/pitch mutation), no sneak toggle — just the single right-click, so a test
      * can open a block-entity container screen (e.g. a furnace) with no path/aim pipeline.
-     * Params {@code {x:int, y:int, z:int, hand?:"main"|"off"}}; returns
-     * {@code {ok:bool, result:string(InteractionResult), hand, face}}. Client-only —
-     * throws loudly on a dedicated server.
+     * Throws {@link IllegalStateException} with no local player. Client-only — throws loudly on a
+     * dedicated server.
      */
-    Map<String, Object> useOnBlock(Map<String, Object> params);
+    TestInputContracts.UsedOnBlock useOnBlock(TestInputContracts.UseOnBlock params);
     /**
      * {@code mc.bot.waypoint}: named positions kept for the lifetime of the bot impl, for goto's waypoint
      * target. A save without {@code pos} takes the player's block. Client thread.

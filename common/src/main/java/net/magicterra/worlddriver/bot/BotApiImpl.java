@@ -13,6 +13,7 @@ import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.methods.GotoContract;
 import net.magicterra.worlddriver.api.methods.HandContracts;
+import net.magicterra.worlddriver.api.methods.TestInputContracts;
 import java.util.Optional;
 import net.magicterra.worlddriver.api.methods.RouteContract;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
@@ -517,7 +518,7 @@ public final class BotApiImpl implements BotApi {
      * closed, so "there was no screen" and "the close did nothing" stop reading alike.
      */
     @Override
-    public Map<String, Object> resetClientEntry() {
+    public List<String> resetClientEntry() {
         List<String> reset = new ArrayList<>();
         // One client-thread hop for everything that touches scheduler or render state.
         // The look-cancel MUST be inside the hop: the scheduler (userTask) is ticked and
@@ -564,7 +565,7 @@ public final class BotApiImpl implements BotApi {
         });
         int chatCleared = ClientChatLog.clear();   // pure JVM buffer, no client thread needed
         reset.add("chat:" + chatCleared);
-        return Map.of("ok", true, "reset", reset);
+        return List.copyOf(reset);
     }
 
     /** The movement keys {@link BotInteract#releaseKeys()} clears that are down right now, comma
@@ -600,27 +601,18 @@ public final class BotApiImpl implements BotApi {
      * instrument's shape is stable. Pure observation — mutates nothing.
      */
     @Override
-    public Map<String, Object> heldKeys() {
+    public TestInputContracts.HeldKeys heldKeys() {
         return onClient(() -> {
             Minecraft mc = Minecraft.getInstance();
-            Map<String, Object> keys = new LinkedHashMap<>();
-            if (mc.options == null) {
-                return Map.of("ok", false, "error", "no client options");
-            }
-            keys.put("up", mc.options.keyUp.isDown());
-            keys.put("down", mc.options.keyDown.isDown());
-            keys.put("left", mc.options.keyLeft.isDown());
-            keys.put("right", mc.options.keyRight.isDown());
-            keys.put("jump", mc.options.keyJump.isDown());
-            keys.put("sprint", mc.options.keySprint.isDown());
-            keys.put("attack", ClientIntents.digHeld());
-            keys.put("shift", mc.options.keyShift.isDown());
-            return Map.of("ok", true, "keys", keys);
+            if (mc.options == null) throw new IllegalStateException("no client options");
+            return new TestInputContracts.HeldKeys(mc.options.keyUp.isDown(), mc.options.keyDown.isDown(),
+                    mc.options.keyLeft.isDown(), mc.options.keyRight.isDown(), mc.options.keyJump.isDown(),
+                    mc.options.keySprint.isDown(), ClientIntents.digHeld(), mc.options.keyShift.isDown());
         });
     }
 
     /**
-     * {@code mc.test.input.useOnBlock} — see {@link BotApi#useOnBlock(Map)}. Instrument-grade:
+     * {@code mc.test.input.useOnBlock} — see {@link BotApi#useOnBlock}. Instrument-grade:
      * the ONLY state change is the {@code gameMode.useItemOn} right-click itself. The face is
      * the one nearest the player's eye ({@code pickFaceTowardsPlayer}) and the hit Vec3 is that
      * face's centre — the exact synthetic-hit shape {@code mc.bot.useItemOn} builds — but unlike
@@ -629,25 +621,14 @@ public final class BotApiImpl implements BotApi {
      * right-click) does not need any of those.
      */
     @Override
-    public Map<String, Object> useOnBlock(Map<String, Object> params) {
-        if (params == null) return Map.of("ok", false, "error", "x,y,z required");
-        Object ox = params.get("x"), oy = params.get("y"), oz = params.get("z");
-        if (!(ox instanceof Number) || !(oy instanceof Number) || !(oz instanceof Number)) {
-            return Map.of("ok", false, "error", "x,y,z required (int)");
-        }
-        final int x = ((Number) ox).intValue();
-        final int y = ((Number) oy).intValue();
-        final int z = ((Number) oz).intValue();
-        Object oh = params.get("hand");
-        final InteractionHand hand = (oh != null && "off".equalsIgnoreCase(String.valueOf(oh)))
+    public TestInputContracts.UsedOnBlock useOnBlock(TestInputContracts.UseOnBlock params) {
+        final InteractionHand hand = params.hand() == HandContracts.Hand.OFF
                 ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
         return onClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             LocalPlayer p = mc.player;
-            if (p == null || mc.gameMode == null) {
-                return Map.of("ok", false, "error", "no local player");
-            }
-            BlockPos block = new BlockPos(x, y, z);
+            if (p == null || mc.gameMode == null) throw new IllegalStateException("no local player");
+            BlockPos block = new BlockPos(params.pos().x(), params.pos().y(), params.pos().z());
             Direction face = pickFaceTowardsPlayer(block, p);
             double cx = block.getX() + 0.5 + face.getStepX() * 0.5;
             double cy = block.getY() + 0.5 + face.getStepY() * 0.5;
@@ -655,12 +636,8 @@ public final class BotApiImpl implements BotApi {
             BlockHitResult hit = new BlockHitResult(new Vec3(cx, cy, cz), face, block, false);
             InteractionResult r = mc.gameMode.useItemOn(p, hand, hit);
             if (r.consumesAction()) p.swing(hand);
-            return Map.of(
-                    "ok", true,
-                    "result", r.name(),
-                    "consumed", r.consumesAction(),
-                    "hand", hand == InteractionHand.MAIN_HAND ? "main" : "off",
-                    "face", face.getName());
+            return new TestInputContracts.UsedOnBlock(HandContracts.Interaction.valueOf(r.name()), r.consumesAction(),
+                    params.hand(), HandContracts.Face.valueOf(face.name()));
         });
     }
 
