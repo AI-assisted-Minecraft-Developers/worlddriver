@@ -4,6 +4,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.api.methods.ActionContract.ActionSnapshot;
 import net.magicterra.worlddriver.api.methods.ActionContract.CancelReason;
@@ -36,18 +37,18 @@ public final class ActionHandle {
     private final String body;
     private final Scope scope;
     private final String runId;
-    private final Object result;
+    private final Supplier<?> result;
     private final AtomicReference<ActionSnapshot<Object>> state;
     private final CompletableFuture<ActionSnapshot<Object>> ended = new CompletableFuture<>();
     private volatile long endedAtMs;
 
-    ActionHandle(ActionRegistry registry, String id, String body, Scope scope, String runId, Object result) {
+    ActionHandle(ActionRegistry registry, String id, String body, Scope scope, String runId, Supplier<?> result) {
         this.registry = registry;
         this.id = id;
         this.body = body;
         this.scope = scope;
         this.runId = runId;
-        this.result = Objects.requireNonNull(result, "result");
+        this.result = result;
         this.state = new AtomicReference<>(new Running<>(id, body));
     }
 
@@ -70,8 +71,21 @@ public final class ActionHandle {
 
     long endedAtMs() { return endedAtMs; }
 
-    /** The executor confirmed the goal: the result is the summary the action was started with. */
-    public boolean succeed() { return succeed(result); }
+    /**
+     * The executor confirmed the goal: the result is what the supplier given at admission reads now,
+     * on the executor's thread, so it can count what the process did. An action admitted without one
+     * has to be ended with {@link #succeed(Object)}; this fails it instead.
+     */
+    public boolean succeed() {
+        if (result == null) return fail("ended without a result");
+        Object r;
+        try {
+            r = Objects.requireNonNull(result.get(), "result");
+        } catch (RuntimeException e) {
+            return fail("the result could not be read: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+        }
+        return succeed(r);
+    }
 
     /** The executor confirmed the goal and reports {@code result}, which must be of the started summary's kind. */
     public boolean succeed(Object result) { return end(new Succeeded<>(id, body, result)); }

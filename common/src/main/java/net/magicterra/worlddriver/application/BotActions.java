@@ -102,7 +102,7 @@ final class BotActions {
             }
             BlockPos from = new BlockPos((int) cells.x0(), (int) cells.y0(), (int) cells.z0());
             BlockPos to = new BlockPos((int) cells.x1(), (int) cells.y1(), (int) cells.z1());
-            return new ActionService.Start<>(new BboxFillProcess(from, to, fillId, filterFrom),
+            return ActionService.Start.reporting(new BboxFillProcess(from, to, fillId, filterFrom),
                     new Summary(position(from), position(to), used));
         });
     }
@@ -148,7 +148,7 @@ final class BotActions {
 
     private static ActionService.Plan<GotoContract.Result> plan(GotoOrders.Order order) {
         return switch (order) {
-            case GotoOrders.Start s -> new ActionService.Start<>(s.process(), s.trip());
+            case GotoOrders.Start s -> ActionService.Start.reporting(s.process(), (GotoContract.Result) s.trip());
             case GotoOrders.Launch l -> new ActionService.Launch<>(l.launcher());
             case GotoOrders.Refuse r -> new ActionService.Refuse<>(r.reason(), r.message());
         };

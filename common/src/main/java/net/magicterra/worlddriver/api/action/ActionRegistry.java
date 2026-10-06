@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.api.RunContext;
 import net.magicterra.worlddriver.api.contract.ApiError;
@@ -51,11 +52,12 @@ public final class ActionRegistry {
 
     /**
      * Accept an action on {@code body} for {@code run} (empty: no script run), whose success will report
-     * {@code result}. Call it on the thread that is about to install the process, after everything that
-     * can refuse the request has passed, and install at once: a handle that is admitted and never
-     * installed stays running until something cancels it.
+     * what {@code result} reads then; null for work that ends itself with an explicit result. Call it on
+     * the thread that is about to install the process, after everything that can refuse the request has
+     * passed, and install at once: a handle that is admitted and never installed stays running until
+     * something cancels it.
      */
-    public Admission admit(String body, ActionHandle.Scope scope, Optional<RunContext> run, Object result) {
+    public Admission admit(String body, ActionHandle.Scope scope, Optional<RunContext> run, Supplier<?> result) {
         RunContext caller = run.orElse(null);
         if (caller != null && caller.stopped().isCancelled()) {
             throw new ApiException(new ApiError(ApiError.Code.CAPABILITY_UNAVAILABLE, caller + " was stopped and starts nothing more",

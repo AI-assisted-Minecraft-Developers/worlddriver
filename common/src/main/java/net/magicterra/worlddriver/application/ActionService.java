@@ -6,6 +6,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.api.ApiTimers;
 import net.magicterra.worlddriver.api.CallContext;
@@ -55,8 +56,14 @@ final class ActionService {
     /** What a planner decided. */
     sealed interface Plan<R> permits Start, Launch, Refuse {}
 
-    /** Start {@code process}; a success will report {@code summary}. */
-    record Start<R>(BotProcess process, R summary) implements Plan<R> {}
+    /**
+     * Start {@code process}; a success reports what {@code result} reads when the process ends, on the
+     * executor's thread, so it may count what the process did.
+     */
+    record Start<R>(BotProcess process, Supplier<? extends R> result) implements Plan<R> {
+        /** A result fixed when the process starts. */
+        static <R> Start<R> reporting(BotProcess process, R summary) { return new Start<>(process, () -> summary); }
+    }
 
     /**
      * Work that is not the body's held process (a route preview): {@code launcher} gets the admitted
@@ -160,8 +167,8 @@ final class ActionService {
     private <R> ActionResponse<R> admitAndStart(String body, ActionHandle.Scope scope, CallContext ctx, Plan<R> plan,
                                                 Installer installer) {
         if (plan instanceof Refuse<R> r) return new Refused<>(r.reason(), r.message());
-        Object summary = plan instanceof Start<R> s ? s.summary() : null;
-        ActionRegistry.Admission admission = actions.admit(body, scope, ctx.run(), summary);
+        Supplier<?> result = plan instanceof Start<R> s ? s.result() : null;
+        ActionRegistry.Admission admission = actions.admit(body, scope, ctx.run(), result);
         if (admission instanceof ActionRegistry.Denied d) return new Refused<>(d.reason(), d.message());
         ActionHandle h = ((ActionRegistry.Admitted) admission).handle();
         try {

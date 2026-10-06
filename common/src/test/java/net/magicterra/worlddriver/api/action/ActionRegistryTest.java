@@ -16,6 +16,8 @@ import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.methods.ActionContract.CancelReason;
 import net.magicterra.worlddriver.api.methods.ActionContract.Cancelled;
+import net.magicterra.worlddriver.api.methods.ActionContract.Failed;
+import net.magicterra.worlddriver.api.methods.ActionContract.Succeeded;
 import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
 import net.magicterra.worlddriver.api.methods.ActionContract.Running;
 import org.junit.jupiter.api.Test;
@@ -25,7 +27,7 @@ class ActionRegistryTest {
     private final ActionRegistry registry = new ActionRegistry();
 
     private ActionRegistry.Admission admit(String body, RunContext run) {
-        return registry.admit(body, ActionHandle.Scope.SERVER, Optional.ofNullable(run), "r");
+        return registry.admit(body, ActionHandle.Scope.SERVER, Optional.ofNullable(run), () -> "r");
     }
 
     private ActionHandle handle(String body, RunContext run) {
@@ -37,6 +39,29 @@ class ActionRegistryTest {
         ActionHandle a = handle("player:a", null), b = handle("player:a", null);
         assertNotEquals(a.id(), b.id());
         assertInstanceOf(Running.class, registry.snapshot(a.id()));
+    }
+
+    @Test
+    void theResultIsReadWhenTheActionSucceeds() {
+        int[] done = {0};
+        ActionHandle h = ((ActionRegistry.Admitted) registry.admit("player:a", ActionHandle.Scope.SERVER, Optional.empty(),
+                () -> done[0])).handle();
+        done[0] = 7;
+        h.succeed();
+        assertEquals(new Succeeded<>(h.id(), "player:a", 7), h.snapshot());
+    }
+
+    @Test
+    void anActionAdmittedWithoutAResultTakesAnExplicitOne() {
+        ActionHandle launched = ((ActionRegistry.Admitted) registry.admit("self", ActionHandle.Scope.CLIENT,
+                Optional.empty(), null)).handle();
+        assertTrue(launched.succeed("preview"));
+        assertEquals(new Succeeded<>(launched.id(), "self", "preview"), launched.snapshot());
+
+        ActionHandle bare = ((ActionRegistry.Admitted) registry.admit("self", ActionHandle.Scope.CLIENT,
+                Optional.empty(), null)).handle();
+        bare.succeed();
+        assertInstanceOf(Failed.class, bare.snapshot());
     }
 
     @Test
@@ -106,7 +131,7 @@ class ActionRegistryTest {
     void closingAScopeEndsItsActionsAndChangesItsGeneration() {
         long before = registry.generation(ActionHandle.Scope.CLIENT);
         ActionHandle self = ((ActionRegistry.Admitted) registry.admit("self", ActionHandle.Scope.CLIENT,
-                Optional.empty(), "r")).handle();
+                Optional.empty(), () -> "r")).handle();
         ActionHandle bot = handle("player:a", null);
         registry.cancelScope(ActionHandle.Scope.CLIENT, CancelReason.CONNECTION_CLOSED);
         assertEquals(CancelReason.CONNECTION_CLOSED, assertInstanceOf(Cancelled.class, self.snapshot()).reason());

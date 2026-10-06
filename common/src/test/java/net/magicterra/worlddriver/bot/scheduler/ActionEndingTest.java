@@ -57,7 +57,7 @@ class ActionEndingTest {
     private final HeldProcess held = new HeldProcess(new BotState());
 
     private ActionHandle admit(String body) {
-        return ((ActionRegistry.Admitted) registry.admit(body, ActionHandle.Scope.CLIENT, Optional.empty(), "summary")).handle();
+        return ((ActionRegistry.Admitted) registry.admit(body, ActionHandle.Scope.CLIENT, Optional.empty(), () -> "summary")).handle();
     }
 
     @Test
