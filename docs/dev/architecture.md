@@ -38,8 +38,8 @@ the server-thread hop.
 | `BodyRoutes`, `BodyInteractions` | the `mc.bot.*` verbs addressed to a named bot |
 | `ApiSupport`, `QueryParams`, `ParamsValidator` | no verbs — parsing, encoding, validation |
 
-`mc.client.*` resolves at call time through `requireClient()`, so a dedicated server that
-has no client still boots and simply fails those verbs.
+`mc.client.*` (in `ClientMethods`) resolves the client at call time, so a dedicated server
+that has no client still boots and fails those verbs with `capability_unavailable`.
 
 `mc.bot.*` is not client-only. `DriverApplication.putBodyVerb` installs each of those verbs as a
 two-way route: a call naming `self` — or naming no bot at all — goes through

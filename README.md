@@ -56,7 +56,7 @@ generated from `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/`.
 | `mc.client.*`    | Client-authoritative observation and synthetic GUI input: screen probes, the widget tree, mouse, slot, key and text input, chat, and screenshots. |
 | `mc.bot.*`       | The autonomous layer. See below. |
 
-On a dedicated server the `mc.client.*` methods return an error rather than a value, and
+On a dedicated server the `mc.client.*` methods fail with `capability_unavailable`, and
 the two client-only sensing methods — `mc.observe.threats` and `mc.observe.boss` — return
 an empty reading, because the state they read (the client entity render set, creeper swell,
 projectile velocity, the dragon's phase manager) only exists on a client.

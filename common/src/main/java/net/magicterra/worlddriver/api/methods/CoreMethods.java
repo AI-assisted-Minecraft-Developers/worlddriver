@@ -66,6 +66,26 @@ public final class CoreMethods {
                 WorldContracts.PLACE_MANY,
                 RecipeContracts.LOOKUP,
                 RecipeContracts.RESOLVE,
-                RecipeContracts.ACQUIRE);
+                RecipeContracts.ACQUIRE,
+                ScreenContracts.CONTAINER,
+                ScreenContracts.INFO,
+                ScreenContracts.TREE,
+                ScreenContracts.CLOSE,
+                ScreenContracts.CLICK,
+                ScreenContracts.MOUSE_MOVE,
+                ScreenContracts.SLOT_CLICK,
+                ScreenContracts.SET_HOTBAR_SLOT,
+                ScreenContracts.TYPE_TEXT,
+                ScreenContracts.REPLACE_TEXT,
+                ScreenContracts.SLIDER,
+                ScreenContracts.KEY,
+                ScreenContracts.KEYBIND,
+                ClientContracts.PLAYER,
+                ClientContracts.SCENE,
+                ClientContracts.BLOCKS,
+                ClientContracts.CHAT_SEND,
+                ClientContracts.CHAT_HISTORY,
+                ClientContracts.OVERLAYS,
+                ClientContracts.SCREENSHOT);
     }
 }

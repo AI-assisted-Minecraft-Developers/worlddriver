@@ -66,8 +66,7 @@ Driver.observe = {
         if (p && p.center) q.center = p.center;
         if (p && p.filter && p.filter.type) q.filter.type = p.filter.type;
         return { blocks: Driver.invoke('mc.query', q).blocks };
-    },
-    container: function (pos)  { return Driver.invoke('mc.observe.container', { pos: pos }); }
+    }
 };
 
 Driver.action = {
@@ -79,41 +78,14 @@ Driver.action = {
     }
 };
 
-// Client helpers — symmetric with system/observe/action. On dedicated server
-// these all error with 'mc.client.* not available', which the caller's
-// try/catch can handle.
+// The mc.client.* methods come from the generated wrappers loaded after this file
+// (Driver.client.screen.info(), Driver.client.input.click({x, y}), …). The inventory and pause
+// screens open through their bound keys, the path a player takes.
 Driver.client = {
     screen: {
-        info:          function () { return Driver.invoke('mc.client.screen.info', {}); },
-        tree:          function () { return Driver.invoke('mc.client.screen.tree', {}); },
-        // Inventory / pause are reachable by synthesizing the bound key — same
-        // path the player takes — so no dedicated open* tool is needed.
         openInventory: function () { return Driver.invoke('mc.client.input.key', { key: 'E' }); },
-        openPause:     function () { return Driver.invoke('mc.client.input.key', { key: 'ESCAPE' }); },
-        close:         function () { return Driver.invoke('mc.client.screen.close', {}); }
-    },
-    input: {
-        click:     function (x, y, button) { return Driver.invoke('mc.client.input.click', { x: x, y: y, button: button | 0 }); },
-        mouseMove: function (x, y)         { return Driver.invoke('mc.client.input.mouseMove', { x: x, y: y }); }
-    },
-    chat: {
-        send:    function (text, awaitReplyMs) {
-            var p = { text: text };
-            if (awaitReplyMs !== undefined) p.awaitReplyMs = awaitReplyMs | 0;
-            return Driver.invoke('mc.client.chat.send', p);
-        },
-        history: function (opts) { return Driver.invoke('mc.client.chat.history', opts || {}); }
-    },
-    overlays:   function (opts) { return Driver.invoke('mc.client.overlays',  opts || {}); },
-    screenshot: function (opts) { return Driver.invoke('mc.client.screenshot', opts || {}); },
-    // Client-AUTHORITATIVE reads — always the LocalPlayer / ClientLevel, even
-    // when a server is attached (unlike Driver.observe.player / Driver.query which
-    // prefer the server). player() adds pose, eyePos, isInWall/inWater, and the
-    // eye/feet block from the ClientLevel — diff vs Driver.observe.player() to
-    // spot a client/server desync. blocks({center,filter}) scans ClientLevel.
-    player:     function ()     { return Driver.invoke('mc.client.player', {}); },
-    blocks:     function (opts) { return Driver.invoke('mc.client.blocks', opts || {}); },
-    scene:      function ()     { return Driver.invoke('mc.client.scene',  {}); }
+        openPause:     function () { return Driver.invoke('mc.client.input.key', { key: 'ESCAPE' }); }
+    }
 };
 
 // The body tasks (goto, mine, craft, …), the hand verbs (lookAt, useItem, …), status, cancel,

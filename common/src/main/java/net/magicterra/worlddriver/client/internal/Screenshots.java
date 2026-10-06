@@ -7,7 +7,10 @@ import net.minecraft.client.Screenshot;
 
 import java.io.IOException;
 import java.util.Base64;
-import java.util.Map;
+
+import net.magicterra.worlddriver.api.methods.ClientContracts;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ImageFormat;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ScreenshotParams;
 
 import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
 
@@ -21,14 +24,11 @@ public final class Screenshots {
     /** How long a capture waits for a frame of its own before reporting that none was drawn. */
     private static final long FRESH_FRAME_MS = 1_000;
 
-    public static Map<String, Object> screenshot(Map<String, Object> opts) {
-        final int maxW = (opts != null && opts.get("maxWidth") instanceof Number n) ? n.intValue() : 0;
-        final int maxH = (opts != null && opts.get("maxHeight") instanceof Number n) ? n.intValue() : 0;
-        final String fmt = (opts != null && opts.get("format") instanceof String s) ? s.toLowerCase() : "png";
-        final int quality = clampInt((opts != null && opts.get("quality") instanceof Number n) ? n.intValue() : 85, 1, 100);
-        if (!fmt.equals("png") && !fmt.equals("jpeg") && !fmt.equals("jpg")) {
-            return Map.of("ok", false, "error", "unsupported format: " + fmt + " (png|jpeg)");
-        }
+    public static ClientContracts.Screenshot screenshot(ScreenshotParams opts) {
+        final int maxW = opts.maxWidth().orElse(0);
+        final int maxH = opts.maxHeight().orElse(0);
+        final String fmt = opts.format() == ImageFormat.JPEG ? "jpeg" : "png";
+        final int quality = opts.quality();
 
         // Wait for a frame drawn AFTER this request arrived, so the capture cannot be the frame
         // that predates whatever the caller did just before asking for it. Off the client thread
@@ -94,7 +94,7 @@ public final class Screenshots {
                             java.awt.RenderingHints.VALUE_RENDER_QUALITY);
                     g2.drawImage(src, 0, 0, dstW, dstH, null);
                     g2.dispose();
-                } else if (fmt.equals("jpeg") || fmt.equals("jpg")) {
+                } else if (fmt.equals("jpeg")) {
                     // JPEG doesn't carry alpha; collapse onto opaque RGB.
                     out = new java.awt.image.BufferedImage(srcW, srcH, java.awt.image.BufferedImage.TYPE_INT_RGB);
                     java.awt.Graphics2D g2 = out.createGraphics();
@@ -134,22 +134,13 @@ public final class Screenshots {
      * stay as context — note that {@code fps} above zero only rules out a renderer that has
      * stopped, not a frame that is one round-trip out of date.
      */
-    private static Map<String, Object> reply(String format, int width, int height, byte[] bytes,
-                                             boolean frameWaited) {
+    private static ClientContracts.Screenshot reply(String format, int width, int height, byte[] bytes,
+                                                    boolean frameWaited) {
         Minecraft mc = Minecraft.getInstance();
-        Map<String, Object> m = new java.util.LinkedHashMap<>();
-        m.put("format", format);
-        m.put("width", width);
-        m.put("height", height);
-        m.put("frame", FrameClock.drawn());
-        m.put("frameWaited", frameWaited);
-        m.put("windowActive", mc.isWindowActive());
-        m.put("fps", mc.getFps());
-        m.put("base64", Base64.getEncoder().encodeToString(bytes));
-        return m;
+        return new ClientContracts.Screenshot(format.equals("png") ? ImageFormat.PNG : ImageFormat.JPEG, width, height,
+                FrameClock.drawn(), frameWaited, mc.isWindowActive(), mc.getFps(),
+                Base64.getEncoder().encodeToString(bytes));
     }
-
-    private static int clampInt(int v, int lo, int hi) { return Math.max(lo, Math.min(hi, v)); }
 
     private static void writeJpeg(java.awt.image.BufferedImage img, java.io.OutputStream out, int quality)
             throws IOException {

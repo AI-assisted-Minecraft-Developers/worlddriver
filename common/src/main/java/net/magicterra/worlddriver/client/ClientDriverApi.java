@@ -3,91 +3,126 @@ package net.magicterra.worlddriver.client;
 import java.util.Map;
 import java.util.Set;
 
+import net.magicterra.worlddriver.api.ServerThreadHop;
+import net.magicterra.worlddriver.api.methods.ClientContracts;
+import net.magicterra.worlddriver.api.methods.ClientContracts.BlockScan;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ChatHistory;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ChatHistoryParams;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ChatSendParams;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ClientPlayer;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ClientReply;
+import net.magicterra.worlddriver.api.methods.ClientContracts.OverlaysCleared;
+import net.magicterra.worlddriver.api.methods.ClientContracts.OverlaysParams;
+import net.magicterra.worlddriver.api.methods.ClientContracts.Screenshot;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ScreenshotParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.ClickParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.CloseParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.Closed;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.HotbarParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.KeyParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.KeybindParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.MenuContainer;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.MoveParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.Moved;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.ReplaceParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.ScreenInfo;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.ScreenTree;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.SliderParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.SlotClickParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.TypeParams;
+
 /**
  * Client-side surface for the agent driver. A platform-specific implementation
  * holds direct references to {@code net.minecraft.client.*} and is registered
  * through {@link ClientHooks} during client init. Dedicated servers never load
- * it; {@link net.magicterra.worlddriver.api.DriverApi} treats {@code mc.client.*}
- * routes as available-only-when-bound.
+ * it, and every {@code mc.client.*} method answers capability_unavailable there.
  *
- * Every method returns JSON-serializable values (Map / List / String / Number /
- * Boolean / null) so they round-trip cleanly through {@code JsonCodec}.
+ * <p>Each method may be called from any thread: the ones that read or write the client
+ * run their body on the client thread themselves. {@link #key}, {@link #keybind},
+ * {@link #chatSend} and {@link #screenshot} may hold their caller for client ticks, a
+ * reply wait or a fresh frame, so they are for a thread that may wait. A write given a
+ * {@code contextId} checks it on the client thread immediately before acting.
+ *
+ * <p>The few methods still answering a Map serve methods outside the client group
+ * ({@code mc.observe.player}, {@code mc.query} and {@code mc.wait.worldReady} on a client
+ * with no server attached).
  */
 public interface ClientDriverApi {
-    /** Walks the current Screen widget tree and returns a JSON-friendly snapshot. */
-    Map<String, Object> screenTree();
+    /** The hop onto this client's thread. */
+    ServerThreadHop hop();
 
-    /** Lightweight metadata about the current screen — useful as an availability probe. */
-    Map<String, Object> screenInfo();
+    ScreenInfo readScreenInfo();
+
+    /** {@link #readScreenInfo} as the untyped wait routes read it. */
+    @SuppressWarnings("unchecked")
+    default Map<String, Object> screenInfo() {
+        return (Map<String, Object>) ScreenContracts.SCREEN_INFO.encode(readScreenInfo());
+    }
+
+    ScreenTree readScreenTree();
+
+    Closed closeScreen(CloseParams p);
+
+    ClientReply click(ClickParams p);
+
+    /** Sends a real container click, the same path vanilla's slot click takes. */
+    ClientReply slotClick(SlotClickParams p);
+
+    Moved mouseMove(MoveParams p);
+
+    /** Selects the held hotbar slot and tells the server. */
+    ClientReply setHotbarSlot(HotbarParams p);
+
+    /** Appends at the cursor of the focused widget. */
+    ClientReply typeText(TypeParams p);
+
+    /** Overwrites a text box's whole contents. */
+    ClientReply replaceText(ReplaceParams p);
+
+    /** Reads every slider, or sets one. */
+    ClientReply slider(SliderParams p);
+
+    /** A key event; a click holds the caller until the next client tick carries the release. */
+    ClientReply key(KeyParams p);
+
+    /** A key mapping by name; a click holds the caller until the next client tick. */
+    ClientReply keybind(KeybindParams p);
+
+    /** The container menu open on this client, with the screen context it belongs to. */
+    MenuContainer menu();
+
+    /** With {@code awaitReplyMs}, holds the caller while later chat lines arrive. */
+    ClientReply chatSend(ChatSendParams p);
+
+    ChatHistory chatHistory(ChatHistoryParams p);
+
+    OverlaysCleared overlays(OverlaysParams p);
+
+    /** Holds the caller for a frame drawn after the request, unless called on the client thread. */
+    Screenshot screenshot(ScreenshotParams p);
+
+    /** This client's player, as the client predicts it. */
+    ClientPlayer player();
 
     /**
-     * Client-side chat send. If {@code text} starts with {@code /}, dispatches
-     * as a command via {@code ClientPacketListener.sendCommand}; otherwise sent
-     * as a plain chat message via {@code sendChat}. Mirrors what pressing T,
-     * typing, and pressing Enter does — without opening the {@code ChatScreen}.
-     * When {@code awaitReplyMs > 0}, blocks up to that many milliseconds for
-     * the next system chat line (server feedback such as "Gave 64 X to Y" or
-     * "Set the time to N") and folds it into the response as {@code reply}.
+     * Every non-air ClientLevel cell within Chebyshev {@code radius} (at most 16) of the centre, the
+     * player's feet when any axis is null. {@code filterIds} keeps only those ids or {@code #tags}.
+     * Throws capability_unavailable with no world open.
      */
-    Map<String, Object> chatSend(String text, int awaitReplyMs);
+    BlockScan scanBlocks(int radius, Double cx, Double cy, Double cz, Set<String> filterIds);
+
+    /** {@link #scanBlocks} as the {@code mc.query} client fallback reads it. */
+    @SuppressWarnings("unchecked")
+    default Map<String, Object> observeArea(int radius, Double cx, Double cy, Double cz, Set<String> filterIds) {
+        return (Map<String, Object>) ClientContracts.BLOCK_SCAN.encode(scanBlocks(radius, cx, cy, cz, filterIds));
+    }
 
     /**
-     * Read recent chat + system messages from the client's chat component.
-     * Returns the most-recently-received messages first up to {@code limit}
-     * (default 50, cap 256), filtered to those with {@code seq > sinceSeq}
-     * if provided. Each entry: {@code {seq, ageMs, text}} where {@code text}
-     * is the plain-string projection of the Component (formatting stripped).
-     * Backs the new {@code mc.client.chat.history} tool — fills the
-     * "server replied, agent can't see it" gap.
-     */
-    Map<String, Object> chatHistory(int limit, long sinceSeq);
-
-    /**
-     * Dismiss persistent on-screen overlays that don't belong to the world.
-     * Two independently-controllable groups:
-     * <ul>
-     *   <li>{@code tutorial:true} (default) — sets the tutorial step to
-     *       {@code NONE} so vanilla stops showing "Move with WASD" /
-     *       "Look around" / "Use mouse to turn" toast-style hints.</li>
-     *   <li>{@code toasts:true} (default) — clears the
-     *       {@link net.minecraft.client.gui.components.toasts.ToastComponent}
-     *       queue (advancements, recipes, system).</li>
-     * </ul>
-     * Idempotent — re-run safely from agents that don't track state.
-     */
-    Map<String, Object> overlays(boolean tutorial, boolean toasts);
-
-    /**
-     * Client-side player snapshot — pos, look, on-ground, hp/food, selected hotbar
-     * slot + held item, plus the current crosshair {@code HitResult} (block or
-     * entity the camera is aimed at, with reach distance). Works without a server
-     * being attached to {@code DriverApi}, so it remains available when the client
-     * is connected to a remote dedicated server. Result also includes
-     * {@code inventory}: a list of every non-empty inventory slot
-     * ({@code {slot,id,count}}, indexed the same way as {@code Player.getInventory()})
-     * so callers don't need to open the {@code InventoryScreen} just to inspect
-     * what the player is carrying.
+     * The {@code mc.observe.player} snapshot read from the LocalPlayer, for a client with no server
+     * attached; {@code present:false} with no player.
      */
     Map<String, Object> observePlayer();
-
-    /**
-     * Client-side world scan — same shape as the server-side {@code mc.query}
-     * with {@code q='blocks'} but reads {@code ClientLevel}. Center defaults to
-     * the local player; radius is capped at 16 (client view distance, so larger
-     * scans would just return air). {@code unloaded}, present only when non-empty,
-     * lists the {@code {x,z}} chunks the client has not loaded, whose cells read
-     * as air. Backs the client-MCP fallback path of {@code mc.query q='blocks'}
-     * when no server is attached.
-     */
-    Map<String, Object> observeArea(int radius, Double cx, Double cy, Double cz, Set<String> filterIds);
-
-    /**
-     * Snapshot of whichever {@code AbstractContainerScreen} is currently open
-     * client-side (player inventory, crafting table, the chest the server just
-     * pushed). Returns {@code present:false} when no container menu is active.
-     * Powers the no-{@code pos} mode of {@code mc.observe.container}.
-     */
-    Map<String, Object> observeContainerMenu();
 
     /**
      * Client-side entity scan — equivalent to the server-side {@code mc.query}
@@ -107,97 +142,4 @@ public interface ClientDriverApi {
     /** Phase G boss sensing — nearest EnderDragon/WitherBoss within {@code radius}
      *  plus the End-crystal list: {@code mc.observe.boss}' reply. */
     net.magicterra.worlddriver.api.methods.ObserveContracts.BossReading observeBoss(int radius);
-
-    /** Pops the current screen (equivalent to {@code mc.setScreen(null)}). */
-    Map<String, Object> closeScreen();
-
-    /**
-     * Synthesizes a left/middle/right click at on-screen pixel coordinates.
-     * Coordinates are in the Screen's logical (scaled) coordinate system.
-     */
-    Map<String, Object> click(double x, double y, int button);
-
-    /**
-     * Invokes {@code Menu.clicked(slot, button, type, player)} on the currently
-     * open container screen, the same path vanilla takes for shift-click,
-     * Q-drop, hotbar-swap, and creative middle-click. Unlike {@link #click},
-     * this addresses slots semantically (Menu.slots index) and lets callers
-     * pick the {@code ClickType} explicitly without spoofing GLFW modifier
-     * state. Returns {@code ok:false} when no container screen is open.
-     */
-    Map<String, Object> slotClick(int slot, int button, String type);
-
-    /**
-     * Moves the mouse-hover state on the current screen (no click). Useful for
-     * parking the cursor away from widgets so tooltips don't render over a
-     * screenshot.
-     */
-    Map<String, Object> mouseMove(double x, double y);
-
-    /**
-     * Sets the local player's held hotbar slot (0–8). Sends
-     * {@code ServerboundSetCarriedItemPacket} so the server tracks the change.
-     * No-op (ok:false) when no local player.
-     */
-    Map<String, Object> setHotbarSlot(int slot);
-
-    /**
-     * Types a string into the current screen by dispatching {@code Screen.charTyped}
-     * per codepoint. Targets the focused widget (EditBox/CommandSuggestions etc).
-     * No-op (ok:false) when no screen open.
-     */
-    Map<String, Object> typeText(String text);
-
-    /**
-     * Overwrites a text input box's full contents via {@code EditBox.setValue}
-     * (atomic — unlike {@link #typeText} which appends). Targets the focused box,
-     * else the one whose value/label contains {@code match}, else the sole box.
-     * Returns the new value (and previous).
-     */
-    Map<String, Object> replaceText(String text, String match);
-
-    /**
-     * Reads or sets a GUI slider ({@code AbstractSliderButton}). With
-     * {@code fraction == null} it lists every slider's label + current 0..1 value
-     * (the value is only meaningful when shown). With a fraction in [0,1] it sets
-     * the slider matched by {@code match} (substring of its label), else
-     * {@code index}, else the sole slider — firing the vanilla apply/update hooks
-     * so the option commits and the label refreshes. Returns the new label+value.
-     */
-    Map<String, Object> setSlider(String match, Integer index, Double fraction);
-
-    /**
-     * Synthesizes a keyboard key event — Enter/Escape/Tab/F-keys, letters and digits.
-     * action: "press" / "release" / "click" (default), whose release lands on the next client
-     * tick, routed again from whatever the press left open. route: "auto" (default) sends it
-     * where vanilla would — the open screen, else the keybinds — while "keybind" and "screen"
-     * name the recipient outright. Returns ok:false for an unrecognized key name, for
-     * route "screen" with nothing open, and for no screen with no player.
-     * modifiers ("alt", ["alt","shift"], or the raw GLFW int) are what a screen reads for its own
-     * shortcuts; a modified key BINDING is matched against the real keyboard, so use
-     * {@link #keybind} for those.
-     */
-    Map<String, Object> key(String key, String action, String route, Object modifiers);
-
-    /**
-     * Drives a key mapping by name — the only way to reach one whose binding carries a modifier
-     * (ALT+Y), since that match reads the real keyboard and no synthesized ALT appears there.
-     * action: "press" / "release" / "click" (default), whose release lands on the next client tick.
-     * {@code name} is a mapping id ({@code key.inventory},
-     * {@code key.yes_steve_model.player_model.desc}) or a substring of one or of its title; with no
-     * name it lists every mapping with its id, title, bound key and whether it is down.
-     */
-    Map<String, Object> keybind(String name, String action);
-
-    /**
-     * Captures the framebuffer and returns {@code {format, width, height, base64}}.
-     * Supported options (all optional, all in {@code opts}):
-     * <ul>
-     *   <li>{@code maxWidth} / {@code maxHeight} — downscale (preserving aspect) so neither
-     *       dimension exceeds the cap. Defaults to no downscale.</li>
-     *   <li>{@code format} — {@code "png"} (default) or {@code "jpeg"}.</li>
-     *   <li>{@code quality} — JPEG quality 1–100, default 85. Ignored for PNG.</li>
-     * </ul>
-     */
-    Map<String, Object> screenshot(Map<String, Object> opts);
 }

@@ -268,8 +268,7 @@ none is loaded) counts as "not true" and the watcher keeps running.
 - A failing tool comes back as a result with `isError: true` and a text content block. Only
   transport-level failures become JSON-RPC error envelopes.
 - `mc.client.screenshot` returns two content blocks over MCP, a text block of metadata and
-  a real `image` block. It also carries one vendor-namespaced metadata field, which clients
-  that do not recognise it ignore, as the specification requires.
+  a real `image` block.
 
 ## What you can call
 

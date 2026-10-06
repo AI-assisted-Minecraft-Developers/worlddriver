@@ -18,8 +18,6 @@ import java.util.function.Supplier;
 import static net.magicterra.worlddriver.mcp.schema.Schemas.object;
 import static net.magicterra.worlddriver.mcp.schema.Schemas.tool;
 
-import net.magicterra.worlddriver.mcp.catalog.ClientTools;
-import net.magicterra.worlddriver.mcp.catalog.ObserveActionTools;
 import net.magicterra.worlddriver.mcp.schema.Schema;
 import net.magicterra.worlddriver.mcp.schema.ToolSchema;
 
@@ -236,8 +234,6 @@ public final class ToolCatalog {
      */
     private static List<ToolSchema> fixedCurated() {
         ArrayList<ToolSchema> all = new ArrayList<>();
-        all.addAll(ObserveActionTools.tools());
-        all.addAll(ClientTools.tools());
         return all;
     }
 

@@ -56,12 +56,12 @@ read the client, which is how you detect a desynchronisation between the two.
 | `mc.query` | Scans blocks or entities in a cube, with filters and a `select` projection. Entity rows carry the `id` that `mc.bot.attackEntity` wants. A block scan reads only loaded chunks and refuses, naming them, a cube that reaches into unloaded ones rather than loading them. | `q` (`blocks` or `entities`), `center`, `filter.in_radius` (max 15 for blocks, the 32,768-cell budget `mc.action.fill` uses; max 128 for entities), `filter.type` (accepts a `#tag`), `filter.is_hostile`, `filter.is_living`, `select` |
 | `mc.observe.map` | A compact ASCII spatial map: a top-down height map, or a vertical cross-section. Server-side, and works headless. | `plane` (`xz`, `xy`, `zy`), `center`, `radius` (max 24), `height` |
 | `mc.observe.scene` | A hazard read around a centre: how many cells would kill a player at full health, whether it is cornered, and the safest step away from a threat. Optional ASCII grid and height / sight / mob-density overlays. Server-side, works headless. | `center`, `radius`, `render`, `overlays`, `route` |
-| `mc.observe.container` | Reads a container's slots. With `pos`, the block entity there; without, whichever container menu is open on the client. | `pos` |
+| `mc.observe.container` | Reads a container's slots. With `pos`, the block entity there (`source: "block"`); without, whichever container menu is open on the client (`source: "menu"`), together with the screen's `contextId` for `mc.client.input.slotClick`. | `pos` |
 | `mc.world.block` | Read-only single-cell inspection: type, block-state properties, block and sky light, optionally the block entity's NBT. The verify half of a build-then-verify loop. | `pos`, `nbt` |
 | `mc.observe.threats` | Scored hostiles and incoming projectiles: distance, line of sight, whether a creeper is swelling, and a 0-to-1 danger score. **Client-only**; returns empty lists rather than an error on a dedicated server. | `radius` (1–64, default 24) |
 | `mc.observe.boss` | Boss sensing: the nearest ender dragon or wither, its phase and health, and the End-crystal list. **Client-only**; returns no `boss` and no crystals on a dedicated server. | `radius` (1–256, default 64) |
-| `mc.client.player` | The client-authoritative player snapshot. Everything `mc.observe.player` has, plus what only the client knows: pose, eye position, `inWall`, `inWater`, and the block ids at the eye and feet cells. **Client-only.** | none |
-| `mc.client.blocks` | A client-authoritative block scan of `ClientLevel`. **Client-only.** Use it to confirm a few specific cells or to diff client against server, not to read terrain shape — it dumps every non-air cell as JSON. For shape, use `mc.observe.map`. | `center`, `filter.in_radius` (max 16), `filter.type` |
+| `mc.client.player` | The client-authoritative player snapshot, grouped into `look`, `body`, `vitals`, `time`, `attack`, `inventory` and `hit`. Besides what `mc.observe.player` has, `body` carries what only the client knows: pose, eye position, `inWall`, `inWater`, and the block ids at the eye and feet cells. **Client-only.** | none |
+| `mc.client.blocks` | A client-authoritative block scan of `ClientLevel`. **Client-only.** Use it to confirm a few specific cells or to diff client against server, not to read terrain shape — it dumps every non-air cell as JSON. For shape, use `mc.observe.map`. | `center`, `radius` (max 16, default 4), `type` |
 | `mc.client.scene` | The derived-facts snapshot the bot's own per-tick world model keeps: day phase, sky exposure, cornered, lethal-cell count, hazard grid. **Client-only.** | none |
 
 `mc.query` replaced a separate area-observation verb; call it with `q: 'blocks'` for that.
@@ -138,17 +138,24 @@ both network transports; see [Transports](transports.md) for the WebSocket subsc
 
 ## Driving the client's user interface
 
-Every verb in this family is **client-only** and returns an error result on a dedicated
-server. They exist so an agent can operate screens a mod draws itself, where there is no
-server-side verb to call.
+Every verb in this family is **client-only** and fails with `capability_unavailable` on a
+dedicated server. They exist so an agent can operate screens a mod draws itself, where there
+is no server-side verb to call.
+
+The screen reads (`screen.info`, `screen.tree`, and `mc.observe.container` without `pos`)
+return a `contextId` naming the screen that was open. Every screen write takes it back as
+an optional `contextId`; if a different screen is open by the time the write runs, the
+write does nothing and fails with `context_changed`. A write that could not act answers
+`outcome: "refused"` with a `reason` such as `no_screen` or `no_target`, rather than an
+error.
 
 | Method | What it does | Notable parameters |
 |---|---|---|
 | `mc.client.screen.info` | A cheap probe of the current screen: whether a screen, world or player exists, the screen type and title, and `windowActive` / `mouseGrabbed`. Call it first as an availability check. | none |
 | `mc.client.screen.tree` | Walks the screen's widget tree and returns positions and labels, plus the label's translation key when it has one, so a script can find a vanilla button whatever the player's language. The canonical way to pick a click target without taking a screenshot, and it works for self-drawn modded screens. It reports structure, not paint. | none |
-| `mc.client.screen.close` | Pops the current screen. Always succeeds. | none |
-| `mc.client.input.click` | Clicks at logical screen coordinates. | `x`, `y`, `button` |
-| `mc.client.input.slotClick` | Clicks a slot in the open container menu with an explicit click type — the only way to get shift-click, Q-drop, number-key swap, middle-click or double-click without spoofing keyboard modifiers. | `slot`, `button`, `type` (`pickup`, `quickMove`, `throw`, `swap`, `clone`, `pickupAll`, `quickCraft`) |
+| `mc.client.screen.close` | Pops the current screen and names the one it closed. | `contextId` |
+| `mc.client.input.click` | Clicks at logical screen coordinates. | `x`, `y`, `button`, `contextId` |
+| `mc.client.input.slotClick` | Clicks a slot in the open container menu with an explicit click type — the only way to get shift-click, Q-drop, number-key swap, middle-click or double-click without spoofing keyboard modifiers. | `slot`, `button`, `type` (`pickup`, `quickMove`, `throw`, `swap`, `clone`, `pickupAll`, `quickCraft`), `contextId` |
 | `mc.client.input.mouseMove` | Moves the cursor and updates the mouse handler, so hover effects fire. Useful to park the cursor before a screenshot. | `x`, `y` |
 | `mc.client.input.typeText` | Types a string into the focused widget, one code point at a time. Appends at the cursor. | `text` |
 | `mc.client.input.replaceText` | Overwrites a text box's entire contents atomically, which `typeText` cannot do. | `text`, `match` |
@@ -156,7 +163,7 @@ server-side verb to call.
 | `mc.client.input.key` | Synthesises a keyboard event and routes it as a real keystroke would be routed. To open the inventory or the pause menu, send `E` or `ESCAPE`. | `key`, `action` (`press`, `release`, `click`), `route` (`auto`, `keybind`, `screen`), `modifiers` |
 | `mc.client.input.keybind` | Drives a key mapping by name. Use this rather than `input.key` whenever the binding carries a modifier, because such a binding asks the real keyboard and a synthesised modifier press does not appear there. Omit `name` to list every mapping. | `name`, `action` |
 | `mc.client.input.setHotbarSlot` | Selects the held hotbar slot, so a later attack or use resolves against the new item. | `slot` (0–8) |
-| `mc.client.chat.send` | Sends chat or a command exactly as pressing T, typing and pressing Enter would. With `awaitReplyMs`, folds the server's reply into the response. | `text`, `awaitReplyMs` |
+| `mc.client.chat.send` | Sends chat or a command exactly as pressing T, typing and pressing Enter would. With `awaitReplyMs`, also returns the chat lines that arrived after the send, as `later`. Those are a later observation, not the reply: nothing ties a line to this send. | `text`, `awaitReplyMs` |
 | `mc.client.chat.history` | Reads the client's chat scrollback, captured at the packet layer, newest first. This is how command feedback becomes visible to an agent. | `limit` (max 256), `sinceSeq` |
 | `mc.client.overlays` | Dismisses the tutorial steps and clears the toast queue, both by default. Idempotent. | `tutorial`, `toasts` |
 | `mc.client.screenshot` | Captures the framebuffer, with optional downscale and JPEG transcoding. Waits for a frame drawn after the request, so what you just did is in the picture. | `maxWidth`, `maxHeight`, `format`, `quality` |

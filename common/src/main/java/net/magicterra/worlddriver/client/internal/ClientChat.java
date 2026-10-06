@@ -1,5 +1,19 @@
 package net.magicterra.worlddriver.client.internal;
 
+import net.magicterra.worlddriver.api.methods.ClientContracts.ChatHistory;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ChatHistoryParams;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ChatKind;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ChatLine;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ChatSendParams;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ChatSent;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ClientRefusal;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ClientReply;
+import net.magicterra.worlddriver.api.methods.ClientContracts.HistoryLine;
+import net.magicterra.worlddriver.api.methods.ClientContracts.LaterChat;
+import net.magicterra.worlddriver.api.methods.ClientContracts.OverlaysCleared;
+import net.magicterra.worlddriver.api.methods.ClientContracts.OverlaysParams;
+import net.magicterra.worlddriver.api.methods.ClientContracts.Refused;
+import net.magicterra.worlddriver.api.methods.ClientContracts.SentAs;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -7,9 +21,8 @@ import net.minecraft.client.tutorial.TutorialSteps;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
@@ -19,7 +32,6 @@ import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClien
  * {@code mc.client.overlays}. Reads received lines from {@link ClientChatLog}
  * (packet-level, monotonic seq) — NOT from the GUI's ChatComponent, whose
  * newest-first 100-cap buffer made seq unstable and replies stale.
- * Extracted from {@code ClientDriverApiImpl}.
  */
 public final class ClientChat {
     private ClientChat() {}
@@ -50,137 +62,128 @@ public final class ClientChat {
         return level != null ? level.getGameTime() : 0L;
     }
 
-    public static Map<String, Object> chatSend(String text, int awaitReplyMs) {
-        if (text == null || text.isEmpty()) {
-            return Map.of("ok", false, "error", "text is required");
-        }
-        Map<String, Object> sent = runOnClient(() -> {
-            Minecraft mc = Minecraft.getInstance();
-            LocalPlayer p = mc.player;
-            if (p == null || p.connection == null) {
-                return Map.of("ok", false, "error", "no local player / not connected");
+    private static ChatKind kind(ClientChatLog.Entry e) {
+        return "player".equals(e.kind()) ? ChatKind.PLAYER : ChatKind.SYSTEM;
+    }
+
+    /** The send, and where the log stood just before it. */
+    private record Sent(ChatSent reply, long baseline) {}
+
+    /**
+     * Sends on the client thread; with {@code awaitReplyMs} then polls the log on the CALLING thread,
+     * so ticks — including the server's response packets — keep flowing.
+     */
+    public static ClientReply chatSend(ChatSendParams p) {
+        String t = p.text();
+        Object sent = runOnClient(() -> {
+            LocalPlayer player = Minecraft.getInstance().player;
+            if (player == null || player.connection == null) {
+                return new Refused(ClientRefusal.NO_PLAYER, "no player is connected to a server on this client");
             }
-            String t = text;
             boolean isCommand = t.startsWith("/");
             // Snapshot the log position BEFORE the send: everything recorded at
             // or after this seq arrived after our packet went out.
             long baseline = ClientChatLog.nextSeq();
             if (isCommand) {
-                p.connection.sendCommand(t.substring(1));
+                player.connection.sendCommand(t.substring(1));
             } else {
-                p.connection.sendChat(t);
+                player.connection.sendChat(t);
             }
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("ok", true);
-            out.put("kind", isCommand ? "command" : "chat");
-            out.put("length", t.length());
-            out.put("baselineSeq", baseline);
-            return out;
+            return new Sent(new ChatSent(isCommand ? SentAs.COMMAND : SentAs.CHAT, t.length(), Optional.empty()), baseline);
         });
-        // Reply wait runs OFF the client thread (ClientChatLog is thread-safe)
-        // so ticks — including the server's response packets — keep flowing.
-        if (awaitReplyMs > 0 && Boolean.TRUE.equals(sent.get("ok"))) {
-            long baseline = (Long) sent.remove("baselineSeq");
-            long deadline = System.currentTimeMillis() + Math.min(awaitReplyMs, 30000);
-            long started = System.currentTimeMillis();
-            long scanned = baseline;   // advances past seen lines so polls stay O(1)
-            while (System.currentTimeMillis() < deadline) {
-                boolean hit = false;
-                if (ClientChatLog.nextSeq() > scanned) {   // O(1) probe before copying
-                    for (ClientChatLog.Entry e : ClientChatLog.since(scanned)) {
-                        scanned = e.seq() + 1;
-                        // The server echoes our own plain-chat line back at us
-                        // (since 1.19 signed chat it isn't rendered locally) —
-                        // that echo is never the "reply". History keeps it.
-                        if (!e.self()) hit = true;
-                    }
-                }
-                if (hit) {
-                    // A non-self line landed. Give multi-line feedback a short
-                    // settle window before collecting, so one busy-server
-                    // broadcast doesn't race out the actual command output
-                    // arriving a tick later. (Our own /say echo carries our
-                    // sender profile → self=true → filtered like plain chat;
-                    // console//command-block /say is profileless → a reply.)
-                    long settle = Math.min(deadline, System.currentTimeMillis() + 150);
-                    while (System.currentTimeMillis() < settle) {
-                        try { Thread.sleep(50L); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
-                    }
-                    List<Map<String, Object>> rows = new ArrayList<>();
-                    for (ClientChatLog.Entry e : ClientChatLog.since(baseline)) {
-                        if (!e.self()) rows.add(e.row());
-                    }
-                    if (rows.isEmpty()) continue;   // flood-evicted during settle; keep waiting
-                    Map<String, Object> mut = new LinkedHashMap<>(sent);
-                    mut.put("reply", rows.get(0));
-                    if (rows.size() > 1) mut.put("replyExtra", rows.subList(1, rows.size()));
-                    mut.put("replyMs", System.currentTimeMillis() - started);
-                    return mut;
-                }
-                try { Thread.sleep(50L); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
-            }
-            Map<String, Object> mut = new LinkedHashMap<>(sent);
-            mut.put("replyTimeout", true);
-            mut.put("replyMs", System.currentTimeMillis() - started);
-            return mut;
-        }
-        // Strip internal field before returning.
-        if (sent.containsKey("baselineSeq")) {
-            Map<String, Object> mut = new LinkedHashMap<>(sent);
-            mut.remove("baselineSeq");
-            return mut;
-        }
-        return sent;
+        if (!(sent instanceof Sent s)) return (Refused) sent;
+        if (p.awaitReplyMs() <= 0) return s.reply();
+        return new ChatSent(s.reply().kind(), s.reply().length(), Optional.of(awaitLater(s.baseline(), p.awaitReplyMs())));
     }
 
-    public static Map<String, Object> chatHistory(int limit, long sinceSeq) {
-        int cap = Math.max(1, Math.min(256, limit));
+    /**
+     * Waits for a line other than this player's own echo to arrive after {@code baseline}, then gives
+     * multi-line feedback a short settle window before collecting, so one broadcast doesn't race out the
+     * command output arriving a tick later. Nothing ties the lines to the send but their timing.
+     */
+    private static LaterChat awaitLater(long baseline, int awaitReplyMs) {
+        long started = System.currentTimeMillis();
+        long deadline = started + awaitReplyMs;
+        long scanned = baseline;   // advances past seen lines so polls stay O(1)
+        while (System.currentTimeMillis() < deadline) {
+            boolean hit = false;
+            if (ClientChatLog.nextSeq() > scanned) {   // O(1) probe before copying
+                for (ClientChatLog.Entry e : ClientChatLog.since(scanned)) {
+                    scanned = e.seq() + 1;
+                    // The server echoes our own plain-chat line back at us
+                    // (since 1.19 signed chat it isn't rendered locally) —
+                    // that echo is never the "reply". History keeps it.
+                    if (!e.self()) hit = true;
+                }
+            }
+            if (hit) {
+                // Our own /say echo carries our sender profile → self=true → filtered like plain
+                // chat; console/command-block /say is profileless → a reply.
+                long settle = Math.min(deadline, System.currentTimeMillis() + 150);
+                while (System.currentTimeMillis() < settle) {
+                    if (!sleep()) break;
+                }
+                List<ChatLine> rows = new ArrayList<>();
+                for (ClientChatLog.Entry e : ClientChatLog.since(baseline)) {
+                    if (!e.self()) rows.add(new ChatLine(e.seq(), kind(e), e.text(), false));
+                }
+                if (rows.isEmpty()) continue;   // flood-evicted during settle; keep waiting
+                return new LaterChat(rows, false, System.currentTimeMillis() - started);
+            }
+            if (!sleep()) break;
+        }
+        return new LaterChat(List.of(), true, System.currentTimeMillis() - started);
+    }
+
+    private static boolean sleep() {
+        try {
+            Thread.sleep(50L);
+            return true;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    public static ChatHistory chatHistory(ChatHistoryParams p) {
         // gameTime only needed to derive ageTicks; the log itself is thread-safe.
         long now = runOnClient(ClientChat::gameTimeNow);
         // Newest first, sliced straight off the tail — tail() never touches the
         // up-to-512 older entries the cap is about to throw away.
-        List<ClientChatLog.Entry> entries = ClientChatLog.tail(cap, sinceSeq);
-        List<Map<String, Object>> rows = new ArrayList<>(entries.size());
+        List<ClientChatLog.Entry> entries = ClientChatLog.tail(p.limit(), p.sinceSeq());
+        List<HistoryLine> rows = new ArrayList<>(entries.size());
         for (ClientChatLog.Entry e : entries) {
-            Map<String, Object> row = e.row();
-            row.put("ageTicks", Math.max(0L, now - e.gameTime()));
-            rows.add(row);
+            rows.add(new HistoryLine(e.seq(), kind(e), e.text(), e.self(), Math.max(0L, now - e.gameTime())));
         }
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ok", true);
-        out.put("count", rows.size());
-        out.put("nextSeq", ClientChatLog.nextSeq());
-        out.put("messages", rows);
-        return out;
+        return new ChatHistory(ClientChatLog.nextSeq(), rows);
     }
 
-    public static Map<String, Object> overlays(boolean tutorial, boolean toasts) {
+    public static OverlaysCleared overlays(OverlaysParams p) {
         return runOnClient(() -> {
             Minecraft mc = Minecraft.getInstance();
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("ok", true);
-            if (tutorial) {
+            boolean tutorial = false, toasts = false;
+            Optional<String> tutorialError = Optional.empty(), toastsError = Optional.empty();
+            if (p.tutorial()) {
                 try {
                     // Options.tutorialStep is a plain public TutorialSteps field, not an
                     // OptionInstance — write it directly, then apply to the live Tutorial
                     // controller so the active step changes without an options-screen save.
                     mc.options.tutorialStep = TutorialSteps.NONE;
                     mc.getTutorial().setStep(TutorialSteps.NONE);
-                    out.put("tutorial", "NONE");
+                    tutorial = true;
                 } catch (Throwable t) {
-                    out.put("tutorialError", t.getClass().getSimpleName() + ": " + t.getMessage());
+                    tutorialError = Optional.of(t.getClass().getSimpleName() + ": " + t.getMessage());
                 }
             }
-            if (toasts) {
+            if (p.toasts()) {
                 try {
                     mc.getToasts().clear();
-                    out.put("toasts", "cleared");
+                    toasts = true;
                 } catch (Throwable t) {
-                    out.put("toastsError", t.getClass().getSimpleName() + ": " + t.getMessage());
+                    toastsError = Optional.of(t.getClass().getSimpleName() + ": " + t.getMessage());
                 }
             }
-            return out;
+            return new OverlaysCleared(tutorial, toasts, tutorialError, toastsError);
         });
     }
-
 }

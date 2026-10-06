@@ -1,5 +1,10 @@
 package net.magicterra.worlddriver.client.internal;
 
+import net.magicterra.worlddriver.api.methods.ScreenContracts.Box;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.ScreenInfo;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.ScreenTree;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.SlotItem;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.WidgetNode;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractSelectionList;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -13,9 +18,8 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
 import net.minecraft.network.chat.Component;
@@ -31,92 +35,74 @@ import net.minecraft.client.gui.components.EditBox;
 public final class ScreenIntrospection {
     private ScreenIntrospection() {}
 
-    public static Map<String, Object> screenInfo() {
+    public static ScreenInfo screenInfo() {
         return runOnClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             Screen s = mc.screen;
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("hasScreen", s != null);
-            out.put("worldOpen", mc.level != null);
-            out.put("hasPlayer", mc.player != null);
             // Overlay (LoadingOverlay during early boot, ResourceLoadProgressScreen
             // after F3+T, etc.) is rendered ON TOP of the active Screen — so
             // {@code screen.type=TitleScreen} can be true while the user still
             // sees a fading Mojang splash. Surface it so callers can wait.
             Overlay ov = mc.getOverlay();
-            out.put("overlayActive", ov != null);
-            if (ov != null) out.put("overlayType", ov.getClass().getSimpleName());
-            // The environment a mod's key handler usually demands before it does anything: Yes
-            // Steve Model, measured, refuses every keystroke unless the window is focused and the
-            // mouse is grabbed. On a shared desktop the window loses focus to whatever the human is
-            // doing, so a driver whose keystrokes vanish needs to read this before it reads
-            // anything else — it is the difference between "the mod refused it" and "it never
-            // arrived", and no amount of retrying fixes the first.
-            out.put("windowActive", mc.isWindowActive());
-            out.put("mouseGrabbed", mc.mouseHandler.isMouseGrabbed());
-            if (s != null) {
-                out.put("type", s.getClass().getSimpleName());
-                out.put("title", s.getTitle().getString());
-                out.put("width", s.width);
-                out.put("height", s.height);
-                // On a DeathScreen the title is just "You Died!"; the actual cause
-                // ("Player was slain by Phantom", "fell from a high place", …) is a
-                // separate private Component. Surface it here too so a cheap
-                // screen.info probe reveals WHY the bot died without a screen.tree.
-                if (s instanceof DeathScreen ds) {
-                    String cause = readDeathCause(ds);
-                    if (cause != null) out.put("causeOfDeath", cause);
-                }
-            }
-            return out;
+            // windowActive/mouseGrabbed: the environment a mod's key handler usually demands before
+            // it does anything. Yes Steve Model, measured, refuses every keystroke unless the window
+            // is focused and the mouse is grabbed. On a shared desktop the window loses focus to
+            // whatever the human is doing, so a driver whose keystrokes vanish needs to read this
+            // before it reads anything else — it is the difference between "the mod refused it" and
+            // "it never arrived", and no amount of retrying fixes the first.
+            // causeOfDeath: on a DeathScreen the title is just "You Died!"; the actual cause is a
+            // separate private Component, surfaced so a cheap probe reveals WHY the bot died.
+            return new ScreenInfo(ScreenContext.current(), s != null, mc.level != null, mc.player != null,
+                    ov != null, Optional.ofNullable(ov).map(o -> o.getClass().getSimpleName()),
+                    mc.isWindowActive(), mc.mouseHandler.isMouseGrabbed(),
+                    Optional.ofNullable(s).map(x -> x.getClass().getSimpleName()),
+                    Optional.ofNullable(s).map(x -> x.getTitle().getString()),
+                    Optional.ofNullable(s).map(x -> x.width), Optional.ofNullable(s).map(x -> x.height),
+                    s instanceof DeathScreen ds ? Optional.ofNullable(readDeathCause(ds)) : Optional.empty());
         });
     }
 
-    public static Map<String, Object> screenTree() {
+    public static ScreenTree screenTree() {
         return runOnClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             Screen s = mc.screen;
-            Map<String, Object> root = new LinkedHashMap<>();
-            root.put("hasScreen", s != null);
-            if (s == null) return root;
-            root.put("type", s.getClass().getSimpleName());
-            root.put("title", s.getTitle().getString());
-            root.put("width", s.width);
-            root.put("height", s.height);
-            List<Map<String, Object>> kids;
+            String context = ScreenContext.current();
+            if (s == null) {
+                return new ScreenTree(context, false, Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), List.of());
+            }
+            Nodes nodes = new Nodes();
+            Optional<String> error = Optional.empty();
             // A screen belongs to whatever mod drew it, and a widget that throws from getMessage
             // or getNarration used to take the whole answer with it — the caller got an empty
             // object and only screen.info still spoke. Each node is judged on its own now.
             try {
-                kids = walk(s);
+                walk(s, null, 0, nodes);
             } catch (Throwable t) {
-                kids = new ArrayList<>();
-                root.put("error", describeThrowable(t));
+                error = Optional.of(describeThrowable(t));
             }
             // Container screens (InventoryScreen, ChestScreen, FurnaceScreen, …)
             // expose their slots through the AbstractContainerMenu, not via the
             // GuiEventListener tree — so a plain walk omits every clickable slot.
-            // Inject one synthetic ContainerSlots child carrying per-slot bbox,
+            // Add one synthetic ContainerSlots node holding per-slot bbox,
             // vanilla slot index, and itemstack so agents can pick a slot by
             // label/index without resorting to pixel-counting.
+            Optional<String> slotsError = Optional.empty();
             if (s instanceof AbstractContainerScreen<?> acs) {
                 try {
-                    Map<String, Object> slotsNode = containerSlotsNode(acs);
-                    if (slotsNode != null) kids.add(slotsNode);
+                    containerSlots(acs, nodes);
                 } catch (Throwable t) {
-                    root.put("slotsError", describeThrowable(t));
+                    slotsError = Optional.of(describeThrowable(t));
                 }
             }
             // DeathScreen's cause-of-death is rendered directly from a
             // private Component field, never a child widget — without this
-            // surfaceing, the agent has no client-side way to find out what
+            // surfacing, the agent has no client-side way to find out what
             // killed the player (server log is the only other source).
-            if (s instanceof DeathScreen ds) {
-                String cause = readDeathCause(ds);
-                if (cause != null) root.put("causeOfDeath", cause);
-            }
-            root.put("children", kids);
-            return root;
+            Optional<String> cause = s instanceof DeathScreen ds ? Optional.ofNullable(readDeathCause(ds)) : Optional.empty();
+            return new ScreenTree(context, true, Optional.of(s.getClass().getSimpleName()),
+                    Optional.of(s.getTitle().getString()), Optional.of(s.width), Optional.of(s.height), cause,
+                    error, slotsError, nodes.build());
         });
     }
 
@@ -131,67 +117,104 @@ public final class ScreenIntrospection {
         return ds.causeOfDeath == null ? null : ds.causeOfDeath.getString();
     }
 
-    private static List<Map<String, Object>> walk(GuiEventListener node) {
-        List<Map<String, Object>> out = new ArrayList<>();
-        if (!(node instanceof ContainerEventHandler ceh)) return out;
+    /**
+     * The tree flattened depth first, a node before the nodes it holds. A node is filled in place while
+     * its children are added after it, so each is a mutable row until {@link #build}.
+     */
+    private static final class Nodes {
+        private final List<Node> all = new ArrayList<>();
+
+        Node add(Integer parent, int depth, String type) {
+            Node n = new Node(all.size(), parent, depth, type);
+            all.add(n);
+            return n;
+        }
+
+        List<WidgetNode> build() {
+            List<WidgetNode> out = new ArrayList<>(all.size());
+            for (Node n : all) out.add(n.freeze());
+            return out;
+        }
+    }
+
+    private static final class Node {
+        final int id;
+        final Integer parent;
+        final int depth;
+        final String type;
+        Integer index;
+        Box box;
+        Boolean visible, active, focused, selected;
+        String message, key, value, error;
+        SlotItem item;
+
+        Node(int id, Integer parent, int depth, String type) {
+            this.id = id;
+            this.parent = parent;
+            this.depth = depth;
+            this.type = type;
+        }
+
+        WidgetNode freeze() {
+            return new WidgetNode(id, Optional.ofNullable(parent), depth, type, Optional.ofNullable(index),
+                    Optional.ofNullable(box), Optional.ofNullable(visible), Optional.ofNullable(active),
+                    Optional.ofNullable(focused), Optional.ofNullable(selected), Optional.ofNullable(message),
+                    Optional.ofNullable(key), Optional.ofNullable(value), Optional.ofNullable(item),
+                    Optional.ofNullable(error));
+        }
+    }
+
+    private static void walk(GuiEventListener node, Integer parent, int depth, Nodes out) {
+        if (!(node instanceof ContainerEventHandler ceh)) return;
         for (GuiEventListener child : ceh.children()) {
-            Map<String, Object> n = new LinkedHashMap<>();
-            n.put("type", child.getClass().getSimpleName());
+            Node n = out.add(parent, depth, child.getClass().getSimpleName());
             // Per child, so a third-party widget that throws costs its own subtree and no more.
             try {
-                describe(child, n);
+                describe(child, n, out);
             } catch (Throwable t) {
-                n.put("error", describeThrowable(t));
+                n.error = describeThrowable(t);
             }
-            out.add(n);
         }
-        return out;
     }
 
     private static String describeThrowable(Throwable t) {
         return t.getClass().getSimpleName() + (t.getMessage() == null ? "" : ": " + t.getMessage());
     }
 
-    /** Fills one node's geometry, label and children; the type is already in {@code n}. */
-    private static void describe(GuiEventListener child, Map<String, Object> n) {
+    /** Fills one node's geometry and label, then adds its children after it. */
+    private static void describe(GuiEventListener child, Node n, Nodes out) {
         if (child instanceof AbstractWidget w) {
-            n.put("x", w.getX());
-            n.put("y", w.getY());
-            n.put("width", w.getWidth());
-            n.put("height", w.getHeight());
-            n.put("visible", w.visible);
-            n.put("active", w.active);
-            n.put("focused", w.isFocused());
-            n.put("message", w.getMessage().getString());
+            n.box = new Box(w.getX(), w.getY(), w.getWidth(), w.getHeight());
+            n.visible = w.visible;
+            n.active = w.active;
+            n.focused = w.isFocused();
+            n.message = w.getMessage().getString();
             // The message is in the player's language; the key lets a script pick a vanilla
             // button without carrying one label per locale.
-            if (w.getMessage().getContents() instanceof TranslatableContents tc) n.put("key", tc.getKey());
+            if (w.getMessage().getContents() instanceof TranslatableContents tc) n.key = tc.getKey();
         }
         // EditBox holds typed text. Without exposing the current value, agents
         // can drive the cursor and call typeText but never verify what was
         // entered (or what vanilla pre-filled, e.g. last-used server address).
         if (child instanceof EditBox eb) {
-            n.put("value", eb.getValue());
-            n.put("focused", eb.isFocused());
+            n.value = eb.getValue();
+            n.focused = eb.isFocused();
         }
         // AbstractSelectionList entries (SelectWorldScreen rows, ServerSelectionList,
         // RealmsList…) don't extend AbstractWidget, so a plain walk leaves them
         // with only a type name — agents can't pick a row by label. Project the
         // list's per-row geometry + display name onto each entry.
         if (child instanceof AbstractSelectionList<?> list) {
-            List<Map<String, Object>> entries = listEntries(list);
-            if (!entries.isEmpty()) n.put("children", entries);
+            listEntries(list, n, out);
             return;
         }
-        List<Map<String, Object>> grand = walk(child);
-        if (!grand.isEmpty()) n.put("children", grand);
+        walk(child, n.id, n.depth + 1, out);
     }
 
     /** Project per-row bbox + display label for AbstractSelectionList entries.
      *  {@code getRowTop}/{@code itemHeight} are protected in vanilla and opened by
      *  worlddriver.accesswidener. */
-    private static List<Map<String, Object>> listEntries(AbstractSelectionList<?> list) {
-        List<Map<String, Object>> out = new ArrayList<>();
+    private static void listEntries(AbstractSelectionList<?> list, Node owner, Nodes out) {
         // Vanilla layout: row x-span comes from public getRowLeft/getRowWidth.
         // Row y is index-dependent and includes scroll + header offsets, all
         // baked into getRowTop(int).
@@ -210,28 +233,17 @@ public final class ScreenIntrospection {
         Object selected = list.getSelected();
         for (int i = 0; i < children.size(); i++) {
             Object entry = children.get(i);
-            int rowTop = list.getRowTop(i);
-            Map<String, Object> n = new LinkedHashMap<>();
-            n.put("type", entry.getClass().getSimpleName());
-            n.put("index", i);
-            n.put("x", rowLeft);
-            n.put("y", rowTop);
-            n.put("width", rowWidth);
-            n.put("height", itemHeight - 4);
-            if (entry == selected) n.put("selected", true);
-            String label = entryLabel(entry);
-            if (label != null) n.put("message", label);
+            Node n = out.add(owner.id, owner.depth + 1, entry.getClass().getSimpleName());
+            n.index = i;
+            n.box = new Box(rowLeft, list.getRowTop(i), rowWidth, itemHeight - 4);
+            if (entry == selected) n.selected = true;
+            n.message = entryLabel(entry);
             // Walk INTO the row. Every list row that holds widgets is a ContainerEventHandler
             // (ContainerObjectSelectionList.Entry, KeyBindsList's rows, the options rows), and
             // projecting only its bbox is why a key-binds screen came back as a stack of nameless
             // Entry nodes with no way to tell one binding's row from another's.
-            if (entry instanceof GuiEventListener gel) {
-                List<Map<String, Object>> kids = walk(gel);
-                if (!kids.isEmpty()) n.put("children", kids);
-            }
-            out.add(n);
+            if (entry instanceof GuiEventListener gel) walk(gel, n.id, n.depth + 1, out);
         }
-        return out;
     }
 
     /**
@@ -305,44 +317,30 @@ public final class ScreenIntrospection {
         return null;
     }
 
-    /** Walk the open AbstractContainerScreen's slots and emit a synthetic node. */
-    private static Map<String, Object> containerSlotsNode(AbstractContainerScreen<?> acs) {
+    /** Add the open AbstractContainerScreen's slots under one synthetic ContainerSlots node. */
+    private static void containerSlots(AbstractContainerScreen<?> acs, Nodes out) {
         var menu = acs.getMenu();
-        if (menu == null || menu.slots == null || menu.slots.isEmpty()) return null;
+        if (menu == null || menu.slots == null || menu.slots.isEmpty()) return;
         // Container screens use leftPos/topPos as the inner-GUI origin; slot.x/y
         // are GUI-local. We expose absolute Screen coords so agents can pass
         // them straight to mc.client.input.click without doing arithmetic.
         // Both protected in vanilla, opened by worlddriver.accesswidener.
         int leftPos = acs.leftPos, topPos = acs.topPos;
-        List<Map<String, Object>> slotNodes = new ArrayList<>(menu.slots.size());
+        Node holder = out.add(null, 0, "ContainerSlots");
         for (int i = 0; i < menu.slots.size(); i++) {
-            Map<String, Object> n = new LinkedHashMap<>();
-            n.put("type", "Slot");
-            n.put("index", i);
+            Node n = out.add(holder.id, 1, "Slot");
+            n.index = i;
             // Per slot, for the same reason as the widget walk: a modded slot that throws from
             // isActive or getItem should cost its own row, not the screen's whole slot list.
             try {
                 Slot slot = menu.slots.get(i);
-                n.put("x", leftPos + slot.x);
-                n.put("y", topPos + slot.y);
-                n.put("width", 16);   // vanilla slot icon is 16×16 in GUI coords
-                n.put("height", 16);
-                n.put("active", slot.isActive());
+                n.box = new Box(leftPos + slot.x, topPos + slot.y, 16, 16);   // vanilla slot icon is 16×16
+                n.active = slot.isActive();
                 ItemStack stk = slot.getItem();
-                if (!stk.isEmpty()) {
-                    Map<String, Object> item = new LinkedHashMap<>();
-                    item.put("id", BuiltInRegistries.ITEM.getKey(stk.getItem()).toString());
-                    item.put("count", stk.getCount());
-                    n.put("item", item);
-                }
+                if (!stk.isEmpty()) n.item = new SlotItem(BuiltInRegistries.ITEM.getKey(stk.getItem()).toString(), stk.getCount());
             } catch (Throwable t) {
-                n.put("error", describeThrowable(t));
+                n.error = describeThrowable(t);
             }
-            slotNodes.add(n);
         }
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("type", "ContainerSlots");
-        out.put("children", slotNodes);
-        return out;
     }
 }

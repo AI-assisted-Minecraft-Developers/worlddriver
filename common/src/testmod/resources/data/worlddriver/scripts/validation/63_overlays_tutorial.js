@@ -18,11 +18,10 @@ if (!clientAvailable()) {
     });
 } else {
     ScriptTest.run("63_overlays_tutorial: tutorial suppressed without reflection error", function(t) {
-        var res = Driver.invoke("mc.client.overlays", {});
-        t.assertEqual(res.ok, true, "overlays must report ok (got " + JSON.stringify(res) + ")");
-        t.assertEqual(res.tutorial, "NONE", "tutorial must be set to NONE (got " + JSON.stringify(res) + ")");
-        t.assertTrue(res.tutorialError === undefined || res.tutorialError === null,
+        var res = Driver.client.overlays({});
+        t.assertEqual(res.tutorial, true, "tutorial must be dismissed (got " + JSON.stringify(res) + ")");
+        t.assertTrue(res.tutorialError === undefined,
             "tutorialError must be absent (got " + JSON.stringify(res) + ")");
-        t.assertEqual(res.toasts, "cleared", "toast clearing must keep working");
+        t.assertEqual(res.toasts, true, "toast clearing must keep working");
     });
 }
