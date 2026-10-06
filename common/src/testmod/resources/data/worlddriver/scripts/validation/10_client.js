@@ -1,7 +1,5 @@
-// Client-side validation. Gracefully skipped on dedicated server / GameTest CI
-// where ClientHooks never registers an impl; in that case mc.client.* throws
-// IllegalStateException which we catch up-front and record a single "skipped"
-// PASS so the test count stays sensible.
+// Client-side validation. On a dedicated server no client is bound, so every mc.client.* call is
+// capability_unavailable; that is the one check run there.
 
 function clientAvailable() {
     try {
@@ -12,41 +10,65 @@ function clientAvailable() {
     }
 }
 
+/** The DriverApiError a call throws, or null when it returned. */
+function errorOf(call) {
+    try { call(); } catch (e) { return e; }
+    return null;
+}
+
 if (!clientAvailable()) {
-    ScriptTest.run("10_client: skipped (no client api — dedicated server)", function(t) {
-        // no-op: PASS so headless runs stay green
+    ScriptTest.run("10_client: without a client every mc.client method is capability_unavailable", function(t) {
+        var e = errorOf(function() { Driver.client.screen.info(); });
+        t.assertEqual(e.code, "capability_unavailable", "code");
     });
 } else {
 
-    ScriptTest.run("10_client: screen.info exposes hasScreen/worldOpen/hasPlayer", function(t) {
-        var info = Driver.invoke("mc.client.screen.info", {});
+    ScriptTest.run("10_client: screen.info exposes hasScreen/worldOpen/hasPlayer and a context", function(t) {
+        var info = Driver.client.screen.info();
         t.assertEqual(typeof info.hasScreen, "boolean", "hasScreen must be boolean");
         t.assertEqual(typeof info.worldOpen, "boolean", "worldOpen must be boolean");
         t.assertEqual(typeof info.hasPlayer, "boolean", "hasPlayer must be boolean");
+        t.assertEqual(typeof info.contextId, "string", "contextId must be a string");
     });
 
     ScriptTest.run("10_client: input.key 'E' opens inventory + close round-trip", function(t) {
-        var info = Driver.invoke("mc.client.screen.info", {});
+        var info = Driver.client.screen.info();
         if (!info.hasPlayer) {
             // Client booted but never joined a world — exercise close path only.
-            Driver.invoke("mc.client.screen.close", {});
+            Driver.client.screen.close({});
             return;
         }
-        Driver.invoke("mc.client.input.key", { key: "E" });
+        Driver.client.input.key({ key: "E" });
         // Keybind processing runs on the next client tick; give it a beat.
         Driver.system.waitTicks(2);
-        var tree = Driver.invoke("mc.client.screen.tree", {});
+        var tree = Driver.client.screen.tree();
         t.assertTrue(tree.hasScreen, "screen should be open after pressing E");
         t.assertTrue(tree.type && tree.type.length > 0, "screen type should be reported");
+        t.assertTrue(tree.nodes.some(function(n) { return n.type === "Slot" && n.index === 0; }),
+            "the inventory's slots are nodes of the tree");
 
-        var closed = Driver.invoke("mc.client.screen.close", {});
-        t.assertTrue(closed.ok, "close should succeed");
-        var after = Driver.invoke("mc.client.screen.info", {});
+        var closed = Driver.client.screen.close({});
+        t.assertEqual(closed.closed, tree.type, "close names the screen it closed");
+        var after = Driver.client.screen.info();
         t.assertEqual(after.hasScreen, false, "screen should be null after close");
     });
 
+    ScriptTest.run("10_client: a write held to a screen that has since changed does nothing", function(t) {
+        var info = Driver.client.screen.info();
+        if (!info.hasPlayer) return;
+        Driver.client.input.key({ key: "E" });
+        Driver.system.waitTicks(2);
+        var e = errorOf(function() { Driver.client.screen.close({ contextId: info.contextId }); });
+        t.assertEqual(e && e.code, "context_changed", "a close held to the screen before the inventory opened");
+        var open = Driver.client.screen.info();
+        t.assertEqual(open.hasScreen, true, "the refused close left the inventory open");
+        t.assertTrue(open.contextId !== info.contextId, "opening the inventory changed the context");
+        var closed = Driver.client.screen.close({ contextId: open.contextId });
+        t.assertEqual(closed.closed, open.type, "a close held to the current screen closes it");
+    });
+
     ScriptTest.run("10_client: screenshot returns base64 png with positive dims", function(t) {
-        var shot = Driver.invoke("mc.client.screenshot", {});
+        var shot = Driver.client.screenshot();
         t.assertEqual(shot.format, "png", "format must be png");
         t.assertTrue(shot.width > 0, "width must be positive (got " + shot.width + ")");
         t.assertTrue(shot.height > 0, "height must be positive (got " + shot.height + ")");
@@ -58,21 +80,20 @@ if (!clientAvailable()) {
         // The failure this guards is invisible in the image: a capture of the frame that predates
         // the request looks entirely plausible. So the check is on the frame number, which is the
         // same quantity the capture is made of.
-        var a = Driver.invoke("mc.client.screenshot", {});
-        var b = Driver.invoke("mc.client.screenshot", {});
+        var a = Driver.client.screenshot();
+        var b = Driver.client.screenshot();
         t.assertTrue(a.frameWaited === true,
             "capture did not get a frame of its own (frame=" + a.frame + ", fps=" + a.fps + ")");
         t.assertTrue(b.frame > a.frame,
             "frame did not advance between captures (" + a.frame + " -> " + b.frame + ")");
     });
 
-    ScriptTest.run("10_client: screenshot also reachable via WebSocket RPC", function(t) {
-        // Cross-path parity check: screenshot bytes can differ frame-to-frame, but
-        // the shape and format fields must match between in-JVM and TCP paths.
-        var direct = Driver.invoke("mc.client.screen.info", {});
+    ScriptTest.run("10_client: screen.info also reachable via WebSocket RPC", function(t) {
+        var direct = Driver.client.screen.info();
         var viaTcp = Driver.system.rpcRoundtrip("mc.client.screen.info", {});
         t.assertEqual(direct.hasScreen, viaTcp.hasScreen, "hasScreen mismatch across paths");
         t.assertEqual(direct.worldOpen, viaTcp.worldOpen, "worldOpen mismatch across paths");
+        t.assertEqual(direct.contextId, viaTcp.contextId, "the same screen is the same context on every path");
     });
 
     ScriptTest.run("10_client: screenshot via MCP returns merged {format,width,height,base64}", function(t) {
@@ -81,7 +102,7 @@ if (!clientAvailable()) {
         // block's data back under 'base64' so this round-trip is shape-compatible
         // with the in-JVM call. We can't byte-compare base64 (frames drift), but
         // we can prove the merge happens.
-        var direct = Driver.invoke("mc.client.screenshot", {});
+        var direct = Driver.client.screenshot();
         var viaMcp = Driver.system.mcpRoundtrip("mc.client.screenshot", {});
 
         t.assertEqual(viaMcp.format, direct.format, "format mismatch across paths");

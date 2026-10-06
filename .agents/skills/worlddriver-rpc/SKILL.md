@@ -179,9 +179,12 @@ Two related building blocks for conditions the raw event types don't cover:
   single-player instance. `ss -tlnp | grep ":$(cat <rundir>/worlddriver-rpc.port)"`
   → that PID → `xdotool search --pid <pid>`. (Usually `_NET_CLIENT_LIST` holds one
   window anyway, so enumerating is cheap.)
-- **`mc.client.*` / `mc.bot.*` need a client.** On a dedicated server they error
-  with "not available (client only …)". `mc.system/action/observe/query/wait`
+- **`mc.client.*` / `mc.bot.*` need a client.** On a dedicated server `mc.client.*`
+  fails `capability_unavailable`. `mc.system/action/observe/query/wait`
   work server-side.
+- **Hold screen writes to the screen you read.** `screen.info`, `screen.tree` and
+  `observe.container` (no `pos`) return a `contextId`; pass it to the `mc.client.input.*`
+  write and a screen that changed in between is refused `context_changed`, nothing done.
 - **`mc.script.eval` runs on a worker thread**, neither the server nor the client
   thread. Every `Driver.invoke` hops onto the thread its route needs, so chaining
   *API calls* (observe→decide→act, `mc.bot.setting`, `mc.client.*`) is safe; reaching

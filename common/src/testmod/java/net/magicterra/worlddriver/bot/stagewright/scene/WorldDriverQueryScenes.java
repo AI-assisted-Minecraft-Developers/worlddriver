@@ -40,21 +40,20 @@ public final class WorldDriverQueryScenes implements SceneProvider {
     private static void clientBlocksNameUnloadedChunks(SceneContext ctx) {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.client.blocks is client-only — only an integrated server has its handler here");
-        DriverApi api = WorldDriverCommon.api();
-        if (api == null) ctx.fail("DriverApi not initialized — was the mod loaded?");
+        if (WorldDriverCommon.api() == null) ctx.fail("DriverApi not initialized — was the mod loaded?");
 
-        Object near = api.route("mc.client.blocks", Map.of("filter", Map.of("in_radius", 1)));
-        ctx.check(near instanceof Map<?, ?> m && m.get("blocks") instanceof List<?> && !m.containsKey("unloaded"))
-                .as("A a scan around the player reports no unloaded chunk (" + near + ")").isTrue();
+        // Asked, not routed: the scan runs on the client thread, which this server thread may not wait for.
+        SceneCalls.ask(ctx, "nearScan", "mc.client.blocks", Map.of("radius", 1), near ->
+                ctx.check(near.get("blocks") instanceof List<?> && !near.containsKey("unloaded"))
+                        .as("A a scan around the player reports no unloaded chunk (" + near + ")").isTrue());
 
         BlockPos far = new BlockPos(ctx.originX() + 1_000_000, 80, ctx.originZ() + 1_000_000);
         int fcx = far.getX() >> 4, fcz = far.getZ() >> 4;
-        Object distant = api.route("mc.client.blocks", Map.of("center", pos(far), "filter", Map.of("in_radius", 1)));
-        ctx.record("farScan", String.valueOf(distant));
-        ctx.check(distant instanceof Map<?, ?> m && m.get("unloaded") instanceof List<?> l
-                        && l.stream().anyMatch(c -> c instanceof Map<?, ?> cm && cm.get("x") instanceof Number x
-                                && cm.get("z") instanceof Number z && x.intValue() == fcx && z.intValue() == fcz))
-                .as("B a scan far from the player names chunk [" + fcx + ", " + fcz + "] as unloaded").isTrue();
+        SceneCalls.ask(ctx, "farScan", "mc.client.blocks", Map.of("center", pos(far), "radius", 1), distant ->
+                ctx.check(distant.get("unloaded") instanceof List<?> l
+                                && l.stream().anyMatch(c -> c instanceof Map<?, ?> cm && cm.get("x") instanceof Number x
+                                        && cm.get("z") instanceof Number z && x.intValue() == fcx && z.intValue() == fcz))
+                        .as("B a scan far from the player names chunk [" + fcx + ", " + fcz + "] as unloaded").isTrue());
     }
 
     private static void blocksStayInLoadedChunks(SceneContext ctx) {

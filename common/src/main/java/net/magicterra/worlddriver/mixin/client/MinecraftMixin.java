@@ -2,9 +2,11 @@ package net.magicterra.worlddriver.mixin.client;
 
 import net.magicterra.worlddriver.bot.movement.ClientIntents;
 import net.magicterra.worlddriver.bot.movement.FrameSearchPump;
+import net.magicterra.worlddriver.client.internal.ScreenContext;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
+import net.minecraft.client.gui.screens.Screen;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -23,6 +25,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 abstract class MinecraftMixin {
 
     @Shadow @Final public Options options;
+    @Shadow public Screen screen;
 
     /**
      * {@code continueAttack(leftClick)} is vanilla's whole per-tick attack pass: with the key down
@@ -62,5 +65,11 @@ abstract class MinecraftMixin {
                      shift = At.Shift.AFTER))
     private void worlddriver$frameStarted(boolean tick, CallbackInfo ci) {
         FrameSearchPump.frameStarted();
+    }
+
+    /** Every screen set starts a new screen context; see {@link ScreenContext}. */
+    @Inject(method = "setScreen(Lnet/minecraft/client/gui/screens/Screen;)V", at = @At("RETURN"))
+    private void worlddriver$screenContext(Screen requested, CallbackInfo ci) {
+        ScreenContext.opened(screen);
     }
 }

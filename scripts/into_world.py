@@ -125,12 +125,13 @@ async def set_world_name(rpc, name):
     box = rs.find_widget(tree, lambda n: isinstance(n, dict)
                          and "EditBox" in str(n.get("type", "")))
     if box is not None:
-        cx = box["x"] + box["width"] / 2
-        cy = box["y"] + box["height"] / 2
+        cx = box["box"]["x"] + box["box"]["width"] / 2
+        cy = box["box"]["y"] + box["box"]["height"] / 2
         print(f"  [act ] click name field @({cx:.1f},{cy:.1f})  // focus world-name box")
         rs.trace("act", action="click", label="<name-field>", x=cx, y=cy,
                  reason="focus world-name box")
-        await rpc.call("mc.client.input.click", {"x": cx, "y": cy, "button": 0})
+        await rpc.call("mc.client.input.click", {"x": cx, "y": cy, "button": 0,
+                                                 "contextId": box["contextId"]})
         await asyncio.sleep(0.2)
     # Clear the default "New World" then type our name. Ctrl+A select-all proved
     # unreliable over RPC (it deleted only one char, leaving "New Worl", and the

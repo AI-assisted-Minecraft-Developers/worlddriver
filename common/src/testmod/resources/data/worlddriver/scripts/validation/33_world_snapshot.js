@@ -72,8 +72,8 @@ ScriptTest.run("33_world_snapshot: block-entity contents survive restore", funct
 
     var cont = Driver.invoke("mc.observe.container", { pos: pos });
     t.assertEqual(cont.present, true, "chest is back");
-    t.assertEqual(cont.type, "minecraft:chest", "block entity type restored");
-    t.assertTrue(cont.slots && cont.slots[0] != null, "slot 0 has contents");
+    t.assertEqual(cont.blockEntity, "minecraft:chest", "block entity type restored");
+    t.assertTrue(cont.slots && cont.slots[0].id !== undefined, "slot 0 has contents");
     t.assertEqual(cont.slots[0].id, "minecraft:diamond", "diamond contents restored");
     t.assertEqual(cont.slots[0].count, 5, "stack count restored");
 

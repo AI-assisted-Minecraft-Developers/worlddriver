@@ -1,7 +1,35 @@
 package net.magicterra.worlddriver.client;
 
 import java.util.Map;
+import java.util.Set;
 
+import net.magicterra.worlddriver.api.ServerThreadHop;
+import net.magicterra.worlddriver.api.methods.ClientContracts.BlockScan;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ChatHistory;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ChatHistoryParams;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ChatSendParams;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ClientPlayer;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ClientReply;
+import net.magicterra.worlddriver.api.methods.ClientContracts.OverlaysCleared;
+import net.magicterra.worlddriver.api.methods.ClientContracts.OverlaysParams;
+import net.magicterra.worlddriver.api.methods.ClientContracts.Screenshot;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ScreenshotParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.ClickParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.CloseParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.Closed;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.HotbarParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.KeyParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.KeybindParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.MenuContainer;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.MoveParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.Moved;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.ReplaceParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.ScreenInfo;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.ScreenTree;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.SliderParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.SlotClickParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.TypeParams;
+import net.magicterra.worlddriver.bot.util.ClientHop;
 import net.magicterra.worlddriver.client.internal.ClientBoss;
 import net.magicterra.worlddriver.client.internal.ClientChat;
 import net.magicterra.worlddriver.client.internal.ClientInput;
@@ -9,7 +37,6 @@ import net.magicterra.worlddriver.client.internal.ClientKeybinds;
 import net.magicterra.worlddriver.client.internal.ClientObserve;
 import net.magicterra.worlddriver.client.internal.ScreenIntrospection;
 import net.magicterra.worlddriver.client.internal.Screenshots;
-import java.util.Set;
 
 /**
  * Default {@link ClientDriverApi} implementation. Lives in the common module
@@ -27,76 +54,57 @@ import java.util.Set;
  */
 public final class ClientDriverApiImpl implements ClientDriverApi {
 
-    @Override
-    public Map<String, Object> screenInfo() { return ScreenIntrospection.screenInfo(); }
+    @Override public ServerThreadHop hop() { return ClientHop.hop(); }
+
+    @Override public ScreenInfo readScreenInfo() { return ScreenIntrospection.screenInfo(); }
+
+    @Override public ScreenTree readScreenTree() { return ScreenIntrospection.screenTree(); }
+
+    @Override public Closed closeScreen(CloseParams p) { return ClientInput.closeScreen(p); }
+
+    @Override public ClientReply click(ClickParams p) { return ClientInput.click(p); }
+
+    @Override public ClientReply slotClick(SlotClickParams p) { return ClientInput.slotClick(p); }
+
+    @Override public Moved mouseMove(MoveParams p) { return ClientInput.mouseMove(p); }
+
+    @Override public ClientReply setHotbarSlot(HotbarParams p) { return ClientInput.setHotbarSlot(p); }
+
+    @Override public ClientReply typeText(TypeParams p) { return ClientInput.typeText(p); }
+
+    @Override public ClientReply replaceText(ReplaceParams p) { return ClientInput.replaceText(p); }
+
+    @Override public ClientReply slider(SliderParams p) { return ClientInput.slider(p); }
+
+    @Override public ClientReply key(KeyParams p) { return ClientInput.key(p); }
+
+    @Override public ClientReply keybind(KeybindParams p) { return ClientKeybinds.keybind(p); }
+
+    @Override public MenuContainer menu() { return ClientObserve.menu(); }
+
+    @Override public ClientReply chatSend(ChatSendParams p) { return ClientChat.chatSend(p); }
+
+    @Override public ChatHistory chatHistory(ChatHistoryParams p) { return ClientChat.chatHistory(p); }
+
+    @Override public OverlaysCleared overlays(OverlaysParams p) { return ClientChat.overlays(p); }
+
+    @Override public Screenshot screenshot(ScreenshotParams p) { return Screenshots.screenshot(p); }
+
+    @Override public ClientPlayer player() { return ClientObserve.player(); }
 
     @Override
-    public Map<String, Object> screenTree() { return ScreenIntrospection.screenTree(); }
-
-    @Override
-    public Map<String, Object> closeScreen() { return ClientInput.closeScreen(); }
-
-    @Override
-    public Map<String, Object> click(double x, double y, int button) { return ClientInput.click(x, y, button); }
-
-    @Override
-    public Map<String, Object> slotClick(int slotIndex, int button, String type) {
-        return ClientInput.slotClick(slotIndex, button, type);
+    public BlockScan scanBlocks(int radius, Double cx, Double cy, Double cz, Set<String> filterIds) {
+        return ClientObserve.scanBlocks(radius, cx, cy, cz, filterIds);
     }
 
-    @Override
-    public Map<String, Object> mouseMove(double x, double y) { return ClientInput.mouseMove(x, y); }
-
-    @Override
-    public Map<String, Object> setHotbarSlot(int slot) { return ClientInput.setHotbarSlot(slot); }
-
-    @Override
-    public Map<String, Object> typeText(String text) { return ClientInput.typeText(text); }
-
-    @Override
-    public Map<String, Object> replaceText(String text, String match) { return ClientInput.replaceText(text, match); }
-
-    @Override
-    public Map<String, Object> setSlider(String match, Integer index, Double fraction) { return ClientInput.setSlider(match, index, fraction); }
-
-    @Override
-    public Map<String, Object> key(String key, String action, String route, Object modifiers) { return ClientInput.key(key, action, route, modifiers); }
-
-    @Override
-    public Map<String, Object> keybind(String name, String action) { return ClientKeybinds.keybind(name, action); }
-
-    @Override
-    public Map<String, Object> chatSend(String text, int awaitReplyMs) { return ClientChat.chatSend(text, awaitReplyMs); }
-
-    @Override
-    public Map<String, Object> chatHistory(int limit, long sinceSeq) { return ClientChat.chatHistory(limit, sinceSeq); }
-
-    @Override
-    public Map<String, Object> overlays(boolean tutorial, boolean toasts) { return ClientChat.overlays(tutorial, toasts); }
-
-    @Override
-    public Map<String, Object> observePlayer() { return ClientObserve.observePlayer(); }
-
-    @Override
-    public Map<String, Object> observeArea(int radius, Double cx, Double cy, Double cz,
-                                           Set<String> filterIds) {
-        return ClientObserve.observeArea(radius, cx, cy, cz, filterIds);
-    }
+    @Override public Map<String, Object> observePlayer() { return ClientObserve.observePlayer(); }
 
     @Override
     public Map<String, Object> queryEntities(int radius, Double cx, Double cy, Double cz, Boolean hostileFilter) {
         return ClientObserve.queryEntities(radius, cx, cy, cz, hostileFilter);
     }
 
-    @Override
-    public Map<String, Object> observeThreats(int radius) { return ClientObserve.observeThreats(radius); }
+    @Override public Map<String, Object> observeThreats(int radius) { return ClientObserve.observeThreats(radius); }
 
-    @Override
-    public Map<String, Object> observeBoss(int radius) { return ClientBoss.observeBoss(radius); }
-
-    @Override
-    public Map<String, Object> observeContainerMenu() { return ClientObserve.observeContainerMenu(); }
-
-    @Override
-    public Map<String, Object> screenshot(Map<String, Object> opts) { return Screenshots.screenshot(opts); }
+    @Override public Map<String, Object> observeBoss(int radius) { return ClientBoss.observeBoss(radius); }
 }

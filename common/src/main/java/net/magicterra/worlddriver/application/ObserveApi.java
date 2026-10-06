@@ -76,42 +76,6 @@ public final class ObserveApi {
     }
 
     /**
-     * Read a BlockEntity's container contents at {@code pos}. Works for any block
-     * with a vanilla {@link Container} (chest, barrel, furnace, hopper, etc.).
-     * Returns {@code {present, type, slots:[{id,count}|null...]}} — slot indices
-     * are vanilla (furnace: 0=input, 1=fuel, 2=output). Cheap enough to poll from
-     * {@code mc.wait.condition} to detect furnace cook completion, chest fill, etc.
-     */
-    public Map<String, Object> container(Map<String, Object> params) {
-        Params p = Params.of(params);
-        BlockPos pos = p.getPos("pos");
-        if (pos == null) throw new IllegalArgumentException("pos required");
-        ServerLevel level = api.level();
-        return api.onServerThread(() -> {
-            BlockPos bp = pos;
-            BlockEntity be = level.getBlockEntity(bp);
-            Map<String, Object> out = new LinkedHashMap<>();
-            if (be == null) { out.put("present", false); return out; }
-            out.put("present", true);
-            out.put("type", BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(be.getType()).toString());
-            if (be instanceof Container c) {
-                List<Object> slots = new ArrayList<>();
-                for (int i = 0; i < c.getContainerSize(); i++) {
-                    ItemStack s = c.getItem(i);
-                    if (s.isEmpty()) { slots.add(null); continue; }
-                    Map<String, Object> slot = new LinkedHashMap<>();
-                    slot.put("id", BuiltInRegistries.ITEM.getKey(s.getItem()).toString());
-                    slot.put("count", s.getCount());
-                    ItemSnap.putWear(slot, s);
-                    slots.add(slot);
-                }
-                out.put("slots", slots);
-            }
-            return out;
-        });
-    }
-
-    /**
      * Snapshot a single player's state. When {@code name} is null/blank, returns
      * the first player on the server (single-player default); otherwise looks up
      * by exact GameProfile name. Returns {present:false} when nobody matches —

@@ -129,16 +129,6 @@ public final class ObserveActionTools {
                     .prop("plane", stringEnum("xz", "xy", "zy")
                         .desc("xz (default): top-down heightmap. xy/zy: vertical slice."))),
 
-            roTool("mc.observe.container",
-                "Read container contents. With pos: BlockEntity at pos (chest/barrel/hopper/" +
-                "furnace/dispenser); slot indices vanilla (furnace: 0=input,1=fuel,2=output). " +
-                "Without pos: whichever container menu is currently open client-side (player " +
-                "inventory, crafting table, server-pushed chest). " +
-                "Returns {present, type?|screen?, slots?:[{index,id?,count?,empty?,durability?}]} — " +
-                "durability (points remaining) + maxDamage/damage on damageable items only.",
-                object()
-                    .prop("pos", pos())),
-
             roTool("mc.observe.eventsSince",
                 "Pull events with seq > cursor (defaults to 0). Types: block.break, block.place, " +
                 "block.fill, entity.death, player.join, player.leave, chat.message. " +

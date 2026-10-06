@@ -1716,17 +1716,22 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.test.reset is client-only — only an integrated server has its handler here");
         DriverApi api = WorldDriverCommon.api();
-        ctx.cleanup(() -> api.route("mc.client.screen.close", Map.of()));
+        ctx.cleanup(() -> SceneCalls.send("mc.client.screen.close", Map.of()));
 
-        api.route("mc.client.screen.close", Map.of());          // start from a known no-screen state
-        api.route("mc.client.chat.send", Map.of("text", "stagewright-reset-probe"));
-        api.route("mc.client.input.key", Map.of("key", "E"));   // the inventory keybind
+        // Start from a known no-screen state, then dirty both: a chat line and the inventory keybind.
+        ask(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
+                ask(ctx, "chat", "mc.client.chat.send", Map.of("text", "stagewright-reset-probe"), sent ->
+                        ask(ctx, "key", "mc.client.input.key", Map.of("key", "E"), pressed ->
+                                resetClearsWhatWasDirtied(ctx, api))));
+    }
 
+    private static void resetClearsWhatWasDirtied(SceneContext ctx, DriverApi api) {
         // Separate awaits so a timeout names which half of the dirtying never landed; steps drain
         // in registration order, so the reset below only runs once both have.
-        ctx.await(() -> Boolean.TRUE.equals(screenInfo(api).get("hasScreen"))).within(100).then(() ->
-                ctx.record("dirtiedScreen", "true"));
-        ctx.await(() -> chatCount(api) >= 1).within(100).then(() -> {
+        SceneCalls.askUntil(ctx, "dirtiedScreen", "mc.client.screen.info", Map.of(),
+                info -> Boolean.TRUE.equals(info.get("hasScreen")), 100, info -> {});
+        SceneCalls.askUntil(ctx, "dirtiedChat", "mc.client.chat.history", Map.of("limit", 50),
+                history -> chatCount(history) >= 1, 100, history -> {
             Object r = api.route("mc.test.reset", Map.of());
             Object reset = r instanceof Map<?, ?> m ? m.get("reset") : null;
             ctx.expect(r instanceof Map<?, ?> m && Boolean.TRUE.equals(m.get("ok")))
@@ -1740,15 +1745,17 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             boolean clearedChat = tokens.stream()
                     .anyMatch(t -> t instanceof String s && s.startsWith("chat:"));
             ctx.expect(clearedChat).as("reset[] names the chat log it cleared").isEqualTo(true);
-
-            Map<?, ?> info = screenInfo(api);
-            ctx.expect(info.get("hasScreen")).as("a screen is still open after the reset")
-                    .isEqualTo(false);
-            // The reset must close the screen without closing the WORLD — a disconnect would also
-            // satisfy "no screen open" and would take every scene after this one down with it.
-            ctx.expect(info.get("worldOpen")).as("the reset kept us in the world").isEqualTo(true);
-            ctx.expect(chatCount(api)).as("chat readback entries after the reset").isEqualTo(0);
             ctx.record("resetTokens", String.valueOf(reset));
+
+            ask(ctx, "afterReset", "mc.client.screen.info", Map.of(), info -> {
+                ctx.expect(info.get("hasScreen")).as("a screen is still open after the reset")
+                        .isEqualTo(false);
+                // The reset must close the screen without closing the WORLD — a disconnect would also
+                // satisfy "no screen open" and would take every scene after this one down with it.
+                ctx.expect(info.get("worldOpen")).as("the reset kept us in the world").isEqualTo(true);
+            });
+            ask(ctx, "chatAfterReset", "mc.client.chat.history", Map.of("limit", 50), after ->
+                    ctx.expect(chatCount(after)).as("chat readback entries after the reset").isEqualTo(0));
         });
     }
 
@@ -1774,11 +1781,15 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         DriverApi api = WorldDriverCommon.api();
         // Not mc.test.reset — see clientResetClearsEntry. The key this scene holds down is released
         // by pressing it again through the same input verb that pressed it.
-        ctx.cleanup(() -> api.route("mc.client.input.key", Map.of("key", "W", "action", "release")));
+        ctx.cleanup(() -> SceneCalls.send("mc.client.input.key", Map.of("key", "W", "action", "release")));
 
-        api.route("mc.client.screen.close", Map.of());   // no screen → the key takes the keybind path
-        api.route("mc.client.input.key", Map.of("key", "W", "action", "press"));
+        // No screen → the key takes the keybind path.
+        ask(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
+                ask(ctx, "press", "mc.client.input.key", Map.of("key", "W", "action", "press"), pressed ->
+                        resetReleasesTheHeldKey(ctx, api)));
+    }
 
+    private static void resetReleasesTheHeldKey(SceneContext ctx, DriverApi api) {
         ctx.await(() -> Boolean.TRUE.equals(heldKeys(api).get("up"))).within(100).then(() -> {
             Object r = api.route("mc.test.reset", Map.of());
             Object reset = r instanceof Map<?, ?> m ? m.get("reset") : null;
@@ -1826,8 +1837,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     private static void clientKeybindOpensABinding(SceneContext ctx) {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.client.input.keybind is client-only — only an integrated server has a client here");
-        DriverApi api = WorldDriverCommon.api();
-        ctx.cleanup(() -> api.route("mc.client.screen.close", Map.of()));
+        ctx.cleanup(() -> SceneCalls.send("mc.client.screen.close", Map.of()));
 
         // Survival, said out loud. WHICH screen the inventory binding opens is a function of the
         // player's mode — the same call on a creative player opens CreativeModeInventoryScreen —
@@ -1842,25 +1852,18 @@ public final class WorldDriverCoreScenes implements SceneProvider {
 
         // From no screen: with one open the raw half has nowhere to go but that screen, and the
         // reply would say `skipped` — a different assertion than the one this scene is making.
-        api.route("mc.client.screen.close", Map.of());
         // The mode reaches the client as a packet, and the screen it opens is the client's
-        // decision, so drive only once the client agrees about the mode.
-        ctx.await(() -> "survival".equals(clientGameMode(api))).within(100).then(() ->
-                keybindOpensTheInventory(ctx, api));
+        // decision, so drive only once the client agrees about the mode: mc.client.player's view of
+        // it is the one that picks the screen.
+        ask(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
+                SceneCalls.askUntil(ctx, "clientMode", "mc.client.player", Map.of(),
+                        p -> "survival".equals(p.get("gameMode")), 100, p ->
+                                ask(ctx, "keybind.reply", "mc.client.input.keybind", Map.of("name", "key.inventory"),
+                                        m -> keybindOpensTheInventory(ctx, m))));
     }
 
-    /** {@code mc.client.player}'s view of the mode, which is the one that picks the screen. */
-    private static String clientGameMode(DriverApi api) {
-        Object r = api.route("mc.client.player", Map.of());
-        Object mode = r instanceof Map<?, ?> m ? m.get("gameMode") : null;
-        return mode == null ? "" : String.valueOf(mode);
-    }
-
-    private static void keybindOpensTheInventory(SceneContext ctx, DriverApi api) {
-        Object r = api.route("mc.client.input.keybind", Map.of("name", "key.inventory"));
-        Map<?, ?> m = r instanceof Map<?, ?> mm ? mm : Map.of();
-        ctx.record("keybind.reply", String.valueOf(m));
-        ctx.expect(m.get("ok")).as("the verb took the binding's name").isEqualTo(true);
+    private static void keybindOpensTheInventory(SceneContext ctx, Map<?, ?> m) {
+        ctx.expect(m.get("outcome")).as("the verb took the binding's name").isEqualTo("done");
         ctx.expect(m.get("name")).as("the mapping it resolved the name to").isEqualTo("key.inventory");
         ctx.expect(String.valueOf(m.get("rawEvent")))
                 .as("what became of the raw key event — `sent` is what an event-driven mod needs")
@@ -1878,40 +1881,32 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ctx.expect(m.get("screenAfter")).as("the screen this keystroke left standing")
                 .isEqualTo("InventoryScreen");
 
-        ctx.await(() -> Boolean.TRUE.equals(screenInfo(api).get("hasScreen"))).within(100).then(() -> {
-            ctx.expect(screenInfo(api).get("type")).as("the screen the inventory binding opens")
+        SceneCalls.askUntil(ctx, "opened", "mc.client.screen.info", Map.of(),
+                info -> Boolean.TRUE.equals(info.get("hasScreen")), 100, info -> {
+            ctx.expect(info.get("type")).as("the screen the inventory binding opens")
                     .isEqualTo("InventoryScreen");
             // Read back from the listing, not from the reply that claimed it: the reply is the
             // verb's own account of the release, and a release that only the replier believes in
             // is the failure this checks for.
-            ctx.expect(keybindDown(api, "key.inventory"))
-                    .as("key.inventory still down after the click, read back from the listing")
-                    .isEqualTo(false);
+            ask(ctx, "listing", "mc.client.input.keybind", Map.of(), listing ->
+                    ctx.expect(keybindDown(listing, "key.inventory"))
+                            .as("key.inventory still down after the click, read back from the listing")
+                            .isEqualTo(false));
         });
     }
 
     /** What {@code mc.client.input.keybind}'s listing says about one mapping's {@code down}. */
-    private static Object keybindDown(DriverApi api, String name) {
-        Object r = api.route("mc.client.input.keybind", Map.of());
-        Object rows = r instanceof Map<?, ?> m ? m.get("keybinds") : null;
-        if (rows instanceof List<?> l) {
+    private static Object keybindDown(Map<?, ?> listing, String name) {
+        if (listing.get("keybinds") instanceof List<?> l) {
             for (Object row : l)
                 if (row instanceof Map<?, ?> k && name.equals(k.get("name"))) return k.get("down");
         }
         return "no " + name + " row in the keybind listing";
     }
 
-    /** {@code mc.client.screen.info}, or empty when the verb answered with something else. */
-    private static Map<?, ?> screenInfo(DriverApi api) {
-        Object r = api.route("mc.client.screen.info", Map.of());
-        return r instanceof Map<?, ?> m ? m : Map.of();
-    }
-
-    /** How many lines {@code mc.client.chat.history} is holding; −1 if it did not say. */
-    private static int chatCount(DriverApi api) {
-        Object r = api.route("mc.client.chat.history", Map.of("limit", 50));
-        Object count = r instanceof Map<?, ?> m ? m.get("count") : null;
-        return count instanceof Number n ? n.intValue() : -1;
+    /** How many lines a {@code mc.client.chat.history} reply holds; −1 if it did not say. */
+    private static int chatCount(Map<?, ?> history) {
+        return history.get("messages") instanceof List<?> l ? l.size() : -1;
     }
 
     /** The {@code keys} map out of {@code mc.test.input.heldKeys}. */
@@ -2010,17 +2005,16 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     private static void clientPlayerInWorld(SceneContext ctx) {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.client.player is client-only — only an integrated server has its handler here");
-        DriverApi api = WorldDriverCommon.api();
-        Object r = api.route("mc.client.player", Map.of());
-        Map<?, ?> cp = r instanceof Map<?, ?> m ? m : Map.of();
-        ctx.expect(cp.get("present")).as("mc.client.player reports a LocalPlayer in a world")
-                .isEqualTo(true);
+        ask(ctx, "clientPlayer", "mc.client.player", Map.of(), cp -> {
+            ctx.expect(cp.get("present")).as("mc.client.player reports a LocalPlayer in a world")
+                    .isEqualTo(true);
 
-        Map<?, ?> pos = cp.get("pos") instanceof Map<?, ?> m ? m : Map.of();
-        for (String axis : new String[]{"x", "y", "z"})
-            ctx.expect(pos.get(axis) instanceof Number).as("mc.client.player's pos." + axis
-                    + " is a number, not a hole in a well-shaped payload").isEqualTo(true);
-        ctx.record("clientPos", pos.get("x") + "," + pos.get("y") + "," + pos.get("z"));
+            Map<?, ?> pos = cp.get("pos") instanceof Map<?, ?> m ? m : Map.of();
+            for (String axis : new String[]{"x", "y", "z"})
+                ctx.expect(pos.get(axis) instanceof Number).as("mc.client.player's pos." + axis
+                        + " is a number, not a hole in a well-shaped payload").isEqualTo(true);
+            ctx.record("clientPos", pos.get("x") + "," + pos.get("y") + "," + pos.get("z"));
+        });
     }
 
     /** The {@code player.hurt} payloads emitted since {@code cursor}, oldest first. */

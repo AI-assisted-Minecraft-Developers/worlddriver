@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.util;
 
+import net.magicterra.worlddriver.api.methods.ClientContracts;
+import net.magicterra.worlddriver.api.methods.ScreenContracts;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -9,6 +11,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The one place item WEAR is projected into an API row.
@@ -39,6 +42,18 @@ public final class ItemSnap {
      * Stackables (cobblestone, coal) carry no wear and get no fields, so the payload stays
      * small and the presence of {@code durability} itself means "this is a thing that wears out".
      */
+    public static ClientContracts.Wear wear(ItemStack s) {
+        if (s == null || s.isEmpty() || !s.isDamageableItem()) return ClientContracts.Wear.NONE;
+        return ClientContracts.Wear.of(s.getMaxDamage(), s.getDamageValue());
+    }
+
+    /** One {@code mc.observe.container} slot, read from a block entity or from a client's menu. */
+    public static ScreenContracts.SlotRow slotRow(int index, ItemStack s) {
+        if (s == null || s.isEmpty()) return ScreenContracts.SlotRow.empty(index);
+        return new ScreenContracts.SlotRow(index, Optional.of(BuiltInRegistries.ITEM.getKey(s.getItem()).toString()),
+                Optional.of(s.getCount()), wear(s));
+    }
+
     public static void putWear(Map<String, Object> row, ItemStack s) {
         if (s == null || s.isEmpty() || !s.isDamageableItem()) return;
         int max = s.getMaxDamage();

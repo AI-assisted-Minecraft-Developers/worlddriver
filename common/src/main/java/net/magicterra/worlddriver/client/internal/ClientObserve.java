@@ -12,6 +12,32 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+
+import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ActiveEffect;
+import net.magicterra.worlddriver.api.methods.ClientContracts.Attack;
+import net.magicterra.worlddriver.api.methods.ClientContracts.BlockHit;
+import net.magicterra.worlddriver.api.methods.ClientContracts.BlockRow;
+import net.magicterra.worlddriver.api.methods.ClientContracts.BlockScan;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ChunkRef;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ClientBody;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ClientPlayer;
+import net.magicterra.worlddriver.api.methods.ClientContracts.EntityHit;
+import net.magicterra.worlddriver.api.methods.ClientContracts.Hit;
+import net.magicterra.worlddriver.api.methods.ClientContracts.Inventory;
+import net.magicterra.worlddriver.api.methods.ClientContracts.InventorySlot;
+import net.magicterra.worlddriver.api.methods.ClientContracts.Look;
+import net.magicterra.worlddriver.api.methods.ClientContracts.Miss;
+import net.magicterra.worlddriver.api.methods.ClientContracts.Stack;
+import net.magicterra.worlddriver.api.methods.ClientContracts.Time;
+import net.magicterra.worlddriver.api.methods.ClientContracts.Vitals;
+import net.magicterra.worlddriver.api.methods.ClientContracts.Wear;
+import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.MenuContainer;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.SlotRow;
 
 import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
@@ -36,9 +62,9 @@ import net.magicterra.worlddriver.bot.util.TimeSnap;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
- * World/player observation for {@code mc.observe.player} (client fallback),
- * {@code mc.query} (client fallback) and {@code mc.observe.container} (open
- * menu). Stateless; extracted from {@code ClientDriverApiImpl}.
+ * World/player observation for {@code mc.client.player}, {@code mc.client.blocks},
+ * {@code mc.observe.player} (client fallback), {@code mc.query} (client fallback) and
+ * {@code mc.observe.container} (open menu). Stateless.
  */
 public final class ClientObserve {
     private ClientObserve() {}
@@ -169,14 +195,13 @@ public final class ClientObserve {
         });
     }
 
-    public static Map<String, Object> observeArea(int radius, Double cx, Double cy, Double cz,
-                                                  Set<String> filterIds) {
+    public static BlockScan scanBlocks(int radius, Double cx, Double cy, Double cz, Set<String> filterIds) {
         final int r = Math.max(0, Math.min(16, radius));
         return runOnClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             ClientLevel level = mc.level;
             if (level == null) {
-                return Map.of("present", false, "error", "no client level");
+                throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
             }
             double dx, dy, dz;
             if (cx != null && cy != null && cz != null) {
@@ -184,7 +209,7 @@ public final class ClientObserve {
             } else if (mc.player != null) {
                 dx = mc.player.getX(); dy = mc.player.getY(); dz = mc.player.getZ();
             } else {
-                return Map.of("present", false, "error", "no player and no center");
+                throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no player to centre on; pass a center");
             }
             int bx = (int) Math.floor(dx);
             int by = (int) Math.floor(dy);
@@ -196,7 +221,7 @@ public final class ClientObserve {
                 matchers = new ArrayList<>();
                 for (String f : filterIds) matchers.add(BlockMatch.of(f));
             }
-            List<Object> blocks = new ArrayList<>();
+            List<BlockRow> blocks = new ArrayList<>();
             BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
             for (int ox = -r; ox <= r; ox++) {
                 for (int oy = -r; oy <= r; oy++) {
@@ -210,37 +235,29 @@ public final class ClientObserve {
                             if (!ok) continue;
                         }
                         String id = BuiltInRegistries.BLOCK.getKey(bs.getBlock()).toString();
-                        Map<String, Object> e = new LinkedHashMap<>();
-                        Map<String, Object> p = new LinkedHashMap<>();
-                        p.put("x", pos.getX()); p.put("y", pos.getY()); p.put("z", pos.getZ());
-                        e.put("pos", p);
-                        e.put("type", id);
                         // Blockstate property map, mirroring the server-side
                         // q='blocks' rows; omitted for property-less states.
+                        Optional<Map<String, String>> state = Optional.empty();
                         if (!bs.getProperties().isEmpty()) {
-                            Map<String, Object> stateMap = new LinkedHashMap<>();
+                            Map<String, String> stateMap = new LinkedHashMap<>();
                             for (var prop : bs.getProperties()) {
                                 stateMap.put(prop.getName(), propValue(bs, prop));
                             }
-                            e.put("state", stateMap);
+                            state = Optional.of(stateMap);
                         }
-                        blocks.add(e);
+                        blocks.add(new BlockRow(new BlockPosition(pos.getX(), pos.getY(), pos.getZ()), id, state));
                     }
                 }
             }
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("blocks", blocks);
-            out.put("center", Map.of("x", bx, "y", by, "z", bz));
-            out.put("radius", r);
             // ClientLevel answers air for a chunk it has not received, which the rows cannot tell
             // apart from real air; name those chunks so a caller can refuse the scan.
-            List<Object> unloaded = new ArrayList<>();
+            List<ChunkRef> unloaded = new ArrayList<>();
             for (int chx = (bx - r) >> 4; chx <= (bx + r) >> 4; chx++)
                 for (int chz = (bz - r) >> 4; chz <= (bz + r) >> 4; chz++)
                     if (level.getChunkSource().getChunkNow(chx, chz) == null)
-                        unloaded.add(Map.of("x", chx, "z", chz));
-            if (!unloaded.isEmpty()) out.put("unloaded", unloaded);
-            return out;
+                        unloaded.add(new ChunkRef(chx, chz));
+            return new BlockScan(blocks, new BlockPosition(bx, by, bz), r,
+                    unloaded.isEmpty() ? Optional.empty() : Optional.of(unloaded));
         });
     }
 
@@ -299,35 +316,98 @@ public final class ClientObserve {
         });
     }
 
-    public static Map<String, Object> observeContainerMenu() {
+    /** The open container menu's slots, under the screen context they were read in. */
+    public static MenuContainer menu() {
         return runOnClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             Screen s = mc.screen;
+            String context = ScreenContext.current();
             if (!(s instanceof AbstractContainerScreen<?> acs)) {
-                return Map.of("present", false);
+                return new MenuContainer(context, false, Optional.empty(), Optional.empty());
             }
             var menu = acs.getMenu();
-            List<Object> slots = new ArrayList<>();
+            List<SlotRow> slots = new ArrayList<>();
             for (int i = 0; i < menu.slots.size(); i++) {
-                Slot slot = menu.slots.get(i);
-                ItemStack st = slot.getItem();
-                Map<String, Object> entry = new LinkedHashMap<>();
-                entry.put("index", i);
-                if (st == null || st.isEmpty()) {
-                    entry.put("empty", true);
-                } else {
-                    entry.put("id", BuiltInRegistries.ITEM.getKey(st.getItem()).toString());
-                    entry.put("count", st.getCount());
-                    ItemSnap.putWear(entry, st);
-                }
-                slots.add(entry);
+                slots.add(ItemSnap.slotRow(i, menu.slots.get(i).getItem()));
             }
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("present", true);
-            out.put("screen", s.getClass().getSimpleName());
-            out.put("slots", slots);
-            return out;
+            return new MenuContainer(context, true, Optional.of(s.getClass().getSimpleName()), Optional.of(slots));
         });
+    }
+
+    private static Wear wear(ItemStack st) {
+        return ItemSnap.wear(st);
+    }
+
+    /**
+     * {@code mc.client.player}: the same reads as {@link #observePlayer}, which still answers the
+     * untyped {@code mc.observe.player} fallback, grouped as the typed contract has them.
+     */
+    public static ClientPlayer player() {
+        return runOnClient(() -> {
+            Minecraft mc = Minecraft.getInstance();
+            LocalPlayer p = mc.player;
+            if (p == null) {
+                return new ClientPlayer(false, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), mc.getFps());
+            }
+            var eye = p.getEyePosition();
+            ClientLevel lvl = mc.level;
+            Optional<String> eyeBlock = Optional.empty(), feetBlock = Optional.empty();
+            if (lvl != null) {
+                eyeBlock = Optional.of(BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(BlockPos.containing(eye)).getBlock()).toString());
+                feetBlock = Optional.of(BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(p.blockPosition()).getBlock()).toString());
+            }
+            ClientBody body = new ClientBody(p.onGround(), new Point(eye.x, eye.y, eye.z), p.getPose().name(),
+                    p.isInWall(), p.isInWater(), p.isUnderWater(), p.isCrouching(), eyeBlock, feetBlock);
+            List<ActiveEffect> fx = new ArrayList<>();
+            for (var inst : p.getActiveEffects()) {
+                fx.add(new ActiveEffect(BuiltInRegistries.MOB_EFFECT.getKey(inst.getEffect().value()).toString(),
+                        inst.getAmplifier(), inst.getDuration()));
+            }
+            Vitals vitals = new Vitals(p.getHealth(), p.getMaxHealth(), p.getAirSupply(), p.getMaxAirSupply(),
+                    p.getFoodData().getFoodLevel(), p.getFoodData().getSaturationLevel(), p.experienceLevel, fx);
+            long dt = p.level().getDayTime();
+            Time time = new Time(dt, dt / TimeSnap.DAY_TICKS, TimeSnap.timeOfDay(dt), TimeSnap.phase(dt));
+            // AttackSnap's arithmetic, read straight into the record.
+            float scale = p.getAttackStrengthScale(0.0f);
+            float period = p.getCurrentItemAttackStrengthDelay();
+            Attack attack = new Attack(scale, scale >= 1.0f, (int) Math.ceil(period * (1.0f - scale)), (int) Math.ceil(period));
+            List<InventorySlot> slots = new ArrayList<>();
+            var inv = p.getInventory();
+            int totalSlots = inv.items.size() + inv.armor.size() + inv.offhand.size();
+            for (int i = 0; i < totalSlots; i++) {
+                ItemStack st = inv.getItem(i);
+                if (st == null || st.isEmpty()) continue;
+                slots.add(new InventorySlot(i, BuiltInRegistries.ITEM.getKey(st.getItem()).toString(), st.getCount(), wear(st)));
+            }
+            ItemStack held = p.getMainHandItem();
+            Optional<Stack> mainHand = held == null || held.isEmpty() ? Optional.empty()
+                    : Optional.of(new Stack(BuiltInRegistries.ITEM.getKey(held.getItem()).toString(), held.getCount(), wear(held)));
+            Inventory inventory = new Inventory(inv.selected, mainHand, slots, CraftProcess.inventorySnapshot(p));
+            return new ClientPlayer(true, Optional.of(p.getGameProfile().getName()), Optional.of(p.getUUID().toString()),
+                    Optional.of(p.level().dimension().location().toString()), Optional.of(new Point(p.getX(), p.getY(), p.getZ())),
+                    Optional.of(new Look(p.getYRot(), p.getXRot())), Optional.of(body), Optional.of(vitals), Optional.of(time),
+                    Optional.of(mc.gameMode != null ? mc.gameMode.getPlayerMode().getName() : "unknown"), Optional.of(attack),
+                    Optional.of(inventory), Optional.of(hit(mc, p)), mc.getFps());
+        });
+    }
+
+    private static Hit hit(Minecraft mc, LocalPlayer p) {
+        HitResult hr = mc.hitResult;
+        if (hr instanceof BlockHitResult bhr && hr.getType() == HitResult.Type.BLOCK) {
+            var bp = bhr.getBlockPos();
+            return new BlockHit(new BlockPosition(bp.getX(), bp.getY(), bp.getZ()), bhr.getDirection().getName(),
+                    BuiltInRegistries.BLOCK.getKey(p.level().getBlockState(bp).getBlock()).toString(),
+                    Math.sqrt(bhr.getLocation().distanceToSqr(p.getEyePosition())));
+        }
+        if (hr instanceof EntityHitResult ehr && hr.getType() == HitResult.Type.ENTITY) {
+            var ent = ehr.getEntity();
+            var ep = ent.position();
+            return new EntityHit(ent.getId(), BuiltInRegistries.ENTITY_TYPE.getKey(ent.getType()).toString(),
+                    new Point(ep.x, ep.y, ep.z), Math.sqrt(ent.distanceToSqr(p)));
+        }
+        return new Miss();
     }
 
     /** Property value as the string a /setblock predicate would use ("true", "north", "3"). */

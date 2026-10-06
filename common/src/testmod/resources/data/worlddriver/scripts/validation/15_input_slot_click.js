@@ -1,7 +1,5 @@
-// Client-only — mc.client.input.slotClick needs an AbstractContainerScreen open
-// (player inventory, crafting table, chest the server pushed). On dedicated-server
-// / GameTest CI there's no client; record a skipped-PASS so headless runs stay
-// green. The real interactive verification lives in fabric runClient sessions.
+// mc.client.input.slotClick needs an AbstractContainerScreen open (player inventory, crafting table,
+// chest the server pushed). The request checks run on every topology; the clicks need a client.
 
 function clientAvailable() {
     try {
@@ -12,52 +10,58 @@ function clientAvailable() {
     }
 }
 
+/** The DriverApiError a call throws, or null when it returned. */
+function errorOf(call) {
+    try { call(); } catch (e) { return e; }
+    return null;
+}
+
+ScriptTest.run("15_input_slot_click: rejects unknown ClickType", function(t) {
+    var e = errorOf(function() { Driver.client.input.slotClick({ slot: 0, button: 0, type: "wiggle" }); });
+    t.assertEqual(e.code, "invalid_params", "code");
+    t.assertEqual(e.issues[0].path, "/type", "path");
+    t.assertTrue(e.issues[0].message.indexOf("quickMove") >= 0, "names the click types: " + e.issues[0].message);
+});
+
+ScriptTest.run("15_input_slot_click: the same rejection over in-JVM, RPC and MCP", function(t) {
+    var args = { slot: 0, type: "wiggle" };
+    var direct = errorOf(function() { Driver.invoke("mc.client.input.slotClick", args); });
+    var viaTcp = errorOf(function() { Driver.system.rpcRoundtrip("mc.client.input.slotClick", args); });
+    var viaMcp = errorOf(function() { Driver.system.mcpRoundtrip("mc.client.input.slotClick", args); });
+    t.assertEqual(JSON.stringify(viaTcp.issues), JSON.stringify(direct.issues), "RPC issues");
+    t.assertEqual(JSON.stringify(viaMcp.issues), JSON.stringify(direct.issues), "MCP issues");
+});
+
 if (!clientAvailable()) {
-    ScriptTest.run("15_input_slot_click: skipped (no client api — dedicated server)", function(t) {
-        // no-op: PASS
+    ScriptTest.run("15_input_slot_click: a dedicated server has no menu to click", function(t) {
+        var e = errorOf(function() { Driver.client.input.slotClick({ slot: 0 }); });
+        t.assertEqual(e.code, "capability_unavailable", "code");
     });
 } else {
 
-    ScriptTest.run("15_input_slot_click: rejects unknown ClickType", function(t) {
-        // Route-layer schema validation rejects the enum violation before the tool
-        // runs; the validator message echoes the offending value.
-        var msg = null;
-        try {
-            Driver.invoke("mc.client.input.slotClick", { slot: 0, button: 0, type: "wiggle" });
-        } catch (e) { msg = String(e); }
-        t.assertTrue(msg !== null && msg.indexOf("wiggle") >= 0,
-            "unknown type must be rejected by schema validation echoing the bad type, got: " + msg);
-    });
-
     ScriptTest.run("15_input_slot_click: rejects when no container screen open", function(t) {
-        // Try to close any container screen first so the test is deterministic.
+        // Close any container screen first so the test is deterministic.
         // closeScreen on TitleScreen / level-only is a no-op, so this is safe.
-        try { Driver.invoke("mc.client.screen.close", {}); } catch (e) {}
-        var info = Driver.invoke("mc.client.screen.info", {});
-        if (info && info.type && info.type.indexOf("ContainerScreen") >= 0) {
-            // Some other test left a container open; skip this assertion rather
-            // than mutate state. Recorded as a soft PASS.
-            return;
-        }
-        var r = Driver.invoke("mc.client.input.slotClick", { slot: 0 });
-        t.assertEqual(r.ok, false, "no container screen → ok:false");
-        t.assertTrue(typeof r.error === "string", "must include error string");
+        Driver.client.screen.close({});
+        var r = Driver.client.input.slotClick({ slot: 0 });
+        t.assertEqual(r.outcome, "refused", "no container screen → refused");
+        t.assertEqual(r.reason, "no_container", "reason");
     });
 
-    ScriptTest.run("15_input_slot_click: schema-reject surfaces identically across in-JVM, RPC, MCP transports",
-        function(t) {
-            // The validator runs inside DriverApi.route(), shared by all three
-            // transports — each must surface the SAME core violation message
-            // (each transport adds its own wrapper prefix, so we compare cores).
-            var args = { slot: 0, type: "wiggle" };
-            var core = "invalid params for mc.client.input.slotClick:";
-            function thrownMsg(fn) { try { fn(); return null; } catch (e) { return String(e); } }
-            var direct = thrownMsg(function() { Driver.invoke("mc.client.input.slotClick", args); });
-            var viaTcp = thrownMsg(function() { Driver.system.rpcRoundtrip("mc.client.input.slotClick", args); });
-            var viaMcp = thrownMsg(function() { Driver.system.mcpRoundtrip("mc.client.input.slotClick", args); });
-            t.assertTrue(direct !== null && direct.indexOf(core) >= 0, "in-JVM must throw validator error, got: " + direct);
-            t.assertTrue(viaTcp !== null && viaTcp.indexOf(core) >= 0, "RPC must surface the validator error, got: " + viaTcp);
-            t.assertTrue(viaMcp !== null && viaMcp.indexOf(core) >= 0, "MCP must surface the validator error, got: " + viaMcp);
-        });
+    ScriptTest.run("15_input_slot_click: a click held to a menu since reopened does nothing", function(t) {
+        var info = Driver.client.screen.info();
+        if (!info.hasPlayer) return;
+        Driver.client.input.key({ key: "E" });
+        Driver.system.waitTicks(2);
+        var menu = Driver.observe.container({});
+        t.assertEqual(menu.source, "menu", "no pos reads the open menu");
+        t.assertEqual(menu.present, true, "the inventory is a container menu");
+        Driver.client.screen.close({});
+        Driver.client.input.key({ key: "E" });
+        Driver.system.waitTicks(2);
+        var e = errorOf(function() { Driver.client.input.slotClick({ slot: 0, contextId: menu.contextId }); });
+        t.assertEqual(e && e.code, "context_changed", "the same kind of menu, opened again, is another context");
+        Driver.client.screen.close({});
+    });
 
 }

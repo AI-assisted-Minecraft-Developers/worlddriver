@@ -65,21 +65,24 @@ def click_button(labels, gone_type=None, timeout=6.0):
     click too, but only later and as a generic timeout.
     """
     tree = rpc('mc.client.screen.tree', {})
-    kids = tree.get('children') or []
+    kids = tree.get('nodes') or []
     want = {s.strip().lower() for s in labels}
     hit = next((c for c in kids
                 if (str(c.get('message', '')).strip().lower() in want
                     or str(c.get('key', '')).lower() in want)
-                and c.get('visible') and c.get('active') and 'width' in c), None)
+                and c.get('visible') and c.get('active') and 'box' in c), None)
     if hit is None:
         seen = [c.get('message') for c in kids if c.get('message')]
         raise RuntimeError(f'no active button matching {sorted(want)} on '
                            f'{tree.get("type")}; labels present: {seen}')
-    r = rpc('mc.client.input.click', {'x': hit['x'] + hit['width'] // 2,
-                                      'y': hit['y'] + hit['height'] // 2})
-    if not r.get('handled'):
+    b = hit['box']
+    # Held to the screen the tree was read from, so a screen that changed meanwhile refuses the click.
+    r = rpc('mc.client.input.click', {'x': b['x'] + b['width'] // 2,
+                                      'y': b['y'] + b['height'] // 2,
+                                      'contextId': tree['contextId']})
+    if r.get('outcome') != 'done' or not r.get('handled'):
         raise RuntimeError(f'click on {hit["message"]!r} at '
-                           f'({hit["x"]},{hit["y"]},{hit["width"]}x{hit["height"]}) '
+                           f'({b["x"]},{b["y"]},{b["width"]}x{b["height"]}) '
                            f'was not handled by any widget: {r}')
     if gone_type is None:
         return
@@ -99,7 +102,7 @@ RESPAWN_LABELS = ('deathScreen.respawn', 'Respawn')
 
 def ensure_alive():
     p = rpc('mc.client.player', {})
-    if p['health'] <= 0:
+    if p['vitals']['health'] <= 0:
         r = rpc('mc.client.screen.info', {})
         if r.get('type') == 'DeathScreen':
             click_button(RESPAWN_LABELS, gone_type='DeathScreen')
@@ -147,7 +150,7 @@ def preflight(label):
         print(f'[{label}] PREFLIGHT FAIL: flags not live: {missing}', flush=True)
         return False
     # hotbar gear check via script_eval-free player snapshot (client inventory list)
-    inv = rpc('mc.client.player', {}).get('inventory') or []
+    inv = (rpc('mc.client.player', {}).get('inventory') or {}).get('slots') or []
     hot = {i.get('id') for i in inv if isinstance(i, dict) and i.get('slot', 99) < 9}
     need = {'minecraft:water_bucket', 'minecraft:diamond_pickaxe'}
     lack = need - hot
@@ -216,7 +219,7 @@ def live_journey(label):
         if el - gearCheck > 20:
             gearCheck = el
             try:
-                inv = r.get('inventory') or []
+                inv = (r.get('inventory') or {}).get('slots') or []
                 hot = {i.get('id') for i in inv if isinstance(i, dict) and i.get('slot', 99) < 9}
                 if 'minecraft:water_bucket' not in hot:
                     rpc('mc.client.chat.send', {'text': '/give @p water_bucket'})
@@ -235,7 +238,7 @@ def live_journey(label):
         if apos is None or math.dist((x, z), apos) > 2.0:
             apos = (x, z); asince = el
         worst = max(worst, el - asince)
-        if r['health'] <= 0:
+        if r['vitals']['health'] <= 0:
             print(f'[{label}] LIVE DIED @({x:.0f},{z:.0f})', flush=True); return None
         if d < 8:
             verdict = 'ARRIVED' if worst <= 30 else 'ARRIVED-SLOW'   # >30s single stall breaks the "no hesitation" bar (#47) — the cycle is NOT green even if replays pass
@@ -247,7 +250,7 @@ def live_journey(label):
             # walker (and its DrowningEscape) stopped, an underwater stall drowns the idle
             # bot before the next journey's ensure_alive (observed live: hp0 post-C24-J3).
             rpc('mc.bot.cancel', {})
-            if r.get('underWater') or r.get('inWater'):
+            if r['body']['underWater'] or r['body']['inWater']:
                 rpc('mc.client.chat.send', {'text': f'/tp @p {x:.0f} {r["pos"]["y"]+12:.0f} {z:.0f}'})
                 time.sleep(2)
                 rpc('mc.client.chat.send', {'text': '/tp @p ~ ~ ~'})
@@ -288,15 +291,15 @@ def _self_test():
             if m == 'mc.client.screen.tree':
                 return tree
             if m == 'mc.client.input.click':
-                return {'ok': True, 'handled': handled}
+                return {'outcome': 'done', 'handled': handled, 'contextId': 'c-1'}
             if m == 'mc.client.screen.info':
                 return {'type': after}
             raise AssertionError('unexpected rpc ' + m)
         return _rpc_stub
 
     def button(msg, x=100, y=150, w=200, h=20, visible=True, active=True):
-        return {'type': 'Button', 'message': msg, 'x': x, 'y': y, 'width': w,
-                'height': h, 'visible': visible, 'active': active}
+        return {'type': 'Button', 'message': msg, 'box': {'x': x, 'y': y, 'width': w, 'height': h},
+                'visible': visible, 'active': active}
 
     def check(name, fn, want_err=None):
         try:
@@ -310,19 +313,19 @@ def _self_test():
         if want_err is not None:
             failures.append(f'{name}: expected a raise ({want_err!r}), got none')
 
-    death = {'type': 'DeathScreen',
-             'children': [button('Respawn'), button('Title Screen', y=175)]}
+    death = {'type': 'DeathScreen', 'contextId': 'c-1',
+             'nodes': [button('Respawn'), button('Title Screen', y=175)]}
 
     # 1. happy path — clicks the CENTRE of the matched bbox, not a fixed pixel
     calls = []
     rpc = fake(death, calls=calls)
     check('respawn clicked', lambda: click_button(RESPAWN_LABELS, gone_type='DeathScreen'))
     clicked = [p for m, p in calls if m == 'mc.client.input.click']
-    if clicked != [{'x': 200, 'y': 160}]:
+    if clicked != [{'x': 200, 'y': 160, 'contextId': 'c-1'}]:
         failures.append(f'centre of (100,150,200x20) should be (200,160); got {clicked}')
 
     # 2. the label is not on screen — must name what IS, never guess a neighbour
-    rpc = fake({'type': 'DeathScreen', 'children': [button('Title Screen')]})
+    rpc = fake({'type': 'DeathScreen', 'contextId': 'c-1', 'nodes': [button('Title Screen')]})
     check('unknown label', lambda: click_button(RESPAWN_LABELS, gone_type='DeathScreen'),
           'labels present')
 
@@ -338,12 +341,12 @@ def _self_test():
 
     # 5. a disabled or hidden widget with the right label is not a target
     for why, kw in (('inactive', {'active': False}), ('invisible', {'visible': False})):
-        rpc = fake({'type': 'DeathScreen', 'children': [button('Respawn', **kw)]})
+        rpc = fake({'type': 'DeathScreen', 'contextId': 'c-1', 'nodes': [button('Respawn', **kw)]})
         check(why + ' button', lambda: click_button(RESPAWN_LABELS, gone_type='DeathScreen'),
               'no active button')
 
-    # 6. a screen with no children at all (tree arrived before the widgets did)
-    rpc = fake({'type': 'DeathScreen'})
+    # 6. a screen with no nodes at all (tree arrived before the widgets did)
+    rpc = fake({'type': 'DeathScreen', 'contextId': 'c-1'})
     check('empty tree', lambda: click_button(RESPAWN_LABELS, gone_type='DeathScreen'),
           'labels present')
 
@@ -436,7 +439,7 @@ for j in range(1, 4):
         # "False" because the end pos was sampled the instant the line tripped).
         time.sleep(4)
         ep = rpc('mc.client.player', {})['pos']
-        at_goal = math.dist((ep['x'], ep['z']), (gx, gz)) < 14 and rpc('mc.client.player', {})['health'] > 0
+        at_goal = math.dist((ep['x'], ep['z']), (gx, gz)) < 14 and rpc('mc.client.player', {})['vitals']['health'] > 0
         # Between-replay placement: the walker stops at the replay verdict and the idle
         # driver is deliberately passive (user directive), so a bot left submerged here
         # drowns before the next round starts (C41-J3 death, C44-J3 near-death).
@@ -446,7 +449,7 @@ for j in range(1, 4):
         # not enough; push 2 extra blocks clear so it lands/breathes while idle.
         rose = 0
         for _ in range(12):
-            if not rpc('mc.client.player', {}).get('underWater'):
+            if not rpc('mc.client.player', {})['body']['underWater']:
                 if rose == 0: break
                 rpc('mc.client.chat.send', {'text': '/execute as @p at @p run tp @p ~ ~2 ~'}); time.sleep(0.4)
                 rose -= 1
@@ -462,7 +465,7 @@ for j in range(1, 4):
 try:
     rpc('mc.bot.cancel', {}); time.sleep(0.5)
     for _ in range(10):                      # step up 2 blocks at a time until the head clears water
-        if not rpc('mc.client.player', {}).get('underWater'): break
+        if not rpc('mc.client.player', {})['body']['underWater']: break
         rpc('mc.client.chat.send', {'text': '/execute as @p at @p run tp @p ~ ~2 ~'}); time.sleep(0.5)
 except Exception:
     pass

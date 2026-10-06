@@ -26,9 +26,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import net.magicterra.worlddriver.client.ClientHooks;
 import net.magicterra.worlddriver.client.ClientDriverApi;
-import net.magicterra.worlddriver.bot.BotApi;
 import java.util.Set;
-import net.magicterra.worlddriver.bot.BotHooks;
 
 /* Ring buffer cap keeps memory bounded for long-running servers. Old events
  * roll off; eventsSince(cursor) on an out-of-window cursor returns whatever
@@ -139,18 +137,6 @@ public final class DriverApplication extends DriverApi {
         // compact, glanceable substitute for parsing block + threat JSON when
         // making fast tactical/flee decisions. Server-side (works headless).
         routes.put("mc.observe.map", p -> observe.map(p));
-        routes.put("mc.observe.container", p -> {
-            // No `pos` → look at whatever container menu is open client-side
-            // (player inventory, crafting table, the chest the server just
-            // pushed). Useful so callers can read slots without first knowing
-            // a world coordinate, and so the call works on a client MCP that
-            // isn't attached to a server.
-            if (!(p.get("pos") instanceof Map)) {
-                var c = clientOrNull();
-                if (c != null) return c.observeContainerMenu();
-            }
-            return observe.container(p);
-        });
         routes.put("mc.wait.event",       p -> wait.event(p));
         routes.put("mc.wait.worldReady",  p -> wait.worldReady(p));
         routes.put("mc.wait.condition",   p -> wait.condition(p));
@@ -184,7 +170,6 @@ public final class DriverApplication extends DriverApi {
             return query(QueryParams.from(p));
         });
 
-        registerClientRoutes();
         registry().registerBatch(coreBatch);
     }
 
@@ -196,80 +181,8 @@ public final class DriverApplication extends DriverApi {
     private List<net.magicterra.worlddriver.api.ApiMethod<?, ?>> coreMethods() {
         List<net.magicterra.worlddriver.api.ApiMethod<?, ?>> all = new ArrayList<>(new BotActions(this).methods());
         all.addAll(new ScriptMethods(() -> scriptHost).methods());
+        all.addAll(new ClientMethods(this).methods());
         return all;
-    }
-
-    private void registerClientRoutes() {
-        // Client routes. Resolution is deferred to call time so the broker's
-        // registration ordering doesn't matter; on a dedicated server the impl
-        // is never bound and these throw a recognizable IllegalStateException
-        // which the JS test harness catches to skip gracefully.
-        routes.put("mc.client.screen.tree",          p -> requireClient().screenTree());
-        routes.put("mc.client.screen.info",          p -> requireClient().screenInfo());
-        // Client-AUTHORITATIVE player + world reads. Unlike mc.observe.player /
-        // mc.query (which prefer the SERVER when one is attached), these ALWAYS
-        // read the client LocalPlayer / ClientLevel — so an agent (or a
-        // mc.script.eval snippet) can see what the *client* predicts: pose,
-        // isInWall, eye-cell block — and diff it against the server. This is the
-        // introspection the client-tick reflexes (autoSwim, antiSuffocate) gate
-        // on; without it a desync (e.g. the client crawl-evading a command-placed
-        // block while the server suffocates) is invisible from the agent side.
-        routes.put("mc.client.player",               p -> requireClient().observePlayer());
-        routes.put("mc.client.scene",                p -> requireBot().worldModel().snapshot().toMap());
-        routes.put("mc.client.blocks",               p -> {
-            ClientDriverApi c = requireClient();
-            int r = 4;
-            String typeFilter = null;
-            Object filter = p.get("filter");
-            if (filter instanceof Map<?, ?> fm) {
-                if (fm.get("in_radius") instanceof Number rn) r = rn.intValue();
-                if (fm.get("type") instanceof String s && !s.isBlank()) typeFilter = s;
-            }
-            Double cx = null, cy = null, cz = null;
-            if (p.get("center") instanceof Map<?, ?> cm
-                    && cm.get("x") instanceof Number nx
-                    && cm.get("y") instanceof Number ny
-                    && cm.get("z") instanceof Number nz) {
-                cx = nx.doubleValue(); cy = ny.doubleValue(); cz = nz.doubleValue();
-            }
-            Set<String> ids = (typeFilter == null) ? null
-                    : new LinkedHashSet<>(Set.of(typeFilter));
-            return c.observeArea(r, cx, cy, cz, ids);
-        });
-        // Inventory / pause are reachable via mc.client.input.key{key:'E'} /
-        // {key:'ESCAPE'} — same vanilla path. No separate tool needed.
-        routes.put("mc.client.chat.send",            p -> requireClient().chatSend(
-                (String) p.get("text"),
-                p.get("awaitReplyMs") instanceof Number n ? n.intValue() : 0));
-        routes.put("mc.client.chat.history",         p -> requireClient().chatHistory(
-                p.get("limit") instanceof Number ln ? ln.intValue() : 50,
-                p.get("sinceSeq") instanceof Number sn ? sn.longValue() : 0L));
-        routes.put("mc.client.overlays",             p -> requireClient().overlays(
-                !(p.get("tutorial") instanceof Boolean tb) || tb,
-                !(p.get("toasts") instanceof Boolean tt) || tt));
-        routes.put("mc.client.screen.close",         p -> requireClient().closeScreen());
-        routes.put("mc.client.input.click",          p -> requireClient().click(
-                numD(p.get("x")), numD(p.get("y")), num(p.getOrDefault("button", 0))));
-        routes.put("mc.client.input.slotClick",      p -> requireClient().slotClick(
-                num(p.get("slot")), num(p.getOrDefault("button", 0)),
-                (String) p.getOrDefault("type", "pickup")));
-        routes.put("mc.client.input.mouseMove",      p -> requireClient().mouseMove(
-                numD(p.get("x")), numD(p.get("y"))));
-        routes.put("mc.client.input.setHotbarSlot",  p -> requireClient().setHotbarSlot(num(p.get("slot"))));
-        routes.put("mc.client.input.typeText",       p -> requireClient().typeText((String) p.get("text")));
-        routes.put("mc.client.input.replaceText",    p -> requireClient().replaceText(
-                (String) p.get("text"), (String) p.get("match")));
-        routes.put("mc.client.input.slider",         p -> requireClient().setSlider(
-                (String) p.get("match"),
-                p.get("index") == null ? null : num(p.get("index")),
-                p.get("fraction") == null ? null : numD(p.get("fraction"))));
-        routes.put("mc.client.input.key",            p -> requireClient().key(
-                (String) p.get("key"), (String) p.get("action"), (String) p.get("route"),
-                p.get("modifiers")));
-        routes.put("mc.client.input.keybind",        p -> requireClient().keybind(
-                (String) p.get("name"), (String) p.get("action")));
-        routes.put("mc.client.screenshot",           p -> requireClient().screenshot(p));
-
     }
 
     /**
@@ -288,12 +201,6 @@ public final class DriverApplication extends DriverApi {
 
     private static ClientDriverApi clientOrNull() {
         return ClientHooks.impl();
-    }
-
-    private static BotApi requireBot() {
-        BotApi b = BotHooks.impl();
-        if (b == null) throw new IllegalStateException("mc.bot.* not available (client only; bot impl not registered)");
-        return b;
     }
 
     public void attachServer(MinecraftServer s) {
@@ -411,7 +318,6 @@ public final class DriverApplication extends DriverApi {
     MinecraftServer server() { return server; }
 
     private int num(Object o) { return Params.toInt(o, 0); }
-    private double numD(Object o) { return Params.toDouble(o, 0.0); }
 
     /**
      * Action-route wrapper. When {@code params.returnEvents == true}, capture the

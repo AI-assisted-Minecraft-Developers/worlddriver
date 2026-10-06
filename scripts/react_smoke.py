@@ -5,8 +5,8 @@ ReAct-style smoke driver for the WorldDriver client RPC.
 Loop shape per step:
   Observe → screenshot + screen.info + screen.tree
   Think   → match current screen.type against the goal, find a widget by label
-  Act     → mc.client.input.click on the widget's (x+w/2, y+h/2) in MC internal coords
-            (or call mc.client.screen.{openPause,close} for non-button transitions)
+  Act     → mc.client.input.click on the centre of the widget's box in MC internal coords,
+            held to the tree's contextId (or input.key ESCAPE / screen.close otherwise)
   Observe → re-fetch screen.info, confirm we transitioned
 
 No xdotool, no OS-level input. All navigation goes through the WebSocket RPC.
@@ -69,14 +69,15 @@ class Rpc:
 
 
 # ------------------------------------------------------------------ Helpers --
-def find_widget(node, predicate):
-    """Depth-first search for the first widget node where predicate(node) is True."""
-    if predicate(node):
-        return node
-    for child in node.get("children", []) if isinstance(node, dict) else []:
-        hit = find_widget(child, predicate)
-        if hit is not None:
-            return hit
+def find_widget(tree, predicate):
+    """The first node of a screen.tree reply where predicate(node) is True.
+
+    The tree arrives flattened depth-first, so a scan in order is the depth-first search.
+    The hit carries the tree's contextId, so click_widget can hold its click to that screen.
+    """
+    for node in tree.get("nodes", []) if isinstance(tree, dict) else []:
+        if predicate(node):
+            return dict(node, contextId=tree.get("contextId"))
     return None
 
 
@@ -128,12 +129,16 @@ async def observe(rpc):
 
 
 async def click_widget(rpc, widget, why):
-    cx = widget["x"] + widget["width"] / 2
-    cy = widget["y"] + widget["height"] / 2
+    box = widget["box"]
+    cx = box["x"] + box["width"] / 2
+    cy = box["y"] + box["height"] / 2
     label = widget.get("message", "<no-label>")
     print(f"  [act ] click '{label}' @({cx:.1f},{cy:.1f})  // {why}")
     trace("act", action="click", label=label, x=cx, y=cy, reason=why)
-    return await rpc.call("mc.client.input.click", {"x": cx, "y": cy, "button": 0})
+    params = {"x": cx, "y": cy, "button": 0}
+    if widget.get("contextId"):
+        params["contextId"] = widget["contextId"]
+    return await rpc.call("mc.client.input.click", params)
 
 
 async def wait_until(rpc, predicate, *, label, timeout=120, poll=1.0):
@@ -310,7 +315,7 @@ async def main():
         await shot(rpc, "04-in-world", settle=0.5)
 
         print("\n=== Step 4: open pause menu via RPC ===")
-        await rpc.call("mc.client.screen.openPause")
+        await rpc.call("mc.client.input.key", {"key": "ESCAPE"})
         await wait_until(rpc, lambda i: i.get("type") == "PauseScreen", label="PauseScreen")
         await park_cursor(rpc)
         await shot(rpc, "05-pause-menu", settle=0.8)

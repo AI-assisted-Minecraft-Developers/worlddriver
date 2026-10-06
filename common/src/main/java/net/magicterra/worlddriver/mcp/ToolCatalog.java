@@ -18,7 +18,6 @@ import java.util.function.Supplier;
 import static net.magicterra.worlddriver.mcp.schema.Schemas.object;
 import static net.magicterra.worlddriver.mcp.schema.Schemas.tool;
 
-import net.magicterra.worlddriver.mcp.catalog.ClientTools;
 import net.magicterra.worlddriver.mcp.catalog.ObserveActionTools;
 import net.magicterra.worlddriver.mcp.catalog.RecipeTools;
 import net.magicterra.worlddriver.mcp.catalog.ScriptTools;
@@ -245,7 +244,6 @@ public final class ToolCatalog {
         all.addAll(ObserveActionTools.tools());
         all.addAll(RecipeTools.tools());
         all.addAll(WaitTools.tools());
-        all.addAll(ClientTools.tools());
         return all;
     }
 

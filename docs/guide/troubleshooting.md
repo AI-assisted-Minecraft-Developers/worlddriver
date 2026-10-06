@@ -80,8 +80,8 @@ player and there is none. The message says which.
 
 ## The client-only tools fail on a dedicated server
 
-**Symptom.** `mc.client.*` calls return `isError` with `mc.client.* not available (no client
-registered)`, or a `mc.bot.*` call returns `mc.bot.* not available (client only; bot impl
+**Symptom.** `mc.client.*` calls fail with `capability_unavailable` (`mc.client.* needs a
+game client, and this JVM has none`), or a `mc.bot.*` call returns `mc.bot.* not available (client only; bot impl
 not registered)`.
 
 **Cause.** Those verbs need a Minecraft client in the same JVM. A dedicated server never

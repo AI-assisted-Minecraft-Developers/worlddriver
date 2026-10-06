@@ -1,15 +1,21 @@
 package net.magicterra.worlddriver.client.internal;
 
+import net.magicterra.worlddriver.api.methods.ClientContracts.ClientRefusal;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ClientReply;
+import net.magicterra.worlddriver.api.methods.ClientContracts.Refused;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.KeyAction;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.KeybindDriven;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.KeybindParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.Keybinding;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.KeybindsListed;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.language.I18n;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Optional;
 
 import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
 
@@ -34,35 +40,30 @@ public final class ClientKeybinds {
     /** How long a click waits for the tick that carries its release before reporting it undelivered. */
     private static final long CLICK_RELEASE_MS = 2_000;
 
-    public static Map<String, Object> keybind(String name, String action) {
-        final String want = name == null ? "" : name.trim();
-        final String act = (action == null || action.isBlank()) ? "click" : action.trim().toLowerCase(Locale.ROOT);
-        if (!act.equals("press") && !act.equals("release") && !act.equals("click")) {
-            return Map.of("ok", false, "error", "action must be press|release|click (got " + act + ")");
-        }
+    public static ClientReply keybind(KeybindParams p) {
+        final String want = p.name().map(String::trim).orElse("");
+        final KeyAction act = p.action();
         final KeyMapping[] held = new KeyMapping[1];
-        Map<String, Object> out = runOnClient(() -> {
+        ClientReply out = runOnClient(() -> {
+            ScreenContext.require(p.contextId());
             KeyMapping[] all = Minecraft.getInstance().options.keyMappings;
             if (want.isEmpty()) return list(all);
             List<KeyMapping> hits = resolve(all, want);
             if (hits.isEmpty()) {
-                return Map.of("ok", false, "reason", "no_such_keybind",
-                        "error", "no key mapping matches '" + want
-                                + "' — call this with no name to list every mapping");
+                return new Refused(ClientRefusal.NO_TARGET, "no key mapping matches '" + want
+                        + "' — call this with no name to list every mapping");
             }
             if (hits.size() > 1) {
-                return Map.of("ok", false, "reason", "ambiguous",
-                        "error", "'" + want + "' matches " + hits.size() + " mappings: " + names(hits));
+                return new Refused(ClientRefusal.AMBIGUOUS,
+                        "'" + want + "' matches " + hits.size() + " mappings: " + names(hits));
             }
             KeyMapping km = hits.get(0);
-            if (act.equals("release")) {
+            if (act == KeyAction.RELEASE) {
                 String raw = fireRaw(km, false);
                 // Unconditionally, unlike the press: vanilla's release does the same thing, and a
                 // mapping left down walks the player into whatever runs next.
                 km.setDown(false);
-                Map<String, Object> m = reply(km, act, km.clickCount);
-                m.put("rawEvent", raw);
-                return m;
+                return reply(km, act, km.clickCount, true, raw);
             }
             // Count the click BEFORE the event, then take one back if vanilla counted one too.
             //
@@ -82,41 +83,42 @@ public final class ClientKeybinds {
             String raw = fireRaw(km, true);
             if (km.clickCount >= before + 2) km.clickCount--;
             held[0] = km;
-            Map<String, Object> m = reply(km, act, km.clickCount);
-            m.put("rawEvent", raw);
-            return m;
+            return reply(km, act, km.clickCount, false, raw);
         });
-        if (!act.equals("click") || !Boolean.TRUE.equals(out.get("ok")) || held[0] == null) return out;
+        if (act != KeyAction.CLICK || !(out instanceof KeybindDriven pressed) || held[0] == null) return out;
         // Same reason as mc.client.input.key's click: a keystroke spans ticks, and the mapping's
         // owner only gets its turn on a tick boundary. Holding it down until then is what makes a
         // click of a movement binding move anything.
         final KeyMapping km = held[0];
         // The screen as of the release tick, not of the press: the press is what opens one, and
         // that is the tick it becomes visible on.
-        String after = ClientThread.runNextTick(() -> {
+        String[] after = ClientThread.runNextTick(() -> {
             km.setDown(false);
             fireRaw(km, false);
-            Screen s = Minecraft.getInstance().screen;
-            return s == null ? "none" : s.getClass().getSimpleName();
+            return new String[] {screenName(), ScreenContext.current()};
         }, CLICK_RELEASE_MS);
-        Map<String, Object> full = new LinkedHashMap<>(out);
-        full.put("released", after != null);
-        if (after != null) full.put("screenAfter", after);
         if (after == null) {
-            full.put("releaseNote", "the client did not tick within " + CLICK_RELEASE_MS
-                    + " ms, so the binding is still down — send action release once it ticks again");
+            return new KeybindDriven(pressed.name(), pressed.title(), pressed.key(), pressed.boundTo(), pressed.category(),
+                    pressed.down(), act, pressed.clicks(), false, pressed.rawEvent(), pressed.windowActive(),
+                    pressed.mouseGrabbed(), pressed.screenAfter(),
+                    Optional.of("the client did not tick within " + CLICK_RELEASE_MS
+                            + " ms, so the binding is still down — send action release once it ticks again"),
+                    pressed.contextId());
         }
-        return full;
+        return new KeybindDriven(pressed.name(), pressed.title(), pressed.key(), pressed.boundTo(), pressed.category(),
+                pressed.down(), act, pressed.clicks(), true, pressed.rawEvent(), pressed.windowActive(),
+                pressed.mouseGrabbed(), after[0], Optional.empty(), after[1]);
     }
 
-    private static Map<String, Object> list(KeyMapping[] all) {
-        List<Map<String, Object>> rows = new ArrayList<>(all.length);
+    private static String screenName() {
+        var s = Minecraft.getInstance().screen;
+        return s == null ? "none" : s.getClass().getSimpleName();
+    }
+
+    private static KeybindsListed list(KeyMapping[] all) {
+        List<Keybinding> rows = new ArrayList<>(all.length);
         for (KeyMapping km : all) rows.add(describe(km));
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("ok", true);
-        m.put("count", rows.size());
-        m.put("keybinds", rows);
-        return m;
+        return new KeybindsListed(rows);
     }
 
     /** Exact id first, so a caller that knows the id is never told its name is ambiguous. */
@@ -133,39 +135,26 @@ public final class ClientKeybinds {
         return loose;
     }
 
-    private static Map<String, Object> describe(KeyMapping km) {
-        Map<String, Object> r = new LinkedHashMap<>();
-        r.put("name", km.getName());
-        r.put("title", title(km));
-        // Both, because they answer different questions: saveString() is the bound key's id
-        // ("key.keyboard.y"), which reads as an unmodified binding and is why ALT+Y looked
+    private static Keybinding describe(KeyMapping km) {
+        // key and boundTo both, because they answer different questions: saveString() is the bound
+        // key's id ("key.keyboard.y"), which reads as an unmodified binding and is why ALT+Y looked
         // pressable through input.key, while the translated message is what the human sees in the
         // controls screen and carries the modifier ("Alt + Y") on a loader that has them.
-        r.put("key", km.saveString());
-        r.put("boundTo", km.getTranslatedKeyMessage().getString());
-        r.put("bound", !km.isUnbound());
-        r.put("category", km.getCategory());
-        r.put("down", km.isDown());
-        return r;
+        return new Keybinding(km.getName(), title(km), km.saveString(), km.getTranslatedKeyMessage().getString(),
+                !km.isUnbound(), km.getCategory(), km.isDown());
     }
 
-    private static Map<String, Object> reply(KeyMapping km, String act, int clicks) {
+    private static KeybindDriven reply(KeyMapping km, KeyAction act, int clicks, boolean released, String raw) {
         Minecraft mc = Minecraft.getInstance();
-        Map<String, Object> m = new LinkedHashMap<>(describe(km));
-        m.put("ok", true);
-        m.put("action", act);
-        m.put("clicks", clicks);
-        m.put("released", act.equals("release"));
-        // The two gates a mod's key handler is most likely to put in front of itself, reported so a
-        // caller whose keystroke vanished can tell "the mod refused it" from "it never arrived":
-        // Yes Steve Model, to pick the one that was measured, does nothing unless the window is
-        // focused and the mouse is grabbed, whatever the binding says.
-        m.put("windowActive", mc.isWindowActive());
-        m.put("mouseGrabbed", mc.mouseHandler.isMouseGrabbed());
-        // What this keystroke left standing: the caller's NEXT one is routed by it, and a key sent
-        // at a screen nobody knows is open comes back undelivered and reads like a broken verb.
-        m.put("screenAfter", mc.screen == null ? "none" : mc.screen.getClass().getSimpleName());
-        return m;
+        // windowActive/mouseGrabbed: the two gates a mod's key handler is most likely to put in front
+        // of itself, reported so a caller whose keystroke vanished can tell "the mod refused it" from
+        // "it never arrived": Yes Steve Model, to pick the one that was measured, does nothing unless
+        // the window is focused and the mouse is grabbed, whatever the binding says.
+        // screenAfter: what this keystroke left standing. The caller's NEXT one is routed by it, and
+        // a key sent at a screen nobody knows is open comes back undelivered and reads like a broken verb.
+        return new KeybindDriven(km.getName(), title(km), km.saveString(), km.getTranslatedKeyMessage().getString(),
+                km.getCategory(), km.isDown(), act, clicks, released, raw, mc.isWindowActive(),
+                mc.mouseHandler.isMouseGrabbed(), screenName(), Optional.empty(), ScreenContext.current());
     }
 
     /**

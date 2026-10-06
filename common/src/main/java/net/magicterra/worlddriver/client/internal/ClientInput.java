@@ -1,12 +1,40 @@
 package net.magicterra.worlddriver.client.internal;
 
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ClientRefusal;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ClientReply;
+import net.magicterra.worlddriver.api.methods.ClientContracts.Refused;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.ClickParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.Clicked;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.CloseParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.Closed;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.HotbarParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.HotbarSelected;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.KeyAction;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.KeyParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.KeyRoute;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.KeySent;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.KeyVia;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.Modifier;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.MoveParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.Moved;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.ReplaceParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.Replaced;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.Slider;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.SliderParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.SliderSet;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.SlidersRead;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.SlotClickParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.SlotClicked;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.TypeParams;
+import net.magicterra.worlddriver.api.methods.ScreenContracts.Typed;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.player.LocalPlayer;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.Optional;
 
 import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
@@ -14,7 +42,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import net.minecraft.world.inventory.ClickType;
-import net.minecraft.client.KeyboardHandler;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -22,146 +49,123 @@ import net.minecraft.client.gui.components.events.ContainerEventHandler;
 
 /**
  * Input synthesis for {@code mc.client.screen.close} and {@code mc.client.input.*}
- * (click / slotClick / mouseMove / setHotbarSlot / typeText / key). Stateless;
- * extracted from {@code ClientDriverApiImpl}.
+ * (click / slotClick / mouseMove / setHotbarSlot / typeText / replaceText / slider / key).
+ * Stateless. Each write checks the caller's {@code contextId} on the client thread as its
+ * first step, so a refused one has done nothing.
  */
 public final class ClientInput {
     private ClientInput() {}
 
-    public static Map<String, Object> closeScreen() {
+    public static Closed closeScreen(CloseParams p) {
         return runOnClient(() -> {
-            Minecraft.getInstance().setScreen(null);
-            return Map.of("ok", true);
+            ScreenContext.require(p.contextId());
+            Minecraft mc = Minecraft.getInstance();
+            Optional<String> was = Optional.ofNullable(mc.screen).map(s -> s.getClass().getSimpleName());
+            mc.setScreen(null);
+            return new Closed(was, ScreenContext.current());
         });
     }
 
-    public static Map<String, Object> click(double x, double y, int button) {
+    private static Refused noScreen() {
+        return new Refused(ClientRefusal.NO_SCREEN, "no screen is open");
+    }
+
+    private static Refused noPlayer() {
+        return new Refused(ClientRefusal.NO_PLAYER, "no player is in a world on this client");
+    }
+
+    public static ClientReply click(ClickParams p) {
         return runOnClient(() -> {
-            Minecraft mc = Minecraft.getInstance();
-            Screen s = mc.screen;
-            if (s == null) {
-                Map<String, Object> r = new LinkedHashMap<>();
-                r.put("ok", false);
-                r.put("error", "no screen open");
-                return r;
-            }
+            ScreenContext.require(p.contextId());
+            Screen s = Minecraft.getInstance().screen;
+            if (s == null) return noScreen();
             // Fire mouseMoved first so HoverButton/Tooltip widgets register the
             // cursor over the target before the click lands — otherwise widgets
             // that toggle on hover (e.g. AbstractSelectionList row highlight)
             // miss the state transition and the click looks like it landed on a
             // non-active widget.
-            s.mouseMoved(x, y);
-            boolean handled = s.mouseClicked(x, y, button);
-            s.mouseReleased(x, y, button);
-            return Map.of("ok", true, "handled", handled);
+            s.mouseMoved(p.x(), p.y());
+            boolean handled = s.mouseClicked(p.x(), p.y(), p.button());
+            s.mouseReleased(p.x(), p.y(), p.button());
+            return new Clicked(handled, ScreenContext.current());
         });
     }
 
-    public static Map<String, Object> slotClick(int slotIndex, int button, String type) {
-        final String tn = (type == null || type.isBlank()) ? "pickup" : type.trim().toLowerCase(Locale.ROOT);
-        // Map our short names to the vanilla enum. Surface the mapping in the
-        // tool description so callers don't have to crack open ClickType.java.
-        ClickType ct;
-        switch (tn) {
-            case "pickup"     -> ct = ClickType.PICKUP;
-            case "quickmove"  -> ct = ClickType.QUICK_MOVE;
-            case "swap"       -> ct = ClickType.SWAP;
-            case "clone"      -> ct = ClickType.CLONE;
-            case "throw"      -> ct = ClickType.THROW;
-            case "pickupall"  -> ct = ClickType.PICKUP_ALL;
-            case "quickcraft" -> ct = ClickType.QUICK_CRAFT;
-            default -> {
-                return Map.of("ok", false,
-                        "error", "type must be one of pickup|quickMove|swap|clone|throw|pickupAll|quickCraft (got " + type + ")");
-            }
-        }
-        final ClickType clickType = ct;
+    public static ClientReply slotClick(SlotClickParams p) {
+        ClickType clickType = switch (p.type()) {
+            case PICKUP -> ClickType.PICKUP;
+            case QUICK_MOVE -> ClickType.QUICK_MOVE;
+            case SWAP -> ClickType.SWAP;
+            case CLONE -> ClickType.CLONE;
+            case THROW -> ClickType.THROW;
+            case PICKUP_ALL -> ClickType.PICKUP_ALL;
+            case QUICK_CRAFT -> ClickType.QUICK_CRAFT;
+        };
         return runOnClient(() -> {
+            ScreenContext.require(p.contextId());
             Minecraft mc = Minecraft.getInstance();
-            Screen s = mc.screen;
-            if (!(s instanceof AbstractContainerScreen<?> acs)) {
-                return Map.of("ok", false, "error", "no container screen open");
+            if (!(mc.screen instanceof AbstractContainerScreen<?> acs)) {
+                return new Refused(ClientRefusal.NO_CONTAINER, "the open screen holds no container menu");
             }
-            if (mc.player == null || mc.gameMode == null) {
-                return Map.of("ok", false, "error", "no local player");
-            }
+            if (mc.player == null || mc.gameMode == null) return noPlayer();
             var menu = acs.getMenu();
-            if (slotIndex < 0 || slotIndex >= menu.slots.size()) {
-                return Map.of("ok", false,
-                        "error", "slot out of range 0.." + (menu.slots.size() - 1));
+            if (p.slot() >= menu.slots.size()) {
+                return new Refused(ClientRefusal.NO_TARGET,
+                        "slot " + p.slot() + " is past the menu's last slot " + (menu.slots.size() - 1));
             }
             // Same path AbstractContainerScreen.slotClicked takes — routes
             // through MultiPlayerGameMode so the server sees a real
             // ServerboundContainerClickPacket and the menu state stays in sync.
-            mc.gameMode.handleInventoryMouseClick(menu.containerId, slotIndex, button, clickType, mc.player);
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("ok", true);
-            out.put("slot", slotIndex);
-            out.put("button", button);
-            out.put("type", tn);
-            return out;
+            mc.gameMode.handleInventoryMouseClick(menu.containerId, p.slot(), p.button(), clickType, mc.player);
+            return new SlotClicked(p.slot(), p.button(), p.type(), ScreenContext.current());
         });
     }
 
-    public static Map<String, Object> mouseMove(double x, double y) {
+    public static Moved mouseMove(MoveParams p) {
         return runOnClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             Screen s = mc.screen;
             double scale = mc.getWindow().getGuiScale();
-            double wx = x * scale;
-            double wy = y * scale;
+            double wx = p.x() * scale;
+            double wy = p.y() * scale;
             // 1) Move the real GLFW cursor — drives any "cursor visible"
             //    indicator and is what live users would experience.
             org.lwjgl.glfw.GLFW.glfwSetCursorPos(mc.getWindow().getWindow(), wx, wy);
             // 2) On Xvfb, glfwSetCursorPos doesn't fire the cursor_pos callback, so
             //    MouseHandler.xpos/ypos stay stale and tooltips render at the *previous*
-            //    hover spot. These were written via getDeclaredField("xpos"/"ypos"), which
-            //    stopped working the moment the jar was remapped (the literals stay
-            //    Mojang-named while the fields become field_1795/field_1794); the access
-            //    widener in :common opens them instead, so this is a plain field write
-            //    that tiny-remapper rewrites like any other reference. The response used
-            //    to carry a "refl" status for that lookup — dropped with the lookup, since
-            //    a field write has no failure mode to report.
+            //    hover spot. The access widener in :common opens those fields, so this is a
+            //    plain field write that tiny-remapper rewrites like any other reference.
             var mh = mc.mouseHandler;
             mh.xpos = wx;
             mh.ypos = wy;
-            if (s != null) s.mouseMoved(x, y);
-            return Map.of("ok", true, "wx", wx, "wy", wy, "scale", scale);
+            if (s != null) s.mouseMoved(p.x(), p.y());
+            return new Moved(wx, wy, scale);
         });
     }
 
-    public static Map<String, Object> setHotbarSlot(int slot) {
-        if (slot < 0 || slot > 8) {
-            return Map.of("ok", false, "error", "slot out of range 0..8 (got " + slot + ")");
-        }
+    public static ClientReply setHotbarSlot(HotbarParams p) {
         return runOnClient(() -> {
-            Minecraft mc = Minecraft.getInstance();
-            LocalPlayer p = mc.player;
-            if (p == null) {
-                Map<String, Object> r = new LinkedHashMap<>();
-                r.put("ok", false);
-                r.put("error", "no local player");
-                return r;
-            }
-            int prev = p.getInventory().selected;
-            p.getInventory().selected = slot;
+            ScreenContext.require(p.contextId());
+            LocalPlayer player = Minecraft.getInstance().player;
+            if (player == null) return noPlayer();
+            int prev = player.getInventory().selected;
+            player.getInventory().selected = p.slot();
             // Sync to server so subsequent useItem / useItemOn / attack packets
             // resolve against the new held item. Mirrors how vanilla key
             // 1..9 press dispatches (Inventory.swapPaint → setCarriedItemPacket).
-            if (p.connection != null) {
-                p.connection.send(new ServerboundSetCarriedItemPacket(slot));
+            if (player.connection != null) {
+                player.connection.send(new ServerboundSetCarriedItemPacket(p.slot()));
             }
-            return Map.of("ok", true, "slot", slot, "previous", prev);
+            return new HotbarSelected(p.slot(), prev, ScreenContext.current());
         });
     }
 
-    public static Map<String, Object> typeText(String text) {
-        final String t = (text == null) ? "" : text;
+    public static ClientReply typeText(TypeParams p) {
+        String t = p.text();
         return runOnClient(() -> {
+            ScreenContext.require(p.contextId());
             Screen s = Minecraft.getInstance().screen;
-            if (s == null) {
-                return Map.of("ok", false, "error", "no screen open");
-            }
+            if (s == null) return noScreen();
             int typed = 0;
             for (int i = 0; i < t.length(); ) {
                 int cp = t.codePointAt(i);
@@ -177,30 +181,29 @@ public final class ClientInput {
                 }
                 typed++;
             }
-            return Map.of("ok", true, "typed", typed, "length", t.length());
+            return new Typed(typed, t.length(), ScreenContext.current());
         });
     }
 
     /**
-     * Replace the entire contents of a text input box. Targets the focused
-     * {@link EditBox} if any; otherwise the box matched by {@code match}
-     * (case-insensitive substring of its message/value), else the sole EditBox
-     * on the screen. Calls {@link EditBox#setValue} so the value-listener fires
-     * exactly as if the user had retyped it. Returns the new value.
+     * Replace the entire contents of a text input box: the box matched by {@code match}
+     * (case-insensitive substring of its message/value), else the focused {@link EditBox},
+     * else the sole EditBox on the screen. Calls {@link EditBox#setValue} so the value-listener
+     * fires exactly as if the user had retyped it.
      *
      * <p>This is the missing twin of {@link #typeText}: typeText APPENDS at the
      * cursor (and can't clear a pre-filled field), so to overwrite a field you
      * had to spam BACKSPACE first. setValue is atomic and reliable.
      */
-    public static Map<String, Object> replaceText(String text, String match) {
-        final String t = (text == null) ? "" : text;
-        final String m = (match == null) ? "" : match.trim().toLowerCase(Locale.ROOT);
+    public static ClientReply replaceText(ReplaceParams p) {
+        String m = p.match().map(x -> x.trim().toLowerCase(Locale.ROOT)).orElse("");
         return runOnClient(() -> {
+            ScreenContext.require(p.contextId());
             Screen s = Minecraft.getInstance().screen;
-            if (s == null) return Map.of("ok", false, "error", "no screen open");
+            if (s == null) return noScreen();
             List<EditBox> edits = new ArrayList<>();
             collectWidgets(s, null, edits);
-            if (edits.isEmpty()) return Map.of("ok", false, "error", "no text box on screen");
+            if (edits.isEmpty()) return new Refused(ClientRefusal.NO_TARGET, "no text box on screen");
             EditBox target = null;
             // 1) explicit match wins
             if (!m.isEmpty()) {
@@ -211,8 +214,8 @@ public final class ClientInput {
                         target = e; break;
                     }
                 }
-                if (target == null) return Map.of("ok", false,
-                        "error", "no text box matching '" + match + "' (found " + edits.size() + ")");
+                if (target == null) return new Refused(ClientRefusal.NO_TARGET,
+                        "no text box matching '" + p.match().get() + "' (found " + edits.size() + ")");
             }
             // 2) focused box
             if (target == null) {
@@ -221,92 +224,80 @@ public final class ClientInput {
             // 3) sole box
             if (target == null) {
                 if (edits.size() == 1) target = edits.get(0);
-                else return Map.of("ok", false,
-                        "error", edits.size() + " text boxes and none focused — pass match");
+                else return new Refused(ClientRefusal.AMBIGUOUS, edits.size() + " text boxes and none focused — pass match");
             }
             String prev = target.getValue();
-            target.setValue(t);
+            target.setValue(p.text());
             target.moveCursorToEnd(false);
-            return Map.of("ok", true, "value", target.getValue(),
-                    "previous", prev == null ? "" : prev);
+            return new Replaced(target.getValue(), prev == null ? "" : prev, ScreenContext.current());
         });
     }
 
     /**
      * Read or set a GUI slider (an {@link AbstractSliderButton} — render distance,
-     * volume, FOV, etc.). With {@code fraction == null} it just READS every slider
+     * volume, FOV, etc.). With no fraction it just READS every slider
      * (label + current 0..1 value) so the agent can see the live value before
-     * touching it. With a fraction in [0,1] it sets the matched slider's value,
+     * touching it. With a fraction it sets the matched slider's value,
      * fires the vanilla {@code applyValue}/{@code updateMessage} hooks (so the
      * option actually applies and the label refreshes), and returns the new
      * label + value.
      *
-     * <p>Target selection mirrors {@link #replaceText}: explicit {@code match}
-     * (case-insensitive substring of the slider's message, e.g. "render") first,
-     * else {@code index} into the on-screen slider list, else the sole slider.
+     * <p>Target selection: explicit {@code match} (case-insensitive substring of the slider's
+     * message, e.g. "render") first, else {@code index} into the on-screen slider list, else the
+     * sole slider.
      */
-    public static Map<String, Object> setSlider(String match, Integer index, Double fraction) {
-        final String m = (match == null) ? "" : match.trim().toLowerCase(Locale.ROOT);
+    public static ClientReply slider(SliderParams p) {
+        String m = p.match().map(x -> x.trim().toLowerCase(Locale.ROOT)).orElse("");
         return runOnClient(() -> {
+            ScreenContext.require(p.contextId());
             Screen s = Minecraft.getInstance().screen;
-            if (s == null) return Map.of("ok", false, "error", "no screen open");
+            if (s == null) return noScreen();
             List<AbstractSliderButton> sliders = new ArrayList<>();
             collectWidgets(s, sliders, null);
-            if (sliders.isEmpty()) return Map.of("ok", false, "error", "no slider on screen");
+            if (sliders.isEmpty()) return new Refused(ClientRefusal.NO_TARGET, "no slider on screen");
 
             // READ mode — list every slider with its label + current value so the
             // agent always knows the live value (the value is only meaningful when
             // shown). Render-distance label like "Render Distance: 5 chunks".
-            if (fraction == null) {
-                List<Map<String, Object>> list = new ArrayList<>();
+            if (p.fraction().isEmpty()) {
+                List<Slider> list = new ArrayList<>();
                 for (int i = 0; i < sliders.size(); i++) {
                     AbstractSliderButton sb = sliders.get(i);
-                    Map<String, Object> e = new LinkedHashMap<>();
-                    e.put("index", i);
-                    e.put("label", sb.getMessage().getString());
-                    e.put("value", readSliderValue(sb));
-                    list.add(e);
+                    list.add(new Slider(i, sb.getMessage().getString(), sb.value));
                 }
-                return Map.of("ok", true, "mode", "read", "count", sliders.size(), "sliders", list);
+                return new SlidersRead(list, ScreenContext.current());
             }
 
-            double f = Math.max(0.0, Math.min(1.0, fraction));
             AbstractSliderButton target = null;
             if (!m.isEmpty()) {
                 for (AbstractSliderButton sb : sliders) {
                     if (sb.getMessage().getString().toLowerCase(Locale.ROOT).contains(m)) { target = sb; break; }
                 }
-                if (target == null) return Map.of("ok", false,
-                        "error", "no slider matching '" + match + "' (found " + sliders.size() + ")");
-            } else if (index != null) {
-                if (index < 0 || index >= sliders.size()) return Map.of("ok", false,
-                        "error", "slider index out of range 0.." + (sliders.size() - 1));
+                if (target == null) return new Refused(ClientRefusal.NO_TARGET,
+                        "no slider matching '" + p.match().get() + "' (found " + sliders.size() + ")");
+            } else if (p.index().isPresent()) {
+                int index = p.index().get();
+                if (index >= sliders.size()) return new Refused(ClientRefusal.NO_TARGET,
+                        "slider index " + index + " is past the last one, " + (sliders.size() - 1));
                 target = sliders.get(index);
             } else if (sliders.size() == 1) {
                 target = sliders.get(0);
             } else {
-                return Map.of("ok", false,
-                        "error", sliders.size() + " sliders — pass match or index");
+                return new Refused(ClientRefusal.AMBIGUOUS, sliders.size() + " sliders — pass match or index");
             }
 
-            double prev = readSliderValue(target);
+            double prev = target.value;
             String prevLabel = target.getMessage().getString();
             // value/applyValue/updateMessage are protected in vanilla and opened by
             // worlddriver.accesswidener. applyValue() commits the new value to the
             // backing Option; updateMessage() refreshes the displayed label. Both must
             // run, and in that order, or the widget shows a stale caption for a value
             // the Option already has.
-            target.value = f;
+            target.value = p.fraction().get();
             target.applyValue();
             target.updateMessage();
-            return Map.of("ok", true, "mode", "set",
-                    "label", target.getMessage().getString(), "value", readSliderValue(target),
-                    "previousLabel", prevLabel, "previousValue", prev);
+            return new SliderSet(target.getMessage().getString(), target.value, prevLabel, prev, ScreenContext.current());
         });
-    }
-
-    private static double readSliderValue(AbstractSliderButton sb) {
-        return sb.value;
     }
 
     /**
@@ -341,10 +332,10 @@ public final class ClientInput {
      * never sent". Vanilla screens in particular almost never consume a key RELEASE, so a
      * correctly delivered click reads as {@code handled:false} on its second half every time.
      */
-    private record Half(String via, boolean delivered, Boolean handled) {}
+    private record Half(KeyVia via, boolean delivered, Boolean handled) {}
 
-    /** That half, plus the screen standing open once it had landed. */
-    private record Tail(Half half, String screenAfter) {}
+    /** That half, plus the screen standing open once it had landed and its context. */
+    private record Tail(Half half, String screenAfter, String contextId) {}
 
     /**
      * The screen open right now, or {@code none}.
@@ -360,77 +351,54 @@ public final class ClientInput {
         return s == null ? "none" : s.getClass().getSimpleName();
     }
 
-    public static Map<String, Object> key(String key, String action, String route, Object modifiers) {
-        final String kn = (key == null) ? "" : key.trim().toUpperCase(Locale.ROOT);
-        final String act = (action == null || action.isBlank()) ? "click" : action.trim().toLowerCase(Locale.ROOT);
-        final String rt = (route == null || route.isBlank()) ? "auto" : route.trim().toLowerCase(Locale.ROOT);
+    public static ClientReply key(KeyParams p) {
+        String kn = p.key().trim().toUpperCase(Locale.ROOT);
         int code = glfwKeyCode(kn);
-        if (code < 0) {
-            return Map.of("ok", false, "error", "unknown key name: " + kn);
-        }
-        if (!act.equals("press") && !act.equals("release") && !act.equals("click")) {
-            return Map.of("ok", false, "error", "action must be press|release|click (got " + act + ")");
-        }
-        if (!rt.equals("auto") && !rt.equals("keybind") && !rt.equals("screen")) {
-            return Map.of("ok", false, "error", "route must be auto|keybind|screen (got " + rt + ")");
-        }
-        final int mods;
-        try {
-            mods = modifierBits(modifiers);
-        } catch (IllegalArgumentException e) {
-            return Map.of("ok", false, "error", "modifiers take shift|ctrl|alt|super (got " + e.getMessage() + ")");
-        }
-        final int scan = org.lwjgl.glfw.GLFW.glfwGetKeyScancode(code);
-        final boolean down = !act.equals("release");
-        Map<String, Object> out = runOnClient(() -> {
+        if (code < 0) throw ApiException.invalidParam("/key", ApiIssue.Code.INVALID_VALUE, "unknown key name: " + p.key());
+        int mods = modifierBits(p.modifiers());
+        int scan = org.lwjgl.glfw.GLFW.glfwGetKeyScancode(code);
+        boolean down = p.action() != KeyAction.RELEASE;
+        ClientReply first = runOnClient(() -> {
+            ScreenContext.require(p.contextId());
             Minecraft mc = Minecraft.getInstance();
             if (mc.screen == null) {
-                if (rt.equals("screen")) {
-                    return Map.of("ok", false, "reason", "no_screen",
-                            "error", "route screen was asked for, but no screen is open");
+                if (p.route() == KeyRoute.SCREEN) {
+                    return new Refused(ClientRefusal.NO_SCREEN, "route screen was asked for, but no screen is open");
                 }
                 // Between worlds there is neither a screen nor a player; the event would reach
-                // nothing, and the old {ok:true, via:"keybind"} said it had been delivered.
+                // nothing, and claiming it was delivered would be false.
                 if (mc.player == null) {
-                    return Map.of("ok", false, "reason", "no_player",
-                            "error", "no screen open and no player to receive the key — open a screen or join a world first");
+                    return new Refused(ClientRefusal.NO_PLAYER,
+                            "no screen open and no player to receive the key — open a screen or join a world first");
                 }
             }
-            Half h = deliver(code, scan, rt, down, mods);
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("ok", true);
-            m.put("key", kn);
-            m.put("code", code);
-            m.put("action", act);
-            m.put("route", rt);
-            m.put("modifiers", mods);
-            m.put("via", h.via());
-            m.put("pressed", down && h.delivered());
-            m.put("released", !down && h.delivered());
-            if (h.handled() != null) m.put(down ? "pressHandled" : "releaseHandled", h.handled());
-            m.put("screenAfter", screenName());
-            return m;
+            Half h = deliver(code, scan, p.route(), down, mods);
+            Optional<Boolean> handled = Optional.ofNullable(h.handled());
+            return new KeySent(kn, code, p.action(), p.route(), p.modifiers(), h.via(), down && h.delivered(),
+                    !down && h.delivered(), down ? handled : Optional.empty(), down ? Optional.empty() : handled,
+                    Optional.empty(), screenName(), Optional.empty(), ScreenContext.current());
         });
-        if (!act.equals("click") || !Boolean.TRUE.equals(out.get("ok"))) return out;
+        if (p.action() != KeyAction.CLICK || !(first instanceof KeySent pressed)) return first;
         // A real keystroke spans ticks, and a click that collapses into one does not act like one:
         // the press can open or close a screen, so the release belongs to whatever is open AFTER
         // it, and vanilla only consumes a keybind's click on a tick boundary. So release on the
         // next client tick, routed again from what is open then.
         Tail rel = ClientThread.runNextTick(
-                () -> new Tail(deliver(code, scan, rt, false, mods), screenName()), CLICK_RELEASE_MS);
-        Map<String, Object> full = new LinkedHashMap<>(out);
-        full.put("released", rel != null && rel.half().delivered());
-        if (rel != null && rel.half().handled() != null) full.put("releaseHandled", rel.half().handled());
-        if (rel != null) full.put("screenAfter", rel.screenAfter());
+                () -> new Tail(deliver(code, scan, p.route(), false, mods), screenName(), ScreenContext.current()),
+                CLICK_RELEASE_MS);
         if (rel == null) {
-            full.put("releaseNote", "the client did not tick within " + CLICK_RELEASE_MS
-                    + " ms, so the key is still down — send action release once it ticks again");
-        } else if (!rel.half().via().equals(out.get("via"))) {
-            // The press moved the screen out from under the release; say so, because the caller's
-            // next read of screen.info is explained by it.
-            full.put("releaseVia", rel.half().via());
+            return new KeySent(kn, code, p.action(), p.route(), p.modifiers(), pressed.via(), pressed.pressed(), false,
+                    pressed.pressHandled(), Optional.empty(), Optional.empty(), pressed.screenAfter(),
+                    Optional.of("the client did not tick within " + CLICK_RELEASE_MS
+                            + " ms, so the key is still down — send action release once it ticks again"),
+                    pressed.contextId());
         }
-        return full;
+        // The press can move the screen out from under the release; say so, because the caller's
+        // next read of screen.info is explained by it.
+        Optional<KeyVia> releaseVia = rel.half().via() == pressed.via() ? Optional.empty() : Optional.of(rel.half().via());
+        return new KeySent(kn, code, p.action(), p.route(), p.modifiers(), pressed.via(), pressed.pressed(),
+                rel.half().delivered(), pressed.pressHandled(), Optional.ofNullable(rel.half().handled()), releaseVia,
+                rel.screenAfter(), Optional.empty(), rel.contextId());
     }
 
     /**
@@ -447,18 +415,18 @@ public final class ClientInput {
      * use it — vanilla would hand the raw event to that screen — so it sets the mapping directly,
      * which is the same thing minus the screen's veto.
      */
-    private static Half deliver(int code, int scan, String route, boolean down, int mods) {
+    private static Half deliver(int code, int scan, KeyRoute route, boolean down, int mods) {
         Minecraft mc = Minecraft.getInstance();
         Screen s = mc.screen;
         boolean toScreen = switch (route) {
-            case "screen" -> true;
-            case "keybind" -> false;
-            default -> s != null;
+            case SCREEN -> true;
+            case KEYBIND -> false;
+            case AUTO -> s != null;
         };
         if (toScreen) {
-            if (s == null) return new Half("screen", false, null);
+            if (s == null) return new Half(KeyVia.SCREEN, false, null);
             boolean took = down ? s.keyPressed(code, scan, mods) : s.keyReleased(code, scan, mods);
-            return new Half("screen", true, took);
+            return new Half(KeyVia.SCREEN, true, took);
         }
         // The keybind routes report no `handled`: neither KeyboardHandler.keyPress nor
         // KeyMapping.set answers, and inventing a `true` would claim a consumption nobody checked.
@@ -466,43 +434,34 @@ public final class ClientInput {
             long window = mc.getWindow().getWindow();
             int glfwAction = down ? org.lwjgl.glfw.GLFW.GLFW_PRESS : org.lwjgl.glfw.GLFW.GLFW_RELEASE;
             mc.keyboardHandler.keyPress(window, code, scan, glfwAction, mods);
-            return new Half("keybind", true, null);
+            return new Half(KeyVia.KEYBIND, true, null);
         }
         com.mojang.blaze3d.platform.InputConstants.Key k =
                 com.mojang.blaze3d.platform.InputConstants.getKey(code, scan);
         net.minecraft.client.KeyMapping.set(k, down);
         if (down) net.minecraft.client.KeyMapping.click(k);
-        return new Half("keybind", true, null);
+        return new Half(KeyVia.KEYBIND, true, null);
     }
 
     /**
-     * GLFW modifier bits from {@code ["alt"]}, {@code "alt+shift"}, or the raw int.
+     * GLFW modifier bits.
      *
      * <p>These reach a SCREEN, which is handed them as the {@code modifiers} argument it reads for
      * its own shortcuts. They do not reach a modified key binding: that match asks
      * {@code Screen.hasAltDown()}, which reads the real keyboard, so a bit set here is invisible to
-     * it — {@code mc.client.input.keybind} is the verb for those. Throws
-     * {@link IllegalArgumentException} naming the token it did not recognize.
+     * it — {@code mc.client.input.keybind} is the verb for those.
      */
-    private static int modifierBits(Object mods) {
-        if (mods == null) return 0;
-        if (mods instanceof Number n) return n.intValue();
-        List<String> names = new ArrayList<>();
-        if (mods instanceof List<?> l) {
-            for (Object o : l) if (o != null) names.add(o.toString());
-        } else {
-            for (String part : mods.toString().split("[+,\\s]+")) names.add(part);
-        }
+    private static int modifierBits(List<Modifier> mods) {
         int bits = 0;
-        for (String raw : names) {
-            switch (raw.trim().toLowerCase(Locale.ROOT)) {
-                case "" -> { }
-                case "shift" -> bits |= org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT;
-                case "ctrl", "control" -> bits |= org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL;
-                case "alt" -> bits |= org.lwjgl.glfw.GLFW.GLFW_MOD_ALT;
-                case "super", "meta", "cmd" -> bits |= org.lwjgl.glfw.GLFW.GLFW_MOD_SUPER;
-                default -> throw new IllegalArgumentException(raw);
-            }
+        for (Modifier m : mods) {
+            bits |= switch (m) {
+                case SHIFT -> org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT;
+                case CTRL -> org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL;
+                case ALT -> org.lwjgl.glfw.GLFW.GLFW_MOD_ALT;
+                case SUPER -> org.lwjgl.glfw.GLFW.GLFW_MOD_SUPER;
+                case CAPS_LOCK -> org.lwjgl.glfw.GLFW.GLFW_MOD_CAPS_LOCK;
+                case NUM_LOCK -> org.lwjgl.glfw.GLFW.GLFW_MOD_NUM_LOCK;
+            };
         }
         return bits;
     }

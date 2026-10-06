@@ -11,7 +11,10 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.methods.ClientContracts;
 import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.client.ClientDriverApi;
+import net.magicterra.worlddriver.client.ClientHooks;
 import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
@@ -74,7 +77,7 @@ import net.minecraft.world.phys.Vec3;
  * value is already in the record.
  *
  * <p><b>Reads only, never marshalled writes.</b> The client side is read through
- * {@code mc.client.player}, which reports {@code selectedSlot} and {@code look.yaw/pitch} off the
+ * {@code mc.client.player}, which reports {@code inventory.selectedSlot} and {@code look.yaw/pitch} off the
  * real {@code LocalPlayer}. That route hops to the client thread and waits — acceptable here because
  * this scene is not inside a task and holds no tick-critical deadline. It would NOT be acceptable
  * from inside {@code JourneyRig}'s await predicate, which is the deadlock this design is otherwise
@@ -655,8 +658,8 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
      */
     private static Integer clientSelectedSlot() {
         Map<?, ?> cp = clientPlayer();
-        if (cp == null) return null;
-        return cp.get("selectedSlot") instanceof Number n ? n.intValue() : null;
+        if (cp == null || !(cp.get("inventory") instanceof Map<?, ?> inv)) return null;
+        return inv.get("selectedSlot") instanceof Number n ? n.intValue() : null;
     }
 
     /** The client's own {yaw, pitch}, or null when it cannot be read. */
@@ -674,12 +677,15 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
      * <p>Exceptions are swallowed deliberately and turned into null: this scene's subject is the
      * DIVERGENCE, and a client that cannot answer is a reading it must report rather than a crash
      * that replaces every other reading with a stack trace.
+     *
+     * <p>Read through the client impl rather than the API: the reading belongs to THIS server tick,
+     * so the server thread waits for the client thread here, which the API refuses a game thread.
      */
     private static Map<?, ?> clientPlayer() {
         try {
-            DriverApi api = WorldDriverCommon.api();
-            if (api == null) return null;
-            Object r = api.route("mc.client.player", Map.of());
+            ClientDriverApi client = ClientHooks.impl();
+            if (client == null) return null;
+            Object r = ClientContracts.CLIENT_PLAYER.encode(client.player());
             if (!(r instanceof Map<?, ?> m)) return null;
             return Boolean.TRUE.equals(m.get("present")) ? m : null;
         } catch (RuntimeException e) {
