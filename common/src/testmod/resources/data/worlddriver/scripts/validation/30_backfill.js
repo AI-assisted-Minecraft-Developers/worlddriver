@@ -1,74 +1,47 @@
-// Phase D8 — autoBackfill setting + BackfillProcess. mc.bot.* is only
-// available on a client JVM with a LocalPlayer; on dedicated-server GameTest
-// CI we PASS-as-skipped.
+// Phase D8 — the autoBackfill settings behind BackfillProcess. The settings are this game's, so the
+// round-trips run on every topology.
 
-function botAvailable() {
-    try {
-        Driver.invoke("mc.bot.setting", {});
-        return true;
-    } catch (e) {
-        return false;
-    }
+/** The DriverApiError a call throws, or null when it returned. */
+function errorOf(call) {
+    try { call(); } catch (e) { return e; }
+    return null;
 }
 
-if (!botAvailable()) {
-    ScriptTest.run("30_backfill: skipped (no mc.bot — dedicated server)",
-        function(t) { /* PASS */ });
-} else {
+ScriptTest.run("30_backfill: a full read includes the autoBackfill keys", function(t) {
+    var s = Driver.bot.readSettings();
+    t.assertEqual(typeof s.autoBackfill, "boolean", "autoBackfill is a boolean");
+    t.assertEqual(typeof s.autoBackfillBlock, "string", "autoBackfillBlock is a string");
+    t.assertEqual(typeof s.autoBackfillRadius, "number", "autoBackfillRadius is a number");
+});
 
-    ScriptTest.run("30_backfill: setting snapshot includes autoBackfill keys",
-        function(t) {
-            var r = Driver.invoke("mc.bot.setting", {});
-            t.assertEqual(r.ok, true, "ok");
-            t.assertTrue("autoBackfill" in r.settings, "autoBackfill key");
-            t.assertTrue("autoBackfillBlock" in r.settings, "autoBackfillBlock key");
-            t.assertTrue("autoBackfillRadius" in r.settings, "autoBackfillRadius key");
-            t.assertEqual(typeof r.settings.autoBackfill, "boolean", "bool type");
-            t.assertEqual(typeof r.settings.autoBackfillBlock, "string", "string type");
-            t.assertEqual(typeof r.settings.autoBackfillRadius, "number", "number type");
-        });
+ScriptTest.run("30_backfill: autoBackfill toggle round-trips", function(t) {
+    var before = Driver.bot.readSettings(["autoBackfill"]).autoBackfill;
+    Driver.bot.patchSettings({ autoBackfill: !before });
+    t.assertEqual(Driver.bot.readSettings(["autoBackfill"]).autoBackfill, !before, "toggled");
+    Driver.bot.patchSettings({ autoBackfill: before });
+});
 
-    ScriptTest.run("30_backfill: autoBackfill toggle round-trips", function(t) {
-        var before = Driver.invoke("mc.bot.setting", {}).settings.autoBackfill;
-        var r = Driver.invoke("mc.bot.setting", { autoBackfill: !before });
-        t.assertEqual(r.ok, true, "ok");
-        t.assertTrue((r.applied || []).indexOf("autoBackfill") >= 0, "applied list");
-        var after = Driver.invoke("mc.bot.setting", {}).settings.autoBackfill;
-        t.assertEqual(after, !before, "toggled");
-        Driver.invoke("mc.bot.setting", { autoBackfill: before });
-    });
+ScriptTest.run("30_backfill: autoBackfillBlock refuses an unregistered id", function(t) {
+    var before = Driver.bot.readSettings(["autoBackfillBlock"]).autoBackfillBlock;
+    var e = errorOf(function() { Driver.bot.patchSettings({ autoBackfillBlock: "minecraft:not_a_real_block_xyz" }); });
+    t.assertEqual(e.issues[0].path, "/updates/0/value", "path");
+    t.assertTrue(e.issues[0].message.indexOf("not_a_real_block_xyz") >= 0, "names the id: " + e.issues[0].message);
+    t.assertEqual(Driver.bot.readSettings(["autoBackfillBlock"]).autoBackfillBlock, before, "unchanged");
+});
 
-    ScriptTest.run("30_backfill: autoBackfillBlock validation rejects bad id",
-        function(t) {
-            var r = Driver.invoke("mc.bot.setting", { autoBackfillBlock: "minecraft:not_a_real_block_xyz" });
-            t.assertEqual(r.ok, true, "settings call still returns ok");
-            t.assertTrue((r.applied || []).indexOf("autoBackfillBlock") < 0, "not applied");
-            var rejStr = JSON.stringify(r.rejected || []);
-            t.assertTrue(rejStr.indexOf("autoBackfillBlock") >= 0, "rejection mentions field");
-            var snap = Driver.invoke("mc.bot.setting", {}).settings;
-            t.assertTrue(snap.autoBackfillBlock !== "minecraft:not_a_real_block_xyz",
-                    "snapshot unchanged");
-        });
+ScriptTest.run("30_backfill: autoBackfillBlock accepts a real block id", function(t) {
+    var before = Driver.bot.readSettings(["autoBackfillBlock"]);
+    t.assertEqual(Driver.bot.patchSettings({ autoBackfillBlock: "minecraft:dirt" }).values[0].value, "minecraft:dirt", "dirt");
+    Driver.bot.patchSettings(before);
+    t.assertEqual(Driver.bot.readSettings(["autoBackfillBlock"]).autoBackfillBlock, before.autoBackfillBlock, "restored");
+});
 
-    ScriptTest.run("30_backfill: autoBackfillBlock accepts a real block id",
-        function(t) {
-            var r = Driver.invoke("mc.bot.setting", { autoBackfillBlock: "minecraft:dirt" });
-            t.assertEqual(r.ok, true, "ok");
-            t.assertTrue((r.applied || []).indexOf("autoBackfillBlock") >= 0, "applied");
-            t.assertEqual(r.settings.autoBackfillBlock, "minecraft:dirt", "snapshot");
-            var restore = Driver.invoke("mc.bot.setting", { autoBackfillBlock: "minecraft:cobblestone" });
-            t.assertEqual(restore.settings.autoBackfillBlock, "minecraft:cobblestone", "restored");
-        });
-
-    ScriptTest.run("30_backfill: autoBackfillRadius range bound [1,16]",
-        function(t) {
-            var lo = Driver.invoke("mc.bot.setting", { autoBackfillRadius: 0 });
-            t.assertTrue((lo.applied || []).indexOf("autoBackfillRadius") < 0, "0 rejected");
-            var hi = Driver.invoke("mc.bot.setting", { autoBackfillRadius: 17 });
-            t.assertTrue((hi.applied || []).indexOf("autoBackfillRadius") < 0, "17 rejected");
-            var mid = Driver.invoke("mc.bot.setting", { autoBackfillRadius: 4 });
-            t.assertTrue((mid.applied || []).indexOf("autoBackfillRadius") >= 0, "4 applied");
-            t.assertEqual(mid.settings.autoBackfillRadius, 4, "snapshot value");
-            Driver.invoke("mc.bot.setting", { autoBackfillRadius: 6 });
-        });
-}
+ScriptTest.run("30_backfill: autoBackfillRadius range bound [1,16]", function(t) {
+    var before = Driver.bot.readSettings(["autoBackfillRadius"]);
+    t.assertEqual(errorOf(function() { Driver.bot.patchSettings({ autoBackfillRadius: 0 }); }).issues[0].code,
+        "out_of_range", "0 refused");
+    t.assertEqual(errorOf(function() { Driver.bot.patchSettings({ autoBackfillRadius: 17 }); }).issues[0].code,
+        "out_of_range", "17 refused");
+    t.assertEqual(Driver.bot.patchSettings({ autoBackfillRadius: 4 }).values[0].value, 4, "4 committed");
+    Driver.bot.patchSettings(before);
+});

@@ -51,7 +51,7 @@ class SettingsConsumerTest {
     /** Files that only move settings around: registering, documenting, applying, reporting. */
     private static final Set<String> PLUMBING = Set.of(
             "BotConfig.java", "SettingsRegistry.java", "SettingsDocs.java",
-            "SettingsCommand.java", "SettingsSnapshot.java", "BotTools.java");
+            "SettingsCommand.java", "SettingsContract.java", "SettingsMethods.java");
 
     private static final List<String> SOURCE_ROOTS = List.of(
             "src/main/java", "src/testmod/java",

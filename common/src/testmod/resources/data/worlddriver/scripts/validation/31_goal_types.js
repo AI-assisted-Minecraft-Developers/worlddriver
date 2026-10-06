@@ -1,6 +1,6 @@
 // The Baritone-parity goals: axis, goalMode, heading (strict direction) and invert, and the
-// pathfinder.axisHeight setting the axis goal reads. The shape checks need no player; starting a
-// walk and the setting need this client's bot, so that part is client-only.
+// pathfinder.axisHeight setting the axis goal reads. The shape checks and the setting need no player;
+// starting a walk needs this client's bot, so that part is client-only.
 
 function clientAvailable() {
     try {
@@ -38,22 +38,19 @@ ScriptTest.run("31_goal_types: the same error over in-JVM, RPC and MCP", functio
     t.assertEqual(JSON.stringify(viaMcp.issues), JSON.stringify(direct.issues), "MCP issues");
 });
 
+ScriptTest.run("31_goal_types: pathfinder.axisHeight round-trips and rejects out-of-range", function(t) {
+    var was = Driver.bot.readSettings(["pathfinder.axisHeight"]);
+    t.assertEqual(Driver.bot.patchSettings({ "pathfinder.axisHeight": 64 }).values[0].value, 64, "axisHeight=64");
+    var bad = errorOf(function() { Driver.bot.patchSettings({ "pathfinder.axisHeight": 9999 }); });
+    t.assertEqual(bad.issues[0].code, "out_of_range", "out-of-range axisHeight is refused");
+    Driver.bot.patchSettings(was);
+});
+
 if (!clientAvailable()) {
     ScriptTest.run("31_goal_types: walks skipped (no client api — dedicated server)", function(t) {
         // PASS
     });
 } else {
-
-    ScriptTest.run("31_goal_types: pathfinder.axisHeight round-trips and rejects out-of-range", function(t) {
-        var r = Driver.invoke("mc.bot.setting", { "pathfinder.axisHeight": 64 });
-        t.assertEqual(r.ok, true, "write must succeed");
-        t.assertTrue(r.applied.indexOf("pathfinder.axisHeight") >= 0, "axisHeight must be applied");
-        t.assertEqual(r.settings["pathfinder.axisHeight"], 64, "snapshot reflects axisHeight=64");
-
-        var bad = Driver.invoke("mc.bot.setting", { "pathfinder.axisHeight": 9999 });
-        t.assertTrue(Array.isArray(bad.rejected) && bad.rejected.length > 0,
-            "out-of-range axisHeight must be rejected");
-    });
 
     ScriptTest.run("31_goal_types: an axis goal starts a walk", function(t) {
         var r = Driver.bot.goto({ target: { kind: "axis" } });

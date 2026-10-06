@@ -9,10 +9,9 @@ import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.SettingsRegistry;
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.methods.SettingsContract;
 import net.magicterra.worlddriver.mcp.ToolCatalog;
-import net.magicterra.worlddriver.mcp.schema.Schema;
-import net.magicterra.worlddriver.mcp.schema.SchemaValidator;
-import net.magicterra.worlddriver.mcp.schema.Schemas;
 import net.magicterra.worlddriver.bot.movement.AscendMovement;
 import net.magicterra.worlddriver.bot.movement.MovementContext;
 import net.magicterra.worlddriver.bot.movement.MovementStatus;
@@ -249,11 +248,9 @@ public final class WorldDriverScenes implements SceneProvider {
      *       aliasing {@code walkerRepathEveryTicks}), {@code debugFly} (apply-only affordance):
      *       one of each provenance, so a regression that drops any single key class trips.</li>
      *   <li>{@code isKnown("definitelyNotAKnob") == false} — the unknown-key gate still says no.</li>
-     *   <li>{@code mc.bot.setting} schema is CLOSED and one-prop-per-key: closure is asserted via
-     *       the {@link SchemaValidator} public entry (the #280 gate itself rejects the bogus key)
-     *       because {@code Schema.Obj.additionalProperties()/properties()} are package-private to
-     *       the schema package and unreachable here; the prop COUNT is read off the public MCP
-     *       render ({@link Schemas#render}) and must equal {@code knownKeys().size()}.</li>
+     *   <li>{@code mc.bot.setting}'s contract is CLOSED and one-variant-per-key: a patch naming the
+     *       bogus key is invalid_params at {@code /updates/0/key}, and the contract's key set is the
+     *       registry's.</li>
      *   <li>{@code mc.test.reset} is registered: the route exists ({@code DriverApi.methods()}
      *       contains it) AND its schema resolves ({@code ToolCatalog.schemaByName()} has it) —
      *       the paired registration held. This is the assertion that goes RED on a loader whose boot
@@ -281,29 +278,20 @@ public final class WorldDriverScenes implements SceneProvider {
             ctx.fail("settingRegistry: bogus key 'definitelyNotAKnob' reported known — the "
                     + "unknown-key gate regressed");
 
-        // (4) mc.bot.setting schema: closed + one prop per known key.
-        Schema setting = ToolCatalog.schemaByName().get("mc.bot.setting");
-        if (setting == null)
-            ctx.fail("settingRegistry: mc.bot.setting has no declared schema");
-        // 4a closure: the validator refuses an unknown key (additionalProperties(false)). The
-        //     Obj closure flag is package-private to the schema package, so assert closure through
-        //     SchemaValidator's public entry — the #280 gate itself — rather than reading the flag.
+        // (4) mc.bot.setting's contract: one SettingValue variant per known key, and an unknown key refused.
         boolean closed = false;
         try {
-            SchemaValidator.validate("mc.bot.setting", setting, Map.of("definitelyNotAKnob", true));
-        } catch (IllegalArgumentException e) {
-            closed = e.getMessage() != null && e.getMessage().contains("unexpected key");
+            SettingsContract.PARAMS.decode(Map.of("op", "patch",
+                    "updates", List.of(Map.of("key", "definitelyNotAKnob", "value", true))));
+        } catch (ApiException e) {
+            closed = e.error().issues().stream().anyMatch(i -> i.path().equals("/updates/0/key"));
         }
         if (!closed)
-            ctx.fail("settingRegistry: mc.bot.setting schema is not closed — an unknown key was "
-                    + "accepted (additionalProperties(false) regressed; #280 would silently return)");
-        // 4b prop count == knownKeys size, read off the public MCP render (Schemas.render).
-        Object props = Schemas.render(setting).get("properties");
-        int propCount = (props instanceof Map<?, ?> m) ? m.size() : -1;
-        if (propCount != known)
-            ctx.fail("settingRegistry: mc.bot.setting schema prop count " + propCount
-                    + " != knownKeys().size() " + known + " — the closed schema is not "
-                    + "one-prop-per-registry-key (BotTools drifted from SettingsRegistry)");
+            ctx.fail("settingRegistry: mc.bot.setting accepted an unknown key — #280 would silently return");
+        int propCount = SettingsContract.TYPES.size();
+        if (!SettingsContract.TYPES.keySet().equals(SettingsRegistry.knownKeys()))
+            ctx.fail("settingRegistry: mc.bot.setting's " + propCount + " keys are not the registry's " + known
+                    + " — the contract drifted from SettingsRegistry");
 
         // (5) mc.test.reset registered — the SPI's regression net: route present AND schema resolves.
         var api = WorldDriverCommon.api();

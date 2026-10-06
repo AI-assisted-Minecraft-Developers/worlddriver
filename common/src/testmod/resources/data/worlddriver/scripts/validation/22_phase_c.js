@@ -19,12 +19,10 @@ if (!clientAvailable()) {
 } else {
 
     ScriptTest.run("22_phase_c: autoSwim toggle round-trips", function(t) {
-        var r = Driver.invoke("mc.bot.setting", { autoSwim: true });
-        t.assertEqual(r.ok, true, "write must succeed");
-        t.assertTrue(r.applied.indexOf("autoSwim") >= 0, "autoSwim must be applied");
-        t.assertEqual(r.settings.autoSwim, true, "snapshot reflects autoSwim=true");
-        var off = Driver.invoke("mc.bot.setting", { autoSwim: false });
-        t.assertEqual(off.settings.autoSwim, false, "snapshot reflects autoSwim=false");
+        var was = Driver.bot.readSettings(["autoSwim"]);
+        t.assertEqual(Driver.bot.patchSettings({ autoSwim: true }).values[0].value, true, "autoSwim=true");
+        t.assertEqual(Driver.bot.patchSettings({ autoSwim: false }).values[0].value, false, "autoSwim=false");
+        Driver.bot.patchSettings(was);
     });
 
     ScriptTest.run("22_phase_c: status returns canonical shape (lastPath optional)", function(t) {
@@ -43,12 +41,10 @@ if (!clientAvailable()) {
 
     ScriptTest.run("22_phase_c: byte-identical results across in-JVM, RPC, MCP transports",
         function(t) {
-            var args = { autoSwim: true };
-            var direct = Driver.invoke("mc.bot.setting", args);
-            var viaTcp = Driver.system.rpcRoundtrip("mc.bot.setting", args);
-            var viaMcp = Driver.system.mcpRoundtrip("mc.bot.setting", args);
-            t.assertEqual(viaTcp.ok, direct.ok, "RPC.ok mismatch");
-            t.assertEqual(viaMcp.ok, direct.ok, "MCP.ok mismatch");
+            var args = { op: "read", keys: ["autoSwim"] };
+            var direct = JSON.stringify(Driver.invoke("mc.bot.setting", args));
+            t.assertEqual(JSON.stringify(Driver.system.rpcRoundtrip("mc.bot.setting", args)), direct, "RPC");
+            t.assertEqual(JSON.stringify(Driver.system.mcpRoundtrip("mc.bot.setting", args)), direct, "MCP");
         });
 
 }

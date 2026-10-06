@@ -14,27 +14,22 @@ import java.util.Set;
 /**
  * Single source of truth for the {@code mc.bot.setting} key surface — #280 root fix.
  *
- * <p>Before this class the settable-key knowledge was split across three places that drifted:
- * {@link SettingsSnapshot#build} (the read snapshot), {@link SettingsCommand#apply} (the write
- * if-chain), and the hand-written {@code BotTools} schema (the advertisement). A newly-declared
- * {@link BotConfig} flag whose schema/branch lagged was <em>silently dropped</em> by the apply
- * path — the #280 disease. This registry owns the KEY + TYPE enumeration ONCE; the snapshot
- * consumes it for its hand section, the schema is built from it (closed), and apply rejects any
- * param key it doesn't recognise.
+ * <p>Before this class the settable-key knowledge was split across three places that drifted: the
+ * read snapshot, the write if-chain, and a hand-written schema. A newly-declared {@link BotConfig}
+ * flag whose schema or branch lagged was <em>silently dropped</em> by the write path — the #280
+ * disease. This registry owns the KEY + TYPE enumeration ONCE; the contract
+ * ({@code SettingsContract}) builds every key's wire type from it, and {@link SettingsCommand} reads
+ * and writes through {@link #readOf} and {@link #backingField}.
  *
- * <p><b>Pure + server-loadable.</b> No Minecraft-client runtime is touched: enumeration needs no
- * {@link BotApiImpl} instance and imports nothing from the client or the mcp schema DSL (it exposes
- * a plain {@link Type} enum; {@code BotTools} maps that to a {@code Schema}). {@link BotConfig} is a
- * common/server-safe class (already loaded server-side via {@code pinnedBaseline}), so a T0
- * dedicated-server scene can call {@link #knownKeys()} / {@link #schemaProps()} directly.
+ * <p><b>Pure.</b> Nothing here touches the game: enumeration reads {@link BotConfig}'s field
+ * declarations without initializing it and exposes a plain {@link Type} enum, so the API artifact
+ * generator loads it with no Minecraft on the classpath.
  *
  * <p><b>Anti-drift.</b> The reflective completion pass — the exact vector by which a new flag
- * enters the surface — is a SINGLE method ({@link #reflectivePrimitiveFields()}) consumed by BOTH
- * this registry and {@link SettingsSnapshot#build}, so they cannot diverge. The hand-listed section
- * ({@link #HAND}) is the ordered mirror of the snapshot's {@code snap.put(...)} sequence and is what
- * {@code build} now iterates for its hand values, so the snapshot's output stays byte-identical
- * (key order included) while the keys live in one place. A class-load self-check resolves every
- * {@code CONFIG_FIELD} name against {@link BotConfig} and throws on a typo.
+ * enters the surface — is a SINGLE method ({@link #reflectivePrimitiveFields()}). The hand-listed
+ * section ({@link #HAND}) fixes the order of the keys a read without {@code keys} answers. A
+ * class-load self-check resolves every {@code CONFIG_FIELD} name against {@link BotConfig} and
+ * throws on a typo.
  *
  * <p><b>The fourth side: consumers.</b> The checks above keep the key, the snapshot, the
  * schema and the docs agreeing about which knobs EXIST. None of them asks whether a knob
@@ -83,7 +78,7 @@ public final class SettingsRegistry {
         }
     }
 
-    /** How {@link SettingsSnapshot#build} reads a hand-listed key's live value. */
+    /** How {@link SettingsCommand} reads and writes a hand-listed key's live value. */
     enum Read { CONFIG_FIELD, BOT_PAUSED, HAZARD_LIST, WHITELIST_LIST, MUTED_LIST, AVOID_POINTS }
 
     /** One hand-listed key: its wire name, how to read its value, and the backing field (if any). */
@@ -94,9 +89,8 @@ public final class SettingsRegistry {
     private static Hand hand(String key, Read read, String field) { return new Hand(key, read, field); }
 
     /**
-     * Hand-listed keys in the EXACT order {@link SettingsSnapshot#build} emits them. This list is
-     * the single source for the hand section — {@code build} iterates it, and drift is impossible
-     * because there is no second copy. Generated from the snapshot's {@code snap.put(...)} sequence.
+     * Hand-listed keys, in the order a read without {@code keys} answers them: the keys whose wire
+     * name is not their field's, or whose value is not a field at all.
      */
     static final List<Hand> HAND = List.of(
         field("walker.repathEveryTicks", "walkerRepathEveryTicks"),
@@ -279,9 +273,9 @@ public final class SettingsRegistry {
     );
 
     /**
-     * Apply-only keys with NO {@link BotConfig} field and not in the snapshot, so the reflective
-     * completion never surfaces them — they must be declared here to be KNOWN. {@code debugFly} is
-     * a client-thread creative-flight test affordance (see {@link SettingsCommand#apply}).
+     * Write-only keys with NO {@link BotConfig} field, so the reflective completion never surfaces
+     * them — they must be declared here to be KNOWN. {@code debugFly} is a creative-flight test
+     * affordance, applied through {@link BotApi#debugFly}.
      */
     private static final Map<String, Type> APPLY_ONLY = new LinkedHashMap<>();
     static { APPLY_ONLY.put("debugFly", Type.BOOLEAN); }
@@ -339,8 +333,8 @@ public final class SettingsRegistry {
 
     /**
      * Public static volatile PRIMITIVE {@link BotConfig} fields in {@code Class.getFields()} order,
-     * less the {@link RuntimeState} ones. The ONE enumerator shared by this registry and
-     * {@link SettingsSnapshot#build}'s completion pass — a new flag surfaces in both or neither.
+     * less the {@link RuntimeState} ones. The ONE enumerator of the reflective keys, so a new flag
+     * is readable, writable and in the contract at once, or not at all.
      */
     static List<Field> reflectivePrimitiveFields() {
         List<Field> out = new ArrayList<>();
@@ -372,7 +366,7 @@ public final class SettingsRegistry {
      * The documented range of {@code key}. An aliased field answers to its own name as well as the
      * alias, so the field name is held to the range written on the alias.
      */
-    static SettingsDocs.Range documentedRange(String key) {
+    public static SettingsDocs.Range documentedRange(String key) {
         SettingsDocs.Range r = SettingsDocs.range(key);
         if (r != null) return r;
         String alias = ALIAS_OF_FIELD.get(key);
@@ -382,6 +376,19 @@ public final class SettingsRegistry {
     /** The hand-listed keys, in snapshot order. */
     static List<Hand> handEntries() { return HAND; }
 
+    /** How {@code key}'s value is read: a field for every key but the hand-read lists and {@code paused}. */
+    static Read readOf(String key) {
+        Hand h = HAND_BY_KEY.get(key);
+        return h == null ? Read.CONFIG_FIELD : h.read();
+    }
+
+    /** The field behind {@code key}, primitive or not, or null for a key {@link #readOf} reads another way. */
+    static Field backingField(String key) {
+        Hand h = HAND_BY_KEY.get(key);
+        if (h == null) return PRIMITIVE_FIELDS.get(key);
+        return h.read() == Read.CONFIG_FIELD ? CONFIG_FIELDS.get(h.field()) : null;
+    }
+
     // ---- public surface ----
 
     /** Every key {@code mc.bot.setting} accepts, ordered: hand keys, reflective fields, apply-only. */
@@ -390,6 +397,12 @@ public final class SettingsRegistry {
     /** True if {@code key} is a settable knob (drives the closed schema + apply's unknown-key gate). */
     public static boolean isKnown(String key) { return SCHEMA_PROPS.containsKey(key); }
 
-    /** key → schema {@link Type}, same order as {@link #knownKeys()}. {@code BotTools} maps to a Schema. */
+    /** key → schema {@link Type}, same order as {@link #knownKeys()}. */
     public static Map<String, Type> schemaProps() { return Collections.unmodifiableMap(SCHEMA_PROPS); }
+
+    /** The primitive a field-backed key is stored as ({@code int}, {@code long}, {@code float}, …), or null. */
+    public static Class<?> storedType(String key) {
+        Field f = primitiveField(key);
+        return f == null ? null : f.getType();
+    }
 }

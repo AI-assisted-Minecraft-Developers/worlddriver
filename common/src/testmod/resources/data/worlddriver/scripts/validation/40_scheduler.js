@@ -21,7 +21,7 @@ function clientAvailable() {
 
 function resetScheduler() {
     Driver.invoke("mc.bot.cancel", { process: "all" });
-    Driver.invoke("mc.bot.setting", { autoRetreat: false, retreatHpThreshold: 6 });
+    Driver.bot.patchSettings({ autoRetreat: false, retreatHpThreshold: 6 });
     // task#92: clear any hostile summoned by a preempt/outbid check so the next
     // check sees a clean channel (idle-defaults asserts retreat bids 0).
     Driver.invoke("mc.action.runCommand", { cmd: "kill @e[type=!minecraft:player]" });
@@ -56,16 +56,14 @@ if (!clientAvailable()) {
 } else {
 
     ScriptTest.run("40_scheduler: autoRetreat / retreatHpThreshold round-trip + range check", function(t) {
-        var r = Driver.invoke("mc.bot.setting", { autoRetreat: true, retreatHpThreshold: 8 });
-        t.assertEqual(r.ok, true, "write must succeed");
-        t.assertTrue(r.applied.indexOf("autoRetreat") >= 0, "autoRetreat must be applied");
-        t.assertTrue(r.applied.indexOf("retreatHpThreshold") >= 0, "threshold must be applied");
-        t.assertEqual(r.settings.autoRetreat, true, "snapshot reflects autoRetreat=true");
-        t.assertEqual(r.settings.retreatHpThreshold, 8, "snapshot reflects threshold=8");
+        Driver.bot.patchSettings({ autoRetreat: true, retreatHpThreshold: 8 });
+        var r = Driver.bot.readSettings(["autoRetreat", "retreatHpThreshold"]);
+        t.assertEqual(r.autoRetreat, true, "autoRetreat=true");
+        t.assertEqual(r.retreatHpThreshold, 8, "threshold=8");
 
-        var bad = Driver.invoke("mc.bot.setting", { retreatHpThreshold: 99 });
-        t.assertTrue(Array.isArray(bad.rejected) && bad.rejected.length > 0,
-            "out-of-range threshold must be rejected");
+        var bad = null;
+        try { Driver.bot.patchSettings({ retreatHpThreshold: 99 }); } catch (e) { bad = e; }
+        t.assertEqual(bad && bad.issues[0].code, "out_of_range", "out-of-range threshold is refused");
         resetScheduler();
     });
 
@@ -86,7 +84,7 @@ if (!clientAvailable()) {
         resetScheduler();
         summonRetreatThreat();   // task#92: a hostile to flee, so RetreatChain bids
         // Force retreat permanently active (threshold == max HP) with a threat present.
-        Driver.invoke("mc.bot.setting", { autoRetreat: true, retreatHpThreshold: 20 });
+        Driver.bot.patchSettings({ autoRetreat: true, retreatHpThreshold: 20 });
         Driver.system.waitTicks(3);
         var r = status().reflexes;
         t.assertEqual(r.activeChain, "retreat", "retreat chain holds the channel");
@@ -116,7 +114,7 @@ if (!clientAvailable()) {
         // While the goto runs, force retreat — it must take the channel and the
         // user task must report suspended (but still held as activeProcess).
         summonRetreatThreat();   // task#92: a hostile to flee, so RetreatChain bids
-        Driver.invoke("mc.bot.setting", { autoRetreat: true, retreatHpThreshold: 20 });
+        Driver.bot.patchSettings({ autoRetreat: true, retreatHpThreshold: 20 });
         Driver.system.waitTicks(3);
         var preempted = status();
         t.assertEqual(preempted.reflexes.activeChain, "retreat", "retreat preempts the goto");
@@ -124,7 +122,7 @@ if (!clientAvailable()) {
         t.assertEqual(preempted.activeProcess, "goto", "suspended goto is still held");
 
         // Drop retreat's bid — the suspended goto must regain the channel.
-        Driver.invoke("mc.bot.setting", { autoRetreat: false });
+        Driver.bot.patchSettings({ autoRetreat: false });
         Driver.system.waitTicks(3);
         var resumed = status();
         if (resumed.activeProcess === "goto") {
@@ -141,7 +139,7 @@ if (!clientAvailable()) {
     ScriptTest.run("40_scheduler: status scheduler fields agree across in-JVM, RPC, MCP transports",
         function(t) {
             resetScheduler();
-            Driver.invoke("mc.bot.setting", { autoRetreat: true, retreatHpThreshold: 20 });
+            Driver.bot.patchSettings({ autoRetreat: true, retreatHpThreshold: 20 });
             Driver.system.waitTicks(3);
             var args = {};
             var direct = Driver.invoke("mc.bot.status", args);

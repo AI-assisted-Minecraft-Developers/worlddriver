@@ -1,20 +1,23 @@
 package net.magicterra.worlddriver.bot;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Map;
 
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.methods.SettingsContract;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * A value outside a key's documented range lands in {@code rejected} and changes nothing. Before
- * this held, several keys were clamped to their lower bound and reported {@code applied}, and above
- * the bound took anything at all, so a caller told the range was enforced never saw a rejection.
+ * A value outside a key's documented range is invalid_params at its own path, and nothing is written.
+ * Before this held, several keys were clamped to their lower bound and reported applied, and above the
+ * bound took anything at all, so a caller told the range was enforced never saw a rejection.
  */
 class SettingsRangeTest {
 
@@ -23,12 +26,21 @@ class SettingsRangeTest {
     @BeforeEach void save() { saved = BotConfig.snapshotAll(); }
     @AfterEach void restore() { BotConfig.restoreAll(saved); }
 
+    static Map<String, Object> patchOf(String key, Object value) {
+        return Map.of("op", "patch", "updates", List.of(Map.of("key", key, "value", value)));
+    }
+
+    /** Decode a one-key patch and commit it as the method would. */
+    static void patch(String key, Object value) {
+        SettingsContract.Patch p = (SettingsContract.Patch) SettingsContract.PARAMS.decode(patchOf(key, value));
+        SettingsCommand.commit(null, p.updates());
+    }
+
     private static void assertRejectedAndUnchanged(String key, Object value, String field) throws ReflectiveOperationException {
         Object before = BotConfig.class.getField(field).get(null);
-        SettingsCommand.Outcome o = SettingsCommand.write(null, Map.of(key, value));
-        assertFalse(o.applied().contains(key), key + "=" + value + " was reported applied: " + o);
-        assertTrue(o.rejected().stream().anyMatch(r -> r.startsWith(key + " ")),
-                key + "=" + value + " must be rejected with a reason: " + o);
+        List<ApiIssue> issues = assertThrows(ApiException.class, () -> patch(key, value), key + "=" + value + " was accepted")
+                .error().issues();
+        assertEquals("/updates/0/value", issues.get(0).path(), key + "=" + value + ": " + issues);
         assertEquals(before, BotConfig.class.getField(field).get(null), key + "=" + value + " changed the field");
     }
 
@@ -62,17 +74,20 @@ class SettingsRangeTest {
     void everyDocumentedRangeIsEnforced() {
         int checked = 0;
         for (String key : SettingsRegistry.knownKeys()) {
-            SettingsDocs.Range r = SettingsDocs.range(key);
+            SettingsDocs.Range r = SettingsRegistry.documentedRange(key);
             if (r == null) continue;
             checked++;
-            for (double outside : new double[] {r.lo() - 0.5, r.hi() + 0.5}) {
-                SettingsCommand.Outcome o = SettingsCommand.write(null, Map.of(key, outside));
-                assertEquals(List.of(key + " out of range " + r.text()), o.rejected(), key + "=" + outside);
-                assertEquals(List.of(), o.applied(), key + "=" + outside);
+            boolean integral = SettingsRegistry.schemaProps().get(key) == SettingsRegistry.Type.INTEGER;
+            double step = integral ? 1 : 0.5;
+            for (double outside : new double[] {r.lo() - step, r.hi() + step}) {
+                Object v = integral ? (Object) (long) outside : outside;
+                assertThrows(ApiException.class, () -> patch(key, v), key + "=" + v + " is outside " + r.text());
             }
             for (double edge : new double[] {r.lo(), r.hi()}) {
-                SettingsCommand.Outcome o = SettingsCommand.write(null, Map.of(key, edge));
-                assertEquals(List.of(key), o.applied(), key + "=" + edge + " is inside its own range: " + o);
+                Object v = integral ? (Object) (long) edge : edge;
+                patch(key, v);
+                assertEquals(((Number) v).doubleValue(), ((Number) SettingsCommand.read(null, key)).doubleValue(), 1e-6,
+                        key + "=" + v + " is inside its own range");
             }
             BotConfig.restoreAll(saved);
         }
@@ -81,8 +96,7 @@ class SettingsRangeTest {
 
     @Test
     void anInRangeValueIsApplied() {
-        SettingsCommand.Outcome o = SettingsCommand.write(null, Map.of("goalFieldRadius", 96));
-        assertEquals(List.of("goalFieldRadius"), o.applied());
+        patch("goalFieldRadius", 96);
         assertEquals(96, BotConfig.goalFieldRadius);
     }
 }

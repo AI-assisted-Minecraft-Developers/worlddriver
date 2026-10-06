@@ -19,7 +19,7 @@
     var SENSE_RADIUS = 96;
 
     function boss()     { return Driver.invoke('mc.observe.boss', { radius: SENSE_RADIUS }); }
-    function aborting()  { var s = Driver.invoke('mc.bot.playbook', { op: 'status' }); return !!(s && s.aborting); }
+    function aborting()  { return Driver.invoke('mc.bot.playbook', { op: 'status' }).stopping; }
     function nearest(list) {
         var best = list[0];
         for (var i = 1; i < list.length; i++) if (list[i].distance < best.distance) best = list[i];
@@ -32,7 +32,7 @@
     }
 
     // T0 survival reflexes on for the whole fight.
-    Driver.invoke('mc.bot.setting', { autoTotem: true, autoHeal: true, autoEat: true, autoDodge: true });
+    Driver.bot.patchSettings({ autoTotem: true, autoHeal: true, autoEat: true, autoDodge: true });
     // Gear up if we are carrying anything better (idempotent — no-op once best is worn).
     try { Driver.invoke('mc.bot.equip', { profile: 'best' }); } catch (e) {}
 

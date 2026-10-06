@@ -18,7 +18,7 @@ public final class DebugTools {
                 "heading time-series. view=\"threeview\": an engineering-style three-view of the PATH — FRONT " +
                 "(X/Y), SIDE (Z/Y) and TOP (X/Z) orthographic projections with shared aligned axes, each " +
                 "overlaying the PLANNED route(s) (blue) vs the ACTUAL trajectory (speed-coloured), to read the " +
-                "3D geometry of plan-vs-executed. Requires mc.bot.setting{pathDebug:true} BEFORE the goto so " +
+                "3D geometry of plan-vs-executed. Requires the pathDebug setting on (mc.bot.setting op patch) BEFORE the goto so " +
                 "data is captured. Callable any time — mid-walk or after success/failure. Returns {ok, path, " +
                 "width, height, bytes, outcome, plans, candidates, samples}.",
                 object()
@@ -32,7 +32,7 @@ public final class DebugTools {
                 "READ-ONLY deterministic single-search probe (no Walker, no walking, no block edits, " +
                 "no world mutation). Runs one PathFinder.findPath from a fixed start to an XZ goal and " +
                 "returns the committed best-effort segment + a backtrack verdict. The measurement backbone " +
-                "for pathfinding A/B: set a NODE budget (mc.bot.setting{pathfinder.maxNodes:N, pathfinder.maxMs:30000}) " +
+                "for pathfinding A/B: set a NODE budget (patch pathfinder.maxNodes to N and pathfinder.maxMs to 30000) " +
                 "so the search is fully repeatable, then call from a fixed suite of start feet and compare " +
                 "the forward-rate before/after a change. Returns {ok, start, goal, goalReached, pathLen, end, " +
                 "expanded, computeMs, finalCost, hStart, hEnd, hDelta (<0 = forward progress, >=0 = backward/lateral), forward}.",

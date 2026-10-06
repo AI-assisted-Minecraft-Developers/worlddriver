@@ -56,9 +56,9 @@ is not stale — it computes the schema from `SettingsRegistry` on every request
 socket path always carries the current key set.
 
 Either send `mc.bot.setting` over the WebSocket endpoint directly, or use
-`mc.script.eval` with `Driver.invoke('mc.bot.setting', {…})`. Reading the current values
-back inside a script is `Driver.invoke('mc.bot.setting', {}).settings`; `Java.type` is not
-available in that context.
+`mc.script.eval` with `Driver.bot.patchSettings({…})`. Reading the current values back
+inside a script is `Driver.bot.readSettings(['key', …])`, which answers `{key: value}`;
+`Java.type` is not available in that context.
 
 ## Telling a planner problem from an executor problem
 

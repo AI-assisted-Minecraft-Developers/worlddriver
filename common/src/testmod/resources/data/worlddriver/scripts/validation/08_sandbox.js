@@ -36,7 +36,8 @@
 // any added or removed check reddens wd.agentRpcSmoke until both constants move in
 // the same commit.
 
-// WHAT THE SCOPE HOLDS BESIDES THE PRELUDE'S HELPERS. `__api` (the DriverApi) and
+// WHAT THE SCOPE HOLDS BESIDES THE PRELUDE'S HELPERS. `__api` (ScriptCalls, whose one
+// method is the call Driver.invoke makes) and
 // `__java` (ScriptJava), both installed by ScriptPrelude. `__java` only answers a
 // class's NAME, as a string, and hands out no Class object, so it reaches nothing a
 // script could not reach before; it has no check here for the count reason above.

@@ -92,7 +92,7 @@ public final class BodyReady {
         if (f.dead()) {
             String on = "DeathScreen".equals(f.screen()) ? " (on the death screen)" : "";
             return new Refusal(Reason.DEAD, "the player is dead" + on
-                    + " — respawn first: click Respawn (mc.client.input.click) or set mc.bot.setting{autoRespawn:true}");
+                    + " — respawn first: click Respawn (mc.client.input.click) or patch the autoRespawn setting to true");
         }
         if (f.paused()) {
             return new Refusal(Reason.PAUSED, "the game is paused by " + f.screen()

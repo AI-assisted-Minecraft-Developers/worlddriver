@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -8,6 +9,8 @@ import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.ApiIssue;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,9 +35,10 @@ class SettingsRuntimeStateTest {
         for (String key : RUNTIME) {
             assertFalse(SettingsRegistry.isKnown(key), key + " is advertised as a setting");
             assertFalse(SettingsRegistry.schemaProps().containsKey(key), key + " is in the schema");
-            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                    () -> SettingsCommand.write(null, Map.of(key, true)), key + " was accepted");
-            assertTrue(e.getMessage().contains("unknown key"), e.getMessage());
+            ApiIssue issue = assertThrows(ApiException.class,
+                    () -> SettingsRangeTest.patch(key, true), key + " was accepted").error().issues().get(0);
+            assertEquals("/updates/0/key", issue.path(), key);
+            assertTrue(issue.message().contains("unknown key"), issue.message());
         }
     }
 

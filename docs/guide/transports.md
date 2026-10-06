@@ -275,8 +275,16 @@ console.log('found ' + trees.length);
 trees.length ? Driver.bot.goto({target: {kind: 'position', pos: trees[0].pos}}) : 'nothing nearby'
 ```
 
-- The last expression is the result. The return value is `{result, error, log, ms}`, and
-  `console.log` and `console.error` append to `log`.
+- The last expression is the result. The return value is `{runId, result, error?, log, ms}`,
+  and `console.log` and `console.error` append to `log`. A script that throws still answers:
+  `error` says why, with `code` `script_error` (and the `line`), `script_timeout` or
+  `script_stopped`. A `Driver` call that fails throws a `DriverApiError` carrying the API's
+  `code`, `issues` and `execution`, and if the script lets it through, those are what `error`
+  holds.
+- Each call is a run. Every action its calls start belongs to that run, and no other caller can
+  take those bodies over until the actions end. Running out of time stops the run and cancels
+  them; returning leaves them running. A `mc.script.eval` made from inside a script joins the
+  outer run and its deadline.
 - The scope has `Driver.invoke(method, params)` plus the typed helpers `Driver.system`,
   `observe`, `action`, `query`, `plan`, `skill`, `events`, `wait`, `client` and `bot`.
   Anything without a helper is reachable by name through `Driver.invoke`, which is the whole
@@ -294,10 +302,10 @@ and runs it later with an injected `SKILL` argument through the same evaluator a
 30-second ceiling. A saved skill is syntax-checked before it is persisted, so one that does
 not parse is rejected at save time.
 
-`mc.bot.playbook` runs a multi-phase script on a background thread under a much longer
-ceiling — twenty minutes in the evaluator, with the playbook's own `budgetMs` defaulting to
-ten — because a boss fight is not a thirty-second job. It is cancellable, and the
-cancellation is honoured at the next script instruction.
+`mc.bot.playbook` runs a multi-phase script in the background under a much longer ceiling —
+`budgetMs` defaults to ten minutes and may be up to twenty — because a boss fight is not a
+thirty-second job. It is a run of its own, not part of the call that started it. Cancelling it
+stops the script at its next instruction and cancels the actions it started.
 
 ### User scripts, for standing behaviour
 

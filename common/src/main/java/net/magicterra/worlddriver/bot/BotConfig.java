@@ -2729,9 +2729,9 @@ public final class BotConfig {
      *  explicitly back to its default therefore counts as following the default (its
      *  value will equal the freshly-written shadow), which is the intended semantics:
      *  "I want the default" and "I never touched it" persist identically.
-     *  Best-effort: a failure is logged, not thrown — persistence never blocks. */
-    public static synchronized void save() {
-        if (!persistEnabled()) return;
+     *  Never throws: returns why nothing was written, or null when it was. */
+    public static synchronized String save() {
+        if (!persistEnabled()) return "persistence is off (-Dworlddriver.persistConfig=true turns it on)";
         try {
             Properties props = new Properties();
             for (Field f : persistableFields()) {
@@ -2744,12 +2744,13 @@ public final class BotConfig {
             Path path = persistPath();
             if (path.getParent() != null) Files.createDirectories(path.getParent());
             try (var w = Files.newBufferedWriter(path)) {
-                props.store(w, "worlddriver bot settings — auto-saved by mc.bot.setting"
-                        + " (<key>.default = compiled default at save time; a key equal to its"
-                        + " default is a snapshot and follows the current build's default)");
+                props.store(w, "worlddriver bot settings — auto-saved by mc.bot.setting (<key>.default = compiled default"
+                        + " at save time; a key equal to its default is a snapshot and follows the current build's default)");
             }
+            return null;
         } catch (Exception e) {
             LOG.warn("[config] save failed: {}", e.toString());
+            return "save failed: " + e;
         }
     }
 

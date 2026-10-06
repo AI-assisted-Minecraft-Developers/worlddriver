@@ -6,7 +6,6 @@ import java.nio.charset.StandardCharsets;
 
 import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.ScriptableObject;
-import net.magicterra.worlddriver.api.DriverApi;
 
 /**
  * prelude.js, the generated method wrappers, and the globals they read, installed the same way in every
@@ -23,8 +22,8 @@ final class ScriptPrelude {
 
     private ScriptPrelude() {}
 
-    static void install(Context cx, ScriptableObject scope, DriverApi api) {
-        ScriptableObject.putProperty(scope, "__api", cx.javaToJS(api, scope), cx);
+    static void install(Context cx, ScriptableObject scope, ScriptCalls calls) {
+        ScriptableObject.putProperty(scope, "__api", cx.javaToJS(calls, scope), cx);
         ScriptableObject.putProperty(scope, "__java", cx.javaToJS(ScriptJava.INSTANCE, scope), cx);
         cx.evaluateString(scope, SOURCE, "prelude.js", 1, null);
         cx.evaluateString(scope, WRAPPERS, "driver-api.js", 1, null);

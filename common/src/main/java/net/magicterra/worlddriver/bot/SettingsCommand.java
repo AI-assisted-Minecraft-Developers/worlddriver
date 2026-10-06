@@ -1,319 +1,140 @@
 package net.magicterra.worlddriver.bot;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.core.registries.BuiltInRegistries;
-
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
-import static net.magicterra.worlddriver.bot.util.BotInteract.*;
-import static net.magicterra.worlddriver.bot.util.BotUtil.*;
-import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
-import net.minecraft.resources.ResourceLocation;
-import java.util.Set;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.contract.KeyedValueType.Entry;
+import net.magicterra.worlddriver.api.methods.SettingsContract;
+import net.magicterra.worlddriver.api.methods.SettingsContract.AvoidPoint;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 
 /**
- * Applies {@code mc.bot.setting{...}} param mutations to {@link BotConfig} and
- * per-bot state, then returns the resulting settings snapshot. Extracted from
- * BotApiImpl; the impl's {@code setting(params)} delegates here.
+ * Reads and writes the {@code mc.bot.setting} keys in {@link BotConfig}. Types and ranges are the
+ * contract's ({@link SettingsContract}), so a value that reaches {@link #commit} is already the right
+ * type and in range; what is left here is the check the contract cannot make without the game (that a
+ * block id names a registered block) and the writes themselves.
+ *
+ * <p>Server-safe: it names no client class. {@code paused} and {@code debugFly}, the two controls, are
+ * this client's bot's and are applied through {@link BotApi}, not here.
+ *
+ * <p><b>What "together" means.</b> {@link #commit} writes every update in one run on the thread that owns
+ * the settings, so the bot that thread advances never sees half a patch. The settings are static and
+ * read by every bot in the JVM, so a bot advanced by the other game thread can still read between two
+ * writes of one commit.
  */
 public final class SettingsCommand {
 
     private SettingsCommand() {}
 
-    /**
-     * Apply the param map to {@link BotConfig} / per-bot state and return the resulting snapshot.
-     *
-     * <p><b>Ranges come from {@link SettingsDocs}, and only from there.</b> A row that opens with
-     * {@code [lo,hi]} is shipped to clients as the key's schema description, and {@link #write}
-     * rejects any number outside it before a single branch runs. A range written anywhere else is a
-     * second copy free to disagree with the one the client reads, so none is: a key with a row is
-     * never clamped, and a value outside the row is never reported {@code applied}.
-     */
-    public static Map<String, Object> apply(BotApiImpl bot, Map<String, Object> params) {
-        Outcome o = write(bot, params);
-        Map<String, Object> snap = SettingsSnapshot.build(bot);
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ok", true);
-        out.put("settings", snap);
-        if (!o.applied().isEmpty()) {
-            out.put("applied", o.applied());
-            BotConfig.save();   // persist so these settings survive a client restart
-        }
-        if (!o.rejected().isEmpty()) out.put("rejected", o.rejected());
-        if (!o.inert().isEmpty()) out.put("inert", o.inert());
-        return out;
-    }
-
-    /** What one write did to each key it was given. */
-    record Outcome(List<String> applied, List<String> rejected, List<String> inert) {}
-
-    /** The write half of {@link #apply}, without the snapshot: {@code bot} is read only for
-     *  {@code paused} and {@code autoBackfill}. */
-    static Outcome write(BotApiImpl bot, Map<String, Object> params) {
-        // Write path: any params keys that match a known setting + are in range are applied to
-        // BotConfig immediately. #280 fix: an UNKNOWN key (one not in the single-source
-        // SettingsRegistry) is REJECTED, not silently ignored. All-or-nothing — a call carrying
-        // ANY unknown key throws BEFORE mutating anything, so nothing is half-applied. This is the
-        // apply-side guard that backstops the closed mc.bot.setting schema (SchemaValidator already
-        // rejects unknown keys at route() for every transport); direct callers hit this instead.
-        // Out-of-range keys are still soft-rejected into rejected[] with ok:true.
-        List<String> applied = new ArrayList<>();
-        List<String> rejected = new ArrayList<>();
-        if (params != null && !params.isEmpty()) {
-            List<String> unknown = new ArrayList<>();
-            for (String k : params.keySet()) {
-                if (!SettingsRegistry.isKnown(k)) unknown.add(k);
-            }
-            if (!unknown.isEmpty()) {
-                throw new IllegalArgumentException(
-                        "mc.bot.setting: unknown key(s) " + unknown
-                        + "; known keys: " + SettingsRegistry.knownKeys().size()
-                        + ", see mc.bot.setting schema (all-or-nothing: nothing was applied)");
-            }
-        }
-        Map<String, Object> accepted = params == null ? Map.of() : inRange(params, rejected);
-        if (params != null) {
-            // Boolean toggle: paused absorbs the former mc.bot.pause / .resume —
-            // {paused:true} stops all processes from advancing; {paused:false}
-            // resumes the next tick. Released keys avoid a stuck attack.
-            Object pv = accepted.get("paused");
-            if (pv instanceof Boolean pb) {
-                if (pb && !bot.paused) {
-                    // Releasing keys requires the client thread; mirror pause().
-                    onClient(() -> { releaseKeys(); return Map.of(); });
+    /** {@code key}'s current value, as its contract type holds it; {@code bot} answers {@code paused}. */
+    public static Object read(BotApi bot, String key) {
+        return switch (SettingsRegistry.readOf(key)) {
+            case BOT_PAUSED -> bot != null && bot.paused();
+            case HAZARD_LIST -> List.copyOf(BotConfig.extraHazardBlocks);
+            case WHITELIST_LIST -> List.copyOf(BotConfig.buildBlockWhitelist);
+            case MUTED_LIST -> List.copyOf(BotConfig.mutedEvents);
+            case AVOID_POINTS -> {
+                List<AvoidPoint> out = new ArrayList<>();
+                for (double[] z : BotConfig.avoidZones) {
+                    if (z.length >= 4) out.add(new AvoidPoint(z[0], z[1], z[2], z[3]));
                 }
-                bot.paused = pb;
-                applied.add("paused");
+                yield out;
             }
-            // Plain toggles and numbers, aliased or not, go through the reflective write at the
-            // bottom, after inRange() has held them to their documented range. What REMAINS here
-            // is what that write cannot do: a floor with no documented range, list/registry
-            // validation, and the three side-effecting keys (paused, debugFly, autoBackfill).
-            if (accepted.get("pathfinderWaterCellCost") instanceof Number pwc) {
-                BotConfig.pathfinderWaterCellCost = Math.max(0, pwc.doubleValue());
-                applied.add("pathfinderWaterCellCost");
-            }
-            if (accepted.get("pathfinderWaterClimbOutCost") instanceof Number pwco) {
-                BotConfig.pathfinderWaterClimbOutCost = Math.max(0, pwco.doubleValue());
-                applied.add("pathfinderWaterClimbOutCost");
-            }
-            if (accepted.get("pathfinderSubmergedWaterCost") instanceof Number pswc) {
-                BotConfig.pathfinderSubmergedWaterCost = Math.max(0, pswc.doubleValue());
-                applied.add("pathfinderSubmergedWaterCost");
-            }
-            if (accepted.get("debugFly") instanceof Boolean dfly) {
-                // Test affordance: toggle creative flight on the CLIENT thread, exercising the
-                // flight-handling path live. ⚠️ Its old reason "the Rhino sandbox blocks this from
-                // eval" was false and is gone — see ScriptTools' javadoc; the affordance stays.
-                Minecraft mcf = Minecraft.getInstance();
-                mcf.execute(() -> {
-                    LocalPlayer pf = mcf.player;
-                    if (pf == null) {
-                        LOG.info("[debugFly] player null");
-                        return;
-                    }
-                    pf.getAbilities().mayfly = true;
-                    pf.getAbilities().flying = dfly;
-                    pf.onUpdateAbilities();
-                    LOG.info(
-                            "[debugFly] requested={} readback mayfly={} flying={} onGround={} y={}",
-                            dfly, pf.getAbilities().mayfly, pf.getAbilities().flying, pf.onGround(), pf.getY());
-                });
-                applied.add("debugFly");
-            }
-            if (accepted.get("autoBackfill") instanceof Boolean abf) {
-                BotConfig.autoBackfill = abf;
-                if (!abf) bot.backfillTracker.clear();
-                applied.add("autoBackfill");
-            }
-            if (accepted.get("autoBackfillBlock") instanceof String abb && !abb.isBlank()) {
+            case CONFIG_FIELD -> {
+                Field f = SettingsRegistry.backingField(key);
+                if (f == null) throw new IllegalArgumentException(key + " has no value to read");
                 try {
-                    var rl = ResourceLocation.parse(abb);
-                    if (!BuiltInRegistries.BLOCK.containsKey(rl)) {
-                        rejected.add("autoBackfillBlock: unknown block id " + abb);
-                    } else {
-                        BotConfig.autoBackfillBlock = rl.toString();
-                        applied.add("autoBackfillBlock");
-                    }
-                } catch (Exception ex) {
-                    rejected.add("autoBackfillBlock: invalid id " + abb);
+                    Object v = f.get(null);
+                    yield v instanceof Float fl ? (Object) fl.doubleValue() : v;
+                } catch (IllegalAccessException e) {
+                    throw new IllegalStateException("cannot read BotConfig." + f.getName(), e);
                 }
             }
-            writeTunnelWidthBias(accepted.get("tunnelWidthBias"), applied, rejected);
-            // blocksToAvoid is a list of block ids; each must parse as a
-            // ResourceLocation (e.g. "minecraft:powder_snow"). Whole-list
-            // replacement — pass [] to clear. Invalid ids cause the entire
-            // write to be rejected so the caller knows nothing was applied.
-            if (accepted.get("blocksToAvoid") instanceof List<?> bl) {
-                List<String> bad = new ArrayList<>();
-                Set<String> nextSet = blockIds(bl, bad);
-                if (bad.isEmpty()) {
-                    BotConfig.extraHazardBlocks = nextSet;
-                    applied.add("blocksToAvoid");
-                } else {
-                    rejected.add("blocksToAvoid: invalid ids " + bad);
-                }
-            }
-            // buildBlockWhitelist is a list of block ids the bot may PLACE as build/support
-            // blocks (pillar/bridge/parkour footing). Same ResourceLocation validation as
-            // blocksToAvoid; whole-list replacement, pass [] to clear (→ falls back to the
-            // full-cube heuristic). Invalid ids reject the entire write.
-            if (accepted.get("buildBlockWhitelist") instanceof List<?> wl) {
-                List<String> bad = new ArrayList<>();
-                Set<String> nextSet = blockIds(wl, bad);
-                if (bad.isEmpty()) {
-                    BotConfig.buildBlockWhitelist = nextSet;
-                    applied.add("buildBlockWhitelist");
-                } else {
-                    rejected.add("buildBlockWhitelist: invalid ids " + bad);
-                }
-            }
-            // mutedEvents: event types suppressed from the live PUSH channel (the event
-            // is still recorded + retrievable via mc.wait.event / replay). Free-form
-            // strings — any event type. Whole-list replace; pass [] to un-mute everything.
-            if (accepted.get("mutedEvents") instanceof List<?> ml) {
-                Set<String> nextSet = new LinkedHashSet<>();
-                for (Object o : ml) {
-                    if (o instanceof String s && !s.isBlank()) nextSet.add(s);
-                }
-                BotConfig.mutedEvents = Set.copyOf(nextSet);
-                applied.add("mutedEvents");
-            }
-            // avoidPoints: agent-marked danger zones to route around. List of points,
-            // each {x,y,z,radius?} (radius default 8). Whole-list replacement — pass []
-            // to clear. e.g. [{"x":50,"y":58,"z":350,"radius":10}].
-            if (accepted.get("avoidPoints") instanceof List<?> ap) {
-                List<double[]> zones = new ArrayList<>();
-                boolean ok = true;
-                for (Object o : ap) {
-                    if (!(o instanceof Map<?, ?> pm)) { ok = false; break; }
-                    Object x = pm.get("x"), y = pm.get("y"), z = pm.get("z"), r = pm.get("radius");
-                    if (!(x instanceof Number nx) || !(y instanceof Number ny) || !(z instanceof Number nz)) { ok = false; break; }
-                    double rad = (r instanceof Number nr) ? nr.doubleValue() : 8.0;
-                    if (rad < 1) rad = 1; if (rad > 64) rad = 64;
-                    zones.add(new double[]{ nx.doubleValue(), ny.doubleValue(), nz.doubleValue(), rad });
-                }
-                if (ok) {
-                    BotConfig.avoidZones = zones.toArray(new double[0][]);
-                    applied.add("avoidPoints");
-                } else {
-                    rejected.add("avoidPoints: each item must be {x,y,z,radius?}");
-                }
-            }
-        }
-        // THE write path for every key the specialised setters above did not consume: a
-        // `public static volatile` PRIMITIVE field on BotConfig is settable by its field name,
-        // and a hand-listed alias (walker.repathEveryTicks) by its alias. A new flag needs ONLY
-        // its BotConfig declaration — no branch here, no schema edit (BotTools builds the closed
-        // schema from SettingsRegistry, which reads the same fields).
-        for (Map.Entry<String, Object> e : accepted.entrySet()) {
-            String k = e.getKey();
-            if (applied.contains(k)) continue;
-            Field f = SettingsRegistry.primitiveField(k);
-            if (f == null) continue;
-            try {
-                Class<?> t = f.getType();
-                Object v = e.getValue();
-                if (t == boolean.class && v instanceof Boolean b) { f.setBoolean(null, b); applied.add(k); }
-                else if (t == int.class && v instanceof Number n) { f.setInt(null, n.intValue()); applied.add(k); }
-                else if (t == double.class && v instanceof Number n) { f.setDouble(null, n.doubleValue()); applied.add(k); }
-                else if (t == float.class && v instanceof Number n) { f.setFloat(null, n.floatValue()); applied.add(k); }
-                else if (t == long.class && v instanceof Number n) { f.setLong(null, n.longValue()); applied.add(k); }
-            } catch (IllegalAccessException ignore) {
-                // a public field; reported as inert below if it ever happens
-            }
-        }
-        // Runtime apply-keys ⊆ registry self-check: a param key that is KNOWN to the registry yet
-        // was matched by NO branch above (not applied, not rejected) is INERT — a registry key with
-        // no live write path (e.g. a hand-written setter that expects a different value type than
-        // the schema advertised, or a reflected key whose reflective write silently no-op'd). It is
-        // NOT an unknown key (those already threw), so we surface it honestly rather than drop it.
-        // In a correct build this list is empty; it fires only on real drift and is logged loudly.
-        List<String> inert = new ArrayList<>();
-        if (params != null) {
-            Set<String> rejKeys = rejectedKeys(rejected);
-            for (String k : params.keySet()) {
-                if (applied.contains(k)) continue;
-                if (rejKeys.contains(k)) continue;
-                inert.add(k);   // known (unknown keys threw earlier) but no branch consumed it
-            }
-        }
-        if (!inert.isEmpty()) {
-            LOG.warn("[mc.bot.setting] inert key(s) {} — known to SettingsRegistry but matched no "
-                    + "apply branch (drift: a registry key lost its write path — or a direct in-JVM caller passed a wrong-typed value, which bypasses the route-layer validator)", inert);
-        }
-        return new Outcome(applied, rejected, inert);
-    }
-
-    /** The registered block ids in {@code list}, normalised; every entry that is not one goes to {@code bad}. */
-    /** {@code tunnelWidthBias} takes left or right; anything else is rejected and nothing changes. */
-    private static void writeTunnelWidthBias(Object value, List<String> applied, List<String> rejected) {
-        if (!(value instanceof String twb)) return;
-        if ("left".equals(twb) || "right".equals(twb)) {
-            BotConfig.tunnelWidthBias = twb;
-            applied.add("tunnelWidthBias");
-        } else {
-            rejected.add("tunnelWidthBias: expected left or right, got " + twb);
-        }
-    }
-
-    private static Set<String> blockIds(List<?> list, List<String> bad) {
-        Set<String> ids = new LinkedHashSet<>();
-        for (Object o : list) {
-            if (!(o instanceof String s) || s.isBlank()) { bad.add(String.valueOf(o)); continue; }
-            try {
-                ResourceLocation rl = ResourceLocation.parse(s);
-                if (!BuiltInRegistries.BLOCK.containsKey(rl)) { bad.add(s); continue; }
-                ids.add(rl.toString());
-            } catch (Exception e) { bad.add(s); }
-        }
-        return Set.copyOf(ids);
-    }
-
-    /** {@code params} without the numbers that fall outside their documented range, each of
-     *  which is added to {@code rejected} with that range. */
-    private static Map<String, Object> inRange(Map<String, Object> params, List<String> rejected) {
-        Map<String, Object> out = new LinkedHashMap<>();
-        for (Map.Entry<String, Object> e : params.entrySet()) {
-            SettingsDocs.Range r = SettingsRegistry.documentedRange(e.getKey());
-            if (r != null && e.getValue() instanceof Number n && !r.contains(n.doubleValue())) {
-                rejected.add(e.getKey() + " out of range " + r.text());
-                continue;
-            }
-            out.put(e.getKey(), e.getValue());
-        }
-        return out;
+        };
     }
 
     /**
-     * The KEY each rejection message is about — the "has this key already been dealt with?"
-     * guard must ask about keys, not about message text.
-     *
-     * <p>It used to be {@code rejected.stream().anyMatch(r -> r.startsWith(k))}, which conflates
-     * a key with every key that has it as a PREFIX (autoBackfill/autoBackfillBlock,
-     * autoEat/autoEatFoodThreshold, riskBias/riskBias.scale, …). The live case was
-     * {@code {riskBias:true, "riskBias.scale":500}}: the out-of-range sibling's message matched
-     * {@code riskBias}, so the valid boolean was skipped by the inert report and the caller got
-     * {@code ok:true} with no signal that its flag never landed.
-     *
-     * <p>Rejection messages come in two shapes, {@code "key msg"} and {@code "key: msg"}, so
-     * take the first whitespace-delimited token and drop a trailing colon.
+     * The block ids among {@code updates} that name no registered block, as issues at
+     * {@code <path>/<i>/value[/<j>]}. Empty when the patch can be committed.
      */
-    private static Set<String> rejectedKeys(List<String> rejected) {
-        Set<String> keys = new LinkedHashSet<>();
-        for (String r : rejected) {
-            if (r == null || r.isEmpty()) continue;
-            int sp = r.indexOf(' ');
-            String k = (sp < 0) ? r : r.substring(0, sp);
-            if (k.endsWith(":")) k = k.substring(0, k.length() - 1);
-            if (!k.isEmpty()) keys.add(k);
+    public static List<ApiIssue> check(List<Entry> updates, String path) {
+        List<ApiIssue> issues = new ArrayList<>();
+        for (int i = 0; i < updates.size(); i++) {
+            Entry u = updates.get(i);
+            String at = path + "/" + i + "/value";
+            switch (u.key()) {
+                case "autoBackfillBlock" -> {
+                    if (!isBlock((String) u.value())) issues.add(notABlock(at, (String) u.value()));
+                }
+                case "blocksToAvoid", "buildBlockWhitelist" -> {
+                    List<?> ids = (List<?>) u.value();
+                    for (int j = 0; j < ids.size(); j++) {
+                        if (!isBlock((String) ids.get(j))) issues.add(notABlock(at + "/" + j, (String) ids.get(j)));
+                    }
+                }
+                default -> { }
+            }
         }
-        return keys;
+        return issues;
+    }
+
+    private static boolean isBlock(String id) {
+        ResourceLocation rl = ResourceLocation.tryParse(id);
+        return rl != null && BuiltInRegistries.BLOCK.containsKey(rl);
+    }
+
+    private static ApiIssue notABlock(String path, String id) {
+        return new ApiIssue(path, ApiIssue.Code.INVALID_VALUE, "no block is registered as " + id);
+    }
+
+    /**
+     * Write every update; {@link #check} has passed. Turning {@code autoBackfill} off also drops the
+     * queue of cells {@code bot} was going to refill, so a later on does not refill stale ones.
+     */
+    @SuppressWarnings("unchecked")
+    public static void commit(BotApi bot, List<Entry> updates) {
+        for (Entry u : updates) {
+            Object v = u.value();
+            switch (SettingsRegistry.readOf(u.key())) {
+                case HAZARD_LIST -> BotConfig.extraHazardBlocks = Set.copyOf((List<String>) v);
+                case WHITELIST_LIST -> BotConfig.buildBlockWhitelist = Set.copyOf((List<String>) v);
+                case MUTED_LIST -> BotConfig.mutedEvents = Set.copyOf(new LinkedHashSet<>((List<String>) v));
+                case AVOID_POINTS -> {
+                    List<AvoidPoint> points = (List<AvoidPoint>) v;
+                    double[][] zones = new double[points.size()][];
+                    for (int i = 0; i < zones.length; i++) {
+                        AvoidPoint p = points.get(i);
+                        zones[i] = new double[]{ p.x(), p.y(), p.z(), p.radius() };
+                    }
+                    BotConfig.avoidZones = zones;
+                }
+                case CONFIG_FIELD -> writeField(u.key(), v);
+                case BOT_PAUSED -> throw new IllegalArgumentException("paused is a control, applied through the bot");
+            }
+        }
+        if (bot != null && updates.stream().anyMatch(u -> u.key().equals("autoBackfill") && Boolean.FALSE.equals(u.value()))) {
+            bot.forgetBackfill();
+        }
+    }
+
+    private static void writeField(String key, Object v) {
+        Field f = SettingsRegistry.backingField(key);
+        if (f == null) throw new IllegalArgumentException(key + " is not a configuration field");
+        try {
+            Class<?> t = f.getType();
+            if (t == boolean.class) f.setBoolean(null, (Boolean) v);
+            else if (t == int.class) f.setInt(null, (Integer) v);
+            else if (t == long.class) f.setLong(null, (Long) v);
+            else if (t == double.class) f.setDouble(null, (Double) v);
+            else if (t == float.class) f.setFloat(null, ((Double) v).floatValue());
+            else f.set(null, v);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("cannot write BotConfig." + f.getName(), e);
+        }
     }
 }

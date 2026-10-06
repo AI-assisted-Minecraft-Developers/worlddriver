@@ -43,8 +43,8 @@ constraints; there is no separate privileged mode for them.
 
 ## Where to look
 
-- `application/DriverApplication.java` — the `mc.bot.playbook` route and the binding seam its runner is installed
-  through.
+- `api/methods/ScriptContracts.java` — what `mc.bot.playbook` accepts and answers;
+  `script/PlaybookRunner.java` — the runner, bound through `application/ScriptHost`.
 - `common/src/main/resources/data/worlddriver/scripts/playbooks/` — the shipped playbooks, currently
   one for the ender dragon and one for the wither, each carrying its own strategy notes at the top.
 - `script/` — the engine, the shared scope and the reload path.

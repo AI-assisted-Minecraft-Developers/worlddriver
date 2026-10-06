@@ -496,10 +496,25 @@ public final class BotApiImpl implements BotApi {
         return InteractionCommands.attackEntity(params);
     }
 
+    @Override public boolean paused() { return paused; }
+
     @Override
-    public Map<String, Object> setting(Map<String, Object> params) {
-        return SettingsCommand.apply(this, params);
+    public void setPaused(boolean pause) {
+        if (pause && !paused) releaseKeys();   // a key held at the moment of pausing would stay down
+        paused = pause;
     }
+
+    /** A test affordance for the flight-handling path: it sets the abilities as the creative toggle would. */
+    @Override
+    public void debugFly(boolean flying) {
+        LocalPlayer p = Minecraft.getInstance().player;
+        if (p == null) throw new IllegalStateException("debugFly needs this client's player in a world");
+        p.getAbilities().mayfly = true;
+        p.getAbilities().flying = flying;
+        p.onUpdateAbilities();
+    }
+
+    @Override public void forgetBackfill() { backfillTracker.clear(); }
 
     /**
      * {@code mc.test.reset} client-pool entry reset — see {@link BotApi#resetClientEntry()}.

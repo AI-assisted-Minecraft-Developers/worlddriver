@@ -1,63 +1,44 @@
-// Client-only — Phase D2 additions (allowParkour4 PathFinder gate, autoTool
-// hotbar swap). Both are settings exposed through mc.bot.setting; behavior
-// needs a real client+world. On dedicated-server CI: record skipped-PASS.
+// Phase D2 settings (allowParkour4 PathFinder gate, autoTool hotbar swap), through mc.bot.setting.
+// Their behaviour needs a world; the round-trips run everywhere, since the settings are this game's.
 
-function clientAvailable() {
-    try {
-        Driver.invoke("mc.client.screen.info", {});
-        return true;
-    } catch (e) {
-        return false;
-    }
+/** The DriverApiError a call throws, or null when it returned. */
+function errorOf(call) {
+    try { call(); } catch (e) { return e; }
+    return null;
 }
 
-if (!clientAvailable()) {
-    ScriptTest.run("24_phase_d2: skipped (no client api — dedicated server)", function(t) {
-        // PASS
-    });
-} else {
-
-    ScriptTest.run("24_phase_d2: allowParkour4 toggle round-trips", function(t) {
-        var on = Driver.invoke("mc.bot.setting", { allowParkour4: true });
-        t.assertEqual(on.ok, true, "write must succeed");
-        t.assertTrue(on.applied.indexOf("allowParkour4") >= 0, "applied includes allowParkour4");
-        t.assertEqual(on.settings.allowParkour4, true, "snapshot reflects allowParkour4=true");
-        var off = Driver.invoke("mc.bot.setting", { allowParkour4: false });
-        t.assertEqual(off.settings.allowParkour4, false, "snapshot reflects allowParkour4=false");
-    });
-
-    ScriptTest.run("24_phase_d2: autoTool toggle round-trips", function(t) {
-        var on = Driver.invoke("mc.bot.setting", { autoTool: true });
-        t.assertEqual(on.ok, true, "write must succeed");
-        t.assertTrue(on.applied.indexOf("autoTool") >= 0, "applied includes autoTool");
-        t.assertEqual(on.settings.autoTool, true, "snapshot reflects autoTool=true");
-        var off = Driver.invoke("mc.bot.setting", { autoTool: false });
-        t.assertEqual(off.settings.autoTool, false, "snapshot reflects autoTool=false");
-    });
-
-    ScriptTest.run("24_phase_d2: non-boolean for toggle leaves state unchanged", function(t) {
-        // Route-layer schema validation now rejects the wrong-type value before
-        // the tool runs (stronger than the old silent-skip typing guard) — and
-        // the rejected write must leave the stored state untouched.
-        var before = Driver.invoke("mc.bot.setting", {}).settings.autoTool;
-        var msg = null;
-        try { Driver.invoke("mc.bot.setting", { autoTool: "yes" }); } catch (e) { msg = String(e); }
-        t.assertTrue(msg !== null && msg.indexOf("must be boolean") >= 0,
-            "string 'yes' must be rejected by schema validation, got: " + msg);
-        var after = Driver.invoke("mc.bot.setting", {}).settings.autoTool;
-        t.assertEqual(after, before,
-            "rejected write must not flip the boolean: before=" + before + " after=" + after);
-    });
-
-    ScriptTest.run("24_phase_d2: byte-identical setting reads across in-JVM/RPC/MCP",
-        function(t) {
-            var direct = Driver.invoke("mc.bot.setting", {});
-            var viaTcp = Driver.system.rpcRoundtrip("mc.bot.setting", {});
-            var viaMcp = Driver.system.mcpRoundtrip("mc.bot.setting", {});
-            t.assertEqual(viaTcp.settings.autoTool,      direct.settings.autoTool,      "autoTool mismatch RPC");
-            t.assertEqual(viaMcp.settings.autoTool,      direct.settings.autoTool,      "autoTool mismatch MCP");
-            t.assertEqual(viaTcp.settings.allowParkour4, direct.settings.allowParkour4, "allowParkour4 mismatch RPC");
-            t.assertEqual(viaMcp.settings.allowParkour4, direct.settings.allowParkour4, "allowParkour4 mismatch MCP");
-        });
-
+/** Patch one key and answer what the reply says it now holds. */
+function patchOne(key, value) {
+    var p = {};
+    p[key] = value;
+    return Driver.bot.patchSettings(p).values[0].value;
 }
+
+ScriptTest.run("24_phase_d2: allowParkour4 toggle round-trips", function(t) {
+    var was = Driver.bot.readSettings(["allowParkour4"]);
+    t.assertEqual(patchOne("allowParkour4", true), true, "allowParkour4=true");
+    t.assertEqual(patchOne("allowParkour4", false), false, "allowParkour4=false");
+    Driver.bot.patchSettings(was);
+});
+
+ScriptTest.run("24_phase_d2: autoTool toggle round-trips", function(t) {
+    var was = Driver.bot.readSettings(["autoTool"]);
+    t.assertEqual(patchOne("autoTool", true), true, "autoTool=true");
+    t.assertEqual(patchOne("autoTool", false), false, "autoTool=false");
+    Driver.bot.patchSettings(was);
+});
+
+ScriptTest.run("24_phase_d2: non-boolean for toggle leaves state unchanged", function(t) {
+    var before = Driver.bot.readSettings(["autoTool"]).autoTool;
+    var e = errorOf(function() { Driver.bot.patchSettings({ autoTool: "yes" }); });
+    t.assertEqual(e.issues[0].path, "/updates/0/value", "path");
+    t.assertEqual(e.issues[0].code, "type_mismatch", "a string for a boolean is a type mismatch");
+    t.assertEqual(Driver.bot.readSettings(["autoTool"]).autoTool, before, "the refused write left autoTool as it was");
+});
+
+ScriptTest.run("24_phase_d2: byte-identical setting reads across in-JVM/RPC/MCP", function(t) {
+    var args = { op: "read", keys: ["autoTool", "allowParkour4"] };
+    var direct = JSON.stringify(Driver.invoke("mc.bot.setting", args));
+    t.assertEqual(JSON.stringify(Driver.system.rpcRoundtrip("mc.bot.setting", args)), direct, "RPC");
+    t.assertEqual(JSON.stringify(Driver.system.mcpRoundtrip("mc.bot.setting", args)), direct, "MCP");
+});

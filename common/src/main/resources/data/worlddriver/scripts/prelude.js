@@ -109,16 +109,6 @@ Driver.plan = {
     acquire: function (opts) { return Driver.invoke('mc.plan.acquire', opts || {}); }
 };
 
-// Phase H — persistent skill library (Voyager). Write a JS skill once, reuse it
-// by name across sessions. The skill reads its call args from a SKILL global.
-Driver.skill = {
-    save:   function (name, source) { return Driver.invoke('mc.skill', { op: 'save', name: name, source: source }); },
-    list:   function ()             { return Driver.invoke('mc.skill', { op: 'list' }); },
-    get:    function (name)         { return Driver.invoke('mc.skill', { op: 'get', name: name }); },
-    run:    function (name, args)   { return Driver.invoke('mc.skill', { op: 'run', name: name, args: args || {} }); },
-    remove: function (name)         { return Driver.invoke('mc.skill', { op: 'delete', name: name }); }
-};
-
 // Driver→agent event channel (server-side surface). The live push rides the
 // transports (subscribe over WebSocket / the MCP SSE stream at /mcp/events);
 // these helpers cover injecting custom events and registering condition watchers.
@@ -188,23 +178,33 @@ Driver.client = {
     scene:      function ()     { return Driver.invoke('mc.client.scene',  {}); }
 };
 
-// The body tasks (goto, mine, craft, …), the hand verbs (lookAt, useItem, …), status, cancel and
-// waypoint come from the generated wrappers loaded after this file.
+// The body tasks (goto, mine, craft, …), the hand verbs (lookAt, useItem, …), status, cancel,
+// waypoint and setting come from the generated wrappers loaded after this file.
 Driver.bot = {
-    // Pass key/value pairs to write tuning settings; pass {} (or no arg) to read.
-    setting:   function (opts) { return Driver.invoke('mc.bot.setting',   opts || {}); },
-    // Phase G boss playbooks — {name:'dragon'|'wither'} to start (async, background),
-    // {op:'status'} to poll, {op:'cancel'} to stop.
-    playbook:  function (opts) { return Driver.invoke('mc.bot.playbook',  opts || {}); },
-    pause:     function ()     { return Driver.invoke('mc.bot.setting',   { paused: true  }); },
-    resume:    function ()     { return Driver.invoke('mc.bot.setting',   { paused: false }); },
+    // Sugar over mc.bot.setting's {key, value} lists. patchSettings({autoEat: true, …}) writes those
+    // keys together and answers the method's reply; readSettings(['autoEat', …]) answers
+    // {autoEat: true, …}, every readable key when no list is given.
+    patchSettings: function (values) {
+        var updates = [];
+        for (var k in values) if (Object.prototype.hasOwnProperty.call(values, k)) updates.push({ key: k, value: values[k] });
+        return Driver.invoke('mc.bot.setting', { op: 'patch', updates: updates });
+    },
+    readSettings: function (keys) {
+        var p = { op: 'read' };
+        if (keys !== undefined) p.keys = keys;
+        var values = Driver.invoke('mc.bot.setting', p).values, out = {};
+        for (var i = 0; i < values.length; i++) out[values[i].key] = values[i].value;
+        return out;
+    },
+    pause:     function ()     { return Driver.invoke('mc.bot.setting', { op: 'apply', update: { key: 'paused', value: true } }); },
+    resume:    function ()     { return Driver.invoke('mc.bot.setting', { op: 'apply', update: { key: 'paused', value: false } }); },
     // Baritone-style survival toggles — sugar over mc.bot.setting.
     autoEat:    function (on, opts) {
         var p = { autoEat: !!on };
         if (opts && opts.threshold !== undefined) p.autoEatFoodThreshold = opts.threshold | 0;
-        return Driver.invoke('mc.bot.setting', p);
+        return Driver.bot.patchSettings(p);
     },
-    autoRespawn: function (on) { return Driver.invoke('mc.bot.setting', { autoRespawn: !!on }); },
+    autoRespawn: function (on) { return Driver.bot.patchSettings({ autoRespawn: !!on }); },
     // Baritone BackfillProcess analogue — when on, the bot tracks the cells its
     // own digs break (never air it only walks through) and refills them with
     // `block` (default cobblestone) whenever it would otherwise be idle. Pass
@@ -214,7 +214,7 @@ Driver.bot = {
         var p = { autoBackfill: !!on };
         if (opts && opts.block !== undefined)  p.autoBackfillBlock  = String(opts.block);
         if (opts && opts.radius !== undefined) p.autoBackfillRadius = opts.radius | 0;
-        return Driver.invoke('mc.bot.setting', p);
+        return Driver.bot.patchSettings(p);
     },
     // Baritone-style waypoints — sugar over mc.bot.waypoint; pos defaults to where the player stands.
     saveWaypoint:   function (name, pos) {

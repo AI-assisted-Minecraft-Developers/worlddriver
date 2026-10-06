@@ -56,7 +56,6 @@ public interface BotApi {
      */
     net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse attackEntity(
             net.magicterra.worlddriver.api.methods.HandContracts.AttackParams params);
-    // pause/resume removed — set via mc.bot.setting{paused:bool} instead.
     /**
      * {@code mc.bot.cancel} on this client's player: {@code which} is all, a process kind or a reflex chain.
      * Answers what it stopped; all answers {@code [all]}, a best-effort broadcast.
@@ -68,7 +67,18 @@ public interface BotApi {
 
     /** {@code mc.bot.status} for this client's player. Client thread. */
     net.magicterra.worlddriver.api.methods.ControlContracts.BodyStatus bodyStatus();
-    Map<String, Object> setting(Map<String, Object> params);
+
+    /** Whether every process is held still: the {@code paused} setting. */
+    boolean paused();
+
+    /** The {@code paused} control: stop advancing every process, releasing the held keys, or resume. Client thread. */
+    void setPaused(boolean paused);
+
+    /** The {@code debugFly} control: creative flight on or off for this client's player. Client thread. */
+    void debugFly(boolean flying);
+
+    /** Drop the cells the auto-backfill was going to refill. */
+    void forgetBackfill();
     /**
      * {@code mc.test.reset} client-pool entry reset (testkit P2b). Runs on the
      * client thread and brings the entry back to a neutral state between pooled

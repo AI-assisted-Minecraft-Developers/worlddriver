@@ -24,7 +24,7 @@ function waitUntil(pred, maxTicks) {
 // Top-level (not inside a block) so the deferred ScriptTest.run callbacks can see it.
 function cleanup() {
     Driver.invoke("mc.action.runCommand", { cmd: "kill @e[type=!minecraft:player]" });
-    Driver.invoke("mc.bot.setting", { autoDodge: false });
+    Driver.bot.patchSettings({ autoDodge: false });
     Driver.invoke("mc.bot.cancel", { process: "all" });
 }
 
@@ -41,23 +41,23 @@ if (!clientAvailable()) {
 } else {
 
     ScriptTest.run("41_defense: reflex toggles round-trip", function(t) {
-        var r = Driver.invoke("mc.bot.setting", {
+        var keys = ["autoTotem", "autoShield", "autoHeal", "autoDodge", "healHpThreshold",
+                    "creeperKeepDistance", "projectileDodgeRadius"];
+        var was = Driver.bot.readSettings(keys);
+        Driver.bot.patchSettings({
             autoTotem: true, autoShield: true, autoHeal: true, autoDodge: true,
             healHpThreshold: 10, creeperKeepDistance: 4, projectileDodgeRadius: 10
         });
-        t.assertEqual(r.ok, true, "write ok");
+        var r = Driver.bot.readSettings(keys);
         ["autoTotem","autoShield","autoHeal","autoDodge"].forEach(function(k){
-            t.assertTrue(r.applied.indexOf(k) >= 0, k + " applied");
-            t.assertEqual(r.settings[k], true, k + " reflected");
+            t.assertEqual(r[k], true, k + " committed");
         });
-        t.assertEqual(r.settings.healHpThreshold, 10, "healHpThreshold reflected");
-        t.assertEqual(r.settings.creeperKeepDistance, 4, "creeperKeepDistance reflected");
-        var bad = Driver.invoke("mc.bot.setting", { creeperKeepDistance: 999 });
-        t.assertTrue(Array.isArray(bad.rejected) && bad.rejected.length > 0, "out-of-range rejected");
-        Driver.invoke("mc.bot.setting", {
-            autoTotem: false, autoShield: false, autoHeal: false, autoDodge: false,
-            healHpThreshold: 12, creeperKeepDistance: 3.5, projectileDodgeRadius: 12
-        });
+        t.assertEqual(r.healHpThreshold, 10, "healHpThreshold committed");
+        t.assertEqual(r.creeperKeepDistance, 4, "creeperKeepDistance committed");
+        var bad = null;
+        try { Driver.bot.patchSettings({ creeperKeepDistance: 999 }); } catch (e) { bad = e; }
+        t.assertEqual(bad && bad.issues[0].code, "out_of_range", "out-of-range refused");
+        Driver.bot.patchSettings(was);
     });
 
     ScriptTest.run("41_defense: observe.threats detects and scores a summoned hostile", function(t) {
@@ -83,7 +83,7 @@ if (!clientAvailable()) {
         cleanup();
         // Widen keep-distance so a summon ~3.5 blocks away is comfortably inside it
         // (a +2 block summon lands at ~3.5 due to entity centring + rounding).
-        Driver.invoke("mc.bot.setting", { autoDodge: true, creeperKeepDistance: 6 });
+        Driver.bot.patchSettings({ autoDodge: true, creeperKeepDistance: 6 });
         var me = Driver.invoke("mc.observe.player", {});
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y), z = Math.round(me.pos.z);
         Driver.invoke("mc.action.runCommand", { cmd: "summon creeper " + (x + 2) + " " + y + " " + z });
@@ -101,7 +101,7 @@ if (!clientAvailable()) {
 
     ScriptTest.run("41_defense: ThreatScanner senses an incoming projectile", function(t) {
         cleanup();
-        Driver.invoke("mc.bot.setting", { autoDodge: true });
+        Driver.bot.patchSettings({ autoDodge: true });
         var me = Driver.invoke("mc.observe.player", {});
         var x = Math.round(me.pos.x), y = Math.round(me.pos.y) + 1, z = Math.round(me.pos.z);
         // A slow arrow 14 blocks north, drifting south at the player. Slow + far so

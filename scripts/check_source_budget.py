@@ -61,7 +61,6 @@ GRANDFATHERED = {
     "WalkerTickDrive.java::run": 1262,
     "WalkerTickClimb.java::run": 1008,
     "WalkerTickAim.java::run": 851,
-    "BotTools.java::tools": 762,
     "WalkerTickProgress.java::run": 709,
     "WalkerTickStallDetect.java::run": 389,
     "WalkerTickSearch.java::run": 278,

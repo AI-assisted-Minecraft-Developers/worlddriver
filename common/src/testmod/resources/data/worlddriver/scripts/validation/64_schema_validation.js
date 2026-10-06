@@ -53,14 +53,11 @@ ScriptTest.run("64_schema_validation: non-integral double on an integer slot is 
         "ticks:1.5 must reject as non-integer, got: " + msg);
 });
 
-ScriptTest.run("64_schema_validation: additionalProperties(true) tool accepts unknown keys", function(t) {
-    // mc.bot.playbook is declared additionalProperties(true) at the ROOT, and its
-    // openness is load-bearing rather than harness laxity: the whole params object is
-    // injected into the playbook script as the PLAYBOOK global, so free-form tuning
-    // keys are the feature. (This sub-test used to ride on mc.test.yaml, which was
-    // open for the weaker reason that nobody had closed it; it retired with the YAML
-    // harness.) op:"status" is a read-only query — any non-validation outcome passes.
-    var msg = errOf(function() { Driver.invoke("mc.bot.playbook", { freeform: 1, op: "status" }); });
-    t.assertTrue(msg === null || msg.indexOf("unexpected key") < 0,
-        "additionalProperties(true) must not reject unknown keys, got: " + msg);
+ScriptTest.run("64_schema_validation: free-form tuning rides in args, not beside it", function(t) {
+    // A playbook's free-form tuning keys go in args, which is declared open JSON and becomes the
+    // PLAYBOOK global; the params object itself is closed, so a stray key is refused where it sits.
+    var e = null;
+    try { Driver.invoke("mc.bot.playbook", { op: "status", freeform: 1 }); } catch (x) { e = x; }
+    t.assertEqual(e && e.issues[0].code, "unknown_field", "a stray key is refused");
+    t.assertEqual(e.issues[0].path, "/freeform", "at the key");
 });

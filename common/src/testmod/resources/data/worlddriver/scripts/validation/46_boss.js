@@ -110,32 +110,34 @@ if (!clientAvailable()) {
     });
 
     ScriptTest.run("46_boss: playbook rejects an unknown name", function (t) {
-        var r = Driver.invoke("mc.bot.playbook", { name: "nope_not_real" });
-        t.assertEqual(r.ok, false, "unknown playbook rejected");
-        t.assertTrue(has(r.error, "unknown playbook"), "error names the problem (" + r.error + ")");
+        var e = null;
+        try { Driver.invoke("mc.bot.playbook", { op: "start", name: "nope_not_real" }); } catch (x) { e = x; }
+        t.assertEqual(e && e.code, "invalid_params", "unknown playbook rejected");
+        t.assertEqual(e.issues[0].path, "/name", "the name is what is wrong (" + e.message + ")");
     });
 
     ScriptTest.run("46_boss: dragon playbook exits cleanly with no dragon", function (t) {
         cleanupBosses();
-        var r = Driver.invoke("mc.bot.playbook", { name: "dragon" });
-        t.assertEqual(r.ok, true, "playbook started");
-        t.assertEqual(r.started, true, "started flag");
+        var r = Driver.invoke("mc.bot.playbook", { op: "start", name: "dragon" });
+        t.assertTrue(r.runId.indexOf("playbook-dragon") === 0, "started as its own run (" + r.runId + ")");
         var s = waitPlaybookIdle(80);
         t.assertTrue(s && !s.active, "playbook finished");
-        t.assertTrue(s.lastResult && has(s.lastResult.note, "no ender dragon"),
-            "exited with no-dragon note (" + JSON.stringify(s && s.lastResult) + ")");
+        t.assertEqual(s.runId, r.runId, "status reports the run it started");
+        var result = s.outcome && s.outcome.result;
+        t.assertTrue(result && has(result.note, "no ender dragon"),
+            "exited with no-dragon note (" + JSON.stringify(s && s.outcome) + ")");
     });
 
     ScriptTest.run("46_boss: wither playbook aborts on failed gear gate", function (t) {
         cleanupBosses();
         cmd("clear @s");
         Driver.system.waitTicks(4);
-        var r = Driver.invoke("mc.bot.playbook", { name: "wither", summon: false });
-        t.assertEqual(r.ok, true, "playbook started");
+        Driver.invoke("mc.bot.playbook", { op: "start", name: "wither", args: { summon: false } });
         var s = waitPlaybookIdle(80);
         t.assertTrue(s && !s.active, "playbook finished");
-        t.assertTrue(s.lastResult && s.lastResult.ok === false, "gear gate failed -> ok:false");
-        t.assertTrue(s.lastResult && has(s.lastResult.note, "gear"),
-            "note mentions gear (" + JSON.stringify(s && s.lastResult) + ")");
+        var result = s.outcome && s.outcome.result;
+        t.assertTrue(result && result.ok === false, "gear gate failed -> ok:false");
+        t.assertTrue(result && has(result.note, "gear"),
+            "note mentions gear (" + JSON.stringify(s && s.outcome) + ")");
     });
 }

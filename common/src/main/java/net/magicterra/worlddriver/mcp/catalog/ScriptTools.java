@@ -6,66 +6,12 @@ import net.magicterra.worlddriver.mcp.schema.ToolSchema;
 
 import static net.magicterra.worlddriver.mcp.schema.Schemas.*;
 
-/**
- * {@code mc.script.eval} catalog entry. Kept near the top of the catalog so it
- * is considered for compound flows. See {@code ToolCatalog} for ordering.
- *
- * <p><b>The sandbox sentence is deliberately negative — do not "fix" it back.</b> This text ships
- * in every prompt to every LLM client, and until 2026-08-26 it said {@code Sandboxed (no
- * file/network/reflection)} while {@link net.magicterra.worlddriver.script.ScriptClassFilter}
- * reads {@code System.getProperty("worlddriver.sandbox", "off")} and lets everything through when
- * it is off. A caller that believes the schema hands untrusted source to a filter that is not
- * running. Default-off is itself intentional (the endpoint already owns the process); what was
- * wrong was the claim, not the default, so the claim is what changed.
- */
+/** {@code mc.events} catalog entry. See {@code ToolCatalog} for ordering. */
 public final class ScriptTools {
     private ScriptTools() {}
 
     public static List<ToolSchema> tools() {
         return List.of(
-            tool("mc.script.eval",
-                "**Prefer this when a task would otherwise need ≥3 separate tool calls** " +
-                "(e.g. observe→decide→act, cursor→action→eventsSince, scan→pick→place). " +
-                "Runs a short JavaScript snippet against the in-process Agent API. Inside the snippet:\n" +
-                "  - Driver.invoke(method, params): call any other tool by name, e.g. " +
-                "Driver.invoke('mc.query', {q:'blocks', center:{x:0,y:200,z:0}, filter:{in_radius:5}})\n" +
-                "  - Driver.system / Driver.observe / Driver.action / Driver.query / Driver.client: typed helpers\n" +
-                "    (e.g. Driver.observe.player(), Driver.action.fill(from,to,type), Driver.action.placeMany([...]),\n" +
-                "     Driver.client.screen.info(), Driver.client.screenshot({maxWidth:640,format:'jpeg'}))\n" +
-                "  - console.log(x): append to the returned log array (objects auto-JSON-stringified)\n" +
-                "Last expression = result. Fresh scope per call. Not sandboxed by default " +
-                "(-Dworlddriver.sandbox=on restricts file/network/reflection); " +
-                "bounded by timeoutMs (default 3000, max 30000). " +
-                "Returns {result, error, log, ms}.",
-                object()
-                    .req("source", string()
-                        .desc("JavaScript source. Last expression is the result; use console.log for diagnostics."))
-                    .prop("timeoutMs", integer(1, 30000)
-                        .desc("Wall-clock budget in milliseconds. Defaults to 3000 if omitted."))),
-
-            wrTool("mc.skill",
-                "Persistent skill library (Phase H / Voyager): write a reusable JS skill once, " +
-                "save it by name, then list/run it across sessions — the building block for " +
-                "self-growing skills. A skill is an ordinary script (orchestrates " +
-                "Driver.invoke like mc.script.eval) that reads its call args from an injected SKILL " +
-                "global; running one goes through the same 30s-capped evaluator. `op` selects the " +
-                "action: save {name,source} (syntax-checked before it's persisted — a skill that " +
-                "doesn't parse is rejected); list (→ {skills:[{name,bytes}]}); get {name} (→ source); " +
-                "run {name, args?} (→ {result, error, log, ms, skill}); delete {name}. Names are " +
-                "[a-z][a-z0-9_]*. Skills live under config/worlddriver/scripts/skills/.",
-                object()
-                    .prop("op", stringEnum("save", "list", "get", "run", "delete")
-                        .desc("Which action (default list)."))
-                    .prop("name", string()
-                        .desc("Skill name [a-z][a-z0-9_]* (for save/get/run/delete)."))
-                    .prop("source", string()
-                        .desc("JS source (for save). Last expression is the result; reads args from SKILL."))
-                    .prop("args", union("object", "array", "string", "number", "boolean")
-                        .desc("Args passed to the skill as the SKILL global (for run). Any JSON "
-                            + "value — object, array, or scalar. Optional."))
-                    .prop("timeoutMs", integer(1, 30000)
-                        .desc("Run budget ms (for run; default 3000)."))),
-
             wrTool("mc.events",
                 "Driver→agent event channel — the server-side surface. Events (threats, " +
                 "damage, death, chat, command results, custom conditions) are pushed live " +

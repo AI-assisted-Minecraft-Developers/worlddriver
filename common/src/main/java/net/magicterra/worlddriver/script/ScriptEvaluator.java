@@ -2,45 +2,56 @@ package net.magicterra.worlddriver.script;
 
 import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.ContextFactory;
+import dev.latvian.mods.rhino.JavaScriptException;
+import dev.latvian.mods.rhino.RhinoException;
 import dev.latvian.mods.rhino.ScriptRuntime;
 import dev.latvian.mods.rhino.ScriptableObject;
 import dev.latvian.mods.rhino.Undefined;
 import dev.latvian.mods.rhino.util.ClassVisibilityContext;
+import net.magicterra.worlddriver.api.ApiTimers;
+import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.RunContext;
+import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.methods.ScriptContracts;
+import net.magicterra.worlddriver.api.methods.ScriptContracts.Issue;
+import net.magicterra.worlddriver.api.methods.ScriptContracts.Outcome;
+import net.magicterra.worlddriver.api.methods.ScriptContracts.ScriptError;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 
 /**
- * Ad-hoc Rhino evaluator behind the {@code mc.script.eval} MCP tool.
+ * Runs scripts: {@code mc.script.eval}, a skill, a playbook. Each run gets a fresh scope (nothing leaks
+ * between runs) on a worker from a cached pool, off the game threads, so the calls it makes can wait for
+ * them. The optional {@link ScriptClassFilter} applies only when opted in (-Dworlddriver.sandbox=on; off by
+ * default: scripts are a first-party capability, and running the caller's code is what this class is for).
  *
- * Each call gets a fresh scope (no state leaks between calls), runs on a
- * worker thread from a cached pool (off the server thread, so DriverApi
- * routes that bounce through {@code server.execute()} don't deadlock), and
- * is bounded by a wall-clock deadline enforced via Rhino's instruction-count
- * observer. The optional {@link ScriptClassFilter} class filter applies only when opted in (-Dworlddriver.sandbox=on; off by default — scripts are first-party capability).
+ * <p>A run that its caller is not already inside is a new {@link RunContext}, which this class ends: stopped
+ * when its budget runs out or it is cancelled, which cancels the actions it started; finished when the
+ * script returns or throws, which leaves them running. A script evaluated from inside another run (a nested
+ * {@code mc.script.eval}) shares that run and its deadline, and leaves ending it to its owner.
  *
- * The script body runs through {@code eval()} so its last expression is the
- * completion value; the wrapper captures result/error/log and JSON-encodes
- * the payload so it can travel back through JsonCodec unchanged.
+ * <p>The budget is checked between script instructions, so a script blocked in a call is not interrupted
+ * by it; the call itself carries the run's deadline. A watchdog a moment past the budget answers anyway.
  */
 public final class ScriptEvaluator {
-    private static final int DEFAULT_TIMEOUT_MS = 3000;
-    private static final int MAX_TIMEOUT_MS = 30_000;
-    /** Cap for {@link #evaluateOnThread} — boss playbooks run minutes, not the 30 s
-     *  ad-hoc {@code mc.script.eval} budget. Same script context, longer deadline. */
-    private static final int PLAYBOOK_MAX_TIMEOUT_MS = 20 * 60_000;
-    private static final int MAX_SOURCE_CHARS = 64 * 1024;
     private static final int INSTRUCTION_THRESHOLD = 10_000;
+    /** How long past its budget a run blocked outside the engine is given before it is answered for. */
+    private static final long WATCHDOG_GRACE_MS = 250;
+    /** Encoding a result can run the script's own getters, so it is budgeted too. */
+    private static final long ENVELOPE_BUDGET_MS = 1000;
 
     private final DriverApi api;
     private final ExecutorService executor;
@@ -56,192 +67,186 @@ public final class ScriptEvaluator {
     }
 
     /**
-     * Evaluate a JS snippet. Returns a Map with keys:
-     *   result : the completion value (last expression), JSON-decoded; null on error
-     *   error  : a string error message, or null on success
-     *   log    : array of strings captured via console.log/console.error
-     *   ms     : wall-clock milliseconds spent
+     * Run {@code source} for at most {@code budgetMs}, and no later than {@code caller}'s deadline: inside
+     * {@code caller}'s run when it has one, else as a new run named after {@code kind} ({@code eval-7}).
      */
-    public Map<String, Object> evaluate(String source, int requestedTimeoutMs) {
-        if (source == null) source = "";
-        if (source.length() > MAX_SOURCE_CHARS) {
-            return errorEnvelope("script source too large: " + source.length() + " > " + MAX_SOURCE_CHARS, 0L);
-        }
-        int budget = (requestedTimeoutMs <= 0)
-                ? DEFAULT_TIMEOUT_MS
-                : Math.min(requestedTimeoutMs, MAX_TIMEOUT_MS);
-        long t0 = System.nanoTime();
-        long deadline = t0 + TimeUnit.MILLISECONDS.toNanos(budget);
+    public CompletionStage<Outcome> run(String source, int budgetMs, CallContext caller, String kind) {
+        if (caller.run().isPresent()) return start(source, budgetMs, caller, false);
+        return start(source, budgetMs, caller.inRun(RunContext.start(kind)), true);
+    }
 
-        final String src = source;
-        Future<String> f = executor.submit(() -> runOnce(src, deadline, budget));
-        String json;
-        try {
-            json = f.get(budget + 250L, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
-            f.cancel(true);
-            return errorEnvelope("script timeout (" + budget + " ms)", elapsedMs(t0));
-        } catch (ExecutionException e) {
-            Throwable cause = (e.getCause() != null) ? e.getCause() : e;
-            String msg = (cause.getMessage() != null) ? cause.getMessage() : cause.toString();
-            return errorEnvelope(msg, elapsedMs(t0));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return errorEnvelope("interrupted", elapsedMs(t0));
-        }
+    /** Run {@code source} as {@code ctx}'s run, which this ends: stopped by its budget, else finished. */
+    public CompletionStage<Outcome> runOwned(String source, int budgetMs, CallContext ctx) {
+        return start(source, budgetMs, ctx, true);
+    }
 
-        return decodeEnvelope(json, t0);
+    private CompletionStage<Outcome> start(String source, int budgetMs, CallContext caller, boolean owns) {
+        RunContext run = caller.run().orElseThrow();
+        long start = System.nanoTime();
+        long own = start + TimeUnit.MILLISECONDS.toNanos(budgetMs);
+        long deadline = own - caller.deadlineNanos() < 0 ? own : caller.deadlineNanos();
+        CallContext ctx = new CallContext(deadline, caller.requestCancelled(), Optional.of(run), caller.waits(), true);
+        BooleanSupplier stopped = () -> run.stopped().isCancelled() || caller.requestCancelled().isCancelled();
+
+        CompletableFuture<Outcome> out = new CompletableFuture<>();
+        Future<?> worker = executor.submit(() -> out.complete(runOnce(source, ctx, stopped, start)));
+        long waitMs = TimeUnit.NANOSECONDS.toMillis(deadline - start) + WATCHDOG_GRACE_MS;
+        // The timer only hands the work on: stopping a run cancels actions, which is no job for the timer thread.
+        ApiTimers.schedule(() -> executor.execute(() -> {
+            if (out.isDone()) return;
+            worker.cancel(true);
+            out.complete(failed(run, ScriptContracts.SCRIPT_TIMEOUT, "script timeout (" + budgetMs + " ms)", start));
+        }), waitMs);
+        return out.whenComplete((o, t) -> {
+            if (!owns) return;
+            String code = o == null || o.error().isEmpty() ? null : o.error().get().code();
+            if (t != null || ScriptContracts.SCRIPT_TIMEOUT.equals(code) || ScriptContracts.SCRIPT_STOPPED.equals(code)) {
+                run.stop();
+            } else {
+                run.finish();
+            }
+        });
     }
 
     /**
-     * Evaluate a long-running script (a boss playbook) on the CALLING thread —
-     * the {@link PlaybookRunner}'s background worker — with a generous budget and a
-     * cooperative {@code abort} flag, reusing the exact same Rhino script context as
-     * {@link #evaluate}. The abort/deadline are enforced via Rhino's instruction
-     * observer, so they bite at the next script instruction (typically the next
-     * loop turn). Returns the same {result, error, log, ms} envelope.
-     */
-    public Map<String, Object> evaluateOnThread(String source, int requestedTimeoutMs,
-                                                java.util.function.BooleanSupplier abort) {
-        if (source == null) source = "";
-        if (source.length() > MAX_SOURCE_CHARS) {
-            return errorEnvelope("script source too large: " + source.length() + " > " + MAX_SOURCE_CHARS, 0L);
-        }
-        int budget = (requestedTimeoutMs <= 0)
-                ? DEFAULT_TIMEOUT_MS
-                : Math.min(requestedTimeoutMs, PLAYBOOK_MAX_TIMEOUT_MS);
-        long t0 = System.nanoTime();
-        long deadline = t0 + TimeUnit.MILLISECONDS.toNanos(budget);
-        java.util.function.BooleanSupplier abortOrFalse = (abort != null) ? abort : () -> false;
-        String json;
-        try {
-            json = runOnce(source, deadline, budget, abortOrFalse);
-        } catch (Throwable t) {
-            String msg = (t.getMessage() != null) ? t.getMessage() : t.toString();
-            return errorEnvelope(msg, elapsedMs(t0));
-        }
-        return decodeEnvelope(json, t0);
-    }
-
-    /**
-     * Parse-only syntax check (compiles, never executes) — the cheap "does it
-     * even parse" gate the skill library runs before persisting a new skill
-     * (Phase H / Voyager). Returns {@code null} if the source is syntactically
-     * valid, else the parser's error message. Uses the same script context
-     * (no deadline — compilation doesn't run instructions).
+     * Parse-only syntax check (compiles, never executes): the gate the skill library runs before it saves a
+     * skill. Null when {@code source} parses, else the parser's message.
      */
     public String checkSyntax(String source) {
-        if (source == null) source = "";
         ContextFactory factory = new ContextFactory() {
             @Override
             protected Context createContext() {
-                return new FilteredObservedContext(this, Long.MAX_VALUE, 0, () -> false);
+                return new FilteredObservedContext(this, Long.MAX_VALUE, () -> false);
             }
         };
         Context cx = factory.enter();
         try {
-            cx.compileString(source, "<skill>", 1, null);
+            cx.compileString(source == null ? "" : source, "<skill>", 1, null);
             return null;
         } catch (RuntimeException e) {
             return (e.getMessage() != null) ? e.getMessage() : e.toString();
         }
     }
 
-    private Map<String, Object> decodeEnvelope(String json, long t0) {
-        Map<String, Object> out;
-        try {
-            Object decoded = JsonCodec.decode(json);
-            if (!(decoded instanceof Map<?, ?> m)) {
-                return errorEnvelope("eval payload not an object", elapsedMs(t0));
-            }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> casted = (Map<String, Object>) m;
-            out = new LinkedHashMap<>(casted);
-        } catch (Exception parseErr) {
-            return errorEnvelope("eval payload parse error: " + parseErr.getMessage(), elapsedMs(t0));
-        }
-        out.put("ms", elapsedMs(t0));
-        return out;
-    }
-
-    private String runOnce(String source, long deadlineNanos, int budgetMs) {
-        return runOnce(source, deadlineNanos, budgetMs, () -> false);
-    }
-
-    private String runOnce(String source, long deadlineNanos, int budgetMs,
-                           java.util.function.BooleanSupplier abort) {
+    private Outcome runOnce(String source, CallContext ctx, BooleanSupplier stopped, long start) {
+        String runId = ctx.run().orElseThrow().runId();
         ContextFactory factory = new ContextFactory() {
             @Override
             protected Context createContext() {
-                return new FilteredObservedContext(this, deadlineNanos, budgetMs, abort);
+                return new FilteredObservedContext(this, ctx.deadlineNanos(), stopped);
             }
         };
-
         Context cx = factory.enter();
         cx.setInstructionObserverThreshold(INSTRUCTION_THRESHOLD);
 
         ScriptableObject scope = cx.initStandardObjects();
-        ScriptPrelude.install(cx, scope, api);
+        ScriptPrelude.install(cx, scope, new ScriptCalls(api, () -> ctx));
 
-        // Evaluate the user source directly — its last expression becomes the
-        // result. Doing this with a separate evaluateString (rather than wrapping
-        // in JS eval()) keeps user var/let declarations confined to this scope
-        // and avoids Rhino's eval-time scope-promotion behavior.
-        Object userResult;
-        String userError = null;
+        // Evaluated directly rather than through JS eval(), so its declarations stay in this scope; the
+        // value of its last expression is the result.
+        Object value = null;
+        Object thrown = null;
+        ScriptError error = null;
         try {
-            userResult = cx.evaluateString(scope, source, "<eval>", 1, null);
-            if (userResult instanceof Undefined) userResult = null;
+            value = cx.evaluateString(scope, source, "<eval>", 1, null);
+            if (value instanceof Undefined) value = null;
         } catch (Throwable t) {
-            userResult = null;
-            userError = (t.getMessage() != null) ? t.getMessage() : t.getClass().getSimpleName();
+            if (stopped.getAsBoolean()) {
+                error = scriptError(ScriptContracts.SCRIPT_STOPPED, "script stopped", t);
+            } else if (System.nanoTime() - ctx.deadlineNanos() > 0) {
+                error = scriptError(ScriptContracts.SCRIPT_TIMEOUT,
+                        "script timeout (" + TimeUnit.NANOSECONDS.toMillis(ctx.deadlineNanos() - start) + " ms)", t);
+            } else {
+                if (t instanceof JavaScriptException js) thrown = js.getValue();
+                error = scriptError(ScriptContracts.SCRIPT_ERROR, message(t), t);
+            }
         }
 
-        // Push the captured values back into the scope, then ask JS to
-        // JSON.stringify the whole envelope. This lets NativeObject / NativeArray
-        // results round-trip cleanly without us having to walk them in Java.
-        ScriptableObject.putProperty(scope, "__userResult",
-                userResult == null ? null : cx.javaToJS(userResult, scope), cx);
-        ScriptableObject.putProperty(scope, "__userError", userError, cx);
+        // JSON.stringify turns the script's own objects and arrays into JSON without walking them in Java; a
+        // DriverApiError the script let through is read the same way, so its code and issues survive. The
+        // budget was the script's, and may be spent; this step gets a small one of its own, since stringify
+        // still runs the script's own getters.
+        ((FilteredObservedContext) cx).finishWithin(ENVELOPE_BUDGET_MS);
+        ScriptableObject.putProperty(scope, "__userResult", value == null ? null : cx.javaToJS(value, scope), cx);
+        ScriptableObject.putProperty(scope, "__thrown", thrown, cx);
+        Map<?, ?> envelope;
+        try {
+            Object json = cx.evaluateString(scope,
+                    "JSON.stringify({result: (typeof __userResult === 'undefined' ? null : __userResult), log: __log, "
+                            + "api: (__thrown instanceof DriverApiError) ? {code: __thrown.code, message: __thrown.message, "
+                            + "issues: __thrown.issues, execution: __thrown.execution} : null});",
+                    "<eval-end>", 1, null);
+            envelope = (Map<?, ?>) JsonCodec.decode(ScriptRuntime.toString(cx, json));
+        } catch (Throwable t) {
+            return new Outcome(runId, Optional.empty(), Optional.of(scriptError(ScriptContracts.SCRIPT_ERROR,
+                    "the result is not JSON: " + message(t), null)), List.of(), elapsedMs(start));
+        }
+        if (envelope.get("api") instanceof Map<?, ?> api) error = apiError(api, error);
+        List<String> log = new ArrayList<>();
+        if (envelope.get("log") instanceof List<?> l) for (Object o : l) log.add(String.valueOf(o));
+        Optional<JsonValue> result = error != null || envelope.get("result") == null ? Optional.empty()
+                : Optional.of(JsonValue.of(envelope.get("result")));
+        return new Outcome(runId, result, Optional.ofNullable(error), log, elapsedMs(start));
+    }
 
-        // Use typeof rather than strict equality. Java-wrapped strings
-        // (especially the literal "undefined") trip Rhino's === undefined check
-        // in ways that don't match standard JS semantics; typeof is robust.
-        Object payload = cx.evaluateString(scope,
-            "JSON.stringify({result: (typeof __userResult === 'undefined' ? null : __userResult), " +
-            "error: __userError, log: __log});",
-            "<eval-end>", 1, null);
-        return ScriptRuntime.toString(cx, payload);
+    /** The error a Driver call reported, at the line the script let it through. */
+    private static ScriptError apiError(Map<?, ?> api, ScriptError thrown) {
+        List<Issue> issues = new ArrayList<>();
+        if (api.get("issues") instanceof List<?> l) {
+            for (Object o : l) {
+                if (o instanceof Map<?, ?> m) {
+                    issues.add(new Issue(String.valueOf(m.get("path")), String.valueOf(m.get("code")), String.valueOf(m.get("message"))));
+                }
+            }
+        }
+        return new ScriptError(String.valueOf(api.get("code")), String.valueOf(api.get("message")), issues,
+                Optional.of(String.valueOf(api.get("execution"))), thrown == null ? Optional.empty() : thrown.line());
+    }
+
+    private static ScriptError scriptError(String code, String message, Throwable at) {
+        Optional<Integer> line = at instanceof RhinoException r && r.lineNumber() > 0 ? Optional.of(r.lineNumber()) : Optional.empty();
+        return new ScriptError(code, message, List.of(), Optional.empty(), line);
+    }
+
+    private static String message(Throwable t) {
+        if (t instanceof RhinoException r && r.details() != null) return r.details();
+        return t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
+    }
+
+    private static Outcome failed(RunContext run, String code, String message, long start) {
+        return new Outcome(run.runId(), Optional.empty(), Optional.of(new ScriptError(code, message, List.of(),
+                Optional.empty(), Optional.empty())), List.of(), elapsedMs(start));
+    }
+
+    /** The outcome of a run whose stage failed rather than answering one. */
+    static Outcome failed(RunContext run, Throwable t) {
+        String message = t == null ? "the run ended without an outcome" : message(t);
+        return new Outcome(run.runId(), Optional.empty(), Optional.of(new ScriptError(ScriptContracts.SCRIPT_ERROR, message,
+                List.of(), Optional.empty(), Optional.empty())), List.of(), 0);
     }
 
     private static long elapsedMs(long t0) {
         return (System.nanoTime() - t0) / 1_000_000L;
     }
 
-    private static Map<String, Object> errorEnvelope(String message, long ms) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("result", null);
-        m.put("error", message);
-        m.put("log", List.of());
-        m.put("ms", ms);
-        return m;
-    }
-
     /**
-     * Context that combines the optional {@link ScriptClassFilter} class filter (off by default)
-     * with a wall-clock deadline enforced via Rhino's instruction-count hook.
+     * Combines the optional {@link ScriptClassFilter} (off by default) with the run's deadline and stop
+     * signal, checked through Rhino's instruction-count hook.
      */
     private static final class FilteredObservedContext extends Context {
-        private final long deadlineNanos;
-        private final int budgetMs;
-        private final java.util.function.BooleanSupplier abort;
+        private long deadlineNanos;
+        private BooleanSupplier stopped;
 
-        FilteredObservedContext(ContextFactory factory, long deadlineNanos, int budgetMs,
-                                java.util.function.BooleanSupplier abort) {
+        FilteredObservedContext(ContextFactory factory, long deadlineNanos, BooleanSupplier stopped) {
             super(factory);
             this.deadlineNanos = deadlineNanos;
-            this.budgetMs = budgetMs;
-            this.abort = abort;
+            this.stopped = stopped;
+        }
+
+        /** The script is over: what runs now (encoding its result) has {@code ms} and ignores the stop signal. */
+        void finishWithin(long ms) {
+            deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(ms);
+            stopped = () -> false;
         }
 
         @Override
@@ -251,12 +256,8 @@ public final class ScriptEvaluator {
 
         @Override
         protected void observeInstructionCount(int instructionCount) {
-            if (abort != null && abort.getAsBoolean()) {
-                throw new RuntimeException("script aborted");
-            }
-            if (System.nanoTime() > deadlineNanos) {
-                throw new RuntimeException("script timeout (" + budgetMs + " ms)");
-            }
+            if (stopped.getAsBoolean()) throw new RuntimeException("script stopped");
+            if (System.nanoTime() - deadlineNanos > 0) throw new RuntimeException("script timeout");
         }
     }
 }

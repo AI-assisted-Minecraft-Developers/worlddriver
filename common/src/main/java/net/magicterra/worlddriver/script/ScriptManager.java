@@ -68,7 +68,7 @@ public final class ScriptManager {
         // an integrated (client-hosted) topology those scripts took their REAL
         // branch, called the missing sugar, and threw "… of undefined". Loading the
         // real prelude fixes the whole family at the source (single source of truth).
-        ScriptPrelude.install(cx, scope, api);
+        ScriptPrelude.install(cx, scope, ScriptCalls.standalone(api));
 
         // Harness-only extras the runtime prelude has no reason to carry: the
         // RPC/MCP transport round-trip bridges the transport-parity checks call

@@ -87,6 +87,7 @@ final class BotActions {
         List<ApiMethod<?, ?>> all = new ArrayList<>(tasks());
         all.addAll(new HandMethods(actions).methods());
         all.addAll(new ControlMethods(app).methods());
+        all.addAll(new SettingsMethods(app).methods());
         return all;
     }
 

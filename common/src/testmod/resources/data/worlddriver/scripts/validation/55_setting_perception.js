@@ -1,77 +1,48 @@
-// Client-only — mc.bot.setting goes through requireBot() which isn't bound on
-// dedicated server / GameTest CI. Skip in headless mode; live round-trip lives
-// in fabric runClient.
+// The perception settings (dusk securing, hazard grid, deep water, scene radius, muted events) through
+// mc.bot.setting. The settings are this game's, so this runs on every topology.
 
-function clientAvailable() {
-    try {
-        Driver.invoke("mc.client.screen.info", {});
-        return true;
-    } catch (e) {
-        return false;
-    }
+/** The DriverApiError a call throws, or null when it returned. */
+function errorOf(call) {
+    try { call(); } catch (e) { return e; }
+    return null;
 }
 
-if (!clientAvailable()) {
-    ScriptTest.run("55_setting_perception: skipped (no client api — dedicated server)", function(t) {
-        // PASS
-    });
-} else {
-
-    ScriptTest.run("55_setting_perception: autoSecureAtDusk toggle round-trip", function(t) {
-        // Toggle false, read back
-        var r = Driver.invoke("mc.bot.setting", { autoSecureAtDusk: false });
-        t.assertEqual(r.ok, true, "write must succeed");
-        t.assertTrue(r.applied.indexOf("autoSecureAtDusk") >= 0, "must be in applied");
-        t.assertEqual(r.settings.autoSecureAtDusk, false, "snapshot reflects autoSecureAtDusk=false");
-
-        // Toggle on, read back
-        var r2 = Driver.invoke("mc.bot.setting", { autoSecureAtDusk: true });
-        t.assertEqual(r2.settings.autoSecureAtDusk, true, "snapshot reflects autoSecureAtDusk=true");
-
-        // Restore default (OFF — the "dig three, fill one" bunker is Agent-invoked by default; auto-dig only
-        // when explicitly enabled, and it pushes duskSecure.triggered when it fires)
-        Driver.invoke("mc.bot.setting", { autoSecureAtDusk: false });
-    });
-
-    ScriptTest.run("55_setting_perception: hazardGridRadius in-range round-trip and out-of-range clamp", function(t) {
-        // In-range: set 16
-        var r = Driver.invoke("mc.bot.setting", { hazardGridRadius: 16 });
-        t.assertEqual(r.ok, true, "write must succeed");
-        t.assertTrue(r.applied.indexOf("hazardGridRadius") >= 0, "must be in applied");
-        t.assertEqual(r.settings.hazardGridRadius, 16, "snapshot reflects hazardGridRadius=16");
-
-        // Out-of-range: 99 must be rejected
-        var bad = Driver.invoke("mc.bot.setting", { hazardGridRadius: 99 });
-        t.assertEqual(bad.ok, true, "envelope still ok");
-        t.assertTrue(Array.isArray(bad.rejected) && bad.rejected.length > 0,
-            "out-of-range hazardGridRadius must be rejected");
-
-        // Restore default
-        Driver.invoke("mc.bot.setting", { hazardGridRadius: 12 });
-    });
-
-    ScriptTest.run("55_setting_perception: deepWaterMax and sceneQueryMaxRadius round-trip", function(t) {
-        var r = Driver.invoke("mc.bot.setting", { deepWaterMax: 3, sceneQueryMaxRadius: 24 });
-        t.assertEqual(r.ok, true, "write must succeed");
-        t.assertEqual(r.settings.deepWaterMax, 3, "deepWaterMax round-trips");
-        t.assertEqual(r.settings.sceneQueryMaxRadius, 24, "sceneQueryMaxRadius round-trips");
-
-        // Restore defaults
-        Driver.invoke("mc.bot.setting", { deepWaterMax: 2, sceneQueryMaxRadius: 32 });
-    });
-
-    ScriptTest.run("55_setting_perception: mutedEvents round-trip + clear", function(t) {
-        // Mute two event types from the push channel
-        var r = Driver.invoke("mc.bot.setting", { mutedEvents: ["entity.death", "item.pickup"] });
-        t.assertEqual(r.ok, true, "write must succeed");
-        t.assertTrue(r.applied.indexOf("mutedEvents") >= 0, "mutedEvents must be in applied");
-        var m = r.settings.mutedEvents;
-        t.assertTrue(m.indexOf("entity.death") >= 0 && m.indexOf("item.pickup") >= 0,
-            "both muted types round-trip in the snapshot");
-
-        // Empty list un-mutes everything (the default: push all events)
-        var r2 = Driver.invoke("mc.bot.setting", { mutedEvents: [] });
-        t.assertEqual(r2.settings.mutedEvents.length, 0, "empty list clears all mutes");
-    });
-
+/** {key: value} from a reply's values list. */
+function valuesOf(reply) {
+    var out = {};
+    for (var i = 0; i < reply.values.length; i++) out[reply.values[i].key] = reply.values[i].value;
+    return out;
 }
+
+ScriptTest.run("55_setting_perception: autoSecureAtDusk toggle round-trip", function(t) {
+    var was = Driver.bot.readSettings(["autoSecureAtDusk"]);
+    t.assertEqual(valuesOf(Driver.bot.patchSettings({ autoSecureAtDusk: false })).autoSecureAtDusk, false, "off");
+    t.assertEqual(valuesOf(Driver.bot.patchSettings({ autoSecureAtDusk: true })).autoSecureAtDusk, true, "on");
+    Driver.bot.patchSettings(was);
+});
+
+ScriptTest.run("55_setting_perception: hazardGridRadius in-range round-trip and out-of-range refusal", function(t) {
+    var was = Driver.bot.readSettings(["hazardGridRadius"]);
+    t.assertEqual(valuesOf(Driver.bot.patchSettings({ hazardGridRadius: 16 })).hazardGridRadius, 16, "16 committed");
+    var bad = errorOf(function() { Driver.bot.patchSettings({ hazardGridRadius: 99 }); });
+    t.assertEqual(bad.issues[0].code, "out_of_range", "99 is refused");
+    t.assertEqual(Driver.bot.readSettings(["hazardGridRadius"]).hazardGridRadius, 16, "the refusal wrote nothing");
+    Driver.bot.patchSettings(was);
+});
+
+ScriptTest.run("55_setting_perception: deepWaterMax and sceneQueryMaxRadius round-trip", function(t) {
+    var was = Driver.bot.readSettings(["deepWaterMax", "sceneQueryMaxRadius"]);
+    var r = valuesOf(Driver.bot.patchSettings({ deepWaterMax: 3, sceneQueryMaxRadius: 24 }));
+    t.assertEqual(r.deepWaterMax, 3, "deepWaterMax round-trips");
+    t.assertEqual(r.sceneQueryMaxRadius, 24, "sceneQueryMaxRadius round-trips");
+    Driver.bot.patchSettings(was);
+});
+
+ScriptTest.run("55_setting_perception: mutedEvents round-trip + clear", function(t) {
+    var was = Driver.bot.readSettings(["mutedEvents"]);
+    var m = valuesOf(Driver.bot.patchSettings({ mutedEvents: ["entity.death", "item.pickup"] })).mutedEvents;
+    t.assertTrue(m.indexOf("entity.death") >= 0 && m.indexOf("item.pickup") >= 0, "both muted types round-trip");
+    // Empty list un-mutes everything (the default: push all events)
+    t.assertEqual(valuesOf(Driver.bot.patchSettings({ mutedEvents: [] })).mutedEvents.length, 0, "empty list clears all mutes");
+    Driver.bot.patchSettings(was);
+});

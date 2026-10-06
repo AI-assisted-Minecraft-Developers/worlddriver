@@ -1,62 +1,50 @@
-// Client-only — mc.bot.setting goes through requireBot() which isn't bound on
-// dedicated server / GameTest CI. Skip in headless mode; live round-trip lives
-// in fabric runClient.
+// blocksToAvoid through mc.bot.setting: a whole-list replacement of registered block ids. An id no
+// block is registered under refuses the patch at that element and writes nothing. Runs everywhere:
+// the settings are this game's, not only a client's.
 
-function clientAvailable() {
-    try {
-        Driver.invoke("mc.client.screen.info", {});
-        return true;
-    } catch (e) {
-        return false;
-    }
+/** The DriverApiError a call throws, or null when it returned. */
+function errorOf(call) {
+    try { call(); } catch (e) { return e; }
+    return null;
 }
 
-if (!clientAvailable()) {
-    ScriptTest.run("21_blocks_to_avoid: skipped (no client api — dedicated server)", function(t) {
-        // PASS
+ScriptTest.run("21_blocks_to_avoid: valid ids round-trip", function(t) {
+    var was = Driver.bot.readSettings(["blocksToAvoid"]);
+    var r = Driver.bot.patchSettings({ blocksToAvoid: ["minecraft:powder_snow", "minecraft:sweet_berry_bush"] });
+    var list = r.values[0].value;
+    t.assertTrue(Array.isArray(list), "the reply holds the list");
+    t.assertEqual(list.length, 2, "list length round-trips");
+    t.assertEqual(Driver.bot.readSettings(["blocksToAvoid"]).blocksToAvoid.length, 2, "a fresh read agrees");
+    Driver.bot.patchSettings(was);
+});
+
+ScriptTest.run("21_blocks_to_avoid: empty list clears the set", function(t) {
+    var was = Driver.bot.readSettings(["blocksToAvoid"]);
+    Driver.bot.patchSettings({ blocksToAvoid: ["minecraft:powder_snow"] });
+    var r = Driver.bot.patchSettings({ blocksToAvoid: [] });
+    t.assertEqual(r.values[0].value.length, 0, "list now empty");
+    Driver.bot.patchSettings(was);
+});
+
+ScriptTest.run("21_blocks_to_avoid: an unregistered id refuses the whole write", function(t) {
+    var was = Driver.bot.readSettings(["blocksToAvoid"]);
+    var e = errorOf(function() {
+        Driver.bot.patchSettings({ blocksToAvoid: ["minecraft:stone", "not_a_real:block_id"] });
     });
-} else {
+    t.assertTrue(e !== null, "must refuse");
+    t.assertEqual(e.issues[0].path, "/updates/0/value/1", "the bad element's own path");
+    t.assertEqual(JSON.stringify(Driver.bot.readSettings(["blocksToAvoid"])), JSON.stringify(was), "nothing written");
+});
 
-    ScriptTest.run("21_blocks_to_avoid: valid ids round-trip", function(t) {
-        var r = Driver.invoke("mc.bot.setting", {
-            blocksToAvoid: ["minecraft:powder_snow", "minecraft:sweet_berry_bush"]
-        });
-        t.assertEqual(r.ok, true, "write must succeed");
-        t.assertTrue(r.applied.indexOf("blocksToAvoid") >= 0, "must be in applied");
-        t.assertTrue(Array.isArray(r.settings.blocksToAvoid), "snapshot must include list");
-        t.assertEqual(r.settings.blocksToAvoid.length, 2, "list length round-trips");
+ScriptTest.run("21_blocks_to_avoid: the same refusal over in-JVM, RPC and MCP", function(t) {
+    var args = { op: "patch", updates: [{ key: "blocksToAvoid", value: ["not_a_real:block_id"] }] };
+    var direct = errorOf(function() { Driver.invoke("mc.bot.setting", args); });
+    var viaRpc = errorOf(function() { Driver.system.rpcRoundtrip("mc.bot.setting", args); });
+    var viaMcp = errorOf(function() { Driver.system.mcpRoundtrip("mc.bot.setting", args); });
+    [viaRpc, viaMcp].forEach(function(e, i) {
+        var via = i === 0 ? "RPC" : "MCP";
+        t.assertTrue(e !== null, via + " must throw");
+        t.assertEqual(e.code, direct.code, via + " code");
+        t.assertEqual(JSON.stringify(e.issues), JSON.stringify(direct.issues), via + " issues");
     });
-
-    ScriptTest.run("21_blocks_to_avoid: empty list clears the set", function(t) {
-        var r = Driver.invoke("mc.bot.setting", { blocksToAvoid: [] });
-        t.assertEqual(r.ok, true, "write must succeed");
-        t.assertEqual(r.settings.blocksToAvoid.length, 0, "list now empty");
-    });
-
-    ScriptTest.run("21_blocks_to_avoid: invalid id rejects whole write", function(t) {
-        var r = Driver.invoke("mc.bot.setting", {
-            blocksToAvoid: ["minecraft:stone", "not_a_real:block_id"]
-        });
-        // Envelope still ok:true, but blocksToAvoid lands in rejected[] rather than applied.
-        t.assertEqual(r.ok, true, "envelope ok");
-        t.assertTrue(Array.isArray(r.rejected) && r.rejected.length > 0,
-            "must report rejected");
-        // mc.bot.setting omits `applied` entirely when nothing was applied — the
-        // compact shape both topologies share (SettingsCommand: applied added only
-        // when non-empty). Read it defensively; a whole-list rejection means the key
-        // is simply absent from applied. (task#92)
-        t.assertEqual((r.applied || []).indexOf("blocksToAvoid"), -1,
-            "must NOT be in applied — whole-list rejection");
-    });
-
-    ScriptTest.run("21_blocks_to_avoid: byte-identical results across in-JVM, RPC, MCP transports",
-        function(t) {
-            var args = { blocksToAvoid: ["not_a_real:block_id"] };
-            var direct = Driver.invoke("mc.bot.setting", args);
-            var viaTcp = Driver.system.rpcRoundtrip("mc.bot.setting", args);
-            var viaMcp = Driver.system.mcpRoundtrip("mc.bot.setting", args);
-            t.assertEqual(viaTcp.ok, direct.ok, "RPC.ok mismatch");
-            t.assertEqual(viaMcp.ok, direct.ok, "MCP.ok mismatch");
-        });
-
-}
+});

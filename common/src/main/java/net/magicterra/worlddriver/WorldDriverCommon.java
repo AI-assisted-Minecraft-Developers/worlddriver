@@ -13,10 +13,8 @@ import net.magicterra.worlddriver.mcp.schema.SchemaValidator;
 import net.magicterra.worlddriver.rpc.RpcServer;
 import net.magicterra.worlddriver.script.ScriptManager;
 import net.magicterra.worlddriver.script.McpBridge;
-import net.magicterra.worlddriver.script.PlaybookRunner;
 import net.magicterra.worlddriver.script.RpcBridge;
-import net.magicterra.worlddriver.script.SkillLibrary;
-import net.magicterra.worlddriver.script.ScriptEvaluator;
+import net.magicterra.worlddriver.script.ScriptService;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -65,22 +63,11 @@ public final class WorldDriverCommon {
         try {
             if (api == null) {
                 BotConfig.load();   // restore persisted bot settings before any tick reads them
-                api = new DriverApplication();
-                ScriptEvaluator evaluator = new ScriptEvaluator(api);
-                api.setScriptHandler(p -> {
-                    String src = (p.get("source") instanceof String s) ? s : "";
-                    int to = (p.get("timeoutMs") instanceof Number n) ? n.intValue() : 0;
-                    return evaluator.evaluate(src, to);
-                });
-                // Phase G — boss playbooks run on a background thread (long budget,
-                // cancellable) under the same Rhino class-visibility policy as
-                // mc.script.eval, which is allow-everything unless -Dworlddriver.sandbox=on
-                // (see PlaybookRunner and ScriptClassFilter — nothing in the build sets it).
-                PlaybookRunner playbookRunner = new PlaybookRunner(evaluator);
-                api.setPlaybookHandler(playbookRunner::dispatch);
-                // Phase H — persistent skill library (Voyager) under scripts/skills/.
-                SkillLibrary skillLibrary = new SkillLibrary(evaluator, userScriptsDir().resolve("skills"));
-                api.setSkillHandler(skillLibrary::dispatch);
+                DriverApplication app = new DriverApplication();
+                api = app;
+                // Scripts, skills and playbooks, all allow-everything unless -Dworlddriver.sandbox=on
+                // (see ScriptClassFilter; nothing in the build sets it).
+                app.setScriptHost(new ScriptService(app, userScriptsDir().resolve("skills")));
                 // Wire the paired-verb route sink so ToolCatalog.registerVerb can install
                 // routes on this api instance without importing it (Hard Rule #1 — only the
                 // (name, handler) data-flow crosses the seam, mirroring setParamsValidator).

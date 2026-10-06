@@ -30,7 +30,7 @@ the id's value, is how the two are told apart.
 Usage
 -----
     # One-shot call with params (params = a JSON object string)
-    python3 rpc.py mc.bot.setting '{"allowParkourPlace": true}'
+    python3 rpc.py mc.bot.setting '{"op":"patch","updates":[{"key":"allowParkourPlace","value":true}]}'
     python3 rpc.py mc.bot.goto '{"target":{"kind":"position","pos":{"x":0,"y":-60,"z":0}}, "awaitMs":8000}'
 
     # No-param read (omit the JSON arg)

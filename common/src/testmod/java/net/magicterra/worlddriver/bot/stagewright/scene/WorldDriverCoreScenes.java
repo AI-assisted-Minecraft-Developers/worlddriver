@@ -16,6 +16,8 @@ import java.util.stream.Collectors;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.Goal;
@@ -55,6 +57,8 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.Vec3;
+
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 
 /**
  * Dogfooded worlddriver scenes — <b>P4b wave 5, the Core (main {@code AgentGameTest}) family</b>:
@@ -327,8 +331,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  11_script_eval.js's javaClassName check (1 check, both topologies) was added; 260 until the typed
      *  body-task and hand verbs replaced their self-skips with request checks that run everywhere; 270
      *  until 18_waypoint merged its three rejection checks into two and 66_body_routes its two
-     *  unknown-body checks into one. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 269;
+     *  unknown-body checks into one; 269 until 11_script_eval gained its error, nested-run, request and
+     *  result-encoding checks (the settings scripts that stopped self-skipping already ran here in full). */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 273;
 
     /** task#92 — the same suite's check count on the DEDICATED topology, where the ~35 client-face
      *  scripts each self-skip to a single "no client" placeholder (their real branch needs a client).
@@ -339,8 +344,11 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  the typed clearArea and goto contracts added their refusal, issue-path and parity checks; 164
      *  until the typed body-task verbs did the same, their request checks no longer self-skipping; 184
      *  until the hand verbs did too; 190 until waypoint's request checks stopped self-skipping and
-     *  66_body_routes folded its two unknown-body checks into one. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 192;
+     *  66_body_routes folded its two unknown-body checks into one; 192 until the settings scripts
+     *  (19, 21, 22, 24, 25, 30, 31, 32, 55) stopped self-skipping, since the settings are this game's and
+     *  read the same on every topology, and 11_script_eval gained its error, nested-run, request and
+     *  result-encoding checks. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 219;
 
     /** task#92 — allow-list of check-name substrings permitted to record a {@code SKIP(task#92)} PASS on
      *  a topology whose precondition isn't met. Every skipped check MUST match one of these; any other
@@ -502,7 +510,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  {@code 65_schema_union.js} covers those nested ones through the validator. */
     private static void schemaUnionRendering(SceneContext ctx) {
         assertUnionType(ctx, "mc.wait.condition", "value", List.of("object", "array", "string", "number", "boolean"));
-        assertUnionType(ctx, "mc.skill", "args", List.of("object", "array", "string", "number", "boolean"));
         assertUnionType(ctx, "mc.events", "data", List.of("object", "array", "string", "number", "boolean"));
         assertUnionType(ctx, "mc.events", "value", List.of("object", "array", "string", "number", "boolean"));
     }
@@ -1521,68 +1528,44 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     /**
-     * A CLIENT-only verb, routed from a scene, with the closed schema doing its job.
+     * {@code mc.bot.setting} through the door every transport shares, with the contract doing its job.
      *
      * <p>Ported from {@code instrument_client.py}'s {@code route.settingUnknownKeyLive} and
-     * {@code route.settingKnownKeyLive}, and it is the first scene to route a client-only verb.
-     * That matters beyond this one check: every remaining client-face check in that file calls a
-     * verb a dedicated server has no handler for, and scene bodies run on the SERVER thread. Until
-     * something proved the hop works, none of them could be ported. This is that proof, and it
-     * carries its own weight as a check rather than being a throwaway probe.
+     * {@code route.settingKnownKeyLive}. The settings are written on the client thread when there is
+     * a client and on the server thread otherwise, so this runs on every topology; a scene body runs
+     * on the server thread, which may not wait for the client's, hence {@link SceneCalls#ask}.
      *
-     * <p>Skipped off an integrated server on purpose — there {@code mc.bot.setting} has no handler
-     * in the JVM at all, which is a property of the topology and not a failure.
-     *
-     * <p>The unknown-key half is the one with history (#280): {@code route} runs the validator
-     * BEFORE the handler, so the rejection has to arrive even though the handler would have run.
-     * Going through {@code DriverApi.route} rather than an MCP tool is the point — a cached MCP
-     * schema silently drops an unexpected key, which is exactly how that gap hid.
+     * <p>The unknown-key half is the one with history (#280): the contract decodes BEFORE the
+     * handler, so the rejection has to arrive even though the handler would have run.
      */
     private static void clientSettingSchema(SceneContext ctx) {
-        if (ctx.server().isDedicatedServer())
-            ctx.skip("mc.bot.setting is client-only — only an integrated server has its handler here");
-        var api = WorldDriverCommon.api();
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ask(ctx, "unknownKey", "mc.bot.setting", Map.of("op", "patch",
+                "updates", List.of(Map.of("key", "definitelyNotAKnob", "value", true))), refused -> {
+            List<ApiIssue> issues = refused.get("error") instanceof ApiException e ? e.error().issues() : List.of();
+            ctx.expect(issues.stream().anyMatch(i -> i.path().equals("/updates/0/key") && i.message().contains("definitelyNotAKnob")))
+                    .as("the unknown key is refused at its own path, by name: " + issues).isEqualTo(true);
+            // The contract must not over-reach the other way: a KNOWN key commits, the reply carries
+            // what it now holds, and a fresh read agrees. The pin restores it however this exits.
+            ask(ctx, "read", "mc.bot.setting", Map.of("op", "read", "keys", List.of("autoEat")), before -> {
+                boolean orig = Boolean.TRUE.equals(settingOf(before, "autoEat"));
+                ask(ctx, "patch", "mc.bot.setting", Map.of("op", "patch",
+                        "updates", List.of(Map.of("key", "autoEat", "value", !orig))), write -> {
+                    ctx.expect(settingOf(write, "autoEat")).as("the value the patch reports").isEqualTo(!orig);
+                    ask(ctx, "reread", "mc.bot.setting", Map.of("op", "read", "keys", List.of("autoEat")), after ->
+                            ctx.expect(settingOf(after, "autoEat")).as("a fresh read of autoEat").isEqualTo(!orig));
+                });
+            });
+        });
+    }
 
-        String rejection = null;
-        try {
-            api.route("mc.bot.setting", Map.of("definitelyNotAKnob", true));
-        } catch (RuntimeException e) {
-            rejection = String.valueOf(e.getMessage());
+    /** One key's value out of a {@code mc.bot.setting} reply's {@code values}. */
+    private static Object settingOf(Map<?, ?> reply, String key) {
+        if (reply.get("values") instanceof List<?> values) {
+            for (Object o : values) if (o instanceof Map<?, ?> v && key.equals(v.get("key"))) return v.get("value");
         }
-        ctx.expect(rejection).as("the error an unknown mc.bot.setting key produced").isNotNull();
-        ctx.expect(rejection != null && rejection.contains("unexpected key")
-                        && rejection.contains("definitelyNotAKnob"))
-                .as("the rejection is the closed schema's, and names the key it refused")
-                .isEqualTo(true);
-
-        // The schema must not over-reach the other way: a KNOWN key applies, shows up in the
-        // snapshot the same call returns, and reads back the same from a fresh call. Restored
-        // however this exits, so run order cannot leak a flipped knob into another scene.
-        boolean orig = settingBool(api, "autoEat");
-        ctx.cleanup(() -> api.route("mc.bot.setting", Map.of("autoEat", orig)));
-
-        Object write = api.route("mc.bot.setting", Map.of("autoEat", !orig));
-        Object applied = write instanceof Map<?, ?> m ? m.get("applied") : null;
-        ctx.expect(applied instanceof List<?> l && l.contains("autoEat"))
-                .as("autoEat came back in applied[]").isEqualTo(true);
-        ctx.expect(settingOf(write, "autoEat")).as("the snapshot the write returned")
-                .isEqualTo(!orig);
-        ctx.expect(settingBool(api, "autoEat")).as("a fresh read of autoEat").isEqualTo(!orig);
-        ctx.record("routedClientVerb", "mc.bot.setting");
-    }
-
-    /** {@code mc.bot.setting}'s settings snapshot, read fresh. */
-    private static boolean settingBool(DriverApi api, String key) {
-        Object v = settingOf(api.route("mc.bot.setting", Map.of()), key);
-        if (!(v instanceof Boolean b))
-            throw new IllegalStateException(key + " is not a boolean in the settings snapshot: " + v);
-        return b;
-    }
-
-    /** One key out of a {@code mc.bot.setting} result's {@code settings} map. */
-    private static Object settingOf(Object result, String key) {
-        Object settings = result instanceof Map<?, ?> m ? m.get("settings") : null;
-        return settings instanceof Map<?, ?> s ? s.get(key) : null;
+        return null;
     }
 
     /**

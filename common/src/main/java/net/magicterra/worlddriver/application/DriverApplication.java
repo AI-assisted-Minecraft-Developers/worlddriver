@@ -80,9 +80,7 @@ public final class DriverApplication extends DriverApi {
         t.setDaemon(true);
         return t;
     });
-    private volatile Function<Map<String, Object>, Object> scriptHandler;
-    private volatile Function<Map<String, Object>, Object> playbookHandler;
-    private volatile Function<Map<String, Object>, Object> skillHandler;
+    private volatile ScriptHost scriptHost;
 
     public DriverApplication() {
         routes.put("mc.system.version", p -> system.version());
@@ -187,14 +185,19 @@ public final class DriverApplication extends DriverApi {
         });
 
         registerClientRoutes();
-        registerBotRoutes();
         registry().registerBatch(coreBatch);
     }
 
     /** The typed core methods, published once; a retry would hand over this same object. */
     private final net.magicterra.worlddriver.api.ApiBatch coreBatch =
             new net.magicterra.worlddriver.api.ApiBatch(net.magicterra.worlddriver.api.ApiRegistry.CORE_OWNER, "core",
-                    new BotActions(this).methods());
+                    coreMethods());
+
+    private List<net.magicterra.worlddriver.api.ApiMethod<?, ?>> coreMethods() {
+        List<net.magicterra.worlddriver.api.ApiMethod<?, ?>> all = new ArrayList<>(new BotActions(this).methods());
+        all.addAll(new ScriptMethods(() -> scriptHost).methods());
+        return all;
+    }
 
     private void registerClientRoutes() {
         // Client routes. Resolution is deferred to call time so the broker's
@@ -269,54 +272,12 @@ public final class DriverApplication extends DriverApi {
 
     }
 
-    private void registerBotRoutes() {
-        // Bot routes — client-side; unavailable on dedicated server. setting stays open while the
-        // player is down. pause/resume are reachable through mc.bot.setting{paused:bool}.
-        routes.put("mc.bot.setting",   p -> requireBot().setting(p));
-        // Phase G boss playbooks — Rhino scripts run on a background thread by the
-        // PlaybookRunner (bound at startup, like scriptHandler). op=start|status|cancel.
-        routes.put("mc.bot.playbook", p -> {
-            Function<Map<String, Object>, Object> h = playbookHandler;
-            if (h == null) throw new IllegalStateException("mc.bot.playbook not available (no playbook runner bound)");
-            return h.apply(p == null ? Map.of() : p);
-        });
-
-        // Script evaluation. Bound at startup via setScriptHandler() to avoid
-        // making DriverApplication depend on Rhino classes directly — keeps the api/
-        // package free of the script/ package.
-        routes.put("mc.script.eval", p -> {
-            Function<Map<String, Object>, Object> h = scriptHandler;
-            if (h == null) throw new IllegalStateException("mc.script.eval not available (no evaluator bound)");
-            return h.apply(p);
-        });
-        // Phase H — persistent skill library (Voyager). op=save|list|get|run|delete.
-        routes.put("mc.skill", p -> {
-            Function<Map<String, Object>, Object> h = skillHandler;
-            if (h == null) throw new IllegalStateException("mc.skill not available (no skill library bound)");
-            return h.apply(p == null ? Map.of() : p);
-        });
-    }
-
     /**
-     * Bind the implementation of {@code mc.script.eval}. Called from the
-     * platform bootstrap so the api package stays free of Rhino.
+     * Bind what answers {@code mc.script.eval}, {@code mc.skill} and {@code mc.bot.playbook}. Called from the
+     * platform bootstrap, so this package never loads the script engine.
      */
-    public void setScriptHandler(Function<Map<String, Object>, Object> handler) {
-        this.scriptHandler = handler;
-    }
-
-    /**
-     * Bind the implementation of {@code mc.bot.playbook} (the Phase G boss-playbook
-     * runner). Bound from the platform bootstrap so the api package stays free of
-     * the script/ package, exactly like {@link #setScriptHandler}.
-     */
-    public void setPlaybookHandler(Function<Map<String, Object>, Object> handler) {
-        this.playbookHandler = handler;
-    }
-
-    /** Bind the implementation of {@code mc.skill} (the Phase H skill library). */
-    public void setSkillHandler(Function<Map<String, Object>, Object> handler) {
-        this.skillHandler = handler;
+    public void setScriptHost(ScriptHost host) {
+        this.scriptHost = host;
     }
 
     static ClientDriverApi requireClient() {

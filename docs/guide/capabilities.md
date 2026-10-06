@@ -161,8 +161,8 @@ screenshot.
 
 | Method | What it does | Notable parameters |
 |---|---|---|
-| `mc.script.eval` | Runs a JavaScript snippet against the in-process API. Prefer it whenever a task would otherwise be three or more separate calls. Fresh scope per call; the last expression is the result. | `source` (max 64 KiB), `timeoutMs` (default 3000, max 30000) |
-| `mc.skill` | A persistent skill library: save a script by name, then list, fetch, run or delete it. A saved skill reads its arguments from an injected `SKILL` global and runs through the same evaluator. Sources are syntax-checked before they are persisted. | `op` (`save`, `list`, `get`, `run`, `delete`), `name`, `source`, `args`, `timeoutMs` |
+| `mc.script.eval` | Runs a JavaScript snippet against the in-process API. Prefer it whenever a task would otherwise be three or more separate calls. Fresh scope per call; the last expression is the result. Each call is a run with its own `runId`: the actions it starts are its own until they end. | `source` (max 64 KiB), `timeoutMs` (default 3000, max 30000) |
+| `mc.skill` | A persistent skill library: save a script by name, then list, fetch, run or delete it. A saved skill reads its arguments from an injected `SKILL` global and runs through the same evaluator. Sources are syntax-checked before they are persisted. | `op` (`save`, `list`, `get`, `run`, `delete`); `name`, and `source` to save, `args` and `timeoutMs` to run |
 
 See [Transports](transports.md) for the scope a script gets, the disk-loaded variant, and —
 importantly — the fact that the class filter is off by default.
@@ -285,7 +285,7 @@ is off.
 | `mc.bot.attackEntity` | One left click on an entity, facing it. Read `attack` on the player snapshot first: a swing sent early still lands, but for a fraction of the weapon's damage. A blast that would take the block underfoot (an end crystal hit from its cage) is refused. | `entityId` |
 | `mc.bot.equip` | Equips the best armour on every slot and, unless `armorOnly`, the best weapon in hand, scoring material tier and then enchantments. Answers with what it put on, the `loadout`, what is low on durability and which slots are still empty. Your own player only. | `profile`, `armorOnly` |
 | `mc.bot.bunker` | **An action.** The no-gear emergency shelter: digs straight down and seals the roof with a dug block, making a pocket nothing can reach. Needs hand-mineable material below to supply the cap, and fails over water, lava or bedrock. The action succeeds once the roof is sealed; the body keeps holding the pocket until something else is asked of it. | `depth` (1–5) |
-| `mc.bot.playbook` | **Asynchronous, on a background thread.** Runs a multi-phase boss script — a hot-reloadable script that orchestrates combat, movement, gear and sensing into a whole fight, because that is minutes of work rather than the thirty seconds `mc.script.eval` allows. One at a time. | `op` (`start`, `status`, `cancel`), `name`, and any extra keys, which are injected into the script |
+| `mc.bot.playbook` | **Asynchronous, on a background thread.** Runs a multi-phase boss script — a hot-reloadable script that orchestrates combat, movement, gear and sensing into a whole fight, because that is minutes of work rather than the thirty seconds `mc.script.eval` allows. One at a time. Cancelling it also cancels the actions it started. | `op` (`start`, `status`, `cancel`); `name`, `budgetMs` and `args` to start, the last injected into the script |
 
 ### Hands and items
 
@@ -300,7 +300,7 @@ is off.
 |---|---|---|
 | `mc.bot.status` | The list of addressable bots, and one body's `status`: every process slot, how its last task ended, and — for your own player — its reflexes. Available on a dedicated server; an unknown body is refused as `body_unavailable`. | `body` |
 | `mc.bot.cancel` | Cancels one action by `actionId`, or a body's processes by `process`, releasing the held inputs; `cancelled` lists what it actually stopped, empty when nothing matched. `all` is a best-effort broadcast. | `actionId`, or `process` and `body` |
-| `mc.bot.setting` | Reads or writes the tuning and toggle surface. Empty parameters reads; any key writes, applied on the next tick. | See below |
+| `mc.bot.setting` | Reads, patches or applies the tuning and toggle surface, chosen by `op`. | See below |
 
 ### Running a long verb
 
@@ -345,27 +345,41 @@ reports in `goto`.
 
 ### What `setting` toggles
 
-`mc.bot.setting` with no parameters returns the current values. Passing keys writes them,
-applied from the next tick. The key set is not hand-listed anywhere: it is derived
-reflectively from the settable fields of `BotConfig`, rendered into this tool's input
-schema with a one-line explanation per key, and a class-load check fails the build if a
-documented key stops existing. **Read the schema from `tools/list`** — it is the only
-listing that cannot go stale.
+Every call names an `op`:
+
+```jsonc
+{"op": "read"}                                         // every readable key
+{"op": "read", "keys": ["autoEat", "allowBreak"]}      // just these, in this order
+{"op": "patch", "updates": [{"key": "autoEat", "value": true},
+                            {"key": "pathfinder.maxNodes", "value": 40000}]}
+{"op": "apply", "update": {"key": "paused", "value": true}}
+```
+
+Values travel as a list of `{key, value}` pairs, and each key has its own value type. The key
+set is not hand-listed anywhere: it is derived reflectively from the settable fields of
+`BotConfig`, rendered into this tool's input schema with a one-line explanation and a range
+per key, and a class-load check fails the build if a documented key stops existing. **Read
+the schema from `tools/list`** — it is the only listing that cannot go stale.
 
 Three things about the write path are worth knowing before you script against it:
 
-- It is all-or-nothing. A call carrying any key not in the schema is rejected outright and
-  nothing is applied, so a script that misspells a key fails loudly instead of half-applying.
-- A value that is in range but out of bounds is soft-rejected into a `rejected` array with
-  `ok: true`, so check that array rather than assuming a write landed.
-- Most keys are flat; a few are namespaced — `pathfinder.*` for search budgets and
-  heuristics, `walker.*` for execution, `mine.*` for scan geometry.
+- A patch is all-or-nothing. Every update is checked before any is written: an unknown key,
+  a wrong type, a number outside the key's range or an unknown block id fails the whole call
+  with one issue per bad update, and nothing is applied.
+- A patch is saved to the settings file. `persisted: false` means it was not — persistence
+  is off, or the write failed (`persistError` says which) — but the values are live anyway.
+- `paused` and `debugFly` are controls that act on your own player, not configuration, so
+  they go through `op: 'apply'` one at a time and need a client. Everything else reads and
+  patches on a dedicated server too.
+
+Most keys are flat; a few are namespaced — `pathfinder.*` for search budgets and heuristics,
+`walker.*` for execution, `mine.*` for scan geometry.
 
 Broadly the keys fall into reflexes that act without being asked (`autoEat`, `autoRetreat`,
 `autoFight`, `autoShield`, `autoTotem`, `autoEquip`, the drowning and suffocation escapes,
 the dusk-shelter behaviour), movement capabilities that widen or narrow what the pathfinder
-may plan, and numeric budgets for the search and the walker. `paused: true` halts every bot
-process and releases the held keys; `paused: false` resumes.
+may plan, and numeric budgets for the search and the walker. Applying `paused: true` halts
+every bot process and releases the held keys; `paused: false` resumes.
 
 #### `allowBreak` and `allowPlace`
 

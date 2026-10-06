@@ -24,6 +24,17 @@ FLAGS = {'pathArchive': False, 'allowBreak': True, 'allowPlace': True, 'allowWat
 def rpc(m, p): return asyncio.run(_rpc(m, p))
 
 
+def patch_settings(values):
+    """Write the keys of `values` together through mc.bot.setting."""
+    return rpc('mc.bot.setting', {'op': 'patch', 'updates': [{'key': k, 'value': v} for k, v in values.items()]})
+
+
+def read_settings():
+    """Every readable setting as {key: value}, or None when the call did not answer."""
+    r = rpc('mc.bot.setting', {'op': 'read'})
+    return None if r is None else {e['key']: e['value'] for e in r.get('values', [])}
+
+
 def click_button(labels, gone_type=None, timeout=6.0):
     """Click a screen button found by LABEL, and confirm the click took.
 
@@ -125,8 +136,8 @@ def preflight(label):
     gear actually in the hotbar. Every past silent failure mode, checked up front."""
     snap = None
     for _ in range(3):                      # rpc can transiently return None (C45 crash)
-        r = rpc('mc.bot.setting', {})
-        if r is not None: snap = r.get('settings', {}); break
+        snap = read_settings()
+        if snap is not None: break
         time.sleep(2)
     if snap is None:
         print(f'[{label}] PREFLIGHT FAIL: setting rpc unavailable', flush=True)
@@ -161,13 +172,13 @@ def live_journey(label):
     # Set the FULL flag set every journey: a fresh client boots with all-default flags,
     # and run_case (replay) is the only other setter — the first journey of a chain ran
     # flag-naked otherwise (C21-J1). pathArchive back ON for recording.
-    rpc('mc.bot.setting', {**FLAGS, 'pathArchive': True, 'walkerDebug': True})
+    patch_settings({**FLAGS, 'pathArchive': True, 'walkerDebug': True})
     if not preflight(label):
         # one repair attempt: re-clear + re-give + re-set, then re-check
         rpc('mc.client.chat.send', {'text': '/clear'}); time.sleep(0.3)
         for c in ['/give @p water_bucket', '/give @p diamond_pickaxe', '/give @p diamond_shovel', '/give @p cobblestone 192']:
             rpc('mc.client.chat.send', {'text': c}); time.sleep(0.3)
-        rpc('mc.bot.setting', {**FLAGS, 'pathArchive': True, 'walkerDebug': True})
+        patch_settings({**FLAGS, 'pathArchive': True, 'walkerDebug': True})
         if not preflight(label):
             print(f'[{label}] ABORT journey (preflight failed twice)', flush=True)
             return None

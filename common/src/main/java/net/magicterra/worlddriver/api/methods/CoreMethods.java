@@ -38,6 +38,10 @@ public final class CoreMethods {
                 ControlContracts.STATUS,
                 ControlContracts.CANCEL,
                 ControlContracts.WAYPOINT_SPEC,
-                WaitResultContract.SPEC);
+                SettingsContract.SPEC,
+                WaitResultContract.SPEC,
+                ScriptContracts.EVAL,
+                ScriptContracts.SKILL,
+                ScriptContracts.PLAYBOOK);
     }
 }

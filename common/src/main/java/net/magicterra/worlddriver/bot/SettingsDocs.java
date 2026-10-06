@@ -16,17 +16,17 @@ import java.util.regex.Pattern;
  * documented 125 keys out of 241, and two rows had lost the space between the key and its
  * range so their "key" read {@code pathfinder.heuristicWeight[1.0,3.0]}.
  *
- * <p>Now each string is attached to the key it describes and rendered as that property's
- * schema {@code description}. {@link SettingsRegistry#assertDocsResolve()} fails at class
- * load if a key here is not a real setting, so a renamed or deleted flag cannot leave
- * orphaned prose behind.
+ * <p>Now each string is attached to the key it describes and rendered as the description of
+ * that key's {@code SettingValue} variant. {@link SettingsRegistry#assertDocsResolve()} fails at
+ * class load if a key here is not a real setting, so a renamed or deleted flag cannot leave
+ * orphaned prose behind. A row's opening {@code [lo,hi]} is also the range the contract enforces.
  *
  * <p>Note what this does NOT buy: the text still ships to clients, because {@code
  * tools/list} serialises the whole {@code inputSchema}. The win is that it can no longer
- * drift from the key set, and that a client is free to render property descriptions lazily.
+ * drift from the key set, and that a client is free to render variant descriptions lazily.
  *
- * <p>Plain strings only — no Minecraft, no client, no mcp.schema imports, so a dedicated
- * server can load this exactly like {@link SettingsRegistry}.
+ * <p>Plain strings only — no Minecraft, no client, so the artifact generator and a dedicated
+ * server load this exactly like {@link SettingsRegistry}.
  */
 public final class SettingsDocs {
     private SettingsDocs() {}

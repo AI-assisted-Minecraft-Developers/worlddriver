@@ -13,7 +13,7 @@
 (function () {
     function boss()     { return Driver.invoke('mc.observe.boss', { radius: 48 }); }
     function player()   { return Driver.invoke('mc.observe.player', {}); }
-    function aborting()  { var s = Driver.invoke('mc.bot.playbook', { op: 'status' }); return !!(s && s.aborting); }
+    function aborting()  { return Driver.invoke('mc.bot.playbook', { op: 'status' }).stopping; }
 
     var summon = !(typeof PLAYBOOK !== 'undefined' && PLAYBOOK.summon === false);
 
@@ -32,7 +32,7 @@
                  missingArmor: missing, hasSword: hasSword };
     }
 
-    Driver.invoke('mc.bot.setting', { autoTotem: true, autoHeal: true, autoEat: true, autoDodge: true, autoRetreat: false });
+    Driver.bot.patchSettings({ autoTotem: true, autoHeal: true, autoEat: true, autoDodge: true, autoRetreat: false });
 
     // --- Summon (optional). The wither stays invulnerable ~220 ticks, then
     //     detonates a large explosion — back off and let it blow before closing in.

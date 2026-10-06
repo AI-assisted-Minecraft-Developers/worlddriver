@@ -31,11 +31,10 @@ way:
   tool schemas at session start and re-fetching (`ToolSearch`) returns the same
   stale copy. After you rebuild + relaunch the mod with a new `mc.bot.setting`
   key (or any new param), the MCP client **strips the unknown key before it ever
-  leaves the harness** (the frozen client-side schema doesn't know it) — so it's
-  missing from `applied:` and unchanged in the snapshot, even though the snapshot
-  now lists it (proof the new build loaded). This is a *client-side* strip, not a
-  mod-layer drop: post-#280 the mod's `mc.bot.setting` schema is CLOSED and would
-  reject an unknown key **loudly, all-or-nothing**, if one reached it. RPC forwards
+  leaves the harness** (the frozen client-side schema doesn't know it), even though
+  an `op:"read"` now lists it (proof the new build loaded). This is a *client-side*
+  refusal, not a mod-layer drop: the mod's `mc.bot.setting` contract is CLOSED and
+  would reject an unknown key **loudly, all-or-nothing**, if one reached it. RPC forwards
   params verbatim — bypassing the stale schema — so it just works. This is the #1
   reason this skill exists.
 - **Multi-step setup as one block.** Stage an arena (`give`→`tp`→`fill`→`setting`
@@ -61,7 +60,7 @@ say `python3`; swap the name for your box. Run it from the `scripts/` directory 
 python3 .claude/skills/worlddriver-rpc/rpc.py mc.system.version
 
 # one-shot with params (params = a JSON object string)
-python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.setting '{"allowParkourPlace": true}'
+python3 .claude/skills/worlddriver-rpc/rpc.py mc.bot.setting '{"op":"patch","updates":[{"key":"allowParkourPlace","value":true}]}'
 
 # no-param read (omit the JSON)
 python3 .claude/skills/worlddriver-rpc/rpc.py mc.observe.player
@@ -72,7 +71,7 @@ python3 .claude/skills/worlddriver-rpc/rpc.py --batch - <<'EOF'
 mc.action.runCommand {"cmd":"give @p minecraft:stone 64"}
 mc.action.runCommand {"cmd":"tp @p 20 -60 0"}
 mc.action.runCommand {"cmd":"fill 16 149 -1 20 149 1 minecraft:stone"}
-mc.bot.setting {"allowParkourPlace": true, "walkerDebug": true}
+mc.bot.setting {"op":"patch","updates":[{"key":"allowParkourPlace","value":true},{"key":"walkerDebug","value":true}]}
 EOF
 ```
 

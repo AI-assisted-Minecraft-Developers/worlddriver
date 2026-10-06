@@ -255,11 +255,11 @@ client's click is silently ignored, `useItem` on an entity answers `menu` instea
 | `mc.bot.useItem` | `pos?` or `entityId?` (not both), `face?` (with pos), `hand?:"main"\|"off"`, `lookAt?` (dflt true), `sneak?` (with entityId), `body?` | right-click held item, **three modes**: neither = use in air (eat/throw/draw bow); `pos` = use on a block face (place/bucket/bonemeal/shears); `entityId` = use ON an entity (mount with EMPTY hand, trade, shear/milk/feed, leash) → `{outcome:"done", hand, result:"success"\|"consume"\|"pass"\|"fail"\|…, consumed, on:{kind:"air"}\|{kind:"block",pos,face}\|{kind:"entity",entityId,type,distance,riding?,screen?,menu?}}`; on self the entity mode rereads `riding`/`screen` until the server's answer lands. Missing entity / out of reach → refused `invalid_world_target`. |
 | `mc.bot.attackEntity` | `entityId` (req), `body?` | one left-click attack via the game mode (server applies damage/cooldown) → `{outcome:"done", entityId, type, alive, distance}`; a missing entity or an unsafe blast footing → refused `invalid_world_target`. On self out-of-reach is silently ignored by the server. |
 | `mc.bot.elytraFly` | `pos?`, `yaw?`, `pitch?`, `reactive?`, `fireworks?`, `fireworkEveryTicks?` (5–400), `ticks?` (1–20000), `stopXZDist?`, `groundFallback?`, `near?` (0–64), `awaitMs?`, `body?` | **action**: elytra glide (needs to already be airborne). `reactive:true` (needs `pos`) → sim-lookahead flight + firework boosts; `pitch` pins a fixed-heading glide; no `pos` → glide on the current heading. No usable elytra → refused `unsupported_capability`, unless `groundFallback:true` (needs `pos`) walks there instead → `{kind:"elytraFly", mode:"reactive"\|"goal"\|"glide"\|"groundFallback", fireworks}`. |
-| `mc.bot.playbook` | `name?:"dragon"\|"wither"` (any hot-reloadable `[a-z][a-z0-9_]*` playbook body), `op?:"start"\|"status"\|"cancel"` (dflt start), `summon?` (wither), `maxRounds?`, `budgetMs?` (min 1, dflt 600000) | **background thread**: run a boss-fight Rhino playbook. `start`→`{ok, started, name}`; `status`→`{ok, active, name?, aborting, lastResult?, lastError?}`; `cancel`→stop. One at a time. |
+| `mc.bot.playbook` | tagged on `op`: `{op:"start",name,budgetMs?,args?}` (`name` `dragon`\|`wither`, or any `[a-z][a-z0-9_]*` playbook on the classpath; `budgetMs` 1–1200000, dflt 600000; `args` an object, the `PLAYBOOK` global: `maxRounds`, and `summon` for wither)\|`{op:"status"}`\|`{op:"cancel"}` | **background run**: a boss-fight playbook. `start`→`{op:"start",name,runId}` at once; `status`→`{op:"status",active,name?,runId?,startedAtMs?,stopping,outcome?}` (`outcome` as `mc.script.eval` answers, once it has ended); `cancel`→`{op:"cancel",stopped?}` stops the run, which cancels the actions it started. One at a time: a second `start` is `capability_unavailable`; an unknown name is `invalid_params` at `/name`. |
 | `mc.bot.waypoint` | tagged on `op`: `{op:"save",name,pos?}` (dflt where the player stands)\|`{op:"get",name}`\|`{op:"list"}`\|`{op:"delete",name}`\|`{op:"clear"}` | this client's in-memory named positions (no disk); use names in `goto{waypoint}`. Answers tagged on `op`: `{op:"save",name,pos,count}`, `{op:"get",name,pos}` (an unknown name is `invalid_params` at `/name`), `{op:"list",waypoints:[{name,pos}]}`, `{op:"delete",name,existed,count}`, `{op:"clear",cleared}`. No client → `capability_unavailable`. |
 | `mc.bot.status` | `body?` | `{outcome:"done", bodies:[{id, kind, entityId?, pos?, busy}], status?}`. `bodies` lists the other bots `body` can name (`player:<name>` from `/worlddriver server spawn <name>`, `npc:<name>` from the testmod) on every topology. `status` is the asked body's (dflt self; absent when no body was named and there is no client): `{body, busy, activeProcess?, lastProcessEnd?:{kind,error?}, slots:{goto,mine,builder,follow,explore,runAway,retreat,look,elytra,craft,smelt,escape,bunker,combat,plan}, reflexes?}`; each slot `{active, goal?, target?, pathLen, pathStep, startedAtMs?, lastError?, goalReached?, endReason?, finalDist?}`. Only self has `reflexes`: `{paused, activeProcessDetail?, activeChain?, userTaskSuspended, chains:{<name>:{priority, episode?, bail?}}, lastPath?:{expanded,ms,goalReached,finalCost,pathLen,…}, clutch, combat:{swings,wellTimed,crits,kills}}` — the primary "why isn't it moving" probe. Pollable. An unknown body is refused `body_unavailable`. |
 | `mc.bot.cancel` | `actionId?`, or `process?` (dflt `all`) with `body?` | stop an action, or a body's processes, releasing keys and leaving `lastError='user-cancel'` → `{outcome:"done", cancelled:[…], action?}`. With `actionId`: `cancelled` holds it when it was still running, `action` is its snapshot (an unknown id is `action_not_found`). With `process`: a process kind, or a reflex chain's own name (`retreat`/`duskSecure`/`bunker`/`combat`) for that chain's internal episode, and a kind also reaches a process held inside a chain; `cancelled` names each hit (`user/bunker-process`, `bunker-episode`, …), empty when nothing matched, `["all"]` for the best-effort broadcast. Another bot holds one process and no chains, so a named cancel matches its kind or nothing; an unknown body is refused `body_unavailable`. |
-| `mc.bot.setting` | many keys (empty=read all) | read/write tuning + reflex/Baritone toggles → `{ok, settings:{…}, applied?, rejected?, inert?}`. See below. |
+| `mc.bot.setting` | tagged on `op`: `{op:"read",keys?}`\|`{op:"patch",updates:[{key,value}]}`\|`{op:"apply",update:{key,value}}` | the tuning + reflex/Baritone toggle surface → `{op:"read",values:[{key,value}]}`, `{op:"patch",values,persisted,persistError?}`, `{op:"apply",applied:{key,value}}`. See below. |
 
 ### `mc.bot.setting` keys
 Single source: **`SettingsRegistry.java`** — the ordered `HAND` list (canonical key
@@ -269,24 +269,35 @@ auto-includes every `public static volatile` primitive/String field of
 `BotConfig`.** So the *field is the schema*: adding a settable `BotConfig` field
 makes it a valid key with no second edit. Ranges live in **`SettingsDocs.java`**: a
 key's row opens with `[min,max]`, that row is the key's schema description, and the
-write path rejects any number outside it (an aliased field's own name, e.g.
-`walkerRepathEveryTicks`, is held to its alias's range).
+contract rejects any number outside it as `out_of_range` (an aliased field's own name,
+e.g. `walkerRepathEveryTicks`, is held to its alias's range). `SettingsContract.java`
+turns that table into one `{key,value}` variant per key, so the schema and the
+generated TypeScript (`SettingValue`) both know each key's value type.
 The set is large — **on the order of 200 keys** (currently ~120 boolean, ~70
 numeric, plus a handful of list/string keys); the great majority are `walker*` /
 `pathfinder*` movement-research toggles.
 
-**Read the live full set with `mc.bot.setting {}`** (empty params ⇒ read-all → every
-current key and its value) — that is the authoritative, never-stale list. The tables
+**Read the live full set with `mc.bot.setting {"op":"read"}`** (no `keys` ⇒ every
+readable key and its value) — that is the authoritative, never-stale list. The tables
 below are a **curated highlight** of the commonly-used keys, not the whole surface;
 grep `SettingsRegistry.HAND` for the canonical ordered names.
 
-Out-of-range numeric keys land in `rejected`, applied ones in `applied`; an
-**unknown** key is **rejected loudly, all-or-nothing** (post-#280: the schema is
-CLOSED and validated at `route()` from `SettingsRegistry`, so a call carrying ANY key
-not in the registry errors and applies NOTHING — never a silent drop). The MCP-client
-stale-schema caveat still holds (see the SKILL.md note — the harness's frozen MCP tool
-schema strips a brand-new key *client-side* before it reaches the mod, which is the #1
-reason to drive a just-added setting over RPC).
+- **`patch` is all-or-nothing.** Every update is checked first — unknown key, wrong
+  type, out-of-range number, unknown block id, a key named twice — and any problem is
+  `invalid_params` with one issue per bad update at `/updates/<i>/…`; nothing is
+  written. Otherwise all of them commit together and are saved; `persisted:false`
+  (with `persistError`) means the save failed or persistence is off, and the values are
+  still live in memory. `values` echoes each updated key as it now stands.
+- **`paused` and `debugFly` are controls, not configuration**: write them with
+  `{op:"apply",update:{key:"paused",value:true}}`, one at a time; a patch naming them
+  is refused. They act on this client's player, so with no client `apply` is
+  `capability_unavailable`. `debugFly` has nothing to read back.
+- Settings live on the client's thread when there is a client, else the server's, so
+  read and patch work on a dedicated server too (without `paused`).
+
+The MCP-client stale-schema caveat still holds (see the SKILL.md note — the harness's
+frozen MCP tool schema can reject a brand-new key *client-side* before it reaches the
+mod, which is the #1 reason to drive a just-added setting over RPC).
 
 **Booleans** — reflexes & toggles: `paused, autoEat, autoRespawn, autoRetreat,
 autoBunker, autoFight, autoDodge, autoShield, autoHeal, autoTotem, autoEquip,
@@ -346,8 +357,8 @@ creative-flight test toggle, no snapshot field).
 ## mc.script.eval / mc.skill
 | method | params | returns / notes |
 |---|---|---|
-| `mc.script.eval` | `source` (req, ≤64 KiB), `timeoutMs?` (dflt 3000, max 30000) | run a JS snippet (Rhino, fresh scope per call) against the in-process API. Inside: `Driver.invoke(method, params)` (any route by name), the `Driver.system/observe/action/query/plan/skill/events/wait/client/bot` helpers, `console.log(x)`/`console.error(x)`, and `javaClassName(v)` — the class name of a wrapped Java object, since `obj.getClass()` is undefined in this Rhino (null for JS values; Minecraft classes read `net.minecraft.class_NNNN` in a Fabric production game). Last expression is the result → `{result, error, log:[…], ms}`. **Best when a task needs ≥3 chained calls** (observe→decide→act) — one round-trip instead of N. **Not sandboxed by default**: scripts are a first-party capability with full JVM access; the class filter that denies file/socket/process/reflection access applies only when the game runs with `-Dworlddriver.sandbox=on`. Treat the endpoint as a shell (`docs/guide/transports.md` § Security). Runs on a worker thread, off both the server and the client thread; each `Driver.invoke` hops onto the thread its route needs, so `mc.client.*` / `mc.bot.*` calls from a script work. |
-| `mc.skill` | `op?:"save"\|"list"\|"get"\|"run"\|"delete"` (dflt list), `name?` (`[a-z][a-z0-9_]*`), `source?` (save), `args?` (run), `timeoutMs?` (1–30000, dflt 3000) | persistent skill library (scripts saved under `config/worlddriver/scripts/skills/`, or `skills/` under `-Dworlddriver.scriptsDir`). Runs through the same evaluator as `mc.script.eval`, so the same trust model applies. `save`→`{ok,saved,name,bytes}`; `list`→`{ok,skills:[{name,bytes}],count}`; `get`→`{ok,name,source}`; `run`→`{ok,result,error,log,ms,skill}`; `delete`→`{ok,deleted,name}`. |
+| `mc.script.eval` | `source` (req, ≤64 KiB), `timeoutMs?` (dflt 3000, max 30000) | run a JS snippet (Rhino, fresh scope per call) against the in-process API. Inside: `Driver.invoke(method, params)` (any route by name), the `Driver.system/observe/action/query/plan/skill/events/wait/client/bot` helpers, `console.log(x)`/`console.error(x)`, and `javaClassName(v)` — the class name of a wrapped Java object, since `obj.getClass()` is undefined in this Rhino (null for JS values; Minecraft classes read `net.minecraft.class_NNNN` in a Fabric production game). Last expression is the result → `{runId, result, error?, log:[…], ms}`. The script's own failure is `error:{code, message, issues, execution?, line?}`, not a failed call: `code` is the API code when a `Driver` call threw and the script let it through (with that call's `issues`/`execution`), else `script_error` / `script_timeout` / `script_stopped`. A failed `Driver` call throws a `DriverApiError` with `code`, `issues`, `execution`. **Each eval is a run** (`runId` `eval-N`): the actions its calls start belong to it, so another caller is refused `busy` on those bodies until they end; running out of budget stops the run and cancels them, returning leaves them running. A nested `mc.script.eval` joins its caller's run and deadline. **Best when a task needs ≥3 chained calls** (observe→decide→act) — one round-trip instead of N. **Not sandboxed by default**: scripts are a first-party capability with full JVM access; the class filter that denies file/socket/process/reflection access applies only when the game runs with `-Dworlddriver.sandbox=on`. Treat the endpoint as a shell (`docs/guide/transports.md` § Security). Runs on a worker thread, off both the server and the client thread; each `Driver.invoke` hops onto the thread its route needs, so `mc.client.*` / `mc.bot.*` calls from a script work. |
+| `mc.skill` | tagged on `op`: `{op:"save",name,source}`\|`{op:"list"}`\|`{op:"get",name}`\|`{op:"run",name,args?,timeoutMs?}` (1–30000, dflt 3000)\|`{op:"delete",name}`; `name` is `[a-z][a-z0-9_]*` | persistent skill library (scripts saved under `config/worlddriver/scripts/skills/`, or `skills/` under `-Dworlddriver.scriptsDir`). Runs through the same evaluator as `mc.script.eval`, so the same trust model applies; `args` (any JSON, dflt `{}`) is the `SKILL` global. Answers tagged on `op`: `{op:"save",name,bytes}`, `{op:"list",skills:[{name,bytes}]}`, `{op:"get",name,source}`, `{op:"run",name,outcome}` (`outcome` as `mc.script.eval` answers, run `skill-<name>-N`), `{op:"delete",name,existed}`. A source that does not parse is `invalid_params` at `/source`; a name not saved, at `/name`. |
 
 <a id="mcdebug"></a>
 ## mc.debug.* (client only — path debugging)

@@ -118,11 +118,16 @@ public abstract class DriverApi {
      * because that thread is what it would be waiting for.
      */
     public final String invokeJson(String method, String paramsJson) {
+        return invokeJson(method, paramsJson, CallContext.standalone());
+    }
+
+    /** {@link #invokeJson(String, String)} as part of {@code caller}: its run, its deadline, its cancellation. */
+    public final String invokeJson(String method, String paramsJson, CallContext caller) {
         Map<String, Object> envelope = new LinkedHashMap<>();
         try {
             Object params = paramsJson == null ? null : JsonCodec.decode(paramsJson);
             boolean game = GameThreads.onGameThread();
-            CallContext ctx = game ? CallContext.standalone().onGameThread() : CallContext.standalone();
+            CallContext ctx = game ? caller.onGameThread() : caller;
             CompletionStage<Object> stage = dispatch(method, params, ctx);
             CompletableFuture<Object> f = stage.toCompletableFuture();
             if (game && !f.isDone()) {
@@ -131,7 +136,7 @@ public abstract class DriverApi {
                         + " did not finish synchronously on a game thread; it may still take effect", List.of(),
                         ApiError.Execution.UNKNOWN));
             }
-            envelope.put("result", await(f, CallContext.SERVER_CAP_MS));
+            envelope.put("result", await(f, Math.max(1, ctx.remainingMillis())));
         } catch (JsonCodec.JsonSyntaxException bad) {
             envelope.put("error", ApiErrors.toTree(ApiError.of(ApiError.Code.INVALID_PARAMS, "params are not JSON: " + bad.getMessage())));
         } catch (Throwable t) {
@@ -178,9 +183,6 @@ public abstract class DriverApi {
     /** Untyped route names, for the catalog and the boot invariant. */
     public final List<String> untypedMethods() { return new ArrayList<>(new TreeSet<>(routes.keySet())); }
 
-    public abstract void setScriptHandler(Function<Map<String, Object>, Object> handler);
-    public abstract void setPlaybookHandler(Function<Map<String, Object>, Object> handler);
-    public abstract void setSkillHandler(Function<Map<String, Object>, Object> handler);
     public abstract void attachServer(MinecraftServer server);
     public abstract void detachServer();
     public abstract void clearEvents();
