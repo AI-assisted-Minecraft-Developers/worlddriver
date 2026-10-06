@@ -40,7 +40,8 @@ class ServerThreadGuardTest {
         RuntimeException e = assertThrows(RuntimeException.class, call::call, what);
         assertTrue(e instanceof IllegalStateException || e instanceof ApiException, what + ": " + e);
         long ms = (System.nanoTime() - t0) / 1_000_000L;
-        assertTrue(e.getMessage().contains("server thread"), what + ": " + e.getMessage());
+        assertTrue(e.getMessage().contains("server thread") || e.getMessage().contains("game thread"),
+                what + ": " + e.getMessage());
         assertTrue(ms < 1000, what + " took " + ms + "ms to refuse");
     }
 
@@ -63,12 +64,15 @@ class ServerThreadGuardTest {
                 "invoke", "mc.events", "params", Map.of("op", "list"), "field", "nope", "timeoutMs", 5000)));
     }
 
-    /** A named bot player, because the client's own bot does not exist in a JVM test; both reach the same await. */
+    /**
+     * A named bot player, because the client's own bot does not exist in a JVM test; both reach the same
+     * await. explore, because it names no registry id: a JVM test has no bootstrapped registries.
+     */
     @Test
     void anAwaitMsOrderIsRefusedBeforeItStarts() {
         DriverApplication api = new DriverApplication();
-        assertRefusedFast("awaitMs", () -> api.route("mc.bot.mine",
-                Map.of("blocks", java.util.List.of("minecraft:stone"), "body", "npc:ghost", "awaitMs", 5000)));
+        assertRefusedFast("awaitMs", () -> api.route("mc.bot.explore",
+                Map.of("centerX", 0, "centerZ", 0, "body", "npc:ghost", "awaitMs", 5000)));
     }
 
     @Test

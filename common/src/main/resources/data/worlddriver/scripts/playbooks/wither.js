@@ -73,7 +73,7 @@
 
         // Both phases: melee the wither and chase. T0 autoDodge handles the skulls;
         // autoHeal/autoTotem cover the wither debuff's chip damage.
-        Driver.invoke('mc.bot.combat', { mode: 'kill', target: { type: 'wither' } });
+        Driver.invoke('mc.bot.combat', { mode: 'kill', target: { kind: 'entityType', type: 'minecraft:wither' } });
         Driver.system.waitTicks(10);
     }
 })();

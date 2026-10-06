@@ -12,12 +12,13 @@ import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
 import net.magicterra.worlddriver.api.methods.GotoContract;
 import net.magicterra.worlddriver.api.methods.GotoContract.Travel;
 import net.magicterra.worlddriver.api.methods.GotoContract.Trip;
+import net.magicterra.worlddriver.api.methods.MoveContracts;
 import net.magicterra.worlddriver.api.methods.RouteContract.Route;
+import net.magicterra.worlddriver.bot.body.BodyRegistry;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.process.RouteEvents;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
-import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -95,10 +96,13 @@ public final class GotoOrders {
         if (target == null) {
             return new Refuse(RefusalReason.INVALID_WORLD_TARGET, "flying needs a target cell, and " + goal + " has none");
         }
-        Map<String, Object> cell = Map.of("x", target.getX(), "y", target.getY(), "z", target.getZ());
-        VerbOrders.Order o = VerbOrders.elytraFly(Params.of(Map.of("pos", cell, "groundFallback", true)), self);
-        if (o.refused()) return new Refuse(RefusalReason.UNSUPPORTED_CAPABILITY, String.valueOf(o.reply().get("error")));
-        Travel travel = o.process() instanceof IntentProcess ? Travel.WALK_WITHOUT_ELYTRA : Travel.FLY;
-        return new Start(o.process(), new Trip(goal.toString(), 0, travel, Optional.empty()));
+        MoveContracts.ElytraParams flight = new MoveContracts.ElytraParams(BodyRegistry.SELF,
+                Optional.of(VerbOrders.position(target)), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                40, Optional.empty(), 3.0, true, 1, 0);
+        return switch (VerbOrders.elytraFly(flight, self)) {
+            case VerbOrders.Refuse<?> r -> new Refuse(r.reason(), r.message());
+            case VerbOrders.Start<?> s -> new Start(s.process(), new Trip(goal.toString(), 0,
+                    s.process() instanceof IntentProcess ? Travel.WALK_WITHOUT_ELYTRA : Travel.FLY, Optional.empty()));
+        };
     }
 }

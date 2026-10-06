@@ -37,9 +37,9 @@ public final class GotoContract {
         @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
     }
 
-    /** forward/backward/left/right turn with the body's facing. */
+    /** forward/back/left/right turn with the body's facing; the same words clearArea and construct take. */
     public enum Direction implements WireName {
-        NORTH, SOUTH, EAST, WEST, UP, DOWN, FORWARD, BACKWARD, LEFT, RIGHT;
+        NORTH, SOUTH, EAST, WEST, UP, DOWN, FORWARD, BACK, LEFT, RIGHT;
         @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
         public boolean vertical() { return this == UP || this == DOWN; }
     }
@@ -134,9 +134,7 @@ public final class GotoContract {
                             .required().forGetter(Level::y),
                     Level::new)),
             ApiTypes.variant("block", BlockTarget.class, ApiTypes.record(null,
-                    ApiField.field("block", ApiTypes.pattern("#?[a-z0-9_.-]+:[a-z0-9/._-]+",
-                                    "a block id such as minecraft:chest, or a tag such as #minecraft:logs").maxLength(256))
-                            .required().forGetter(BlockTarget::block),
+                    ApiField.field("block", CommonTypes.BLOCK_OR_TAG).required().forGetter(BlockTarget::block),
                     ApiField.field("radius", ApiTypes.integer(1, 64)).defaulted(32).forGetter(BlockTarget::radius),
                     BlockTarget::new)),
             ApiTypes.variant("entityType", EntityType.class, ApiTypes.record(null,

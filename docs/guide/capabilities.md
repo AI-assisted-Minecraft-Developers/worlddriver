@@ -181,18 +181,19 @@ path that names no client class at all, which is why the same verbs answer for s
 players on a dedicated server. `mc.bot.status` itself works everywhere. The exceptions —
 `equip`, `setting`, `waypoint` and `playbook` — take no `body` and are client-only. A bot
 that is not your own player has no reflexes, and a bot that is not a player entity has no
-hands, so verbs that need them answer `no_hands`.
+hands, so a task that needs them is refused as `unsupported_capability`, and the hand verbs
+(`lookAt`, `holdItem`, `useItem`, `attackEntity`) answer `no_hands`.
 
 ### Movement
 
 | Method | What it does | Notable parameters |
 |---|---|---|
 | `mc.bot.goto` | **An action.** Pathfinds and walks to a target, replacing whatever the body was doing; the old action ends `superseded`. | `target`, `route`, `invert`, `plan`, `planId`; see below |
-| `mc.bot.follow` | **Asynchronous.** Follows an entity, re-aiming whenever it moves to another block. Ends with `unreachable` after five failed replans in a row, or after `giveUpTicks` (default 600, 30 s) without reaching the standoff or getting a block closer. | `entityType` or `name`, `radius` (1–16, default 3), `maxIdleTicks`, `giveUpTicks` (0 = never), `route` |
-| `mc.bot.explore` | **Asynchronous.** Wanders to unvisited chunk centres in a spiral, to reveal terrain. | `centerX`, `centerZ`, `maxChunks` (1–64, default 16) |
-| `mc.bot.runAway` | **Asynchronous.** Walks to any reachable point at least `minDist` blocks from a position. | `from`, `minDist` (4–64, default 16) |
-| `mc.bot.escape` | **Asynchronous, and not awaitable.** Carves a staircase up the driest wall and climbs out of a pit or well the pathfinder cannot solve. Needs block breaking on and a solid, non-falling wall. Poll `mc.bot.status`. | `targetY` |
-| `mc.bot.elytraFly` | **Asynchronous.** Glides with an equipped elytra. With a target and no explicit pitch it steers reactively and boosts with rockets; with a pitch it pins a fixed-heading glide. Needs to be airborne already. | `pos`, `pitch`, `fireworks`, `ticks`, `stopXZDist`, `groundFallback` |
+| `mc.bot.follow` | **An action.** Follows an entity, re-aiming whenever it moves to another block. Fails after five failed replans in a row, or after `giveUpTicks` (default 600, 30 s) without reaching the standoff or getting a block closer. | `target` (`{kind: 'entityType', type}` or `{kind: 'player', name}`), `radius` (1–16, default 3), `maxIdleTicks`, `giveUpTicks` (0 = never), `route` (no `via`, no `fly`) |
+| `mc.bot.explore` | **An action.** Wanders to unvisited chunk centres in a spiral, to reveal terrain. The result counts the chunks `visited`. | `centerX`, `centerZ`, `maxChunks` (1–64, default 16) |
+| `mc.bot.runAway` | **An action.** Walks to any reachable point at least `minDist` blocks from a position. The result says where it stopped. | `from` (default where the body stands), `minDist` (4–64, default 16) |
+| `mc.bot.escape` | **An action.** Carves a staircase up the driest wall and climbs out of a pit or well the pathfinder cannot solve, or digs a stair down when `targetY` is below the feet. Needs block breaking on and a solid, non-falling wall. A `targetY` outside the build height is refused. | `targetY` (default 32 above the feet) |
+| `mc.bot.elytraFly` | **An action.** Glides with an equipped elytra. With `reactive` it steers toward `pos` and boosts with rockets; otherwise it holds a fixed-heading glide. Needs to be airborne already. Without a usable elytra it is refused as `unsupported_capability`, unless `groundFallback` asks it to walk to `pos` instead. | `pos`, `yaw`, `pitch`, `reactive`, `fireworks`, `ticks`, `stopXZDist`, `groundFallback` |
 | `mc.bot.lookAt` | Aims the view, at a block centre or at explicit angles. Instant, unless the `smoothLook` setting is on, in which case it starts a panning process. The new rotation reaches the server entity one tick later. | `pos`, or `yaw` and `pitch` |
 | `mc.bot.waypoint` | Manages named in-memory positions, which `goto` can then target by name. Not persisted to disk. | `op` (`save`, `get`, `list`, `delete`, `clear`), `name`, `pos` |
 
@@ -208,7 +209,7 @@ hands, so verbs that need them answer `no_hands`.
 | `block`, with `block: 'minecraft:oak_log'` | The nearest matching block within `radius`, default 32. A tag works too, so `block: '#minecraft:logs'` walks to the nearest tree of any species. |
 | `entityType`, with `type: 'minecraft:cow'` | The nearest entity of that type. |
 | `entity`, with `entityId` | One specific entity, by the id `mc.query` returns. |
-| `direction`, with `direction` and `distance` | That many blocks that way. The cardinals plus `up`, `down`, `forward`, `backward`, `left`, `right`; the relative ones honour the current yaw. |
+| `direction`, with `direction` and `distance` | That many blocks that way. The cardinals plus `up`, `down`, `forward`, `back`, `left`, `right`; the relative ones honour the current yaw. |
 | `heading`, with a horizontal `direction` | Keep going that way, with no endpoint. |
 | `waypoint`, with `name` | A position saved earlier with `mc.bot.waypoint`. Your own player only. |
 | `axis` | The nearest world axis or diagonal, at the configured axis height. |
@@ -263,23 +264,23 @@ is off.
 
 | Method | What it does | Notable parameters |
 |---|---|---|
-| `mc.bot.mine` | **Asynchronous.** Mines matching blocks until the quantity is reached or none is reachable, swapping to the best tool, then walks back over the break sites to collect the drops. `broken` counts destroyed blocks, not inventory gained. | `blocks` (ids or `#tag` selectors), `quantity` (1–256), `radius` (1–64, default 16) |
-| `mc.bot.build` | **Asynchronous.** Places blocks from a schematic, bottom-up. Takes either a procedural object or base64 Sponge `.schem` bytes. Cap 4096 blocks. | `origin`, `schematic` or `schematicBase64` |
+| `mc.bot.mine` | **An action.** Mines matching blocks until the quantity is reached or none is reachable, swapping to the best tool, then walks back over the break sites to collect the drops. The result's `broken` counts destroyed blocks, not inventory gained. | `blocks` (ids or `#tag` selectors), `quantity` (1–256), `radius` (1–64, default 16) |
+| `mc.bot.build` | **An action.** Places blocks from a schematic, bottom-up. The result counts `placed` and `skipped`. Cap 4096 blocks. | `origin`, `schematic`: `{kind: 'blocks', w, h, d, palette, data: [[dx, dy, dz, paletteIndex], …]}` or `{kind: 'sponge', base64}` (Sponge `.schem` bytes) |
 | `mc.bot.clearArea` | **An action.** Works the cells of a box, or of a tunnel measured from the body: clears them, clears and fills them with a block, or replaces one block with another. Bottom-up, so fresh blocks support higher layers. Capped at 4096 cells. | `target` (`box` or `tunnel`), `edit` (`clear`, `fill`, `replace`) |
-| `mc.bot.construct` | **Asynchronous.** Constructive movement: `tower` pillars straight up to a height or an absolute level, `bridge` sneak-walks forward placing blocks underfoot. | `mode`, `height` or `targetY`, `direction`, `distance`, `block` |
-| `mc.bot.farm` | **Asynchronous.** Walks a field, harvests mature wheat, carrots, potatoes and beetroots, and replants the seed. Capped at 4096 cells of volume, Y included, because the whole box is rescanned after every harvest; a larger box, or a Y outside the world, is an invalid-argument error. | `from`, `to`, `crops`, `replant` |
-| `mc.bot.craft` | **Asynchronous.** Crafts an item, resolving the whole sub-recipe tree from the inventory and using the inventory grid for 2×2 recipes or a crafting table for 3×3. Fails up front if a leaf material is missing. Smelting is not followed — use `smelt`. | `item`, `count` |
-| `mc.bot.smelt` | **Asynchronous.** Opens a furnace, loads the ingredient and a fuel, waits for the cook and takes the result back. Fuel is auto-picked if you do not name one. | `item`, `count`, `fuel` |
-| `mc.bot.sleep` | **Asynchronous.** Finds the nearest bed within a radius, or an explicit one, paths to it and right-clicks. Vanilla owns the actual gating — night or thunder, no hostiles nearby, bed unoccupied. | `pos`, `radius` (default 16, clamped to 64) |
+| `mc.bot.construct` | **An action.** Constructive movement: a `tower` pillars straight up to a height or an absolute level, a `bridge` sneak-walks placing blocks underfoot. | `structure`: `{kind: 'tower', height or targetY, block}` or `{kind: 'bridge', direction (default forward), distance (1–64), block}` |
+| `mc.bot.farm` | **An action.** Walks a field, harvests mature wheat, carrots, potatoes and beetroots, and replants the seed. Capped at 4096 cells of volume, Y included, because the whole box is rescanned after every harvest; a larger box is `invalid_params` at `/to`, and a Y outside the world is refused. | `from`, `to`, `crops` (`wheat`, `carrots`, `potatoes`, `beetroots`; default all), `replant` |
+| `mc.bot.craft` | **An action.** Crafts an item, resolving the whole sub-recipe tree from the inventory and using the inventory grid for 2×2 recipes or a crafting table for 3×3. Fails up front if a leaf material is missing. Smelting is not followed — use `smelt`. | `item`, `count` |
+| `mc.bot.smelt` | **An action.** Opens a furnace, loads the ingredient and a fuel, waits for the cook and takes the result back. Fuel is auto-picked if you do not name one; the result names the one it used. | `item`, `count`, `fuel` |
+| `mc.bot.sleep` | **An action.** Finds the nearest bed within a radius, or an explicit one, paths to it and right-clicks. Vanilla owns the actual gating — night or thunder, no hostiles nearby, bed unoccupied. | `pos`, `radius` (1–64, default 16) |
 
 ### Fighting and staying alive
 
 | Method | What it does | Notable parameters |
 |---|---|---|
-| `mc.bot.combat` | **Asynchronous.** Runs the tick-level fight loop: picks a target, closes to weapon range and lands cooldown-gated hits, pre-jumping for critical hits. Melee orbits a swarm; a bow or crossbow in hand kites instead. It pre-empts the running task and resumes it when the area clears. It refuses to start below a frailty threshold unless you pass `force`. | `mode` (`engage`, `defend`, `kill`), `target`, `force` |
+| `mc.bot.combat` | **An action.** Runs the tick-level fight loop: picks a target, closes to weapon range and lands cooldown-gated hits, pre-jumping for critical hits. Melee orbits a swarm; a bow or crossbow in hand kites instead. It pre-empts the running task and resumes it when the area clears. It fails below a frailty threshold unless you pass `force`, and a second fight supersedes the first. | `mode` (`engage`, `defend`, `kill`), `target` (`kill` only: `{kind: 'entity', entityId}` or `{kind: 'entityType', type}`), `force` |
 | `mc.bot.attackEntity` | One left click on an entity, with the yaw and pitch snapped first. Synchronous; spam it by polling. Read `attack` on the player snapshot first: a swing sent early still lands, but for a fraction of the weapon's damage. | `entityId` |
 | `mc.bot.equip` | Synchronous. Equips the best armour on every slot and, unless `armorOnly`, the best weapon in hand, scoring material tier and then enchantments. Returns what it put on, what is low on durability and which slots are still empty. | `profile`, `armorOnly` |
-| `mc.bot.bunker` | **Asynchronous.** The no-gear emergency shelter: digs straight down and seals the roof with a dug block, making a pocket nothing can reach. Needs hand-mineable material below to supply the cap, and aborts over water, lava or bedrock. | `depth` (1–5) |
+| `mc.bot.bunker` | **An action.** The no-gear emergency shelter: digs straight down and seals the roof with a dug block, making a pocket nothing can reach. Needs hand-mineable material below to supply the cap, and fails over water, lava or bedrock. The action succeeds once the roof is sealed; the body keeps holding the pocket until something else is asked of it. | `depth` (1–5) |
 | `mc.bot.playbook` | **Asynchronous, on a background thread.** Runs a multi-phase boss script — a hot-reloadable script that orchestrates combat, movement, gear and sensing into a whole fight, because that is minutes of work rather than the thirty seconds `mc.script.eval` allows. One at a time. | `op` (`start`, `status`, `cancel`), `name`, and any extra keys, which are injected into the script |
 
 ### Hands and items
@@ -299,26 +300,23 @@ is off.
 
 ### Running a long verb
 
-An asynchronous verb returns `{ok: true, started: true, …}` as soon as the process is
-running. There are two ways to find out how it went.
+A verb marked as an action answers `{outcome: 'accepted', action}` with an `actionId` at
+once, or `{outcome: 'refused', reason}` with nothing started. There are two ways to find out
+how it went.
 
-**Wait inline.** Pass `awaitMs: N` and the route polls the status itself until the relevant
-slot goes idle, then folds the final status into the reply — adding `awaited`, `completed`,
-`ms`, the slot snapshot and, where the verb has one, `goalReached`. The budget is clamped
-between 1 ms and ten minutes rather than rejected, and if the verb refused to start at all
-the reply comes back immediately without polling.
+**Wait inline.** Pass `awaitMs: N` and the call waits on the action itself, up to that budget,
+and answers with the action as it then stands; `waitTimedOut: true` says it was still running.
 
 ```jsonc
 {"name":"mc.bot.mine","arguments":{"blocks":["minecraft:iron_ore"],"quantity":3,"awaitMs":30000}}
 ```
 
-`goto` and `clearArea` are already actions: they answer `{outcome: 'accepted', action}`
-with an `actionId` at once, or `{outcome: 'refused', reason}` with nothing started, and
-`awaitMs` waits on the action itself. Read one later with
-`mc.wait.result {kind: 'action', actionId}`; its `state` is `running`, `succeeded` (with the
-`result`), `failed`, `cancelled` or `superseded`.
+**Read it later.** `mc.wait.result {kind: 'action', actionId}` answers with the action; its
+`state` is `running`, `succeeded` (with a `result` whose `kind` names the verb and whose
+fields say what it did — `broken`, `placed`, `crafted`, …), `failed` (with a `message`),
+`cancelled` or `superseded`. A body runs one task at a time, so a new one supersedes the old.
 
-**Poll yourself.** Call `mc.bot.status` and read the slot. Each slot carries `active`,
+**Poll the status.** Call `mc.bot.status` and read the slot. Each slot carries `active`,
 `pathLen`, `pathStep` and `lastError`. A slot's `lastError` is not a failure flag on its own:
 `build`, `clearArea`, `farm`, `construct`, `explore` and `sleep` also leave their success summary
 there (`"done (placed=12, skipped=0)"`, `"not needed (…)"`), and so does the auto-backfill
@@ -336,7 +334,7 @@ unreachable, not slow.
 
 Slots are shared by related verbs, which matters when you are choosing what to poll:
 `build`, `clearArea`, `farm` and `construct` all report in the `builder` slot, and `sleep`
-reports in `goto`. `mc.bot.escape` takes no `awaitMs` and must be polled.
+reports in `goto`.
 
 `mc.wait.condition` can do the polling for you against any field of any route, and with
 `background: true` it does so without blocking the agent.

@@ -31,6 +31,9 @@ public final class ExploreProcess implements BotProcess {
     }
 
     public String kind() { return "explore"; }
+
+    /** Chunk centres reached so far. */
+    public int visited() { return visitedCount; }
     public void attach(BotState st) {
         st.explore.active = true;
         st.explore.goal = "explore around chunk (" + centerChunkX + "," + centerChunkZ + ") max=" + maxChunks;

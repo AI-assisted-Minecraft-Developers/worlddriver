@@ -102,6 +102,13 @@ public final class HeldProcess {
         }
     }
 
+    /** The held process ticked and runs on: its action succeeds if it says it {@linkplain BotProcess#achieved achieved} its goal. */
+    public void ranOn() {
+        ActionHandle a = action;
+        BotProcess p = process;
+        if (a != null && p != null && a.running() && p.achieved()) a.succeed();
+    }
+
     /** The held process threw out of its tick: it is dropped with the error as its ending. */
     public void crashed(Throwable t) {
         String err = t.getClass().getSimpleName() + ": " + t.getMessage();

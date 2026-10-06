@@ -190,6 +190,8 @@ public final class UserTaskChain implements Chain {
                 }
             } else {
                 drove = true;
+                ActionHandle a = action;
+                if (a != null && a.running() && c.achieved()) a.succeed();
             }
         } catch (RuntimeException e) {
             String err = e.getClass().getSimpleName() + ": " + e.getMessage();

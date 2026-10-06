@@ -1073,7 +1073,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      *
      * <p>So the script names a SPECIES rather than a place, which is what an agent with perfect
      * knowledge would actually say here — "there are cows in this swamp" — and is exactly the shape
-     * of {@code mc.bot.combat}'s own {@code targetType} parameter. The engine still gets no help
+     * of {@code mc.bot.combat}'s own {@code {kind: "entityType"}} target. The engine still gets no help
      * finding it, which keeps the failure attributable.
      *
      * <p>Passive mobs exist here despite the suite pinning {@code doMobSpawning=false}: that rule

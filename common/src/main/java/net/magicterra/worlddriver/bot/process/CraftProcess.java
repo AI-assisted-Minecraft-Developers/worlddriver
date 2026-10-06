@@ -101,6 +101,9 @@ public final class CraftProcess implements BotProcess {
 
     @Override public String kind() { return "craft"; }
 
+    /** Items the crafting steps produced so far, intermediate ones included. */
+    public int crafted() { return crafted; }
+
     @Override public void attach(BotState s) {
         s.craft.active = true;
         s.craft.goal = "craft " + count + "× " + target;

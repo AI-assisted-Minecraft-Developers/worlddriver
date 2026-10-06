@@ -29,11 +29,6 @@ function viaEveryTransport(method, params) {
 ScriptTest.run("66_body_routes: an unknown body refuses every verb that takes body alike on every transport", function(t) {
     var calls = [["mc.bot.cancel", { body: NOBODY }],
                  ["mc.bot.status", { body: NOBODY }],
-                 ["mc.bot.mine", { body: NOBODY, blocks: ["minecraft:stone"] }],
-                 ["mc.bot.escape", { body: NOBODY }],
-                 ["mc.bot.combat", { body: NOBODY, mode: "defend" }],
-                 ["mc.bot.runAway", { body: NOBODY, awaitMs: 1000 }],
-                 ["mc.bot.elytraFly", { body: NOBODY }],
                  ["mc.bot.lookAt", { body: NOBODY, yaw: 0, pitch: 0 }],
                  ["mc.bot.useItem", { body: NOBODY }]];
     for (var i = 0; i < calls.length; i++) {
@@ -48,7 +43,12 @@ ScriptTest.run("66_body_routes: an unknown body refuses every verb that takes bo
 
 ScriptTest.run("66_body_routes: a typed body task refuses an unknown body as body_unavailable on every transport", function(t) {
     var calls = [["mc.bot.clearArea", { body: NOBODY, target: { kind: "tunnel", distance: 1 } }],
-                 ["mc.bot.goto", { body: NOBODY, target: { kind: "position", pos: { x: 0, y: 64, z: 0 } } }]];
+                 ["mc.bot.goto", { body: NOBODY, target: { kind: "position", pos: { x: 0, y: 64, z: 0 } } }],
+                 ["mc.bot.mine", { body: NOBODY, blocks: ["minecraft:stone"] }],
+                 ["mc.bot.escape", { body: NOBODY }],
+                 ["mc.bot.combat", { body: NOBODY, mode: "defend" }],
+                 ["mc.bot.runAway", { body: NOBODY }],
+                 ["mc.bot.elytraFly", { body: NOBODY }]];
     for (var i = 0; i < calls.length; i++) {
         var method = calls[i][0];
         var r = viaEveryTransport(method, calls[i][1]);

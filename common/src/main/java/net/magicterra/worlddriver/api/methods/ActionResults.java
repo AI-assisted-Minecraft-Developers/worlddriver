@@ -16,7 +16,21 @@ public final class ActionResults {
 
     private static final List<UnionType<?>> PER_METHOD = List.of(
             ClearAreaContract.SUMMARY,
-            GotoContract.RESULT);
+            GotoContract.RESULT,
+            GatherContracts.MINE_RESULT,
+            GatherContracts.CRAFT_RESULT,
+            GatherContracts.SMELT_RESULT,
+            GatherContracts.FARM_RESULT,
+            BuildContracts.BUILD_RESULT,
+            BuildContracts.CONSTRUCT_RESULT,
+            BuildContracts.BUNKER_RESULT,
+            BuildContracts.ESCAPE_RESULT,
+            MoveContracts.FOLLOW_RESULT,
+            MoveContracts.EXPLORE_RESULT,
+            MoveContracts.RUN_AWAY_RESULT,
+            MoveContracts.SLEEP_RESULT,
+            MoveContracts.ELYTRA_RESULT,
+            CombatContract.RESULT);
 
     public static final UnionType<Object> UNION = union();
 

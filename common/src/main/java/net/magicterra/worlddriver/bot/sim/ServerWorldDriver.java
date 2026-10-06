@@ -221,7 +221,7 @@ public class ServerWorldDriver implements BodyDriver {
             boolean done = process.tick(avatar, world(), botState);
             avatar.step();
             if (done) { held.finished(); finished = true; last = Walker.Step.ARRIVED; }
-            else last = Walker.Step.WALKING;
+            else { held.ranOn(); last = Walker.Step.WALKING; }
             return last;
         }
         Walker.Step s = walker.tick(avatar, world());

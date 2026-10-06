@@ -40,6 +40,9 @@ public final class SleepProcess implements BotProcess {
 
     public String kind() { return "sleep"; }
 
+    /** The bed it chose, or null before it found one. */
+    public BlockPos bedPos() { return bedPos; }
+
     public void attach(BotState st) {
         st.mc_goto.active = true;
         st.mc_goto.goal = explicit != null

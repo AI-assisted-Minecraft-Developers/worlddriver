@@ -54,6 +54,11 @@ public final class BuildProcess implements BotProcess {
 
     public String kind() { return "builder"; }
 
+    public int placed() { return placed; }
+
+    /** Blocks given up on: no support, reach or item. */
+    public int skipped() { return skipped; }
+
     public void attach(BotState st) {
         st.builder.active = true;
         st.builder.goal = "build " + schematic.entries.size() + " blocks @ " + origin;

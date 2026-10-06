@@ -51,6 +51,8 @@ public final class BridgeProcess implements BotProcess {
 
     public String kind() { return "builder"; }
 
+    public int placed() { return placed; }
+
     public void attach(BotState st) {
         st.builder.active = true;
         st.builder.goal = "bridge " + face.getName() + " ×" + distance

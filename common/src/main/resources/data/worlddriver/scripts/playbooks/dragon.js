@@ -55,7 +55,7 @@
             try {
                 Driver.invoke('mc.bot.goto', { target: { kind: 'position', pos: { x: c.pos.x, y: c.pos.y, z: c.pos.z }, near: c.caged ? 2 : 4 } });
             } catch (e) {}
-            Driver.invoke('mc.bot.combat', { mode: 'kill', target: { id: c.id } });
+            Driver.invoke('mc.bot.combat', { mode: 'kill', target: { kind: 'entity', entityId: c.id } });
             Driver.system.waitTicks(12);
             continue;
         }
@@ -69,7 +69,7 @@
                 Driver.invoke('mc.bot.goto', { target: { kind: 'position', pos: { x: Math.floor(b.head.x), y: Math.floor(b.head.y), z: Math.floor(b.head.z) }, near: 3 } });
             } catch (e) {}
         }
-        Driver.invoke('mc.bot.combat', { mode: 'kill', target: { type: 'ender_dragon' } });
+        Driver.invoke('mc.bot.combat', { mode: 'kill', target: { kind: 'entityType', type: 'minecraft:ender_dragon' } });
         Driver.system.waitTicks(12);
     }
 })();

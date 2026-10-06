@@ -16,30 +16,23 @@ function errOf(fn) {
     try { fn(); return null; } catch (e) { return String(e); }
 }
 
-// ---- mc.bot.combat target: ["integer","string","object"] ----------------------
+// ---- mc.bot.combat target: a tagged union, so a bare number or string is a type error ----
+// A bot that does not exist answers the requests that decode, so none of them starts a fight.
 
-ScriptTest.run("65_schema_union: combat.target accepts integer", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.bot.combat", { target: 3298 }); });
-    t.assertTrue(msg === null || msg.indexOf("must be one of types") < 0,
-        "integer target must not be rejected by the union, got: " + msg);
+var NOBODY = "npc:nobody_65";
+
+ScriptTest.run("65_schema_union: combat.target takes an entity id or an entity type, by kind", function(t) {
+    [ { kind: "entity", entityId: 3298 }, { kind: "entityType", type: "minecraft:zombie" } ].forEach(function(target) {
+        var r = Driver.bot.combat({ body: NOBODY, mode: "kill", target: target });
+        t.assertEqual(r.reason, "body_unavailable", target.kind + " decodes and reaches the body: " + JSON.stringify(r));
+    });
 });
 
-ScriptTest.run("65_schema_union: combat.target accepts string", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.bot.combat", { target: "minecraft:zombie" }); });
-    t.assertTrue(msg === null || msg.indexOf("must be one of types") < 0,
-        "string target must not be rejected by the union, got: " + msg);
-});
-
-ScriptTest.run("65_schema_union: combat.target accepts object", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.bot.combat", { target: { id: 3298 } }); });
-    t.assertTrue(msg === null || msg.indexOf("must be one of types") < 0,
-        "object target must not be rejected by the union, got: " + msg);
-});
-
-ScriptTest.run("65_schema_union: combat.target rejects array", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.bot.combat", { target: [1, 2, 3] }); });
-    t.assertTrue(msg !== null && msg.indexOf("must be one of types") >= 0,
-        "array target must be rejected by the union, got: " + msg);
+ScriptTest.run("65_schema_union: combat.target is not a bare number, string or array", function(t) {
+    [ 3298, "minecraft:zombie", [1, 2, 3] ].forEach(function(target) {
+        var p = issuePath(function() { Driver.bot.combat({ body: NOBODY, mode: "kill", target: target }); });
+        t.assertEqual(p, "/target", JSON.stringify(target) + " path");
+    });
 });
 
 // ---- the route object's tagged unions, two levels down (route → leash → anchor) ----
@@ -78,7 +71,8 @@ ScriptTest.run("65_schema_union: goto route.leash anchor needs its kind", functi
 
 ScriptTest.run("65_schema_union: follow route.sight takes a list of observers", function(t) {
     var p = issuePath(function() {
-        Driver.invoke("mc.bot.follow", { name: "nobody_65", route: { sight: { observers: ["minecraft:skeleton"] } } });
+        Driver.invoke("mc.bot.follow", { body: NOBODY, target: { kind: "player", name: "nobody_65" },
+            route: { sight: { observers: ["minecraft:skeleton"] } } });
     });
     t.assertTrue(p === null || p.indexOf("/route") !== 0, "observers must decode, got issue at " + p);
 });

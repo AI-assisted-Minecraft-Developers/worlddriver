@@ -21,18 +21,13 @@ public interface BotApi {
     /** {@code mc.bot.goto} with {@code plan: 'score'}. Client thread. */
     net.magicterra.worlddriver.api.methods.GotoContract.Scored scoreGoto(net.magicterra.worlddriver.api.methods.GotoContract.Params params);
 
-    Map<String, Object> mine(Map<String, Object> params);
-    Map<String, Object> bunker(Map<String, Object> params);
-    Map<String, Object> escape(Map<String, Object> params);
-    Map<String, Object> craft(Map<String, Object> params);
-    Map<String, Object> smelt(Map<String, Object> params);
     /**
-     * Phase C active combat. {@code mode} = "engage" (clear all hostiles in range),
-     * "defend" (only retaliate against hostiles actively eyeing the bot), or "kill"
-     * (a specific {@code target:{id|type}}). Runs at scheduler priority COMBAT (60),
-     * preempting the user task; reports progress via {@code mc.bot.status.combat}.
+     * {@code mc.bot.combat} on this client's player: the combat chain takes the fight at priority
+     * COMBAT (60), above the user task, and ends {@code action} with it; a retreat or dodge only pauses
+     * it. Binds the action's stopper. <b>Client thread only.</b>
      */
-    Map<String, Object> combat(Map<String, Object> params);
+    void engage(net.magicterra.worlddriver.api.methods.CombatContract.Params params,
+                net.magicterra.worlddriver.api.action.ActionHandle action);
     /**
      * Phase F — equip the best armor in every armor slot and (unless
      * {@code armorOnly}) the best weapon in the main hand, scoring material tier
@@ -40,10 +35,6 @@ public interface BotApi {
      * missing} so the caller (T2) can go repair / craft a missing piece.
      */
     Map<String, Object> equip(Map<String, Object> params);
-    Map<String, Object> build(Map<String, Object> params);
-    Map<String, Object> follow(Map<String, Object> params);
-    Map<String, Object> explore(Map<String, Object> params);
-    Map<String, Object> runAway(Map<String, Object> params);
     Map<String, Object> lookAt(Map<String, Object> params);
     /**
      * Use the held item without targeting a block — eat food, drink potion, draw
@@ -122,36 +113,6 @@ public interface BotApi {
      * captured. Synchronous, no process slot.
      */
     Map<String, Object> waypoint(Map<String, Object> params);
-
-    /**
-     * Walk a 2D rectangular field, harvest mature crops, and replant the seed
-     * the crop dropped. Baritone {@code farm} analogue. Long-running; status
-     * surfaces under the {@code builder} slot.
-     */
-    Map<String, Object> farm(Map<String, Object> params);
-
-    /**
-     * Find the nearest bed and sleep in it. Baritone {@code SleepBehavior}
-     * analogue. Scans the loaded level for a {@link net.minecraft.tags.BlockTags#BEDS}
-     * block within {@code radius} (default 16, capped 64) — or pathfinds to an
-     * explicit {@code pos} — walks adjacent, then right-clicks the bed.
-     * Vanilla applies its own preconditions (must be night/thunder, no nearby
-     * monsters, bed not occupied); failures surface as {@code lastError} on
-     * the {@code goto} slot. Process completes once {@code player.isSleeping()}
-     * or after a short timeout.
-     */
-    Map<String, Object> sleep(Map<String, Object> params);
-
-    /**
-     * Constructive movement — pillar up ({@code mode:"tower"}) or scaffold
-     * forward ({@code mode:"bridge"}). Baritone {@code pillar}/{@code bridge}
-     * analogues, folded into one verb. Tower: jump, face down, right-click
-     * the support block under the apex; repeat until feet reach the target Y.
-     * Bridge: sneak-walk forward; at each edge, face the forward face of the
-     * current support and right-click to extend the bridge. Both reuse the
-     * {@code builder} status slot. Long-running; pass {@code awaitMs} to block.
-     */
-    Map<String, Object> construct(Map<String, Object> params);
 
     /**
      * Per-tick derived-facts blackboard updated on the client tick. Returns the
@@ -296,29 +257,6 @@ public interface BotApi {
      * record the calling thread alongside its readings, or it cannot tell the two apart.
      */
     net.magicterra.worlddriver.bot.body.Body clientAvatar();
-
-    /**
-     * Elytra flight (Baritone elytra-alignment, milestone A). Takes the bot off
-     * the ground (jump → deploy elytra) or out of a fall, then flies at a fixed
-     * heading, optionally boosting with fireworks. Params:
-     * <ul>
-     *   <li>{@code pitch} — cruise pitch in degrees, MC sign (+ dives/accelerates,
-     *       − climbs/decelerates). Default 0 (level glide).</li>
-     *   <li>{@code yaw} — hold this yaw; omit to aim at {@code pos} (if given) or
-     *       keep the current heading.</li>
-     *   <li>{@code pos} — optional horizontal target {x,y,z}; the flight finishes
-     *       once within {@code stopXZDist} (default 3) blocks of it in the XZ
-     *       plane and the yaw tracks it each tick.</li>
-     *   <li>{@code fireworks} — fire a rocket every {@code fireworkEveryTicks}
-     *       (default 40) ticks for boost. Default false.</li>
-     *   <li>{@code ticks} — safety duration cap (default 200).</li>
-     * </ul>
-     * With {@code mc.bot.setting{elytraDebug:true}} the process validates the
-     * {@code ElytraPhysics} simulator tick-by-tick against the live client and
-     * logs the per-tick / summary error. Long-running; status under the
-     * {@code elytra} slot; pass {@code awaitMs} to block.
-     */
-    Map<String, Object> elytraFly(Map<String, Object> params);
 
     /**
      * The standard refusal when the bot cannot take an order right now — no player, a world still

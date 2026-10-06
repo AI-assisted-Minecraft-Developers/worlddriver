@@ -61,9 +61,8 @@ public final class BunkerProcess implements BotProcess {
     private BlockPos bottom = null;          // shaft-bottom foot cell
     /** gap#68-⑩: true once a real break or place has been attempted — distinguishes
      *  a zero-action bail (e.g. water at the dig site, first tick) from a run that
-     *  actually touched the world before failing. Not yet surfaced synchronously in
-     *  the verb response (the run is async; see BotApiImpl#bunker), but available on
-     *  the instance for future status/telemetry wiring. */
+     *  actually touched the world before failing. Not surfaced in the action's result,
+     *  but available on the instance for status/telemetry wiring. */
     private boolean acted;
     /** True once {@link Phase#SEALED} has ever been reached this run — the ground
      *  truth for "did this bunker ever actually finish sealing" independent of
@@ -109,6 +108,12 @@ public final class BunkerProcess implements BotProcess {
     }
 
     @Override public String kind() { return "bunker"; }
+
+    /** Sealed: the action is done, while the process holds the pocket until it is cancelled. */
+    @Override public boolean achieved() { return sealedOk; }
+
+    /** Whether the roof was ever plugged this run. */
+    public boolean sealed() { return sealedOk; }
 
     @Override public void attach(BotState st) {
         st.bunker.active = true;

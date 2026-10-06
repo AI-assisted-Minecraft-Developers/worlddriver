@@ -1,6 +1,6 @@
-// ROADMAP Phase C — active combat loop (T1). mc.bot.combat is client-only
-// (needs Minecraft.gameMode + real mobs), so every test self-skips with a
-// recorded PASS on the dedicated GameTest server. The behavioural checks run in
+// ROADMAP Phase C — active combat loop (T1). The request checks run everywhere; self's fight
+// needs Minecraft.gameMode and real mobs, so a dedicated server only sees self refused as
+// unavailable. The behavioural checks run in
 // fabric runClient sessions where the ScriptTest world (superflat CREATIVE) lets
 // us summon mobs and watch the bot clear them. CREATIVE = the bot is invulnerable,
 // so combat never gets preempted by autoRetreat and the assertions are about the
@@ -43,24 +43,39 @@ function equip(item) {
     Driver.system.waitTicks(6);
 }
 
+/** The DriverApiError a call throws, or null when it returned. */
+function errorOf(call) {
+    try { call(); } catch (e) { return e; }
+    return null;
+}
+
+/** The action as mc.wait.result reads it now. */
+function action(id) {
+    return Driver.invoke("mc.wait.result", { kind: "action", actionId: id }).action;
+}
+
+// The request checks read no body, so they hold on every topology.
+ScriptTest.run("42_combat: an unknown mode names the valid ones", function(t) {
+    var e = errorOf(function() { Driver.bot.combat({ mode: "bogus" }); });
+    t.assertEqual(e.issues[0].path, "/mode", "path");
+    t.assertTrue(e.issues[0].message.indexOf("engage") >= 0, "names the modes: " + e.issues[0].message);
+});
+
+ScriptTest.run("42_combat: kill needs a target, and only kill takes one", function(t) {
+    var missing = errorOf(function() { Driver.bot.combat({ mode: "kill" }); });
+    t.assertEqual(missing.issues[0].path, "/target", "path");
+    t.assertEqual(missing.issues[0].code, "required", "issue code");
+    var extra = errorOf(function() { Driver.bot.combat({ target: { kind: "entity", entityId: 1 } }); });
+    t.assertEqual(extra.issues[0].path, "/target", "engage picks its own targets");
+});
+
 if (!clientAvailable()) {
-    ScriptTest.run("42_combat: skipped (no client api — dedicated server)", function(t) {});
+    ScriptTest.run("42_combat: self is unavailable on a dedicated server", function(t) {
+        var r = Driver.bot.combat({});
+        t.assertEqual(r.outcome, "refused", "outcome");
+        t.assertEqual(r.reason, "body_unavailable", "reason");
+    });
 } else {
-
-    ScriptTest.run("42_combat: rejects an unknown mode", function(t) {
-        // Route-layer schema validation rejects the enum violation before the tool runs;
-        // the validator message names the allowed set ("must be one of [engage, ...]").
-        var msg = null;
-        try { Driver.invoke("mc.bot.combat", { mode: "bogus" }); } catch (e) { msg = String(e); }
-        t.assertTrue(msg !== null && msg.indexOf("engage") >= 0,
-            "unknown mode must be rejected by schema validation naming the valid modes, got: " + msg);
-    });
-
-    ScriptTest.run("42_combat: kill mode requires a target", function(t) {
-        var r = Driver.invoke("mc.bot.combat", { mode: "kill" });
-        t.assertEqual(r.ok, false, "kill without target must be ok:false");
-        t.assertTrue(r.error.indexOf("target") >= 0, "error mentions target");
-    });
 
     // task#92: NAMED TOPOLOGY-SKIP on the integrated (client-hosted) path. `engage`
     // runs to a full area-clear (`r.completed == true`) only on the flat,
@@ -99,7 +114,7 @@ if (!clientAvailable()) {
         var sk = findType(th.threats, "skeleton");
         t.assertTrue(sk !== null, "skeleton present");
 
-        Driver.invoke("mc.bot.combat", { mode: "kill", target: { id: sk.id } });   // non-blocking
+        Driver.bot.combat({ mode: "kill", target: { kind: "entity", entityId: sk.id } });   // non-blocking
         Driver.system.waitTicks(50);
 
         var s = Driver.invoke("mc.bot.status", {});
@@ -122,18 +137,24 @@ if (!clientAvailable()) {
             cmd: "summon zombie " + (x + 3) + " " + y + " " + z + " {NoAI:1b,PersistenceRequired:1b}"
         });
         Driver.system.waitTicks(3);
-        Driver.invoke("mc.bot.combat", { mode: "engage" });   // non-blocking
+        var started = Driver.bot.combat({ mode: "engage" });   // non-blocking
+        t.assertEqual(started.outcome, "accepted", "outcome");
+        var id = started.action.actionId;
         Driver.system.waitTicks(4);
         var s = Driver.invoke("mc.bot.status", {});
         t.assertEqual(s.combat.active, true, "combat slot active while engaged");
         t.assertEqual(s.activeChain, "combat", "combat chain holds the movement channel");
         t.assertTrue(s.chainPriorities.combat >= 60, "combat bid in the COMBAT band");
+        t.assertEqual(action(id).state, "running", "the fight's action runs while engaged");
 
         Driver.invoke("mc.bot.cancel", { process: "combat" });
         Driver.system.waitTicks(3);
         var after = Driver.invoke("mc.bot.status", {});
         t.assertEqual(after.combat.active, false, "cancel deactivated the combat slot");
         t.assertTrue(after.activeChain !== "combat", "combat chain released the channel");
+        var ended = action(id);
+        t.assertEqual(ended.state, "cancelled", "the cancel ended the action: " + JSON.stringify(ended));
+        t.assertEqual(ended.reason, "requested", "reason");
         cleanup();
     });
 }

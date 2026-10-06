@@ -6,6 +6,7 @@ import net.magicterra.worlddriver.bot.process.RouteEvents;
 import net.magicterra.worlddriver.api.WorldCell;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.ActionContract;
+import net.magicterra.worlddriver.api.methods.CombatContract;
 import net.magicterra.worlddriver.api.methods.GotoContract;
 import net.magicterra.worlddriver.api.methods.RouteContract;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
@@ -278,30 +279,6 @@ public final class BotApiImpl implements BotApi {
         return ReplayInstaller.startReplayReplan(this, cells, start, goal, archiveName, restoreBlocks);
     }
 
-    /**
-     * Starts a {@link VerbOrders} order on this client's player. {@code noPlayerSlot} names the slot a
-     * missing player is recorded on, or null for the verbs that only answer it.
-     */
-    private Map<String, Object> order(Map<String, Object> params, String noPlayerSlot,
-                                      java.util.function.BiFunction<Params, net.minecraft.world.entity.LivingEntity, VerbOrders.Order> build) {
-        final Params p = Params.of(params == null ? Map.of() : params);
-        return onClient(() -> {
-            LocalPlayer player = Minecraft.getInstance().player;
-            if (player == null) {
-                if (noPlayerSlot != null) state.slotFor(noPlayerSlot).lastError = "no player";
-                return Map.of("ok", false, "error", "no player");
-            }
-            VerbOrders.Order o = build.apply(p, player);
-            if (!o.refused()) startProcess(o.process());
-            return o.reply();
-        });
-    }
-
-    @Override
-    public Map<String, Object> elytraFly(Map<String, Object> params) {
-        return order(params, null, VerbOrders::elytraFly);
-    }
-
     @Override
     public Map<String, Object> waypoint(Map<String, Object> params) {
         final Params p = Params.of(params);
@@ -356,46 +333,10 @@ public final class BotApiImpl implements BotApi {
     }
 
     @Override
-    public Map<String, Object> mine(Map<String, Object> params) {
-        if (params == null) return Map.of("ok", false, "error", "missing blocks");
-        return order(params, "mine", VerbOrders::mine);
-    }
-
-    @Override
-    public Map<String, Object> bunker(Map<String, Object> params) {
-        return order(params, null, VerbOrders::bunker);
-    }
-
-    @Override
-    public Map<String, Object> escape(Map<String, Object> params) {
-        return order(params, null, VerbOrders::escape);
-    }
-
-    @Override
-    public Map<String, Object> craft(Map<String, Object> params) {
-        if (params == null) return Map.of("ok", false, "error", "missing item");
-        return order(params, "craft", VerbOrders::craft);
-    }
-
-    @Override
-    public Map<String, Object> smelt(Map<String, Object> params) {
-        if (params == null) return Map.of("ok", false, "error", "missing item");
-        return order(params, "smelt", VerbOrders::smelt);
-    }
-
-    @Override
-    public Map<String, Object> combat(Map<String, Object> params) {
-        final VerbOrders.CombatOrder c;
-        try { c = VerbOrders.combatOrder(Params.of(params)); }
-        catch (IllegalArgumentException e) { return Map.of("ok", false, "error", e.getMessage()); }
-        return onClient(() -> {
-            if (Minecraft.getInstance().player == null) {
-                state.combat.lastError = "no player";
-                return Map.of("ok", false, "error", "no player");
-            }
-            combatChain.engage(c.mode(), c.targetId(), c.targetType(), c.force());
-            return c.reply();
-        });
+    public void engage(CombatContract.Params p, ActionHandle action) {
+        action.bindStopper(why -> Minecraft.getInstance().execute(() -> combatChain.cancelAction(action)));
+        combatChain.engage(VerbOrders.mode(p.mode()), VerbOrders.entityId(p), VerbOrders.entityType(p), p.force(), action,
+                new CombatContract.Fought(p.mode(), p.target()));
     }
 
     @Override
@@ -527,44 +468,6 @@ public final class BotApiImpl implements BotApi {
     // pause/resume removed — handled inside setting() via the {paused:bool} key.
 
     @Override
-    public Map<String, Object> farm(Map<String, Object> params) {
-        if (params == null) return Map.of("ok", false, "error", "missing from/to");
-        return order(params, null, VerbOrders::farm);
-    }
-
-    @Override
-    public Map<String, Object> construct(Map<String, Object> params) {
-        return order(params, null, VerbOrders::construct);
-    }
-
-    @Override
-    public Map<String, Object> sleep(Map<String, Object> params) {
-        return order(params, null, VerbOrders::sleep);
-    }
-
-    @Override
-    public Map<String, Object> build(Map<String, Object> params) {
-        if (params == null) return Map.of("ok", false, "error", "missing origin/schematic");
-        return order(params, null, VerbOrders::build);
-    }
-
-    @Override
-    public Map<String, Object> follow(Map<String, Object> params) {
-        return order(params, null, VerbOrders::follow);
-    }
-
-    @Override
-    public Map<String, Object> explore(Map<String, Object> params) {
-        if (params == null) return Map.of("ok", false, "error", "missing centerX/centerZ");
-        return order(params, null, VerbOrders::explore);
-    }
-
-    @Override
-    public Map<String, Object> runAway(Map<String, Object> params) {
-        return order(params, null, VerbOrders::runAway);
-    }
-
-    @Override
     public Map<String, Object> lookAt(Map<String, Object> params) {
         return InteractionCommands.lookAt(this, params);
     }
@@ -638,7 +541,7 @@ public final class BotApiImpl implements BotApi {
                 reset.add(held.kind());
             }
             if (combatChain.engaged()) {
-                combatChain.standDown();
+                combatChain.standDown(h -> h.cancelled(ActionContract.CancelReason.TEST_RESET));
                 state.combat.lastError = "mc.test.reset";
                 state.combat.active = false;
                 reset.add("combat");
@@ -1064,7 +967,7 @@ public final class BotApiImpl implements BotApi {
 
     /** Client thread only. */
     @Override public boolean cancelAction(ActionHandle action, String reason) {
-        return userTask.cancelAction(action, reason);
+        return userTask.cancelAction(action, reason) || combatChain.cancelAction(action);
     }
 
     @Override public net.magicterra.worlddriver.api.ServerThreadHop clientHop() {
@@ -1081,7 +984,7 @@ public final class BotApiImpl implements BotApi {
      */
     public void onDisconnect() {
         if (combatChain.engaged()) {
-            combatChain.standDown();
+            combatChain.standDown(h -> h.cancelled(ActionContract.CancelReason.CONNECTION_CLOSED));
             state.combat.lastError = "disconnected";
             state.combat.active = false;
         }
@@ -1196,7 +1099,7 @@ public final class BotApiImpl implements BotApi {
      *  always-on ClutchController is intentionally left running. */
     private void cancelAllProcesses(String reason) {
         if (combatChain.engaged()) {
-            combatChain.standDown();
+            combatChain.standDown(h -> h.fail("the body died (" + reason + ")"));
             state.combat.lastError = reason;
             state.combat.active = false;
         }

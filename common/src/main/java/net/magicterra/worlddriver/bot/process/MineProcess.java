@@ -248,6 +248,9 @@ public final class MineProcess implements BotProcess {
 
     public String kind() { return "mine"; }
 
+    /** Blocks destroyed so far: what the action's result reports, not what reached the inventory. */
+    public int broken() { return broken; }
+
     public void attach(BotState st) {
         st.mine.active = true;
         st.mine.goal = String.join(",", targetIds) + "×" + desiredQty;

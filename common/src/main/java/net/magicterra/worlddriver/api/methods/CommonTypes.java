@@ -22,4 +22,22 @@ public final class CommonTypes {
     public static final ApiType<String> RESOURCE_ID = ApiTypes.pattern("[a-z0-9_.-]+:[a-z0-9/._-]+",
                     "a namespaced id such as minecraft:stone")
             .maxLength(256);
+
+    /** A block id, or a {@code #tag} standing for every block in it. */
+    public static final ApiType<String> BLOCK_OR_TAG = ApiTypes.pattern("#?[a-z0-9_.-]+:[a-z0-9/._-]+",
+                    "a block id such as minecraft:chest, or a tag such as #minecraft:logs")
+            .maxLength(256);
+
+    /** An entity's id in its level, as {@code mc.query} entities reports it; good until the entity is gone. */
+    public static final ApiType<Integer> ENTITY_ID = ApiTypes.integer(0, Integer.MAX_VALUE)
+            .describe("The id mc.query entities reports.");
+
+    /** A point anywhere, not snapped to a cell. */
+    public record Point(double x, double y, double z) {}
+
+    public static final RecordType<Point> POINT = ApiTypes.record("Point",
+            ApiField.field("x", ApiTypes.number()).required().forGetter(Point::x),
+            ApiField.field("y", ApiTypes.number()).required().forGetter(Point::y),
+            ApiField.field("z", ApiTypes.number()).required().forGetter(Point::z),
+            Point::new);
 }

@@ -1,8 +1,6 @@
-// Client-only — Phase D4: mc.bot.build now accepts schematicBase64 (Sponge
-// .schem v1/v2/v3 bytes). Happy path needs a real client+world (BuildProcess
-// walks the player around placing blocks). Schema rejects exercise the
-// codepath end-to-end on dedicated server too, but BuildProcess construction
-// fails without a player, so we keep them gated like 23_phase_d.
+// mc.bot.build: a schematic is a palette with rows ({kind:'blocks'}) or Sponge .schem bytes
+// ({kind:'sponge', base64}). Both are read before any body is, so a bad one is invalid_params on
+// every topology; placing the blocks needs this client's own player.
 
 function clientAvailable() {
     try {
@@ -13,76 +11,73 @@ function clientAvailable() {
     }
 }
 
-if (!clientAvailable()) {
-    ScriptTest.run("26_schematic_loader: skipped (no client api — dedicated server)", function(t) {
-        // PASS
-    });
-} else {
-
-    ScriptTest.run("26_schematic_loader: build rejects missing both schematic and schematicBase64",
-        function(t) {
-            var r = Driver.invoke("mc.bot.build", { origin: { x: 0, y: 64, z: 0 } });
-            t.assertEqual(r.ok, false, "missing both → ok:false");
-            t.assertTrue(String(r.error).indexOf("schematic") >= 0,
-                "error mentions schematic: " + r.error);
-        });
-
-    ScriptTest.run("26_schematic_loader: build rejects when both modes specified",
-        function(t) {
-            var r = Driver.invoke("mc.bot.build", {
-                origin: { x: 0, y: 64, z: 0 },
-                schematic: { w: 1, h: 1, d: 1, palette: ["minecraft:stone"], data: [[0,0,0,0]] },
-                schematicBase64: "AAAA"
-            });
-            t.assertEqual(r.ok, false, "both → ok:false");
-            t.assertTrue(String(r.error).indexOf("either") >= 0
-                      || String(r.error).indexOf("not both") >= 0,
-                "error mentions conflict: " + r.error);
-        });
-
-    ScriptTest.run("26_schematic_loader: invalid base64 is rejected with a clear error",
-        function(t) {
-            var r = Driver.invoke("mc.bot.build", {
-                origin: { x: 0, y: 64, z: 0 },
-                schematicBase64: "this is not base64!!! ###"
-            });
-            t.assertEqual(r.ok, false, "garbage base64 → ok:false");
-            t.assertTrue(String(r.error).indexOf("base64") >= 0,
-                "error mentions base64: " + r.error);
-        });
-
-    ScriptTest.run("26_schematic_loader: valid base64 but non-NBT bytes rejected",
-        function(t) {
-            // "Hello, world!" base64 — decodes fine, but isn't gzip nor raw NBT,
-            // so both NbtIo paths in fromSpongeSchem throw and we surface the
-            // gzip-attempt's error message.
-            var r = Driver.invoke("mc.bot.build", {
-                origin: { x: 0, y: 64, z: 0 },
-                schematicBase64: "SGVsbG8sIHdvcmxkIQ=="
-            });
-            t.assertEqual(r.ok, false, "non-NBT bytes → ok:false");
-            t.assertTrue(String(r.error).indexOf(".schem") >= 0
-                      || String(r.error).indexOf("NBT") >= 0
-                      || String(r.error).indexOf("schematic") >= 0,
-                "error mentions schematic/NBT: " + r.error);
-        });
-
-    ScriptTest.run("26_schematic_loader: build rejects negative paths identically across transports",
-        function(t) {
-            // The base64-reject path doesn't touch the client thread (it's
-            // checked before onClient), so it's deterministic across all three
-            // transports — same rejection regardless of player state.
-            var args = {
-                origin: { x: 0, y: 64, z: 0 },
-                schematicBase64: "this is not base64!!! ###"
-            };
-            var direct = Driver.invoke("mc.bot.build", args);
-            var viaTcp = Driver.system.rpcRoundtrip("mc.bot.build", args);
-            var viaMcp = Driver.system.mcpRoundtrip("mc.bot.build", args);
-            t.assertEqual(viaTcp.ok,    direct.ok,    "RPC.ok mismatch");
-            t.assertEqual(viaMcp.ok,    direct.ok,    "MCP.ok mismatch");
-            t.assertEqual(viaTcp.error, direct.error, "RPC.error mismatch");
-            t.assertEqual(viaMcp.error, direct.error, "MCP.error mismatch");
-        });
-
+/** The DriverApiError a call throws, or null when it returned. */
+function errorOf(call) {
+    try { call(); } catch (e) { return e; }
+    return null;
 }
+
+var ORIGIN = { x: 0, y: 64, z: 0 };
+
+ScriptTest.run("26_schematic_loader: build needs a schematic", function(t) {
+    var e = errorOf(function() { Driver.bot.build({ origin: ORIGIN }); });
+    t.assertEqual(e.issues[0].path, "/schematic", "path");
+    t.assertEqual(e.issues[0].code, "required", "issue code");
+});
+
+ScriptTest.run("26_schematic_loader: one schematic kind's field is unknown in the other", function(t) {
+    var e = errorOf(function() {
+        Driver.bot.build({ origin: ORIGIN, schematic: { kind: "sponge", base64: "AAAA", palette: ["minecraft:stone"] } });
+    });
+    t.assertEqual(e.issues[0].path, "/schematic/palette", "path");
+    t.assertEqual(e.issues[0].code, "unknown_field", "issue code");
+});
+
+ScriptTest.run("26_schematic_loader: text that is not base64 is refused at its path", function(t) {
+    var e = errorOf(function() {
+        Driver.bot.build({ origin: ORIGIN, schematic: { kind: "sponge", base64: "this is not base64!!! ###" } });
+    });
+    t.assertEqual(e.code, "invalid_params", "code");
+    t.assertEqual(e.issues[0].path, "/schematic/base64", "path");
+});
+
+ScriptTest.run("26_schematic_loader: base64 that is not a schematic is refused at its path", function(t) {
+    // "Hello, world!": decodes, but is neither gzipped nor raw NBT.
+    var e = errorOf(function() {
+        Driver.bot.build({ origin: ORIGIN, schematic: { kind: "sponge", base64: "SGVsbG8sIHdvcmxkIQ==" } });
+    });
+    t.assertEqual(e.issues[0].path, "/schematic/base64", "path");
+    t.assertTrue(e.issues[0].message.indexOf("schematic") >= 0, "says why: " + e.issues[0].message);
+});
+
+ScriptTest.run("26_schematic_loader: a row past its palette is refused at its index", function(t) {
+    var e = errorOf(function() {
+        Driver.bot.build({ origin: ORIGIN, schematic: { kind: "blocks", w: 1, h: 1, d: 1,
+            palette: ["minecraft:stone"], data: [[0, 0, 0, 1]] } });
+    });
+    t.assertEqual(e.issues[0].path, "/schematic/data/0/3", "path");
+});
+
+ScriptTest.run("26_schematic_loader: the same error over in-JVM, RPC and MCP", function(t) {
+    var args = { origin: ORIGIN, schematic: { kind: "sponge", base64: "SGVsbG8sIHdvcmxkIQ==" } };
+    var direct = errorOf(function() { Driver.invoke("mc.bot.build", args); });
+    var viaRpc = errorOf(function() { Driver.system.rpcRoundtrip("mc.bot.build", args); });
+    var viaMcp = errorOf(function() { Driver.system.mcpRoundtrip("mc.bot.build", args); });
+    [viaRpc, viaMcp].forEach(function(e, i) {
+        var via = i === 0 ? "RPC" : "MCP";
+        t.assertTrue(e !== null, via + " must throw");
+        t.assertEqual(JSON.stringify(e.issues), JSON.stringify(direct.issues), via + " issues");
+    });
+});
+
+ScriptTest.run("26_schematic_loader: a one-block schematic starts an action, or self is unavailable", function(t) {
+    var r = Driver.bot.build({ origin: ORIGIN, schematic: { kind: "blocks", w: 1, h: 1, d: 1,
+        palette: ["minecraft:stone"], data: [[0, 0, 0, 0]] } });
+    if (!clientAvailable() || r.outcome === "refused") {
+        t.assertEqual(r.outcome, "refused", "outcome");
+        t.assertEqual(r.reason, "body_unavailable", "only an unavailable body may refuse: " + r.message);
+        return;
+    }
+    t.assertEqual(r.outcome, "accepted", "outcome");
+    Driver.invoke("mc.bot.cancel", { process: "builder" });
+});

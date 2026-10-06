@@ -287,7 +287,8 @@ $RPC mc.bot.cancel '{"body":"player:alex","process":"runAway"}'
 Accept the result when the reply names the bot, the bot you are watching in the world is
 the one that moves, `status` for that bot shows the slot go active and then idle, and your
 own player does not move. A name nobody spawned answers `reason: "unknown_body"`, and a bot
-whose chunk is not loaded answers `chunk_unloaded`. Another bot has no reflexes: it will not
+whose chunk is not loaded answers `chunk_unloaded`; `goto`, `runAway` and the other actions
+refuse both as `body_unavailable`. Another bot has no reflexes: it will not
 eat, flee or fight back unless told to. `/worlddriver server clear` removes it and forgets
 the name.
 

@@ -8,7 +8,6 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.VerbOrders;
 import net.magicterra.worlddriver.bot.body.BodyHost;
 import net.magicterra.worlddriver.bot.body.BodyRegistry;
 import net.magicterra.worlddriver.model.Params;
@@ -58,23 +57,6 @@ final class BodyRoutes {
             Map<String, Object> refused = host.refusal();
             return refused != null ? refused : verb.apply(host, p);
         });
-    }
-
-    /**
-     * A verb that starts a process: the order {@code self} would take, read by the same
-     * {@link VerbOrders} builder, started on the host. Whether the bot can do the work is the
-     * process's to say; one that needs hands ends on its first tick with {@code no_hands} on an NPC,
-     * in the slot {@code awaitMs} waits on.
-     */
-    static BiFunction<BodyHost, Params, Map<String, Object>> order(BiFunction<Params, LivingEntity, VerbOrders.Order> build) {
-        return (host, p) -> {
-            VerbOrders.Order o = build.apply(p, host.entity());
-            if (o.refused()) return o.reply();
-            host.start(o.process());
-            Map<String, Object> out = new LinkedHashMap<>(o.reply());
-            out.put("body", host.id());
-            return out;
-        };
     }
 
     /** The nearest loaded entity of {@code typeId} in the bot's level: for another bot, what the

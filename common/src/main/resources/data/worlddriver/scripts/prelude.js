@@ -188,24 +188,8 @@ Driver.client = {
     scene:      function ()     { return Driver.invoke('mc.client.scene',  {}); }
 };
 
+// The body tasks (goto, mine, craft, …) come from the generated wrappers loaded after this file.
 Driver.bot = {
-    mine:      function (opts) { return Driver.invoke('mc.bot.mine',      opts || {}); },
-    farm:      function (opts) { return Driver.invoke('mc.bot.farm',      opts || {}); },
-    sleep:     function (opts) { return Driver.invoke('mc.bot.sleep',     opts || {}); },
-    construct: function (opts) { return Driver.invoke('mc.bot.construct', opts || {}); },
-    // Convenience aliases — Baritone calls these `pillar`/`tower` and `bridge`.
-    tower:     function (opts) {
-        var p = Object.assign({}, opts || {}, { mode: 'tower' });
-        return Driver.invoke('mc.bot.construct', p);
-    },
-    bridge:    function (opts) {
-        var p = Object.assign({}, opts || {}, { mode: 'bridge' });
-        return Driver.invoke('mc.bot.construct', p);
-    },
-    build:     function (opts) { return Driver.invoke('mc.bot.build',     opts || {}); },
-    follow:    function (opts) { return Driver.invoke('mc.bot.follow',    opts || {}); },
-    explore:   function (opts) { return Driver.invoke('mc.bot.explore',   opts || {}); },
-    runAway:   function (opts) { return Driver.invoke('mc.bot.runAway',   opts || {}); },
     lookAt:    function (opts) { return Driver.invoke('mc.bot.lookAt',    opts || {}); },
     // Pass key/value pairs to write tuning settings; pass {} (or no arg) to read.
     setting:   function (opts) { return Driver.invoke('mc.bot.setting',   opts || {}); },
@@ -242,26 +226,5 @@ Driver.bot = {
         return Driver.invoke('mc.bot.goto', p);
     },
     listWaypoints:  function () { return Driver.invoke('mc.bot.waypoint', { op: 'list' }); },
-    deleteWaypoint: function (name) { return Driver.invoke('mc.bot.waypoint', { op: 'delete', name: name }); },
-    waitArrive: function (timeoutMs) {
-        return Driver.invoke('mc.wait.condition', {
-            invoke: 'mc.bot.status', params: {},
-            field: 'goto.active', value: false,
-            timeoutMs: timeoutMs || 60000, pollMs: 200
-        });
-    },
-    waitMine: function (timeoutMs) {
-        return Driver.invoke('mc.wait.condition', {
-            invoke: 'mc.bot.status', params: {},
-            field: 'mine.active', value: false,
-            timeoutMs: timeoutMs || 120000, pollMs: 300
-        });
-    },
-    waitBuild: function (timeoutMs) {
-        return Driver.invoke('mc.wait.condition', {
-            invoke: 'mc.bot.status', params: {},
-            field: 'builder.active', value: false,
-            timeoutMs: timeoutMs || 300000, pollMs: 500
-        });
-    }
+    deleteWaypoint: function (name) { return Driver.invoke('mc.bot.waypoint', { op: 'delete', name: name }); }
 };

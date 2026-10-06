@@ -4,7 +4,6 @@ import net.minecraft.world.level.block.Blocks;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.util.BotInteract.*;
@@ -27,41 +26,26 @@ public final class Schematic {
         }
     }
 
-    public static Schematic parse(Map<?, ?> m) {
-        int w = readInt(m.get("w"));
-        int h = readInt(m.get("h"));
-        int d = readInt(m.get("d"));
+    /**
+     * A schematic given as a palette and {@code [dx, dy, dz, paletteIdx]} rows; air entries are dropped.
+     * The caller's contract has already bounded the sizes and indices; these checks only keep a direct
+     * Java caller from building a schematic that cannot be placed.
+     */
+    public static Schematic of(int w, int h, int d, List<String> palette, List<List<Integer>> data) {
         if (w <= 0 || h <= 0 || d <= 0) throw new IllegalArgumentException("w/h/d must be > 0");
         if ((long) w * h * d > 4096) throw new IllegalArgumentException("schematic too large (max 4096 blocks)");
-        Object paletteObj = m.get("palette");
-        if (!(paletteObj instanceof List<?> palette))
-            throw new IllegalArgumentException("palette[] required");
-        List<String> ids = new ArrayList<>();
-        for (Object o : palette) {
-            if (!(o instanceof String s)) throw new IllegalArgumentException("palette entries must be strings");
-            ids.add(s);
-        }
-        Object dataObj = m.get("data");
-        if (!(dataObj instanceof List<?> data)) throw new IllegalArgumentException("data[] required");
         List<Entry> entries = new ArrayList<>();
-        for (Object row : data) {
-            if (!(row instanceof List<?> r) || r.size() < 4) throw new IllegalArgumentException("data entry: [dx,dy,dz,paletteIdx]");
-            int dx = ((Number) r.get(0)).intValue();
-            int dy = ((Number) r.get(1)).intValue();
-            int dz = ((Number) r.get(2)).intValue();
-            int pi = ((Number) r.get(3)).intValue();
-            if (pi < 0 || pi >= ids.size()) throw new IllegalArgumentException("paletteIdx out of range: " + pi);
-            String id = ids.get(pi);
-            if ("minecraft:air".equals(id)) continue; // skip air entries
-            entries.add(new Entry(dx, dy, dz, id));
+        for (List<Integer> r : data) {
+            if (r.size() != 4) throw new IllegalArgumentException("data entry: [dx,dy,dz,paletteIdx]");
+            int pi = r.get(3);
+            if (pi < 0 || pi >= palette.size()) throw new IllegalArgumentException("paletteIdx out of range: " + pi);
+            String id = palette.get(pi);
+            if ("minecraft:air".equals(id)) continue;
+            entries.add(new Entry(r.get(0), r.get(1), r.get(2), id));
         }
         // Sort bottom-up so each placement has supporting blocks below it.
         entries.sort((a, b) -> Integer.compare(a.dy, b.dy));
         return new Schematic(w, h, d, entries);
-    }
-    private static int readInt(Object o) {
-        if (o instanceof Number n) return n.intValue();
-        throw new IllegalArgumentException("expected number, got " + (o == null ? "null" : o.getClass().getSimpleName()));
     }
 
     /**

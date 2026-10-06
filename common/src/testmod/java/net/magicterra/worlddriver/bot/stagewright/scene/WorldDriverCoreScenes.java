@@ -332,8 +332,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  Was 147 until 34_yaml_gametest.js retired, 142 until 66_body_routes.js was added — see the
      *  INTEGRATED note above. 145 until the build stamp was added: it needs no client, so it is the
      *  one of that pair that lands here too. 146 until the javaClassName check was added; 147 until
-     *  the typed clearArea and goto contracts added their refusal, issue-path and parity checks. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 164;
+     *  the typed clearArea and goto contracts added their refusal, issue-path and parity checks; 164
+     *  until the typed body-task verbs did the same, their request checks no longer self-skipping. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 184;
 
     /** task#92 — allow-list of check-name substrings permitted to record a {@code SKIP(task#92)} PASS on
      *  a topology whose precondition isn't met. Every skipped check MUST match one of these; any other
@@ -494,7 +495,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  ({@code route.leash.entity}, {@code route.sight.of}); the validation suite's
      *  {@code 65_schema_union.js} covers those nested ones through the validator. */
     private static void schemaUnionRendering(SceneContext ctx) {
-        assertUnionType(ctx, "mc.bot.combat", "target", List.of("integer", "string", "object"));
         assertUnionType(ctx, "mc.wait.condition", "value", List.of("object", "array", "string", "number", "boolean"));
         assertUnionType(ctx, "mc.skill", "args", List.of("object", "array", "string", "number", "boolean"));
         assertUnionType(ctx, "mc.events", "data", List.of("object", "array", "string", "number", "boolean"));

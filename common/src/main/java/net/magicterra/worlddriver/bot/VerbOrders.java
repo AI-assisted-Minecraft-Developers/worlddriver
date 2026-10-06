@@ -1,13 +1,30 @@
 package net.magicterra.worlddriver.bot;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.LinkedHashSet;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
+import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
+import net.magicterra.worlddriver.api.methods.BuildContracts;
+import net.magicterra.worlddriver.api.methods.BuildContracts.BuildParams;
+import net.magicterra.worlddriver.api.methods.BuildContracts.BunkerParams;
+import net.magicterra.worlddriver.api.methods.BuildContracts.ConstructParams;
+import net.magicterra.worlddriver.api.methods.BuildContracts.EscapeParams;
+import net.magicterra.worlddriver.api.methods.CombatContract;
+import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.GatherContracts;
+import net.magicterra.worlddriver.api.methods.GatherContracts.CraftParams;
+import net.magicterra.worlddriver.api.methods.GatherContracts.FarmParams;
+import net.magicterra.worlddriver.api.methods.GatherContracts.MineParams;
+import net.magicterra.worlddriver.api.methods.GatherContracts.SmeltParams;
+import net.magicterra.worlddriver.api.methods.MoveContracts;
+import net.magicterra.worlddriver.api.methods.MoveContracts.ElytraParams;
+import net.magicterra.worlddriver.api.methods.MoveContracts.ExploreParams;
+import net.magicterra.worlddriver.api.methods.MoveContracts.FollowParams;
+import net.magicterra.worlddriver.api.methods.MoveContracts.RunAwayParams;
+import net.magicterra.worlddriver.api.methods.MoveContracts.SleepParams;
+import net.magicterra.worlddriver.api.methods.RouteContract.Route;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.process.BridgeProcess;
 import net.magicterra.worlddriver.bot.process.BuildProcess;
@@ -28,357 +45,230 @@ import net.magicterra.worlddriver.bot.process.Schematic;
 import net.magicterra.worlddriver.bot.process.SleepProcess;
 import net.magicterra.worlddriver.bot.process.SmeltProcess;
 import net.magicterra.worlddriver.bot.process.TowerProcess;
-import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
- * What an order to one of the {@code mc.bot.*} verbs that start a process means, apart from which player
- * carries it out: the params read, a bad order refused, the process built and the reply written.
- * {@code BotApiImpl} starts the process on the client player and {@code api/BodyRoutes} on the bot
- * player named by {@code body}, so the two cannot read an order differently.
+ * What an order to one of the {@code mc.bot.*} verbs that start a process means, apart from which body
+ * carries it out: the process built from the decoded params and the body as it is now, and what its
+ * success will report. The client's own player and a server bot read an order through the same code.
  *
- * <p>The player comes in as a {@link LivingEntity} for the verbs that read it (feet Y, facing, the chest
- * slot); the rest ignore it. Nothing here may name a client class: on a dedicated server this runs with
- * none loaded.
+ * <p>Runs on the body's game thread. Nothing here may name a client class: on a dedicated server this
+ * runs with none loaded.
  */
 public final class VerbOrders {
 
     private VerbOrders() {}
 
-    /** The process to start and the reply to give; a refusal has no process. */
-    public record Order(BotProcess process, Map<String, Object> reply) {
-        static Order refuse(String error) { return new Order(null, Map.of("ok", false, "error", error)); }
-        public boolean refused() { return process == null; }
+    /** Start {@code process}, or refuse with nothing started. */
+    public sealed interface Order<R> permits Start, Refuse {}
+
+    /** {@code result} is read on the executor's thread when the process succeeds, so it can count what it did. */
+    public record Start<R>(BotProcess process, Supplier<R> result) implements Order<R> {}
+
+    public record Refuse<R>(RefusalReason reason, String message) implements Order<R> {}
+
+    /** The verbs that hold, place, break or use something: a body with no hands (an NPC) cannot take them. */
+    private static <R> Refuse<R> handless(String verb, LivingEntity self) {
+        return new Refuse<>(RefusalReason.UNSUPPORTED_CAPABILITY, verb + " needs hands, and this body has none");
     }
 
-    public static Order mine(Params p, LivingEntity self) {
-        List<String> ids = p.getStringList("blocks");
-        if (ids.isEmpty()) return Order.refuse("blocks list required");
-        int qtyIn = p.getInt("quantity", 1);
-        if (qtyIn < 1) return Order.refuse("quantity must be ≥ 1");
-        int qty = Params.clamp(qtyIn, 1, 256);
-        int radius = p.getIntClamped("radius", 16, 1, 64);
-        return new Order(new MineProcess(ids, qty, radius),
-                Map.of("ok", true, "started", true, "blocks", ids, "quantity", qty, "radius", radius));
+    private static boolean hasHands(LivingEntity self) { return self instanceof Player; }
+
+    public static Order<GatherContracts.Mined> mine(MineParams p, LivingEntity self) {
+        if (!hasHands(self)) return handless("mine", self);
+        MineProcess m = new MineProcess(p.blocks(), p.quantity(), p.radius());
+        return new Start<>(m, () -> new GatherContracts.Mined(p.blocks(), p.quantity(), p.radius(), m.broken()));
     }
 
-    /**
-     * "acted" (did BunkerProcess ever really break/place a block) can't be known synchronously here — the
-     * dig/carve/plug runs over many later ticks, not within this call. The reply stays a start ack
-     * ("ok:true" = "accepted", not "sealed"); the honest terminal verdict (goalReached/endReason, folded in via
-     * awaitable()) lands on the bunker slot once BunkerProcess actually finishes or bails.
-     */
-    public static Order bunker(Params p, LivingEntity self) {
-        int depth = p.getIntClamped("depth", BotConfig.bunkerDepth, 1, 5);
-        return new Order(new BunkerProcess(depth), Map.of("ok", true, "started", true, "depth", depth));
+    public static Order<BuildContracts.Bunkered> bunker(BunkerParams p, LivingEntity self) {
+        if (!hasHands(self)) return handless("bunker", self);
+        int depth = p.depth().orElse(Math.max(1, Math.min(5, BotConfig.bunkerDepth)));
+        BunkerProcess b = new BunkerProcess(depth);
+        return new Start<>(b, () -> new BuildContracts.Bunkered(depth, b.sealed()));
     }
 
-    public static Order escape(Params p, LivingEntity self) {
+    /** A target below the feet digs a stair down instead of carving one up. */
+    public static Order<BuildContracts.Escaped> escape(EscapeParams p, LivingEntity self) {
+        if (!hasHands(self)) return handless("escape", self);
         int feetY = self.blockPosition().getY();
-        // Climb until this Y (default: ~32 above current — far enough to clear any pit; the skyOpen
-        // check ends it the moment it surfaces sooner).
-        int targetY = p.getIntClamped("targetY", feetY + 32, -64, 320);
-        // A targetY below the feet means DIG DOWN: dispatch to the descent mirror (A*'s YLevel descent
-        // hunts distant cave mouths instead of digging and stalls in hill terrain — devil-bench
-        // day1_iron). Both report through the same escape slot, so await/status are unchanged.
+        int targetY = p.targetY().orElse(feetY + 32);
+        int min = self.level().getMinBuildHeight(), max = self.level().getMaxBuildHeight() - 1;
+        if (targetY < min || targetY > max) {
+            return new Refuse<>(RefusalReason.INVALID_WORLD_TARGET, "targetY " + targetY + " is outside this world's build height "
+                    + min + ".." + max);
+        }
         boolean down = targetY < feetY;
-        return new Order(down ? new DescendProcess(targetY) : new EscapeProcess(targetY),
-                Map.of("ok", true, "started", true, "targetY", targetY, "direction", down ? "down" : "up"));
+        BuildContracts.Vertical way = down ? BuildContracts.Vertical.DOWN : BuildContracts.Vertical.UP;
+        return new Start<>(down ? new DescendProcess(targetY) : new EscapeProcess(targetY),
+                () -> new BuildContracts.Escaped(way, targetY, self.blockPosition().getY()));
     }
 
-    public static Order craft(Params p, LivingEntity self) {
-        String item = p.getNonBlank("item");
-        if (item == null) return Order.refuse("item required");
-        int count = p.getIntClamped("count", 1, 1, 256);
-        return new Order(new CraftProcess(item, count),
-                Map.of("ok", true, "started", true, "item", item, "count", count));
+    public static Order<GatherContracts.Crafted> craft(CraftParams p, LivingEntity self) {
+        if (!hasHands(self)) return handless("craft", self);
+        CraftProcess c = new CraftProcess(p.item(), p.count());
+        return new Start<>(c, () -> new GatherContracts.Crafted(p.item(), p.count(), c.crafted()));
     }
 
-    public static Order smelt(Params p, LivingEntity self) {
-        String item = p.getNonBlank("item");
-        if (item == null) return Order.refuse("item required");
-        int count = p.getIntClamped("count", 1, 1, 256);
-        String fuel = p.getNonBlank("fuel");
-        return new Order(new SmeltProcess(item, count, fuel),
-                Map.of("ok", true, "started", true, "item", item, "count", count, "fuel", fuel == null ? "auto" : fuel));
-    }
-
-    /** A read combat order. The client hands it to its combat chain; any other player gets a {@link CombatProcess}. */
-    public record CombatOrder(CombatProcess.Mode mode, Integer targetId, String targetType, boolean force) {
-        public Map<String, Object> reply() {
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("ok", true);
-            out.put("started", true);
-            out.put("mode", mode.name().toLowerCase());
-            if (targetId != null) out.put("targetId", targetId);
-            if (targetType != null) out.put("targetType", targetType);
-            return out;
-        }
-    }
-
-    /** Reads a combat order; a bad one throws {@link IllegalArgumentException} carrying the refusal. */
-    public static CombatOrder combatOrder(Params p) {
-        String modeStr = p.get("mode") instanceof String s ? s.trim().toLowerCase() : "engage";
-        CombatProcess.Mode mode = switch (modeStr) {
-            case "kill"   -> CombatProcess.Mode.KILL;
-            case "defend" -> CombatProcess.Mode.DEFEND;
-            case "engage" -> CombatProcess.Mode.ENGAGE;
-            default       -> null;
-        };
-        if (mode == null) throw new IllegalArgumentException("mode must be engage|defend|kill");
-        // target:{id:int} or {type:"minecraft:zombie"} (also accepts a bare type/id key).
-        Integer id = null;
-        String type = null;
-        Object tgt = p.get("target");
-        if (tgt instanceof Map<?, ?> tm) {
-            if (tm.get("id") instanceof Number n) id = n.intValue();
-            if (tm.get("type") instanceof String ts && !ts.isBlank()) type = normalizeEntityId(ts.trim());
-        } else if (tgt instanceof Number n) {
-            id = n.intValue();
-        } else if (tgt instanceof String ts && !ts.isBlank()) {
-            type = normalizeEntityId(ts.trim());
-        }
-        if (mode == CombatProcess.Mode.KILL && id == null && type == null) {
-            throw new IllegalArgumentException("kill mode requires target:{id|type}");
-        }
-        // gap#68-②: force:true overrides the frail-HP entry gate for this explicit order.
-        boolean force = p.get("force") instanceof Boolean b && b;
-        return new CombatOrder(mode, id, type, force);
+    public static Order<GatherContracts.Smelted> smelt(SmeltParams p, LivingEntity self) {
+        if (!hasHands(self)) return handless("smelt", self);
+        SmeltProcess s = new SmeltProcess(p.item(), p.count(), p.fuel().orElse(null));
+        return new Start<>(s, () -> new GatherContracts.Smelted(p.item(), p.count(), Optional.ofNullable(s.fuelChosen())));
     }
 
     /**
-     * {@code mc.bot.combat} for a player that is not the client's: the same order, as a {@link CombatProcess}.
-     * {@code force} has nothing to override there, since the frail-HP gate it lifts belongs to the
-     * client's {@code CombatChain} and any other player has no chains.
+     * {@code mc.bot.combat} as a held process: any body but the client's own player, whose fight belongs
+     * to its combat chain. {@code force} has nothing to lift here: the frail-health gate is the chain's.
      */
-    public static Order combat(Params p, LivingEntity self) {
-        CombatOrder c;
-        try { c = combatOrder(p); }
-        catch (IllegalArgumentException e) { return Order.refuse(e.getMessage()); }
-        return new Order(new CombatProcess(c.mode(), c.targetId(), c.targetType()), c.reply());
+    public static Order<CombatContract.Fought> combat(CombatContract.Params p, LivingEntity self) {
+        if (!hasHands(self)) return handless("combat", self);
+        return new Start<>(new CombatProcess(mode(p.mode()), entityId(p), entityType(p)),
+                () -> new CombatContract.Fought(p.mode(), p.target()));
     }
 
-    /** Accept a bare entity name ("zombie") or a full id ("minecraft:zombie"). */
-    private static String normalizeEntityId(String s) {
-        return s.indexOf(':') >= 0 ? s : "minecraft:" + s;
+    public static CombatProcess.Mode mode(CombatContract.Mode m) {
+        return switch (m) {
+            case ENGAGE -> CombatProcess.Mode.ENGAGE;
+            case DEFEND -> CombatProcess.Mode.DEFEND;
+            case KILL -> CombatProcess.Mode.KILL;
+        };
     }
 
-    /** Most cells a box verb may cover: farm rescans them all after each harvest. */
-    static final int MAX_BOX_CELLS = 4096;
-
-    /** Cells in the box spanned by {@code a} and {@code b}, as a long so no span can overflow it. */
-    private static long cells(BlockPos a, BlockPos b) {
-        return (Math.abs((long) a.getX() - b.getX()) + 1) * (Math.abs((long) a.getY() - b.getY()) + 1)
-                * (Math.abs((long) a.getZ() - b.getZ()) + 1);
+    public static Integer entityId(CombatContract.Params p) {
+        return p.target().orElse(null) instanceof CombatContract.FoeEntity e ? e.entityId() : null;
     }
 
-    /** An oversized box, or a Y outside the world, throws as an argument error rather than refusing:
-     *  no later state of the world makes that order valid, so the caller must change it. */
-    public static Order farm(Params p, LivingEntity self) {
-        if (self == null) return farm(p, Integer.MIN_VALUE, Integer.MAX_VALUE);
-        return farm(p, self.level().getMinBuildHeight(), self.level().getMaxBuildHeight() - 1);
+    public static String entityType(CombatContract.Params p) {
+        return p.target().orElse(null) instanceof CombatContract.FoeType t ? t.type() : null;
     }
 
-    static Order farm(Params p, int minY, int maxY) {
-        BlockPos from = p.getPos("from");
-        BlockPos to   = p.getPos("to");
-        if (from == null || to == null) return Order.refuse("from and to required");
-        for (BlockPos end : new BlockPos[] {from, to}) {
-            if (end.getY() < minY || end.getY() > maxY) {
-                throw new IllegalArgumentException("mc.bot.farm: y=" + end.getY()
-                        + " is outside the world's build height [" + minY + "," + maxY + "]");
+    public static Order<GatherContracts.Farmed> farm(FarmParams p, LivingEntity self) {
+        if (!hasHands(self)) return handless("farm", self);
+        int min = self.level().getMinBuildHeight(), max = self.level().getMaxBuildHeight() - 1;
+        for (BlockPosition end : new BlockPosition[] {p.from(), p.to()}) {
+            if (end.y() < min || end.y() > max) {
+                return new Refuse<>(RefusalReason.INVALID_WORLD_TARGET, "y " + end.y() + " is outside this world's build height "
+                        + min + ".." + max);
             }
         }
-        long volume = cells(from, to);
-        if (volume > MAX_BOX_CELLS) {
-            throw new IllegalArgumentException("mc.bot.farm: the box covers " + volume + " cells (x*y*z), max "
-                    + MAX_BOX_CELLS + "; every cell is rescanned after each harvest, so keep the Y span to the crop layer");
-        }
-        long area = (long) (Math.abs(from.getX() - to.getX()) + 1) * (Math.abs(from.getZ() - to.getZ()) + 1);
-        // Crops filter: caller may restrict to a subset, otherwise all four vanilla crops. Validated
-        // against known ids — unknown entries get silently dropped (Baritone shrugs the same way on bad
-        // filter input).
-        Set<String> crops = new HashSet<>();
-        if (p.get("crops") instanceof List<?> l) {
-            for (Object o : l) if (o instanceof String s && FarmProcess.SEED_FOR.containsKey(s)) crops.add(s);
-            if (crops.isEmpty()) return Order.refuse("crops must be subset of " + FarmProcess.SEED_FOR.keySet());
-        } else {
-            crops = new HashSet<>(FarmProcess.SEED_FOR.keySet());
-        }
-        boolean replant = !(p.get("replant") instanceof Boolean rb) || rb;
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ok", true); out.put("started", true);
-        out.put("from", posMap(from)); out.put("to", posMap(to));
-        out.put("area", (int) area);
-        out.put("volume", (int) volume);
-        out.put("crops", new ArrayList<>(crops));
-        out.put("replant", replant);
-        return new Order(new FarmProcess(from, to, crops, replant), out);
+        Set<String> crops = new LinkedHashSet<>();
+        for (GatherContracts.Crop c : p.crops()) crops.add(c.wireName());
+        FarmProcess f = new FarmProcess(pos(p.from()), pos(p.to()), crops, p.replant());
+        return new Start<>(f, () -> new GatherContracts.Farmed(p.from(), p.to(), p.crops(), p.replant(), f.harvested(),
+                f.replanted()));
     }
 
-    public static Order construct(Params p, LivingEntity self) {
-        String mode = (p.get("mode") instanceof String s && !s.isBlank()) ? s.trim().toLowerCase(Locale.ROOT) : null;
-        if (mode == null || (!mode.equals("tower") && !mode.equals("bridge"))) {
-            return Order.refuse("mode required (tower|bridge)");
-        }
-        String blockId = (p.get("block") instanceof String s && !s.isBlank()) ? s.trim() : null;
-        if (mode.equals("tower")) {
-            // height OR targetY; height is relative, targetY is absolute.
-            Integer targetY = p.get("targetY") instanceof Number n ? n.intValue() : null;
-            int height = p.getInt("height", -1);
-            if (targetY == null && height < 0) return Order.refuse("tower requires height or targetY");
-            if (height > 256) return Order.refuse("height too large (max 256)");
-            int startY = (int) Math.floor(self.getY());
-            int finalTargetY = targetY != null ? targetY : startY + height;
-            if (finalTargetY <= startY) {
-                return Order.refuse("target Y (" + finalTargetY + ") must be > current feet Y (" + startY + ")");
+    public static Order<BuildContracts.Constructed> construct(ConstructParams p, LivingEntity self) {
+        if (!hasHands(self)) return handless("construct", self);
+        switch (p.structure()) {
+            case BuildContracts.Tower t -> {
+                int startY = (int) Math.floor(self.getY());
+                int targetY = t.targetY().orElseGet(() -> startY + t.height().orElseThrow());
+                if (targetY <= startY) {
+                    return new Refuse<>(RefusalReason.INVALID_WORLD_TARGET, "targetY " + targetY + " is not above the feet (y "
+                            + startY + ")");
+                }
+                if (targetY - startY > 256) {
+                    return new Refuse<>(RefusalReason.INVALID_WORLD_TARGET, "a tower rises at most 256; targetY " + targetY
+                            + " is " + (targetY - startY) + " above the feet");
+                }
+                if (targetY >= self.level().getMaxBuildHeight()) {
+                    return new Refuse<>(RefusalReason.INVALID_WORLD_TARGET, "targetY " + targetY + " is above this world's build height");
+                }
+                TowerProcess tower = new TowerProcess(targetY, t.block().orElse(null));
+                return new Start<>(tower, () -> new BuildContracts.Towered(startY, targetY, t.block(), tower.placed()));
             }
-            if (finalTargetY - startY > 256) return Order.refuse("tower span too large (max 256)");
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("ok", true); out.put("started", true);
-            out.put("mode", "tower");
-            out.put("startY", startY); out.put("targetY", finalTargetY);
-            if (blockId != null) out.put("block", blockId);
-            return new Order(new TowerProcess(finalTargetY, blockId), out);
-        }
-        String dir = (p.get("direction") instanceof String s && !s.isBlank()) ? s.trim().toLowerCase(Locale.ROOT) : "forward";
-        int distance = p.getInt("distance", -1);
-        if (distance < 1) return Order.refuse("bridge requires distance >= 1");
-        if (distance > 64) return Order.refuse("distance too large (max 64)");
-        Direction face = GoalResolver.resolveCardinalDirection(self, dir);
-        if (face == null) {
-            return Order.refuse("unknown direction: " + dir + " (use forward|back|left|right|north|south|east|west)");
-        }
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ok", true); out.put("started", true);
-        out.put("mode", "bridge");
-        out.put("direction", dir);
-        out.put("face", face.getName());
-        out.put("distance", distance);
-        if (blockId != null) out.put("block", blockId);
-        return new Order(new BridgeProcess(face, distance, blockId), out);
-    }
-
-    public static Order sleep(Params p, LivingEntity self) {
-        BlockPos explicit = p.getPos("pos");
-        int radius = p.getIntClamped("radius", 16, 1, 64);
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ok", true);
-        out.put("started", true);
-        if (explicit != null) out.put("pos", posMap(explicit));
-        out.put("radius", radius);
-        return new Order(new SleepProcess(explicit, radius), out);
-    }
-
-    public static Order build(Params p, LivingEntity self) {
-        BlockPos origin = p.getPos("origin");
-        if (origin == null) return Order.refuse("origin required");
-        Object schemObj = p.get("schematic");
-        Object schemB64Obj = p.get("schematicBase64");
-        if (schemObj != null && schemB64Obj != null) {
-            return Order.refuse("specify either schematic OR schematicBase64, not both");
-        }
-        Schematic s;
-        try {
-            if (schemB64Obj instanceof String b64 && !b64.isBlank()) {
-                byte[] bytes;
-                try { bytes = java.util.Base64.getDecoder().decode(b64.trim()); }
-                catch (IllegalArgumentException e) { return Order.refuse("schematicBase64: invalid base64"); }
-                s = Schematic.fromSpongeSchem(bytes);
-            } else if (schemObj instanceof Map<?, ?> schem) {
-                s = Schematic.parse(schem);
-            } else {
-                return Order.refuse("schematic (procedural object) or schematicBase64 (sponge .schem bytes) required");
+            case BuildContracts.Bridge b -> {
+                Direction face = GoalResolver.resolveCardinalDirection(self, b.direction().wireName());
+                BridgeProcess bridge = new BridgeProcess(face, b.distance(), b.block().orElse(null));
+                BuildContracts.Compass compass = BuildContracts.Compass.valueOf(face.name());
+                return new Start<>(bridge, () -> new BuildContracts.Bridged(b.direction(), compass, b.distance(), b.block(),
+                        bridge.placed()));
             }
-        } catch (RuntimeException e) {
-            return Order.refuse("schematic: " + e.getMessage());
         }
-        return new Order(new BuildProcess(origin, s), Map.of("ok", true, "started", true, "origin", posMap(origin),
-                "size", Map.of("w", s.w, "h", s.h, "d", s.d), "blocks", s.entries.size()));
     }
 
-    public static Order follow(Params p, LivingEntity self) {
-        String entityType = p.getString("entityType");
-        String name = p.getString("name");
-        int radius = p.getIntClamped("radius", 3, 1, 16);
-        int maxIdleTicks = p.getIntClamped("maxIdleTicks", 0, 0, 100_000);
-        int giveUpTicks = p.getIntClamped("giveUpTicks", FollowProcess.DEFAULT_GIVE_UP_TICKS, 0, 100_000);
-        if (entityType == null && name == null) return Order.refuse("entityType or name required");
-        // The same route object goto takes, minus what a follow has no use for: it already tracks an
-        // entity, so via points, an entity leash and the fly mode are refused rather than silently dropped.
-        RouteParams.Parsed route = RouteParams.parse(p.getMap("route"));
-        if (!route.via().isEmpty()) return Order.refuse("route.via: follow has no waypoints");
-        if (route.entityLeash() != null) return Order.refuse("route.leash.anchor: follow already tracks an entity; anchor to a point or column");
-        if (route.fly()) return Order.refuse("route.mode: follow cannot fly");
-        Map<String, Object> r = new LinkedHashMap<>();
-        r.put("ok", true); r.put("started", true);
-        if (entityType != null) r.put("entityType", entityType);
-        if (name != null) r.put("name", name);
-        r.put("radius", radius);
-        if (maxIdleTicks > 0) r.put("maxIdleTicks", maxIdleTicks);
-        r.put("giveUpTicks", giveUpTicks);
-        return new Order(new FollowProcess(entityType, name, radius, maxIdleTicks, giveUpTicks, route.profile()), r);
+    public static Order<MoveContracts.Slept> sleep(SleepParams p, LivingEntity self) {
+        if (!hasHands(self)) return handless("sleep", self);
+        SleepProcess s = new SleepProcess(p.pos().map(VerbOrders::pos).orElse(null), p.radius());
+        return new Start<>(s, () -> new MoveContracts.Slept(position(s.bedPos())));
     }
 
-    public static Order explore(Params p, LivingEntity self) {
-        int cx = p.getInt("centerX", Integer.MIN_VALUE);
-        int cz = p.getInt("centerZ", Integer.MIN_VALUE);
-        if (cx == Integer.MIN_VALUE || cz == Integer.MIN_VALUE) return Order.refuse("centerX and centerZ required");
-        int maxChunks = p.getIntClamped("maxChunks", 16, 1, 64);
-        return new Order(new ExploreProcess(cx, cz, maxChunks),
-                Map.of("ok", true, "started", true, "centerX", cx, "centerZ", cz, "maxChunks", maxChunks));
+    /**
+     * The schematic a build order names; {@link IllegalArgumentException} when the bytes are not a
+     * schematic this game reads. Reads no world, so it runs before the order goes to a body.
+     */
+    public static Schematic schematic(BuildContracts.Schematic s) {
+        return switch (s) {
+            case BuildContracts.Blocks b -> Schematic.of(b.w(), b.h(), b.d(), b.palette(), b.data());
+            case BuildContracts.Sponge sp -> Schematic.fromSpongeSchem(java.util.Base64.getMimeDecoder().decode(sp.base64()));
+        };
     }
 
-    public static Order runAway(Params p, LivingEntity self) {
-        BlockPos src = p.getPos("from");
-        int minDist = p.getIntClamped("minDist", 16, 4, 64);
-        if (src == null) src = BlockPos.containing(self.getX(), self.getY(), self.getZ());
-        return new Order(new RunAwayProcess(src, minDist),
-                Map.of("ok", true, "started", true, "from", posMap(src), "minDist", minDist));
+    /** {@code s} is {@link #schematic} of the order's schematic. */
+    public static Order<BuildContracts.Built> build(BuildParams p, Schematic s, LivingEntity self) {
+        if (!hasHands(self)) return handless("build", self);
+        BuildProcess build = new BuildProcess(pos(p.origin()), s);
+        BuildContracts.Size size = new BuildContracts.Size(s.w, s.h, s.d);
+        int blocks = s.entries.size();
+        return new Start<>(build, () -> new BuildContracts.Built(p.origin(), size, blocks, build.placed(), build.skipped()));
     }
 
-    public static Order elytraFly(Params p, LivingEntity self) {
-        BlockPos target = p.getPos("pos");
-        Float yaw = p.getFloat("yaw");
-        boolean hasPitch = p.get("pitch") instanceof Number;
-        float pitch = (float) p.getDouble("pitch", 0.0);
-        // Reactive sim-lookahead control (milestone B): used when a 3D target is given and no fixed
-        // test-pitch is pinned (explicit pitch forces the fixed-heading glide rig); can be forced on/off
-        // via `reactive`.
-        boolean reactive = target != null && p.getBool("reactive", !hasPitch);
-        boolean fireworks = reactive
-                ? !Boolean.FALSE.equals(p.get("fireworks"))   // reactive: boost on by default
-                : p.getBool("fireworks");
-        int fwEvery = p.getIntClamped("fireworkEveryTicks", 40, 5, 400);
-        int maxTicks = p.getIntClamped("ticks", reactive ? 2000 : 200, 1, 20_000);
-        double stopXZ = p.getDouble("stopXZDist", 3.0);
-        // Ground fallback (milestone D): with no usable elytra, optionally walk to the target via the
-        // normal pathfinder instead of failing.
+    public static Order<MoveContracts.Followed> follow(FollowParams p, LivingEntity self) {
+        String type = p.target() instanceof MoveContracts.QuarryType t ? t.type() : null;
+        String name = p.target() instanceof MoveContracts.QuarryPlayer pl ? pl.name() : null;
+        RouteParams.Parsed route = RouteParams.parse(p.route().orElse(Route.NONE));
+        return new Start<>(new FollowProcess(type, name, p.radius(), p.maxIdleTicks(), p.giveUpTicks(), route.profile()),
+                () -> new MoveContracts.Followed(p.target(), p.radius()));
+    }
+
+    public static Order<MoveContracts.Explored> explore(ExploreParams p, LivingEntity self) {
+        ExploreProcess e = new ExploreProcess(p.centerX(), p.centerZ(), p.maxChunks());
+        return new Start<>(e, () -> new MoveContracts.Explored(p.centerX(), p.centerZ(), p.maxChunks(), e.visited()));
+    }
+
+    public static Order<MoveContracts.RanAway> runAway(RunAwayParams p, LivingEntity self) {
+        BlockPos src = p.from().map(VerbOrders::pos).orElseGet(() -> BlockPos.containing(self.getX(), self.getY(), self.getZ()));
+        BlockPosition from = position(src);
+        return new Start<>(new RunAwayProcess(src, p.minDist()),
+                () -> new MoveContracts.RanAway(from, p.minDist(), position(self.blockPosition())));
+    }
+
+    /** With no usable elytra and {@code groundFallback}, a walk to {@code pos} rather than a refusal. */
+    public static Order<MoveContracts.Flown> elytraFly(ElytraParams p, LivingEntity self) {
+        BlockPos target = p.pos().map(VerbOrders::pos).orElse(null);
+        boolean reactive = target != null && p.reactive().orElse(p.pitch().isEmpty());
+        boolean fireworks = p.fireworks().orElse(reactive);
+        if (!wearsElytra(self)) {
+            if (target != null && p.groundFallback()) {
+                Goal g = p.near() > 0 ? new Goal.Near(target, p.near()) : new Goal.Block(target);
+                return new Start<>(new IntentProcess(new Intent(g)),
+                        () -> new MoveContracts.Flown(MoveContracts.FlightMode.GROUND_FALLBACK, false));
+            }
+            return new Refuse<>(RefusalReason.UNSUPPORTED_CAPABILITY, "no usable elytra in the chest slot"
+                    + (target != null ? "; pass groundFallback: true to walk there instead" : ""));
+        }
+        int maxTicks = p.ticks().orElse(reactive ? 2000 : 200);
+        Float yaw = p.yaw().map(Double::floatValue).orElse(null);
+        float pitch = p.pitch().map(Double::floatValue).orElse(0f);
+        MoveContracts.FlightMode mode = reactive ? MoveContracts.FlightMode.REACTIVE
+                : target != null ? MoveContracts.FlightMode.GOAL : MoveContracts.FlightMode.GLIDE;
+        return new Start<>(new ElytraProcess(target, yaw, pitch, fireworks, p.fireworkEveryTicks(), maxTicks, p.stopXZDist(), reactive),
+                () -> new MoveContracts.Flown(mode, fireworks));
+    }
+
+    /** Whether the chest slot holds an elytra with flight left in it. */
+    public static boolean wearsElytra(LivingEntity self) {
         ItemStack chest = self.getItemBySlot(EquipmentSlot.CHEST);
-        boolean flyable = chest.is(Items.ELYTRA)
-                && chest.getMaxDamage() > 0 && chest.getDamageValue() < chest.getMaxDamage() - 1;
-        if (!flyable && target != null && p.getBool("groundFallback")) {
-            int near = p.getIntClamped("near", 1, 0, 64);
-            Goal g = near > 0 ? new Goal.Near(target, near) : new Goal.Block(target);
-            return new Order(new IntentProcess(new Intent(g)), Map.of("ok", true, "started", true, "mode", "groundFallback",
-                    "reason", "no usable elytra", "goal", g.toString()));
-        }
-        return new Order(new ElytraProcess(target, yaw, pitch, fireworks, fwEvery, maxTicks, stopXZ, reactive),
-                Map.of("ok", true, "started", true, "mode", reactive ? "reactive" : (target != null ? "goal" : "glide"),
-                        "pitch", pitch, "fireworks", fireworks));
+        return chest.is(Items.ELYTRA) && chest.getMaxDamage() > 0 && chest.getDamageValue() < chest.getMaxDamage() - 1;
     }
 
-    /** {@code {x, y, z}}, the shape every reply gives a cell in. */
-    static Map<String, Object> posMap(BlockPos p) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("x", p.getX());
-        m.put("y", p.getY());
-        m.put("z", p.getZ());
-        return m;
-    }
+    static BlockPos pos(BlockPosition p) { return new BlockPos(p.x(), p.y(), p.z()); }
+
+    static BlockPosition position(BlockPos p) { return new BlockPosition(p.getX(), p.getY(), p.getZ()); }
 }

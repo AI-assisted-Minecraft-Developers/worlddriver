@@ -1,5 +1,9 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
+import java.util.function.Consumer;
+
+import net.magicterra.worlddriver.api.action.ActionHandle;
+import net.magicterra.worlddriver.api.methods.ActionContract.CancelReason;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.body.Body;
@@ -44,6 +48,10 @@ public final class CombatChain implements Chain {
 
     private CombatProcess process;
 
+    /** The accepted action the explicit intent carries out, and what it reports when won. Client thread only. */
+    private ActionHandle intentAction;
+    private Object intentResult;
+
     /** Post-respawn autoFight suppression countdown (gap#68 grace). Tick thread only. */
     private int autoSuppressTicks;
 
@@ -77,6 +85,22 @@ public final class CombatChain implements Chain {
      *               {@link #bid} for this intent — the agent has explicitly accepted
      *               the risk of fighting at low HP. */
     public void engage(CombatProcess.Mode mode, Integer id, String type, boolean force) {
+        engage(mode, id, type, force, null, null);
+    }
+
+    /**
+     * {@link #engage} for an accepted action, which this chain ends: with {@code result} when the fight
+     * is won, failed when it gives up or the health gate refuses it, superseded by the next explicit
+     * fight. A retreat or dodge that interrupts the fight only pauses it. Client thread only.
+     */
+    public void engage(CombatProcess.Mode mode, Integer id, String type, boolean force, ActionHandle action, Object result) {
+        ActionHandle prev = intentAction;
+        intentAction = action;
+        intentResult = result;
+        if (prev != null) {
+            if (action != null) prev.supersede(action.id());
+            else prev.cancelled(CancelReason.REQUESTED);
+        }
         this.intentMode = mode;
         this.intentId = id;
         this.intentType = type;
@@ -93,6 +117,11 @@ public final class CombatChain implements Chain {
     /** Drop any combat intent and release the channel (the {@code mc.bot.cancel}
      *  path). Telemetry is kept for a post-mortem read, mirroring lastError. */
     public void standDown() {
+        standDown(h -> h.cancelled(CancelReason.REQUESTED));
+    }
+
+    /** {@link #standDown}, ending the explicit fight's action with {@code ending}. */
+    public void standDown(Consumer<ActionHandle> ending) {
         this.intentMode = null;
         this.intentId = null;
         this.intentType = null;
@@ -101,6 +130,21 @@ public final class CombatChain implements Chain {
         state.combat.active = false;
         releaseKeys();
         releaseUseKey();
+        endIntentAction(ending);
+    }
+
+    /** Stand down if the explicit fight is still {@code action}'s; false when that action has left. */
+    public boolean cancelAction(ActionHandle action) {
+        if (action == null || intentAction != action) return false;
+        standDown(h -> { });
+        return true;
+    }
+
+    private void endIntentAction(Consumer<ActionHandle> ending) {
+        ActionHandle a = intentAction;
+        intentAction = null;
+        intentResult = null;
+        if (a != null) ending.accept(a);
     }
 
     /** True while the chain has work — an explicit intent or a live process.
@@ -135,8 +179,10 @@ public final class CombatChain implements Chain {
         if (intentMode != null) {
             if (frailBlocked(hp, BotConfig.combatFrailThreshold, intentForce)) {
                 // Explicit kill order on fragile HP: refuse loudly instead of dying quietly.
+                String why = "frail-abort: health " + hp + " is at or below combatFrailThreshold "
+                        + BotConfig.combatFrailThreshold + "; pass force: true to fight anyway";
+                standDown(h -> h.fail(why));
                 state.combat.lastError = "frail-abort hp=" + hp;
-                standDown();
                 return 0f;
             }
             return Priorities.COMBAT;
@@ -176,6 +222,7 @@ public final class CombatChain implements Chain {
         }
         boolean done = process.tick(body, w, st);
         if (done) {
+            String failure = process.failure();
             process = null;
             // An explicit intent is one-shot: fulfilled → clear it so priority drops.
             // Auto-fight leaves intent null; priority re-evaluates next tick.
@@ -184,6 +231,12 @@ public final class CombatChain implements Chain {
                 intentId = null;
                 intentType = null;
                 intentForce = false;
+                Object result = intentResult;
+                endIntentAction(h -> {
+                    if (failure != null) h.fail(failure);
+                    else if (result != null) h.succeed(result);
+                    else h.succeed();
+                });
             }
             releaseKeys();
         }

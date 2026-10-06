@@ -69,6 +69,10 @@ public final class FarmProcess implements BotProcess {
 
     public String kind() { return "builder"; }
 
+    public int harvested() { return harvested; }
+
+    public int replanted() { return replanted; }
+
     public void attach(BotState st) {
         st.builder.active = true;
         st.builder.goal = "farm[" + String.join(",", crops) + "] " + minP + "→" + maxP +

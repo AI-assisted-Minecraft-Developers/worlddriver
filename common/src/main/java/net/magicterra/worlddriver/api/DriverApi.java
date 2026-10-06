@@ -69,10 +69,12 @@ public abstract class DriverApi {
 
     /**
      * Run {@code method} and wait for its result on this thread: for code inside this JVM that holds
-     * a Map (wait conditions, watchers, replay). Throws the call's {@link ApiException}.
+     * a Map (wait conditions, watchers, replay). Throws the call's {@link ApiException}. On a game thread
+     * a call that would wait is refused before it starts, as {@link #invokeJson} refuses it.
      */
     public final Object route(String method, Map<String, Object> params) {
-        return await(dispatch(method, params, CallContext.standalone()), CallContext.SERVER_CAP_MS);
+        CallContext ctx = GameThreads.onGameThread() ? CallContext.standalone().onGameThread() : CallContext.standalone();
+        return await(dispatch(method, params, ctx), CallContext.SERVER_CAP_MS);
     }
 
     /** Wait at most {@code budgetMs} for {@code stage}, unwrapping its failure into the {@link ApiException}. */

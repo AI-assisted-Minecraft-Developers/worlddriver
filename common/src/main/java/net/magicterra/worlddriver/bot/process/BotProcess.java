@@ -32,6 +32,13 @@ public interface BotProcess {
      *  because several processes write their success summary there ({@code "done (placed=…)"}). */
     String failure();
 
+    /**
+     * Whether what it was asked to do is done although it keeps running: a bunker that sealed holds
+     * its pocket until cancelled. The executor asks after every tick that did not finish it, and the
+     * action it carries succeeds the first time this is true; the process runs on unchanged.
+     */
+    default boolean achieved() { return false; }
+
     /** Called when this process regains the movement channel after being
      *  suspended by a higher-priority chain (panic/retreat/combat), so it can force a repath
      *  from the current position rather than reuse a path that went stale during suspension.

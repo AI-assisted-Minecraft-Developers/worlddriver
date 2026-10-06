@@ -43,46 +43,60 @@ function hotbarHas(item) {
     return n;
 }
 
-// Drive a craft/smelt slot to idle, polling status (the awaitMs fold can race a
-// just-started process, so we confirm the slot actually went inactive).
-function awaitSlot(slot, maxTicks) {
-    var waited = 0;
-    while (waited < maxTicks) {
-        var st = Driver.invoke("mc.bot.status", {});
-        if (st[slot] && st[slot].active === false) return st[slot];
+/**
+ * The action {@code started} began, once it has ended, polling mc.wait.result between ticks; still
+ * running after {@code maxTicks} answers with what it is then. Polled rather than awaitMs because a
+ * script may run where waiting is refused.
+ */
+function awaitAction(started, maxTicks) {
+    var id = started.action.actionId;
+    for (var waited = 0; waited < maxTicks; waited += 5) {
+        var a = Driver.invoke("mc.wait.result", { kind: "action", actionId: id }).action;
+        if (a.state !== "running") return a;
         Driver.system.waitTicks(5);
-        waited += 5;
     }
-    return Driver.invoke("mc.bot.status", {})[slot];
+    return Driver.invoke("mc.wait.result", { kind: "action", actionId: id }).action;
 }
 
-ScriptTest.run("44_craft: mc.bot.craft reports missing materials, not a crash", function(t) {
-    if (!clientAvailable()) { return; }   // behaviour is client-only
-    cleanup();
-    Driver.system.waitTicks(2);
-    // Empty inventory → an iron pickaxe is entirely unobtainable.
-    var r = Driver.invoke("mc.bot.craft", { item: "minecraft:iron_pickaxe", count: 1 });
-    t.assertEqual(r.ok, true, "call accepted (async)");
-    var slot = awaitSlot("craft", 40);
-    t.assertTrue(typeof slot.lastError === "string", "fails with an error");
-    // A bare "missing" would also match the recipe-placement timeout; only the up-front report has "N x item".
-    t.assertTrue(/missing \d+ x /.test(slot.lastError), "error names what's missing: " + slot.lastError);
-    cleanup();
+/** The DriverApiError a call throws, or null when it returned. */
+function errorOf(call) {
+    try { call(); } catch (e) { return e; }
+    return null;
+}
+
+ScriptTest.run("44_craft: an item this game lacks is invalid_params at /item", function(t) {
+    var e = errorOf(function() { Driver.bot.craft({ item: "minecraft:no_such_item" }); });
+    t.assertEqual(e.issues[0].path, "/item", "path");
+    t.assertEqual(e.issues[0].code, "invalid_value", "issue code");
 });
 
 if (!clientAvailable()) {
-    ScriptTest.run("44_craft: behaviour skipped (no client api — dedicated server)", function(t) {});
+    ScriptTest.run("44_craft: self is unavailable on a dedicated server", function(t) {
+        var r = Driver.bot.craft({ item: "minecraft:crafting_table" });
+        t.assertEqual(r.outcome, "refused", "outcome");
+        t.assertEqual(r.reason, "body_unavailable", "reason");
+    });
 } else {
+
+    ScriptTest.run("44_craft: mc.bot.craft reports missing materials, not a crash", function(t) {
+        cleanup();
+        Driver.system.waitTicks(2);
+        // Empty inventory → an iron pickaxe is entirely unobtainable.
+        var a = awaitAction(Driver.bot.craft({ item: "minecraft:iron_pickaxe", count: 1 }), 40);
+        t.assertEqual(a.state, "failed", "fails: " + JSON.stringify(a));
+        // A bare "missing" would also match the recipe-placement timeout; only the up-front report has "N x item".
+        t.assertTrue(/missing \d+ x /.test(a.message), "error names what's missing: " + a.message);
+        cleanup();
+    });
 
     ScriptTest.run("44_craft: 2x2 inventory craft makes a crafting table from planks", function(t) {
         cleanup();
         Driver.system.waitTicks(2);
         giveAndWait("minecraft:oak_planks", 4);
-        var r = Driver.invoke("mc.bot.craft", { item: "minecraft:crafting_table", count: 1 });
-        t.assertEqual(r.ok, true, "started");
-        var slot = awaitSlot("craft", 120);
-        t.assertEqual(slot.active, false, "craft finished");
-        t.assertTrue(!slot.lastError, "no error: " + slot.lastError);
+        var a = awaitAction(Driver.bot.craft({ item: "minecraft:crafting_table", count: 1 }), 120);
+        t.assertEqual(a.state, "succeeded", "craft succeeded: " + JSON.stringify(a));
+        t.assertEqual(a.result.kind, "craft", "result kind");
+        t.assertTrue(a.result.crafted >= 1, "crafted counted: " + a.result.crafted);
         t.assertTrue(hotbarHas("minecraft:crafting_table") >= 1, "a crafting table was produced");
         cleanup();
     });
@@ -94,11 +108,8 @@ if (!clientAvailable()) {
         giveAndWait("minecraft:oak_planks", 3);
         giveAndWait("minecraft:stick", 2);
         giveAndWait("minecraft:crafting_table", 1);
-        var r = Driver.invoke("mc.bot.craft", { item: "minecraft:wooden_pickaxe", count: 1 });
-        t.assertEqual(r.ok, true, "started");
-        var slot = awaitSlot("craft", 160);
-        t.assertEqual(slot.active, false, "craft finished");
-        t.assertTrue(!slot.lastError, "no error: " + slot.lastError);
+        var a = awaitAction(Driver.bot.craft({ item: "minecraft:wooden_pickaxe", count: 1 }), 160);
+        t.assertEqual(a.state, "succeeded", "craft succeeded: " + JSON.stringify(a));
         t.assertTrue(hotbarHas("minecraft:wooden_pickaxe") >= 1, "a wooden pickaxe was produced");
         cleanup();
     });
@@ -109,13 +120,12 @@ if (!clientAvailable()) {
         giveAndWait("minecraft:furnace", 1);
         giveAndWait("minecraft:coal", 1);
         giveAndWait("minecraft:raw_iron", 1);
-        var r = Driver.invoke("mc.bot.smelt", { item: "minecraft:raw_iron", count: 1 });
-        t.assertEqual(r.ok, true, "started");
         // One item smelts in ~200 ticks; allow generous slack for open/load/collect.
-        var slot = awaitSlot("smelt", 360);
-        t.assertEqual(slot.active, false, "smelt finished");
+        var a = awaitAction(Driver.bot.smelt({ item: "minecraft:raw_iron", count: 1 }), 360);
+        t.assertTrue(a.state !== "running", "smelt finished: " + JSON.stringify(a));
         t.assertTrue(hotbarHas("minecraft:iron_ingot") >= 1,
-            "an iron ingot was produced" + (slot.lastError ? " (note: " + slot.lastError + ")" : ""));
+            "an iron ingot was produced" + (a.message ? " (note: " + a.message + ")" : ""));
+        if (a.state === "succeeded") t.assertEqual(a.result.fuel, "coal", "the fuel it loaded");
         cleanup();
     });
 }

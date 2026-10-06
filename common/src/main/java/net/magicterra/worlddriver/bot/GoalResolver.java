@@ -152,13 +152,9 @@ public static int[] horizontalStep(Entity p, String d) {
  *    <li>{@code applyDirection} takes {@code "backward"} and {@code "ahead"} as synonyms of
  *        {@code "back"} / {@code "forward"}; this takes neither.</li>
  *  </ul>
- *  Neither gap is reachable today because the schema enums are enforced
- *  ({@code SchemaValidator} rejects an out-of-enum string before {@code DriverApi.route} runs) —
- *  but the two enums do not agree either: {@code mc.bot.goto} declares {@code "backward"} and
- *  {@code mc.bot.construct} declares {@code "back"} ({@code BotTools} 143 / 447). So the word an
- *  agent must type for "the way I came" changes between two verbs of the same API, and each
- *  resolver only understands its own half. Reconciling them means one enum, one accept-set and a
- *  validation script — not quietly widening one side. */
+ *  Neither gap is reachable: the contract enums are enforced (an out-of-enum string is
+ *  invalid_params before any handler runs), and goto, clearArea and construct all spell the
+ *  way the body came {@code "back"}. */
 public static Direction resolveCardinalDirection(Entity pl, String dir) {
     switch (dir) {
         case "north": return Direction.NORTH;

@@ -108,6 +108,8 @@ public final class TowerProcess implements BotProcess {
 
     public String kind() { return "builder"; }
 
+    public int placed() { return placed; }
+
     public void attach(BotState st) {
         st.builder.active = true;
         st.builder.goal = "tower → Y=" + targetY + (preferredBlockId != null ? " (" + preferredBlockId + ")" : "");

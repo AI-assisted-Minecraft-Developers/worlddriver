@@ -9,6 +9,7 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.body.BodyHost;
 import net.magicterra.worlddriver.bot.body.BodyRegistry;
@@ -178,10 +179,15 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         ServerBodyHost player = b.player();
         NpcBodyHost npc = b.npc();
 
-        Map<String, Object> empty = call(api, "mc.bot.mine", Map.of("body", player.id(), "blocks", List.of()));
-        ctx.record("player.badOrder", String.valueOf(empty));
-        ctx.check(Boolean.FALSE.equals(empty.get("ok")) && "blocks list required".equals(empty.get("error")) && !player.busy())
-                .as("a mine order with empty blocks is refused before it starts and the server-side player stays idle: " + empty).isTrue();
+        String empty;
+        try {
+            empty = "accepted " + call(api, "mc.bot.mine", Map.of("body", player.id(), "blocks", List.of()));
+        } catch (ApiException e) {
+            empty = e.error().issues().isEmpty() ? e.getMessage() : e.error().issues().get(0).path();
+        }
+        ctx.record("player.badOrder", empty);
+        ctx.check("/blocks".equals(empty) && !player.busy())
+                .as("a mine order with empty blocks is invalid at /blocks and the server-side player stays idle: " + empty).isTrue();
 
         // The hand verbs: the server-side player takes a stack up from its hotbar and turns; the NPC has no
         // hands to hold, use or swing with, and says so before anything happens.
@@ -204,28 +210,27 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
 
         Map<String, Object> mine = call(api, "mc.bot.mine", Map.of("body", npc.id(), "blocks", List.of("minecraft:stone"),
                 "radius", 4));
+        ctx.record("npc.mine", String.valueOf(mine));
+        ctx.check(refusedAs(mine, "unsupported_capability") && !npc.busy())
+                .as("the NPC has no hands, so mine is refused before anything starts: " + mine).isTrue();
+
         Map<String, Object> run = call(api, "mc.bot.runAway", Map.of("body", player.id(), "from", pos(playerStart),
                 "minDist", RUN_AWAY));
-        ctx.record("orders", mine + " / " + run);
-        if (!Boolean.TRUE.equals(mine.get("started")) || !npc.id().equals(mine.get("body"))
-                || !Boolean.TRUE.equals(run.get("started")) || !player.id().equals(run.get("body"))) {
-            ctx.fail("a mine/runAway order addressed by name did not start, or the reply did not include body: mine=" + mine + " runAway=" + run);
+        ctx.record("player.runAwayOrder", String.valueOf(run));
+        String runId = actionId(run);
+        if (runId == null) {
+            ctx.fail("a runAway order addressed by name did not start: " + run);
             return;
         }
 
-        ctx.await(() -> !player.busy() && !npc.busy()).within(400).then(() -> {
-            Object mineSlot = call(api, "mc.bot.status", Map.of("body", npc.id())).get("mine");
-            ctx.record("npc.mine", String.valueOf(mineSlot));
-            ctx.check(mineSlot instanceof Map<?, ?> m && "no_hands".equals(m.get("lastError")))
-                    .as("the NPC has no hands, so the mine process ends with no_hands: " + mineSlot).isTrue();
-
+        ctx.await(() -> !player.busy()).within(400).then(() -> {
             BlockPos at = b.driver().fakePlayer().blockPosition();
             double away = Math.sqrt(Math.pow(at.getX() - playerStart.getX(), 2) + Math.pow(at.getZ() - playerStart.getZ(), 2));
-            ctx.record("player.runAway", at.toShortString() + " away=" + away + " slot="
-                    + call(api, "mc.bot.status", Map.of("body", player.id())).get("runAway"));
-            ctx.check(away >= RUN_AWAY - 1)
-                    .as("the server-side player, addressed by name, runs at least " + (RUN_AWAY - 1) + " blocks away: stopped at " + at.toShortString()
-                            + ", " + away + " from the start").isTrue();
+            Map<?, ?> action = read(api, runId);
+            ctx.record("player.runAway", at.toShortString() + " away=" + away + " action=" + action);
+            ctx.check(away >= RUN_AWAY - 1 && "succeeded".equals(action.get("state")) && player.id().equals(action.get("body")))
+                    .as("the server-side player, addressed by name, runs at least " + (RUN_AWAY - 1) + " blocks away and its "
+                            + "action succeeds: stopped at " + at.toShortString() + ", " + away + " from the start, " + action).isTrue();
         });
     }
 

@@ -16,6 +16,20 @@ public final class CoreMethods {
         return List.of(
                 GotoContract.SPEC,
                 ClearAreaContract.SPEC,
+                GatherContracts.MINE,
+                GatherContracts.CRAFT,
+                GatherContracts.SMELT,
+                GatherContracts.FARM,
+                BuildContracts.BUILD,
+                BuildContracts.CONSTRUCT,
+                BuildContracts.BUNKER,
+                BuildContracts.ESCAPE,
+                MoveContracts.FOLLOW,
+                MoveContracts.EXPLORE,
+                MoveContracts.RUN_AWAY,
+                MoveContracts.SLEEP,
+                MoveContracts.ELYTRA_FLY,
+                CombatContract.SPEC,
                 WaitResultContract.SPEC);
     }
 }

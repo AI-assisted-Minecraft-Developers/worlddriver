@@ -110,6 +110,9 @@ public final class SmeltProcess implements BotProcess {
 
     @Override public String kind() { return "smelt"; }
 
+    /** The fuel loaded into the furnace, or null before any was. */
+    public String fuelChosen() { return fuelChosen; }
+
     @Override public void attach(BotState s) {
         s.smelt.active = true;
         s.smelt.goal = "smelt " + count + "× " + input;
