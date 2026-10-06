@@ -124,8 +124,11 @@ and never becomes a socket.
 | `-32700` | The frame did not parse as JSON. |
 | `-32600` | The frame parsed but was not a usable request, for example `method` was missing or not a string. |
 | `-32601` | No such method. |
-| `-32602` | The method exists but the parameters were rejected, either by the schema validator or by the route itself. |
-| `-32603` | The route threw something else. |
+| `-32602` | `invalid_params`: the method exists but the parameters were rejected, by its contract's decode or by the method itself. |
+| `-32603` | `internal_error`: the method failed some other way. |
+| `-32004` | `capability_unavailable`: this game cannot serve the call here and now (no world, no client, no such bot, a wait asked for on a game thread). |
+| `-32006` | `action_not_found`: no action with that id. |
+| `-32007` | `context_changed`: the screen or world the call was aimed at is gone. |
 | `-32001` | The server thread, or for a client-side verb the client thread, did not start the task within the hop timeout. The task was withdrawn and will never run, so retrying is safe. |
 | `-32002` | The server or client thread started the task but it did not finish within the hop timeout. It is still running and may yet apply: observe the world before you retry. |
 | `-32005` | Refused without running: the connection already has 16 requests running, all 64 RPC workers are busy, or all 32 background waits are running. Nothing happened; retry once an earlier call returns. |
@@ -136,9 +139,15 @@ the `mc.bot.*` verbs of the client's own bot marshal onto the client thread and 
 `worlddriver.clientThreadTimeoutMs` (also 8 s). When the tick is busy, `-32001` means the call left
 no trace, while retrying a `-32002` `mc.action.runCommand` can run the command twice.
 
-Parameters are validated against the same typed schema the MCP catalog publishes, on every
-transport, before the route runs. A route with no declared schema refuses to dispatch at
-all rather than running unvalidated.
+An error a method answered with (everything above except `-32700`/`-32600`) carries
+`data: {code, message, issues, execution}`: `code` is the name in the table above, `issues` lists each rejected parameter as `{path, code, message}` (`path` a JSON pointer such
+as `/updates/0/key`, `code` one of `required`, `unknown_field`, `type_mismatch`, `out_of_range`,
+`invalid_value`), and `execution` says whether the call can have taken effect (`not_started`,
+`not_executed`, `unknown`).
+
+Parameters are decoded strictly by the method's own typed contract, on every transport, before the
+method runs: an unknown field, a wrong type or a value out of range is refused, never ignored. The
+MCP `inputSchema` is rendered from the same contract.
 
 ### Event push
 
@@ -196,8 +205,9 @@ you missed with `mc.observe.eventsSince` from your last `seq`.
 
 `.agents/skills/worlddriver-rpc/` in this repository ships a working Python client
 (`rpc.py`, with one-shot, batch and event-tail modes) and a per-method parameter reference.
-That reference and `common/src/main/java/net/magicterra/worlddriver/mcp/ToolCatalog.java`
-are the authority on the method surface.
+That reference and the method contracts under
+`common/src/main/java/net/magicterra/worlddriver/api/methods/` are the authority on the method
+surface; a build also writes each method's schemas to `methods.json` (`docs/dev/api-artifacts.md`).
 
 ## MCP over HTTP
 
@@ -208,12 +218,13 @@ and `logging/setLevel`. The server accepts `logging/setLevel` and acknowledges i
 deliberately does not apply it to the driver's event stream: a client whose default minimum
 is `warning` would otherwise silently drop every `info` and `notice` event it had asked for.
 
-**Protocol-version negotiation.** The server knows `2025-06-18`, `2025-03-26` and
-`2024-11-05`, newest first. In `initialize` it echoes the version the client requested when
-it recognises it, and otherwise returns its own latest. A client that cannot live with the
-answer may disconnect. `initialize` also advertises `tools` with `listChanged: false` — the
-catalog is fixed by the time any external client connects — and `logging`, which is how the
-event push is announced.
+**Protocol version.** The server speaks `2025-06-18` only: tool entries always carry
+`outputSchema` and results `structuredContent`, which older versions do not define. An
+`initialize` asking for another version is refused with `-32602` and
+`data: {supported, requested}`. `initialize` also advertises `tools` with `listChanged: true` —
+a batch published after a client connected (StageWright's `mc.test.*`, a mod's methods) that
+changes the listed tools is announced with `notifications/tools/list_changed` on every open
+GET stream — and `logging`, which is how the event push is announced.
 
 **Origin validation.** The `Origin` header is checked against a loopback allowlist as a
 defence against DNS rebinding, which the specification requires. The same policy guards the

@@ -2,31 +2,29 @@
 
 Every method the JSON-RPC websocket (`ws://127.0.0.1:39801/rpc`) accepts. Most
 are also MCP tools (`mcp__worlddriver__*`) with `.`→`_` names (`mc.bot.goto` ⇄
-`mc_bot_goto`); both go through one dispatcher (`DriverApi.route`), so behaviour is
-identical. Which methods exist depends on what is loaded, so this page gives no
-total to go stale: the core set is every `routes.put` / `putBodyVerb` in the
-`DriverApi` constructor and is there wherever the mod runs; a game client adds the
-three `mc.debug.*` path-debug verbs (`bot/debug/PathDebugBootstrap`); the testmod adds
-`worlddriver.*`; the StageWright runtime adds `mc.test.*`. The core set and
-`mc.debug.*` are all visible MCP tools: the driver layer owns no hidden verb any more
-(`mc.test.yaml`, the last one, retired with the YAML harness). Every route is asserted
-at boot to carry a schema (`DriverApi.requireSchemasFor`), so "route with no schema"
-can't drift in. Hidden (RPC-route-only) verbs still exist as a mechanism —
-`ToolCatalog.HIDDEN_TOOLS` for driver-owned ones, `registerVerb(..., .asHidden())` for
-granted namespaces — and the live ones are the testmod's `worlddriver.*` scene verbs
-and the StageWright harness's `mc.test.run` / `mc.test.reset` / `mc.test.input.*`,
-present only when those are loaded. Over RPC a hidden verb works like any other
-method — one of the reasons this skill exists.
+`mc_bot_goto`); both go through one dispatcher (`DriverApi.dispatch` → the `ApiRegistry`), so
+behaviour is identical. Every method is a typed contract (a `MethodSpec`: parameter and reply
+types, description, effects) published in a batch by its owner, and which batches are published
+depends on what is loaded, so this page gives no total to go stale: the core batch
+(`worlddriver/core`, every spec in `application/CoreMethods.java`) is there wherever the mod
+runs; a game client adds the three `mc.debug.*` path-debug methods (`worlddriver/debug`, from
+`integration/debug/PathDebugBootstrap`); the testmod adds `worlddriver.*` (owner
+`worlddriver-testmod`); the StageWright runtime adds `mc.test.*` (owner `stagewright`). The
+registry's namespace policy keeps `mc.*` for the core, `mc.test.*` for StageWright and anything
+else outside `mc.`. The core set and `mc.debug.*` are all listed MCP tools. A spec marked hidden
+is left out of MCP `tools/list` but works like any other method by name — over RPC, over MCP
+`tools/call`, from scripts; the hidden ones are the testmod's `worlddriver.*` scene verbs and
+the StageWright harness's `mc.test.run` / `mc.test.reset` / `mc.test.input.*`, present only
+when those are loaded — one of the reasons this skill exists.
 
-Source of truth: `common/.../api/DriverApi.java` (the route table — the canonical
-list of *which* methods exist), `common/.../mcp/catalog/*Tools.java` (visible MCP
-schemas + inline param docs) and `common/.../mcp/ToolCatalog.java` (`HIDDEN_TOOLS`,
-the RPC-only verbs), `common/.../bot/SettingsRegistry.java` (the canonical ordered
-`mc.bot.setting` key list + its single-source schema) backed by
-`common/.../bot/BotConfig.java` (the fields + their ranges),
-`.../rpc/RpcServer.java` (envelope; binds `127.0.0.1` on port 39801, WS path
-`/rpc`). When in doubt, grep `DriverApi.java` for the route then the matching
-`*Tools.java` for its param list.
+Source of truth: the contracts under `common/.../api/methods/*.java` (each method's params,
+reply and description; `mc.bot.setting`'s is `common/.../bot/SettingsContract.java`, built from
+`bot/SettingsRegistry.java` — the canonical ordered key list — backed by `bot/BotConfig.java`, the
+fields and their ranges), `common/.../application/CoreMethods.java` (which core methods exist),
+and `.../rpc/RpcServer.java` (envelope; binds `127.0.0.1` on port 39801, WS path `/rpc`). A
+build also writes every method's schemas to `methods.json` and a reference to
+`api-reference.md` (`docs/dev/api-artifacts.md`). When in doubt, grep `api/methods/` for the
+method name.
 
 ## Contents
 - [Envelope & errors](#envelope--errors)
@@ -52,37 +50,60 @@ the RPC-only verbs), `common/.../bot/SettingsRegistry.java` (the canonical order
 ---
 
 ## Envelope & errors
-Request: `{"id": N, "method": "mc.x.y", "params": {…}}` (omit/`{}` params for parameterless).
-Success: `{"id": N, "result": <any>}`. Error: `{"id": N, "error": "<string>", "code": <int>}` —
-`error` is a plain string, **not** a JSON-RPC 2.0 error object, and there is no `jsonrpc`
-version field; `code` beside it is the JSON-RPC 2.0 classification, the same the MCP
-transport reports for the same failure. `id` is echoed, and is `null` only when the request
-carried none or was too malformed to read. Many handlers don't throw — they return
-`{ok:false, error:…}` in the result instead, so check `ok`, not just transport success.
+Standard JSON-RPC 2.0. Request: `{"jsonrpc":"2.0", "id": N, "method": "mc.x.y", "params": {…}}`
+(omit params, or send `{}`, for a method that takes none; `id` a string or an integer; optional
+`"_meta": {"budgetMs": N}` caps how long the call may take). Success:
+`{"jsonrpc":"2.0", "id": N, "result": <the method's reply>}`. Error:
+`{"jsonrpc":"2.0", "id": N, "error": {"code": <int>, "message": "<text>", "data": {…}}}`. `id` is
+always present, `null` only when the request carried none or was too malformed to read.
+
+`error.data` is present whenever a method produced the error (everything but `-32700`/`-32600`) and is
+`{code, message, issues, execution}`:
+- `code` — the error's name: `invalid_params`, `method_not_found`, `capability_unavailable`,
+  `action_not_found`, `context_changed`, `server_busy`, `not_executed`, `outcome_unknown`,
+  `internal_error`;
+- `issues` — `[{path, code, message}]`, one per rejected parameter: `path` a JSON pointer
+  (`/updates/0/key`, `""` for the whole params), `code` one of `required`, `unknown_field`,
+  `type_mismatch`, `out_of_range`, `invalid_value`; empty for errors that are not about a parameter;
+- `execution` — whether the call can have taken effect: `not_started`, `not_executed` (withdrawn
+  before it ran), `unknown` (it may have run: observe before retrying).
+
+Every method decodes its params strictly against its contract before anything runs: a misspelt or
+extra key, a wrong type, or a value out of range is `invalid_params` with every problem listed.
+Replies never carry JSON `null`; an absent value is an omitted optional field.
 
 The code table and the rules behind it are in
 [`docs/guide/transports.md` § Error codes](../../../../docs/guide/transports.md#error-codes);
 in short: `-32700` bad JSON (`parse: …`) · `-32600` not a usable request (not an object,
-`method` missing or not a string) · `-32601` `unknown method: <name>` · `-32602` params
-rejected by the schema or the route · `-32603` anything else the route threw · `-32001` the
-server tick never started the task in time (`worlddriver.serverThreadTimeoutMs`, 8 s): withdrawn,
-retry freely · `-32002` it started and may still apply: observe before retrying · `-32005`
-refused without running (16 requests in flight on this connection, 64 RPC workers busy, or 32
-background waits running): retry once an earlier call returns. The client bot's `mc.bot.*` verbs
-hop onto the client thread instead (`worlddriver.clientThreadTimeoutMs`, 8 s) and time out with
-the same `-32001`/`-32002`. MCP reports these three codes on `tools/call` as JSON-RPC error
-envelopes, not as tool errors.
+`method` missing or not a string, bad `id`) · `-32601` `method_not_found` · `-32602`
+`invalid_params` · `-32603` `internal_error` · `-32004` `capability_unavailable` (no world, no
+client, a wait asked for from a game thread) · `-32006` `action_not_found` · `-32007`
+`context_changed` · `-32001` `not_executed`: the server tick never started the task in time
+(`worlddriver.serverThreadTimeoutMs`, 8 s), withdrawn, retry freely · `-32002` `outcome_unknown`:
+it started and may still apply, observe before retrying · `-32005` `server_busy`: refused without
+running (16 requests in flight on this connection, 64 RPC workers busy, or 32 background waits
+running), retry once an earlier call returns. The client bot's `mc.bot.*` verbs hop onto the client
+thread instead (`worlddriver.clientThreadTimeoutMs`, 8 s) and time out with the same
+`-32001`/`-32002`. MCP reports `server_busy`, `not_executed` and `outcome_unknown` on `tools/call` as
+JSON-RPC errors; every other error comes back as a tool result with `isError:true` whose text is the
+same `{code, message, issues, execution}` object.
 
-**Bot preconditions.** Every `mc.bot.*` verb that drives the player (all but `status`,
-`cancel`, `setting`, `waypoint`, `playbook`) first checks that the bot can act, on every
-transport, and answers `{ok:false, error, reason}` when it cannot — nothing is started, so
-never treat a missing `started` as "in progress". `reason` is one of, in the order checked:
-`no_player` (no world open; `error` names the screen the client is on), `loading` (the
-level-loading screen is up), `dead` (dead or on the death screen — respawn first),
-`paused` (singleplayer pause menu — `mc.client.screen.close`), `sleeping` (in a bed),
-`chunk_unloaded` (the client has no chunk under the player yet). `error` always says what
-to do about it. `mc.client.input.key` with no screen and no player answers
-`{outcome:"refused", reason:"no_player", message}` instead.
+**Bot preconditions.** A body that cannot act is not an error: the call succeeds and answers
+`{outcome:"refused", reason, message}` with nothing started (an action method's other outcome is
+`accepted`, an immediate one's `done`), so switch on `outcome`, never on transport success alone.
+`reason` is one of:
+- `body_unavailable` — no client for `self`, no bot by that name, or the body cannot act right now.
+  For `self`, `message` says why and what to do, in the order checked: no world open (names the
+  screen the client is on), the level is loading, dead or on the death screen (respawn first),
+  singleplayer pause menu (`mc.client.screen.close`), in a bed, no chunk under the player yet;
+- `busy` — another script run holds the body until its actions end;
+- `action_limit` — as many actions are running as the server admits; wait for one or cancel one;
+- `unsupported_capability` — the body lacks what the verb needs (a bot with no hands);
+- `invalid_world_target` — the item, block or entity the call names is absent or out of reach.
+
+The `mc.client.*` writes refuse the same way, with their own reasons: `no_screen`, `no_container`,
+`no_player`, `no_target`, `ambiguous` (e.g. `mc.client.input.key` with no screen and no player answers
+`{outcome:"refused", reason:"no_player", message}`).
 
 ## Availability (client vs server)
 - `mc.client.*` and `mc.bot.*` require a **client** (a running game client). On a
@@ -239,7 +260,7 @@ Client-authoritative reads — diff against the server-side `mc.observe.*` to sp
 
 ## mc.bot.*
 Movement/automation processes. The async ones take `awaitMs?` — see [Async](#async--awaitms).
-All but the reads refuse with `{ok:false, error, reason}` when the bot cannot act — see
+All but the reads answer `{outcome:"refused", reason, message}` when the bot cannot act — see
 [Bot preconditions](#envelope--errors).
 
 `body?` names the bot a verb drives: `self` (default, this client's player) or an id from

@@ -90,9 +90,10 @@ the shared root.
 
 ## The boundary StageWright compiles against
 
-StageWright's common module compiles against six WorldDriver classes: `ToolCatalog`,
-`ToolSchema`, `BotHooks`, `BotApi`, `DriverEvent` and `WorldDriverCommon`. None of those
-six names an Architectury type anywhere — all the subscriptions are inside method bodies
+StageWright's common module compiles against WorldDriver's API registry and contract types
+(`DriverApi`, `ApiRegistry`, `ApiBatch`, `ApiMethod`, `api/contract/*`, and the records in
+`api/methods/TestInputContracts`) and against `BotHooks`, `BotApi`, `DriverEvent` and
+`WorldDriverCommon`. None of those names an Architectury type anywhere — all the subscriptions are inside method bodies
 of other classes. StageWright's own runs do not load the WorldDriver mod, so this
 dependency is invisible to it.
 

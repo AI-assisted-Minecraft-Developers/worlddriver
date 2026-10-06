@@ -11,7 +11,8 @@ links to; read that page before arguing with the rule.
   JDK 21, the Gradle wrapper. Rhino is the embedded JavaScript engine.
 - **Source of truth.** `common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java`.
   Every transport — the MCP HTTP server, the WebSocket RPC server, the in-process script
-  bridge — routes through `DriverApi.route(method, params)`.
+  bridge — calls `DriverApi.dispatch(method, params, context)`, which runs the method's typed
+  contract from the `ApiRegistry`.
 - **StageWright is a dependency, not a subproject.** It lives in `../stagewright` and is
   consumed only as published Maven artifacts, a CI build from the Nexus pinned by
   `stagewright_version` in `gradle.properties`; neither shipped jar contains a
@@ -26,7 +27,7 @@ links to; read that page before arguing with the rule.
 
 1. **Never put behaviour in a transport handler.** Register new core methods in `application/DriverApplication`; the MCP
    server, the RPC server and the script bridge only translate parameters and call
-   `DriverApi.route(...)`. The parity scripts sample this rather than prove it — see
+   `DriverApi.dispatch(...)`. The parity scripts sample this rather than prove it — see
    `docs/dev/architecture.md`.
 2. **Writes, and reads that touch the level, go through the server thread** via
    `DriverApplication.onServerThread`. Never reach for `Level` from a transport thread.
@@ -90,11 +91,13 @@ to read a negative verdict, and the out-of-process suites are in `docs/dev/testi
 ## When you add a method to the API surface
 
 0. Re-read hard rule 6 first. Can you extend an existing method instead?
-1. Add the behaviour to `application/DriverApplication`. Its handlers are dispatched by
-   `DriverApi.route(...)`; an extension verb (`mc.test.*`, `<modid>.*`) uses `ToolCatalog.registerVerb`
-   instead — see `docs/dev/architecture.md` ("Registering a verb").
-2. Register the schema under `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/`.
-   Every route must have a schema; the boot invariant refuses a route without one.
+1. Write its contract — parameter and reply records, their `ApiType`s, a `MethodSpec` — under
+   `api/methods/`, and list the spec in `application/CoreMethods`. A method meant for tests or
+   tools rather than for a model is marked `.hidden()`: callable, but not in MCP `tools/list`.
+2. Bind its handler in `application/` and add it to the core batch in `DriverApplication`. An
+   extension (`mc.test.*` for StageWright, `<modid>.*` for anyone else) publishes its own
+   `ApiBatch` through `api.registry().registerBatch` instead — see `docs/dev/architecture.md`
+   ("Registering a verb").
 3. Add a validation script under `validation/` that exercises it through all three transports.
    `06_rpc_parity.js` and `07_mcp_parity.js` are the pattern.
 4. Re-run the relevant gate tasks, and the instrument contract over a hold if the change could
@@ -102,7 +105,7 @@ to read a negative verdict, and the out-of-process suites are in `docs/dev/testi
 
 ## When you remove or merge a method
 
-1. Drop the registration in `DriverApplication` and the catalog entry.
+1. Drop its handler from the core batch and its spec from `CoreMethods`.
 2. Keep a JavaScript-level helper in `prelude.js` and in the inlined prelude inside
    `ScriptManager.java` so existing scripts keep working. Both prelude sources must stay in
    step.

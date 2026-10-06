@@ -8,14 +8,14 @@ description: >-
   mc.query / mc.events / mc.wait.* / mc.recipe.* / mc.plan.acquire /
   mc.script.eval / mc.skill call, scripting a multi-step live setup
   (give→tp→fill→setting→goto), sending a raw method+params to the websocket,
-  reaching an RPC-route-only method the MCP layer doesn't expose (the
+  reaching a hidden method the MCP tool list doesn't show (the
   StageWright harness verbs mc.test.run / mc.test.reset / mc.test.input.*,
   present only when that runtime is loaded), or when an mcp__worlddriver__* tool won't
   apply a newly-added param/setting (the MCP tool schemas are frozen at session
   start, so new keys must be set over RPC). Don't hand-roll a websocket client or
   guess the wire format, method names, or params — they're all in this skill.
   This is for INVOKING the live mod, NOT for editing its Java
-  (BotConfig/ToolCatalog/Walker), writing gametests, or standing up your own MCP
+  (BotConfig/method contracts/Walker), writing gametests, or standing up your own MCP
   server.
 ---
 
@@ -44,10 +44,10 @@ way:
 
 ## The client: `rpc.py`
 
-Bundled next to this file. Wire format is a hand-rolled envelope (NOT JSON-RPC
-2.0): send `{"id":N,"method":"mc.x.y","params":{…}}`, receive
-`{"id":N,"result":…}` or `{"id":N,"error":"<string>","code":<int>}` (`code` is the
-JSON-RPC error code; the table is in `references/methods.md`).
+Bundled next to this file. Wire format is JSON-RPC 2.0: send
+`{"id":N,"method":"mc.x.y","params":{…}}`, receive `{"jsonrpc":"2.0","id":N,"result":…}` or
+`{"jsonrpc":"2.0","id":N,"error":{"code":<int>,"message":…,"data":{code,message,issues,execution}}}`
+(the codes and `data` are in `references/methods.md` § Envelope & errors).
 
 **Interpreter.** Needs `websockets`. On the Linux host that's `python3 rpc.py …`;
 on a Windows/Git Bash checkout there is no `python3` — use `python` (or the
@@ -86,11 +86,11 @@ a local bot you never need `--host` — loopback is included in a wildcard bind.
 
 ## Method surface (overview)
 
-The core routes (the `DriverApi` route table, present wherever the mod runs) plus the
-client-only `mc.debug.*` verbs, all carrying a visible `ToolSchema` — the driver
-layer owns no hidden verb since `mc.test.yaml` retired with the YAML harness. The
-only RPC-route-only verbs left belong to the testmod (`worlddriver.*`) and the
-StageWright runtime (`mc.test.*`) and exist only while those are loaded. No total is
+The core methods (the `worlddriver/core` batch in the API registry, present wherever the
+mod runs) plus the client-only `mc.debug.*` methods, every one a typed contract listed as an
+MCP tool. The only hidden methods — callable by name on every transport but absent from MCP
+`tools/list` — belong to the testmod (`worlddriver.*`) and the StageWright runtime
+(`mc.test.*`) and exist only while those are loaded. No total is
 given here because it depends on what is loaded. Full per-method params + returns
 are in **`references/methods.md`** — read it before composing an unfamiliar call.
 

@@ -16,20 +16,21 @@ which is a new source of drift, not a fix.
 
 ## What was decided
 
-**The tool record keeps the typed schema and renders only when the catalogue is advertised.** The
-advertisement and the enforcement are then two walks over the same object. They cannot drift,
-because there is nothing to drift between; the advertised shape and the enforced shape are the same
-value.
+**Each method carries its own typed contract.** A `MethodSpec` holds the parameter and reply types,
+and the advertised schema, the decode, the encode and the generated declarations are all walks over
+those same `ApiType` objects. They cannot drift, because there is nothing to drift between; the
+advertised shape and the enforced shape are the same value. (This first shipped as a typed schema tree
+kept beside an untyped route; the routes have since been replaced by typed handlers, and the separate
+schema tree and validator with them.)
 
-**Validation is installed at the single point where every caller converges.** `DriverApi.route` is
-the one dispatch point, so the validator runs there, before any handler, and therefore applies
-identically to the Model Context Protocol endpoint, the WebSocket endpoint, the script engine, and
-any internal caller.
+**Decoding happens at the single point where every caller converges.** `DriverApi.dispatch` hands each
+call to the `ApiRegistry`, which decodes the parameters with the method's input type before the handler
+runs, and therefore applies identically to the Model Context Protocol endpoint, the WebSocket endpoint,
+the script engine, and any internal caller.
 
-**The validator is injected as a plain function rather than imported.** The core must not depend on
-the transport layer; the tool catalogue supplies a lookup from verb name to schema at start-up, and
-the core knows only that it has a validating function. A start-up invariant asserts that every route
-has a schema, so a verb registered without one is a boot failure rather than an unvalidated surface.
+**A method cannot exist without its types.** A method is registered as a spec bound to its handler,
+inside a batch that is published whole or not at all, so there is no way to register an unvalidated
+surface. The core still does not depend on the transport layer: the MCP server only reads the specs.
 
 **Strictness is absolute from the first version.** No warn-then-enforce phase, because warning logs
 are not read, and no exemption for internal callers, because an internal caller is bound by the same
@@ -63,15 +64,12 @@ unusable parameter documentation to every model client.
 
 ## Where to look
 
-- `mcp/schema/ToolSchema.java` — the record that keeps the typed tree and renders on demand.
-- `mcp/schema/SchemaValidator.java` — the walk, the accepted shapes per node type, and the aggregated
-  message.
-- `api/ParamsValidator.java` — the injected function, declared in the core.
-- `api/DriverApi.java` — the single dispatch point where it runs.
-- `WorldDriverCommon.java` — where the catalogue's lookup is installed, and the start-up invariant that
-  every route has a schema.
-- `mcp/catalog/ToolCatalog.java` — schema lookup by verb name, and the namespace policy for
-  extension-registered verbs.
+- `api/contract/ApiType.java`, `ApiTypes.java`, `RecordType.java` — the types: decode with every issue
+  collected, encode, JSON Schema and TypeScript from one object.
+- `api/contract/MethodSpec.java` — a method's description; `api/methods/` holds the core ones.
+- `api/ApiRegistry.java` — publishing batches, the namespace policy, and the decode–run–encode dispatch.
+- `api/DriverApi.java` — the single dispatch point every transport calls.
+- `mcp/McpTools.java` — the `tools/list` view of the specs.
 
 The behaviour is asserted by the schema-validation scripts in
 `common/src/testmod/resources/data/worlddriver/scripts/validation/`, which run on every transport and

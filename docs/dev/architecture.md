@@ -12,19 +12,25 @@ the mechanism and points at that file rather than restating it.
 
 ```
 MCP over HTTP  ─┐
-WebSocket RPC   ├─→  DriverApi.route(method, params)  ─→  handler  ─→  game
+WebSocket RPC   ├─→  DriverApi.dispatch(method, params, context)  ─→  ApiRegistry  ─→  handler  ─→  game
 in-process Rhino┘
 ```
 
-`DriverApi.route(String, Map)` is the only entry. It is a lookup in a
-`ConcurrentHashMap<String, Function<Map, Object>>` populated in the `application/DriverApplication`
-constructor; an unknown name raises `IllegalArgumentException`. Before the handler runs,
-`route` applies the injected params validator (see below), so the same schema check
-covers every caller.
+`DriverApi.dispatch` is the only entry; `route(String, Map)` and `invokeJson` are blocking
+wrappers over it for in-JVM callers. It hands the call to the `ApiRegistry`, an immutable
+snapshot of every method. Each entry is an `ApiMethod`: a typed `MethodSpec` (name, parameter
+and result types, effects, execution class, whether it may wait, whether it is listed) bound to
+its handler. The registry decodes the parameters with the spec's input type — strictly, so an
+unknown field, a wrong type or a value out of range is `invalid_params` with one issue
+`{path, code, message}` per problem — runs the handler, and encodes the result with the
+output type. An unknown name is `method_not_found`. The same decode covers every caller,
+because there is no other way in.
 
-The handlers are split across sibling classes in the same package, each holding a
+The core handlers are split across sibling classes in `application/`, each holding a
 back-reference to the owning `DriverApplication` for the server handle, the event ring buffer and
-the server-thread hop.
+the server-thread hop. `DriverApplication` publishes them as one batch; every spec in it is also
+listed in `CoreMethods`, which the artifact generator reads (`CoreMethodsBoundTest` keeps the two
+lists equal).
 
 | Class | Verb group |
 |---|---|
@@ -35,31 +41,32 @@ the server-thread hop.
 | `WorldApi` | `mc.world.*` |
 | `RecipeApi` | `mc.recipe.*`, `mc.plan.acquire` |
 | `EventsApi` | `mc.events` |
-| `BodyRoutes`, `BodyInteractions` | the `mc.bot.*` verbs addressed to a named bot |
-| `ApiSupport`, `QueryParams`, `ParamsValidator` | no verbs — parsing, encoding, validation |
+| `QueryApi` | `mc.query` |
+| `BotActions`, `HandMethods`, `ControlMethods`, `SettingsMethods`, `BodyInteractions` | `mc.bot.*` |
+| `ScriptMethods` | `mc.script.eval`, `mc.skill`, `mc.bot.playbook` |
+| `ApiSupport` | no verbs — parsing and encoding helpers |
 
 `mc.client.*` (in `ClientMethods`) resolves the client at call time, so a dedicated server
 that has no client still boots and fails those verbs with `capability_unavailable`.
 
-`mc.bot.*` is not client-only. `DriverApplication.putBodyVerb` installs each of those verbs as a
-two-way route: a call naming `self` — or naming no bot at all — goes through
-`requireBot()` to the client-side implementation, and a call naming any other bot goes to
-`BodyRoutes`, which runs on a dedicated server. `mc.bot.status` is bound straight to
-`BodyRoutes`. A dedicated server therefore serves every call in that
-namespace that names a bot other than `self`, and only the `self` half needs a client.
+`mc.bot.*` is not client-only: a call naming `self` — or naming no bot at all — goes to the
+client-side implementation, and a call naming any other bot runs on the server. A dedicated
+server therefore serves every call in that namespace that names a bot other than `self`, and
+only the `self` half needs a client.
 
 ### Where each transport calls it
 
 | Transport | Class | Call |
 |---|---|---|
-| MCP over HTTP | `mcp/McpServer` | `tools/call` → `api.route(toolName, args)` |
-| WebSocket JSON-RPC | `rpc/RpcServer` | frame → `api.route(method, params)` |
-| in-process Rhino | `script/ScriptManager` | `Driver.invoke` → `DriverApi.invokeJson` → `route` |
+| MCP over HTTP | `mcp/McpServer` | `tools/call` → `api.dispatch(toolName, args, context)` |
+| WebSocket JSON-RPC | `rpc/RpcServer` | frame → `api.dispatch(method, params, context)` |
+| in-process Rhino | `script/ScriptCalls` | `Driver.invoke` → `DriverApi.invokeJson` → `dispatch` |
 
-`invokeJson` uses protocol `JsonCodec` for decoding and API `WireValues` for domain-aware encoding around `route` and adds no behaviour.
+`invokeJson` uses protocol `JsonCodec` for decoding around `dispatch`, answers an envelope
+`{result}` or `{error}`, and adds no behaviour.
 
 Rhino additionally exposes `Driver.invokeRpc` through `script/RpcBridge`, which
-deliberately goes back out over the socket instead of calling `route` in process. It
+deliberately goes back out over the socket instead of calling `dispatch` in process. It
 exists so a script can compare the two paths against each other.
 
 ### What the parity scripts actually prove
@@ -81,59 +88,42 @@ behaviour is put into a transport handler, which is why the routing rule leans o
 
 ## Registering a verb
 
-There are two seams, and the choice between them matters.
+There is one seam: **`api.registry().registerBatch(new ApiBatch(owner, id, methods))`**. A
+batch is published whole or not at all, and each method in it is a `MethodSpec` bound to its
+handler, so a method can never exist without its types. The registry checks the whole batch
+first and throws `IllegalArgumentException`, publishing nothing, when
 
-**`ToolCatalog.registerVerb(schema, handler)` is the one to use for anything
-game-affecting.** One call registers the MCP schema and installs the `DriverApi` route, so
-the pair cannot be registered in isolation. It enforces the namespace policy at
-registration time, throwing `IllegalArgumentException` when a name violates it:
+- a name breaks the namespace policy: `mc.*` belongs to the owner `worlddriver` (the core),
+  except `mc.test.*`, which belongs to `stagewright`; any other owner publishes names outside
+  `mc.`, conventionally `<modid>.<verb>`;
+- a name is already held by another batch — nobody wins by registering last;
+- a different batch was already published under the same owner and id.
 
-- `mc.*` is reserved for the driver core;
-- `mc.test.*` is the one exception, granted to the StageWright test runtime;
-- a third-party verb must be `<modid>.<verb>` — at least one dot, and not under `mc.`.
+Publishing the same batch object again is recognised as a retry and does nothing, so an owner
+builds its batch once and may publish it on every `SERVER_STARTED`. The core publishes
+`worlddriver/core` from the `DriverApplication` constructor; the path-debug package publishes
+`worlddriver/debug` when it starts, so the core never compile-depends on a subsystem that can
+be stripped; StageWright publishes its `mc.test.*` batch; the testmod publishes its
+`worlddriver.*` scene verbs under `worlddriver-testmod`.
 
-A second guard rejects any name already in the driver-owned baseline (the curated catalog
-sections plus the hidden tools), so a caller holding the `mc.test.*` grant cannot shadow a
-driver verb. `registerVerb` must be called after the driver has booted and wired its route
-sink; a pre-boot call throws `IllegalStateException` rather than queueing, because
-deferring only the route half would split the atomic pair.
+### Hidden methods
 
-**`DriverApi.addRoute(method, handler)` is the low-level seam.** Use it only for internal
-driver routes whose schema is registered separately through `ToolCatalog.registerExtra`.
-That is the pattern the optional path-debug package follows, so the core never
-compile-depends on a subsystem that can be stripped.
+A spec marked `.hidden()` is left out of MCP `tools/list` but stays callable by name on every
+transport, MCP included. Hiding saves prompt tokens — every listed tool's schema goes to every
+model client (hard rule 6) — and that is all it does; it is not access control. Not being
+offered to MCP clients is therefore an explicit choice made on the spec, never an omission.
 
-### Every routed method must have a declared schema
-
-At boot, `WorldDriverCommon` calls `api.requireSchemasFor(ToolCatalog.declaredMethodNames())`.
-Any registered route with no declared `ToolSchema` throws `IllegalStateException`, and the
-block sits outside the surrounding `catch`, so the mod refuses to start rather than limp
-on with a half-specified tool surface. The same bootstrap then installs a params validator
-that looks the schema up per call and throws `IllegalStateException` when it is absent, so
-a route added after boot without a schema fails loudly at dispatch instead of silently
-skipping validation.
-
-The invariant exists because a route with no schema is half-specified: invisible to MCP
-`tools/list` yet callable, which is how methods quietly became reachable over the
-WebSocket only. A verb that is *intentionally* not offered to MCP clients is still
-declared, as a hidden `ToolSchema`: it satisfies the invariant but is left out of the
-rendered tool list. Being socket-only is an explicit reviewed choice, never an omission.
-
-The same typed tree drives rendering and validation (`mcp/schema/Schema`, `ToolSchema`,
-`SchemaValidator`), so what a client is told and what the route enforces cannot diverge.
+The spec's types drive the decode, the encode, the MCP `inputSchema`/`outputSchema`, and the
+generated declarations alike, so what a client is told and what the method enforces cannot
+diverge. When a batch changes what `tools/list` shows, `McpServer` sends
+`notifications/tools/list_changed` on every open event stream.
 
 ### The api layer does not depend on the mcp layer
 
-`requireSchemasFor(Set<String>)` and `setParamsValidator(ParamsValidator)` both take their
-input as a parameter rather than importing `ToolCatalog`; the bootstrap injects them. That
-is what keeps `api/` transport-agnostic while still getting schema-driven validation. The
-validator is applied inside `route`, so it covers MCP `tools/call`, the WebSocket socket,
-in-process `Driver.invoke`, and internal consumers such as `EventsApi` and `WaitApi`
-alike.
-
-The ordering in `WorldDriverCommon` is deliberate: the validator is installed *before* the
-`RpcServer` constructor opens its listening socket, so no socket ever exists without param
-validation behind it.
+`api/` holds the registry, the contract combinators (`api/contract/`) and the pure contracts
+(`api/methods/`); it imports no transport, handler or bot class (`check_architecture.py`).
+`mc.bot.setting`'s contract is built from the bot's settings table, so it lives in
+`bot/SettingsContract`, and the list of core specs, `CoreMethods`, lives in `application/`.
 
 ## Threading
 
@@ -161,7 +151,7 @@ thread read the level directly; anything touching live level state goes through
 `onServerThread`. Measured by call site, the classes that hop are `DriverApplication` itself,
 `ActionApi`, `ObserveApi`, `WorldApi`, `RecipeApi`, `BodyRoutes`, and `bot/util/BotUtil`.
 The classes with no calls are the ones that genuinely never reach the level: `SystemApi`,
-`WaitApi`, `EventsApi`, `ApiSupport`, `ParamsValidator` and `QueryParams` — polling, the
+`WaitApi`, `EventsApi` and `ApiSupport` — polling, the
 event ring buffer, and pure parse/encode work.
 
 ### A caller must get off its own IO thread first
@@ -193,10 +183,10 @@ told, so the cursor is best-effort.
 | Package | What it is |
 |---|---|
 | `protocol/` | JDK-only JSON codec, shared refusal code and request-size budget |
-| `api/` | Final unified dispatch in `DriverApi`, validation/thread contracts, `WireValues` and `WorldCell` |
+| `api/` | `DriverApi` and the `ApiRegistry`, the typed contracts (`contract/`, `methods/`), thread contracts, `WireValues` and `WorldCell` |
 | `application/` | `DriverApplication` and concrete world, observe, action, wait and body handlers |
-| `integration/debug/` | Debug schema, route registration and tool handlers; recorders/analysis stay in `bot/debug` |
-| `mcp/` | MCP HTTP server, `ToolCatalog`, `catalog/`, `schema/` |
+| `integration/debug/` | The `mc.debug.*` batch and its handlers; recorders/analysis stay in `bot/debug` |
+| `mcp/` | MCP HTTP server and `McpTools`, the `tools/list` view of the registry |
 | `rpc/` | WebSocket JSON-RPC server, connection-specific `TransportLimits`, event push |
 | `script/` | Rhino: `ScriptManager`, `ScriptEvaluator`, the bridges, `SkillLibrary`, the class filter |
 | `bot/` | The client-side autonomous layer behind `mc.bot.*` |
@@ -238,5 +228,5 @@ framework and testmod fixture classes are absent from production artifacts.
 WorldDriverCommon creates `DriverApplication` and exposes only its `DriverApi` contract.
 `WireValues` supplies recursive coordinate/event adaptation to the JDK-only codec; RPC, MCP and
 in-process JSON share that conversion. `IntentProcess` and `DuskSecureChain` receive an event
-emitter instead of looking up the global API. Paired extension schemas are keyed by name so
-rebinding an API installs the route on the new instance without duplicating catalog entries.
+emitter instead of looking up the global API. Each API instance holds its own registry, so an
+extension publishes its batch on whichever instance it is handed.
