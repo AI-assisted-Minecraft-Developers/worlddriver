@@ -80,7 +80,10 @@ public final class TestArena {
      */
     public static void seed(DriverApi api, MinecraftServer server) {
         ServerLevel level = server.overworld();
-        BlockPos origin = (BlockPos) api.route("mc.system.testOrigin", Map.of());
+        // route() answers in JSON values, the same tree every transport sends.
+        Map<?, ?> o = (Map<?, ?>) api.route("mc.system.testOrigin", Map.of());
+        BlockPos origin = new BlockPos(((Number) o.get("x")).intValue(), ((Number) o.get("y")).intValue(),
+                ((Number) o.get("z")).intValue());
         new ServerThreadHop(server, server::isSameThread, SERVER_THREAD_TIMEOUT_MS).call(() -> {
             // Pin first, write second. The ticket's level has to reach ENTITY_TICKING (31) out to
             // TEST_ARENA_CHUNK_RADIUS, and a region ticket at distance d puts its own chunk at

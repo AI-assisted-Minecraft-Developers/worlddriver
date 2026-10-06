@@ -161,17 +161,15 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         if (ctx.playerOrNull() == null) return;
         ServerPlayer player = ctx.playerHere();
         Object origin = WorldDriverCommon.api().route("mc.system.testOrigin", Map.of());
-        // Loud, not a quiet return. The first version guarded with `instanceof Map` — the verb
-        // answers a BlockPos — so it fell through silently and the teleport below never ran for
-        // three consecutive gate runs, while the scene reported the same eight failures each time
-        // and read as if it were telling us something about them. A shape this code cannot use has
-        // to stop the scene, or the next change to that verb disables this the same silent way.
-        if (!(origin instanceof BlockPos pad)) {
-            ctx.fail("mc.system.testOrigin answered "
-                    + (origin == null ? "null" : origin.getClass().getName())
-                    + ", not a BlockPos — cannot stand the player on the seeded pad");
+        // Loud, not a quiet return: a shape this code cannot use has to stop the scene, or the next
+        // change to that verb silently skips the teleport below (it did, for three gate runs, when
+        // the verb answered a BlockPos and this checked for a Map; route() now answers the JSON tree).
+        if (!(origin instanceof Map<?, ?> o && o.get("x") instanceof Number x && o.get("y") instanceof Number y
+                && o.get("z") instanceof Number z)) {
+            ctx.fail("mc.system.testOrigin answered " + origin + ", not {x,y,z} — cannot stand the player on the seeded pad");
             return;
         }
+        BlockPos pad = new BlockPos(x.intValue(), y.intValue(), z.intValue());
         // Offset by one on both axes rather than landing on the origin cell: the seed puts an
         // oak log at origin+(0,1,0) for the checks that mine one, and a player standing in it has
         // no free cell at their feet — which surfaces as the "crafting table needed (no free cell
@@ -333,8 +331,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  The integrated set is a strict superset; both run REQUIRED with FAIL==0. Coverage-drift guard.
      *  Was 147 until 34_yaml_gametest.js retired, 142 until 66_body_routes.js was added — see the
      *  INTEGRATED note above. 145 until the build stamp was added: it needs no client, so it is the
-     *  one of that pair that lands here too. 146 until the javaClassName check was added. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 147;
+     *  one of that pair that lands here too. 146 until the javaClassName check was added; 147 until
+     *  the typed clearArea and goto contracts added their refusal, issue-path and parity checks. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 164;
 
     /** task#92 — allow-list of check-name substrings permitted to record a {@code SKIP(task#92)} PASS on
      *  a topology whose precondition isn't met. Every skipped check MUST match one of these; any other
@@ -2041,7 +2040,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         List<Map<?, ?>> out = new ArrayList<>();
         if (r instanceof List<?> list)
             for (Object e : list)
-                if (e instanceof DriverEvent ev && ev.data instanceof Map<?, ?> m) out.add(m);
+                if (e instanceof Map<?, ?> ev && ev.get("data") instanceof Map<?, ?> m) out.add(m);
         return out;
     }
 }

@@ -9,6 +9,7 @@ import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.UnloadedAreaException;
+import net.magicterra.worlddriver.api.contract.ApiException;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
@@ -51,7 +52,8 @@ public final class WorldDriverQueryScenes implements SceneProvider {
         Object distant = api.route("mc.client.blocks", Map.of("center", pos(far), "filter", Map.of("in_radius", 1)));
         ctx.record("farScan", String.valueOf(distant));
         ctx.check(distant instanceof Map<?, ?> m && m.get("unloaded") instanceof List<?> l
-                        && l.contains(Map.of("x", fcx, "z", fcz)))
+                        && l.stream().anyMatch(c -> c instanceof Map<?, ?> cm && cm.get("x") instanceof Number x
+                                && cm.get("z") instanceof Number z && x.intValue() == fcx && z.intValue() == fcz))
                 .as("B a scan far from the player names chunk [" + fcx + ", " + fcz + "] as unloaded").isTrue();
     }
 
@@ -71,7 +73,7 @@ public final class WorldDriverQueryScenes implements SceneProvider {
         Object rows = api.route("mc.query", Map.of("q", "blocks", "center", pos(center),
                 "filter", Map.of("in_radius", MAX_RADIUS, "type", "minecraft:gold_block")));
         ctx.check(rows instanceof List<?> l && l.stream().anyMatch(r -> r instanceof Map<?, ?> m
-                        && probe.equals(m.get("pos"))))
+                        && isCell(m.get("pos"), probe)))
                 .as("A the documented maximum radius answers and finds the probe block").isTrue();
 
         String refused = errorOf(() -> api.route("mc.query", Map.of("q", "blocks", "center", pos(center),
@@ -91,7 +93,7 @@ public final class WorldDriverQueryScenes implements SceneProvider {
             unloaded = e;
         }
         ctx.record("unloadedError", String.valueOf(unloaded));
-        ctx.check(unloaded instanceof UnloadedAreaException)
+        ctx.check(unloaded instanceof ApiException a && a.getCause() instanceof UnloadedAreaException)
                 .as("C a cube in an unloaded chunk is refused with UnloadedAreaException").isTrue();
         ctx.check(unloaded != null && String.valueOf(unloaded.getMessage()).contains("[" + fcx + ", " + fcz + "]"))
                 .as("D the refusal names the unloaded chunk").isTrue();
@@ -101,6 +103,13 @@ public final class WorldDriverQueryScenes implements SceneProvider {
 
     private static Map<String, Object> pos(BlockPos p) {
         return Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ());
+    }
+
+    /** A decoded {@code {x,y,z}}: the integer class is the parser's choice, so compare values. */
+    private static boolean isCell(Object tree, BlockPos p) {
+        return tree instanceof Map<?, ?> m && m.get("x") instanceof Number x && m.get("y") instanceof Number y
+                && m.get("z") instanceof Number z
+                && x.intValue() == p.getX() && y.intValue() == p.getY() && z.intValue() == p.getZ();
     }
 
     private static String errorOf(Runnable call) {

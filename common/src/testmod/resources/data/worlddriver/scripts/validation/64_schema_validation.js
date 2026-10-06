@@ -39,14 +39,14 @@ ScriptTest.run("64_schema_validation: integral double passes an integer slot", f
     // (JsonCodec parses any token containing '.' as Double.parseDouble).
     var json = __api.invokeJson("mc.system.waitTicks", '{"ticks":1.0}');
     var res = JSON.parse(json);
-    t.assertTrue(res !== null && res !== undefined,
+    t.assertTrue(res.error === undefined && res.result !== undefined,
         "waitTicks{ticks:1.0} (real Double) must be accepted, got: " + json);
 });
 
 ScriptTest.run("64_schema_validation: non-integral double on an integer slot is rejected", function(t) {
-    var msg = null;
-    try { __api.invokeJson("mc.system.waitTicks", '{"ticks":1.5}'); }
-    catch (e) { msg = String(e); }
+    // invokeJson answers with an envelope, {result} or {error}, instead of throwing.
+    var res = JSON.parse(__api.invokeJson("mc.system.waitTicks", '{"ticks":1.5}'));
+    var msg = res.error ? res.error.message : null;
     t.assertTrue(msg !== null && msg.indexOf("must be integer") >= 0,
         "ticks:1.5 must reject as non-integer, got: " + msg);
 });
