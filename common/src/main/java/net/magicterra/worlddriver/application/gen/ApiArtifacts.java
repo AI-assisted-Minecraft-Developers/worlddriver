@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.api.gen;
+package net.magicterra.worlddriver.application.gen;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -16,8 +16,8 @@ import net.magicterra.worlddriver.api.contract.DecodeContext;
 import net.magicterra.worlddriver.api.contract.WireName;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
 import net.magicterra.worlddriver.api.contract.TsContext;
-import net.magicterra.worlddriver.api.methods.CoreMethods;
 import net.magicterra.worlddriver.api.methods.DebugContracts;
+import net.magicterra.worlddriver.application.CoreMethods;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 
 /**

@@ -144,7 +144,7 @@ def generateApiArtifacts = tasks.register('generateApiArtifacts', JavaExec) {
     group = 'build'
     description = 'Generates the API d.ts, script wrappers, schemas and reference from the method descriptions.'
     classpath = files(sourceSets.main.output.classesDirs) + configurations.codegenRuntime
-    mainClass = 'net.magicterra.worlddriver.api.gen.ApiArtifacts'
+    mainClass = 'net.magicterra.worlddriver.application.gen.ApiArtifacts'
     inputs.files(sourceSets.main.output.classesDirs).withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.dir(generatedApiDir)
     dependsOn tasks.named('compileJava')

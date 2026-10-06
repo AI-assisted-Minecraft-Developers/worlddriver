@@ -8,10 +8,10 @@ import java.util.Map;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.SettingsContract;
 import net.magicterra.worlddriver.bot.SettingsRegistry;
+import net.magicterra.worlddriver.api.ApiRegistry;
 import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.methods.SettingsContract;
-import net.magicterra.worlddriver.mcp.ToolCatalog;
 import net.magicterra.worlddriver.bot.movement.AscendMovement;
 import net.magicterra.worlddriver.bot.movement.MovementContext;
 import net.magicterra.worlddriver.bot.movement.MovementStatus;
@@ -251,10 +251,9 @@ public final class WorldDriverScenes implements SceneProvider {
      *   <li>{@code mc.bot.setting}'s contract is CLOSED and one-variant-per-key: a patch naming the
      *       bogus key is invalid_params at {@code /updates/0/key}, and the contract's key set is the
      *       registry's.</li>
-     *   <li>{@code mc.test.reset} is registered: the route exists ({@code DriverApi.methods()}
-     *       contains it) AND its schema resolves ({@code ToolCatalog.schemaByName()} has it) —
-     *       the paired registration held. This is the assertion that goes RED on a loader whose boot
-     *       path never called the registration hook.</li>
+     *   <li>{@code mc.test.reset} is registered: the registry holds a typed spec for it, published
+     *       by StageWright's batch. This is the assertion that goes RED on a loader whose boot path
+     *       never called the registration hook.</li>
      * </ol>
      */
     private static void settingRegistryClosed(SceneContext ctx) {
@@ -293,16 +292,16 @@ public final class WorldDriverScenes implements SceneProvider {
             ctx.fail("settingRegistry: mc.bot.setting's " + propCount + " keys are not the registry's " + known
                     + " — the contract drifted from SettingsRegistry");
 
-        // (5) mc.test.reset registered — the SPI's regression net: route present AND schema resolves.
+        // (5) mc.test.reset registered — the SPI's regression net: a typed method, from StageWright's batch.
         var api = WorldDriverCommon.api();
         if (api == null)
             ctx.fail("settingRegistry: DriverApi not booted — cannot check mc.test.reset registration");
-        if (!api.methods().contains("mc.test.reset"))
-            ctx.fail("settingRegistry: mc.test.reset route missing from DriverApi.methods() — the "
-                    + "paired verb-registration hook did not run on this loader's boot path");
-        if (ToolCatalog.schemaByName().get("mc.test.reset") == null)
-            ctx.fail("settingRegistry: mc.test.reset has a route but no resolvable schema — the "
-                    + "paired registration is torn");
+        if (!api.methods().contains("mc.test.reset") || api.spec("mc.test.reset") == null)
+            ctx.fail("settingRegistry: mc.test.reset missing from the API registry — StageWright's "
+                    + "batch registration did not run on this loader's boot path");
+        String owner = api.registry().snapshot().ownerOf().get("mc.test.reset");
+        if (owner != null && !owner.startsWith(ApiRegistry.TEST_OWNER + "/"))
+            ctx.fail("settingRegistry: mc.test.reset is owned by " + owner + ", not StageWright");
 
         WorldDriverCommon.LOG.info("[wd.settingRegistryClosed] knownKeys={} settingProps={} "
                 + "closed={} mc.test.reset registered=true", known, propCount, closed);

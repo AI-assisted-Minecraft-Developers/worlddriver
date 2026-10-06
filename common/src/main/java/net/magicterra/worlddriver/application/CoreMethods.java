@@ -1,13 +1,35 @@
-package net.magicterra.worlddriver.api.methods;
+package net.magicterra.worlddriver.application;
 
 import java.util.List;
 
 import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.api.methods.BuildContracts;
+import net.magicterra.worlddriver.api.methods.ClearAreaContract;
+import net.magicterra.worlddriver.api.methods.ClientContracts;
+import net.magicterra.worlddriver.api.methods.CombatContract;
+import net.magicterra.worlddriver.api.methods.ControlContracts;
+import net.magicterra.worlddriver.api.methods.EventContracts;
+import net.magicterra.worlddriver.api.methods.GatherContracts;
+import net.magicterra.worlddriver.api.methods.GotoContract;
+import net.magicterra.worlddriver.api.methods.HandContracts;
+import net.magicterra.worlddriver.api.methods.MoveContracts;
+import net.magicterra.worlddriver.api.methods.ObserveContracts;
+import net.magicterra.worlddriver.api.methods.PlayerContract;
+import net.magicterra.worlddriver.api.methods.QueryContract;
+import net.magicterra.worlddriver.api.methods.RecipeContracts;
+import net.magicterra.worlddriver.api.methods.ScreenContracts;
+import net.magicterra.worlddriver.api.methods.ScriptContracts;
+import net.magicterra.worlddriver.api.methods.SystemContracts;
+import net.magicterra.worlddriver.api.methods.WaitContracts;
+import net.magicterra.worlddriver.api.methods.WaitResultContract;
+import net.magicterra.worlddriver.api.methods.WorldContracts;
+import net.magicterra.worlddriver.bot.SettingsContract;
 
 /**
- * Every core method's description, in the order they are documented. Pure: the artifact generator
- * loads this class on a classpath with no Minecraft, which is what proves the contract layer does not
- * reach into the game. The application binds a handler to each of these and registers them as one batch.
+ * Every core method's description, in the order they are documented. The artifact generator loads this
+ * class on a classpath with no Minecraft, which is what proves the contracts do not reach into the game.
+ * The application binds a handler to each of these and registers them as one batch. It sits here, not in
+ * {@code api/methods}, because {@code mc.bot.setting}'s contract is built from the bot's settings table.
  */
 public final class CoreMethods {
     private CoreMethods() {}

@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.api.methods;
+package net.magicterra.worlddriver.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -8,7 +8,6 @@ import java.util.List;
 
 import net.magicterra.worlddriver.api.ApiRegistry;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
-import net.magicterra.worlddriver.application.DriverApplication;
 import org.junit.jupiter.api.Test;
 
 /**

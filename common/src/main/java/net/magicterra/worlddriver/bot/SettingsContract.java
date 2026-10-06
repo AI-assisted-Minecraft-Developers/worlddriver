@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.api.methods;
+package net.magicterra.worlddriver.bot;
 
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -15,15 +15,14 @@ import net.magicterra.worlddriver.api.contract.DecodeContext;
 import net.magicterra.worlddriver.api.contract.KeyedValueType;
 import net.magicterra.worlddriver.api.contract.KeyedValueType.Entry;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
-import net.magicterra.worlddriver.bot.SettingsDocs;
-import net.magicterra.worlddriver.bot.SettingsRegistry;
 
 /**
  * {@code mc.bot.setting}: read the tuning surface, patch it, or apply one of its controls.
  *
  * <p>The key table is {@link SettingsRegistry}'s, with each key's prose and range from {@link SettingsDocs}:
  * the one place the keys are enumerated, read reflectively from the settings class's field declarations.
- * Neither class touches the game, so the artifact generator still loads this without Minecraft.
+ * Neither class touches the game, so the artifact generator still loads this without Minecraft. It lives
+ * beside them rather than in {@code api/methods} because the contract layer may not depend on the bot.
  *
  * <p>Two keys are controls rather than configuration: {@code paused} stops this client's bot and releases
  * its keys, and {@code debugFly} toggles creative flight. Their effects cannot be taken back by restoring a

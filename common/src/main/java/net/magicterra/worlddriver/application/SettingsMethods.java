@@ -12,19 +12,19 @@ import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.KeyedValueType.Entry;
-import net.magicterra.worlddriver.api.methods.SettingsContract;
-import net.magicterra.worlddriver.api.methods.SettingsContract.Applied;
-import net.magicterra.worlddriver.api.methods.SettingsContract.Apply;
-import net.magicterra.worlddriver.api.methods.SettingsContract.Patch;
-import net.magicterra.worlddriver.api.methods.SettingsContract.Patched;
-import net.magicterra.worlddriver.api.methods.SettingsContract.Read;
-import net.magicterra.worlddriver.api.methods.SettingsContract.SettingsOp;
-import net.magicterra.worlddriver.api.methods.SettingsContract.SettingsReply;
-import net.magicterra.worlddriver.api.methods.SettingsContract.Values;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.SettingsCommand;
+import net.magicterra.worlddriver.bot.SettingsContract;
+import net.magicterra.worlddriver.bot.SettingsContract.Applied;
+import net.magicterra.worlddriver.bot.SettingsContract.Apply;
+import net.magicterra.worlddriver.bot.SettingsContract.Patch;
+import net.magicterra.worlddriver.bot.SettingsContract.Patched;
+import net.magicterra.worlddriver.bot.SettingsContract.Read;
+import net.magicterra.worlddriver.bot.SettingsContract.SettingsOp;
+import net.magicterra.worlddriver.bot.SettingsContract.SettingsReply;
+import net.magicterra.worlddriver.bot.SettingsContract.Values;
 
 /**
  * {@code mc.bot.setting}. The settings are read and written on the thread of the bot that reads them

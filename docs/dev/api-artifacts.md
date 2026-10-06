@@ -32,7 +32,8 @@ is the check that keeps the contract layer separate from the game.
 
 1. Write its records and `ApiType`s in a `*Contract` class under `api/methods/`, ending in a
    `MethodSpec` constant.
-2. Add the constant to `CoreMethods.all()`.
+2. Add the constant to `CoreMethods.all()` (in `application/`, because `mc.bot.setting`'s contract,
+   `bot/SettingsContract.java`, is built from the bot's settings table, which `api/` may not import).
 3. Bind a handler in the application and add it to the core batch.
 4. Delete whatever hand-written wrapper `prelude.js` had for it; the generated one replaces it.
 

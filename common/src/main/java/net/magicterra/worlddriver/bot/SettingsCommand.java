@@ -8,8 +8,7 @@ import java.util.Set;
 
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.KeyedValueType.Entry;
-import net.magicterra.worlddriver.api.methods.SettingsContract;
-import net.magicterra.worlddriver.api.methods.SettingsContract.AvoidPoint;
+import net.magicterra.worlddriver.bot.SettingsContract.AvoidPoint;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 
