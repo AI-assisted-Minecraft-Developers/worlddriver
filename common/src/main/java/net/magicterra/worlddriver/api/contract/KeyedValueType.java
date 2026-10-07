@@ -75,8 +75,9 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
         Map<String, Object> out = new LinkedHashMap<>();
         for (Entry entry : entries) {
             ApiType type = types.get(entry.key());
-            if (type == null) throw new IllegalStateException(entry.key() + " is no key of " + name);
-            out.put(entry.key(), type.write(entry.value()));
+            // An unknown key is written as it came, so read() reports it at its own path: a request
+            // error for validate(), a contract violation for encode().
+            out.put(entry.key(), type == null ? entry.value() : type.write(entry.value()));
         }
         return out;
     }
