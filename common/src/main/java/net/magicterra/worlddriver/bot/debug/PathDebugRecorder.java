@@ -4,6 +4,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
+import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -112,7 +113,7 @@ public final class PathDebugRecorder implements PathTrace {
         }
         if (dump && snap != null) {
             // Render+write off the client thread so a terminal tick never hitches.
-            Thread t = new Thread(() -> {
+            Util.nonCriticalIoPool().execute(() -> {
                 try {
                     var meta = PathChartWriter.write(PathChartRenderer.render(snap, PathChartRenderer.Opts.defaults()), null);
                     LOG.info("[pathdebug] auto-dumped chart {} ({}x{}, outcome={})",
@@ -120,9 +121,7 @@ public final class PathDebugRecorder implements PathTrace {
                 } catch (Exception e) {
                     LOG.warn("[pathdebug] auto-dump failed: {}", e.toString());
                 }
-            }, "pathdebug-autodump");
-            t.setDaemon(true);
-            t.start();
+            });
         }
     }
 

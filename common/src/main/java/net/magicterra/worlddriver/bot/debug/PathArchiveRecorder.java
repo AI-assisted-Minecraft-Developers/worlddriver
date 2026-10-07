@@ -5,6 +5,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
+import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -350,7 +351,7 @@ public final class PathArchiveRecorder implements PathTrace {
         String prefix = replay ? "replay-run" : "replay";
         String fileName = String.format("%s-%04d-%d",
                 prefix, SEQ.incrementAndGet(), System.currentTimeMillis());
-        Thread t = new Thread(() -> {
+        Util.nonCriticalIoPool().execute(() -> {
             try {
                 Files.createDirectories(REPLAY_DIR);
                 Path out = REPLAY_DIR.resolve(fileName + ".json");
@@ -363,9 +364,7 @@ public final class PathArchiveRecorder implements PathTrace {
             } catch (Exception e) {
                 LOG.warn("[patharchive] write failed: {}", e.toString());
             }
-        }, "patharchive-write");
-        t.setDaemon(true);
-        t.start();
+        });
     }
 
     // -----------------------------------------------------------------------
