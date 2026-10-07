@@ -46,12 +46,20 @@ public final class TsContext {
         return out.toString();
     }
 
-    /** A TypeScript string literal. */
+    /** A TypeScript string literal: a line terminator or control character inside one would end it early. */
     public static String literal(String s) {
         StringBuilder b = new StringBuilder("'");
         for (char c : s.toCharArray()) {
-            if (c == '\'' || c == '\\') b.append('\\');
-            b.append(c);
+            switch (c) {
+                case '\'', '\\' -> b.append('\\').append(c);
+                case '\n' -> b.append("\\n");
+                case '\r' -> b.append("\\r");
+                case '\t' -> b.append("\\t");
+                default -> {
+                    if (c < 0x20 || c == 0x2028 || c == 0x2029) b.append(String.format("\\u%04x", (int) c));
+                    else b.append(c);
+                }
+            }
         }
         return b.append('\'').toString();
     }
