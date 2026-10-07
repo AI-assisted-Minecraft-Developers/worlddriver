@@ -106,7 +106,7 @@ public abstract class DriverApi {
         } catch (Throwable t) {
             envelope.put("error", ApiErrors.toTree(ApiRegistry.asApi(t).error()));
         }
-        return WireValues.encode(envelope);
+        return JsonCodec.encode(envelope);
     }
 
     /** Every callable method name, in registration order. */

@@ -183,7 +183,7 @@ told, so the cursor is best-effort.
 | Package | What it is |
 |---|---|
 | `protocol/` | JDK-only JSON codec, shared refusal code and request-size budget |
-| `api/` | `DriverApi` and the `ApiRegistry`, the typed contracts (`contract/`, `methods/`), thread contracts, `WireValues` and `WorldCell` |
+| `api/` | `DriverApi` and the `ApiRegistry`, the typed contracts (`contract/`, `methods/`), thread contracts and `WorldCell` |
 | `application/` | `DriverApplication` and concrete world, observe, action, wait and body handlers |
 | `integration/debug/` | The `mc.debug.*` batch and its handlers; recorders/analysis stay in `bot/debug` |
 | `mcp/` | MCP HTTP server and `McpTools`, the `tools/list` view of the registry |
@@ -226,7 +226,8 @@ and any production dependency on StageWright. After assembly, `--jars` also chec
 framework and testmod fixture classes are absent from production artifacts.
 
 WorldDriverCommon creates `DriverApplication` and exposes only its `DriverApi` contract.
-`WireValues` supplies recursive coordinate/event adaptation to the JDK-only codec; RPC, MCP and
-in-process JSON share that conversion. `IntentProcess` and `DuskSecureChain` receive an event
+`JsonCodec` writes only value trees (maps, lists, strings, booleans, finite numbers, null); a
+domain value reaches the wire through its contract's `ApiType.encode`, and an event's payload is a
+`JsonValue` from the moment it is emitted. `IntentProcess` and `DuskSecureChain` receive an event
 emitter instead of looking up the global API. Each API instance holds its own registry, so an
 extension publishes its batch on whichever instance it is handed.

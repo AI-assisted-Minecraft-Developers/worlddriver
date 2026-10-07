@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A parameter built in Java with an unknown settings key is refused by name.** It is
   `invalid_params` with an `unknown_field` issue at `/values/<key>`, as the same request over the
   wire is; before, the typed path failed while encoding it, as `capability_unavailable`.
+- **The JSON writer takes only value trees.** It used to encode any object it was handed: records by
+  their components, enums by name, arrays, public fields, `BlockPos` through an adapter. A domain
+  value reached the wire in whatever shape reflection gave it, outside any contract. Now a value goes
+  out through its contract or as a tree its owner built, and anything else is an error at the call
+  that produced it. NaN and Infinity are refused too; they used to be written as `null`, which hid
+  whatever computed them. An event's payload is a JSON value from the moment it is emitted.
 
 ## 2026-10-06
 

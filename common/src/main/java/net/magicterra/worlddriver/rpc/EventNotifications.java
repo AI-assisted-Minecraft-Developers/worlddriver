@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.rpc;
 
 import net.magicterra.worlddriver.api.EventWire;
-import net.magicterra.worlddriver.api.WireValues;
+import net.magicterra.worlddriver.protocol.JsonCodec;
 
 import net.magicterra.worlddriver.model.DriverEvent;
 import java.util.LinkedHashMap;
@@ -35,7 +35,7 @@ public final class EventNotifications {
         msg.put("jsonrpc", "2.0");
         msg.put("method", "notifications/message");
         msg.put("params", params);
-        return WireValues.encode(msg);
+        return JsonCodec.encode(msg);
     }
 
     /** Map an event type to an RFC 5424 / MCP logging severity level. Since the channel

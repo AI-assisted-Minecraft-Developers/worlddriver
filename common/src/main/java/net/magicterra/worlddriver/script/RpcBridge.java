@@ -5,7 +5,6 @@ import java.util.Map;
 
 import net.magicterra.worlddriver.api.ApiErrors;
 import net.magicterra.worlddriver.api.ServerThreadGuard;
-import net.magicterra.worlddriver.api.WireValues;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.magicterra.worlddriver.rpc.RpcCallException;
@@ -41,6 +40,6 @@ public final class RpcBridge {
             envelope.put("error", ApiErrors.toTree(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
                     "rpcRoundtrip failed: " + e.getMessage(), java.util.List.of(), ApiError.Execution.UNKNOWN)));
         }
-        return WireValues.encode(envelope);
+        return JsonCodec.encode(envelope);
     }
 }

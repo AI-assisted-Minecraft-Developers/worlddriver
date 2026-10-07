@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.api.WireValues;
 
 import net.magicterra.worlddriver.protocol.RequestLimits;
 import net.magicterra.worlddriver.protocol.ServerBusyException;
@@ -426,7 +425,7 @@ public final class RpcServer implements Closeable {
             ch.writeAndFlush(new TextWebSocketFrame(encode(frame)));
         }
 
-        private static String encode(Map<String, Object> frame) { return WireValues.encode(frame); }
+        private static String encode(Map<String, Object> frame) { return JsonCodec.encode(frame); }
 
         /**
          * The two connection-control calls, decoded by their own contract: a malformed filter is an

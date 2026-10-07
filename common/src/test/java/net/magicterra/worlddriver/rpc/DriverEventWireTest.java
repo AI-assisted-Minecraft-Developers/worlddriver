@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code DriverEvent.data} must reach the wire as a typed value.
  *
  * <p>It was declared {@code String}, so every structured emitter pre-encoded with
- * {@code WireValues.encode(map)} and the payload shipped as JSON escaped inside a
+ * {@code JsonCodec.encode(map)} and the payload shipped as JSON escaped inside a
  * JSON string. The field was then an undiscriminated union — scalar payloads
  * ({@code block.place} carries a block id) and documents ({@code time.phase}
  * carries {@code {phase, dayTime}}) were both just strings, and a consumer had to
@@ -113,26 +113,26 @@ class DriverEventWireTest {
         assertInstanceOf(Number.class, data.get("health"));
     }
 
-    /** Either encoder, qualified or not: the guard is only as good as the names it knows. */
+    /** The encoder, qualified or not: the guard is only as good as the names it knows. */
     private static final Pattern PRE_ENCODED_EMIT = Pattern.compile(
-            "\\.emit(?:External)?\\s*\\([^;]{0,400}?(?:WireValues|JsonCodec)\\.encode\\s*\\(", Pattern.DOTALL);
+            "\\.emit(?:External)?\\s*\\([^;]{0,400}?JsonCodec\\.encode\\s*\\(", Pattern.DOTALL);
 
     @Test
     void theGuardSeesEveryEncoder() {
         for (String site : List.of(
-                "api.emitExternal(\"x\", pos, WireValues.encode(map));",
+                "api.emitExternal(\"x\", pos, JsonValue.of(JsonCodec.encode(map)));",
                 "api.emit(\"x\", pos, JsonCodec.encode(map));",
-                "api.emitExternal(\"x\", pos,\n        net.magicterra.worlddriver.api.WireValues.encode(map));")) {
+                "api.emitExternal(\"x\", pos,\n        net.magicterra.worlddriver.protocol.JsonCodec.encode(map));")) {
             assertTrue(PRE_ENCODED_EMIT.matcher(site).find(), site);
         }
-        assertFalse(PRE_ENCODED_EMIT.matcher("api.emitExternal(\"x\", pos, map);").find());
+        assertFalse(PRE_ENCODED_EMIT.matcher("api.emitExternal(\"x\", pos, JsonValue.of(map));").find());
     }
 
     /**
      * The tests above build an {@link DriverEvent} directly, so they prove the CODEC
      * is right — not that the emitters stopped pre-encoding. Nothing else can:
      * a JSON string is itself a value tree, so a leftover
-     * {@code emit(type, pos, JsonValue.of(WireValues.encode(map)))} compiles cleanly and quietly
+     * {@code emit(type, pos, JsonValue.of(JsonCodec.encode(map)))} compiles cleanly and quietly
      * restores the escaped-string payload for that one event type. This is the only
      * thing standing between that and a silent regression, so it reads the source.
      */

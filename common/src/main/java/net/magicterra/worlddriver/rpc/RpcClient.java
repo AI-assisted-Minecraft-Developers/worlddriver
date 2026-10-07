@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.rpc;
 
 import net.magicterra.worlddriver.api.ApiErrors;
-import net.magicterra.worlddriver.api.WireValues;
 
 import net.magicterra.worlddriver.protocol.RequestLimits;
 import net.magicterra.worlddriver.protocol.JsonCodec;
@@ -127,7 +126,7 @@ public final class RpcClient implements Closeable {
     public String callJson(String method, String paramsJson, long budgetMs) throws IOException {
         Object params = paramsJson == null ? null : JsonCodec.decode(paramsJson);
         Map<?, ?> resp = await(send(method, params, budgetMs), budgetMs);
-        return WireValues.encode(resultOf(resp));
+        return JsonCodec.encode(resultOf(resp));
     }
 
     /** Send one call and return the future of its response frame. */
@@ -151,7 +150,7 @@ public final class RpcClient implements Closeable {
             f.completeExceptionally(new EOFException("ws channel closed"));
             return f;
         }
-        channel.writeAndFlush(new TextWebSocketFrame(WireValues.encode(req))).addListener(w -> {
+        channel.writeAndFlush(new TextWebSocketFrame(JsonCodec.encode(req))).addListener(w -> {
             if (!w.isSuccess()) {
                 handler.pending.remove(id);
                 f.completeExceptionally(new IOException("ws write failed", w.cause()));

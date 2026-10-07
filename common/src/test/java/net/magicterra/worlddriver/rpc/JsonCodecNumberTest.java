@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Integral numbers reach the wire exactly.
@@ -36,7 +37,6 @@ class JsonCodecNumberTest {
         assertEquals("-128", JsonCodec.encode((byte) -128));
         assertEquals("32767", JsonCodec.encode((short) 32767));
         assertEquals("2147483647", JsonCodec.encode(Integer.MAX_VALUE));
-        assertEquals("9007199254740993", JsonCodec.encode(new AtomicLong(9007199254740993L)));
         assertEquals("123456789012345678901234567890",
                 JsonCodec.encode(new BigInteger("123456789012345678901234567890")));
         assertEquals("12345678901234567890", JsonCodec.encode(new BigDecimal("12345678901234567890.000")));
@@ -48,7 +48,22 @@ class JsonCodecNumberTest {
         assertEquals("1.5", JsonCodec.encode(1.5));
         assertEquals("3", JsonCodec.encode(3.0));
         assertEquals("0.25", JsonCodec.encode(0.25f));
-        assertEquals("null", JsonCodec.encode(Double.NaN));
-        assertEquals("null", JsonCodec.encode(Float.POSITIVE_INFINITY));
+    }
+
+    /** JSON has no NaN or Infinity; writing null in their place would hide whatever produced one. */
+    @Test
+    void aNonFiniteNumberIsRefused() {
+        assertThrows(IllegalArgumentException.class, () -> JsonCodec.encode(Double.NaN));
+        assertThrows(IllegalArgumentException.class, () -> JsonCodec.encode(Map.of("cost", Float.POSITIVE_INFINITY)));
+    }
+
+    /** Only a value tree is written: a domain object reaches the wire through its contract. */
+    @Test
+    void anythingButAValueTreeIsRefused() {
+        assertThrows(IllegalArgumentException.class, () -> JsonCodec.encode(new AtomicLong(1)));
+        assertThrows(IllegalArgumentException.class, () -> JsonCodec.encode(java.util.Set.of("a")));
+        assertThrows(IllegalArgumentException.class, () -> JsonCodec.encode(new int[] {1}));
+        assertThrows(IllegalArgumentException.class, () -> JsonCodec.encode(java.time.DayOfWeek.MONDAY));
+        assertThrows(IllegalArgumentException.class, () -> JsonCodec.encode(Map.of(1, "a")));
     }
 }

@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.script;
 
 import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.WireValues;
+import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
@@ -54,7 +54,7 @@ public final class SkillLibrary {
             case GetSkill g -> CompletableFuture.completedFuture(new SkillSource(g.name(), read(g.name())));
             case RunSkill r -> {
                 // On the source's first line, so the lines an error names are the skill's own.
-                String full = "var SKILL = " + WireValues.encode(r.args().map(a -> a.tree()).orElse(Map.of())) + "; "
+                String full = "var SKILL = " + JsonCodec.encode(r.args().map(a -> a.tree()).orElse(Map.of())) + "; "
                         + read(r.name());
                 yield evaluator.run(full, r.timeoutMs(), ctx, "skill-" + r.name())
                         .thenApply(outcome -> new SkillRan(r.name(), outcome));

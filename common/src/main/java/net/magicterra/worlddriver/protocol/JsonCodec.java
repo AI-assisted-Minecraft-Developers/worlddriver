@@ -1,14 +1,8 @@
 package net.magicterra.worlddriver.protocol;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Array;
-import java.lang.reflect.RecordComponent;
-import java.util.function.UnaryOperator;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 /** Hand-rolled JSON codec. Sufficient for our RPC use; no external dep. */
 public final class JsonCodec {
@@ -16,27 +10,27 @@ public final class JsonCodec {
     // ============================================================
     //                          ENCODE
     // ============================================================
+    /**
+     * The JSON text of a value tree: Map with String keys, List, String, Boolean, an integral number,
+     * BigInteger, BigDecimal, a finite Double or Float, or null. Anything else is a caller bug and
+     * throws {@link IllegalArgumentException}: a domain value reaches the wire through its contract's
+     * {@code ApiType.encode}, never by being guessed at here.
+     */
     public static String encode(Object v) {
-        return encode(v, UnaryOperator.identity());
-    }
-
-    /** Domain adaptation belongs to the caller and applies recursively to nested values. */
-    public static String encode(Object v, UnaryOperator<Object> adapter) {
         StringBuilder sb = new StringBuilder();
-        write(sb, v, adapter);
+        write(sb, v, 0);
         return sb.toString();
     }
 
-    private static void write(StringBuilder sb, Object v, UnaryOperator<Object> adapter) {
-        v = adapter.apply(v);
+    private static void write(StringBuilder sb, Object v, int depth) {
+        if (depth > MAX_DEPTH) throw new IllegalArgumentException("value nested deeper than " + MAX_DEPTH);
         if (v == null) { sb.append("null"); return; }
         if (v instanceof String s) { writeStr(sb, s); return; }
         if (v instanceof Boolean b) { sb.append(b); return; }
         if (v instanceof Number n) {
             // Integral types never go through double: its 53-bit mantissa rewrites the low
             // bits of a 64-bit value such as a world seed.
-            if (n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte
-                    || n instanceof AtomicLong || n instanceof AtomicInteger) {
+            if (n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte) {
                 sb.append(n.longValue());
                 return;
             }
@@ -46,95 +40,52 @@ public final class JsonCodec {
                 sb.append(s.scale() <= 0 ? s.toPlainString() : s.toString());
                 return;
             }
-            double d = n.doubleValue();
-            // JSON has no NaN/Infinity literal. Emit null (matches JS
-            // JSON.stringify) so the wire stays valid JSON — otherwise a stray
-            // non-finite (e.g. an unreachable-path cost) produces a bare
-            // `NaN`/`Infinity` token that no compliant parser, including our
-            // own decode(), can read back.
-            if (Double.isNaN(d) || Double.isInfinite(d)) { sb.append("null"); return; }
-            if (d == (long) d) sb.append((long) d);
-            else sb.append(d);
-            return;
+            if (n instanceof Double || n instanceof Float) {
+                double d = n.doubleValue();
+                // JSON has no NaN or Infinity, and writing null in their place hides the bug that
+                // produced one; the value's owner says what an absent number means instead.
+                if (Double.isNaN(d) || Double.isInfinite(d)) {
+                    throw new IllegalArgumentException("non-finite number " + d + " is not JSON");
+                }
+                if (d == (long) d) sb.append((long) d);
+                else sb.append(d);
+                return;
+            }
+            throw notATree(v);
         }
         if (v instanceof Map<?, ?> m) {
             sb.append('{');
             boolean first = true;
             for (var e : m.entrySet()) {
+                if (!(e.getKey() instanceof String k)) {
+                    throw new IllegalArgumentException("object key " + e.getKey() + " is not a string");
+                }
                 if (!first) sb.append(',');
                 first = false;
-                writeStr(sb, String.valueOf(e.getKey()));
+                writeStr(sb, k);
                 sb.append(':');
-                write(sb, e.getValue(), adapter);
+                write(sb, e.getValue(), depth + 1);
             }
             sb.append('}');
             return;
         }
-        if (v instanceof Collection<?> c) {
+        if (v instanceof List<?> l) {
             sb.append('[');
             boolean first = true;
-            for (Object e : c) {
+            for (Object e : l) {
                 if (!first) sb.append(',');
                 first = false;
-                write(sb, e, adapter);
+                write(sb, e, depth + 1);
             }
             sb.append(']');
             return;
         }
-        // Enums BEFORE the reflection fallback: Class.getFields() on an enum returns its
-        // own constants, which are of the enum's own type, so the fallback recursed forever
-        // and blew the stack with a StackOverflowError that `catch (Exception)` cannot catch.
-        if (v instanceof Enum<?> en) { writeStr(sb, en.name()); return; }
-        if (v instanceof CharSequence cs) { writeStr(sb, cs.toString()); return; }
-        // Arrays: getFields() returns ZERO fields for any array type, so the reflection
-        // fallback silently encoded int[]/String[] as `{}` — the RPC/MCP transports lost the
-        // data outright while an in-JVM Rhino caller got the real array. Encode as a JSON
-        // array, which is what every caller means.
-        if (v.getClass().isArray()) {
-            sb.append('[');
-            int n = Array.getLength(v);
-            for (int i = 0; i < n; i++) {
-                if (i > 0) sb.append(',');
-                write(sb, Array.get(v, i), adapter);
-            }
-            sb.append(']');
-            return;
-        }
-        // Records: their components are PRIVATE final fields, so getFields() is empty here too
-        // and the fallback produced `{}`. Use the record components, which are always readable.
-        if (v.getClass().isRecord()) {
-            Map<String, Object> bag = new LinkedHashMap<>();
-            try {
-                for (RecordComponent rc : v.getClass().getRecordComponents()) {
-                    bag.put(rc.getName(), rc.getAccessor().invoke(v));
-                }
-            } catch (ReflectiveOperationException ex) {
-                throw new IllegalArgumentException(
-                        "JsonCodec cannot encode record " + v.getClass().getName() + ": " + ex, ex);
-            }
-            write(sb, bag, adapter);
-            return;
-        }
-        // POJO with public fields (e.g. a Vec3-shaped holder) — correct for that shape.
-        // Anything else is a bug at the HANDLER, not here: a route that returns a type this
-        // codec cannot represent produces a DIFFERENT result on the RPC/MCP transports than
-        // it does in-JVM, which silently violates the byte-identical parity invariant every
-        // transport is built on. Fail loudly instead — both transports already turn a thrown
-        // exception into an error response, so this surfaces at the offending route.
-        Map<String, Object> bag = new LinkedHashMap<>();
-        Field[] fields = v.getClass().getFields();
-        if (fields.length == 0) {
-            throw new IllegalArgumentException(
-                    "JsonCodec cannot encode " + v.getClass().getName()
-                    + " (no public fields) - return a Map/List/primitive from the route");
-        }
-        try {
-            for (Field f : fields) bag.put(f.getName(), f.get(v));
-        } catch (IllegalAccessException ex) {
-            throw new IllegalArgumentException(
-                    "JsonCodec cannot encode " + v.getClass().getName() + ": " + ex, ex);
-        }
-        write(sb, bag, adapter);
+        throw notATree(v);
+    }
+
+    private static IllegalArgumentException notATree(Object v) {
+        return new IllegalArgumentException(v.getClass().getName() + " is not a JSON value; "
+                + "encode it through its contract or build the tree yourself");
     }
 
     private static void writeStr(StringBuilder sb, String s) {

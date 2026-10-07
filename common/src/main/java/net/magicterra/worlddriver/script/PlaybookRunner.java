@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.script;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.CancellationToken;
 import net.magicterra.worlddriver.api.RunContext;
-import net.magicterra.worlddriver.api.WireValues;
+import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
@@ -78,7 +78,7 @@ public final class PlaybookRunner {
         String body = load(s.name());
         if (body == null) throw ApiException.invalidParam("/name", ApiIssue.Code.INVALID_VALUE, "no playbook named " + s.name());
         // On the body's first line, so the lines an error names are the playbook's own.
-        String full = "var PLAYBOOK = " + WireValues.encode(s.args().map(a -> a.tree()).orElse(Map.of())) + "; " + body;
+        String full = "var PLAYBOOK = " + JsonCodec.encode(s.args().map(a -> a.tree()).orElse(Map.of())) + "; " + body;
         Playbook p = new Playbook(s.name(), RunContext.start("playbook-" + s.name()));
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(s.budgetMs());
         CallContext own = new CallContext(deadline, CancellationToken.NEVER, Optional.of(p.run), CallContext.SHARED_WAITS, true);

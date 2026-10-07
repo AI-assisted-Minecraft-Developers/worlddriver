@@ -5,7 +5,6 @@ import net.magicterra.worlddriver.api.ApiRegistry;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.CancellationToken;
 import net.magicterra.worlddriver.api.WaitPermits;
-import net.magicterra.worlddriver.api.WireValues;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
 import net.magicterra.worlddriver.protocol.JsonRpcFrames;
@@ -149,7 +148,7 @@ public final class McpServer implements Closeable {
         Set<String> now = listedNames();
         if (now.equals(listed)) return;
         listed = now;
-        String frame = "data: " + WireValues.encode(Map.of("jsonrpc", "2.0",
+        String frame = "data: " + JsonCodec.encode(Map.of("jsonrpc", "2.0",
                 "method", "notifications/tools/list_changed")) + "\n\n";
         for (SseSubscriber sub : sse) sub.offer(frame);
     }
@@ -253,7 +252,7 @@ public final class McpServer implements Closeable {
                         Map<String, Object> data = new LinkedHashMap<>();
                         data.put("supported", List.of(PROTOCOL_VERSION));
                         data.put("requested", requested);
-                        sendJson(ex, 200, WireValues.encode(JsonRpcFrames.error(id, JsonRpcFrames.INVALID_PARAMS,
+                        sendJson(ex, 200, JsonCodec.encode(JsonRpcFrames.error(id, JsonRpcFrames.INVALID_PARAMS,
                                 "Unsupported protocol version", data)));
                         return;
                     }
@@ -295,7 +294,7 @@ public final class McpServer implements Closeable {
                     if (!api.methods().contains(toolName)) {
                         // spec: tools, error handling — an unknown tool is a protocol error.
                         ApiError unknown = ApiError.of(ApiError.Code.METHOD_NOT_FOUND, "unknown tool: " + toolName);
-                        sendJson(ex, 200, WireValues.encode(JsonRpcFrames.error(id, JsonRpcFrames.INVALID_PARAMS,
+                        sendJson(ex, 200, JsonCodec.encode(JsonRpcFrames.error(id, JsonRpcFrames.INVALID_PARAMS,
                                 unknown.message(), ApiErrors.toTree(unknown))));
                         return;
                     }
@@ -490,9 +489,9 @@ public final class McpServer implements Closeable {
         } catch (Throwable t) {
             ApiError e = ApiRegistry.asApi(t).error();
             switch (e.code()) {
-                case SERVER_BUSY, NOT_EXECUTED, OUTCOME_UNKNOWN -> sendJson(ex, 200, WireValues.encode(
+                case SERVER_BUSY, NOT_EXECUTED, OUTCOME_UNKNOWN -> sendJson(ex, 200, JsonCodec.encode(
                         JsonRpcFrames.error(id, e.code().rpcCode, e.message(), ApiErrors.toTree(e))));
-                default -> sendJson(ex, 200, jsonRpcResult(id, toolError(WireValues.encode(ApiErrors.toTree(e)))));
+                default -> sendJson(ex, 200, jsonRpcResult(id, toolError(JsonCodec.encode(ApiErrors.toTree(e)))));
             }
             return;
         }
@@ -514,7 +513,7 @@ public final class McpServer implements Closeable {
                 && raw.get(image.formatField()) instanceof String fmt && isImageMimeFormat(fmt)) {
             Map<String, Object> meta = new LinkedHashMap<>((Map<String, Object>) raw);
             meta.remove(image.dataField());
-            Map<String, Object> textBlock = Map.of("type", "text", "text", WireValues.encode(meta));
+            Map<String, Object> textBlock = Map.of("type", "text", "text", JsonCodec.encode(meta));
             Map<String, Object> imageBlock = Map.of("type", "image", "data", b64, "mimeType", "image/" + fmt);
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("content", List.of(textBlock, imageBlock));
@@ -534,7 +533,7 @@ public final class McpServer implements Closeable {
 
     private static Map<String, Object> toolText(Object result) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("content", List.of(Map.of("type", "text", "text", WireValues.encode(result))));
+        m.put("content", List.of(Map.of("type", "text", "text", JsonCodec.encode(result))));
         m.put("isError", false);
         return m;
     }
@@ -574,7 +573,7 @@ public final class McpServer implements Closeable {
         m.put("jsonrpc", "2.0");
         m.put("id", id == null ? null : id);
         m.put("result", result);
-        return WireValues.encode(m);
+        return JsonCodec.encode(m);
     }
 
     private static String jsonRpcError(Object id, int code, String message) {
@@ -582,7 +581,7 @@ public final class McpServer implements Closeable {
         m.put("jsonrpc", "2.0");
         m.put("id", id == null ? null : id);
         m.put("error", Map.of("code", code, "message", message));
-        return WireValues.encode(m);
+        return JsonCodec.encode(m);
     }
 
     private static void sendJson(HttpExchange ex, int status, String body) throws IOException {

@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.script;
 
 import net.magicterra.worlddriver.api.ApiErrors;
 import net.magicterra.worlddriver.api.ServerThreadGuard;
-import net.magicterra.worlddriver.api.WireValues;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
 import net.magicterra.worlddriver.protocol.JsonCodec;
@@ -56,7 +55,7 @@ public final class McpBridge {
             envelope.put("error", ApiErrors.toTree(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
                     "mcpRoundtrip failed: " + e.getMessage(), List.of(), ApiError.Execution.UNKNOWN)));
         }
-        return WireValues.encode(envelope);
+        return JsonCodec.encode(envelope);
     }
 
     private static final class BridgeError extends RuntimeException {
@@ -78,7 +77,7 @@ public final class McpBridge {
         HttpRequest httpReq = HttpRequest.newBuilder(endpoint)
                 .timeout(Duration.ofSeconds(30))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(WireValues.encode(req), StandardCharsets.UTF_8))
+                .POST(HttpRequest.BodyPublishers.ofString(JsonCodec.encode(req), StandardCharsets.UTF_8))
                 .build();
         HttpResponse<String> resp = client.send(httpReq, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (!(JsonCodec.decode(resp.body()) instanceof Map<?, ?> m)) {
