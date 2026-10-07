@@ -117,16 +117,9 @@ public final class RpcClient implements Closeable {
      *
      * @throws RpcCallException for an error response, carrying the API's error when there is one
      */
-    public Object call(String method, Map<String, Object> params, long budgetMs) throws IOException {
-        Map<?, ?> resp = await(callAsync(method, params, budgetMs), budgetMs);
-        return resultOf(resp);
-    }
-
-    /** {@link #call} with the parameters and the result as JSON text ({@code null} params: none). */
-    public String callJson(String method, String paramsJson, long budgetMs) throws IOException {
-        Object params = paramsJson == null ? null : JsonCodec.decode(paramsJson);
+    public Object call(String method, Object params, long budgetMs) throws IOException {
         Map<?, ?> resp = await(send(method, params, budgetMs), budgetMs);
-        return JsonCodec.encode(resultOf(resp));
+        return resultOf(resp);
     }
 
     /** Send one call and return the future of its response frame. */

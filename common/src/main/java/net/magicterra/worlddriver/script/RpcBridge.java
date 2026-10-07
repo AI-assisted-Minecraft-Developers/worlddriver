@@ -31,7 +31,8 @@ public final class RpcBridge {
         ServerThreadGuard.refuseBlocking("an RPC round-trip");
         Map<String, Object> envelope = new LinkedHashMap<>();
         try (RpcClient c = new RpcClient(host, port)) {
-            envelope.put("result", JsonCodec.decode(c.callJson(method, paramsJson, RpcClient.DEFAULT_CALL_TIMEOUT_MS)));
+            Object params = paramsJson == null ? null : JsonCodec.decode(paramsJson);
+            envelope.put("result", c.call(method, params, RpcClient.DEFAULT_CALL_TIMEOUT_MS));
         } catch (RpcCallException e) {
             ApiError err = e.apiError() != null ? e.apiError() : ApiError.of(ApiError.Code.INTERNAL_ERROR,
                     "rpc error " + e.rpcCode() + ": " + e.getMessage());
