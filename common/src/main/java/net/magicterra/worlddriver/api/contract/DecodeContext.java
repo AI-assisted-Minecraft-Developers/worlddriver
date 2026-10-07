@@ -52,7 +52,7 @@ public final class DecodeContext {
         if (v instanceof BigDecimal || v instanceof BigInteger || v instanceof Number) return "number " + v;
         if (v instanceof Map<?, ?>) return "object";
         if (v instanceof List<?>) return "array";
-        if (v instanceof net.magicterra.worlddriver.protocol.JsonCodec.RejectedNumber r) {
+        if (v instanceof RejectedNumber r) {
             return "number " + r.token() + " (" + r.reason() + ")";
         }
         return v.getClass().getSimpleName();

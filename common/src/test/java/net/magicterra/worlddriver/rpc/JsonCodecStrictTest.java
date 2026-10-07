@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.rpc;
 
+import net.magicterra.worlddriver.api.contract.RejectedNumber;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 
 import org.junit.jupiter.api.Test;
@@ -46,12 +47,12 @@ class JsonCodecStrictTest {
     @Test
     void anOverBudgetNumberIsKeptAsARejectionNotAValue() {
         Object huge = ((Map<?, ?>) JsonCodec.decode("{\"id\":7,\"n\":1e401}")).get("n");
-        assertInstanceOf(JsonCodec.RejectedNumber.class, huge);
+        assertInstanceOf(RejectedNumber.class, huge);
         assertEquals(7L, ((Map<?, ?>) JsonCodec.decode("{\"id\":7,\"n\":1e401}")).get("id"));
         assertInstanceOf(BigDecimal.class, JsonCodec.decode("1e400"));
         assertInstanceOf(BigDecimal.class, JsonCodec.decode("1e-0400"));
         Object long101 = JsonCodec.decode("1" + "0".repeat(100));
-        assertInstanceOf(JsonCodec.RejectedNumber.class, long101);
+        assertInstanceOf(RejectedNumber.class, long101);
         assertInstanceOf(BigInteger.class, JsonCodec.decode("1" + "0".repeat(99)));
     }
 
@@ -63,7 +64,7 @@ class JsonCodecStrictTest {
 
     @Test
     void anOverBudgetNumberIsReportedAsSuch() {
-        JsonCodec.RejectedNumber r = (JsonCodec.RejectedNumber) JsonCodec.decode("1e9999");
+        RejectedNumber r = (RejectedNumber) JsonCodec.decode("1e9999");
         assertTrue(r.reason().contains("exponent"));
     }
 }

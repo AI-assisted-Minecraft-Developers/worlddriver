@@ -9,6 +9,7 @@ import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import net.magicterra.worlddriver.api.contract.RejectedNumber;
 
 /** Hand-rolled JSON codec. Sufficient for our RPC use; no external dep. */
 public final class JsonCodec {
@@ -165,13 +166,6 @@ public final class JsonCodec {
     /** Largest exponent magnitude {@link #decode} turns into a value: BigDecimal's toPlainString
      *  of {@code 1e999999999} would spell out a billion zeros. */
     public static final int MAX_EXPONENT = 400;
-
-    /**
-     * A number token past {@link #MAX_NUMBER_CHARS} or {@link #MAX_EXPONENT}. The parse goes on so
-     * the request's id stays readable, and every typed decode reports this value as invalid at its
-     * own path; nothing converts it to a number.
-     */
-    public record RejectedNumber(String token, String reason) {}
 
     /** Thrown for input that is not JSON, including a repeated object key. */
     public static final class JsonSyntaxException extends RuntimeException {

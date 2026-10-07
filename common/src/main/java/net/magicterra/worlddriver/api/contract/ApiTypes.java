@@ -29,7 +29,6 @@ import com.mojang.datafixers.util.Function6;
 import com.mojang.datafixers.util.Function7;
 import com.mojang.datafixers.util.Function8;
 import com.mojang.datafixers.util.Function9;
-import net.magicterra.worlddriver.protocol.JsonCodec;
 
 /**
  * The factories for every {@link ApiType}: scalars with their ranges, enums, lists, open JSON,
@@ -118,7 +117,7 @@ public final class ApiTypes {
         }
 
         @Override protected T read(Object value, DecodeContext at) {
-            if (value instanceof JsonCodec.RejectedNumber r) {
+            if (value instanceof RejectedNumber r) {
                 return at.fail(ApiIssue.Code.INVALID_VALUE, "number " + r.token() + " is " + r.reason());
             }
             if (!isNumber(value)) return at.mismatch(expected(), value);
@@ -197,7 +196,7 @@ public final class ApiTypes {
         }
 
         @Override protected Double read(Object value, DecodeContext at) {
-            if (value instanceof JsonCodec.RejectedNumber r) {
+            if (value instanceof RejectedNumber r) {
                 return at.fail(ApiIssue.Code.INVALID_VALUE, "number " + r.token() + " is " + r.reason());
             }
             if (!isNumber(value)) return at.mismatch(expected(), value);
@@ -581,7 +580,7 @@ public final class ApiTypes {
 
         /** Over-budget numbers are reported where they sit, not as the whole payload. */
         private static void scan(Object v, DecodeContext at, int depth) {
-            if (v instanceof JsonCodec.RejectedNumber r) {
+            if (v instanceof RejectedNumber r) {
                 at.fail(ApiIssue.Code.INVALID_VALUE, "number " + r.token() + " is " + r.reason());
             } else if (v instanceof Map<?, ?> m && depth < 64) {
                 for (Map.Entry<?, ?> e : m.entrySet()) scan(e.getValue(), at.field(String.valueOf(e.getKey())), depth + 1);
