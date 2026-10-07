@@ -222,7 +222,11 @@ source budget, and a scene registered without a matching manifest entry fails th
 
 `python3 scripts/check_architecture.py` prevents protocol dependencies on game/transport types,
 API dependencies on handlers and transports, core behaviour dependencies on API or tool registration,
-and any production dependency on StageWright. After assembly, `--jars` also checks that the test
+and any production dependency on StageWright. It also holds `api/` to its layers: only the game
+layer may name `net.minecraft`, the schema uses nothing above the protocol, method contracts use
+only the schema, `call/` and `registry/`, and no transport touches the game layer. Classes not yet
+moved into their layer's subpackage are listed in the script's `UNMOVED` table, and violations not
+yet removed in its `PENDING` table, which fails once an entry stops occurring. After assembly, `--jars` also checks that the test
 framework and testmod fixture classes are absent from production artifacts.
 
 WorldDriverCommon creates `DriverApplication` and exposes only its `DriverApi` contract.
