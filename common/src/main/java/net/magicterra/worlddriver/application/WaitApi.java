@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import net.magicterra.worlddriver.api.ApiErrors;
+import net.magicterra.worlddriver.api.ApiHandlers;
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.ApiRegistry;
 import net.magicterra.worlddriver.api.CallContext;
@@ -29,6 +30,8 @@ import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
 import net.magicterra.worlddriver.api.methods.EventContracts.Event;
+import net.magicterra.worlddriver.api.methods.WaitCalls;
+import net.magicterra.worlddriver.api.methods.WaitCallsBinding;
 import net.magicterra.worlddriver.api.methods.WaitContracts;
 import net.magicterra.worlddriver.api.methods.WaitContracts.ConditionParams;
 import net.magicterra.worlddriver.api.methods.WaitContracts.ConditionResult;
@@ -53,7 +56,7 @@ import net.magicterra.worlddriver.model.DriverEvent;
  * {@code waitId} at once; when the wait ends its reply is (a) kept for {@code mc.wait.result} and (b)
  * pushed as a {@code wait.done} event.
  */
-public final class WaitApi {
+public final class WaitApi implements WaitCalls {
     private final DriverApplication api;
 
     WaitApi(DriverApplication api) { this.api = api; }
@@ -85,10 +88,7 @@ public final class WaitApi {
     private static final Set<String> IN_FLIGHT = ConcurrentHashMap.newKeySet();
 
     List<ApiMethod<?, ?>> methods() {
-        return List.of(
-                new ApiMethod<>(WaitContracts.EVENT, this::event),
-                new ApiMethod<>(WaitContracts.WORLD_READY, this::worldReady),
-                new ApiMethod<>(WaitContracts.CONDITION, this::condition));
+        return WaitCallsBinding.methods(this);
     }
 
     /** How a wait runs once its request is checked: within {@code budgetMs}, until {@code cancelled}. */
@@ -167,12 +167,13 @@ public final class WaitApi {
      * Read an action, or a background wait: {@code pending} while it runs, then how it ended (dropped
      * after reading unless {@code consume:false}). An id neither running nor kept is an error.
      */
-    public WaitResultContract.Reply result(WaitResultContract.Query query) {
-        return switch (query) {
+    @Override
+    public CompletionStage<WaitResultContract.Reply> result(WaitResultContract.Query query, CallContext ctx) {
+        return ApiHandlers.run(() -> switch (query) {
             case WaitResultContract.ActionQuery a ->
                     new WaitResultContract.ActionReply(ActionRegistry.GLOBAL.snapshot(a.actionId()));
             case WaitResultContract.WaitQuery w -> waitResult(w.waitId(), w.consume());
-        };
+        });
     }
 
     private WaitResultContract.Reply waitResult(String waitId, boolean consume) {
@@ -191,7 +192,8 @@ public final class WaitApi {
 
     // ------------------------------------------------------------------ the three waits
 
-    CompletionStage<Outcome> event(EventParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<Outcome> event(EventParams p, CallContext ctx) {
         api.level(); // needs a server; refused now rather than on the first poll
         Set<String> types = p.types().filter(l -> !l.isEmpty()).<Set<String>>map(LinkedHashSet::new).orElse(null);
         return run(WaitContracts.EVENT, "event", p.background(), p.timeoutMs(), ctx, (budget, cancelled) -> {
@@ -208,7 +210,8 @@ public final class WaitApi {
     }
 
     /** Needs a client but no server: the point is to wait until there is a world to attach to. */
-    CompletionStage<Outcome> worldReady(WorldReadyParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<Outcome> worldReady(WorldReadyParams p, CallContext ctx) {
         DriverApplication.requireClient();
         return run(WaitContracts.WORLD_READY, "worldReady", p.background(), p.timeoutMs(), ctx, (budget, cancelled) -> {
             long t0 = System.nanoTime();
@@ -223,7 +226,8 @@ public final class WaitApi {
         });
     }
 
-    CompletionStage<Outcome> condition(ConditionParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<Outcome> condition(ConditionParams p, CallContext ctx) {
         Polling.Target target = Polling.target(api, p.invoke(), p.params());
         return run(WaitContracts.CONDITION, "condition", p.background(), p.timeoutMs(), ctx, (budget, cancelled) -> {
             long t0 = System.nanoTime();

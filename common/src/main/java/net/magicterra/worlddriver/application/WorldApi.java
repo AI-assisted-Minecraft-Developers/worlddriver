@@ -7,6 +7,8 @@ import net.magicterra.worlddriver.api.WorldCell;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.WorldCalls;
+import net.magicterra.worlddriver.api.methods.WorldCallsBinding;
 import net.magicterra.worlddriver.api.methods.WorldContracts;
 import net.magicterra.worlddriver.api.methods.WorldContracts.BlockParams;
 import net.magicterra.worlddriver.api.methods.WorldContracts.BlockReading;
@@ -41,7 +43,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * (de)serialization round-trip. The store is bounded ({@link WorldContracts#MAX_SNAPSHOTS}) and
  * cleared when the server detaches; it is JVM-local and never persisted.
  */
-public final class WorldApi {
+public final class WorldApi implements WorldCalls {
     /** Same per-call cell budget as {@code mc.action.fill} (= 32^3). */
     static final int MAX_VOLUME = WorldContracts.MAX_VOLUME;
 
@@ -52,10 +54,7 @@ public final class WorldApi {
     WorldApi(DriverApplication api) { this.api = api; }
 
     List<ApiMethod<?, ?>> methods() {
-        return List.of(
-                new ApiMethod<>(WorldContracts.BLOCK, this::block),
-                new ApiMethod<>(WorldContracts.SNAPSHOT, this::snapshot),
-                new ApiMethod<>(WorldContracts.RESTORE, this::restore));
+        return WorldCallsBinding.methods(this);
     }
 
     /** Immutable captured region. Indexing is x-major, then y, then z. */
@@ -109,7 +108,8 @@ public final class WorldApi {
      * an {@code execute if block … run setblock <scratch>} hack. This is the
      * verify half of the build→verify loop, one round-trip, no side effects.
      */
-    CompletionStage<BlockReading> block(BlockParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<BlockReading> block(BlockParams p, CallContext ctx) {
         BlockPos pos = ObserveApi.pos(p.pos());
         ServerLevel level = api.level();
         return api.requireServerHop().submit(() -> {
@@ -131,7 +131,8 @@ public final class WorldApi {
      * a chest's contents won't survive a restore). The contract has held the box
      * to {@link #MAX_VOLUME}.
      */
-    CompletionStage<Snapshotted> snapshot(SnapshotParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<Snapshotted> snapshot(SnapshotParams p, CallContext ctx) {
         int minX = Math.min(p.from().x(), p.to().x()), maxX = Math.max(p.from().x(), p.to().x());
         int minY = Math.min(p.from().y(), p.to().y()), maxY = Math.max(p.from().y(), p.to().y());
         int minZ = Math.min(p.from().z(), p.to().z()), maxZ = Math.max(p.from().z(), p.to().z());
@@ -175,7 +176,8 @@ public final class WorldApi {
      * Put a previously-captured region back verbatim. An unknown id is refused.
      * {@code discard:true} frees the snapshot after a successful restore.
      */
-    CompletionStage<Restored> restore(RestoreParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<Restored> restore(RestoreParams p, CallContext ctx) {
         String id = p.id();
         Snapshot snap;
         synchronized (store) { snap = store.get(id); }

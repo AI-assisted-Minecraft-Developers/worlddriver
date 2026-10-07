@@ -10,6 +10,8 @@ import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.methods.ActionContract.ActionResponse;
 import net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
+import net.magicterra.worlddriver.api.methods.HandCalls;
+import net.magicterra.worlddriver.api.methods.HandCallsBinding;
 import net.magicterra.worlddriver.api.methods.HandContracts;
 import net.magicterra.worlddriver.api.methods.HandContracts.LookParams;
 import net.magicterra.worlddriver.api.methods.HandContracts.Looked;
@@ -24,7 +26,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 
 /** The verbs that act within the call, on {@code self} through {@link BotApi} and on a named bot through {@link BodyInteractions}. */
-final class HandMethods {
+final class HandMethods implements HandCalls {
     /** How many times, {@link #SETTLE_MS} apart, a use on an entity rereads the vehicle and screen the server answers with. */
     private static final int SETTLE_READS = 6;
     private static final long SETTLE_MS = 50;
@@ -34,18 +36,23 @@ final class HandMethods {
     HandMethods(ActionService actions) { this.actions = actions; }
 
     List<ApiMethod<?, ?>> methods() {
-        return List.of(
-                new ApiMethod<>(HandContracts.LOOK_AT, this::lookAt),
-                new ApiMethod<>(HandContracts.HOLD_ITEM, this::holdItem),
-                new ApiMethod<>(HandContracts.USE_ITEM, this::useItem),
-                new ApiMethod<>(HandContracts.ATTACK_ENTITY, (p, ctx) -> actions.within(p.body(), ctx, Refused::new,
-                        (bot, self) -> bot.attackEntity(p), host -> BodyInteractions.attackEntity(host, p))),
-                new ApiMethod<>(HandContracts.EQUIP, (p, ctx) -> actions.within(BodyRegistry.SELF, ctx, Refused::new,
-                        (bot, self) -> bot.equip(p), host -> { throw new IllegalStateException("equip is self's alone"); })));
+        return HandCallsBinding.methods(this);
     }
 
-    /** With smoothLook on, a pan over the next ticks that ends as its own action; otherwise a turn within the call. */
-    CompletionStage<ActionResponse<Looked>> lookAt(LookParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<ImmediateResponse> attackEntity(HandContracts.AttackParams p, CallContext ctx) {
+        return actions.within(p.body(), ctx, Refused::new,
+                (bot, self) -> bot.attackEntity(p), host -> BodyInteractions.attackEntity(host, p));
+    }
+
+    @Override
+    public CompletionStage<ImmediateResponse> equip(HandContracts.EquipParams p, CallContext ctx) {
+        return actions.within(BodyRegistry.SELF, ctx, Refused::new,
+                (bot, self) -> bot.equip(p), host -> { throw new IllegalStateException("equip is self's alone"); });
+    }
+
+    @Override
+    public CompletionStage<ActionResponse<Looked>> lookAt(LookParams p, CallContext ctx) {
         if (BotConfig.smoothLook) {
             return actions.start(p.body(), p.awaitMs(), ctx, body -> {
                 float[] aim = BodyInteractions.aim(body, p);
@@ -57,7 +64,8 @@ final class HandMethods {
                 (bot, self) -> BodyInteractions.turn(self, p), host -> BodyInteractions.turn(host.entity(), p));
     }
 
-    CompletionStage<ImmediateResponse> holdItem(HandContracts.HoldParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<ImmediateResponse> holdItem(HandContracts.HoldParams p, CallContext ctx) {
         BotActions.requireRegistered(BuiltInRegistries.ITEM, "item", "/item", p.item());
         return actions.within(p.body(), ctx, Refused::new, (bot, self) -> bot.holdItem(p), host -> BodyInteractions.holdItem(host, p));
     }
@@ -66,7 +74,8 @@ final class HandMethods {
      * On {@code self}, a use on an entity rereads the vehicle and screen until they change or the reads run
      * out: the server mounts or opens the menu on a later tick, and the client applies it on another.
      */
-    CompletionStage<ImmediateResponse> useItem(HandContracts.UseParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<ImmediateResponse> useItem(HandContracts.UseParams p, CallContext ctx) {
         CompletionStage<ImmediateResponse> used = actions.within(p.body(), ctx, Refused::new,
                 (bot, self) -> bot.useItem(p), host -> BodyInteractions.useItem(host, p));
         if (!BodyRegistry.isSelf(p.body())) return used;

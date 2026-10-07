@@ -90,7 +90,7 @@ public final class DriverApplication extends DriverApi {
         all.addAll(wait.methods());
         all.addAll(system.methods());
         all.addAll(observe.methods());
-        all.add(new QueryApi(this).method());
+        all.addAll(new QueryApi(this).methods());
         all.addAll(world.methods());
         all.addAll(action.methods());
         all.addAll(recipe.methods());

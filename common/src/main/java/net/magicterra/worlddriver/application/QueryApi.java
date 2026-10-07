@@ -10,6 +10,8 @@ import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
+import net.magicterra.worlddriver.api.methods.QueryCalls;
+import net.magicterra.worlddriver.api.methods.QueryCallsBinding;
 import net.magicterra.worlddriver.api.methods.QueryContract;
 import net.magicterra.worlddriver.api.methods.QueryContract.BlockRows;
 import net.magicterra.worlddriver.api.methods.QueryContract.Blocks;
@@ -36,16 +38,17 @@ import net.minecraft.world.phys.AABB;
  * {@code mc.query}. The server scans its overworld on the server thread; a client JVM with no server attached
  * (joined to a remote server) scans its own world through {@link ClientQueryFallback}, on the client thread.
  */
-final class QueryApi {
+final class QueryApi implements QueryCalls {
     private final DriverApplication app;
 
     QueryApi(DriverApplication app) { this.app = app; }
 
-    ApiMethod<Query, Rows> method() {
-        return new ApiMethod<>(QueryContract.SPEC, this::query);
+    List<ApiMethod<?, ?>> methods() {
+        return QueryCallsBinding.methods(this);
     }
 
-    private CompletionStage<Rows> query(Query q, CallContext ctx) {
+    @Override
+    public CompletionStage<Rows> query(Query q, CallContext ctx) {
         if (app.server == null) {
             BotApi bot = BotHooks.impl();
             ClientDriverApi c = ClientHooks.impl();

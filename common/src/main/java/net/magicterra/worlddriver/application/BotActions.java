@@ -6,14 +6,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.ToIntFunction;
 
-import net.magicterra.worlddriver.api.ApiHandlers;
 import net.magicterra.worlddriver.api.ApiMethod;
-import net.magicterra.worlddriver.api.methods.WaitResultContract;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.action.ActionRegistry;
 import net.magicterra.worlddriver.api.contract.ApiException;
@@ -31,6 +26,8 @@ import net.magicterra.worlddriver.api.methods.ClearAreaContract.WidthBias;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
 import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
+import net.magicterra.worlddriver.api.methods.BotTaskCalls;
+import net.magicterra.worlddriver.api.methods.BotTaskCallsBinding;
 import net.magicterra.worlddriver.api.methods.BuildContracts;
 import net.magicterra.worlddriver.api.methods.BuildContracts.BuildParams;
 import net.magicterra.worlddriver.api.methods.BuildContracts.BunkerParams;
@@ -50,7 +47,6 @@ import net.magicterra.worlddriver.api.methods.MoveContracts.FollowParams;
 import net.magicterra.worlddriver.api.methods.MoveContracts.RunAwayParams;
 import net.magicterra.worlddriver.api.methods.MoveContracts.SleepParams;
 import net.magicterra.worlddriver.api.methods.RouteContract;
-import net.magicterra.worlddriver.api.contract.MethodSpec;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
@@ -74,7 +70,7 @@ import net.minecraft.world.level.Level;
  * The typed body-task methods: each decodes its record, checks what it can without the world, and
  * hands {@link ActionService} a planner that reads the body on its own thread.
  */
-final class BotActions {
+final class BotActions implements BotTaskCalls {
     private final DriverApplication app;
     private final ActionService actions;
 
@@ -84,63 +80,94 @@ final class BotActions {
     }
 
     List<ApiMethod<?, ?>> methods() {
-        List<ApiMethod<?, ?>> all = new ArrayList<>(tasks());
+        List<ApiMethod<?, ?>> all = new ArrayList<>(BotTaskCallsBinding.methods(this));
         all.addAll(new HandMethods(actions).methods());
         all.addAll(new ControlMethods(app).methods());
         all.addAll(new SettingsMethods(app).methods());
         return all;
     }
 
-    private List<ApiMethod<?, ?>> tasks() {
-        return List.of(
-                new ApiMethod<>(ClearAreaContract.SPEC, this::clearArea),
-                new ApiMethod<>(GotoContract.SPEC, this::goTo),
-                task(GatherContracts.MINE, MineParams::body, MineParams::awaitMs, p -> {
-                    for (int i = 0; i < p.blocks().size(); i++) requireBlockOrTag("/blocks/" + i, p.blocks().get(i));
-                }, VerbOrders::mine),
-                task(GatherContracts.CRAFT, CraftParams::body, CraftParams::awaitMs,
-                        p -> requireRegistered(BuiltInRegistries.ITEM, "item", "/item", p.item()), VerbOrders::craft),
-                task(GatherContracts.SMELT, SmeltParams::body, SmeltParams::awaitMs, p -> {
-                    requireRegistered(BuiltInRegistries.ITEM, "item", "/item", p.item());
-                    p.fuel().ifPresent(f -> requireRegistered(BuiltInRegistries.ITEM, "item", "/fuel", f));
-                }, VerbOrders::smelt),
-                task(GatherContracts.FARM, FarmParams::body, FarmParams::awaitMs, p -> { }, VerbOrders::farm),
-                new ApiMethod<>(BuildContracts.BUILD, this::build),
-                task(BuildContracts.CONSTRUCT, ConstructParams::body, ConstructParams::awaitMs, p -> {
-                    Optional<String> block = switch (p.structure()) {
-                        case BuildContracts.Tower t -> t.block();
-                        case BuildContracts.Bridge b -> b.block();
-                    };
-                    block.ifPresent(id -> requireRegistered(BuiltInRegistries.ITEM, "item", "/structure/block", id));
-                }, VerbOrders::construct),
-                task(BuildContracts.BUNKER, BunkerParams::body, BunkerParams::awaitMs, p -> { }, VerbOrders::bunker),
-                task(BuildContracts.ESCAPE, EscapeParams::body, EscapeParams::awaitMs, p -> { }, VerbOrders::escape),
-                task(MoveContracts.FOLLOW, FollowParams::body, FollowParams::awaitMs, p -> {
-                    if (p.target() instanceof MoveContracts.QuarryType t) {
-                        requireRegistered(BuiltInRegistries.ENTITY_TYPE, "entity type", "/target/type", t.type());
-                    }
-                    p.route().flatMap(RouteContract.Route::requireTool)
-                            .ifPresent(id -> requireRegistered(BuiltInRegistries.ITEM, "item", "/route/requireTool", id));
-                }, VerbOrders::follow),
-                task(MoveContracts.EXPLORE, ExploreParams::body, ExploreParams::awaitMs, p -> { }, VerbOrders::explore),
-                task(MoveContracts.RUN_AWAY, RunAwayParams::body, RunAwayParams::awaitMs, p -> { }, VerbOrders::runAway),
-                task(MoveContracts.SLEEP, SleepParams::body, SleepParams::awaitMs, p -> { }, VerbOrders::sleep),
-                task(MoveContracts.ELYTRA_FLY, ElytraParams::body, ElytraParams::awaitMs, p -> { }, VerbOrders::elytraFly),
-                new ApiMethod<>(CombatContract.SPEC, this::combat),
-                new ApiMethod<>(WaitResultContract.SPEC, ApiHandlers.immediate(app.wait::result)));
+    @Override
+    public CompletionStage<ActionResponse<GatherContracts.Mined>> mine(MineParams p, CallContext ctx) {
+        for (int i = 0; i < p.blocks().size(); i++) requireBlockOrTag("/blocks/" + i, p.blocks().get(i));
+        return task(p.body(), p.awaitMs(), ctx, body -> VerbOrders.mine(p, body));
+    }
+
+    @Override
+    public CompletionStage<ActionResponse<GatherContracts.Crafted>> craft(CraftParams p, CallContext ctx) {
+        requireRegistered(BuiltInRegistries.ITEM, "item", "/item", p.item());
+        return task(p.body(), p.awaitMs(), ctx, body -> VerbOrders.craft(p, body));
+    }
+
+    @Override
+    public CompletionStage<ActionResponse<GatherContracts.Smelted>> smelt(SmeltParams p, CallContext ctx) {
+        requireRegistered(BuiltInRegistries.ITEM, "item", "/item", p.item());
+        p.fuel().ifPresent(f -> requireRegistered(BuiltInRegistries.ITEM, "item", "/fuel", f));
+        return task(p.body(), p.awaitMs(), ctx, body -> VerbOrders.smelt(p, body));
+    }
+
+    @Override
+    public CompletionStage<ActionResponse<GatherContracts.Farmed>> farm(FarmParams p, CallContext ctx) {
+        return task(p.body(), p.awaitMs(), ctx, body -> VerbOrders.farm(p, body));
+    }
+
+    @Override
+    public CompletionStage<ActionResponse<BuildContracts.Constructed>> construct(ConstructParams p, CallContext ctx) {
+        Optional<String> block = switch (p.structure()) {
+            case BuildContracts.Tower t -> t.block();
+            case BuildContracts.Bridge b -> b.block();
+        };
+        block.ifPresent(id -> requireRegistered(BuiltInRegistries.ITEM, "item", "/structure/block", id));
+        return task(p.body(), p.awaitMs(), ctx, body -> VerbOrders.construct(p, body));
+    }
+
+    @Override
+    public CompletionStage<ActionResponse<BuildContracts.Bunkered>> bunker(BunkerParams p, CallContext ctx) {
+        return task(p.body(), p.awaitMs(), ctx, body -> VerbOrders.bunker(p, body));
+    }
+
+    @Override
+    public CompletionStage<ActionResponse<BuildContracts.Escaped>> escape(EscapeParams p, CallContext ctx) {
+        return task(p.body(), p.awaitMs(), ctx, body -> VerbOrders.escape(p, body));
+    }
+
+    @Override
+    public CompletionStage<ActionResponse<MoveContracts.Followed>> follow(FollowParams p, CallContext ctx) {
+        if (p.target() instanceof MoveContracts.QuarryType t) {
+            requireRegistered(BuiltInRegistries.ENTITY_TYPE, "entity type", "/target/type", t.type());
+        }
+        p.route().flatMap(RouteContract.Route::requireTool)
+                .ifPresent(id -> requireRegistered(BuiltInRegistries.ITEM, "item", "/route/requireTool", id));
+        return task(p.body(), p.awaitMs(), ctx, body -> VerbOrders.follow(p, body));
+    }
+
+    @Override
+    public CompletionStage<ActionResponse<MoveContracts.Explored>> explore(ExploreParams p, CallContext ctx) {
+        return task(p.body(), p.awaitMs(), ctx, body -> VerbOrders.explore(p, body));
+    }
+
+    @Override
+    public CompletionStage<ActionResponse<MoveContracts.RanAway>> runAway(RunAwayParams p, CallContext ctx) {
+        return task(p.body(), p.awaitMs(), ctx, body -> VerbOrders.runAway(p, body));
+    }
+
+    @Override
+    public CompletionStage<ActionResponse<MoveContracts.Slept>> sleep(SleepParams p, CallContext ctx) {
+        return task(p.body(), p.awaitMs(), ctx, body -> VerbOrders.sleep(p, body));
+    }
+
+    @Override
+    public CompletionStage<ActionResponse<MoveContracts.Flown>> elytraFly(ElytraParams p, CallContext ctx) {
+        return task(p.body(), p.awaitMs(), ctx, body -> VerbOrders.elytraFly(p, body));
     }
 
     /**
-     * A body-task method whose process the same {@link VerbOrders} builder makes for every body: {@code check}
-     * turns away, before anything starts, the ids this game does not have.
+     * A body task whose process the same {@link VerbOrders} builder makes for every body. The caller has
+     * already turned away, before anything starts, the ids this game does not have.
      */
-    private <P, R> ApiMethod<P, ActionResponse<R>> task(MethodSpec<P, ActionResponse<R>> spec, Function<P, String> body,
-                                                        ToIntFunction<P> awaitMs, Consumer<P> check,
-                                                        BiFunction<P, LivingEntity, VerbOrders.Order<R>> order) {
-        return new ApiMethod<>(spec, (p, ctx) -> {
-            check.accept(p);
-            return actions.start(body.apply(p), awaitMs.applyAsInt(p), ctx, entity -> plan(order.apply(p, entity)));
-        });
+    private <R> CompletionStage<ActionResponse<R>> task(String body, int awaitMs, CallContext ctx,
+                                                        Function<LivingEntity, VerbOrders.Order<R>> order) {
+        return actions.start(body, awaitMs, ctx, entity -> plan(order.apply(entity)));
     }
 
     private static <R> ActionService.Plan<R> plan(VerbOrders.Order<R> order) {
@@ -151,7 +178,8 @@ final class BotActions {
     }
 
     /** The schematic is read here, before any body: bytes that are no schematic are a bad parameter. */
-    CompletionStage<ActionResponse<BuildContracts.Built>> build(BuildParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<ActionResponse<BuildContracts.Built>> build(BuildParams p, CallContext ctx) {
         if (p.schematic() instanceof BuildContracts.Blocks b) {
             for (int i = 0; i < b.palette().size(); i++) requireBlock("/schematic/palette/" + i, b.palette().get(i));
         }
@@ -170,7 +198,8 @@ final class BotActions {
      * {@code self}'s fight belongs to its combat chain, which ends the action itself; any other bot's is
      * its held process.
      */
-    CompletionStage<ActionResponse<CombatContract.Fought>> combat(CombatContract.Params p, CallContext ctx) {
+    @Override
+    public CompletionStage<ActionResponse<CombatContract.Fought>> combat(CombatContract.Params p, CallContext ctx) {
         if (p.target().orElse(null) instanceof CombatContract.FoeType t) {
             requireRegistered(BuiltInRegistries.ENTITY_TYPE, "entity type", "/target/type", t.type());
         }
@@ -180,7 +209,8 @@ final class BotActions {
                 : plan(VerbOrders.combat(p, body)));
     }
 
-    CompletionStage<ActionResponse<Summary>> clearArea(ClearAreaContract.Params p, CallContext ctx) {
+    @Override
+    public CompletionStage<ActionResponse<Summary>> clearArea(ClearAreaContract.Params p, CallContext ctx) {
         ClearAreaGeometry.Cells box = null;
         if (p.target() instanceof Box b) {
             box = ClearAreaGeometry.box(b.from().x(), b.from().y(), b.from().z(), b.to().x(), b.to().y(), b.to().z(),
@@ -226,7 +256,8 @@ final class BotActions {
         });
     }
 
-    CompletionStage<ActionResponse<GotoContract.Result>> goTo(GotoContract.Params p, CallContext ctx) {
+    @Override
+    public CompletionStage<ActionResponse<GotoContract.Result>> goTo(GotoContract.Params p, CallContext ctx) {
         p.route().flatMap(RouteContract.Route::requireTool)
                 .ifPresent(id -> requireRegistered(BuiltInRegistries.ITEM, "item", "/route/requireTool", id));
         switch (p.target().orElse(null)) {

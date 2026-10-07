@@ -4,6 +4,8 @@ import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.methods.ActionCalls;
+import net.magicterra.worlddriver.api.methods.ActionCallsBinding;
 import net.magicterra.worlddriver.api.methods.WorldContracts;
 import net.magicterra.worlddriver.api.methods.WorldContracts.CommandParams;
 import net.magicterra.worlddriver.api.methods.WorldContracts.CommandResult;
@@ -33,15 +35,12 @@ import java.util.concurrent.CompletionStage;
  * server thread and emits through the shared event ring buffer; {@code returnEvents} answers what
  * was emitted from the call's start to its end.
  */
-public final class ActionApi {
+public final class ActionApi implements ActionCalls {
     private final DriverApplication api;
     ActionApi(DriverApplication api) { this.api = api; }
 
     List<ApiMethod<?, ?>> methods() {
-        return List.of(
-                new ApiMethod<>(WorldContracts.RUN_COMMAND, this::runCommand),
-                new ApiMethod<>(WorldContracts.FILL, this::fill),
-                new ApiMethod<>(WorldContracts.PLACE_MANY, this::placeMany));
+        return ActionCallsBinding.methods(this);
     }
 
     /**
@@ -50,7 +49,8 @@ public final class ActionApi {
      * truncated region was filled. Emits one {@code block.fill} event with {from,to,type} as the
      * data payload — not one per cell, so listeners aren't flooded.
      */
-    CompletionStage<Filled> fill(FillParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<Filled> fill(FillParams p, CallContext ctx) {
         int minX = Math.min(p.from().x(), p.to().x()), maxX = Math.max(p.from().x(), p.to().x());
         int minY = Math.min(p.from().y(), p.to().y()), maxY = Math.max(p.from().y(), p.to().y());
         int minZ = Math.min(p.from().z(), p.to().z()), maxZ = Math.max(p.from().z(), p.to().z());
@@ -77,7 +77,8 @@ public final class ActionApi {
      * block for scripted construction. Every id is resolved first, so an unknown one writes
      * nothing. Emits one {@code block.place} event per cell.
      */
-    CompletionStage<Placed> placeMany(PlaceManyParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<Placed> placeMany(PlaceManyParams p, CallContext ctx) {
         List<BlockState> states = new ArrayList<>(p.blocks().size());
         for (int i = 0; i < p.blocks().size(); i++) states.add(block("/blocks/" + i + "/type", p.blocks().get(i).type()));
         ServerLevel level = api.level();
@@ -116,7 +117,8 @@ public final class ActionApi {
      * ({@code data get} → the NBT text). {@code ok:true, success:false} means the
      * command dispatched but reported failure (e.g. selector matched nothing).
      */
-    CompletionStage<CommandResult> runCommand(CommandParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<CommandResult> runCommand(CommandParams p, CallContext ctx) {
         String trimmed = p.cmd().trim();
         if (trimmed.startsWith("/")) trimmed = trimmed.substring(1);
         if (trimmed.isEmpty()) throw ApiException.invalidParam("/cmd", ApiIssue.Code.INVALID_VALUE, "empty command");

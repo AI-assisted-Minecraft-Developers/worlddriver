@@ -6,6 +6,8 @@ import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.ObserveCalls;
+import net.magicterra.worlddriver.api.methods.ObserveCallsBinding;
 import net.magicterra.worlddriver.api.methods.ObserveContracts;
 import net.magicterra.worlddriver.api.methods.ObserveContracts.AsciiMap;
 import net.magicterra.worlddriver.api.methods.ObserveContracts.BossReading;
@@ -69,19 +71,22 @@ import java.util.concurrent.CompletionStage;
  * {@link DriverApplication} back-reference; dispatch still flows through
  * {@code DriverApplication.route} (single source of truth).
  */
-public final class ObserveApi {
+public final class ObserveApi implements ObserveCalls {
     private final DriverApplication api;
     ObserveApi(DriverApplication api) { this.api = api; }
 
     List<ApiMethod<?, ?>> methods() {
-        return List.of(
-                new ApiMethod<>(PlayerContract.SPEC, this::player),
-                new ApiMethod<>(ObserveContracts.THREATS, (p, ctx) -> onClient(ctx,
-                        c -> c.observeThreats(p.radius()), new Threats(List.of(), List.of()))),
-                new ApiMethod<>(ObserveContracts.BOSS_SPEC, (p, ctx) -> onClient(ctx,
-                        c -> c.observeBoss(p.radius()), new BossReading(List.of(), Optional.empty()))),
-                new ApiMethod<>(ObserveContracts.SCENE, this::scene),
-                new ApiMethod<>(ObserveContracts.MAP, this::map));
+        return ObserveCallsBinding.methods(this);
+    }
+
+    @Override
+    public CompletionStage<Threats> threats(ObserveContracts.ThreatsParams p, CallContext ctx) {
+        return onClient(ctx, c -> c.observeThreats(p.radius()), new Threats(List.of(), List.of()));
+    }
+
+    @Override
+    public CompletionStage<BossReading> boss(ObserveContracts.BossParams p, CallContext ctx) {
+        return onClient(ctx, c -> c.observeBoss(p.radius()), new BossReading(List.of(), Optional.empty()));
     }
 
     public long cursor() {
@@ -117,7 +122,8 @@ public final class ObserveApi {
      * The named player, or the first on the server. A client JVM with no server attached (joined to a remote
      * server) knows one player, its own, and reads it on the client thread.
      */
-    CompletionStage<PlayerReading> player(PlayerParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<PlayerReading> player(PlayerParams p, CallContext ctx) {
         if (api.server == null) {
             BotApi bot = BotHooks.impl();
             ClientDriverApi c = ClientHooks.impl();
@@ -177,7 +183,8 @@ public final class ObserveApi {
      * E enderman, D drowned, W witch, o slime, B blaze, P phantom, ? other); '@'
      * is the centre.
      */
-    CompletionStage<AsciiMap> map(MapParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<AsciiMap> map(MapParams p, CallContext ctx) {
         boolean cross = p.plane() != Plane.XZ;
         String plane = p.plane().wireName();
         int r = p.radius();
@@ -303,7 +310,8 @@ public final class ObserveApi {
      * derives survival facts (lethalCount, cornered, safeFleeStep), and
      * optionally renders an ASCII map and the overlays. Works headless.
      */
-    CompletionStage<Scene> scene(SceneParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<Scene> scene(SceneParams p, CallContext ctx) {
         int radius = Math.min(p.radius(), BotConfig.sceneQueryMaxRadius);
         Optional<Integer> requested = p.radius() > radius ? Optional.of(p.radius()) : Optional.empty();
         ServerLevel level = api.level();

@@ -15,20 +15,35 @@ import net.magicterra.worlddriver.api.WaitPermits;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.EventStreamContract.NoParams;
+import net.magicterra.worlddriver.api.methods.SystemCalls;
+import net.magicterra.worlddriver.api.methods.SystemCallsBinding;
 import net.magicterra.worlddriver.api.methods.SystemContracts;
 import net.magicterra.worlddriver.api.methods.SystemContracts.Version;
 import net.magicterra.worlddriver.api.methods.SystemContracts.Waited;
 
 /** {@code mc.system.*}: what answers without a world. */
-public final class SystemApi {
+public final class SystemApi implements SystemCalls {
     private final DriverApplication api;
     SystemApi(DriverApplication api) { this.api = api; }
 
     List<ApiMethod<?, ?>> methods() {
-        return List.of(
-                new ApiMethod<>(SystemContracts.VERSION, (p, ctx) -> CompletableFuture.completedFuture(version())),
-                new ApiMethod<>(SystemContracts.TEST_ORIGIN, (p, ctx) -> CompletableFuture.completedFuture(testOrigin())),
-                new ApiMethod<>(SystemContracts.WAIT_TICKS, (p, ctx) -> waitTicks(p.ticks(), ctx)));
+        return SystemCallsBinding.methods(this);
+    }
+
+    @Override
+    public CompletionStage<Version> version(NoParams p, CallContext ctx) {
+        return CompletableFuture.completedFuture(version());
+    }
+
+    @Override
+    public CompletionStage<BlockPosition> testOrigin(NoParams p, CallContext ctx) {
+        return CompletableFuture.completedFuture(testOrigin());
+    }
+
+    @Override
+    public CompletionStage<Waited> waitTicks(SystemContracts.WaitTicksParams p, CallContext ctx) {
+        return waitTicks(p.ticks(), ctx);
     }
 
     public Version version() {

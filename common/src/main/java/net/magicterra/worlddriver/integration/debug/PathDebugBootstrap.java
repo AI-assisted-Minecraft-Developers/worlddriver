@@ -3,15 +3,17 @@ package net.magicterra.worlddriver.integration.debug;
 import net.magicterra.worlddriver.bot.debug.*;
 import net.magicterra.worlddriver.api.ApiBatch;
 import net.magicterra.worlddriver.api.ApiHandlers;
-import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.ApiRegistry;
+import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.methods.DebugCalls;
+import net.magicterra.worlddriver.api.methods.DebugCallsBinding;
 import net.magicterra.worlddriver.api.methods.DebugContracts;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.pathfinder.MultiTrace;
 import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
-import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletionStage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,14 +53,26 @@ public final class PathDebugBootstrap {
     private static ApiBatch batch(DriverApi api) {
         if (api != batchApi) {
             batchApi = api;
-            batch = new ApiBatch(ApiRegistry.CORE_OWNER, "debug", List.<ApiMethod<?, ?>>of(
-                    new ApiMethod<>(DebugContracts.PATH_CHART, ApiHandlers.immediate(PathChartTool::render)),
-                    new ApiMethod<>(DebugContracts.PLAN, (p, ctx) -> {
-                        if (BotHooks.impl() == null) throw new IllegalStateException("mc.debug.plan reads this client's world, and there is none");
-                        return BotHooks.impl().clientHop().submit(() -> PlanProbeTool.plan(p), ctx);
-                    }),
-                    new ApiMethod<>(DebugContracts.REPLAY, (p, ctx) -> ReplayTool.replay(api, p, ctx))));
+            batch = new ApiBatch(ApiRegistry.CORE_OWNER, "debug", DebugCallsBinding.methods(new Methods(api)));
         }
         return batch;
+    }
+
+    private record Methods(DriverApi api) implements DebugCalls {
+        @Override
+        public CompletionStage<DebugContracts.Chart> pathChart(DebugContracts.ChartParams p, CallContext ctx) {
+            return ApiHandlers.run(() -> PathChartTool.render(p));
+        }
+
+        @Override
+        public CompletionStage<DebugContracts.PlanReply> plan(DebugContracts.PlanParams p, CallContext ctx) {
+            if (BotHooks.impl() == null) throw new IllegalStateException("mc.debug.plan reads this client's world, and there is none");
+            return BotHooks.impl().clientHop().submit(() -> PlanProbeTool.plan(p), ctx);
+        }
+
+        @Override
+        public CompletionStage<DebugContracts.ReplayReply> replay(DebugContracts.ReplayParams p, CallContext ctx) {
+            return ReplayTool.replay(api, p, ctx);
+        }
     }
 }

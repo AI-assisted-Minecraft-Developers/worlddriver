@@ -4,6 +4,8 @@ import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.methods.RecipeCalls;
+import net.magicterra.worlddriver.api.methods.RecipeCallsBinding;
 import net.magicterra.worlddriver.api.methods.RecipeContracts;
 import net.magicterra.worlddriver.api.methods.RecipeContracts.AcquireAction;
 import net.magicterra.worlddriver.api.methods.RecipeContracts.AcquirePlan;
@@ -55,15 +57,12 @@ import java.util.concurrent.CompletionStage;
  *
  * All reads run on the server thread (recipes are server-authoritative).
  */
-public final class RecipeApi {
+public final class RecipeApi implements RecipeCalls {
     private final DriverApplication api;
     RecipeApi(DriverApplication api) { this.api = api; }
 
     List<ApiMethod<?, ?>> methods() {
-        return List.of(
-                new ApiMethod<>(RecipeContracts.LOOKUP, this::lookup),
-                new ApiMethod<>(RecipeContracts.RESOLVE, this::resolve),
-                new ApiMethod<>(RecipeContracts.ACQUIRE, this::planAcquire));
+        return RecipeCallsBinding.methods(this);
     }
 
     /** The bot's server player, or {@code null} when there is none (headless / not yet
@@ -79,7 +78,8 @@ public final class RecipeApi {
 
     // === mc.recipe.lookup ====================================================
 
-    CompletionStage<Recipes> lookup(LookupParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<Recipes> lookup(LookupParams p, CallContext ctx) {
         String result = p.result().orElse(null);
         String ingredient = p.ingredient().orElse(null);
         ServerLevel level = api.level();
@@ -122,7 +122,8 @@ public final class RecipeApi {
 
     // === mc.recipe.resolve ===================================================
 
-    CompletionStage<CraftPlan> resolve(PlanParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<CraftPlan> resolve(PlanParams p, CallContext ctx) {
         return withPlanContext(p, ctx, (target, count, have, rm, ra, stations) -> {
             // Resolution lives in RecipeResolver (single source of truth): the verb
             // reports the plan; CraftProcess executes the same Jobs.
@@ -141,7 +142,8 @@ public final class RecipeApi {
     /** Goal-directed acquisition plan: the craft plan PLUS how to get every
      *  missing leaf (mine/farm/smelt). Pure computation over the recipe table,
      *  server-thread like resolve. See {@link AcquireResolver}. */
-    CompletionStage<AcquirePlan> planAcquire(PlanParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<AcquirePlan> planAcquire(PlanParams p, CallContext ctx) {
         return withPlanContext(p, ctx, (target, count, have, rm, ra, stations) -> {
             AcquireResolver.Plan plan = AcquireResolver.plan(rm, ra, target, count, have, stations);
             List<AcquireStep> steps = new ArrayList<>();

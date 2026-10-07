@@ -22,7 +22,8 @@ public final class ApiHandlers {
         return (p, ctx) -> run(() -> service.apply(p, ctx));
     }
 
-    private static <R> CompletableFuture<R> run(java.util.function.Supplier<R> body) {
+    /** {@code body}'s result, or its exception, as a completed stage: an immediate handler's body. */
+    public static <R> CompletableFuture<R> run(java.util.function.Supplier<R> body) {
         try {
             return CompletableFuture.completedFuture(body.get());
         } catch (Throwable t) {

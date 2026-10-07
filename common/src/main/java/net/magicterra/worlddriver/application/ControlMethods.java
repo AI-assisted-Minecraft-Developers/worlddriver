@@ -17,6 +17,8 @@ import net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
 import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.ControlCalls;
+import net.magicterra.worlddriver.api.methods.ControlCallsBinding;
 import net.magicterra.worlddriver.api.methods.ControlContracts;
 import net.magicterra.worlddriver.api.methods.ControlContracts.BodyStatus;
 import net.magicterra.worlddriver.api.methods.ControlContracts.BodySummary;
@@ -35,23 +37,24 @@ import net.minecraft.world.entity.LivingEntity;
  * the server thread, which is the thread that advances it; {@code self} on the client thread. None of these
  * asks whether the body can act: a dead or paused body is still read and stopped.
  */
-final class ControlMethods {
+final class ControlMethods implements ControlCalls {
     private final DriverApplication app;
 
     ControlMethods(DriverApplication app) { this.app = app; }
 
     List<ApiMethod<?, ?>> methods() {
-        return List.of(
-                new ApiMethod<>(ControlContracts.CANCEL, this::cancel),
-                new ApiMethod<>(ControlContracts.STATUS, this::status),
-                new ApiMethod<>(ControlContracts.WAYPOINT_SPEC, (op, ctx) -> {
-                    BotApi bot = BotHooks.impl();
-                    if (bot == null) throw new IllegalStateException("waypoints are this client's, and there is no client here");
-                    return bot.clientHop().submit(() -> bot.waypoint(op), ctx);
-                }));
+        return ControlCallsBinding.methods(this);
     }
 
-    CompletionStage<ImmediateResponse> cancel(ControlContracts.CancelParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<ControlContracts.WaypointReply> waypoint(ControlContracts.WaypointOp op, CallContext ctx) {
+        BotApi bot = BotHooks.impl();
+        if (bot == null) throw new IllegalStateException("waypoints are this client's, and there is no client here");
+        return bot.clientHop().submit(() -> bot.waypoint(op), ctx);
+    }
+
+    @Override
+    public CompletionStage<ImmediateResponse> cancel(ControlContracts.CancelParams p, CallContext ctx) {
         if (p.actionId().isPresent()) {
             String id = p.actionId().get();
             ActionSnapshot<Object> before = ActionRegistry.GLOBAL.snapshot(id);
@@ -77,7 +80,8 @@ final class ControlMethods {
         }, ctx);
     }
 
-    CompletionStage<ImmediateResponse> status(ControlContracts.StatusParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<ImmediateResponse> status(ControlContracts.StatusParams p, CallContext ctx) {
         String body = p.body().orElse(null);
         if (body == null || BodyRegistry.isSelf(body)) {
             BotApi bot = BotHooks.impl();

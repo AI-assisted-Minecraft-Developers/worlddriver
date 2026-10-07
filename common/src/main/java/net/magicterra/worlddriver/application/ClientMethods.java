@@ -11,16 +11,23 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
+import net.magicterra.worlddriver.api.ApiHandlers;
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.WaitPermits;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.methods.ClientCalls;
+import net.magicterra.worlddriver.api.methods.ClientCallsBinding;
 import net.magicterra.worlddriver.api.methods.ClientContracts;
 import net.magicterra.worlddriver.api.methods.ClientContracts.BlocksParams;
+import net.magicterra.worlddriver.api.methods.ClientContracts.ClientReply;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ClientScene;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.EventStreamContract.NoParams;
+import net.magicterra.worlddriver.api.methods.ScreenCalls;
+import net.magicterra.worlddriver.api.methods.ScreenCallsBinding;
 import net.magicterra.worlddriver.api.methods.ScreenContracts;
 import net.magicterra.worlddriver.api.methods.ScreenContracts.BlockContainer;
 import net.magicterra.worlddriver.api.methods.ScreenContracts.ContainerView;
@@ -44,7 +51,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  * later chat hold a wait permit and a thread of {@link #WAITS} instead of their caller, and are refused
  * on a game thread.
  */
-final class ClientMethods {
+final class ClientMethods implements ScreenCalls, ClientCalls {
     /** Where the waiting calls sit out their wait; their number is bounded by the wait permits they hold. */
     private static final ExecutorService WAITS = Executors.newCachedThreadPool(r -> {
         Thread t = new Thread(r, "worlddriver-client-wait");
@@ -57,31 +64,108 @@ final class ClientMethods {
     ClientMethods(DriverApplication app) { this.app = app; }
 
     List<ApiMethod<?, ?>> methods() {
-        return List.of(
-                new ApiMethod<>(ScreenContracts.INFO, (p, ctx) -> onClient(ctx, c -> c::readScreenInfo)),
-                new ApiMethod<>(ScreenContracts.TREE, (p, ctx) -> onClient(ctx, c -> c::readScreenTree)),
-                new ApiMethod<>(ScreenContracts.CLOSE, (p, ctx) -> onClient(ctx, c -> () -> c.closeScreen(p))),
-                new ApiMethod<>(ScreenContracts.CLICK, (p, ctx) -> onClient(ctx, c -> () -> c.click(p))),
-                new ApiMethod<>(ScreenContracts.MOUSE_MOVE, (p, ctx) -> onClient(ctx, c -> () -> c.mouseMove(p))),
-                new ApiMethod<>(ScreenContracts.SLOT_CLICK, (p, ctx) -> onClient(ctx, c -> () -> c.slotClick(p))),
-                new ApiMethod<>(ScreenContracts.SET_HOTBAR_SLOT, (p, ctx) -> onClient(ctx, c -> () -> c.setHotbarSlot(p))),
-                new ApiMethod<>(ScreenContracts.TYPE_TEXT, (p, ctx) -> onClient(ctx, c -> () -> c.typeText(p))),
-                new ApiMethod<>(ScreenContracts.REPLACE_TEXT, (p, ctx) -> onClient(ctx, c -> () -> c.replaceText(p))),
-                new ApiMethod<>(ScreenContracts.SLIDER, (p, ctx) -> onClient(ctx, c -> () -> c.slider(p))),
-                // A click's release waits for the next client tick; a press or a release alone does not wait.
-                new ApiMethod<>(ScreenContracts.KEY, (p, ctx) -> p.action() == KeyAction.CLICK
-                        ? waiting(ctx, "a key click", c -> () -> c.key(p)) : onClient(ctx, c -> () -> c.key(p))),
-                new ApiMethod<>(ScreenContracts.KEYBIND, (p, ctx) -> p.action() == KeyAction.CLICK && p.name().isPresent()
-                        ? waiting(ctx, "a keybind click", c -> () -> c.keybind(p)) : onClient(ctx, c -> () -> c.keybind(p))),
-                new ApiMethod<>(ScreenContracts.CONTAINER, this::container),
-                new ApiMethod<>(ClientContracts.PLAYER, (p, ctx) -> onClient(ctx, c -> c::player)),
-                new ApiMethod<>(ClientContracts.SCENE, (p, ctx) -> CompletableFuture.completedFuture(scene())),
-                new ApiMethod<>(ClientContracts.BLOCKS, (p, ctx) -> onClient(ctx, c -> () -> blocks(c, p))),
-                new ApiMethod<>(ClientContracts.CHAT_SEND, (p, ctx) -> p.awaitReplyMs() > 0
-                        ? waiting(ctx, "awaitReplyMs", c -> () -> c.chatSend(p)) : onClient(ctx, c -> () -> c.chatSend(p))),
-                new ApiMethod<>(ClientContracts.CHAT_HISTORY, (p, ctx) -> onClient(ctx, c -> () -> c.chatHistory(p))),
-                new ApiMethod<>(ClientContracts.OVERLAYS, (p, ctx) -> onClient(ctx, c -> () -> c.overlays(p))),
-                new ApiMethod<>(ClientContracts.SCREENSHOT, (p, ctx) -> waiting(ctx, "a screenshot", c -> () -> c.screenshot(p))));
+        List<ApiMethod<?, ?>> all = new ArrayList<>(ScreenCallsBinding.methods(this));
+        all.addAll(ClientCallsBinding.methods(this));
+        return all;
+    }
+
+    @Override
+    public CompletionStage<ScreenContracts.ScreenInfo> screenInfo(NoParams p, CallContext ctx) {
+        return onClient(ctx, c -> c::readScreenInfo);
+    }
+
+    @Override
+    public CompletionStage<ScreenContracts.ScreenTree> screenTree(NoParams p, CallContext ctx) {
+        return onClient(ctx, c -> c::readScreenTree);
+    }
+
+    @Override
+    public CompletionStage<ScreenContracts.Closed> closeScreen(ScreenContracts.CloseParams p, CallContext ctx) {
+        return onClient(ctx, c -> () -> c.closeScreen(p));
+    }
+
+    @Override
+    public CompletionStage<ClientReply> click(ScreenContracts.ClickParams p, CallContext ctx) {
+        return onClient(ctx, c -> () -> c.click(p));
+    }
+
+    @Override
+    public CompletionStage<ScreenContracts.Moved> mouseMove(ScreenContracts.MoveParams p, CallContext ctx) {
+        return onClient(ctx, c -> () -> c.mouseMove(p));
+    }
+
+    @Override
+    public CompletionStage<ClientReply> slotClick(ScreenContracts.SlotClickParams p, CallContext ctx) {
+        return onClient(ctx, c -> () -> c.slotClick(p));
+    }
+
+    @Override
+    public CompletionStage<ClientReply> setHotbarSlot(ScreenContracts.HotbarParams p, CallContext ctx) {
+        return onClient(ctx, c -> () -> c.setHotbarSlot(p));
+    }
+
+    @Override
+    public CompletionStage<ClientReply> typeText(ScreenContracts.TypeParams p, CallContext ctx) {
+        return onClient(ctx, c -> () -> c.typeText(p));
+    }
+
+    @Override
+    public CompletionStage<ClientReply> replaceText(ScreenContracts.ReplaceParams p, CallContext ctx) {
+        return onClient(ctx, c -> () -> c.replaceText(p));
+    }
+
+    @Override
+    public CompletionStage<ClientReply> slider(ScreenContracts.SliderParams p, CallContext ctx) {
+        return onClient(ctx, c -> () -> c.slider(p));
+    }
+
+    // A click's release waits for the next client tick; a press or a release alone does not wait.
+    @Override
+    public CompletionStage<ClientReply> key(ScreenContracts.KeyParams p, CallContext ctx) {
+        return p.action() == KeyAction.CLICK
+                ? waiting(ctx, "a key click", c -> () -> c.key(p)) : onClient(ctx, c -> () -> c.key(p));
+    }
+
+    @Override
+    public CompletionStage<ClientReply> keybind(ScreenContracts.KeybindParams p, CallContext ctx) {
+        return p.action() == KeyAction.CLICK && p.name().isPresent()
+                ? waiting(ctx, "a keybind click", c -> () -> c.keybind(p)) : onClient(ctx, c -> () -> c.keybind(p));
+    }
+
+    @Override
+    public CompletionStage<ClientContracts.ClientPlayer> player(NoParams p, CallContext ctx) {
+        return onClient(ctx, c -> c::player);
+    }
+
+    @Override
+    public CompletionStage<ClientScene> scene(NoParams p, CallContext ctx) {
+        return ApiHandlers.run(ClientMethods::scene);
+    }
+
+    @Override
+    public CompletionStage<ClientContracts.BlockScan> blocks(BlocksParams p, CallContext ctx) {
+        return onClient(ctx, c -> () -> blocks(c, p));
+    }
+
+    @Override
+    public CompletionStage<ClientReply> chatSend(ClientContracts.ChatSendParams p, CallContext ctx) {
+        return p.awaitReplyMs() > 0
+                ? waiting(ctx, "awaitReplyMs", c -> () -> c.chatSend(p)) : onClient(ctx, c -> () -> c.chatSend(p));
+    }
+
+    @Override
+    public CompletionStage<ClientContracts.ChatHistory> chatHistory(ClientContracts.ChatHistoryParams p, CallContext ctx) {
+        return onClient(ctx, c -> () -> c.chatHistory(p));
+    }
+
+    @Override
+    public CompletionStage<ClientContracts.OverlaysCleared> overlays(ClientContracts.OverlaysParams p, CallContext ctx) {
+        return onClient(ctx, c -> () -> c.overlays(p));
+    }
+
+    @Override
+    public CompletionStage<ClientContracts.Screenshot> screenshot(ClientContracts.ScreenshotParams p, CallContext ctx) {
+        return waiting(ctx, "a screenshot", c -> () -> c.screenshot(p));
     }
 
     private static ClientDriverApi client() {
@@ -139,8 +223,8 @@ final class ClientMethods {
         return c.scanBlocks(p.radius(), cx, cy, cz, ids);
     }
 
-    /** With a pos, the block entity there, read on the server; without, the menu open on this client. */
-    private CompletionStage<ContainerView> container(ScreenContracts.ContainerParams p, CallContext ctx) {
+    @Override
+    public CompletionStage<ContainerView> container(ScreenContracts.ContainerParams p, CallContext ctx) {
         if (p.pos().isEmpty()) return ClientMethods.<ContainerView>onClient(ctx, c -> c::menu);
         BlockPosition at = p.pos().get();
         ServerThreadHop hop = app.serverHop();

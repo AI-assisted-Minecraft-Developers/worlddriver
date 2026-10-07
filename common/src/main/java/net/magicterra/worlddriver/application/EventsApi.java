@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -14,10 +15,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import net.magicterra.worlddriver.api.ApiHandlers;
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.ApiTimers;
+import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.EventWire;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.methods.EventCalls;
+import net.magicterra.worlddriver.api.methods.EventCallsBinding;
 import net.magicterra.worlddriver.api.methods.EventContracts;
 import net.magicterra.worlddriver.api.methods.EventContracts.Emit;
 import net.magicterra.worlddriver.api.methods.EventContracts.Emitted;
@@ -42,7 +46,7 @@ import net.minecraft.core.BlockPos;
  * <p>A watcher polls a pollable method through {@link Polling}: between polls it holds no thread, a
  * poll that is still running delays the next instead of overlapping it, and each poll has its own budget.
  */
-public final class EventsApi {
+public final class EventsApi implements EventCalls {
     /** One watcher poll; a read that takes longer counts as not satisfied. */
     private static final long WATCH_POLL_BUDGET_MS = 2_000;
 
@@ -55,10 +59,22 @@ public final class EventsApi {
     }
 
     List<ApiMethod<?, ?>> methods() {
-        return List.of(
-                new ApiMethod<>(EventContracts.CURSOR, ApiHandlers.immediate(p -> new EventContracts.Cursor(api.observe.cursor()))),
-                new ApiMethod<>(EventContracts.EVENTS_SINCE, ApiHandlers.immediate(this::since)),
-                new ApiMethod<>(EventContracts.EVENTS, ApiHandlers.immediate(this::dispatch)));
+        return EventCallsBinding.methods(this);
+    }
+
+    @Override
+    public CompletionStage<EventContracts.Cursor> cursor(EventContracts.NoParams p, CallContext ctx) {
+        return ApiHandlers.run(() -> new EventContracts.Cursor(api.observe.cursor()));
+    }
+
+    @Override
+    public CompletionStage<EventContracts.Page> eventsSince(EventContracts.SinceParams p, CallContext ctx) {
+        return ApiHandlers.run(() -> since(p));
+    }
+
+    @Override
+    public CompletionStage<EventsReply> events(EventsOp op, CallContext ctx) {
+        return ApiHandlers.run(() -> dispatch(op));
     }
 
     private EventContracts.Page since(EventContracts.SinceParams p) {
