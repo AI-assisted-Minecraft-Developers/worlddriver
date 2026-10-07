@@ -30,6 +30,8 @@ import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotUtil.faceTowardEye;
 import static net.magicterra.worlddriver.bot.util.BotUtil.STATION_REACH;
 import static net.magicterra.worlddriver.bot.util.BotUtil.nearestBlockWithinReach;
+import static net.magicterra.worlddriver.bot.util.RegistryIds.itemId;
+import static net.magicterra.worlddriver.bot.util.RegistryIds.path;
 
 /**
  * Phase E — execute a {@link RecipeResolver} plan as real client-side crafting.
@@ -231,7 +233,7 @@ public final class CraftProcess implements BotProcess {
             StringBuilder sb = new StringBuilder("missing");
             boolean first = true;
             for (var e : plan.missing().entrySet()) {
-                sb.append(first ? " " : ", ").append(e.getValue()).append(" x ").append(shortId(e.getKey()));
+                sb.append(first ? " " : ", ").append(e.getValue()).append(" x ").append(path(e.getKey()));
                 first = false;
             }
             LOG.info("[craft] plan {}×{} incomplete missing={}", count, target, plan.missing());
@@ -318,7 +320,7 @@ public final class CraftProcess implements BotProcess {
             st = St.AWAIT_TAKE;
             return;
         }
-        if (++waited > STEP_TIMEOUT) fail(s, p, "failed to place the recipe (missing ingredients or inventory not synced): " + shortId(jobs.get(jobIdx).result()));
+        if (++waited > STEP_TIMEOUT) fail(s, p, "failed to place the recipe (missing ingredients or inventory not synced): " + path(jobs.get(jobIdx).result()));
     }
 
     private void awaitTake(Player p, BotState s) {
@@ -327,7 +329,7 @@ public final class CraftProcess implements BotProcess {
         craftsDone++;
         RecipeResolver.Job job = jobs.get(jobIdx);
         LOG.info("[craft] job {}/{} {} craftsDone={}/{} totalCrafted={}",
-                jobIdx + 1, jobs.size(), shortId(job.result()), craftsDone, job.crafts(), crafted);
+                jobIdx + 1, jobs.size(), path(job.result()), craftsDone, job.crafts(), crafted);
         if (craftsDone >= job.crafts()) {
             jobIdx++;
             craftsDone = 0;
@@ -386,19 +388,13 @@ public final class CraftProcess implements BotProcess {
         Map<String, Integer> have = new LinkedHashMap<>();
         for (ItemStack s : p.getInventory().items) {
             if (s.isEmpty()) continue;
-            have.merge(id(s.getItem()), s.getCount(), Integer::sum);
+            have.merge(itemId(s), s.getCount(), Integer::sum);
         }
         ItemStack off = p.getInventory().offhand.isEmpty() ? ItemStack.EMPTY : p.getInventory().offhand.get(0);
-        if (!off.isEmpty()) have.merge(id(off.getItem()), off.getCount(), Integer::sum);
+        if (!off.isEmpty()) have.merge(itemId(off), off.getCount(), Integer::sum);
         return have;
     }
 
-    private static String id(Item item) { return BuiltInRegistries.ITEM.getKey(item).toString(); }
-
-    private static String shortId(String id) {
-        int i = id.indexOf(':');
-        return i >= 0 ? id.substring(i + 1) : id;
-    }
 
     /** Compact one-line dump of a resolved job list for the plan-telemetry log line. */
     private static String jobsSummary(List<RecipeResolver.Job> jobs) {
@@ -406,7 +402,7 @@ public final class CraftProcess implements BotProcess {
         for (int i = 0; i < jobs.size(); i++) {
             RecipeResolver.Job j = jobs.get(i);
             if (i > 0) sb.append(',');
-            sb.append(shortId(j.result())).append('x').append(j.crafts()).append('@').append(j.station());
+            sb.append(path(j.result())).append('x').append(j.crafts()).append('@').append(j.station());
         }
         return sb.append(']').toString();
     }
@@ -422,7 +418,7 @@ public final class CraftProcess implements BotProcess {
         for (int slot = 1; slot <= 4; slot++) {
             ItemStack stk = p.inventoryMenu.getSlot(slot).getItem();
             if (slot > 1) sb.append(',');
-            sb.append(stk.isEmpty() ? "-" : stk.getCount() + "x" + shortId(id(stk.getItem())));
+            sb.append(stk.isEmpty() ? "-" : stk.getCount() + "x" + path(itemId(stk)));
         }
         return sb.append(']').toString();
     }

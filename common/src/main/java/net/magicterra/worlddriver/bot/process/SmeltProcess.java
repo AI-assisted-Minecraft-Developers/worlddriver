@@ -26,6 +26,8 @@ import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotUtil.faceTowardEye;
 import static net.magicterra.worlddriver.bot.util.BotUtil.STATION_REACH;
 import static net.magicterra.worlddriver.bot.util.BotUtil.nearestBlockWithinReach;
+import static net.magicterra.worlddriver.bot.util.RegistryIds.itemId;
+import static net.magicterra.worlddriver.bot.util.RegistryIds.path;
 
 /**
  * Phase E — smelt {@code count}× {@code input} in a furnace, the slot-simulation
@@ -194,14 +196,14 @@ public final class SmeltProcess implements BotProcess {
                 adopt = true;
                 targetOut = count;
                 LOG.info("[smelt] INIT adopt: bag empty, resuming furnace {} target={}× {}",
-                        fz.toShortString(), targetOut, shortId(input));
+                        fz.toShortString(), targetOut, path(input));
                 a.aimAtBlock(fz);
                 hands.useBlock(fz, faceTowardEye(fz, p));
                 waited = 0;
                 st = St.OPEN_WAIT;
                 return;
             }
-            fail(s, "missing " + count + " x " + shortId(input)); return;
+            fail(s, "missing " + count + " x " + path(input)); return;
         }
         targetOut = Math.min(count, have);
 
@@ -221,7 +223,7 @@ public final class SmeltProcess implements BotProcess {
         }
         furnacePos = fz;
         LOG.info("[smelt] INIT ok: furnace={} target={}× {} (have={})",
-                fz.toShortString(), targetOut, shortId(input), have);
+                fz.toShortString(), targetOut, path(input), have);
         // NOTE: a server FakePlayer can't open menus, so OPEN_WAIT times out there.
         a.aimAtBlock(fz);
         hands.useBlock(fz, faceTowardEye(fz, p));
@@ -252,13 +254,13 @@ public final class SmeltProcess implements BotProcess {
             return;
         }
         // Shift-click the ingredient from the inventory → routes to the input slot.
-        int inSlot = findInvMenuSlot(menu, st2 -> idOf(st2.getItem()).equals(input));
-        if (inSlot < 0) { fail(s, "no " + shortId(input) + " in the inventory"); return; }
+        int inSlot = findInvMenuSlot(menu, st2 -> itemId(st2.getItem()).equals(input));
+        if (inSlot < 0) { fail(s, "no " + path(input) + " in the inventory"); return; }
         menus.containerClick(menu.containerId, inSlot, 0, ClickType.QUICK_MOVE);
 
         int burn = loadFuel(a, menu);
         if (burn < 0) {
-            fail(s, fuelId != null ? "fuel " + shortId(fuelId) + " is not in the inventory"
+            fail(s, fuelId != null ? "fuel " + path(fuelId) + " is not in the inventory"
                     : "no usable fuel in the inventory (workstation blocks are not burned as fuel)");
             return;
         }
@@ -288,7 +290,7 @@ public final class SmeltProcess implements BotProcess {
     private int loadFuel(Body a, AbstractContainerMenu menu) {
         int fuelSlot = pickFuelMenuSlot(menu, fuelId);
         if (fuelSlot < 0) return -1;
-        fuelChosen = shortId(idOf(menu.slots.get(fuelSlot).getItem()));
+        fuelChosen = path(itemId(menu.slots.get(fuelSlot).getItem()));
         menus.containerClick(menu.containerId, fuelSlot, 0, ClickType.PICKUP);
         menus.containerClick(menu.containerId, AbstractFurnaceMenu.FUEL_SLOT, 0, ClickType.PICKUP);
         // Return any remainder the fuel slot rejected; a no-op when the cursor
@@ -369,7 +371,7 @@ public final class SmeltProcess implements BotProcess {
         // the half that says which: still holding the ore = the click was refused.
         if (!adopt && in.isEmpty() && out.isEmpty() && !fuel.isEmpty() && waited > INTAKE_GRACE) {
             fail(s, "the input never went into the furnace (after " + waited + "t: " + slotSummary(menu)
-                    + "; the inventory still holds " + countInInventory(p, input) + " x " + shortId(input) + ")");
+                    + "; the inventory still holds " + countInInventory(p, input) + " x " + path(input) + ")");
             return;
         }
         // Cold empty furnace (adopt path found nothing inside): nothing will
@@ -377,7 +379,7 @@ public final class SmeltProcess implements BotProcess {
         // Adopt-only: the normal path's QUICK_MOVE round-trip can leave the
         // slots briefly empty right after LOAD and must not trip this.
         if (adopt && in.isEmpty() && out.isEmpty() && !fm.isLit()) {
-            fail(s, "missing " + count + " x " + shortId(input) + " (the furnace is empty too)");
+            fail(s, "missing " + count + " x " + path(input) + " (the furnace is empty too)");
             return;
         }
         if (++waited > smeltWaitBudget) {
@@ -404,7 +406,7 @@ public final class SmeltProcess implements BotProcess {
         // furnace). Result FIRST, so it gets whatever room there is.
         ItemStack produced = menu.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem();
         int made = produced.getCount();
-        String madeId = made > 0 ? shortId(idOf(produced)) : shortId(input);
+        String madeId = made > 0 ? path(itemId(produced)) : path(input);
         int freeBefore = freeSlots(p);
         for (int slot : new int[]{AbstractFurnaceMenu.RESULT_SLOT,
                                   AbstractFurnaceMenu.INGREDIENT_SLOT,
@@ -465,7 +467,7 @@ public final class SmeltProcess implements BotProcess {
             ItemStack stk = menu.slots.get(i).getItem();
             if (stk.isEmpty()) continue;
             if (fuelId != null) {
-                if (idOf(stk).equals(fuelId)) return i;
+                if (itemId(stk).equals(fuelId)) return i;
                 continue;
             }
             if (!AbstractFurnaceBlockEntity.isFuel(stk)) continue;
@@ -493,7 +495,7 @@ public final class SmeltProcess implements BotProcess {
 
     private static int countInInventory(Player p, String itemId) {
         int n = 0;
-        for (ItemStack s : p.getInventory().items) if (!s.isEmpty() && idOf(s).equals(itemId)) n += s.getCount();
+        for (ItemStack s : p.getInventory().items) if (!s.isEmpty() && itemId(s).equals(itemId)) n += s.getCount();
         return n;
     }
 
@@ -515,7 +517,7 @@ public final class SmeltProcess implements BotProcess {
     }
 
     private static String describe(ItemStack s) {
-        return s.isEmpty() ? "-" : s.getCount() + "×" + shortId(idOf(s));
+        return s.isEmpty() ? "-" : s.getCount() + "×" + path(itemId(s));
     }
 
     /** Vanilla burn ticks of one of these, through the same table {@link #pickFuelMenuSlot}
@@ -536,8 +538,6 @@ public final class SmeltProcess implements BotProcess {
         return PlaceNearby.place(a, hands, p,lvl, Items.FURNACE, Blocks.FURNACE, "smelt");
     }
 
-    private static String idOf(ItemStack s) { return BuiltInRegistries.ITEM.getKey(s.getItem()).toString(); }
-    private static String shortId(String id) { int i = id.indexOf(':'); return i >= 0 ? id.substring(i + 1) : id; }
 
     // Every failure that concerns the furnace says "furnace": wd.serverSmeltStationOpens reads
     // that word in smelt.lastError as "the furnace never opened or took its load".

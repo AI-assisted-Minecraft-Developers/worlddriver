@@ -1,8 +1,9 @@
 package net.magicterra.worlddriver.bot.combat;
 
+import static net.magicterra.worlddriver.bot.util.RegistryIds.typeId;
+
 import net.magicterra.worlddriver.api.methods.CommonTypes;
 import net.magicterra.worlddriver.api.methods.ObserveContracts;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -221,10 +222,6 @@ public final class ThreatScanner {
         if (charging) s += 0.20;
         if (swell > 0) s += swell * 0.5;
         return Math.max(0.0, Math.min(1.0, s));
-    }
-
-    private static String typeId(Entity e) {
-        return BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
     }
 
     // === verb serialization (mc.observe.threats) =============================

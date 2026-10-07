@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.WorldCell;
@@ -122,7 +123,7 @@ public final class WorldApi implements WorldCalls {
                 BlockEntity be = level.getBlockEntity(pos);
                 if (be != null) nbt = Optional.of(be.saveWithFullMetadata(level.registryAccess()).toString());
             }
-            return new BlockReading(p.pos(), ApiSupport.blockId(st), BlockQuery.state(st), light, nbt);
+            return new BlockReading(p.pos(), RegistryIds.blockId(st), BlockQuery.state(st), light, nbt);
         }, ctx);
     }
 

@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.pathfinder;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -47,13 +48,6 @@ public record ThreatSnapshot(List<Threat> threats) {
             return 16;
         }
 
-        /** A normalised registry name: {@code zombie} → {@code minecraft:zombie}. */
-        public static String qualify(String type) {
-            if (type == null) return "";
-            String t = type.trim();
-            return t.contains(":") ? t : "minecraft:" + t;
-        }
-
         /** True when {@code selector} names this observer by type ({@code skeleton},
          *  {@code minecraft:skeleton}), by name, or by numeric id. */
         public boolean matches(String selector) {
@@ -61,7 +55,7 @@ public record ThreatSnapshot(List<Threat> threats) {
             String s = selector.trim();
             if (s.chars().allMatch(Character::isDigit)) return Integer.parseInt(s) == id;
             if (s.equals(name)) return true;
-            return qualify(s).equals(type);
+            return RegistryIds.qualified(s).equals(type);
         }
     }
 }

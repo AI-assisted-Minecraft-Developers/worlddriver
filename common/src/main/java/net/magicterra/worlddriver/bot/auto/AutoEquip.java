@@ -1,8 +1,9 @@
 package net.magicterra.worlddriver.bot.auto;
 
+import static net.magicterra.worlddriver.bot.util.RegistryIds.itemId;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Inventory;
@@ -199,9 +200,5 @@ public final class AutoEquip {
         if (s.isEmpty() || !s.isDamageableItem() || s.getMaxDamage() <= 0) return false;
         double remain = 1.0 - (double) s.getDamageValue() / s.getMaxDamage();
         return remain < threshold;
-    }
-
-    private static String itemId(ItemStack s) {
-        return BuiltInRegistries.ITEM.getKey(s.getItem()).toString();
     }
 }

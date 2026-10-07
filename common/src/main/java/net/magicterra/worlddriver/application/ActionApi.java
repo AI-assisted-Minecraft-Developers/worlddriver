@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.contract.ApiException;
@@ -154,7 +155,7 @@ public final class ActionApi implements ActionCalls {
                 boolean isAir = type.equals("air") || type.equals("minecraft:air");
                 BlockState newState = isAir ? Blocks.AIR.defaultBlockState() : block("/cmd", type);
                 return api.requireServerHop().submit(() -> {
-                    String prev = ApiSupport.blockId(level.getBlockState(pos));
+                    String prev = RegistryIds.blockId(level.getBlockState(pos));
                     level.setBlockAndUpdate(pos, newState);
                     api.emit(isAir ? "block.break" : "block.place", pos, JsonValue.of(isAir ? prev : type));
                     return new CommandResult(true, Optional.of(Via.FAST_PATH), Optional.empty(), true, 1, List.of(),

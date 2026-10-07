@@ -155,7 +155,7 @@ public final class AcquireResolver {
             if (h.value().getType() != RecipeType.SMELTING) continue;
             ItemStack out = RecipeResolver.safeResult(h.value(), ra);
             if (out == null || out.isEmpty()) continue;
-            String outId = RecipeResolver.itemId(out);
+            String outId = RegistryIds.itemId(out);
             List<Ingredient> ings = h.value().getIngredients();
             if (ings.isEmpty() || ings.get(0).isEmpty()) continue;
             for (String in : RecipeResolver.acceptedIds(ings.get(0)))

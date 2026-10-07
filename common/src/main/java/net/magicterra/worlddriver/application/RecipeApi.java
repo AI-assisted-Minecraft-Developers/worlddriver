@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
@@ -92,7 +93,7 @@ public final class RecipeApi implements RecipeCalls {
                 ItemStack res = RecipeResolver.safeResult(r, ra);
                 if (res == null || res.isEmpty()) continue;   // special/dynamic recipe
                 boolean match;
-                if (result != null)          match = RecipeResolver.itemId(res).equals(result);
+                if (result != null)          match = RegistryIds.itemId(res).equals(result);
                 else if (ingredient != null) match = recipeUsesIngredient(r, ingredient);
                 else                         match = true;
                 if (!match) continue;
@@ -114,7 +115,7 @@ public final class RecipeApi implements RecipeCalls {
         boolean shaped = r instanceof ShapedRecipe;
         ShapedRecipe sr = shaped ? (ShapedRecipe) r : null;
         return new RecipeContracts.Recipe(h.id().toString(), serializerId(r), RecipeResolver.station(r),
-                new Stack(RecipeResolver.itemId(res), res.getCount()), ings,
+                new Stack(RegistryIds.itemId(res), res.getCount()), ings,
                 shaped ? Optional.of(sr.getWidth()) : Optional.empty(),
                 shaped ? Optional.of(sr.getHeight()) : Optional.empty(),
                 shaped ? Optional.of(shapedPattern(sr)) : Optional.empty());
@@ -232,7 +233,7 @@ public final class RecipeApi implements RecipeCalls {
         Set<String> want = new LinkedHashSet<>(accepts);
         for (var entry : BuiltInRegistries.ITEM.getTags().toList()) {
             Set<String> members = new LinkedHashSet<>();
-            entry.getSecond().forEach(h -> members.add(RecipeResolver.itemId(new ItemStack(h.value()))));
+            entry.getSecond().forEach(h -> members.add(BuiltInRegistries.ITEM.getKey(h.value()).toString()));
             if (members.equals(want)) return entry.getFirst().location().toString();
         }
         return null;

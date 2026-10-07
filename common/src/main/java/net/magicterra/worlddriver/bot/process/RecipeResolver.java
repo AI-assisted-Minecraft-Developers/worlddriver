@@ -1,7 +1,8 @@
 package net.magicterra.worlddriver.bot.process;
 
+import static net.magicterra.worlddriver.bot.util.RegistryIds.itemId;
+
 import net.minecraft.core.HolderLookup;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
@@ -337,10 +338,6 @@ public final class RecipeResolver {
         int n = 0;
         for (Ingredient ing : r.getIngredients()) if (!ing.isEmpty()) n++;
         return n <= 4;
-    }
-
-    public static String itemId(ItemStack s) {
-        return BuiltInRegistries.ITEM.getKey(s.getItem()).toString();
     }
 
     public static ItemStack safeResult(Recipe<?> r, HolderLookup.Provider ra) {

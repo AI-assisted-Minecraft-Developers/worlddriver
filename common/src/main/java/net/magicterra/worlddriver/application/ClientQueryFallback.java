@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.api.UnloadedAreaException;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
 import net.magicterra.worlddriver.api.methods.QueryContract.BlockRow;
@@ -85,7 +86,7 @@ final class ClientQueryFallback {
         if (!(scan.get("entities") instanceof List<?> rows)) {
             throw new IllegalStateException("mc.query client fallback: " + scan.getOrDefault("error", "no entity scan"));
         }
-        String wantType = f.type().map(QueryApi::namespaced).orElse(null);
+        String wantType = f.type().map(RegistryIds::qualified).orElse(null);
         List<EntityRow> out = new ArrayList<>();
         for (Object o : rows) {
             Map<String, Object> row = (Map<String, Object>) o;

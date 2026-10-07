@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.api.UnloadedAreaException;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.QueryContract;
@@ -89,7 +90,7 @@ final class BlockQuery {
                     BlockState st = chunk.getBlockState(bp);
                     if (st.isAir()) continue;
                     if (match != null && !match.test(st)) continue;
-                    out.add(row(Positions.position(bp), ApiSupport.blockId(st), state(st)));
+                    out.add(row(Positions.position(bp), RegistryIds.blockId(st), state(st)));
                 }
         return out;
     }

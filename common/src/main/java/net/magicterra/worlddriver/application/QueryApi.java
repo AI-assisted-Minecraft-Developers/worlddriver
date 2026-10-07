@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.api.methods.QueryCalls;
 import net.magicterra.worlddriver.api.methods.QueryCallsBinding;
 import net.magicterra.worlddriver.api.methods.QueryContract;
@@ -27,7 +28,6 @@ import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.client.ClientDriverApi;
 import net.magicterra.worlddriver.client.ClientHooks;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -73,13 +73,13 @@ final class QueryApi implements QueryCalls {
     /** Server thread: every entity overlapping the cube of cells around the center cell. */
     private static List<EntityRow> entities(ServerLevel level, BlockPos center, Entities q) {
         EntityFilter f = q.filter();
-        String wantType = f.type().map(QueryApi::namespaced).orElse(null);
+        String wantType = f.type().map(RegistryIds::qualified).orElse(null);
         List<EntityRow> out = new ArrayList<>();
         for (Entity e : level.getEntities((Entity) null, new AABB(center).inflate(f.inRadius()))) {
             if (f.isHostile().isPresent() && f.isHostile().get() != (e instanceof Enemy)) continue;
             // is_living keeps health-delta assertions free of dropped items and XP orbs.
             if (f.isLiving().isPresent() && f.isLiving().get() != (e instanceof LivingEntity)) continue;
-            String type = BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
+            String type = RegistryIds.typeId(e);
             if (wantType != null && !wantType.equals(type)) continue;
             LivingEntity le = e instanceof LivingEntity l ? l : null;
             BlockPos cell = e.blockPosition();
@@ -91,11 +91,6 @@ final class QueryApi implements QueryCalls {
                     Optional.empty(), Optional.empty(), Optional.empty()), q.select()));
         }
         return out;
-    }
-
-    /** An entity id as the filter compares it: a bare path is in the minecraft namespace. */
-    static String namespaced(String id) {
-        return id.contains(":") ? id : "minecraft:" + id;
     }
 
     /** {@code row} with only the selected fields; no selection keeps them all. */

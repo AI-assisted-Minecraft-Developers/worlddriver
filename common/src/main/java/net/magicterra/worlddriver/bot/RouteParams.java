@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 
 import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.DecodeContext;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
@@ -221,7 +222,7 @@ public final class RouteParams {
             cluster = new MobCluster.Cluster(c.count(), c.radius(), c.mode() == Enforcement.FORBID, c.penalty());
         }
         Set<String> types = new LinkedHashSet<>();
-        if (m != null) for (String t : m.types()) types.add(ThreatSnapshot.Threat.qualify(t));
+        if (m != null) for (String t : m.types()) types.add(RegistryIds.qualified(t.trim()));
         return new MobCluster(radius, ranged, penalty, cluster, types);
     }
 

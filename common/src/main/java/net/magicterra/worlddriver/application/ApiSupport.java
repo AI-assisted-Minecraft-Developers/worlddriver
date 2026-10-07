@@ -37,10 +37,6 @@ final class ApiSupport {
     /** Decode {x,y,z} | BlockPos | "x,y,z" to BlockPos; null if shape doesn't match. */
     static BlockPos readPos(Object o) { return Params.toPos(o); }
 
-    static String blockId(BlockState s) {
-        return BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString();
-    }
-
     /**
      * Resolve a block id to its default state, throwing on unknown ids instead of
      * silently falling back to AIR (the registry's default). Pre-fix, a typo or a

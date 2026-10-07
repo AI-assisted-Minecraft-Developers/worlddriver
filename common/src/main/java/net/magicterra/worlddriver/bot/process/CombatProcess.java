@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.process;
 
+import static net.magicterra.worlddriver.bot.util.RegistryIds.typeId;
+
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
@@ -10,7 +12,6 @@ import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -426,10 +427,6 @@ public final class CombatProcess implements BotProcess {
         float yaw = (float) (Math.toDegrees(Math.atan2(-dx, dz)));
         float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
         p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(pitch);
-    }
-
-    private static String typeId(Entity e) {
-        return BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
     }
 
     private void cleanup(Body a) {
