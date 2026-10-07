@@ -2743,10 +2743,14 @@ public final class BotConfig {
             }
             Path path = persistPath();
             if (path.getParent() != null) Files.createDirectories(path.getParent());
-            try (var w = Files.newBufferedWriter(path)) {
+            // Written beside the target and moved over it, so a crash mid-write leaves the old file, not half of one.
+            Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
+            try (var w = Files.newBufferedWriter(tmp)) {
                 props.store(w, "worlddriver bot settings — auto-saved by mc.bot.setting (<key>.default = compiled default"
                         + " at save time; a key equal to its default is a snapshot and follows the current build's default)");
             }
+            Files.move(tmp, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE);
             return null;
         } catch (Exception e) {
             LOG.warn("[config] save failed: {}", e.toString());
