@@ -23,8 +23,7 @@ advertised shape and the enforced shape are the same value. (This first shipped 
 kept beside an untyped route; the routes have since been replaced by typed handlers, and the separate
 schema tree and validator with them.)
 
-**Decoding happens at the single point where every caller converges.** `DriverApi.dispatch` hands each
-call to the `ApiRegistry`, which decodes the parameters with the method's input type before the handler
+**Decoding happens at the single point where every caller converges.** `ApiRegistry.dispatch` decodes the parameters with the method's input type before the handler
 runs, and therefore applies identically to the Model Context Protocol endpoint, the WebSocket endpoint,
 the script engine, and any internal caller.
 
@@ -67,8 +66,8 @@ unusable parameter documentation to every model client.
 - `api/contract/ApiType.java`, `ApiTypes.java`, `RecordType.java` — the types: decode with every issue
   collected, encode, JSON Schema and TypeScript from one object.
 - `api/contract/MethodSpec.java` — a method's description; `api/methods/` holds the core ones.
-- `api/ApiRegistry.java` — publishing batches, the namespace policy, and the decode–run–encode dispatch.
-- `api/DriverApi.java` — the single dispatch point every transport calls.
+- `api/registry/ApiRegistry.java` — publishing batches, the namespace policy, and the decode–run–encode
+  dispatch, the single point every transport calls.
 - `mcp/McpTools.java` — the `tools/list` view of the specs.
 
 The behaviour is asserted by the schema-validation scripts in

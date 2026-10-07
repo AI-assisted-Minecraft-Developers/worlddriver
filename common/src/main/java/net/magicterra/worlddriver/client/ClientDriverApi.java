@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import net.magicterra.worlddriver.api.ServerThreadHop;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockScan;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChatHistory;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChatHistoryParams;

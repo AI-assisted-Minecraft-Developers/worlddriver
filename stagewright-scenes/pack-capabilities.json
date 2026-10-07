@@ -3,7 +3,7 @@
 
   "name": "pack:driver",
   "mods": ["worlddriver"],
-  "classes": ["net.magicterra.worlddriver.api.DriverApi"],
-  "probe": "net.magicterra.worlddriver.api.DriverApi",
+  "classes": ["net.magicterra.worlddriver.api.registry.ApiRegistry"],
+  "probe": "net.magicterra.worlddriver.api.registry.ApiRegistry",
   "absent": "this descriptor names worlddriver, which is the mod whose own suite it ships in — absent here means the mod list never arrived"
 }

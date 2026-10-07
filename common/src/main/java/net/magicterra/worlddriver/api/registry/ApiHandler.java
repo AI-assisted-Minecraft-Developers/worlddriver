@@ -1,6 +1,8 @@
-package net.magicterra.worlddriver.api;
+package net.magicterra.worlddriver.api.registry;
 
 import java.util.concurrent.CompletionStage;
+
+import net.magicterra.worlddriver.api.call.CallContext;
 
 /**
  * The implementation of one method. It must not wait before returning its stage: work that takes

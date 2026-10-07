@@ -10,7 +10,6 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.client.ClientDriverApi;

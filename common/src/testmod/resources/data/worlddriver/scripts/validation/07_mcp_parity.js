@@ -1,5 +1,5 @@
 // Prove the MCP/HTTP path returns the same payload as in-JVM and NDJSON-TCP paths.
-// Same DriverApi.route() underneath; the only difference is JSON-RPC wrapping +
+// Same ApiRegistry.route() underneath; the only difference is JSON-RPC wrapping +
 // HTTP transport. If parity holds, an external MCP client (Claude, Inspector,
 // custom agent) will see identical data to what scripts see in-process.
 

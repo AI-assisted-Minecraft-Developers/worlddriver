@@ -24,8 +24,9 @@ recipe script system debug client screen test`. The implementations live outside
 
 Outside `api/`: the three transports (`rpc/`, `mcp/`, `script/`) use protocol, schema and the
 runtime, never the game layer, and so receive events already in their wire form. They subscribe
-through `EventFeed`, the half of the game layer's `DriverHost` that names no game type; the game
-side holds the driver by `DriverHost` (`WorldDriverCommon.host()`). `application/`
+through `registry/EventFeed`, which the game layer's `DriverHost` extends without naming a game
+type in it; they call through the `ApiRegistry` (`WorldDriverCommon.registry()`), and the game side
+holds the driver by `DriverHost` (`WorldDriverCommon.host()`). `application/`
 may use every layer and `bot/`. The bot's planning and movement core uses none of `api/`.
 
 One family lives elsewhere: `mc.bot.setting`'s `SettingsApi` and `SettingsContracts` stay in
@@ -61,10 +62,8 @@ implementation.
 
 `python3 scripts/check_architecture.py` checks every rule above against the sources: Minecraft
 only in the game layer, each `api/` layer using only what the table allows, no transport using the
-game layer. Two tables in the script carry the move while it is under way: `UNMOVED`, the classes
-not yet in their layer's subpackage, by the layer they belong to; and `PENDING`, the violations
-not yet removed. An entry in `PENDING` that no longer occurs fails the check, so the list only
-shrinks.
+game layer. Its `PENDING` table lists violations not yet removed; an entry that no longer occurs
+fails the check, so the list only shrinks.
 
 ## Changing a public type
 

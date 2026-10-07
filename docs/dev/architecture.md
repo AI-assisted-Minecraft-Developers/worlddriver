@@ -12,13 +12,13 @@ the mechanism and points at that file rather than restating it.
 
 ```
 MCP over HTTP  ─┐
-WebSocket RPC   ├─→  DriverApi.dispatch(method, params, context)  ─→  ApiRegistry  ─→  handler  ─→  game
+WebSocket RPC   ├─→  ApiRegistry.dispatch(method, params, context)  ─→  handler  ─→  game
 in-process Rhino┘
 ```
 
-`DriverApi.dispatch` is the only entry; `route(String, Map)` and `invokeJson` are blocking
-wrappers over it for in-JVM callers. It hands the call to the `ApiRegistry`, an immutable
-snapshot of every method. Each entry is an `ApiMethod`: a typed `MethodSpec` (name, parameter
+`ApiRegistry.dispatch` is the only entry; `route(String, Map)` and `invokeJson` are blocking
+wrappers over it for in-JVM callers. It runs the call against the registry's current snapshot,
+an immutable table of every method. Each entry is an `ApiMethod`: a typed `MethodSpec` (name, parameter
 and result types, effects, execution class, whether it may wait, whether it is listed) bound to
 its handler. The registry decodes the parameters with the spec's input type — strictly, so an
 unknown field, a wrong type or a value out of range is `invalid_params` with one issue
@@ -61,7 +61,7 @@ only the `self` half needs a client.
 |---|---|---|
 | MCP over HTTP | `mcp/McpServer` | `tools/call` → `api.dispatch(toolName, args, context)` |
 | WebSocket JSON-RPC | `rpc/RpcServer` | frame → `api.dispatch(method, params, context)` |
-| in-process Rhino | `script/ScriptCalls` | `Driver.invoke` → `DriverApi.invokeJson` → `dispatch` |
+| in-process Rhino | `script/ScriptCalls` | `Driver.invoke` → `api.invokeJson` → `dispatch` |
 
 `invokeJson` uses protocol `JsonCodec` for decoding around `dispatch`, answers an envelope
 `{result}` or `{error}`, and adds no behaviour.
@@ -89,7 +89,7 @@ behaviour is put into a transport handler, which is why the routing rule leans o
 
 ## Registering a verb
 
-There is one seam: **`api.registry().registerBatch(new ApiBatch(owner, id, methods))`**. A
+There is one seam: **`registry.registerBatch(new ApiBatch(owner, id, methods))`**. A
 batch is published whole or not at all, and each method in it is a `MethodSpec` bound to its
 handler, so a method can never exist without its types. The registry checks the whole batch
 first and throws `IllegalArgumentException`, publishing nothing, when
@@ -168,7 +168,7 @@ needs is a deadlock. Each transport already avoids that:
 A fourth caller has to do the same. User scripts and `ScriptEvents` callbacks are the callers
 that cannot: they run on the server thread. For them `ServerThreadGuard.refuseBlocking` makes
 the calls that would wait on that thread throw at once instead — `RpcClient`, `McpBridge`,
-`awaitMs`, a foreground `mc.wait.*` and `waitTicks`. `DriverApi.attachServer` installs its
+`awaitMs`, a foreground `mc.wait.*` and `waitTicks`. `DriverHost.attachServer` installs its
 same-thread check.
 
 ### The event ring buffer
@@ -184,7 +184,7 @@ told, so the cursor is best-effort.
 | Package | What it is |
 |---|---|
 | `protocol/` | JDK-only JSON codec, shared refusal code and request-size budget |
-| `api/` | `DriverApi` and the `ApiRegistry`, the typed contracts (`contract/`, `methods/`), thread contracts, and in `game/` the host hooks (`DriverHost`) and the conversions between game objects and API values; layered as [api-layers.md](api-layers.md) describes |
+| `api/` | the typed contracts (`contract/`, `methods/`), the `ApiRegistry` with its handler types (`registry/`), what one call carries (`call/`), the game-thread hops (`thread/`), and in `game/` the host hooks (`DriverHost`) and the conversions between game objects and API values; layered as [api-layers.md](api-layers.md) describes |
 | `application/` | `DriverApplication` and concrete world, observe, action, wait and body handlers |
 | `integration/debug/` | The `mc.debug.*` batch and its handlers; recorders/analysis stay in `bot/debug` |
 | `mcp/` | MCP HTTP server and `McpTools`, the `tools/list` view of the registry |
@@ -224,12 +224,13 @@ source budget, and a scene registered without a matching manifest entry fails th
 API dependencies on handlers and transports, core behaviour dependencies on API or tool registration,
 and any production dependency on StageWright. It also holds `api/` to its layers: only the game
 layer may name `net.minecraft`, the schema uses nothing above the protocol, method contracts use
-only the schema, `call/` and `registry/`, and no transport touches the game layer. Classes not yet
-moved into their layer's subpackage are listed in the script's `UNMOVED` table, and violations not
-yet removed in its `PENDING` table, which fails once an entry stops occurring. After assembly, `--jars` also checks that the test
+only the schema, `call/` and `registry/`, and no transport touches the game layer. A violation not
+yet removed is listed in the script's `PENDING` table, which fails once an entry stops occurring. After assembly, `--jars` also checks that the test
 framework and testmod fixture classes are absent from production artifacts.
 
-WorldDriverCommon creates `DriverApplication` and exposes only its `DriverApi` contract.
+WorldDriverCommon creates `DriverApplication` and exposes it twice: `registry()`, the
+`ApiRegistry` every caller goes through, and `host()`, the `DriverHost` the loader glue and the
+event emitters drive.
 `JsonCodec` writes only value trees (maps, lists, strings, booleans, finite numbers, null); a
 domain value reaches the wire through its contract's `ApiType.encode`, and an event's payload is a
 `JsonValue` from the moment it is emitted. `IntentProcess` and `DuskSecureChain` receive an event

@@ -88,7 +88,7 @@ public final class BotUtil {
     /**
      * Run {@code body} on the client thread and return its value.
      *
-     * <p>The same hop as {@code DriverApi.onServerThread} ({@link ClientHop} runs
+     * <p>The same hop as {@code DriverApplication.onServerThread} ({@link ClientHop} runs
      * {@code ServerThreadHop} over the client's executor), so it is identical to it in the
      * respects that are observable to a caller:
      * <ul>

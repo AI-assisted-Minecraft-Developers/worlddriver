@@ -31,40 +31,39 @@ class ApiProcessorTest {
 
     /** The driver types the processor and the generated code refer to, reduced to their signatures. */
     private static final Map<String, String> STUBS = Map.of(
-            "net.magicterra.worlddriver.api.Spec", """
-                    package net.magicterra.worlddriver.api;
+            "net.magicterra.worlddriver.api.registry.Spec", """
+                    package net.magicterra.worlddriver.api.registry;
                     @java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.SOURCE)
                     public @interface Spec { Class<?> value(); String spec() default "SPEC"; }
                     """,
-            "net.magicterra.worlddriver.api.CallContext", """
-                    package net.magicterra.worlddriver.api;
+            "net.magicterra.worlddriver.api.call.CallContext", """
+                    package net.magicterra.worlddriver.api.call;
                     public final class CallContext {}
                     """,
             "net.magicterra.worlddriver.api.contract.MethodSpec", """
                     package net.magicterra.worlddriver.api.contract;
                     public final class MethodSpec<P, R> {}
                     """,
-            "net.magicterra.worlddriver.api.ApiHandler", """
-                    package net.magicterra.worlddriver.api;
-                    public interface ApiHandler<P, R> { java.util.concurrent.CompletionStage<R> execute(P p, CallContext c); }
+            "net.magicterra.worlddriver.api.registry.ApiHandler", """
+                    package net.magicterra.worlddriver.api.registry;
+                    public interface ApiHandler<P, R> {
+                        java.util.concurrent.CompletionStage<R> execute(P p, net.magicterra.worlddriver.api.call.CallContext c);
+                    }
                     """,
-            "net.magicterra.worlddriver.api.ApiMethod", """
-                    package net.magicterra.worlddriver.api;
+            "net.magicterra.worlddriver.api.registry.ApiMethod", """
+                    package net.magicterra.worlddriver.api.registry;
                     public record ApiMethod<P, R>(net.magicterra.worlddriver.api.contract.MethodSpec<P, R> spec,
                                                   ApiHandler<P, R> handler) {}
                     """,
-            "net.magicterra.worlddriver.api.ApiRegistry", """
-                    package net.magicterra.worlddriver.api;
+            "net.magicterra.worlddriver.api.registry.ApiRegistry", """
+                    package net.magicterra.worlddriver.api.registry;
                     public final class ApiRegistry {
                         public <P, R> java.util.concurrent.CompletionStage<R> invoke(
-                                net.magicterra.worlddriver.api.contract.MethodSpec<P, R> spec, P p, CallContext c) {
+                                net.magicterra.worlddriver.api.contract.MethodSpec<P, R> spec, P p,
+                                net.magicterra.worlddriver.api.call.CallContext c) {
                             return null;
                         }
                     }
-                    """,
-            "net.magicterra.worlddriver.api.DriverApi", """
-                    package net.magicterra.worlddriver.api;
-                    public abstract class DriverApi { public final ApiRegistry registry() { return null; } }
                     """,
             "demo.Specs", """
                     package demo;
@@ -82,8 +81,8 @@ class ApiProcessorTest {
         return """
                 package demo;
                 import java.util.concurrent.CompletionStage;
-                import net.magicterra.worlddriver.api.Spec;
-                import net.magicterra.worlddriver.api.CallContext;
+                import net.magicterra.worlddriver.api.registry.Spec;
+                import net.magicterra.worlddriver.api.call.CallContext;
                 import demo.Specs.In;
                 import demo.Specs.Out;
                 public interface DemoApi {

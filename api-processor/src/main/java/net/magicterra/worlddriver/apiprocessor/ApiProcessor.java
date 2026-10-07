@@ -40,8 +40,9 @@ import com.google.auto.service.AutoService;
 @SupportedAnnotationTypes(ApiProcessor.SPEC)
 public final class ApiProcessor extends AbstractProcessor {
     static final String API_PACKAGE = "net.magicterra.worlddriver.api";
-    static final String SPEC = API_PACKAGE + ".Spec";
-    static final String CALL_CONTEXT = API_PACKAGE + ".CallContext";
+    static final String REGISTRY_PACKAGE = API_PACKAGE + ".registry";
+    static final String SPEC = REGISTRY_PACKAGE + ".Spec";
+    static final String CALL_CONTEXT = API_PACKAGE + ".call.CallContext";
     static final String METHOD_SPEC = API_PACKAGE + ".contract.MethodSpec";
     static final String COMPLETION_STAGE = "java.util.concurrent.CompletionStage";
 

@@ -2,9 +2,9 @@ package net.magicterra.worlddriver.api.methods.bot;
 
 import java.util.concurrent.CompletionStage;
 
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.Spec;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.registry.Spec;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ActionResponse;
 import net.magicterra.worlddriver.api.methods.wait.WaitApi;
 
@@ -14,8 +14,8 @@ import net.magicterra.worlddriver.api.methods.wait.WaitApi;
  */
 public interface BotTaskApi {
 
-    /** A caller that goes through {@code api}'s registry, checked as a request is. */
-    static BotTaskApi of(DriverApi api) { return BotTaskApiBinding.calls(api); }
+    /** A caller that goes through {@code registry}, checked as a request is. */
+    static BotTaskApi of(ApiRegistry registry) { return BotTaskApiBinding.calls(registry); }
 
     @Spec(GotoContracts.class)
     CompletionStage<ActionResponse<GotoContracts.Result>> goTo(GotoContracts.Params p, CallContext ctx);

@@ -939,7 +939,7 @@ public final class BotApiImpl implements BotApi {
         return userTask.cancelAction(ticket, reason) || combatChain.cancelAction(ticket);
     }
 
-    @Override public net.magicterra.worlddriver.api.ServerThreadHop clientHop() {
+    @Override public net.magicterra.worlddriver.api.thread.ServerThreadHop clientHop() {
         return net.magicterra.worlddriver.bot.util.ClientHop.hop();
     }
 

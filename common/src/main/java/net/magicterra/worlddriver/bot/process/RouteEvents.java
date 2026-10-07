@@ -32,7 +32,7 @@ import net.minecraft.core.BlockPos;
  */
 public final class RouteEvents {
 
-    /** Where events go; production passes {@code DriverApi.emitExternal}. */
+    /** Where events go; production passes {@code DriverHost.emitExternal}. */
     public interface Emitter {
         void emit(String type, BlockPos pos, Map<String, Object> data);
     }

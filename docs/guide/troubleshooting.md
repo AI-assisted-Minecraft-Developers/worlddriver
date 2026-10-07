@@ -64,7 +64,7 @@ is stale and the game is right.
 **Cause.** The two servers deliberately outlive a world. When a world closes, only the
 `MinecraftServer` reference is detached, so that the client-facing verbs and the script
 evaluator keep working at the title screen. Every world-dependent route then throws
-`DriverApi not attached to a server` until a new world loads, and the MCP layer turns that
+`DriverApplication not attached to a server` until a new world loads, and the MCP layer turns that
 into a tool error rather than a transport error.
 
 This is not a connection problem, which is why it is easy to misread: the transport is

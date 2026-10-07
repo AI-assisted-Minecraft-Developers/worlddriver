@@ -14,7 +14,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -31,7 +31,7 @@ import net.minecraft.world.phys.HitResult;
 /**
  * {@code /worlddriver mark <role> [label]} and {@code /worlddriver scene save|list|place|run|verdict|accept …}: each
  * one resolves what only a player in the world knows (the crosshair, the feet) and makes one
- * {@link DriverApi#route} call, so RPC, scripts and the chat bar all go through the same verb.
+ * {@link ApiRegistry#route} call, so RPC, scripts and the chat bar all go through the same verb.
  * The {@code worlddriver} literal merges into the driver's own root under Brigadier, and also
  * carries {@code /worlddriver test}, which {@link ValidationSuite} owns.
  */
@@ -266,7 +266,7 @@ public final class SceneCommands {
     }
 
     private static int route(CommandSourceStack src, String method, Map<String, Object> params, Reply reply) {
-        DriverApi api = WorldDriverCommon.api();
+        ApiRegistry api = WorldDriverCommon.registry();
         if (api == null) {
             src.sendFailure(Component.literal(method + ": the driver API is not up"));
             return 0;

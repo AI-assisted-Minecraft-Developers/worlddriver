@@ -20,7 +20,7 @@ class RouteUnknownMethodTest {
 
     @Test
     void aNullMethodIsAnUnknownMethodNotAnNpe() {
-        ApiException e = assertThrows(ApiException.class, () -> new DriverApplication().route(null, Map.of()),
+        ApiException e = assertThrows(ApiException.class, () -> new DriverApplication().registry().route(null, Map.of()),
                 "route(null) must fail with the typed error");
         assertEquals(ApiError.Code.METHOD_NOT_FOUND, e.error().code());
         assertTrue(e.getMessage().contains("no method"), e.getMessage());
@@ -29,7 +29,7 @@ class RouteUnknownMethodTest {
     @Test
     void anUnregisteredNameNamesItself() {
         ApiException e = assertThrows(ApiException.class,
-                () -> new DriverApplication().route("mc.nope", Map.of()));
+                () -> new DriverApplication().registry().route("mc.nope", Map.of()));
         assertEquals(ApiError.Code.METHOD_NOT_FOUND, e.error().code());
         assertTrue(e.getMessage().startsWith("unknown method: mc.nope"), e.getMessage());
     }

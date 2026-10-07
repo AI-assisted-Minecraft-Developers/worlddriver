@@ -1,8 +1,9 @@
 package net.magicterra.worlddriver.rpc;
 
+import static net.magicterra.worlddriver.application.TestTransports.rpc;
+
 import net.magicterra.worlddriver.application.DriverApplication;
 
-import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.contract.JsonValue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -25,7 +26,7 @@ class RpcBackpressureTest {
     @Test
     void aSubscriberThatStopsReadingIsDisconnected() throws Exception {
         DriverApplication api = new DriverApplication();
-        try (RpcServer server = new RpcServer(api, 0);
+        try (RpcServer server = rpc(api);
              WsTestClient client = new WsTestClient(server.port())) {
             client.roundTrip("{\"id\":1,\"method\":\"mc.events.subscribe\","
                     + "\"params\":{\"types\":[\"test.flood\"]}}");
@@ -51,7 +52,7 @@ class RpcBackpressureTest {
     void aSubscriberThatKeepsReadingStaysConnected() throws Exception {
         // Guards against "fixed the growth by closing everyone".
         DriverApplication api = new DriverApplication();
-        try (RpcServer server = new RpcServer(api, 0);
+        try (RpcServer server = rpc(api);
              WsTestClient client = new WsTestClient(server.port())) {
             client.roundTrip("{\"id\":1,\"method\":\"mc.events.subscribe\","
                     + "\"params\":{\"types\":[\"test.flood\"]}}");

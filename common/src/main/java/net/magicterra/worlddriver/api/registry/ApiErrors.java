@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.api;
+package net.magicterra.worlddriver.api.registry;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -9,6 +9,7 @@ import java.util.concurrent.ExecutionException;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.protocol.ServerBusyException;
 
 /** One translation from whatever a call threw to the {@link ApiError} every entry point reports. */

@@ -8,8 +8,8 @@ import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import static net.magicterra.worlddriver.api.game.Positions.position;
 
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.game.UnloadedAreaException;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.methods.client.ClientApi;
@@ -50,7 +50,7 @@ public final class WorldDriverQueryScenes implements SceneProvider {
     private static void clientBlocksNameUnloadedChunks(SceneContext ctx) {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.client.blocks is client-only — only an integrated server has its handler here");
-        if (WorldDriverCommon.api() == null) ctx.fail("DriverApi not initialized — was the mod loaded?");
+        if (WorldDriverCommon.registry() == null) ctx.fail("the API registry is not initialized — was the mod loaded?");
         ClientApi client = ClientApi.of(SceneCalls.api());
 
         // Asked, not awaited: the scan runs on the client thread, which this server thread may not wait for.
@@ -66,8 +66,8 @@ public final class WorldDriverQueryScenes implements SceneProvider {
     }
 
     private static void blocksStayInLoadedChunks(SceneContext ctx) {
-        DriverApi api = WorldDriverCommon.api();
-        if (api == null) ctx.fail("DriverApi not initialized — was the mod loaded?");
+        ApiRegistry api = WorldDriverCommon.registry();
+        if (api == null) ctx.fail("the API registry is not initialized — was the mod loaded?");
         QueryApi query = QueryApi.of(api);
         for (int d : new int[] {-MAX_RADIUS, MAX_RADIUS})
             if (ctx.outsideForcedChunks(d, d) || ctx.outsideForcedChunks(d, -d))
@@ -79,12 +79,12 @@ public final class WorldDriverQueryScenes implements SceneProvider {
         level.setBlockAndUpdate(probe, Blocks.GOLD_BLOCK.defaultBlockState());
         ctx.cleanup(() -> level.setBlockAndUpdate(probe, Blocks.AIR.defaultBlockState()));
 
-        QueryContracts.Rows rows = DriverApi.await(query.query(QueryContracts.Blocks.around(position(center),MAX_RADIUS)
+        QueryContracts.Rows rows = ApiRegistry.await(query.query(QueryContracts.Blocks.around(position(center),MAX_RADIUS)
                 .ofType("minecraft:gold_block"), CallContext.standalone()), QUERY_MS);
         ctx.check(rows instanceof BlockRows b && b.blocks().stream().anyMatch(r -> r.pos().equals(java.util.Optional.of(position(probe)))))
                 .as("A the documented maximum radius answers and finds the probe block").isTrue();
 
-        String refused = errorOf(() -> DriverApi.await(query.query(QueryContracts.Blocks.around(position(center),MAX_RADIUS + 1),
+        String refused = errorOf(() -> ApiRegistry.await(query.query(QueryContracts.Blocks.around(position(center),MAX_RADIUS + 1),
                 CallContext.standalone()), QUERY_MS));
         ctx.check(refused != null && refused.contains("0–" + MAX_RADIUS))
                 .as("B one past the maximum is refused and names the limit (" + refused + ")").isTrue();
@@ -96,7 +96,7 @@ public final class WorldDriverQueryScenes implements SceneProvider {
             ctx.skip("the far probe chunk [" + fcx + ", " + fcz + "] is already loaded");
         RuntimeException unloaded = null;
         try {
-            DriverApi.await(query.query(QueryContracts.Blocks.around(position(far),2), CallContext.standalone()), QUERY_MS);
+            ApiRegistry.await(query.query(QueryContracts.Blocks.around(position(far),2), CallContext.standalone()), QUERY_MS);
         } catch (RuntimeException e) {
             unloaded = e;
         }

@@ -8,10 +8,10 @@ import dev.latvian.mods.rhino.ScriptRuntime;
 import dev.latvian.mods.rhino.ScriptableObject;
 import dev.latvian.mods.rhino.Undefined;
 import dev.latvian.mods.rhino.util.ClassVisibilityContext;
-import net.magicterra.worlddriver.api.ApiTimers;
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.RunContext;
+import net.magicterra.worlddriver.api.call.ApiTimers;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.call.RunContext;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.Issue;
@@ -52,10 +52,10 @@ public final class ScriptEvaluator {
     /** Encoding a result can run the script's own getters, so it is budgeted too. */
     private static final long ENVELOPE_BUDGET_MS = 1000;
 
-    private final DriverApi api;
+    private final ApiRegistry api;
     private final ExecutorService executor;
 
-    public ScriptEvaluator(DriverApi api) {
+    public ScriptEvaluator(ApiRegistry api) {
         this.api = api;
         this.executor = Executors.newCachedThreadPool(Thread.ofPlatform().name("agent-script-eval-", 1).daemon().factory());
     }

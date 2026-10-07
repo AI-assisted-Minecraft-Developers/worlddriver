@@ -1,11 +1,10 @@
 package net.magicterra.worlddriver.integration.debug;
 
 import net.magicterra.worlddriver.bot.debug.*;
-import net.magicterra.worlddriver.api.ApiBatch;
-import net.magicterra.worlddriver.api.ApiHandlers;
-import net.magicterra.worlddriver.api.ApiRegistry;
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.registry.ApiBatch;
+import net.magicterra.worlddriver.api.registry.ApiHandlers;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.methods.debug.DebugApi;
 import net.magicterra.worlddriver.api.methods.debug.DebugApiBinding;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
@@ -31,7 +30,7 @@ public final class PathDebugBootstrap {
     private PathDebugBootstrap() {}
 
     /** Install the recorders once per JVM; publish the methods on {@code api}, which ignores a repeat. */
-    public static synchronized void init(DriverApi api) {
+    public static synchronized void init(ApiRegistry api) {
         Objects.requireNonNull(api, "WorldDriver API is not ready");
         if (!recordersInstalled) {
             PathDebugRecorder recorder = new PathDebugRecorder();
@@ -41,16 +40,16 @@ public final class PathDebugBootstrap {
             PathChartTool.bind(recorder);
             recordersInstalled = true;
         }
-        if (api.registry().registerBatch(batch(api))) {
+        if (api.registerBatch(batch(api))) {
             LOG.info("[pathdebug] initialised — mc.debug.pathChart + mc.debug.plan + mc.debug.replay ready (patch pathDebug on to capture)");
         }
     }
 
-    private static DriverApi batchApi;
+    private static ApiRegistry batchApi;
     private static ApiBatch batch;
 
     /** One batch object per API, so publishing it again is recognised as a retry. */
-    private static ApiBatch batch(DriverApi api) {
+    private static ApiBatch batch(ApiRegistry api) {
         if (api != batchApi) {
             batchApi = api;
             batch = new ApiBatch(ApiRegistry.CORE_OWNER, "debug", DebugApiBinding.methods(new Methods(api)));
@@ -58,7 +57,7 @@ public final class PathDebugBootstrap {
         return batch;
     }
 
-    private record Methods(DriverApi api) implements DebugApi {
+    private record Methods(ApiRegistry api) implements DebugApi {
         @Override
         public CompletionStage<DebugContracts.Chart> pathChart(DebugContracts.ChartParams p, CallContext ctx) {
             return ApiHandlers.run(() -> PathChartTool.render(p));

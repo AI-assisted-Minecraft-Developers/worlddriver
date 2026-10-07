@@ -1,8 +1,8 @@
 package net.magicterra.worlddriver.script;
 
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.CancellationToken;
-import net.magicterra.worlddriver.api.RunContext;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.call.CancellationToken;
+import net.magicterra.worlddriver.api.call.RunContext;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;

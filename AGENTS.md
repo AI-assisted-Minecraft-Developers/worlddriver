@@ -9,10 +9,10 @@ links to; read that page before arguing with the rule.
 
 - **Stack.** Minecraft 1.21.1, Architectury (one source tree, Fabric and NeoForge),
   JDK 21, the Gradle wrapper. Rhino is the embedded JavaScript engine.
-- **Source of truth.** `common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java`.
+- **Source of truth.** `common/src/main/java/net/magicterra/worlddriver/api/registry/ApiRegistry.java`.
   Every transport — the MCP HTTP server, the WebSocket RPC server, the in-process script
-  bridge — calls `DriverApi.dispatch(method, params, context)`, which runs the method's typed
-  contract from the `ApiRegistry`.
+  bridge — calls `ApiRegistry.dispatch(method, params, context)`, which runs the method's typed
+  contract.
 - **StageWright is a dependency, not a subproject.** It lives in `../stagewright` and is
   consumed only as published Maven artifacts, a CI build from the Nexus pinned by
   `stagewright_version` in `gradle.properties`; neither shipped jar contains a
@@ -27,7 +27,7 @@ links to; read that page before arguing with the rule.
 
 1. **Never put behaviour in a transport handler.** Register new core methods in `application/DriverApplication`; the MCP
    server, the RPC server and the script bridge only translate parameters and call
-   `DriverApi.dispatch(...)`. The parity scripts sample this rather than prove it — see
+   `ApiRegistry.dispatch(...)`. The parity scripts sample this rather than prove it — see
    `docs/dev/architecture.md`.
 2. **Writes, and reads that touch the level, go through the server thread** via
    `DriverApplication.onServerThread`. Never reach for `Level` from a transport thread.

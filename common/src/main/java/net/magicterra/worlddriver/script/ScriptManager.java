@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.script;
 
-import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.test.ScriptTest;
 import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.ContextFactory;
@@ -17,22 +17,22 @@ import java.util.stream.Stream;
  * Tiny Rhino-backed script manager.
  *
  * Canonical call form, used by all scripts:
- *   Driver.invoke(method, params)     // in-JVM via DriverApi.invokeJson
+ *   Driver.invoke(method, params)     // in-JVM via ApiRegistry.invokeJson
  *   Driver.invokeRpc(method, params)  // TCP round-trip via RpcBridge.callJson
  *
  * Both paths use the same JsonCodec, so results are byte-identical on success.
  */
 public final class ScriptManager {
-    private final DriverApi api;
+    private final ApiRegistry api;
     private final Path scriptsDir;
     private final RpcBridge bridge;     // may be null if RPC server isn't up
     private final McpBridge mcpBridge;  // may be null if MCP server isn't up
 
-    public ScriptManager(DriverApi api, Path scriptsDir, RpcBridge bridge) {
+    public ScriptManager(ApiRegistry api, Path scriptsDir, RpcBridge bridge) {
         this(api, scriptsDir, bridge, null);
     }
 
-    public ScriptManager(DriverApi api, Path scriptsDir, RpcBridge bridge, McpBridge mcpBridge) {
+    public ScriptManager(ApiRegistry api, Path scriptsDir, RpcBridge bridge, McpBridge mcpBridge) {
         this.api = api;
         this.scriptsDir = scriptsDir;
         this.bridge = bridge;

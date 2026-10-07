@@ -2,15 +2,15 @@ package net.magicterra.worlddriver.client;
 
 import net.magicterra.worlddriver.integration.debug.PathDebugBootstrap;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.GameThreads;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.thread.GameThreads;
 
 /**
- * Broker between the platform-neutral {@code DriverApi} and the platform-supplied
+ * Broker between the platform-neutral driver and the platform-supplied
  * {@link ClientDriverApi} implementation. Lives in common so the static reference
  * doesn't pull client classes — only the {@link #register} caller does.
  *
- * Registration order is loose: DriverApi looks up the impl at call time, so the
+ * Registration order is loose: the driver looks up the impl at call time, so the
  * client entrypoint may register before or after the integrated server starts.
  */
 public final class ClientHooks {
@@ -29,11 +29,11 @@ public final class ClientHooks {
         WorldDriverCommon.ensureRpcUp();
         WorldDriverCommon.ensureMcpUp();
         // Optional, strippable: wire the path-debug recorder + mc.debug.pathChart now that
-        // DriverApi exists. Removing the bot.debug package + this line fully strips the feature.
-        // ensureRpcUp logs and swallows a failed boot, leaving no api to register on.
-        DriverApi driver = WorldDriverCommon.api();
-        if (driver != null) PathDebugBootstrap.init(driver);
-        else WorldDriverCommon.LOG.warn("[{}] DriverApi not ready; mc.debug.* not registered", WorldDriverCommon.MOD_ID);
+        // the registry exists. Removing the bot.debug package + this line fully strips the feature.
+        // ensureRpcUp logs and swallows a failed boot, leaving no registry to register on.
+        ApiRegistry registry = WorldDriverCommon.registry();
+        if (registry != null) PathDebugBootstrap.init(registry);
+        else WorldDriverCommon.LOG.warn("[{}] driver not ready; mc.debug.* not registered", WorldDriverCommon.MOD_ID);
     }
 
     public static ClientDriverApi impl() {

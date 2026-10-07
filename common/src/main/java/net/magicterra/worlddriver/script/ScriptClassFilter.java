@@ -16,7 +16,7 @@ import dev.latvian.mods.rhino.util.ClassVisibilityContext;
  *
  * Approach is a denylist with explicit prefix matching. We could allowlist
  * instead, but our scripts intentionally lean on java.util.* / java.lang.*
- * shapes through wrapped DriverApi return values, so listing the dangerous
+ * shapes through wrapped API return values, so listing the dangerous
  * pieces is far less error-prone.
  */
 public final class ScriptClassFilter {

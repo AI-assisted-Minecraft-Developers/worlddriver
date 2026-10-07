@@ -1,10 +1,12 @@
 package net.magicterra.worlddriver.mcp;
 
-import net.magicterra.worlddriver.api.ApiErrors;
-import net.magicterra.worlddriver.api.ApiRegistry;
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.CancellationToken;
-import net.magicterra.worlddriver.api.WaitPermits;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.call.CancellationToken;
+import net.magicterra.worlddriver.api.call.WaitPermits;
+import net.magicterra.worlddriver.api.registry.ApiErrors;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.registry.EventFeed;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
 import net.magicterra.worlddriver.protocol.JsonRpcFrames;
@@ -15,9 +17,6 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import net.magicterra.worlddriver.BuildStamp;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.EventFeed;
-import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.rpc.EventNotifications;
 import net.magicterra.worlddriver.protocol.JsonCodec;
@@ -83,8 +82,8 @@ import java.util.concurrent.TimeUnit;
  *   initialize, notifications/initialized, tools/list, tools/call, ping,
  *   logging/setLevel; GET opens the server→client notification stream
  *
- * Routes tools/call -> DriverApi.route(method, params) — the same code path
- * in-JVM scripts use. Errors from DriverApi turn into MCP tool-error results
+ * Routes tools/call -> ApiRegistry.dispatch(method, params, context) — the same code path
+ * in-JVM scripts use. Errors from the registry turn into MCP tool-error results
  * (isError=true), not transport-level JSON-RPC errors, per MCP convention.
  */
 public final class McpServer implements Closeable {
@@ -97,7 +96,7 @@ public final class McpServer implements Closeable {
      *  {@link RequestLimits}. */
     private static final int MAX_BODY_BYTES = RequestLimits.MAX_REQUEST_BYTES;
 
-    private final DriverApi api;
+    private final ApiRegistry api;
     private final HttpServer http;
     private final ThreadPoolExecutor executor;
     private final Semaphore postSlots = new Semaphore(McpLimits.MCP_MAX_IN_FLIGHT);
@@ -106,11 +105,11 @@ public final class McpServer implements Closeable {
      *  {@link #onEvent} fans each driver event out to all of them. */
     private final Set<SseSubscriber> sse = ConcurrentHashMap.newKeySet();
 
-    public <A extends DriverApi & EventFeed> McpServer(A api, int port) throws IOException {
-        this(api, "127.0.0.1", port);
+    public McpServer(ApiRegistry api, EventFeed events, int port) throws IOException {
+        this(api, events, "127.0.0.1", port);
     }
 
-    public <A extends DriverApi & EventFeed> McpServer(A api, String bindHost, int port) throws IOException {
+    public McpServer(ApiRegistry api, EventFeed events, String bindHost, int port) throws IOException {
         this.api = api;
         this.http = HttpServer.create(new InetSocketAddress(bindHost, port), 0);
         this.http.createContext("/mcp", this::handle);
@@ -124,9 +123,9 @@ public final class McpServer implements Closeable {
         this.executor.allowCoreThreadTimeOut(true);
         this.http.setExecutor(executor);
         this.http.start();
-        api.addEventListener(this::onEvent);
+        events.addEventListener(this::onEvent);
         this.listed = listedNames();
-        api.registry().addListener(snapshot -> onRegistryChange());
+        api.addListener(snapshot -> onRegistryChange());
     }
 
     /** The tool names {@code tools/list} showed last; a publish that changes them is announced. */
@@ -377,7 +376,7 @@ public final class McpServer implements Closeable {
      *  driver events are domain signals the Agent asked for, and a client that defaults
      *  its filter to {@code warning} would otherwise silently drop every info/notice
      *  event. The frame still carries a severity {@code level} for display/ordering.
-     *  Runs on DriverApi's event-dispatch thread. */
+     *  Runs on the host's event-dispatch thread. */
     private void onEvent(EventContracts.Event e) {
         if (sse.isEmpty()) return;
         // No mutedEvents check here: the host applies the per-type opt-out before it
@@ -406,7 +405,7 @@ public final class McpServer implements Closeable {
         /**
          * Hand a frame to THIS subscriber's writer without touching the socket.
          *
-         * <p>{@link #onEvent} runs on DriverApi's single event-dispatch thread, shared
+         * <p>{@link #onEvent} runs on the host's single event-dispatch thread, shared
          * by every listener — the WebSocket transport included. Writing the socket
          * there (which is what this class used to do) meant one SSE client whose TCP
          * receive window had filled blocked that thread inside {@code os.write}, and

@@ -1,17 +1,16 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.ApiBatch;
-import net.magicterra.worlddriver.api.ApiMethod;
-import net.magicterra.worlddriver.api.ApiRegistry;
-import net.magicterra.worlddriver.api.ServerThreadGuard;
-import net.magicterra.worlddriver.api.ServerThreadHop;
-import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.api.game.DriverEvent;
 import net.magicterra.worlddriver.api.game.DriverHost;
 import net.magicterra.worlddriver.api.game.EventWire;
 import net.magicterra.worlddriver.api.game.WorldCell;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
+import net.magicterra.worlddriver.api.registry.ApiBatch;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.thread.ServerThreadGuard;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -39,10 +38,11 @@ import net.magicterra.worlddriver.client.ClientDriverApi;
  * {@link WaitService} handlers (each holding a back-reference to this instance for
  * the shared server handle, event ring buffer, and server-thread hop); pure
  * parse/encode helpers live in {@link ApiSupport}. Every transport dispatches
- * through the registry {@link DriverApi} holds, so a core method is wired here
+ * through the {@link ApiRegistry} this holds, so a core method is wired here
  * and in {@link CoreMethods}, nowhere else.
  */
-public final class DriverApplication extends DriverApi implements DriverHost {
+public final class DriverApplication implements DriverHost {
+    private final ApiRegistry registry = new ApiRegistry();
     public final SystemService system = new SystemService(this);
     public final ObserveService observe = new ObserveService(this);
     public final ActionService action = new ActionService(this);
@@ -76,8 +76,11 @@ public final class DriverApplication extends DriverApi implements DriverHost {
     private volatile ScriptHost scriptHost;
 
     public DriverApplication() {
-        registry().registerBatch(coreBatch);
+        registry.registerBatch(coreBatch);
     }
+
+    /** Every method this driver answers, core and published alike; what every transport dispatches through. */
+    public ApiRegistry registry() { return registry; }
 
     /** The core methods, published once; a retry would hand over this same object. */
     private final ApiBatch coreBatch = new ApiBatch(ApiRegistry.CORE_OWNER, "core", coreMethods());

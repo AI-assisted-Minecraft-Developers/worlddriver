@@ -2,9 +2,9 @@ package net.magicterra.worlddriver.api.methods.screen;
 
 import java.util.concurrent.CompletionStage;
 
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.Spec;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.registry.Spec;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientReply;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 
@@ -14,8 +14,8 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
  */
 public interface ScreenApi {
 
-    /** A caller that goes through {@code api}'s registry, checked as a request is. */
-    static ScreenApi of(DriverApi api) { return ScreenApiBinding.calls(api); }
+    /** A caller that goes through {@code registry}, checked as a request is. */
+    static ScreenApi of(ApiRegistry registry) { return ScreenApiBinding.calls(registry); }
 
     @Spec(value = ScreenContracts.class, spec = "INFO")
     CompletionStage<ScreenContracts.ScreenInfo> screenInfo(NoParams p, CallContext ctx);

@@ -8,7 +8,7 @@ import java.util.Optional;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.methods.control.ControlApi;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.BodyStatus;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.CancelParams;

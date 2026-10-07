@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.api;
+package net.magicterra.worlddriver.api.call;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;

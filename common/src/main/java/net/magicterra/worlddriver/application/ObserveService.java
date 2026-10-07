@@ -3,10 +3,10 @@ package net.magicterra.worlddriver.application;
 import static net.magicterra.worlddriver.api.game.Positions.blockPos;
 import static net.magicterra.worlddriver.api.game.Positions.position;
 
-import net.magicterra.worlddriver.api.ApiMethod;
-import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.game.Positions;
-import net.magicterra.worlddriver.api.ServerThreadHop;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts;

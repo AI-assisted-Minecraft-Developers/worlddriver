@@ -12,11 +12,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import net.magicterra.worlddriver.api.ApiHandlers;
+import net.magicterra.worlddriver.api.registry.ApiHandlers;
 import net.magicterra.worlddriver.api.game.Positions;
-import net.magicterra.worlddriver.api.ApiMethod;
-import net.magicterra.worlddriver.api.ApiTimers;
-import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.call.ApiTimers;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.game.EventWire;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
@@ -106,7 +106,7 @@ public final class EventService implements EventApi {
     private Watching watch(Watch w) {
         // Checked here because a poll swallows its failures (a world detach must not kill the watcher),
         // which would otherwise turn a bad target into a watcher that silently never fires.
-        Polling.Target target = Polling.target(api, w.invoke(), w.params());
+        Polling.Target target = Polling.target(api.registry(), w.invoke(), w.params());
         Watcher live = new Watcher(seq.incrementAndGet(), w, target);
         synchronized (watchers) {
             if (watchers.size() >= EventContracts.MAX_WATCHERS) {
@@ -169,7 +169,7 @@ public final class EventService implements EventApi {
 
         void poll() {
             if (stopped) return;
-            target.read(api, Math.min(WATCH_POLL_BUDGET_MS, spec.everyMs())).whenComplete((result, failure) -> {
+            target.read(api.registry(), Math.min(WATCH_POLL_BUDGET_MS, spec.everyMs())).whenComplete((result, failure) -> {
                 try {
                     // A failed read (no world right now) is not satisfied, and the watcher lives on.
                     Optional<JsonValue> value = failure == null ? Polling.field(result, spec.field()) : Optional.empty();

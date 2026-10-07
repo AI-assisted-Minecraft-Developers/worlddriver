@@ -27,9 +27,8 @@ import com.palantir.javapoet.WildcardTypeName;
 final class BindingWriter {
     private BindingWriter() {}
 
-    private static final ClassName REGISTRY = ClassName.get(ApiProcessor.API_PACKAGE, "ApiRegistry");
-    private static final ClassName DRIVER_API = ClassName.get(ApiProcessor.API_PACKAGE, "DriverApi");
-    private static final ClassName API_METHOD = ClassName.get(ApiProcessor.API_PACKAGE, "ApiMethod");
+    private static final ClassName REGISTRY = ClassName.get(ApiProcessor.REGISTRY_PACKAGE, "ApiRegistry");
+    private static final ClassName API_METHOD = ClassName.get(ApiProcessor.REGISTRY_PACKAGE, "ApiMethod");
     private static final ClassName GENERATED = ClassName.get("javax.annotation.processing", "Generated");
 
     static void write(ProcessingEnvironment env, TypeElement iface, List<ApiProcessor.Bound> bound) {
@@ -68,13 +67,6 @@ final class BindingWriter {
                         .addMember("value", "$S", ApiProcessor.class.getName()).build())
                 .addJavadoc("Generated from {@link $T}: its caller and its registry entries.\n", type)
                 .addMethod(MethodSpec.constructorBuilder().addModifiers(Modifier.PRIVATE).build())
-                .addMethod(MethodSpec.methodBuilder("calls")
-                        .addJavadoc("Calls through {@code api}'s registry: checked and refused as a request is.\n")
-                        .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-                        .returns(type)
-                        .addParameter(DRIVER_API, "api")
-                        .addStatement("return new Caller(api.registry())")
-                        .build())
                 .addMethod(MethodSpec.methodBuilder("calls")
                         .addJavadoc("Calls through {@code registry}: checked and refused as a request is.\n")
                         .addModifiers(Modifier.PUBLIC, Modifier.STATIC)

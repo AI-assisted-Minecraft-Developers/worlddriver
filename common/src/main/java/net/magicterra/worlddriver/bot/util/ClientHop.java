@@ -4,7 +4,7 @@ import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
-import net.magicterra.worlddriver.api.ServerThreadHop;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.minecraft.client.Minecraft;
 
 /**
@@ -18,7 +18,7 @@ public final class ClientHop {
     private ClientHop() {}
 
     /** Default budget for waiting on a client-tick hop. Mirrors
-     *  {@code DriverApi.SERVER_THREAD_TIMEOUT_MS} — the server-side twin of this
+     *  {@code DriverApplication.SERVER_THREAD_TIMEOUT_MS} — the server-side twin of this
      *  bridge — so a stalled client surfaces as a clear error instead of parking
      *  the calling RPC/MCP thread forever. Override with
      *  {@code -Dworlddriver.clientThreadTimeoutMs=N}. */

@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.api;
+package net.magicterra.worlddriver.api.call;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;

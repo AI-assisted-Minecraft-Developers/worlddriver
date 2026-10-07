@@ -960,7 +960,7 @@ public final class StageWrightCapabilityScenes implements SceneProvider {
 
         // Through the descriptor rather than through a hardcoded string — the whole point.
         Probe api = detected.probe();
-        s.expect(api.className()).as("what the probe bound").isEqualTo("net.magicterra.worlddriver.api.DriverApi");
+        s.expect(api.className()).as("what the probe bound").isEqualTo("net.magicterra.worlddriver.api.registry.ApiRegistry");
     }
 
     /**

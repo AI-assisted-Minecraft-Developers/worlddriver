@@ -11,10 +11,10 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import net.magicterra.worlddriver.api.ApiTimers;
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.CancellationToken;
-import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.call.ApiTimers;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.call.CancellationToken;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.DecodeContext;
@@ -41,7 +41,7 @@ final class Polling {
     /** A pollable method and the params it was checked with. */
     record Target(String method, Object params) {
         /** One read, given up after {@code budgetMs}; a pollable read has no effect to leave half done. */
-        CompletionStage<Object> read(DriverApi api, long budgetMs) {
+        CompletionStage<Object> read(ApiRegistry api, long budgetMs) {
             CallContext ctx = CallContext.withBudget(budgetMs, CancellationToken.NEVER, CallContext.SHARED_WAITS);
             return api.dispatch(method, params, ctx).toCompletableFuture().orTimeout(budgetMs, TimeUnit.MILLISECONDS);
         }
@@ -51,7 +51,7 @@ final class Polling {
      * {@code invoke} with {@code params}, checked before anything starts: the method must be pollable
      * (reported at {@code /invoke}) and the params must satisfy its own contract (at {@code /params/…}).
      */
-    static Target target(DriverApi api, String invoke, Optional<JsonValue> params) {
+    static Target target(ApiRegistry api, String invoke, Optional<JsonValue> params) {
         MethodSpec<?, ?> spec = api.spec(invoke);
         if (spec == null || !spec.pollable()) {
             String why = spec != null ? invoke + " is not pollable: it writes, waits or runs a script"

@@ -27,7 +27,7 @@ external MCP client            in-game JS script              external WS client
        │                              │                              │
        └──────────────────────────────┴──────────────────────────────┘
                                       ▼
-                                  DriverApi
+                                 ApiRegistry
                        (single source of truth, on the server thread)
                                       ▼
                           live ServerLevel + ClientHooks
@@ -172,7 +172,8 @@ curl -s http://127.0.0.1:$PORT/mcp \
 worlddriver/
 ├── common/              Architectury 共享源码：路由器、各传输层、Rhino 胶水
 │   ├── src/main/java/net/magicterra/worlddriver/
-│   │   ├── api/            DriverApi —— 路由器及其处理器
+│   │   ├── api/            方法契约，以及运行它们的路由器 ApiRegistry
+│   │   ├── application/    每个方法背后的处理器
 │   │   ├── bot/            客户端侧自主层：寻路器、walker、各进程
 │   │   ├── mcp/            MCP HTTP 服务器与工具目录
 │   │   ├── rpc/            Netty WebSocket 服务器与 JSON 编解码
@@ -193,7 +194,7 @@ worlddriver/
 
 ## 设计
 
-- **唯一路由器。** `DriverApi.route(method, params)` 是唯一一处真正运行游戏逻辑的函数。MCP
+- **唯一路由器。** `ApiRegistry.route(method, params)` 是唯一一处真正运行游戏逻辑的函数。MCP
   服务器、WebSocket 服务器与脚本桥各自只翻译参数并调用它，谁都不许自己持有行为。校验套件在
   一部分方法上比对三条传输的结果，所以这项保证来自唯一的路由器，而不是来自穷举比对。
 - **server 线程纪律。** 写操作，以及任何触及 level 的读操作，都派发到 server 线程上执行。脚本

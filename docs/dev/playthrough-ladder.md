@@ -71,7 +71,7 @@ server thread, so passing means the mechanism is right, not that the threading i
 Originating single-shot actions from the client tick chain is the coherent fix and is not built;
 the client-avatar accessor carries the open-defect note.
 
-**What the server thread must never do here is wait.** `DriverApi`'s `awaitMs` and the
+**What the server thread must never do here is wait.** A call's `awaitMs` and the
 client-hop helper both block the caller until the client answers, and the caller is the server
 thread the client is ticking against. Starts are fire-and-forget; completion is polled from the
 scene's own predicate.

@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import org.junit.jupiter.api.Test;
@@ -21,7 +21,7 @@ class BlockQueryCapTest {
 
     private static ApiError query(int radius) {
         try {
-            new DriverApplication().dispatch("mc.query", Map.of("q", "blocks", "filter", Map.of("in_radius", radius)),
+            new DriverApplication().registry().dispatch("mc.query", Map.of("q", "blocks", "filter", Map.of("in_radius", radius)),
                     CallContext.standalone()).toCompletableFuture().get();
         } catch (ExecutionException e) {
             return ((ApiException) e.getCause()).error();

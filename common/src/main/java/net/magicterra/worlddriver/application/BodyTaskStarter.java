@@ -10,10 +10,10 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import net.magicterra.worlddriver.api.ApiTimers;
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.ServerThreadHop;
-import net.magicterra.worlddriver.api.WaitPermits;
+import net.magicterra.worlddriver.api.call.ApiTimers;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.call.WaitPermits;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.action.ActionRegistry;
 import net.magicterra.worlddriver.api.contract.ApiError;

@@ -3,8 +3,8 @@ package net.magicterra.worlddriver.script;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import net.magicterra.worlddriver.api.ApiErrors;
-import net.magicterra.worlddriver.api.ServerThreadGuard;
+import net.magicterra.worlddriver.api.registry.ApiErrors;
+import net.magicterra.worlddriver.api.thread.ServerThreadGuard;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.magicterra.worlddriver.rpc.RpcCallException;
@@ -13,7 +13,7 @@ import net.magicterra.worlddriver.rpc.RpcClient;
 /**
  * The body of {@code Driver.system.rpcRoundtrip(method, params)}: the same call made over a fresh
  * WebSocket connection, for the transport-parity checks. Its answer is the envelope
- * {@code DriverApi.invokeJson} gives, so the script throws the same {@code DriverApiError} with the
+ * {@code ApiRegistry.invokeJson} gives, so the script throws the same {@code DriverApiError} with the
  * same code and issues whichever way the call went.
  */
 public final class RpcBridge {

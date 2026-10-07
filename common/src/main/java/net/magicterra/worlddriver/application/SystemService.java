@@ -8,10 +8,10 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledFuture;
 
 import net.magicterra.worlddriver.BuildStamp;
-import net.magicterra.worlddriver.api.ApiMethod;
-import net.magicterra.worlddriver.api.ApiTimers;
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.WaitPermits;
+import net.magicterra.worlddriver.api.call.ApiTimers;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.call.WaitPermits;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;

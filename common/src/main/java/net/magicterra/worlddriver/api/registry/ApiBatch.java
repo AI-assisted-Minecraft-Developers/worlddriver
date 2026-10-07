@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.api;
+package net.magicterra.worlddriver.api.registry;
 
 import java.util.List;
 import java.util.Objects;

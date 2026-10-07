@@ -1,9 +1,11 @@
 package net.magicterra.worlddriver.mcp;
 
+import static net.magicterra.worlddriver.application.TestTransports.mcp;
+
 import net.magicterra.worlddriver.application.DriverApplication;
 
-import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.ProbeMethods;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -30,21 +32,21 @@ class McpHttpTest {
     void aTextPlainPostIsRefusedWith415() throws Exception {
         // text/plain is a CORS "simple" content type: a page can send it with no preflight,
         // so accepting it would let a no-cors fetch reach tools/call.
-        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
+        try (McpServer server = mcp(new DriverApplication())) {
             assertEquals(415, post(server.port(), "text/plain", PING).statusCode());
         }
     }
 
     @Test
     void aPostWithoutContentTypeIsRefusedWith415() throws Exception {
-        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
+        try (McpServer server = mcp(new DriverApplication())) {
             assertEquals(415, post(server.port(), null, PING).statusCode());
         }
     }
 
     @Test
     void jsonWithParametersIsAccepted() throws Exception {
-        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
+        try (McpServer server = mcp(new DriverApplication())) {
             assertEquals(200, post(server.port(), "application/json", PING).statusCode());
             assertEquals(200, post(server.port(), "Application/JSON; charset=utf-8", PING).statusCode());
         }
@@ -53,7 +55,7 @@ class McpHttpTest {
     @Test
     void everyIdLessMessageIsANotificationAnswered202WithNoBody() throws Exception {
         // spec: 2025-06-18 §Transports — an accepted notification MUST get 202 and no bot.
-        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
+        try (McpServer server = mcp(new DriverApplication())) {
             for (String body : new String[] {
                     "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}",
                     "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":3}}",
@@ -68,10 +70,10 @@ class McpHttpTest {
 
     @Test
     void anIdLessToolCallIsAcknowledgedButNotRun() throws Exception {
-        DriverApplication api = new DriverApplication();
+        DriverApplication app = new DriverApplication();
         AtomicInteger calls = new AtomicInteger();
-        ProbeMethods.counting(api, "test.probe", calls);
-        try (McpServer server = new McpServer(api, 0)) {
+        ProbeMethods.counting(app.registry(), "test.probe", calls);
+        try (McpServer server = mcp(app)) {
             HttpResponse<String> r = post(server.port(), "application/json",
                     "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"test.probe\"}}");
             assertEquals(202, r.statusCode());
@@ -85,8 +87,9 @@ class McpHttpTest {
 
     @Test
     void aBatchThatChangesTheToolListIsAnnouncedOnTheOpenStream() throws Exception {
-        DriverApplication api = new DriverApplication();
-        try (McpServer server = new McpServer(api, 0)) {
+        DriverApplication app = new DriverApplication();
+        ApiRegistry api = app.registry();
+        try (McpServer server = mcp(app)) {
             HttpRequest get = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + "/mcp"))
                     .header("Accept", "text/event-stream").GET().build();
             BlockingQueue<String> lines = new LinkedBlockingQueue<>();
@@ -116,7 +119,7 @@ class McpHttpTest {
 
     @Test
     void aNonStringMethodIsAnInvalidRequest() throws Exception {
-        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
+        try (McpServer server = mcp(new DriverApplication())) {
             HttpResponse<String> r = post(server.port(), "application/json",
                     "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":42}");
             assertEquals(400, r.statusCode(), r.body());

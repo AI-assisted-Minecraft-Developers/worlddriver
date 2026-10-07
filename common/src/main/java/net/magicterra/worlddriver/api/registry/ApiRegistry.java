@@ -1,32 +1,41 @@
-package net.magicterra.worlddriver.api;
+package net.magicterra.worlddriver.api.registry;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.api.thread.GameThreads;
+import net.magicterra.worlddriver.protocol.JsonCodec;
 
 /**
  * Every callable method, as one immutable {@link Snapshot} replaced whole by each published batch:
  * a reader sees a batch entirely or not at all, and the name, types, handler and owner of a method
- * always come from the same entry.
+ * always come from the same entry. It is the single validated dispatch point every transport shares,
+ * and knows no transport implementation or concrete business handler.
  *
  * <p>Namespace policy: {@code mc.*} belongs to the {@code worlddriver} owner, except {@code mc.test.*},
  * which belongs to {@code stagewright}; anyone else registers {@code <modid>.<verb>} outside {@code mc.}.
  * A name taken by another batch is a conflict for the whole new batch: nobody wins by registering last.
+ * A hidden spec is left out of the MCP tool list but stays callable by name on every transport.
  */
 public final class ApiRegistry {
     public static final String CORE_OWNER = "worlddriver";
@@ -118,6 +127,17 @@ public final class ApiRegistry {
         return name == null ? null : snapshot.methods().get(name);
     }
 
+    /** Every callable method name, in registration order. */
+    public Set<String> methods() {
+        return Collections.unmodifiableSet(new LinkedHashSet<>(snapshot.names()));
+    }
+
+    /** The spec of {@code method}, or null for an unknown one. */
+    public MethodSpec<?, ?> spec(String method) {
+        ApiMethod<?, ?> m = method(method);
+        return m == null ? null : m.spec();
+    }
+
     /**
      * Decode {@code paramsTree} with the method's input type, run its handler, and encode the result
      * with its output type. {@code paramsTree} null means the caller sent no parameters, which reads as
@@ -161,6 +181,70 @@ public final class ApiRegistry {
         }
     }
 
+    /**
+     * Run {@code method} and wait for its result on this thread: for code inside this JVM that holds
+     * a Map (wait conditions, watchers, replay). Throws the call's {@link ApiException}. On a game thread
+     * a call that would wait is refused before it starts, as {@link #invokeJson} refuses it.
+     */
+    public Object route(String method, Map<String, Object> params) {
+        CallContext ctx = GameThreads.onGameThread() ? CallContext.standalone().onGameThread() : CallContext.standalone();
+        return await(dispatch(method, params, ctx), CallContext.SERVER_CAP_MS);
+    }
+
+    /** Wait at most {@code budgetMs} for {@code stage}, unwrapping its failure into the {@link ApiException}. */
+    public static <T> T await(CompletionStage<T> stage, long budgetMs) {
+        try {
+            return stage.toCompletableFuture().get(Math.max(1, budgetMs), TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
+            throw asApi(e.getCause() == null ? e : e.getCause());
+        } catch (TimeoutException e) {
+            stage.toCompletableFuture().cancel(false);
+            throw new ApiException(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
+                    "no result within " + budgetMs + "ms; the call may still take effect", List.of(),
+                    ApiError.Execution.UNKNOWN));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ApiException(new ApiError(ApiError.Code.OUTCOME_UNKNOWN,
+                    "interrupted while waiting; the call may still take effect", List.of(), ApiError.Execution.UNKNOWN));
+        }
+    }
+
+    /**
+     * The in-JVM script entry: parameters as JSON text ({@code null} for none), answer as an envelope
+     * {@code {"result":…}} or {@code {"error":ApiError}} so a script sees the error's code and issues
+     * rather than a Java exception's message.
+     *
+     * <p>On a game thread the call may not wait: a call that would is refused before it starts,
+     * because that thread is what it would be waiting for.
+     */
+    public String invokeJson(String method, String paramsJson) {
+        return invokeJson(method, paramsJson, CallContext.standalone());
+    }
+
+    /** {@link #invokeJson(String, String)} as part of {@code caller}: its run, its deadline, its cancellation. */
+    public String invokeJson(String method, String paramsJson, CallContext caller) {
+        Map<String, Object> envelope = new LinkedHashMap<>();
+        try {
+            Object params = paramsJson == null ? null : JsonCodec.decode(paramsJson);
+            boolean game = GameThreads.onGameThread();
+            CallContext ctx = game ? caller.onGameThread() : caller;
+            CompletionStage<Object> stage = dispatch(method, params, ctx);
+            CompletableFuture<Object> f = stage.toCompletableFuture();
+            if (game && !f.isDone()) {
+                f.cancel(false);
+                throw new ApiException(new ApiError(ApiError.Code.INTERNAL_ERROR, method
+                        + " did not finish synchronously on a game thread; it may still take effect", List.of(),
+                        ApiError.Execution.UNKNOWN));
+            }
+            envelope.put("result", await(f, Math.max(1, ctx.remainingMillis())));
+        } catch (JsonCodec.JsonSyntaxException bad) {
+            envelope.put("error", ApiErrors.toTree(ApiError.of(ApiError.Code.INVALID_PARAMS, "params are not JSON: " + bad.getMessage())));
+        } catch (Throwable t) {
+            envelope.put("error", ApiErrors.toTree(asApi(t).error()));
+        }
+        return JsonCodec.encode(envelope);
+    }
+
     /** {@code t} as an {@link ApiException}, translated once by {@link ApiErrors}. */
     public static ApiException asApi(Throwable t) {
         Throwable c = ApiErrors.unwrap(t);
@@ -169,7 +253,7 @@ public final class ApiRegistry {
     }
 
     /**
-     * A Java caller's typed call, which every generated {@link Api} binding makes: the parameters get
+     * A Java caller's typed call, which every generated {@link Spec} binding makes: the parameters get
      * the same checks a request does, and the result is not encoded. The caller's context is passed
      * through as {@link #dispatch} passes it: the call answers a stage rather than holding its thread,
      * so a game thread may make it, and a hop to the other game thread is queued, not refused.

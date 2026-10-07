@@ -2,15 +2,15 @@ package net.magicterra.worlddriver.api.methods.action;
 
 import java.util.concurrent.CompletionStage;
 
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.Spec;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.registry.Spec;
 
 /** The {@code mc.action.*} methods: world edits and commands made directly, with no body doing them. */
 public interface ActionApi {
 
-    /** A caller that goes through {@code api}'s registry, checked as a request is. */
-    static ActionApi of(DriverApi api) { return ActionApiBinding.calls(api); }
+    /** A caller that goes through {@code registry}, checked as a request is. */
+    static ActionApi of(ApiRegistry registry) { return ActionApiBinding.calls(registry); }
 
     @Spec(value = ActionContracts.class, spec = "RUN_COMMAND")
     CompletionStage<ActionContracts.CommandResult> runCommand(ActionContracts.CommandParams p, CallContext ctx);

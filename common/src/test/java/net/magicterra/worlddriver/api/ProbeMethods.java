@@ -8,6 +8,12 @@ import net.magicterra.worlddriver.api.contract.ApiField;
 import net.magicterra.worlddriver.api.contract.ApiTypes;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
 import net.magicterra.worlddriver.api.contract.RecordType;
+import net.magicterra.worlddriver.api.registry.ApiBatch;
+import net.magicterra.worlddriver.api.registry.ApiHandler;
+import net.magicterra.worlddriver.api.registry.ApiHandlers;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.application.DriverApplication;
 
 /**
  * Two methods a JVM test can call without a world: {@code probe.echo}, a pollable read answering
@@ -39,34 +45,40 @@ public final class ProbeMethods {
     private static final RecordType<None> NONE = ApiTypes.record("ProbeNone", None::new);
 
     /** Publish {@code name} on {@code api}: no parameters, and every call fails with what {@code failure} makes. */
-    public static void failing(DriverApi api, String name, Supplier<? extends RuntimeException> failure) {
+    public static void failing(ApiRegistry api, String name, Supplier<? extends RuntimeException> failure) {
         publish(api, name, ApiHandlers.immediate((None p) -> { throw failure.get(); }));
     }
 
     /** Publish {@code name} on {@code api}: no parameters; each call counts into {@code calls} and answers the count. */
-    public static void counting(DriverApi api, String name, AtomicInteger calls) {
+    public static void counting(ApiRegistry api, String name, AtomicInteger calls) {
         publish(api, name, ApiHandlers.immediate((None p) -> new Echo(calls.incrementAndGet())));
     }
 
     /** Publish {@code name} on {@code api} as its own batch: no parameters, answers {@code {value: 1}}. */
-    public static ApiBatch publish(DriverApi api, String name, boolean hidden) {
+    public static ApiBatch publish(ApiRegistry api, String name, boolean hidden) {
         return publish(api, name, hidden, ApiHandlers.immediate((None p) -> new Echo(1)));
     }
 
-    private static void publish(DriverApi api, String name, ApiHandler<None, Echo> handler) {
+    private static void publish(ApiRegistry api, String name, ApiHandler<None, Echo> handler) {
         publish(api, name, false, handler);
     }
 
-    private static ApiBatch publish(DriverApi api, String name, boolean hidden, ApiHandler<None, Echo> handler) {
+    private static ApiBatch publish(ApiRegistry api, String name, boolean hidden, ApiHandler<None, Echo> handler) {
         MethodSpec<None, Echo> spec = MethodSpec.of(name, NONE, ECHO_TYPE, "A test probe.");
         ApiBatch batch = new ApiBatch("probe", name, List.of(new ApiMethod<>(hidden ? spec.hidden() : spec, handler)));
-        api.registry().registerBatch(batch);
+        api.registerBatch(batch);
         return batch;
     }
 
+    /** {@code app} with both probes registered. */
+    public static DriverApplication install(DriverApplication app) {
+        install(app.registry());
+        return app;
+    }
+
     /** {@code api} with both probes registered. */
-    public static <T extends DriverApi> T install(T api) {
-        api.registry().registerBatch(new ApiBatch("probe", "probe", List.of(
+    public static ApiRegistry install(ApiRegistry api) {
+        api.registerBatch(new ApiBatch("probe", "probe", List.of(
                 new ApiMethod<>(ECHO, ApiHandlers.immediate(p -> p)),
                 new ApiMethod<>(SLOW, ApiHandlers.immediate(p -> {
                     try {

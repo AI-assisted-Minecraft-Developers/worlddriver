@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.rpc;
 
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.application.DriverApplication;
+import net.magicterra.worlddriver.application.TestTransports;
 
 import net.magicterra.worlddriver.protocol.ServerBusyException;
 
@@ -39,7 +40,7 @@ class RpcConcurrencyTest {
     void requestsPastThePerConnectionCapAreRefusedWithABusyError() throws Exception {
         int cap = TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION;
         int extra = 4;
-        try (RpcServer server = new RpcServer(app(), 0);
+        try (RpcServer server = TestTransports.rpc(app());
              WsTestClient client = new WsTestClient(server.port())) {
             for (int i = 1; i <= cap + extra; i++) client.send(slowWait(i, 4_000));
 
@@ -70,7 +71,7 @@ class RpcConcurrencyTest {
     @Test
     void waitsGiveTheirWorkerBack() throws Exception {
         int waits = TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION + 4;
-        try (RpcServer server = new RpcServer(app(), 0);
+        try (RpcServer server = TestTransports.rpc(app());
              WsTestClient client = new WsTestClient(server.port())) {
             for (int i = 1; i <= waits; i++) {
                 client.send("{\"id\":" + i + ",\"method\":\"mc.wait.condition\",\"params\":{\"invoke\":\"probe.echo\","
@@ -94,7 +95,7 @@ class RpcConcurrencyTest {
     @Test
     void theCapIsPerConnection() throws Exception {
         int cap = TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION;
-        try (RpcServer server = new RpcServer(app(), 0);
+        try (RpcServer server = TestTransports.rpc(app());
              WsTestClient busy = new WsTestClient(server.port());
              WsTestClient other = new WsTestClient(server.port())) {
             for (int i = 1; i <= cap; i++) busy.send(slowWait(i, 3_000));

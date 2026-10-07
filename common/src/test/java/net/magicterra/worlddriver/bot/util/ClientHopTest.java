@@ -10,7 +10,7 @@ import java.util.Queue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import net.magicterra.worlddriver.api.ServerThreadHop;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 

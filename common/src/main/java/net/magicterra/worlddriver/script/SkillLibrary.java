@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.script;
 
-import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;

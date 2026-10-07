@@ -3,7 +3,6 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Attack;
 import net.magicterra.worlddriver.application.PlayerSnapshots;
 
-import net.magicterra.worlddriver.application.DriverApplication;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -14,7 +13,6 @@ import java.util.UUID;
 import com.mojang.authlib.GameProfile;
 import dev.architectury.event.events.common.PlayerEvent;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.ElytraProcess;
 import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
@@ -248,7 +246,6 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         // Let the weapon SWAP land before timing anything (gap #47 empties the bar on swap).
         driver.avatar().step();
 
-        DriverApi api = new DriverApplication();
         fp.resetAttackStrengthTicker();               // just swung: bar empty
         Attack a0 = attackOf(fp);
         WorldDriverCommon.LOG.info("[wd.serverAttackCooldown] swordFresh={}", a0);

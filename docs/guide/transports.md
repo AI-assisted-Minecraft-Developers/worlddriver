@@ -1,7 +1,7 @@
 # The three transports
 
 WorldDriver exposes the running game through three doors. All three end in the same place,
-`DriverApi.route(method, params)`, so a verb behaves identically whichever door it came
+`ApiRegistry.route(method, params)`, so a verb behaves identically whichever door it came
 through and a result is structurally the same across them.
 
 ```
@@ -12,7 +12,7 @@ external MCP client            in-game JS script              external WS client
        │                              │                              │
        └──────────────────────────────┴──────────────────────────────┘
                                       ▼
-                                  DriverApi
+                                 ApiRegistry
 ```
 
 This page is the map: which door to use, how to open it, what each one costs you, and what
@@ -191,7 +191,7 @@ handful of high-attention types such as `threat.appeared` and `player.hurt` map 
 `warning`, `entity.death` maps to `notice`, and everything else to `info`. The driver
 forwards every event that is not muted regardless of the label. `mc.events.unsubscribe`,
 which takes no params, stops the stream and answers `{"subscribed": false}`. The single push filter is the per-type opt-out in the bot settings, which
-`DriverApi` applies before any transport sees the event.
+the driver applies before any transport sees the event.
 
 Subscription is transport state, not a game verb: it controls which frames this socket
 receives and is handled in the WebSocket layer rather than through the router.

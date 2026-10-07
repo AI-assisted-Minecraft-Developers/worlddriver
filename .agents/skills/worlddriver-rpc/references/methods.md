@@ -2,7 +2,7 @@
 
 Every method the JSON-RPC websocket (`ws://127.0.0.1:39801/rpc`) accepts. Most
 are also MCP tools (`mcp__worlddriver__*`) with `.`→`_` names (`mc.bot.goto` ⇄
-`mc_bot_goto`); both go through one dispatcher (`DriverApi.dispatch` → the `ApiRegistry`), so
+`mc_bot_goto`); both go through one dispatcher (`ApiRegistry.dispatch`), so
 behaviour is identical. Every method is a typed contract (a `MethodSpec`: parameter and reply
 types, description, effects) published in a batch by its owner, and which batches are published
 depends on what is loaded, so this page gives no total to go stale: the core batch

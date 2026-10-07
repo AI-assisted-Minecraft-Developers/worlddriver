@@ -2,9 +2,9 @@ package net.magicterra.worlddriver.integration.debug;
 
 import net.magicterra.worlddriver.bot.debug.*;
 
-import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.game.WorldCell;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
@@ -51,7 +51,7 @@ final class ReplayTool {
 
     private ReplayTool() {}
 
-    static CompletionStage<ReplayReply> replay(DriverApi api, ReplayParams p, CallContext ctx) {
+    static CompletionStage<ReplayReply> replay(ApiRegistry api, ReplayParams p, CallContext ctx) {
         ctx.requireBlockingAllowed("mc.debug.replay");
         if (!(BotHooks.impl() instanceof BotApiImpl bot)) {
             throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "replay drives this client's player, and there is none");
@@ -147,11 +147,11 @@ final class ReplayTool {
     }
 
     /** The server's half: restore the envelope and teleport to the start's block centre. Off the game threads. */
-    private static int prepare(DriverApi api, List<WorldCell> cells, BlockPos start, CallContext ctx) {
+    private static int prepare(ApiRegistry api, List<WorldCell> cells, BlockPos start, CallContext ctx) {
         int restored = cells.isEmpty() ? 0 : WorldDriverCommon.host().restoreCellsOnServer(cells);
         String tp = String.format(Locale.ROOT, "tp %.1f %d %.1f", start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
         try {
-            DriverApi.await(api.dispatch("mc.action.runCommand", Map.of("cmd", tp), ctx), ctx.remainingMillis());
+            ApiRegistry.await(api.dispatch("mc.action.runCommand", Map.of("cmd", tp), ctx), ctx.remainingMillis());
         } catch (RuntimeException noServer) {
             // No server to command: the client places its player at the start anyway.
         }

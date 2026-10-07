@@ -32,7 +32,7 @@ class EventsWatchTest {
     }
 
     private static Map<?, ?> events(DriverApplication api, Map<String, Object> params) {
-        return (Map<?, ?>) api.route("mc.events", params);
+        return (Map<?, ?>) api.registry().route("mc.events", params);
     }
 
     private static ApiException refusedAt(String path, DriverApplication api, Map<String, Object> params) {

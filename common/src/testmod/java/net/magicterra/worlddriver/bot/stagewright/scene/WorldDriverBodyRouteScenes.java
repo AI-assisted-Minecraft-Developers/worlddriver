@@ -8,8 +8,8 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.body.BodyHost;
 import net.magicterra.worlddriver.bot.body.BodyRegistry;
@@ -25,7 +25,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * The {@code mc.bot.*} verbs on bots named by {@code body}, called through {@code DriverApi.route}
+ * The {@code mc.bot.*} verbs on bots named by {@code body}, called through {@code ApiRegistry.route}
  * the way every transport calls it. A server-side player and an NPC are registered on a flat stone
  * course and addressed by name:
  *
@@ -95,8 +95,8 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
     }
 
     private static void walkAPlayerAndAnNpcByName(SceneContext ctx) {
-        DriverApi api = WorldDriverCommon.api();
-        if (api == null) { ctx.fail("DriverApi not initialized — was the mod loaded?"); return; }
+        ApiRegistry api = WorldDriverCommon.registry();
+        if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         BlockPos playerStart = o.offset(0, 0, -2), playerGoal = o.offset(COURSE, 0, -2);
         BlockPos npcStart = o.offset(0, 0, 2), npcGoal = o.offset(COURSE, 0, 2);
@@ -170,8 +170,8 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
     }
 
     private static void startProcessesByName(SceneContext ctx) {
-        DriverApi api = WorldDriverCommon.api();
-        if (api == null) { ctx.fail("DriverApi not initialized — was the mod loaded?"); return; }
+        ApiRegistry api = WorldDriverCommon.registry();
+        if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         BlockPos playerStart = o.offset(1, 0, -2), npcStart = o.offset(1, 0, 2);
         Bodies b = stage(ctx, o, playerStart, npcStart);
@@ -236,7 +236,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> call(DriverApi api, String method, Map<String, Object> params) {
+    private static Map<String, Object> call(ApiRegistry api, String method, Map<String, Object> params) {
         return (Map<String, Object>) api.route(method, params);
     }
 
@@ -255,7 +255,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
     }
 
     /** The action as {@code mc.wait.result} reads it now. */
-    private static Map<?, ?> read(DriverApi api, String actionId) {
+    private static Map<?, ?> read(ApiRegistry api, String actionId) {
         if (actionId == null) return Map.of();
         return call(api, "mc.wait.result", Map.of("kind", "action", "actionId", actionId)).get("action") instanceof Map<?, ?> a ? a : Map.of();
     }
@@ -266,7 +266,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
     }
 
     /** One bot's {@code status}, as {@code mc.bot.status{body}} answers it. */
-    private static Map<?, ?> bodyStatus(DriverApi api, String id) {
+    private static Map<?, ?> bodyStatus(ApiRegistry api, String id) {
         return call(api, "mc.bot.status", Map.of("body", id)).get("status") instanceof Map<?, ?> s ? s : Map.of();
     }
 

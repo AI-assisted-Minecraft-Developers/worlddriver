@@ -29,7 +29,7 @@ external MCP client            in-game JS script              external WS client
        │                              │                              │
        └──────────────────────────────┴──────────────────────────────┘
                                       ▼
-                                  DriverApi
+                                 ApiRegistry
                        (single source of truth, on the server thread)
                                       ▼
                           live ServerLevel + ClientHooks
@@ -192,7 +192,8 @@ development runs; see [`docs/dev/testing.md`](docs/dev/testing.md).
 worlddriver/
 ├── common/              Architectury shared sources: the router, the transports, the Rhino glue
 │   ├── src/main/java/net/magicterra/worlddriver/
-│   │   ├── api/            DriverApi — the router and its handlers
+│   │   ├── api/            The method contracts and ApiRegistry, the router that runs them
+│   │   ├── application/    The handler behind each method
 │   │   ├── bot/            The client-side autonomous layer: pathfinder, walker, processes
 │   │   ├── mcp/            The MCP HTTP server and the tool catalog
 │   │   ├── rpc/            The Netty WebSocket server and the JSON codec
@@ -212,7 +213,7 @@ worlddriver/
 
 ## Design
 
-- **One router.** `DriverApi.route(method, params)` is the only function that runs game
+- **One router.** `ApiRegistry.route(method, params)` is the only function that runs game
   logic. The MCP server, the WebSocket server and the script bridge each translate
   parameters and call it; none of them may hold behaviour of its own. The validation suite
   compares the three transports on a sample of methods, so the guarantee comes from the

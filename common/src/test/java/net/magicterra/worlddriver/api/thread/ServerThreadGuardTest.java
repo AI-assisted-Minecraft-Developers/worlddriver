@@ -1,6 +1,8 @@
-package net.magicterra.worlddriver.api;
+package net.magicterra.worlddriver.api.thread;
 
+import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.application.DriverApplication;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -36,7 +38,7 @@ class ServerThreadGuardTest {
 
     private static void assertRefusedFast(String what, Callable<?> call) {
         long t0 = System.nanoTime();
-        // A Java caller sees the guard's own exception; a call through DriverApi sees it as an ApiError.
+        // A Java caller sees the guard's own exception; a call through the registry sees it as an ApiError.
         RuntimeException e = assertThrows(RuntimeException.class, call::call, what);
         assertTrue(e instanceof IllegalStateException || e instanceof ApiException, what + ": " + e);
         long ms = (System.nanoTime() - t0) / 1_000_000L;
@@ -59,7 +61,7 @@ class ServerThreadGuardTest {
 
     @Test
     void aForegroundWaitIsRefused() {
-        DriverApplication api = ProbeMethods.install(new DriverApplication());
+        ApiRegistry api = ProbeMethods.install(new DriverApplication()).registry();
         assertRefusedFast("mc.wait.condition", () -> api.route("mc.wait.condition", Map.of(
                 "invoke", "probe.echo", "field", "nope", "timeoutMs", 5000)));
     }
@@ -70,14 +72,14 @@ class ServerThreadGuardTest {
      */
     @Test
     void anAwaitMsOrderIsRefusedBeforeItStarts() {
-        DriverApplication api = new DriverApplication();
+        ApiRegistry api = new DriverApplication().registry();
         assertRefusedFast("awaitMs", () -> api.route("mc.bot.explore",
                 Map.of("centerX", 0, "centerZ", 0, "body", "npc:ghost", "awaitMs", 5000)));
     }
 
     @Test
     void aBackgroundWaitIsStillAllowed() {
-        DriverApplication api = ProbeMethods.install(new DriverApplication());
+        ApiRegistry api = ProbeMethods.install(new DriverApplication()).registry();
         Map<?, ?> ack = (Map<?, ?>) api.route("mc.wait.condition", Map.of(
                 "invoke", "probe.echo", "background", true));
         assertTrue(ack.containsKey("waitId"), ack.toString());

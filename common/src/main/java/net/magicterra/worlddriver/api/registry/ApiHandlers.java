@@ -1,8 +1,10 @@
-package net.magicterra.worlddriver.api;
+package net.magicterra.worlddriver.api.registry;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+
+import net.magicterra.worlddriver.api.call.CallContext;
 
 /** Adapters from plain functions to {@link ApiHandler}. */
 public final class ApiHandlers {

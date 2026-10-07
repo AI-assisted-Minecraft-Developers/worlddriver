@@ -11,10 +11,10 @@ import java.util.function.Supplier;
 
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 
 /**
  * Driver calls from a scene body, which runs on the server thread. self's verbs run on the client
@@ -31,7 +31,7 @@ final class SceneCalls {
     /** How long a reply may take, in server ticks. */
     private static final int REPLY_TICKS = 40;
 
-    static DriverApi api() { return WorldDriverCommon.api(); }
+    static ApiRegistry api() { return WorldDriverCommon.registry(); }
 
     /** Continues with {@code call}'s reply; a call that fails fails the scene. */
     static <R> void ask(SceneContext ctx, String tag, CompletionStage<R> call, Consumer<R> then) {

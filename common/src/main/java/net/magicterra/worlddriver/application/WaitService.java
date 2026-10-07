@@ -15,14 +15,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import net.magicterra.worlddriver.api.ApiErrors;
-import net.magicterra.worlddriver.api.ApiHandlers;
-import net.magicterra.worlddriver.api.ApiMethod;
-import net.magicterra.worlddriver.api.ApiRegistry;
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.CancellationToken;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.call.CancellationToken;
+import net.magicterra.worlddriver.api.call.WaitPermits;
 import net.magicterra.worlddriver.api.game.EventWire;
-import net.magicterra.worlddriver.api.WaitPermits;
+import net.magicterra.worlddriver.api.registry.ApiErrors;
+import net.magicterra.worlddriver.api.registry.ApiHandlers;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.action.ActionRegistry;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
@@ -227,12 +227,12 @@ public final class WaitService implements WaitApi {
 
     @Override
     public CompletionStage<Outcome> condition(ConditionParams p, CallContext ctx) {
-        Polling.Target target = Polling.target(api, p.invoke(), p.params());
+        Polling.Target target = Polling.target(api.registry(), p.invoke(), p.params());
         return run(WaitContracts.CONDITION, "condition", p.background(), p.timeoutMs(), ctx, (budget, cancelled) -> {
             long t0 = System.nanoTime();
             AtomicReference<Optional<JsonValue>> last = new AtomicReference<>(Optional.empty());
             return Polling.until(budget, p.pollMs(), cancelled,
-                    () -> target.read(api, Math.min(POLL_BUDGET_MS, Math.max(1, budget))).thenApply(result -> {
+                    () -> target.read(api.registry(), Math.min(POLL_BUDGET_MS, Math.max(1, budget))).thenApply(result -> {
                         Optional<JsonValue> value = Polling.field(result, p.field());
                         last.set(value);
                         Object tree = value.map(JsonValue::tree).orElse(null);

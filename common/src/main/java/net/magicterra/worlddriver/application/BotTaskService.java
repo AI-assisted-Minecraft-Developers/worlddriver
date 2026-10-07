@@ -10,8 +10,8 @@ import java.util.function.Function;
 
 import static net.magicterra.worlddriver.api.game.Positions.position;
 
-import net.magicterra.worlddriver.api.ApiMethod;
-import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.action.ActionRegistry;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;

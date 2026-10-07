@@ -58,7 +58,7 @@ a block that must become air.
 
 `worlddriver.mark` and the `worlddriver.scene.*` family are typed methods the testmod publishes as one
 `ApiBatch` under its own owner, and the slash commands do nothing but translate arguments into one
-`DriverApi.route` call. That keeps game-affecting behaviour inside `DriverApi`, as the architecture
+`ApiRegistry.route` call. That keeps game-affecting behaviour inside the method handlers, as the architecture
 requires, and it means the whole workflow is available over RPC and from scripts — a nightly job can
 run every local scene and leave the results for somebody to read in the morning, without anyone being
 in the game.

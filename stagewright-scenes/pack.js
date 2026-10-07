@@ -50,7 +50,7 @@ scene("pack.usesACapabilityItDeclared", 100, function (s) {
     s.expect(driver.mods()).as("the mods it named that are loaded").contains("worlddriver");
 
     s.expect(driver.probe().className()).as("what its probe bound")
-        .isEqualTo("net.magicterra.worlddriver.api.DriverApi");
+        .isEqualTo("net.magicterra.worlddriver.api.registry.ApiRegistry");
 
     // The other half, and the one that has to be true for any of this to be trustworthy: the
     // descriptors StageWright itself ships are all here, and none of them claims to be available in

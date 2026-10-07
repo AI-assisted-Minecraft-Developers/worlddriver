@@ -116,7 +116,7 @@ whatever display the host has, or none. Its screenshots and traces land in `fabr
 Four rules cause most of the review comments, and all four are consequences of the same
 design. The reasoning is in [`docs/dev/architecture.md`](docs/dev/architecture.md).
 
-- **Behaviour goes in `DriverApi`, never in a transport handler.** The MCP server, the
+- **Behaviour goes in a method's handler under `application/`, never in a transport handler.** The MCP server, the
   WebSocket server and the script bridge translate parameters and call the router. If the
   three diverge, the divergence is a bug in whichever one grew the behaviour.
 - **Writes, and reads that touch the level, are dispatched onto the server thread.** Never

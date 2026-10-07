@@ -1,5 +1,5 @@
 // Sandbox: dangerous JVM classes must not be reachable from JS, while legitimate
-// scripts still reach console (System.out) and DriverApi return values
+// scripts still reach console (System.out) and API return values
 // (java.util Map/List).
 //
 // ⚠️ THESE SIX GREENS ARE NOT EVIDENCE THAT ScriptClassFilter WORKS, AND AGENTS.md

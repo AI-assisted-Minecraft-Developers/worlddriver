@@ -12,7 +12,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import dev.architectury.event.events.common.LifecycleEvent;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.script.McpBridge;
 import net.magicterra.worlddriver.script.RpcBridge;
 import net.magicterra.worlddriver.script.ScriptManager;
@@ -140,7 +140,7 @@ public final class ValidationSuite {
     }
 
     private static void runAtStartup(MinecraftServer server) {
-        DriverApi api = WorldDriverCommon.api();
+        ApiRegistry api = WorldDriverCommon.registry();
         if (api == null) return;
         if (!tryClaim()) {
             LOG.error("[{}] -Dworlddriver.runValidation=true, but another validation run holds the suite", MOD_ID);
@@ -170,7 +170,7 @@ public final class ValidationSuite {
 
     private static int cmdTest(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
-        DriverApi api = WorldDriverCommon.api();
+        ApiRegistry api = WorldDriverCommon.registry();
         if (api == null) {
             source.sendFailure(Component.literal("Agent API not initialized"));
             return 0;
@@ -241,7 +241,7 @@ public final class ValidationSuite {
      * could not start. The caller holds the claim ({@link #tryClaim}) and has seeded the arena.
      */
     public static int run() {
-        DriverApi api = WorldDriverCommon.api();
+        ApiRegistry api = WorldDriverCommon.registry();
         int rpcPort = WorldDriverCommon.rpcPort();
         int mcpPort = WorldDriverCommon.mcpPort();
         if (api == null || rpcPort <= 0) {

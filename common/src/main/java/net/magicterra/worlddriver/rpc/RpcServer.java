@@ -39,13 +39,12 @@ import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.ApiErrors;
-import net.magicterra.worlddriver.api.ApiRegistry;
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.CancellationToken;
-import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.EventFeed;
-import net.magicterra.worlddriver.api.WaitPermits;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.call.CancellationToken;
+import net.magicterra.worlddriver.api.call.WaitPermits;
+import net.magicterra.worlddriver.api.registry.ApiErrors;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.registry.EventFeed;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.DecodeContext;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
@@ -78,7 +77,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * request did not carry a usable one; {@code error.code} is the JSON-RPC code, and {@code data}
  * carries the API's {@code {code, message, issues, execution}} whenever the API produced the error.
  *
- * Same {@code DriverApi.dispatch(method, params, context)} is invoked here AND from in-JVM Rhino
+ * Same {@code ApiRegistry.dispatch(method, params, context)} is invoked here AND from in-JVM Rhino
  * calls, guaranteeing structural parity between paths. A call that suspends (an awaited action)
  * hands its worker back; its answer is written when its stage completes.
  *
@@ -107,7 +106,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * Threading: incoming frames arrive on Netty IO threads. {@code route()} internally
  * marshals work to the server tick via {@code server.execute()} plus a bounded
- * {@code future.get} — {@code DriverApi.SERVER_THREAD_TIMEOUT_MS}, 8s by default and
+ * {@code future.get} — {@code DriverApplication.SERVER_THREAD_TIMEOUT_MS}, 8s by default and
  * settable with {@code -Dworlddriver.serverThreadTimeoutMs=N}. This said 30s, which was
  * the budget before it was lowered; naming the constant instead of a number keeps the
  * two from drifting apart again.
@@ -136,16 +135,16 @@ public final class RpcServer implements Closeable {
      *  channel attribute so it's GC'd with the connection. */
     private static final AttributeKey<Set<String>> FILTER = AttributeKey.valueOf("worlddriver.eventFilter");
 
-    public <A extends DriverApi & EventFeed> RpcServer(A api, int requestedPort) {
-        this(api, "127.0.0.1", requestedPort);
+    public RpcServer(ApiRegistry api, EventFeed events, int requestedPort) {
+        this(api, events, "127.0.0.1", requestedPort);
     }
 
-    public <A extends DriverApi & EventFeed> RpcServer(A api, String bindHost, int requestedPort) {
-        this(api, bindHost, requestedPort, TransportLimits.WS_PING_INTERVAL_MS, TransportLimits.WS_IDLE_CLOSE_MS);
+    public RpcServer(ApiRegistry api, EventFeed events, String bindHost, int requestedPort) {
+        this(api, events, bindHost, requestedPort, TransportLimits.WS_PING_INTERVAL_MS, TransportLimits.WS_IDLE_CLOSE_MS);
     }
 
     /** Liveness timings as parameters so a test can run them in seconds. */
-    <A extends DriverApi & EventFeed> RpcServer(A api, String bindHost, int requestedPort, long pingIntervalMs, long idleCloseMs) {
+    RpcServer(ApiRegistry api, EventFeed events, String bindHost, int requestedPort, long pingIntervalMs, long idleCloseMs) {
         ServerBootstrap b = new ServerBootstrap();
         final ChannelGroup subs = this.subscribers;
         b.group(boss, worker)
@@ -185,13 +184,13 @@ public final class RpcServer implements Closeable {
                     + ": " + e.getMessage(), e);
         }
         this.port = ((InetSocketAddress) serverChannel.localAddress()).getPort();
-        api.addEventListener(this::onEvent);
+        events.addEventListener(this::onEvent);
     }
 
     public int port() { return port; }
 
     /** Fan one emitted event out to every subscribed channel whose filter accepts
-     *  its type. Runs on DriverApi's single-thread event-dispatch executor; Netty's
+     *  its type. Runs on the host's single-thread event-dispatch executor; Netty's
      *  {@code writeAndFlush} is itself thread-safe and async, so this never blocks
      *  the game thread that produced the event. */
     private void onEvent(EventContracts.Event e) {
@@ -294,11 +293,11 @@ public final class RpcServer implements Closeable {
     }
 
     private static final class FrameHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
-        private final DriverApi api;
+        private final ApiRegistry api;
         private final ExecutorService routeExec;
         private final ChannelGroup subscribers;
 
-        FrameHandler(DriverApi api, ExecutorService routeExec, ChannelGroup subscribers) {
+        FrameHandler(ApiRegistry api, ExecutorService routeExec, ChannelGroup subscribers) {
             this.api = api;
             this.routeExec = routeExec;
             this.subscribers = subscribers;

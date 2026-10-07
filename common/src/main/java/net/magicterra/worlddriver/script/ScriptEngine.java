@@ -3,8 +3,8 @@ package net.magicterra.worlddriver.script;
 import java.nio.file.Path;
 import java.util.concurrent.CompletionStage;
 
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.EvalParams;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.Outcome;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.PlaybookOp;
@@ -20,7 +20,7 @@ public final class ScriptEngine implements ScriptHost {
     private final PlaybookRunner playbooks;
 
     /** {@code skillsDir}: where saved skills live. */
-    public ScriptEngine(DriverApi api, Path skillsDir) {
+    public ScriptEngine(ApiRegistry api, Path skillsDir) {
         this.evaluator = new ScriptEvaluator(api);
         this.skills = new SkillLibrary(evaluator, skillsDir);
         this.playbooks = new PlaybookRunner(evaluator);

@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.api;
+package net.magicterra.worlddriver.api.thread;
 
 import java.util.function.BooleanSupplier;
 
@@ -12,8 +12,8 @@ import java.util.function.BooleanSupplier;
  * game froze until a timeout and the caller got an error that named the timeout, not the cause.
  * Failing at once with this message names the cause.
  *
- * <p>Global because the RPC and MCP clients hold no {@link DriverApi}; {@link DriverApi#attachServer}
- * installs the check and {@link DriverApi#detachServer} removes it.
+ * <p>Global because the RPC and MCP clients hold no server; the host's {@code attachServer} installs
+ * the check and its {@code detachServer} removes it.
  */
 public final class ServerThreadGuard {
     private static final BooleanSupplier NONE = () -> false;

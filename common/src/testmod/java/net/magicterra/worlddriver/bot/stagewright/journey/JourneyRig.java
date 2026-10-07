@@ -93,7 +93,7 @@ import net.minecraft.world.level.GameType;
  * {@code ServerAvatarManager} on the headless topologies, {@code BotApi.runProcess} (the client's
  * own user-task chain) on the integrated one. See {@link #startLeg}.
  *
- * <p><b>What the server thread must never do here is wait.</b> {@code DriverApi}'s {@code awaitMs}
+ * <p><b>What the server thread must never do here is wait.</b> a call's {@code awaitMs}
  * and {@code BotUtil.onClient} both block the calling thread until the client answers, and the
  * caller here is the server thread of a server the client is ticking against. So the start is
  * fire-and-forget ({@code mc.execute}) and completion is polled from the scene's own await
@@ -113,7 +113,7 @@ public final class JourneyRig {
     /**
      * Keeps the chunks under the travelling bot loaded.
      *
-     * <p>Distinct from {@code DriverApi}'s test-arena ticket and from the harness's arena window,
+     * <p>Distinct from the driver's test-arena ticket and from the harness's arena window,
      * both of which pin a fixed place. This one moves. Not persisted, so it cannot outlive the
      * process or end up in a saved world.
      */

@@ -4,8 +4,8 @@ import net.magicterra.worlddriver.application.DriverApplication;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.game.DriverHost;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.bot.BotConfigFile;
 import net.magicterra.worlddriver.mcp.McpServer;
 import net.magicterra.worlddriver.rpc.RpcServer;
@@ -46,12 +46,16 @@ public final class WorldDriverCommon {
 
     public static int rpcPort() { return rpcPort; }
     public static int mcpPort() { return mcpPort; }
-    public static DriverApi api() { return api; }
+    /** Every method the driver answers, the entry for calls made inside this JVM. Null until {@link #ensureRpcUp}. */
+    public static ApiRegistry registry() {
+        DriverApplication a = api;
+        return a == null ? null : a.registry();
+    }
     /** What the game side calls on the driver: lifecycle, events, restore. Null until {@link #ensureRpcUp}. */
     public static DriverHost host() { return api; }
 
     /**
-     * Idempotently bring up the DriverApi + RPC server. Called from both the
+     * Idempotently bring up the driver + RPC server. Called from both the
      * client init path (so mc.client.* RPC is reachable from the very first
      * screen — no world needed) AND from onServerStarting. Subsequent calls
      * are no-ops once the API exists. The port is written to
@@ -67,7 +71,7 @@ public final class WorldDriverCommon {
                 api = app;
                 // Scripts, skills and playbooks, all allow-everything unless -Dworlddriver.sandbox=on
                 // (see ScriptClassFilter; nothing in the build sets it).
-                app.setScriptHost(new ScriptEngine(app,userScriptsDir().resolve("skills")));
+                app.setScriptHost(new ScriptEngine(app.registry(), userScriptsDir().resolve("skills")));
                 // Every method is typed and validated by its own contract, so nothing more needs wiring
                 // before a socket listens. StageWright publishes mc.test.* as its own batch at
                 // SERVER_STARTED; a server without it simply has no mc.test.* surface.
@@ -83,7 +87,7 @@ public final class WorldDriverCommon {
                 int wantPort = Integer.getInteger("worlddriver.rpcPort", 0);
                 String bindHost = System.getProperty("worlddriver.rpcHost", "127.0.0.1");
                 try {
-                    rpcServer = new RpcServer(api, bindHost, wantPort);
+                    rpcServer = new RpcServer(api.registry(), api, bindHost, wantPort);
                 } catch (Exception bindFail) {
                     // A pinned port already held (e.g. another instance's runClient)
                     // used to be a hard ERROR with no server at all; consumers only
@@ -93,7 +97,7 @@ public final class WorldDriverCommon {
                     if (wantPort == 0) throw bindFail;
                     LOG.warn("[{}] RPC port {} unavailable ({}); falling back to an ephemeral port",
                             MOD_ID, wantPort, bindFail.getMessage());
-                    rpcServer = new RpcServer(api, bindHost, 0);
+                    rpcServer = new RpcServer(api.registry(), api, bindHost, 0);
                 }
                 rpcPort = rpcServer.port();
                 LOG.info("[{}] RPC server listening on ws://{}:{}/rpc", MOD_ID, urlHost(bindHost), rpcPort);
@@ -118,14 +122,14 @@ public final class WorldDriverCommon {
             int wantPort = Integer.getInteger("worlddriver.mcpPort", 0);
             String bindHost = System.getProperty("worlddriver.mcpHost", "127.0.0.1");
             try {
-                mcpServer = new McpServer(api, bindHost, wantPort);
+                mcpServer = new McpServer(api.registry(), api, bindHost, wantPort);
             } catch (IOException bindFail) {
                 // Same ephemeral-port fallback as the RPC server above; the real
                 // port lands in run/worlddriver-mcp.port.
                 if (wantPort == 0) throw bindFail;
                 LOG.warn("[{}] MCP port {} unavailable ({}); falling back to an ephemeral port",
                         MOD_ID, wantPort, bindFail.getMessage());
-                mcpServer = new McpServer(api, bindHost, 0);
+                mcpServer = new McpServer(api.registry(), api, bindHost, 0);
             }
             mcpPort = mcpServer.port();
             LOG.info("[{}] MCP server listening on http://{}:{}/mcp", MOD_ID, urlHost(bindHost), mcpPort);
@@ -249,7 +253,7 @@ public final class WorldDriverCommon {
      * across world transitions so client-only routes (mc.client.*) and the
      * script evaluator keep working at the main menu — only the
      * MinecraftServer reference is detached. World-dependent routes will
-     * throw "DriverApi not attached to a server" until a new world loads,
+     * throw "DriverApplication not attached to a server" until a new world loads,
      * which McpServer converts to a tool isError.
      */
     public static void onServerStopping() {
@@ -261,7 +265,7 @@ public final class WorldDriverCommon {
         net.magicterra.worlddriver.bot.body.BodyRegistry.clear();
         if (api != null) {
             api.detachServer();
-            LOG.info("[{}] DriverApi detached from server (RPC + MCP still up)", MOD_ID);
+            LOG.info("[{}] driver detached from server (RPC + MCP still up)", MOD_ID);
         }
     }
 
@@ -331,12 +335,12 @@ public final class WorldDriverCommon {
                 return 0;
             }
             RpcBridge bridge = new RpcBridge("127.0.0.1", rpcPort);
-            DriverApi a = api;
+            ApiRegistry a = api.registry();
             McpBridge mcpBridge = (mcpPort > 0) ? new McpBridge("127.0.0.1", mcpPort, name -> {
                 var spec = a.spec(name);
                 return spec == null ? null : spec.image();
             }) : null;
-            ScriptManager mgr = new ScriptManager(api, dir, bridge, mcpBridge);
+            ScriptManager mgr = new ScriptManager(a, dir, bridge, mcpBridge);
             int n = mgr.loadAll();
             LOG.info("[{}] loaded {} user script(s) from {}", MOD_ID, n, dir);
             return n;

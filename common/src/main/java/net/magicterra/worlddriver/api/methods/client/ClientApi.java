@@ -2,9 +2,9 @@ package net.magicterra.worlddriver.api.methods.client;
 
 import java.util.concurrent.CompletionStage;
 
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.Spec;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.registry.Spec;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientReply;
 import net.magicterra.worlddriver.api.methods.screen.ScreenApi;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
@@ -15,8 +15,8 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
  */
 public interface ClientApi {
 
-    /** A caller that goes through {@code api}'s registry, checked as a request is. */
-    static ClientApi of(DriverApi api) { return ClientApiBinding.calls(api); }
+    /** A caller that goes through {@code registry}, checked as a request is. */
+    static ClientApi of(ApiRegistry registry) { return ClientApiBinding.calls(registry); }
 
     @Spec(value = ClientContracts.class, spec = "PLAYER")
     CompletionStage<ClientContracts.ClientPlayer> player(NoParams p, CallContext ctx);

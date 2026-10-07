@@ -10,11 +10,11 @@ Each group of methods has an interface whose methods have real Java names, with 
 records as parameters and results:
 
 ```java
-SettingsApi settings = SettingsApi.of(WorldDriverCommon.api());
+SettingsApi settings = SettingsApi.of(WorldDriverCommon.registry());
 CompletionStage<SettingsReply> reply =
         settings.setting(SettingsContracts.Read.of("autoEat"), CallContext.standalone());
 
-switch (DriverApi.await(reply, 5_000)) {
+switch (ApiRegistry.await(reply, 5_000)) {
     case SettingsContracts.Values v  -> …
     case SettingsContracts.Patched p -> …
     case SettingsContracts.Applied a -> …
@@ -52,12 +52,12 @@ the method registry exactly as a request from a transport does:
   its place.
 
 A call answers a `CompletionStage`. A failure completes it exceptionally with an `ApiException`;
-`DriverApi.await(stage, ms)` unwraps it. A call never holds the thread that makes it, so the server
+`ApiRegistry.await(stage, ms)` unwraps it. A call never holds the thread that makes it, so the server
 or client thread may make one, including one the other game thread must serve; it is queued there.
 On those threads, never wait on the stage: continue from it on a later tick instead (the test scenes
 do this through `SceneCalls`).
 
-Call by name (`DriverApi.route`, `DriverApi.dispatch`) only when the method name is itself data
+Call by name (`ApiRegistry.route`, `ApiRegistry.dispatch`) only when the method name is itself data
 (replay, wait conditions, watchers, the transports), or when the request's JSON is what is under
 test: a scene that sends a field the contract refuses, or checks a reply's wire shape, uses
 `SceneCalls.askByName`.
@@ -69,7 +69,7 @@ the class that declares its `MethodSpec` and, when that is not `SPEC`, the field
 
 ```java
 public interface SettingsApi {
-    static SettingsApi of(DriverApi api) { return SettingsApiBinding.calls(api); }
+    static SettingsApi of(ApiRegistry registry) { return SettingsApiBinding.calls(registry); }
 
     @Spec(SettingsContracts.class)
     CompletionStage<SettingsReply> setting(SettingsOp op, CallContext ctx);

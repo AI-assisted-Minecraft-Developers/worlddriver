@@ -1,8 +1,8 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
-import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.methods.recipe.RecipeApi;

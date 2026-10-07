@@ -17,11 +17,6 @@ MAY_USE = {'schema': {'protocol', 'schema'},
            'methods': {'protocol', 'schema', 'methods', 'registry', 'call'},
            'registry': RUNTIME, 'call': RUNTIME, 'thread': RUNTIME, 'action': RUNTIME}
 TRANSPORTS = ('rpc', 'mcp', 'script')
-# Classes not yet in their layer's subpackage, by the layer they belong to. Shrinks as they move.
-UNMOVED = {'api/' + name: layer for layer, names in {
-    'registry': 'ApiBatch ApiErrors ApiHandler ApiHandlers ApiMethod ApiRegistry DriverApi EventFeed Spec',
-    'call': 'ApiTimers CallContext CancellationToken RunContext WaitPermits',
-    'thread': 'GameThreads ServerThreadGuard ServerThreadHop'}.items() for name in names.split()}
 # Layer violations the move has not reached yet. A listed one that no longer occurs fails the
 # check as well, so the list can only shrink.
 PENDING = {}
@@ -34,8 +29,6 @@ def code(path):
 
 def layer_of(name):
     """The layer of a class given as its path under worlddriver/ without .java, or None outside api."""
-    if name in UNMOVED:
-        return UNMOVED[name]
     parts = name.split('/')
     if parts[0] == 'protocol':
         return 'protocol'
@@ -61,10 +54,8 @@ def layer_violations(source):
         if layer == 'unclassified':
             found.add((relative.as_posix(), 'no layer'))
             continue
+        # A package is a layer, so a class's unimported same-package neighbours never cross one.
         used = {(p.replace('.', '/') + c) for p, c in DRIVER_REFERENCE.findall(text)}
-        package = name.rsplit('/', 1)[0]
-        used |= {c for c in classes if c.rsplit('/', 1)[0] == package and c in UNMOVED
-                 and re.search(r'\b' + c.rsplit('/', 1)[1] + r'\b', text)}
         if layer not in (None, 'game') and 'net.minecraft.' in text:
             found.add((relative.as_posix(), 'net.minecraft'))
         for target in used & classes:
@@ -106,7 +97,7 @@ def main():
         if relative.parts[:2] in [('bot', 'process'), ('bot', 'scheduler'), ('bot', 'movement'), ('bot', 'pathfinder')]:
             banned += ['net.magicterra.worlddriver.integration.', 'net.magicterra.worlddriver.mcp.',
                        'net.magicterra.worlddriver.rpc.', 'net.magicterra.worlddriver.api.']
-            if re.search(r'WorldDriverCommon\s*\.\s*api\s*\(', text):
+            if re.search(r'WorldDriverCommon\s*\.\s*(registry|host)\s*\(', text):
                 errors.append(f'{relative}: global driver API lookup in core behaviour')
         banned += ['net.magicterra.stagewright.']
         for dependency in banned:

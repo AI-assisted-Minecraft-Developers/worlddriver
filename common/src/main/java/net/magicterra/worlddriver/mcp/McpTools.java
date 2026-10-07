@@ -5,9 +5,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import net.magicterra.worlddriver.api.ApiMethod;
-import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 
 /**
  * The MCP view of the method registry: {@code tools/list} entries and the image adaptation of a
@@ -17,9 +17,9 @@ public final class McpTools {
     private McpTools() {}
 
     /** Every listed method in registration order; a hidden spec is callable but not advertised. */
-    public static List<Map<String, Object>> list(DriverApi api) {
+    public static List<Map<String, Object>> list(ApiRegistry registry) {
         List<Map<String, Object>> out = new ArrayList<>();
-        for (ApiMethod<?, ?> m : api.registry().snapshot().methods().values()) {
+        for (ApiMethod<?, ?> m : registry.snapshot().methods().values()) {
             if (m.spec().listedInMcp()) out.add(entry(m.spec()));
         }
         return List.copyOf(out);

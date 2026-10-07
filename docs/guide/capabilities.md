@@ -19,7 +19,7 @@ dedicated server too; the call is what fails, not the listing. And a verb may be
 as *hidden*, meaning unadvertised but still callable by name on every transport — hiding
 exists only to save prompt tokens, since every listed tool ships its schema to every model
 client on every turn. The driver itself currently declares no hidden verb; the in-game test
-framework registers several when it is loaded. `DriverApi`'s route table is the set of names
+framework registers several when it is loaded. The `ApiRegistry`'s route table is the set of names
 a call is validated against, and every route is required at startup to have a declared
 schema.
 

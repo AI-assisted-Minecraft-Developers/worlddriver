@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.mcp;
 
+import static net.magicterra.worlddriver.application.TestTransports.mcp;
+
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.application.DriverApplication;
 
@@ -44,7 +46,7 @@ class McpConcurrencyTest {
     void postsPastTheCapAreRefusedWithABusyError() throws Exception {
         int cap = McpLimits.MCP_MAX_IN_FLIGHT;
         int extra = 6;
-        try (McpServer server = new McpServer(ProbeMethods.install(new DriverApplication()), 0)) {
+        try (McpServer server = mcp(ProbeMethods.install(new DriverApplication()))) {
             HttpClient http = HttpClient.newHttpClient();
             List<CompletableFuture<HttpResponse<String>>> calls = new ArrayList<>();
             for (int i = 1; i <= cap + extra; i++) {
@@ -69,7 +71,7 @@ class McpConcurrencyTest {
     @Test
     void eventStreamsPastTheCapAreRefused() throws Exception {
         int cap = McpLimits.MCP_MAX_EVENT_STREAMS;
-        try (McpServer server = new McpServer(new DriverApplication(), 0)) {
+        try (McpServer server = mcp(new DriverApplication())) {
             HttpClient http = HttpClient.newHttpClient();
             HttpRequest get = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + "/mcp"))
                     .header("Accept", "text/event-stream").GET().build();

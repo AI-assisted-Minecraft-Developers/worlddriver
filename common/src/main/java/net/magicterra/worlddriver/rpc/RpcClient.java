@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.api.ApiErrors;
+import net.magicterra.worlddriver.api.registry.ApiErrors;
 
 import net.magicterra.worlddriver.protocol.RequestLimits;
 import net.magicterra.worlddriver.protocol.JsonCodec;
@@ -26,7 +26,7 @@ import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
 import io.netty.handler.codec.http.websocketx.WebSocketClientHandshakerFactory;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketVersion;
-import net.magicterra.worlddriver.api.ServerThreadGuard;
+import net.magicterra.worlddriver.api.thread.ServerThreadGuard;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;

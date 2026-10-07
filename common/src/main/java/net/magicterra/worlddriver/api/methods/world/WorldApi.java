@@ -2,15 +2,15 @@ package net.magicterra.worlddriver.api.methods.world;
 
 import java.util.concurrent.CompletionStage;
 
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.Spec;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.registry.Spec;
 
 /** The {@code mc.world.*} methods: read one block, and capture and restore a region. */
 public interface WorldApi {
 
-    /** A caller that goes through {@code api}'s registry, checked as a request is. */
-    static WorldApi of(DriverApi api) { return WorldApiBinding.calls(api); }
+    /** A caller that goes through {@code registry}, checked as a request is. */
+    static WorldApi of(ApiRegistry registry) { return WorldApiBinding.calls(registry); }
 
     @Spec(value = WorldContracts.class, spec = "BLOCK")
     CompletionStage<WorldContracts.BlockReading> block(WorldContracts.BlockParams p, CallContext ctx);

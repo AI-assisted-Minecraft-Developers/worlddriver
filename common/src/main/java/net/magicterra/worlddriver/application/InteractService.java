@@ -4,10 +4,10 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
-import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.api.call.ApiTimers;
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.game.Positions;
-import net.magicterra.worlddriver.api.ApiTimers;
-import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.methods.interact.InteractApi;
 import net.magicterra.worlddriver.api.methods.interact.InteractApiBinding;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts;

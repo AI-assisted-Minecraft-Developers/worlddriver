@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.testcontent;
 import java.util.List;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.contract.ApiField;
 import net.magicterra.worlddriver.api.contract.ApiType;
 import net.magicterra.worlddriver.api.contract.ApiTypes;

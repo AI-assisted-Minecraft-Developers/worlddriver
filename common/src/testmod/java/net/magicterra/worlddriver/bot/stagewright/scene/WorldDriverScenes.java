@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.SettingsContracts;
 import net.magicterra.worlddriver.bot.SettingsRegistry;
-import net.magicterra.worlddriver.api.ApiRegistry;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.bot.movement.AscendMovement;
 import net.magicterra.worlddriver.bot.movement.MovementContext;
@@ -293,13 +293,13 @@ public final class WorldDriverScenes implements SceneProvider {
                     + " — the contract drifted from SettingsRegistry");
 
         // (5) mc.test.reset registered — the SPI's regression net: a typed method, from StageWright's batch.
-        var api = WorldDriverCommon.api();
+        var api = WorldDriverCommon.registry();
         if (api == null)
-            ctx.fail("settingRegistry: DriverApi not booted — cannot check mc.test.reset registration");
+            ctx.fail("settingRegistry: the API registry is not booted — cannot check mc.test.reset registration");
         if (!api.methods().contains("mc.test.reset") || api.spec("mc.test.reset") == null)
             ctx.fail("settingRegistry: mc.test.reset missing from the API registry — StageWright's "
                     + "batch registration did not run on this loader's boot path");
-        String owner = api.registry().snapshot().ownerOf().get("mc.test.reset");
+        String owner = api.snapshot().ownerOf().get("mc.test.reset");
         if (owner != null && !owner.startsWith(ApiRegistry.TEST_OWNER + "/"))
             ctx.fail("settingRegistry: mc.test.reset is owned by " + owner + ", not StageWright");
 

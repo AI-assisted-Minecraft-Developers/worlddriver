@@ -2,9 +2,9 @@ package net.magicterra.worlddriver.api.methods.wait;
 
 import java.util.concurrent.CompletionStage;
 
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.Spec;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.registry.Spec;
 
 /**
  * The {@code mc.wait.*} methods. The three waits may hold their caller, so on a game thread they are
@@ -13,8 +13,8 @@ import net.magicterra.worlddriver.api.Spec;
  */
 public interface WaitApi {
 
-    /** A caller that goes through {@code api}'s registry, checked as a request is. */
-    static WaitApi of(DriverApi api) { return WaitApiBinding.calls(api); }
+    /** A caller that goes through {@code registry}, checked as a request is. */
+    static WaitApi of(ApiRegistry registry) { return WaitApiBinding.calls(registry); }
 
     @Spec(value = WaitContracts.class, spec = "EVENT")
     CompletionStage<WaitContracts.Outcome> event(WaitContracts.EventParams p, CallContext ctx);

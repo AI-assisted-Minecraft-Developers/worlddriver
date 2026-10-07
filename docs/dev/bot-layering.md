@@ -1,7 +1,7 @@
 # The `bot/` layers
 
 Everything behind `mc.bot.*` — the autonomous layer that plans and drives a bot. Read
-[`architecture.md`](architecture.md) first; this document picks up where `DriverApi.route`
+[`architecture.md`](architecture.md) first; this document picks up where `ApiRegistry.route`
 hands off.
 
 `bot/` is the largest and fastest-changing subsystem in the repository. **This document

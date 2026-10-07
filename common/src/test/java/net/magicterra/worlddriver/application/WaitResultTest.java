@@ -33,7 +33,7 @@ class WaitResultTest {
     }
 
     private static Map<?, ?> call(DriverApplication api, String method, Map<String, Object> params) {
-        return (Map<?, ?>) api.route(method, params);
+        return (Map<?, ?>) api.registry().route(method, params);
     }
 
     /** A background wait that is satisfied on its first poll; needs no world. */
@@ -136,7 +136,7 @@ class WaitResultTest {
     void anUnknownActionIsActionNotFound() {
         DriverApplication api = app();
         ApiException e = assertThrows(ApiException.class,
-                () -> api.route("mc.wait.result", Map.of("kind", "action", "actionId", "nope")));
+                () -> api.registry().route("mc.wait.result", Map.of("kind", "action", "actionId", "nope")));
         assertEquals(ApiError.Code.ACTION_NOT_FOUND, e.error().code());
     }
 }

@@ -5,10 +5,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 
-import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.game.Positions;
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.ServerThreadHop;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.api.methods.query.QueryApi;

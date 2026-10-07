@@ -26,13 +26,13 @@ import dev.architectury.event.events.common.CommandRegistrationEvent;
 import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.TickEvent;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.ApiBatch;
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.game.Positions;
-import net.magicterra.worlddriver.api.ApiHandlers;
-import net.magicterra.worlddriver.api.ApiMethod;
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.ServerThreadHop;
+import net.magicterra.worlddriver.api.registry.ApiBatch;
+import net.magicterra.worlddriver.api.registry.ApiHandlers;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
@@ -123,12 +123,12 @@ public final class SceneVerbs {
     }
 
     private static void publishVerbs() {
-        DriverApi api = WorldDriverCommon.api();
+        ApiRegistry api = WorldDriverCommon.registry();
         if (api == null) {
             WorldDriverCommon.LOG.warn("[{}] scene verbs not registered: the driver API is not up", WorldDriverCommon.MOD_ID);
             return;
         }
-        if (api.registry().registerBatch(BATCH)) {
+        if (api.registerBatch(BATCH)) {
             WorldDriverCommon.LOG.info("[{}] scene verbs registered: mark, scene.save|list|place|run|verdict|accept", WorldDriverCommon.MOD_ID);
         }
     }

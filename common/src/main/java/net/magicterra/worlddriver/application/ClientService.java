@@ -10,11 +10,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
-import net.magicterra.worlddriver.api.ApiHandlers;
+import net.magicterra.worlddriver.api.registry.ApiHandlers;
 import net.magicterra.worlddriver.api.game.Positions;
-import net.magicterra.worlddriver.api.ApiMethod;
-import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.WaitPermits;
+import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.call.WaitPermits;
+import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.methods.client.ClientApi;

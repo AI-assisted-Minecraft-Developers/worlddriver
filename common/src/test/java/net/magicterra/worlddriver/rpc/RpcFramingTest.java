@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.rpc;
 
+import static net.magicterra.worlddriver.application.TestTransports.rpc;
+
 import net.magicterra.worlddriver.application.DriverApplication;
 
 import net.magicterra.worlddriver.protocol.ServerBusyException;
@@ -19,10 +21,9 @@ import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.ContinuationWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
-import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.contract.JsonValue;
-import net.magicterra.worlddriver.api.ServerThreadHop;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import org.junit.jupiter.api.Test;
 
 import java.net.InetSocketAddress;
@@ -124,9 +125,9 @@ class RpcFramingTest {
 
     @Test
     void everyErrorResponseCarriesAnIdKeyAndACode() throws Exception {
-        // DriverApi's constructor only fills a route map with lambdas, so it needs no
+        // DriverApplication's constructor only fills a route map with lambdas, so it needs no
         // running game as long as no route actually executes.
-        try (RpcServer server = new RpcServer(new DriverApplication(), 0);
+        try (RpcServer server = rpc(new DriverApplication());
              WsTestClient raw = new WsTestClient(server.port())) {
 
             Map<?, ?> nonObject = raw.roundTrip("\"just a string\"");
@@ -154,7 +155,7 @@ class RpcFramingTest {
     void aFragmentedMessageIsReassembledBeforeParsing() throws Exception {
         // java.net.http.WebSocket.sendText(part, false) and browsers under load both
         // fragment. Parsing the first fragment alone answered -32700 for a valid request.
-        try (RpcServer server = new RpcServer(new DriverApplication(), 0);
+        try (RpcServer server = rpc(new DriverApplication());
              WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip(
                     new TextWebSocketFrame(false, 0, "{\"id\":21,\"method\":\"mc.no"),
@@ -167,7 +168,7 @@ class RpcFramingTest {
 
     @Test
     void aMissingMethodIsAnInvalidRequestNotAnInternalError() throws Exception {
-        try (RpcServer server = new RpcServer(new DriverApplication(), 0);
+        try (RpcServer server = rpc(new DriverApplication());
              WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip("{\"id\":5,\"params\":{}}");
             assertEquals("5", String.valueOf(r.get("id")));
@@ -180,7 +181,7 @@ class RpcFramingTest {
     void aRequestWithoutAnIdIsAnsweredWithANullIdNotZero() throws Exception {
         // 0 is a legal client id; answering an id-less request with it misroutes the
         // reply to whichever call really used 0.
-        try (RpcServer server = new RpcServer(new DriverApplication(), 0);
+        try (RpcServer server = rpc(new DriverApplication());
              WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> err = raw.roundTrip("{\"method\":\"mc.nope\",\"params\":{}}");
             assertTrue(err.containsKey("id"), "id key missing: " + err);
@@ -202,11 +203,11 @@ class RpcFramingTest {
     @Test
     void aServerThreadTimeoutSaysWhetherTheTaskCanStillApply() throws Exception {
         DriverApplication api = new DriverApplication();
-        ProbeMethods.failing(api, "probe.notExecuted", () -> new ServerThreadHop.NotExecutedException("withdrawn"));
+        ProbeMethods.failing(api.registry(),"probe.notExecuted", () -> new ServerThreadHop.NotExecutedException("withdrawn"));
         // Handlers may wrap what the hop threw; the classification must survive that.
-        ProbeMethods.failing(api, "probe.outcomeUnknown",
+        ProbeMethods.failing(api.registry(),"probe.outcomeUnknown",
                 () -> new RuntimeException(new ServerThreadHop.OutcomeUnknownException("still running")));
-        try (RpcServer server = new RpcServer(api, 0);
+        try (RpcServer server = rpc(api);
              WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> ne = raw.roundTrip("{\"id\":21,\"method\":\"probe.notExecuted\",\"params\":{}}");
             assertEquals("-32001", code(ne), "reply: " + ne);
@@ -220,8 +221,8 @@ class RpcFramingTest {
         // The background-wait cap refuses inside a route, past the transport's own cap check;
         // it must reach the client with the same busy code the transport cap answers with.
         DriverApplication api = new DriverApplication();
-        ProbeMethods.failing(api, "probe.busy", () -> new ServerBusyException("busy: all background waits are running"));
-        try (RpcServer server = new RpcServer(api, 0);
+        ProbeMethods.failing(api.registry(),"probe.busy", () -> new ServerBusyException("busy: all background waits are running"));
+        try (RpcServer server = rpc(api);
              WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip("{\"id\":23,\"method\":\"probe.busy\",\"params\":{}}");
             assertEquals(String.valueOf(ServerBusyException.CODE), code(r), "reply: " + r);
@@ -232,11 +233,11 @@ class RpcFramingTest {
     void aLargeRequestIsAcceptedLikeTheMcpTransportAcceptsIt() throws Exception {
         // McpServer caps a POST body at agent.mcp.maxBodyBytes (8 MiB default). The
         // WebSocket side inherited Netty's 64 KiB default frame size, so the same
-        // DriverApi call succeeded on one transport and killed the connection on the
+        // driver call succeeded on one transport and killed the connection on the
         // other — with no JSON error, because a frame that never assembles cannot
         // carry one. 100 KiB is comfortably over the old limit and far under the new.
         String pad = "x".repeat(100 * 1024);
-        try (RpcServer server = new RpcServer(new DriverApplication(), 0);
+        try (RpcServer server = rpc(new DriverApplication());
              WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip(
                     "{\"id\":11,\"method\":\"mc.nope\",\"params\":{\"pad\":\"" + pad + "\"}}");
@@ -254,7 +255,7 @@ class RpcFramingTest {
         // did not match, the set stayed empty, empty meant "no filter", and the caller
         // was subscribed to EVERY event while its ack said types:[] — which reads like
         // the opposite. Failing open on a filter is the worst direction to fail.
-        try (RpcServer server = new RpcServer(new DriverApplication(), 0);
+        try (RpcServer server = rpc(new DriverApplication());
              WsTestClient raw = new WsTestClient(server.port())) {
 
             Map<?, ?> str = raw.roundTrip("{\"id\":1,\"method\":\"mc.events.subscribe\","
@@ -275,7 +276,7 @@ class RpcFramingTest {
 
     @Test
     void subscribeAckSaysWhetherTheFilterIsUnrestricted() throws Exception {
-        try (RpcServer server = new RpcServer(new DriverApplication(), 0);
+        try (RpcServer server = rpc(new DriverApplication());
              WsTestClient raw = new WsTestClient(server.port())) {
 
             Map<?, ?> filtered = result(raw.roundTrip("{\"id\":4,\"method\":\"mc.events.subscribe\","
@@ -310,9 +311,10 @@ class RpcFramingTest {
     @Test
     void aSubscribedConnectionIsPushedTheEventValueItAskedFor() throws Exception {
         DriverApplication api = new DriverApplication();
-        try (RpcServer server = new RpcServer(api, 0);
+        try (RpcServer server = rpc(api);
              WsTestClient raw = new WsTestClient(server.port())) {
-            assertTrue(!api.methods().contains("mc.events.subscribe") && !api.methods().contains("mc.events.unsubscribe"),
+            assertTrue(!api.registry().methods().contains("mc.events.subscribe")
+                            && !api.registry().methods().contains("mc.events.unsubscribe"),
                     "subscription is the transport's, not a registered method");
             result(raw.roundTrip("{\"id\":8,\"method\":\"mc.events.subscribe\",\"params\":{\"types\":[\"probe.kept\"]}}"));
             api.emitExternal("probe.dropped", null, JsonValue.of("no"));
@@ -338,7 +340,7 @@ class RpcFramingTest {
     void anApiErrorTravelsAsTheStandardErrorObjectWithItsDataAttached() throws Exception {
         // JSON-RPC 2.0 error shape: {code, message, data}; data is the ApiError a caller
         // branches on, so a client never has to parse the message text.
-        try (RpcServer server = new RpcServer(new DriverApplication(), 0);
+        try (RpcServer server = rpc(new DriverApplication());
              WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip("{\"id\":1,\"method\":\"mc.nope\",\"params\":{}}");
             Map<?, ?> err = assertInstanceOf(Map.class, r.get("error"));

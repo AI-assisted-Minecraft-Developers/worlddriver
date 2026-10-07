@@ -166,7 +166,7 @@ public interface BotApi {
     boolean cancelAction(net.magicterra.worlddriver.api.action.ActionHandle action, String reason);
 
     /** The hop onto the client thread, for a caller that must not block on it ({@code submit}). */
-    net.magicterra.worlddriver.api.ServerThreadHop clientHop();
+    net.magicterra.worlddriver.api.thread.ServerThreadHop clientHop();
 
     /** The client thread's executor: where a stop requested from elsewhere is queued. */
     java.util.concurrent.Executor clientExecutor();
@@ -270,7 +270,7 @@ public interface BotApi {
      * The standard refusal when the bot cannot take an order right now — no player, a world still
      * loading, a dead player, a paused game, a bed, a chunk not yet on the client — or null when it
      * can. {@link BodyReady} decides and shapes it ({@code {ok:false, error, reason}}); this is the
-     * client-thread read of it that {@code DriverApi} puts in front of every verb that acts on the
+     * client-thread read of it that the driver puts in front of every verb that acts on the
      * bot, so the same refusal comes back on every transport instead of {@code started: true} for
      * a bot that cannot move. Reads only; starts nothing.
      */
