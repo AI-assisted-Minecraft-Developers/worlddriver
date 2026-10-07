@@ -150,7 +150,11 @@ public final class RecordType<O> extends ApiType<O> {
         Map<String, Object> props = new LinkedHashMap<>();
         List<String> required = new ArrayList<>();
         if (tagName != null) {
-            props.put(tagName, Map.of("type", "string", "const", tag));
+            // Not Map.of: its iteration order changes from one JVM to the next, and so would the artifacts.
+            Map<String, Object> tagSchema = new LinkedHashMap<>();
+            tagSchema.put("type", "string");
+            tagSchema.put("const", tag);
+            props.put(tagName, tagSchema);
             required.add(tagName);
         }
         for (ApiField<O, ?> f : fields) {
