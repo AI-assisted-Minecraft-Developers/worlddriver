@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.application;
 
+import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.application.DriverApplication;
 
 import net.magicterra.worlddriver.bot.BotConfig;
@@ -43,8 +44,8 @@ class EventMutePolicyTest {
                 if ("sentinel".equals(e.type)) sentinel.countDown();
                 else seen.add(e.type);
             });
-            for (String t : types) api.emitExternal(t, null, "payload");
-            api.emitExternal("sentinel", null, "");
+            for (String t : types) api.emitExternal(t, null, JsonValue.of("payload"));
+            api.emitExternal("sentinel", null, JsonValue.of(""));
             assertTrue(sentinel.await(10, TimeUnit.SECONDS), "dispatch never ran");
             return seen;
         } finally {
@@ -81,7 +82,7 @@ class EventMutePolicyTest {
         try {
             DriverApplication api = new DriverApplication();
             long before = api.eventSeq.get();
-            api.emitExternal("noisy", null, "payload");
+            api.emitExternal("noisy", null, JsonValue.of("payload"));
             assertEquals(before + 1, api.eventSeq.get(),
                     "a muted event must still be recorded and numbered");
         } finally {

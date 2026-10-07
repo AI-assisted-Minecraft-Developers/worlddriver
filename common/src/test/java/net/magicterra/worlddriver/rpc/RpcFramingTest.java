@@ -21,6 +21,7 @@ import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.ProbeMethods;
+import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import org.junit.jupiter.api.Test;
 
@@ -314,8 +315,8 @@ class RpcFramingTest {
             assertTrue(!api.methods().contains("mc.events.subscribe") && !api.methods().contains("mc.events.unsubscribe"),
                     "subscription is the transport's, not a registered method");
             result(raw.roundTrip("{\"id\":8,\"method\":\"mc.events.subscribe\",\"params\":{\"types\":[\"probe.kept\"]}}"));
-            api.emitExternal("probe.dropped", null, "no");
-            api.emitExternal("probe.kept", new net.minecraft.core.BlockPos(1, 2, 3), Map.of("n", 4));
+            api.emitExternal("probe.dropped", null, JsonValue.of("no"));
+            api.emitExternal("probe.kept", new net.minecraft.core.BlockPos(1, 2, 3), JsonValue.of(Map.of("n", 4)));
             Map<?, ?> frame = WsTestClient.decode(raw.poll(5_000));
             assertEquals("notifications/message", frame.get("method"));
             assertTrue(!frame.containsKey("id"), "a push carries no id: " + frame);
@@ -328,7 +329,7 @@ class RpcFramingTest {
             Map<?, ?> stray = raw.roundTrip("{\"id\":9,\"method\":\"mc.events.unsubscribe\",\"params\":{\"types\":[]}}");
             assertEquals("-32602", code(stray), "unsubscribe takes no params: " + stray);
             result(raw.roundTrip("{\"id\":10,\"method\":\"mc.events.unsubscribe\"}"));
-            api.emitExternal("probe.kept", null, "late");
+            api.emitExternal("probe.kept", null, JsonValue.of("late"));
             assertNull(raw.poll(500), "nothing is pushed after unsubscribe");
         }
     }

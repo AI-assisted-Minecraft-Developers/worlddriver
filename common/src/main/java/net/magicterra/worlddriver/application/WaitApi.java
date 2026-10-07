@@ -155,7 +155,7 @@ public final class WaitApi implements WaitCalls {
             IN_FLIGHT.remove(waitId);
             lease.close();
         }
-        api.emit("wait.done", null, WaitContracts.WAIT_DONE.encode(done));
+        api.emit("wait.done", null, JsonValue.of(WaitContracts.WAIT_DONE.encode(done)));
     }
 
     private static WaitDone failed(MethodSpec<?, ?> spec, String waitId, Throwable t) {
@@ -245,7 +245,7 @@ public final class WaitApi implements WaitCalls {
     }
 
     private static Optional<JsonValue> infoOf(Map<String, Object> info) {
-        return EventWire.json(info);
+        return info == null ? Optional.empty() : Optional.of(JsonValue.of(info));
     }
 
     private static long msSince(long t0) {

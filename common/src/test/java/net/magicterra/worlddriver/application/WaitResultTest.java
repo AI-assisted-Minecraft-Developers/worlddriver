@@ -91,7 +91,7 @@ class WaitResultTest {
         assertEquals(Boolean.TRUE, reply.get("satisfied"), r.toString());
         assertFalse(r.containsKey("error"), r.toString());
 
-        Map<?, ?> data = (Map<?, ?>) done.get(10, TimeUnit.SECONDS).data;
+        Map<?, ?> data = (Map<?, ?>) done.get(10, TimeUnit.SECONDS).data.tree();
         assertEquals(id, data.get("waitId"));
         assertEquals("mc.wait.condition", data.get("method"));
         assertEquals(reply, data.get("result"));

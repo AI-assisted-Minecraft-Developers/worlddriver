@@ -8,6 +8,7 @@ import net.magicterra.worlddriver.api.WorldCell;
 import net.magicterra.worlddriver.api.ServerThreadGuard;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.api.methods.EventContracts;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.model.DriverEvent;
@@ -154,7 +155,7 @@ public final class DriverApplication extends DriverApi {
     /** Platform event hooks (and client-tick detectors) feed natural (non-API)
      *  signals — block changes, damage, death, chat, threats — into the event
      *  stream through here. */
-    public void emitExternal(String type, BlockPos pos, Object data) {
+    public void emitExternal(String type, BlockPos pos, JsonValue data) {
         emit(type, pos, data);
     }
 
@@ -163,7 +164,7 @@ public final class DriverApplication extends DriverApi {
      *  cheap; listener delivery is handed to the single-thread {@link #eventDispatch}
      *  so the calling thread (server tick / client tick / watcher) never blocks on a
      *  socket write. Returns the assigned sequence number. */
-    long emit(String type, BlockPos pos, Object data) {
+    long emit(String type, BlockPos pos, JsonValue data) {
         DriverEvent e;
         // The seq is taken under the lock: readers advance their cursor to the last seq they
         // saw, so an event appended behind a higher seq would never be returned to them.

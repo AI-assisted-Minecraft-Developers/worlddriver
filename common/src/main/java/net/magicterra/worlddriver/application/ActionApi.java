@@ -4,6 +4,7 @@ import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.api.methods.ActionCalls;
 import net.magicterra.worlddriver.api.methods.ActionCallsBinding;
 import net.magicterra.worlddriver.api.methods.WorldContracts;
@@ -67,7 +68,7 @@ public final class ActionApi implements ActionCalls {
                         level.setBlockAndUpdate(new BlockPos(x, y, z), state);
                         n++;
                     }
-            api.emit("block.fill", from, p.type() + "@" + from + "->" + to);
+            api.emit("block.fill", from, JsonValue.of(p.type() + "@" + from + "->" + to));
             return new Filled(n, api.eventsAfter(cursor, p.returnEvents()));
         }, ctx);
     }
@@ -88,7 +89,7 @@ public final class ActionApi implements ActionCalls {
                 WorldContracts.Placement row = p.blocks().get(i);
                 BlockPos bp = ObserveApi.pos(row.pos());
                 level.setBlockAndUpdate(bp, states.get(i));
-                api.emit("block.place", bp, row.type());
+                api.emit("block.place", bp, JsonValue.of(row.type()));
             }
             return new Placed(states.size(), api.eventsAfter(cursor, p.returnEvents()));
         }, ctx);
@@ -154,7 +155,7 @@ public final class ActionApi implements ActionCalls {
                 return api.requireServerHop().submit(() -> {
                     String prev = ApiSupport.blockId(level.getBlockState(pos));
                     level.setBlockAndUpdate(pos, newState);
-                    api.emit(isAir ? "block.break" : "block.place", pos, isAir ? prev : type);
+                    api.emit(isAir ? "block.break" : "block.place", pos, JsonValue.of(isAir ? prev : type));
                     return new CommandResult(true, Optional.of(Via.FAST_PATH), Optional.empty(), true, 1, List.of(),
                             api.eventsAfter(cursor, p.returnEvents()));
                 }, ctx);
@@ -227,7 +228,7 @@ public final class ActionApi implements ActionCalls {
             boolean success = ok && cbState[0] && cbState[1];
             // Push a command.result event so subscribers see commands run by any
             // agent/transport (the synchronous return only reaches the caller).
-            api.emit("command.result", null, Map.of("cmd", finalCmd, "ok", ok, "success", success));
+            api.emit("command.result", null, JsonValue.of(Map.of("cmd", finalCmd, "ok", ok, "success", success)));
             return new CommandResult(ok, ok ? Optional.of(Via.BRIGADIER) : Optional.empty(), Optional.ofNullable(err),
                     success, cbValue[0], List.copyOf(feedback), api.eventsAfter(cursor, p.returnEvents()));
         }, ctx);

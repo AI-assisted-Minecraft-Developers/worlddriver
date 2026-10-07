@@ -13,6 +13,7 @@ import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.action.ActionRegistry;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.api.methods.ActionContract.ActionResponse;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.Box;
@@ -277,7 +278,8 @@ final class BotActions implements BotTaskCalls {
             }
             GotoOrders.Resolution r = GotoOrders.resolve(p, body, Map.of(), type -> nearestOfType(body, type));
             if (r instanceof GotoOrders.Refuse refuse) return plan(refuse);
-            return plan(GotoOrders.start((GotoOrders.Resolved) r, body, app::emitExternal));
+            return plan(GotoOrders.start((GotoOrders.Resolved) r, body,
+                    (type, pos, data) -> app.emitExternal(type, pos, JsonValue.of(data))));
         });
     }
 

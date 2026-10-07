@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.rpc;
 import net.magicterra.worlddriver.application.DriverApplication;
 
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.contract.JsonValue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -36,8 +37,8 @@ class RpcBackpressureTest {
             client.channel.config().setAutoRead(false);
             String payload = "x".repeat(16 * 1024);
             // Far past the high water mark plus whatever the loopback socket buffers absorb.
-            for (int i = 0; i < 4000; i++) api.emitExternal("test.flood", null, payload);
-            api.emitExternal("test.done", null, "");
+            for (int i = 0; i < 4000; i++) api.emitExternal("test.flood", null, JsonValue.of(payload));
+            api.emitExternal("test.done", null, JsonValue.of(""));
             assertTrue(dispatched.await(60, TimeUnit.SECONDS), "dispatch never finished");
 
             client.channel.config().setAutoRead(true);
@@ -55,7 +56,7 @@ class RpcBackpressureTest {
             client.roundTrip("{\"id\":1,\"method\":\"mc.events.subscribe\","
                     + "\"params\":{\"types\":[\"test.flood\"]}}");
             String payload = "x".repeat(1024);
-            for (int i = 0; i < 200; i++) api.emitExternal("test.flood", null, payload);
+            for (int i = 0; i < 200; i++) api.emitExternal("test.flood", null, JsonValue.of(payload));
             for (int i = 0; i < 200; i++) {
                 assertTrue(client.poll(10_000) != null, "event " + i + " never arrived");
             }

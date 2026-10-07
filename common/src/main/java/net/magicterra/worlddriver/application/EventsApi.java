@@ -97,7 +97,7 @@ public final class EventsApi implements EventCalls {
     private Emitted emit(Emit e) {
         BlockPos pos = e.pos().map(p -> new BlockPos(p.x(), p.y(), p.z())).orElse(null);
         // The caller's value as given: an object stays an object on the wire.
-        long n = api.emit(e.type(), pos, e.data().map(JsonValue::tree).orElse(null));
+        long n = api.emit(e.type(), pos, e.data().orElse(JsonValue.NULL));
         return new Emitted(n, e.type());
     }
 
@@ -199,7 +199,7 @@ public final class EventsApi implements EventCalls {
             data.put("invoke", spec.invoke());
             spec.field().ifPresent(f -> data.put("field", f));
             value.ifPresent(v -> data.put("value", v.tree()));
-            api.emit(spec.emitAs(), null, data);
+            api.emit(spec.emitAs(), null, JsonValue.of(data));
         }
     }
 

@@ -1,4 +1,5 @@
 package net.magicterra.worlddriver.model;
+import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.minecraft.core.BlockPos;
 
 public final class DriverEvent {
@@ -8,28 +9,19 @@ public final class DriverEvent {
     public final BlockPos pos;
 
     /**
-     * The event's payload, serialized by {@code JsonCodec} like any other value:
-     * a String for scalar payloads ({@code block.place} carries a block id,
-     * {@code entity.death} an entity id), a Map for structured ones.
-     *
-     * <p>This used to be declared {@code String}, which forced every structured
-     * emitter to pre-encode with {@code JsonCodec.encode(map)}. The result went on
-     * the wire as JSON escaped INSIDE a JSON string
-     * ({@code "data":"{\"phase\":\"sunset\"}"}), so the field was an undiscriminated
-     * union: a consumer could not tell a scalar payload from a document without
-     * already knowing the event type. Journeyman guessed with
-     * {@code isinstance(d, dict)}, which was never true, silently disabling its
-     * dusk interrupt — the failure mode its own comment calls "the #1 historical
-     * killer". Emitters now pass the value itself and the codec does the encoding
-     * once.
+     * The event's payload as a value tree: a String for scalar payloads ({@code block.place} carries a
+     * block id, {@code entity.death} an entity id), an object for structured ones, {@link JsonValue#NULL}
+     * for none. Typed as a tree so an emitter cannot hand the wire a domain object, and so a structured
+     * payload is never pre-encoded into a JSON string inside the JSON event (which once hid every
+     * document payload from consumers that tested for an object).
      */
-    public final Object data;
+    public final JsonValue data;
 
-    public DriverEvent(long seq, String type, BlockPos pos, Object data) {
+    public DriverEvent(long seq, String type, BlockPos pos, JsonValue data) {
         this.seq = seq;
         this.timestamp = System.currentTimeMillis();
         this.type = type;
         this.pos = pos;
-        this.data = data;
+        this.data = data == null ? JsonValue.NULL : data;
     }
 }

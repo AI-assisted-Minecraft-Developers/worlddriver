@@ -6,6 +6,7 @@ import net.magicterra.worlddriver.api.WorldCell;
 
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.WorldCalls;
 import net.magicterra.worlddriver.api.methods.WorldCallsBinding;
@@ -201,7 +202,7 @@ public final class WorldApi implements WorldCalls {
                     }
             restoreCells(level, cells);
             api.emit("world.restore", new BlockPos(snap.minX, snap.minY, snap.minZ),
-                    id + "@" + cells.size() + " blocks");
+                    JsonValue.of(id + "@" + cells.size() + " blocks"));
             if (p.discard()) synchronized (store) { store.remove(id); }
             return new Restored(id, cells.size(), beRestored, api.eventsAfter(cursor, p.returnEvents()));
         }, ctx);

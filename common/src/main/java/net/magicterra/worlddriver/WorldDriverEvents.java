@@ -9,6 +9,7 @@ import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.event.events.common.TickEvent;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarCommand;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
@@ -79,7 +80,7 @@ public final class WorldDriverEvents {
         DriverApi api = WorldDriverCommon.api();
         if (api != null) {
             String id = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
-            api.emitExternal("block.break", pos.immutable(), id);
+            api.emitExternal("block.break", pos.immutable(), JsonValue.of(id));
         }
         return EventResult.pass();
     }
@@ -89,7 +90,7 @@ public final class WorldDriverEvents {
         DriverApi api = WorldDriverCommon.api();
         if (api != null && placer != null) {
             String id = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
-            api.emitExternal("block.place", pos.immutable(), id);
+            api.emitExternal("block.place", pos.immutable(), JsonValue.of(id));
         }
         return EventResult.pass();
     }
@@ -99,7 +100,7 @@ public final class WorldDriverEvents {
         DriverApi api = WorldDriverCommon.api();
         if (api != null) {
             String id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
-            api.emitExternal("entity.death", entity.blockPosition(), id);
+            api.emitExternal("entity.death", entity.blockPosition(), JsonValue.of(id));
         }
         return EventResult.pass();
     }
@@ -107,14 +108,14 @@ public final class WorldDriverEvents {
     private static void emitPlayer(String type, ServerPlayer player) {
         DriverApi api = WorldDriverCommon.api();
         if (api == null) return;
-        api.emitExternal(type, player.blockPosition(), player.getGameProfile().getName());
+        api.emitExternal(type, player.blockPosition(), JsonValue.of(player.getGameProfile().getName()));
     }
 
     private static EventResult onChat(ServerPlayer player, net.minecraft.network.chat.Component message) {
         DriverApi api = WorldDriverCommon.api();
         if (api != null) {
             api.emitExternal("chat.message", player.blockPosition(),
-                    player.getGameProfile().getName() + ": " + message.getString());
+                    JsonValue.of(player.getGameProfile().getName() + ": " + message.getString()));
         }
         return EventResult.pass();
     }

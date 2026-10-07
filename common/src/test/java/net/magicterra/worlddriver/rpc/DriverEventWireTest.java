@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.api.WireValues;
-
+import net.magicterra.worlddriver.api.EventWire;
+import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 
 import net.magicterra.worlddriver.model.DriverEvent;
@@ -36,13 +36,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DriverEventWireTest {
 
     private static Map<?, ?> encodeThenDecode(DriverEvent e) {
-        Object decoded = JsonCodec.decode(WireValues.encode(e));
+        Object decoded = JsonCodec.decode(JsonCodec.encode(EventWire.tree(e)));
         return assertInstanceOf(Map.class, decoded);
+    }
+
+    private static DriverEvent event(long seq, String type, BlockPos pos, Object data) {
+        return new DriverEvent(seq, type, pos, JsonValue.of(data));
     }
 
     @Test
     void structuredPayloadArrivesAsAnObject() {
-        DriverEvent e = new DriverEvent(1, "time.phase", new BlockPos(1, 2, 3),
+        DriverEvent e = event(1, "time.phase", new BlockPos(1, 2, 3),
                 Map.of("phase", "sunset", "dayTime", 12800L));
         Map<?, ?> wire = encodeThenDecode(e);
 
@@ -58,13 +62,13 @@ class DriverEventWireTest {
     void scalarPayloadStaysAString() {
         // block.place / entity.death carry a bare id and must keep doing so —
         // Journeyman compares e["data"] == "minecraft:player" directly.
-        DriverEvent e = new DriverEvent(2, "entity.death", null, "minecraft:player");
+        DriverEvent e = event(2, "entity.death", null, "minecraft:player");
         assertEquals("minecraft:player", encodeThenDecode(e).get("data"));
     }
 
     @Test
     void nestedAndListPayloadsSurvive() {
-        DriverEvent e = new DriverEvent(3, "wait.done", null,
+        DriverEvent e = event(3, "wait.done", null,
                 Map.of("result", Map.of("ok", true), "seen", List.of(1L, 2L)));
         Map<?, ?> data = assertInstanceOf(Map.class, encodeThenDecode(e).get("data"));
         assertEquals(Boolean.TRUE, ((Map<?, ?>) data.get("result")).get("ok"));
@@ -73,7 +77,7 @@ class DriverEventWireTest {
 
     @Test
     void absentPayloadAndPositionAreOmittedNotNull() {
-        DriverEvent e = new DriverEvent(5, "x", null, null);
+        DriverEvent e = new DriverEvent(5, "x", null, JsonValue.NULL);
         Map<?, ?> wire = encodeThenDecode(e);
         assertFalse(wire.containsKey("data"), wire.toString());
         assertFalse(wire.containsKey("pos"), wire.toString());
@@ -81,7 +85,7 @@ class DriverEventWireTest {
 
     @Test
     void envelopeFieldsKeepTheirDeclaredTypes() {
-        DriverEvent e = new DriverEvent(9, "block.place", new BlockPos(4, 5, 6), "minecraft:stone");
+        DriverEvent e = event(9, "block.place", new BlockPos(4, 5, 6), "minecraft:stone");
         Map<?, ?> wire = encodeThenDecode(e);
         assertEquals("9", wire.get("seq"), "seq is a 64-bit number, so it travels as a decimal string");
         assertEquals("block.place", wire.get("type"));
@@ -94,7 +98,7 @@ class DriverEventWireTest {
     /** 2^53 + 1 is the first seq a JavaScript number would round. */
     @Test
     void aSeqPastJavaScriptPrecisionArrivesExact() {
-        DriverEvent e = new DriverEvent(9_007_199_254_740_993L, "x", null, "y");
+        DriverEvent e = event(9_007_199_254_740_993L, "x", null, "y");
         assertEquals("9007199254740993", encodeThenDecode(e).get("seq"));
         Map<?, ?> frame = assertInstanceOf(Map.class, JsonCodec.decode(EventNotifications.frame(e)));
         assertEquals("9007199254740993", ((Map<?, ?>) ((Map<?, ?>) frame.get("params")).get("data")).get("seq"));
@@ -103,7 +107,7 @@ class DriverEventWireTest {
     /** An entity id inside a payload is a 32-bit int: only seq is stringified, never every number. */
     @Test
     void numbersInsideThePayloadStayNumbers() {
-        DriverEvent e = new DriverEvent(4, "entity.death", null, Map.of("id", 123, "health", 2.5));
+        DriverEvent e = event(4, "entity.death", null, Map.of("id", 123, "health", 2.5));
         Map<?, ?> data = assertInstanceOf(Map.class, encodeThenDecode(e).get("data"));
         assertEquals(123L, data.get("id"));
         assertInstanceOf(Number.class, data.get("health"));
@@ -127,8 +131,8 @@ class DriverEventWireTest {
     /**
      * The tests above build an {@link DriverEvent} directly, so they prove the CODEC
      * is right — not that the emitters stopped pre-encoding. Nothing else can:
-     * {@code emit} takes an {@code Object}, so a leftover
-     * {@code emit(type, pos, WireValues.encode(map))} compiles cleanly and quietly
+     * a JSON string is itself a value tree, so a leftover
+     * {@code emit(type, pos, JsonValue.of(WireValues.encode(map)))} compiles cleanly and quietly
      * restores the escaped-string payload for that one event type. This is the only
      * thing standing between that and a silent regression, so it reads the source.
      */
@@ -162,7 +166,7 @@ class DriverEventWireTest {
     void notificationFrameCarriesTheSameTypedPayload() {
         // The push channel wraps the event as MCP notifications/message; the payload
         // must not be re-flattened on the way through.
-        DriverEvent e = new DriverEvent(6, "threat.appeared", new BlockPos(0, 64, 0),
+        DriverEvent e = event(6, "threat.appeared", new BlockPos(0, 64, 0),
                 Map.of("type", "minecraft:zombie", "dist", 7L));
         Map<?, ?> frame = assertInstanceOf(Map.class,
                 JsonCodec.decode(EventNotifications.frame(e)));

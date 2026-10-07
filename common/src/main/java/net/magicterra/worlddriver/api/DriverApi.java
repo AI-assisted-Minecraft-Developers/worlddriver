@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.api;
 
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.protocol.JsonCodec;
@@ -122,7 +123,8 @@ public abstract class DriverApi {
     public abstract void attachServer(MinecraftServer server);
     public abstract void detachServer();
     public abstract void clearEvents();
-    public abstract void emitExternal(String type, BlockPos pos, Object data);
+    /** Append an event; {@code data} is its payload as a value tree, {@link JsonValue#NULL} for none. */
+    public abstract void emitExternal(String type, BlockPos pos, JsonValue data);
     public abstract void addEventListener(Consumer<DriverEvent> listener);
     public abstract void removeEventListener(Consumer<DriverEvent> listener);
     public abstract int restoreCellsOnServer(List<WorldCell> cells);

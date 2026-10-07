@@ -83,7 +83,7 @@ class EventsWatchTest {
                 "field", "value", "above", 5, "emitAs", "probe.fired", "everyMs", 200, "once", true));
         assertEquals("watch", ack.get("op"));
         assertTrue(got.await(10, TimeUnit.SECONDS), "the watcher never fired");
-        Map<?, ?> data = (Map<?, ?>) fired.get(0).data;
+        Map<?, ?> data = (Map<?, ?>) fired.get(0).data.tree();
         assertEquals(((Number) ack.get("id")).longValue(), ((Number) data.get("watch")).longValue());
         assertEquals(7L, ((Number) data.get("value")).longValue());
         assertEquals(0L, events(api, Map.of("op", "list")).get("count"), "once removes the watcher after it fires");
@@ -121,6 +121,6 @@ class EventsWatchTest {
         Map<?, ?> r = events(api, Map.of("op", "emit", "type", "test.custom", "data", Map.of("hello", "world")));
         assertEquals("emit", r.get("op"));
         assertEquals(String.valueOf(api.eventSeq.get()), r.get("seq"));
-        assertEquals(Map.of("hello", "world"), api.events.peekLast().data);
+        assertEquals(Map.of("hello", "world"), api.events.peekLast().data.tree());
     }
 }

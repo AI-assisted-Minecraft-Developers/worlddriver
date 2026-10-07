@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot;
 
+import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.util.TimeSnap;
@@ -81,16 +82,16 @@ final class ClientEventDetector {
         if (wmSnap.present() && sceneApi != null) {
             net.minecraft.core.BlockPos scenePos = wmSnap.pos();
             if (wmSnap.exposedAtNight() && !prevExposedAtNight) {
-                sceneApi.emitExternal("duskExposed", scenePos, Map.of(
+                sceneApi.emitExternal("duskExposed", scenePos, JsonValue.of(Map.of(
                                 "pos", Map.of("x", scenePos.getX(),
                                               "y", scenePos.getY(),
-                                              "z", scenePos.getZ())));
+                                              "z", scenePos.getZ()))));
             }
             if (wmSnap.cornered() && !prevCornered) {
-                sceneApi.emitExternal("cornered", scenePos, Map.of(
+                sceneApi.emitExternal("cornered", scenePos, JsonValue.of(Map.of(
                                 "pos", Map.of("x", scenePos.getX(),
                                               "y", scenePos.getY(),
-                                              "z", scenePos.getZ())));
+                                              "z", scenePos.getZ()))));
             }
             prevExposedAtNight = wmSnap.exposedAtNight();
             prevCornered = wmSnap.cornered();
@@ -116,7 +117,7 @@ final class ClientEventDetector {
                 java.util.Map<String, Object> data = new java.util.HashMap<>();
                 data.put("health", mc.player != null ? (double) mc.player.getHealth() : 0.0);
                 if (cause != null && !cause.isEmpty()) data.put("cause", cause);
-                api.emitExternal("player.death", at, data);
+                api.emitExternal("player.death", at, JsonValue.of(data));
             }
             onDeathCancel.run();
         }
@@ -160,7 +161,7 @@ final class ClientEventDetector {
                     hurtData.put("attackerDistance", att.distanceTo(pl));
                 }
             }
-            api.emitExternal("player.hurt", at, hurtData);
+            api.emitExternal("player.hurt", at, JsonValue.of(hurtData));
         }
         evtLastHealth = hp;
 
@@ -168,9 +169,9 @@ final class ClientEventDetector {
         int topId = (top != null) ? top.id() : -1;
         if (topId != -1 && topId != evtLastThreatId) {
             net.minecraft.core.BlockPos tp = top.entity().blockPosition();
-            api.emitExternal("threat.appeared", tp, Map.of(
+            api.emitExternal("threat.appeared", tp, JsonValue.of(Map.of(
                     "type", top.type(), "id", topId,
-                    "distance", top.distance(), "score", top.score()));
+                    "distance", top.distance(), "score", top.score())));
         }
         evtLastThreatId = topId;
 
@@ -183,14 +184,14 @@ final class ClientEventDetector {
         // re-entering re-fires.
         boolean inWater = pl.isInWater();
         if (inWater && !evtInWater) {
-            api.emitExternal("player.enteredWater", at, Map.of(
-                    "submerged", pl.isUnderWater()));
+            api.emitExternal("player.enteredWater", at, JsonValue.of(Map.of(
+                    "submerged", pl.isUnderWater())));
         }
         evtInWater = inWater;
         boolean inLava = pl.isInLava();
         if (inLava && !evtInLava) {
-            api.emitExternal("player.enteredLava", at, Map.of(
-                    "health", (double) pl.getHealth()));
+            api.emitExternal("player.enteredLava", at, JsonValue.of(Map.of(
+                    "health", (double) pl.getHealth())));
         }
         evtInLava = inLava;
 
@@ -207,8 +208,8 @@ final class ClientEventDetector {
             String phase = TimeSnap.phase(mc.level.getDayTime());
             if (!phase.equals(evtLastPhase)) {
                 if (evtLastPhase != null) {
-                    api.emitExternal("time.phase", at, Map.of(
-                            "phase", phase, "prev", evtLastPhase, "dayTime", tod));
+                    api.emitExternal("time.phase", at, JsonValue.of(Map.of(
+                            "phase", phase, "prev", evtLastPhase, "dayTime", tod)));
                 }
                 evtLastPhase = phase;
             }
@@ -231,8 +232,8 @@ final class ClientEventDetector {
                 for (Map.Entry<String, Integer> e : cur.entrySet()) {
                     int delta = e.getValue() - evtInvCounts.getOrDefault(e.getKey(), 0);
                     if (delta > 0) {
-                        api.emitExternal("item.pickup", at, Map.of(
-                                "id", e.getKey(), "count", delta, "total", e.getValue()));
+                        api.emitExternal("item.pickup", at, JsonValue.of(Map.of(
+                                "id", e.getKey(), "count", delta, "total", e.getValue())));
                     }
                 }
             }
@@ -249,9 +250,9 @@ final class ClientEventDetector {
             if (evtInvInit && evtMainhandId != null
                     && evtMainhandDamage >= evtMainhandMax - 2
                     && cur.getOrDefault(evtMainhandId, 0) < evtInvCounts.getOrDefault(evtMainhandId, 0)) {
-                api.emitExternal("tool.broke", at, Map.of(
+                api.emitExternal("tool.broke", at, JsonValue.of(Map.of(
                         "id", evtMainhandId,
-                        "damage", evtMainhandDamage, "maxDamage", evtMainhandMax));
+                        "damage", evtMainhandDamage, "maxDamage", evtMainhandMax)));
             }
             ItemStack mh = pl.getMainHandItem();
             if (!mh.isEmpty() && mh.isDamageableItem()) {
@@ -292,7 +293,7 @@ final class ClientEventDetector {
                         if (!(e.getKey() instanceof AdvancementHolder holder)) continue;
                         String key = holder.id().toString();
                         if (evtDoneAdv.add(key) && evtAdvInit) {
-                            api.emitExternal("advancement", at, Map.of("id", key));
+                            api.emitExternal("advancement", at, JsonValue.of(Map.of("id", key)));
                         }
                     }
                     break;   // first Map field is the progress map
@@ -332,7 +333,7 @@ final class ClientEventDetector {
                     // Entry.row() = the same {seq,kind,text,self} shape chat.history
                     // returns, so consumers can reconcile the two surfaces by seq
                     // and skip the bot's own echoed lines via self.
-                    api.emitExternal("client.message", at, e.row());
+                    api.emitExternal("client.message", at, JsonValue.of(e.row()));
                 }
             }
         } catch (Throwable ignored) { /* never break the tick */ }
@@ -341,7 +342,7 @@ final class ClientEventDetector {
         try {
             String ab = componentFieldText(gui, "overlayMessageString");
             if (ab != null && !ab.isEmpty() && !ab.equals(evtLastActionBar)) {
-                api.emitExternal("client.actionBar", at, Map.of("text", ab));
+                api.emitExternal("client.actionBar", at, JsonValue.of(Map.of("text", ab)));
             }
             evtLastActionBar = ab;
         } catch (Throwable ignored) { }
@@ -351,9 +352,9 @@ final class ClientEventDetector {
             String title = componentFieldText(gui, "title");
             if (title != null && !title.isEmpty() && !title.equals(evtLastTitle)) {
                 String sub = componentFieldText(gui, "subtitle");
-                api.emitExternal("client.title", at,
+                api.emitExternal("client.title", at, JsonValue.of(
                         sub != null && !sub.isEmpty()
-                                ? Map.of("text", title, "subtitle", sub) : Map.of("text", title));
+                                ? Map.of("text", title, "subtitle", sub) : Map.of("text", title)));
             }
             evtLastTitle = title;
         } catch (Throwable ignored) { }
