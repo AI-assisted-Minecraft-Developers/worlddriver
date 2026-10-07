@@ -47,6 +47,9 @@ sourceSets {
 }
 
 dependencies {
+    // Generates each @Api interface's binding (docs/dev/java-api.md); javac-only, never on a runtime path.
+    annotationProcessor project(':api-processor')
+
     // StageWright's scene SPI (Scene/SceneContext/SceneProvider) for the wd.* scenes.
     //
     // The API ONLY, never the runtime: the scenes need those three types to DECLARE
@@ -66,6 +69,11 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// The generated bindings are public API too: ship their source with the rest.
+tasks.named('sourcesJar') {
+    from(tasks.named('compileJava').flatMap { it.options.generatedSourceOutputDirectory })
 }
 
 tasks.named('test') {

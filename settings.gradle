@@ -30,3 +30,5 @@ rootProject.name = 'worlddriver'
 include 'common'
 include 'fabric'
 include 'neoforge'
+// Compile-time only: :common's annotation processor; never a mod, never published.
+include 'api-processor'

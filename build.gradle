@@ -189,7 +189,10 @@ allprojects {
     }
 }
 
-subprojects {
+// The mod modules; :api-processor is a plain javac plugin and takes none of this.
+def modProjects = subprojects.findAll { it.name != 'api-processor' }
+
+configure(modProjects) {
     apply plugin: 'dev.architectury.loom'
     apply plugin: 'architectury-plugin'
     apply plugin: 'maven-publish'
