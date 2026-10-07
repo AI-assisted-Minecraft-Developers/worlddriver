@@ -31,7 +31,7 @@ public final class WaitContracts {
     public static final int MAX_BACKGROUND = 32;
 
     /** Any wait's answer: its {@code done} variant, or {@link Started} for a background one. */
-    public interface Outcome {}
+    public sealed interface Outcome permits Started, EventsArrived, WorldReady, ConditionResult {}
 
     public record Started(String waitId) implements Outcome {}
 

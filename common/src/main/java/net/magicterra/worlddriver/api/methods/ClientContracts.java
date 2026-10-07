@@ -43,7 +43,9 @@ public final class ClientContracts {
     }
 
     /** A client verb's reply: {@code done} with what it did, or {@link Refused} with nothing done. */
-    public interface ClientReply {}
+    public sealed interface ClientReply permits Refused, ChatSent, ScreenContracts.Clicked, ScreenContracts.SlotClicked,
+            ScreenContracts.HotbarSelected, ScreenContracts.Typed, ScreenContracts.Replaced, ScreenContracts.SlidersRead,
+            ScreenContracts.SliderSet, ScreenContracts.KeySent, ScreenContracts.KeybindsListed, ScreenContracts.KeybindDriven {}
 
     public record Refused(ClientRefusal reason, String message) implements ClientReply {}
 

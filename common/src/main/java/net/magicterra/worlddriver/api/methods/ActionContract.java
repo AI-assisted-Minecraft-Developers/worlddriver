@@ -67,16 +67,18 @@ public final class ActionContract {
     public record Superseded<R>(String actionId, String body, String replacementActionId) implements ActionSnapshot<R> {}
 
     /**
-     * Not sealed: a method may answer some requests at once instead of starting an action (goto's
-     * {@code plan: 'score'}), with variants it adds through {@link #response(String, ApiType, UnionType.Variant[])}.
+     * A method may answer some requests at once instead of starting an action (goto's {@code plan: 'score'}),
+     * with variants it adds through {@link #response(String, ApiType, UnionType.Variant[])}. Each such variant
+     * is listed here too, so a Java caller's switch over the answer is checked for every case it can get.
      */
-    public interface ActionResponse<R> {}
+    public sealed interface ActionResponse<R> permits Accepted, Refused, GotoContract.Scored, HandContracts.Turned {}
 
     /**
      * What a method that acts on a body within the call answers (holding an item, one click): {@code done}
      * with what came of it, or {@link Refused} with the same reasons a task is refused for.
      */
-    public interface ImmediateResponse {}
+    public sealed interface ImmediateResponse permits Refused, HandContracts.Held, HandContracts.Used,
+            HandContracts.Attacked, HandContracts.Equipped, ControlContracts.Stopped, ControlContracts.Status {}
 
     /** {@code waitTimedOut}: the call's wait ran out with the action still running; always false for awaitMs 0. */
     public record Accepted<R>(ActionSnapshot<R> action, boolean waitTimedOut) implements ActionResponse<R> {}
