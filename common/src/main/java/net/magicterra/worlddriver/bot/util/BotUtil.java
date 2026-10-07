@@ -364,16 +364,24 @@ public final class BotUtil {
 
     public static BlockPos nearestBlockWithinReach(Player p, Level lvl, Block block,
                                                    double reach, int radiusH, int radiusV) {
-        BlockPos base = p.blockPosition();
+        return nearestMatching(lvl, p.blockPosition(), p.getEyePosition(), s -> s.is(block), reach, radiusH, radiusV);
+    }
+
+    /**
+     * The nearest cell of the box {@code radiusH} across and {@code radiusV} up and down from
+     * {@code base} whose state {@code want} accepts, measured from {@code origin} to the cell's
+     * centre and strictly closer than {@code maxDist}; null when there is none.
+     */
+    public static BlockPos nearestMatching(Level lvl, BlockPos base, Vec3 origin, java.util.function.Predicate<BlockState> want,
+                                           double maxDist, int radiusH, int radiusV) {
         BlockPos best = null;
-        double bestD = reach * reach;
-        Vec3 eye = p.getEyePosition();
+        double bestD = maxDist * maxDist;
         for (int dx = -radiusH; dx <= radiusH; dx++)
             for (int dy = -radiusV; dy <= radiusV; dy++)
                 for (int dz = -radiusH; dz <= radiusH; dz++) {
                     BlockPos pos = base.offset(dx, dy, dz);
-                    if (!lvl.getBlockState(pos).is(block)) continue;
-                    double d = eye.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+                    if (!want.test(lvl.getBlockState(pos))) continue;
+                    double d = origin.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
                     if (d < bestD) { bestD = d; best = pos; }
                 }
         return best;

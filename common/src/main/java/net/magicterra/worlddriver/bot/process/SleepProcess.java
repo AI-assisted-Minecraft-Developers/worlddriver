@@ -12,6 +12,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.util.BotInteract.*;
@@ -132,22 +133,11 @@ public final class SleepProcess implements BotProcess {
 
     @Override public String failure() { return failure; }
 
+    /** Measured from the feet cell, unlike a station, which is ranked from the eye. */
     private BlockPos scanNearestBed(Level lvl, LivingEntity p) {
         BlockPos foot = blockPosOf(p);
-        int vr = Math.min(searchRadius, 8);
-        long bestD2 = Long.MAX_VALUE;
-        BlockPos best = null;
-        for (int dy = -vr; dy <= vr; dy++) {
-            for (int dx = -searchRadius; dx <= searchRadius; dx++) {
-                for (int dz = -searchRadius; dz <= searchRadius; dz++) {
-                    BlockPos bp = foot.offset(dx, dy, dz);
-                    if (!lvl.getBlockState(bp).is(BlockTags.BEDS)) continue;
-                    long d2 = (long) bp.distSqr(foot);
-                    if (d2 < bestD2) { bestD2 = d2; best = bp; }
-                }
-            }
-        }
-        return best;
+        return nearestMatching(lvl, foot, Vec3.atCenterOf(foot), s -> s.is(BlockTags.BEDS), Double.POSITIVE_INFINITY,
+                searchRadius, Math.min(searchRadius, 8));
     }
 
 }
