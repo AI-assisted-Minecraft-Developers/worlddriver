@@ -9,7 +9,8 @@ import net.magicterra.worlddriver.bot.util.BlockMatch;
 import net.magicterra.worlddriver.bot.util.NearestFirstScan;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.state.BlockState;
-import java.util.Locale;
+import net.minecraft.world.phys.Vec3;
+import net.magicterra.worlddriver.api.methods.CommonTypes;
 import java.util.function.Predicate;
 
 /**
@@ -72,110 +73,27 @@ public static BlockPos findNearestStandForBlock(Entity self, String blockId, int
     return null;
 }
 
-/** Compute a block target N blocks away in the requested direction. Cardinal
- *  directions are world-relative; forward/backward/left/right use the player's
- *  current yaw (Baritone-style {@code thisway}). up/down move on the Y axis. */
-public static BlockPos applyDirection(Entity p, String dirName, int distance) {
-    int x0 = (int) Math.floor(p.getX());
-    int y0 = (int) Math.floor(p.getY());
-    int z0 = (int) Math.floor(p.getZ());
-    String d = dirName.trim().toLowerCase(Locale.ROOT);
-    int dx = 0, dy = 0, dz = 0;
-    switch (d) {
-        case "north" -> dz = -distance;
-        case "south" -> dz = distance;
-        case "east"  -> dx = distance;
-        case "west"  -> dx = -distance;
-        case "up"    -> dy = distance;
-        case "down"  -> dy = -distance;
-        case "forward", "ahead" -> {
-            float yaw = p.getYRot();
-            dx = (int) Math.round(-Math.sin(Math.toRadians(yaw)) * distance);
-            dz = (int) Math.round( Math.cos(Math.toRadians(yaw)) * distance);
-        }
-        case "backward", "back" -> {
-            float yaw = p.getYRot();
-            dx = (int) Math.round( Math.sin(Math.toRadians(yaw)) * distance);
-            dz = (int) Math.round(-Math.cos(Math.toRadians(yaw)) * distance);
-        }
-        case "left" -> {
-            float yaw = p.getYRot() - 90f;
-            dx = (int) Math.round(-Math.sin(Math.toRadians(yaw)) * distance);
-            dz = (int) Math.round( Math.cos(Math.toRadians(yaw)) * distance);
-        }
-        case "right" -> {
-            float yaw = p.getYRot() + 90f;
-            dx = (int) Math.round(-Math.sin(Math.toRadians(yaw)) * distance);
-            dz = (int) Math.round( Math.cos(Math.toRadians(yaw)) * distance);
-        }
-        default -> { return null; }
-    }
-    return new BlockPos(x0 + dx, y0 + dy, z0 + dz);
-}
-
-/**
- * Unit horizontal step {dx,dz} for a strict-direction goal. Absolute
- * compass words map directly; yaw-relative words (forward/back/left/right)
- * snap to the nearest cardinal — Baritone's GoalStrictDirection takes a
- * cardinal Direction, not an arbitrary heading. Returns null for vertical
- * or unknown directions.
- */
-public static int[] horizontalStep(Entity p, String d) {
-    switch (d) {
-        case "north" -> { return new int[]{0, -1}; }
-        case "south" -> { return new int[]{0, 1}; }
-        case "east"  -> { return new int[]{1, 0}; }
-        case "west"  -> { return new int[]{-1, 0}; }
-        case "up", "down" -> { return null; }
-        default -> {
-            BlockPos far = applyDirection(p, d, 16);
-            if (far == null) return null;
-            int dx = far.getX() - (int) Math.floor(p.getX());
-            int dz = far.getZ() - (int) Math.floor(p.getZ());
-            if (dx == 0 && dz == 0) return null;
-            // Snap to the dominant cardinal axis.
-            if (Math.abs(dx) >= Math.abs(dz)) return new int[]{Integer.signum(dx), 0};
-            return new int[]{0, Integer.signum(dz)};
-        }
-    }
-}
-
-/** Resolve a Baritone-style direction string into an absolute horizontal
- *  {@link Direction}. Player-relative (forward/back/left/right) snaps to
- *  the nearest cardinal of the current yaw. Returns null on unknown.
- *
- *  <p><b>This is the SECOND reader of that vocabulary and it accepts a different set from
- *  {@link #applyDirection} above.</b> The difference is real, not cosmetic:
- *  <ul>
- *    <li>{@code applyDirection} normalises ({@code trim().toLowerCase(Locale.ROOT)}); this does
- *        not, so {@code "North"} resolves there and returns null here;</li>
- *    <li>{@code applyDirection} takes {@code "backward"} and {@code "ahead"} as synonyms of
- *        {@code "back"} / {@code "forward"}; this takes neither.</li>
- *  </ul>
- *  Neither gap is reachable: the contract enums are enforced (an out-of-enum string is
- *  invalid_params before any handler runs), and goto, clearArea and construct all spell the
- *  way the body came {@code "back"}. */
-public static Direction resolveCardinalDirection(Entity pl, String dir) {
-    switch (dir) {
-        case "north": return Direction.NORTH;
-        case "south": return Direction.SOUTH;
-        case "east":  return Direction.EAST;
-        case "west":  return Direction.WEST;
-    }
-    // Snap yaw → nearest cardinal. MC yaw: 0=south, 90=west, 180=north, 270=east.
-    float yaw = pl.getYRot() % 360f;
-    if (yaw < 0) yaw += 360f;
-    Direction front;
-    if (yaw >= 315f || yaw < 45f) front = Direction.SOUTH;
-    else if (yaw < 135f)          front = Direction.WEST;
-    else if (yaw < 225f)          front = Direction.NORTH;
-    else                          front = Direction.EAST;
-    return switch (dir) {
-        case "forward" -> front;
-        case "back"    -> front.getOpposite();
-        case "right"   -> front.getClockWise();
-        case "left"    -> front.getCounterClockWise();
-        default -> null;
+/** The cell {@code distance} away in {@code dir}. Compass words and up/down are the world's; a
+ *  turning word follows the body's exact yaw (Baritone-style {@code thisway}), so it can land on a
+ *  diagonal — unlike {@link #snapped}. */
+public static BlockPos applyDirection(Entity p, CommonTypes.Direction dir, int distance) {
+    BlockPos foot = BlockPos.containing(p.getX(), p.getY(), p.getZ());
+    float turn = switch (dir) {
+        case FORWARD -> 0f;
+        case RIGHT -> 90f;
+        case BACK -> 180f;
+        case LEFT -> -90f;
+        default -> Float.NaN;
     };
+    if (Float.isNaN(turn)) return foot.relative(snapped(p, dir), distance);
+    Vec3 step = Vec3.directionFromRotation(0f, p.getYRot() + turn).scale(distance);
+    return foot.offset((int) Math.round(step.x), 0, (int) Math.round(step.z));
+}
+
+/** {@code dir} as a world direction for {@code pl}: a turning word turns against the compass
+ *  direction nearest the body's yaw, the rest are themselves. */
+public static Direction snapped(Entity pl, CommonTypes.Direction dir) {
+    CommonTypes.Direction d = dir.against(CommonTypes.Direction.compass(pl.getYRot()));
+    return Direction.byName(d.wireName());
 }
 }

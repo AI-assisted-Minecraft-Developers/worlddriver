@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.methods.ClearAreaContract.Direction;
+import net.magicterra.worlddriver.api.methods.CommonTypes.Direction;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.Tunnel;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.WidthBias;
 
@@ -30,32 +30,6 @@ final class ClearAreaGeometry {
         return c.volume() > max ? null : c;
     }
 
-    /** The compass direction {@code dir} means for a body with {@code yaw}; absolute ones are themselves. */
-    static Direction compass(Direction dir, float yaw) {
-        if (dir != Direction.FORWARD && dir != Direction.BACK && dir != Direction.LEFT && dir != Direction.RIGHT) return dir;
-        // Minecraft yaw: 0 faces south, 90 west, 180 north, 270 east.
-        float y = ((yaw % 360f) + 360f) % 360f;
-        Direction face = y >= 315 || y < 45 ? Direction.SOUTH : y < 135 ? Direction.WEST : y < 225 ? Direction.NORTH : Direction.EAST;
-        return switch (dir) {
-            case FORWARD -> face;
-            case BACK -> turn(turn(face));
-            case LEFT -> turn(turn(turn(face)));
-            case RIGHT -> turn(face);
-            default -> throw new IllegalStateException();
-        };
-    }
-
-    /** A quarter turn to the right, facing {@code d}. */
-    private static Direction turn(Direction d) {
-        return switch (d) {
-            case SOUTH -> Direction.WEST;
-            case WEST -> Direction.NORTH;
-            case NORTH -> Direction.EAST;
-            case EAST -> Direction.SOUTH;
-            default -> throw new IllegalStateException(d + " is not horizontal");
-        };
-    }
-
     /**
      * The cells of {@code t} for a body whose feet are in cell {@code (px,py,pz)} and that faces
      * {@code yaw}. Horizontal: from the cell in front to {@code distance} cells out, {@code width} across
@@ -64,7 +38,7 @@ final class ClearAreaGeometry {
      * along Z, both centred on the body's column with the extra cell towards +X and +Z.
      */
     static Cells tunnel(long px, long py, long pz, float yaw, Tunnel t, WidthBias bias) {
-        Direction d = compass(t.direction(), yaw);
+        Direction d = t.direction().against(Direction.compass(yaw));
         long lo = (t.width() - 1) / 2, hi = t.width() - 1 - lo;            // floor and ceil of (w-1)/2
         if (d == Direction.UP || d == Direction.DOWN) {
             long fy = d == Direction.UP ? 1 : -1;

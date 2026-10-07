@@ -16,6 +16,7 @@ import net.magicterra.worlddriver.api.methods.BuildContracts.BunkerParams;
 import net.magicterra.worlddriver.api.methods.BuildContracts.ConstructParams;
 import net.magicterra.worlddriver.api.methods.BuildContracts.EscapeParams;
 import net.magicterra.worlddriver.api.methods.CombatContract;
+import net.magicterra.worlddriver.api.methods.CommonTypes;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.GatherContracts;
 import net.magicterra.worlddriver.api.methods.GatherContracts.CraftParams;
@@ -188,7 +189,7 @@ public final class VerbOrders {
                 return new Start<>(tower, () -> new BuildContracts.Towered(startY, targetY, t.block(), tower.placed()));
             }
             case BuildContracts.Bridge b -> {
-                Direction face = GoalResolver.resolveCardinalDirection(self, b.direction().wireName());
+                Direction face = GoalResolver.snapped(self, CommonTypes.Direction.valueOf(b.direction().name()));
                 BridgeProcess bridge = new BridgeProcess(face, b.distance(), b.block().orElse(null));
                 BuildContracts.Compass compass = BuildContracts.Compass.valueOf(face.name());
                 return new Start<>(bridge, () -> new BuildContracts.Bridged(b.direction(), compass, b.distance(), b.block(),

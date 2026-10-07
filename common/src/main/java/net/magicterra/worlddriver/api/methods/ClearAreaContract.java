@@ -12,6 +12,7 @@ import net.magicterra.worlddriver.api.contract.UnionType;
 import net.magicterra.worlddriver.api.contract.WireName;
 import net.magicterra.worlddriver.api.methods.ActionContract.ActionResponse;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.CommonTypes.Direction;
 
 /**
  * {@code mc.bot.clearArea}: clear, fill or replace the cells of a box, or of a tunnel measured from
@@ -25,11 +26,6 @@ public final class ClearAreaContract {
 
     /** Most cells one order may cover; every one is walked to and worked. */
     public static final int MAX_CELLS = 4096;
-
-    public enum Direction implements WireName {
-        FORWARD, BACK, LEFT, RIGHT, NORTH, SOUTH, EAST, WEST, UP, DOWN;
-        @Override public String wireName() { return name().toLowerCase(java.util.Locale.ROOT); }
-    }
 
     /** Which side of the travel direction an even width puts its extra column on. */
     public enum WidthBias implements WireName {
@@ -56,8 +52,6 @@ public final class ClearAreaContract {
     /** The box actually worked, and for a horizontal tunnel the bias it was cut with. */
     public record Summary(BlockPosition from, BlockPosition to, Optional<WidthBias> widthBias) {}
 
-    public static final ApiType<Direction> DIRECTION = ApiTypes.enumOf("Direction", Direction.class)
-            .describe("forward/back/left/right turn with the body's facing, snapped to the nearest compass direction.");
     public static final ApiType<WidthBias> WIDTH_BIAS = ApiTypes.enumOf("WidthBias", WidthBias.class);
 
     public static final RecordType<Box> BOX = ApiTypes.record("Box",
@@ -66,7 +60,9 @@ public final class ClearAreaContract {
             Box::new);
 
     public static final RecordType<Tunnel> TUNNEL = ApiTypes.record("Tunnel",
-            ApiField.field("direction", DIRECTION).defaulted(Direction.FORWARD).forGetter(Tunnel::direction),
+            ApiField.field("direction", CommonTypes.DIRECTION)
+                    .describe("A turning word is snapped to the nearest compass direction.")
+                    .defaulted(Direction.FORWARD).forGetter(Tunnel::direction),
             ApiField.field("distance", ApiTypes.integer(1, 64))
                     .describe("Cells along the travel direction, counted from the one in front of the body.")
                     .required().forGetter(Tunnel::distance),
@@ -82,7 +78,7 @@ public final class ClearAreaContract {
                     .optional().forGetter(Tunnel::widthBias),
             Tunnel::new)
             .checked((t, at) -> {
-                if (t.widthBias().isPresent() && (t.direction() == Direction.UP || t.direction() == Direction.DOWN)) {
+                if (t.widthBias().isPresent() && t.direction().vertical()) {
                     at.field("widthBias").fail(ApiIssue.Code.INVALID_VALUE,
                             "a vertical tunnel is centred on the body's column and has no bias");
                 }

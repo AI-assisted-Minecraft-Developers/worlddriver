@@ -14,6 +14,7 @@ import net.magicterra.worlddriver.api.contract.UnionType;
 import net.magicterra.worlddriver.api.contract.WireName;
 import net.magicterra.worlddriver.api.methods.ActionContract.ActionResponse;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.CommonTypes.Direction;
 import net.magicterra.worlddriver.api.methods.RouteContract.Route;
 
 /**
@@ -35,13 +36,6 @@ public final class GotoContract {
         /** Stand beside, above or below it: a chest, a furnace. */
         ADJACENT;
         @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
-    }
-
-    /** forward/back/left/right turn with the body's facing; the same words clearArea and construct take. */
-    public enum Direction implements WireName {
-        NORTH, SOUTH, EAST, WEST, UP, DOWN, FORWARD, BACK, LEFT, RIGHT;
-        @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
-        public boolean vertical() { return this == UP || this == DOWN; }
     }
 
     public enum PlanMode implements WireName {
@@ -134,7 +128,6 @@ public final class GotoContract {
                          boolean snapshotTruncated) implements ActionResponse<Result> {}
 
     private static final ApiType<GoalMode> GOAL_MODE = ApiTypes.enumOf("GoalMode", GoalMode.class);
-    private static final ApiType<Direction> DIRECTION = ApiTypes.enumOf("GotoDirection", Direction.class);
     private static final ApiType<Integer> NEAR = ApiTypes.integer(0, 64)
             .describe("Accept any cell within this Euclidean radius; 0 is exact.");
     private static final ApiType<Integer> ENTITY_NEAR = ApiTypes.integer(0, 16)
@@ -172,12 +165,16 @@ public final class GotoContract {
                     ApiField.field("goalMode", GOAL_MODE).defaulted(GoalMode.IN).forGetter(EntityTarget::goalMode),
                     EntityTarget::new)),
             ApiTypes.variant("direction", DirectionTarget.class, ApiTypes.record(null,
-                    ApiField.field("direction", DIRECTION).required().forGetter(DirectionTarget::direction),
+                    ApiField.field("direction", CommonTypes.DIRECTION)
+                            .describe("A turning word follows the body's exact heading, diagonals included.")
+                            .required().forGetter(DirectionTarget::direction),
                     ApiField.field("distance", ApiTypes.integer(1, 256)).defaulted(8).forGetter(DirectionTarget::distance),
                     ApiField.field("near", NEAR).defaulted(0).forGetter(DirectionTarget::near),
                     DirectionTarget::new)),
             ApiTypes.variant("heading", Heading.class, ApiTypes.record(null,
-                    ApiField.field("direction", DIRECTION).describe("Horizontal only.").required().forGetter(Heading::direction),
+                    ApiField.field("direction", CommonTypes.DIRECTION)
+                            .describe("Horizontal only. A turning word is snapped to the nearest compass direction.")
+                            .required().forGetter(Heading::direction),
                     Heading::new)
                     .checked((h, at) -> {
                         if (h.direction().vertical()) {

@@ -15,7 +15,7 @@ import net.magicterra.worlddriver.api.methods.ActionContract.Accepted;
 import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
 import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
 import net.magicterra.worlddriver.api.methods.ActionContract.Succeeded;
-import net.magicterra.worlddriver.api.methods.ClearAreaContract.Direction;
+import net.magicterra.worlddriver.api.methods.CommonTypes.Direction;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.Params;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.Summary;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.Tunnel;

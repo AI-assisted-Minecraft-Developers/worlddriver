@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.methods.ClearAreaContract.Direction;
+import net.magicterra.worlddriver.api.methods.CommonTypes.Direction;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.Tunnel;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.WidthBias;
 import org.junit.jupiter.api.Test;
@@ -31,12 +31,17 @@ class ClearAreaGeometryTest {
 
     @Test
     void relativeDirectionsTurnWithTheBody() {
-        assertEquals(Direction.EAST, ClearAreaGeometry.compass(Direction.LEFT, SOUTH));
-        assertEquals(Direction.WEST, ClearAreaGeometry.compass(Direction.RIGHT, SOUTH));
-        assertEquals(Direction.NORTH, ClearAreaGeometry.compass(Direction.BACK, SOUTH));
-        assertEquals(Direction.NORTH, ClearAreaGeometry.compass(Direction.FORWARD, NORTH + 30));
-        assertEquals(Direction.EAST, ClearAreaGeometry.compass(Direction.FORWARD, -90));
-        assertEquals(Direction.UP, ClearAreaGeometry.compass(Direction.UP, WEST));
+        assertEquals(Direction.EAST, Direction.LEFT.against(Direction.compass(SOUTH)));
+        assertEquals(Direction.WEST, Direction.RIGHT.against(Direction.compass(SOUTH)));
+        assertEquals(Direction.NORTH, Direction.BACK.against(Direction.compass(SOUTH)));
+        assertEquals(Direction.NORTH, Direction.FORWARD.against(Direction.compass(NORTH + 30)));
+        assertEquals(Direction.EAST, Direction.FORWARD.against(Direction.compass(-90)));
+        assertEquals(Direction.UP, Direction.UP.against(Direction.compass(WEST)));
+        // The quadrant edges fall the way Minecraft's Direction.fromYRot puts them.
+        assertEquals(Direction.WEST, Direction.compass(45f));
+        assertEquals(Direction.SOUTH, Direction.compass(315f));
+        assertEquals(Direction.SOUTH, Direction.compass(-44.9f));
+        assertEquals(Direction.NORTH, Direction.compass(-180f));
     }
 
     @Test

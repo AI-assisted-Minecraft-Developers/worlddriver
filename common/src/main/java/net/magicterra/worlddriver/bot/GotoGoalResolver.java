@@ -73,11 +73,11 @@ public final class GotoGoalResolver {
             }
             case GotoContract.Heading t -> {
                 // Baritone GoalStrictDirection: keep boring this way with no fixed endpoint.
-                int[] step = horizontalStep(self, t.direction().wireName());
-                yield new Goal.StrictDirection(blockPosOf(self.getX(), self.getY(), self.getZ()), step[0], step[1]);
+                var face = snapped(self, t.direction());
+                yield new Goal.StrictDirection(blockPosOf(self.getX(), self.getY(), self.getZ()), face.getStepX(), face.getStepZ());
             }
             case GotoContract.DirectionTarget t -> {
-                BlockPos cell = applyDirection(self, t.direction().wireName(), t.distance());
+                BlockPos cell = applyDirection(self, t.direction(), t.distance());
                 if (t.near() > 0) yield new Goal.Near(cell, t.near());
                 yield t.direction().vertical() ? new Goal.YLevel(cell.getY()) : new Goal.XZ(cell.getX(), cell.getZ());
             }

@@ -20,7 +20,6 @@ import net.magicterra.worlddriver.api.methods.ActionContract.ActionResponse;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.Box;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.Clear;
-import net.magicterra.worlddriver.api.methods.ClearAreaContract.Direction;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.Fill;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.Replace;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.Summary;
@@ -237,9 +236,8 @@ final class BotActions implements BotTaskCalls {
             ClearAreaGeometry.Cells cells = fixedBox;
             Optional<WidthBias> used = Optional.empty();
             if (p.target() instanceof Tunnel t) {
-                boolean vertical = t.direction() == Direction.UP || t.direction() == Direction.DOWN;
                 WidthBias bias = t.widthBias().orElse("right".equals(BotConfig.tunnelWidthBias) ? WidthBias.RIGHT : WidthBias.LEFT);
-                if (!vertical) used = Optional.of(bias);
+                if (!t.direction().vertical()) used = Optional.of(bias);
                 cells = ClearAreaGeometry.tunnel(Mth.floor(body.getX()), Mth.floor(body.getY()), Mth.floor(body.getZ()),
                         body.getYRot(), t, bias);
             }
