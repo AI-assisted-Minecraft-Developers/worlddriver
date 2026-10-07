@@ -79,10 +79,6 @@ public final class BotUtil {
         return new BlockPos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
     }
 
-    public static Map<String, Object> posMap(BlockPos p) {
-        return Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ());
-    }
-
     public static BlockPos readPos(Object o) { return Params.toPos(o); }
 
     // These forward to Params so a bot-package caller need not import it. Only the ones
@@ -344,7 +340,7 @@ public final class BotUtil {
      *
      * <p><b>The other half of a pair that has already been merged once.</b>
      * {@code CraftProcess.findTable} and {@code SmeltProcess.findFurnace} carried this loop
-     * twice over, identical but for the block tested and both priced at {@code REACH = 4.3}.
+     * twice over, identical but for the block tested and both priced at {@link #STATION_REACH}.
      * The PLACE half of the same two verbs was merged into {@code PlaceNearby} only after the
      * copies had already diverged twice — its javadoc records gap#61 fixing the table's scan
      * and gap#62 then finding the furnace still on the pre-evolution version. The FIND half was
@@ -362,6 +358,9 @@ public final class BotUtil {
      * @param radiusH horizontal half-width of the scan box, in cells
      * @param radiusV vertical half-height of the scan box, in cells
      */
+    /** How far a crafting table or furnace may be to be picked: a ranking cutoff, a hair inside the server's 4.5. */
+    public static final double STATION_REACH = 4.3;
+
     public static BlockPos nearestBlockWithinReach(Player p, Level lvl, Block block,
                                                    double reach, int radiusH, int radiusV) {
         BlockPos base = p.blockPosition();
@@ -413,9 +412,9 @@ public final class BotUtil {
      * <tr><td>{@code WalkerTickClimb} parkour-place</td><td>the real eye</td>
      *     <td>{@code PARKOUR_PLACE_REACH} = 4.0</td></tr>
      * <tr><td>{@code CraftProcess.findTable}</td><td>the real eye</td>
-     *     <td>{@code CraftProcess.REACH} = 4.3, via {@link #nearestBlockWithinReach}</td></tr>
+     *     <td>{@link #STATION_REACH} = 4.3, via {@link #nearestBlockWithinReach}</td></tr>
      * <tr><td>{@code SmeltProcess.findFurnace}</td><td>the real eye</td>
-     *     <td>{@code SmeltProcess.REACH} = 4.3, same helper, same number</td></tr>
+     *     <td>{@link #STATION_REACH}, same helper</td></tr>
      * </table>
      *
      * <p>The two 4.3s are a RANKING cutoff, not a release gate: they pick which already-placed
@@ -435,7 +434,7 @@ public final class BotUtil {
      * imprecise.
      */
     public static Vec3 standingEye(BlockPos foot) {
-        return new Vec3(foot.getX() + 0.5, foot.getY() + 1.62, foot.getZ() + 0.5);
+        return new Vec3(foot.getX() + 0.5, foot.getY() + Player.DEFAULT_EYE_HEIGHT, foot.getZ() + 0.5);
     }
 
     /**

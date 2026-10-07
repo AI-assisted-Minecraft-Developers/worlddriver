@@ -24,6 +24,7 @@ import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotUtil.faceTowardEye;
+import static net.magicterra.worlddriver.bot.util.BotUtil.STATION_REACH;
 import static net.magicterra.worlddriver.bot.util.BotUtil.nearestBlockWithinReach;
 
 /**
@@ -43,7 +44,6 @@ public final class SmeltProcess implements BotProcess {
      *  either can be absent. */
     private Hands hands;
     private Containers menus;
-    private static final double REACH = 4.3;
     private static final int OPEN_TIMEOUT = 40;
     /** Vanilla smelt is 200 ticks/item; budget generously per item + slack. */
     private static final int PER_ITEM_TIMEOUT = 260;
@@ -530,7 +530,7 @@ public final class SmeltProcess implements BotProcess {
      *  {@link net.magicterra.worlddriver.bot.util.BotUtil#nearestBlockWithinReach} so the two
      *  cannot drift the way the PLACE half of this same pair did (see {@code PlaceNearby}). */
     private static BlockPos findFurnace(Player p, Level lvl) {
-        return nearestBlockWithinReach(p, lvl, Blocks.FURNACE, REACH, 4, 2);
+        return nearestBlockWithinReach(p, lvl, Blocks.FURNACE, STATION_REACH, 4, 2);
     }
 
     private BlockPos placeFurnace(Body a, Player p, Level lvl) {

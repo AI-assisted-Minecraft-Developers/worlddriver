@@ -28,6 +28,7 @@ import java.util.Set;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotUtil.faceTowardEye;
+import static net.magicterra.worlddriver.bot.util.BotUtil.STATION_REACH;
 import static net.magicterra.worlddriver.bot.util.BotUtil.nearestBlockWithinReach;
 
 /**
@@ -51,8 +52,6 @@ public final class CraftProcess implements BotProcess {
      *  either can be absent. */
     private Hands hands;
     private Containers menus;
-    /** Interaction reach for opening/clicking a station block (server caps ~4.5). */
-    private static final double REACH = 4.3;
     /** Max ticks to wait for the server to fill the grid / open the table. */
     private static final int STEP_TIMEOUT = 40;
     /** Ticks to keep re-planning before declaring materials missing — the client
@@ -361,7 +360,7 @@ public final class CraftProcess implements BotProcess {
      *  {@link net.magicterra.worlddriver.bot.util.BotUtil#nearestBlockWithinReach} so the two
      *  cannot drift the way the PLACE half of this same pair did (see {@code PlaceNearby}). */
     private static BlockPos findTable(Player p, Level lvl) {
-        return nearestBlockWithinReach(p, lvl, Blocks.CRAFTING_TABLE, REACH, 4, 2);
+        return nearestBlockWithinReach(p, lvl, Blocks.CRAFTING_TABLE, STATION_REACH, 4, 2);
     }
 
     /** Place a crafting table from inventory nearby, return its position (or null). */
