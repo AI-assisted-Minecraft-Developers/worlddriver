@@ -29,6 +29,7 @@ import com.mojang.datafixers.util.Function6;
 import com.mojang.datafixers.util.Function7;
 import com.mojang.datafixers.util.Function8;
 import com.mojang.datafixers.util.Function9;
+import net.magicterra.worlddriver.protocol.RejectedNumber;
 
 /**
  * The factories for every {@link ApiType}: scalars with their ranges, enums, lists, open JSON,

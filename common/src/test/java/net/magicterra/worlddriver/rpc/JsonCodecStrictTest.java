@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.api.contract.RejectedNumber;
 import net.magicterra.worlddriver.protocol.JsonCodec;
+import net.magicterra.worlddriver.protocol.RejectedNumber;
 
 import org.junit.jupiter.api.Test;
 

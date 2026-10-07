@@ -9,7 +9,6 @@ import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import net.magicterra.worlddriver.api.contract.RejectedNumber;
 
 /** Hand-rolled JSON codec. Sufficient for our RPC use; no external dep. */
 public final class JsonCodec {

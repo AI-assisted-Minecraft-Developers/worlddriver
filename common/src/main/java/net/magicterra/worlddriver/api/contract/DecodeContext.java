@@ -5,6 +5,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import net.magicterra.worlddriver.protocol.RejectedNumber;
 
 /**
  * Where a decode is (a JSON Pointer) and the issues found so far, shared by every level of one
