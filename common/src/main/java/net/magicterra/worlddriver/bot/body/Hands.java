@@ -4,10 +4,14 @@ import net.magicterra.worlddriver.bot.movement.BlastFooting;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 
 /**
  * What the controlled player does with its hands: hold, place, break, swing, use.
@@ -48,6 +52,25 @@ public interface Hands {
      *  (Unlike {@link #holdPlaceable()} which holds ANY support block, this holds the
      *  exact item — used to hold a crafting table / furnace before placing it.) */
     boolean holdItem(Item item);
+
+    /** {@link #holdItem}, except that air means an empty hand: an empty hotbar slot is selected, and
+     *  with none the answer is false — emptying the hand into the bag would move what it held. */
+    default boolean holdItemOrEmptyHand(Item item) {
+        if (item != Items.AIR) return holdItem(item);
+        if (!(entity() instanceof Player p)) return false;
+        Inventory inv = p.getInventory();
+        if (inv.getSelected().isEmpty()) return true;
+        for (int s = 0; s < Inventory.getSelectionSize(); s++) {
+            if (inv.items.get(s).isEmpty()) { setSelectedSlot(s); return true; }
+        }
+        return false;
+    }
+
+    /** Why {@link #holdItemOrEmptyHand} said no, in the same words for every body. */
+    static String cannotHold(Item item, String body) {
+        return item == Items.AIR ? body + " has no empty hotbar slot"
+                : "no " + BuiltInRegistries.ITEM.getKey(item) + " in " + body + "'s inventory";
+    }
 
     // --- placing ---
     /** Place a support block into {@code cell} (finds a solid neighbour face). */

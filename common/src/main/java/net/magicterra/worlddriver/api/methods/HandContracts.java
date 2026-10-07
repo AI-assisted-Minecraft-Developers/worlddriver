@@ -113,6 +113,7 @@ public final class HandContracts {
                                     .required().forGetter(Held::held),
                             Held::new)),
                     "Put an item in the main hand: select its hotbar slot, or swap it up from anywhere in the inventory. "
+                            + "minecraft:air empties the hand by selecting an empty hotbar slot. "
                             + "Refused as invalid_world_target when the body has none.")
             .effects(MethodSpec.Effect.INVENTORY_WRITE);
 

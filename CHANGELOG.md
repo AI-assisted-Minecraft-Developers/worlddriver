@@ -33,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   answer air for an unknown id, so `mc.hand.holdItem` with a typo went looking for air, and a replay
   archive naming a block this game lacks restored air over the terrain. The first is now
   `invalid_params` at `/item`, the second an unreadable archive.
+- **`mc.bot.holdItem` with `minecraft:air` empties the hand, on every body.** It selects an empty
+  hotbar slot and is refused, in the same words everywhere, when there is none. The client used to
+  refuse air as "not in the inventory" while a server body moved whatever it held into the bag.
+- **A server body pulls an item up from the bag into an empty hotbar slot first**, as the client
+  always has, instead of displacing what it held; only a full hotbar swaps into the held slot.
 - **goto, clearArea and construct share one `Direction` type** (the TypeScript `GotoDirection` is now
   `Direction`) and one rule for which way a turning word points. goto's `direction` target still
   follows the body's exact heading; a heading, a tunnel and a bridge snap to the nearest compass

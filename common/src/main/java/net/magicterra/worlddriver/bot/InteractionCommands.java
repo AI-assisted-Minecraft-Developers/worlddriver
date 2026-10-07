@@ -11,6 +11,8 @@ import net.magicterra.worlddriver.api.methods.HandContracts.Hand;
 import net.magicterra.worlddriver.api.methods.HandContracts.Interaction;
 import net.magicterra.worlddriver.api.methods.HandContracts.OnEntity;
 import net.magicterra.worlddriver.bot.body.ClientPlayerBody;
+import net.magicterra.worlddriver.bot.body.Hands;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -19,6 +21,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
@@ -37,14 +40,13 @@ final class InteractionCommands {
 
     private InteractionCommands() {}
 
-    /** Hotbar select, else a swap up from the main inventory: the reach every process already trusts. */
+    /** The same rule as any other body's hands; the method has already refused an unregistered id. */
     static ImmediateResponse holdItem(HandContracts.HoldParams params) {
         Minecraft mc = Minecraft.getInstance();
-        boolean ok = ensureHolding(mc, stk -> !stk.isEmpty()
-                && BuiltInRegistries.ITEM.getKey(stk.getItem()).toString().equals(params.item()));
-        var held = mc.player.getInventory().getSelected();
-        return ok ? new HandContracts.Held(BuiltInRegistries.ITEM.getKey(held.getItem()).toString())
-                : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no " + params.item() + " in the inventory");
+        Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, params.item()).orElseThrow();
+        return new ClientPlayerBody(mc).holdItemOrEmptyHand(item)
+                ? new HandContracts.Held(RegistryIds.itemId(mc.player.getMainHandItem()))
+                : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, Hands.cannotHold(item, params.body()));
     }
 
     static ImmediateResponse useItem(HandContracts.UseParams p) {
@@ -103,7 +105,7 @@ final class InteractionCommands {
         player.setShiftKeyDown(p.sneak());
         try {
             // Taken before the click: the server mounts or opens the menu on a later tick.
-            OnEntity before = afterUse(new OnEntity(entityId, typeOf(target), Math.sqrt(player.distanceToSqr(target)),
+            OnEntity before = afterUse(new OnEntity(entityId, RegistryIds.typeId(target), Math.sqrt(player.distanceToSqr(target)),
                     Optional.empty(), Optional.empty(), Optional.empty()));
             // Vanilla's startUseItem entity branch: interactAt, then interact when that did not consume.
             InteractionResult result = mc.gameMode.interactAt(player, target, new EntityHitResult(target), hand);
@@ -120,7 +122,7 @@ final class InteractionCommands {
         Minecraft mc = Minecraft.getInstance();
         Entity vehicle = mc.player == null ? null : mc.player.getVehicle();
         return new OnEntity(on.entityId(), on.type(), on.distance(),
-                vehicle == null ? Optional.empty() : Optional.of(typeOf(vehicle)),
+                vehicle == null ? Optional.empty() : Optional.of(RegistryIds.typeId(vehicle)),
                 mc.screen == null ? Optional.empty() : Optional.of(mc.screen.getClass().getSimpleName()),
                 Optional.empty());
     }
@@ -145,7 +147,7 @@ final class InteractionCommands {
         float[] aim = aimAnglesAt(player, target);
         player.setYRot(aim[0]); player.setXRot(aim[1]);
         player.swing(InteractionHand.MAIN_HAND);
-        return new HandContracts.Attacked(p.entityId(), typeOf(target), target.isAlive(), Math.sqrt(player.distanceToSqr(target)));
+        return new HandContracts.Attacked(p.entityId(), RegistryIds.typeId(target), target.isAlive(), Math.sqrt(player.distanceToSqr(target)));
     }
 
     private static InteractionHand hand(Hand h) {
@@ -156,7 +158,4 @@ final class InteractionCommands {
         return Interaction.valueOf(r.name().toUpperCase(Locale.ROOT));
     }
 
-    private static String typeOf(Entity e) {
-        return BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
-    }
 }

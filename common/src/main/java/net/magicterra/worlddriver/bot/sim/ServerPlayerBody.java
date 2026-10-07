@@ -274,13 +274,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     }
 
     @Override public boolean holdPlaceable() {
-        ItemStack main = fp.getMainHandItem();
-        if (isSupport(main)) return true;
-        var inv = fp.getInventory();
-        for (int slot = 0; slot < 9; slot++) {
-            if (isSupport(inv.items.get(slot))) { carryTo(slot); return true; }
-        }
-        // The bag counts, and this scan not reaching it is a defect with a measured price. A bot
+        // The bag counts, and a scan not reaching it is a defect with a measured price. A bot
         // holding 110 cobblestone in slots 9..35 is not out of blocks; it is out of reach of a scan
         // that stops at 8. Two arms of wd.serverWidens* differ by exactly that and nothing else:
         // stack in slot 0 -> the footing remedy spends a block and the sole goes 0.168 -> 0.360;
@@ -288,8 +282,23 @@ public class ServerPlayerBody implements Body, Hands, Containers {
         // Rung 20 walks its End segments with the haul wherever picking it up put it, which is why the
         // ladder logged five footing pins and not one support placement. Swapping up from the bag is what the
         // tool selector below has always done for exactly the same reason.
+        return holdMatching(ServerPlayerBody::isSupport);
+    }
+
+    /**
+     * The first stack {@code want} accepts into the main hand: the held one, else a hotbar slot, else
+     * one swapped up from the bag into an empty hotbar slot, or into the held slot when none is empty.
+     * The client's {@code BotInteract.swapFromMainInv} keeps the same order, so both bodies hold the
+     * same slot. Contents only, so the swap rides broadcastChanges.
+     */
+    private boolean holdMatching(java.util.function.Predicate<ItemStack> want) {
+        var inv = fp.getInventory();
+        if (want.test(inv.getSelected())) return true;
+        for (int slot = 0; slot < 9; slot++) {
+            if (want.test(inv.items.get(slot))) { carryTo(slot); return true; }
+        }
         for (int slot = 9; slot < inv.items.size(); slot++) {
-            if (!isSupport(inv.items.get(slot))) continue;
+            if (!want.test(inv.items.get(slot))) continue;
             int to = inv.selected;
             for (int h = 0; h < 9; h++) if (inv.items.get(h).isEmpty()) { to = h; break; }
             ItemStack bag = inv.items.get(slot);
@@ -671,22 +680,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     }
 
     @Override public boolean holdItem(net.minecraft.world.item.Item item) {
-        var inv = fp.getInventory();
-        if (inv.getSelected().getItem() == item) return true;
-        for (int i = 0; i < 9; i++) {
-            if (inv.items.get(i).getItem() == item) { carryTo(i); return true; }
-        }
-        // In the main inventory but not the hotbar — swap it into the selected slot. Contents only,
-        // so it rides broadcastChanges; `selected` does not move. Same reasoning as selectTool's.
-        for (int i = 9; i < inv.items.size(); i++) {
-            if (inv.items.get(i).getItem() == item) {
-                ItemStack held = inv.items.get(inv.selected);
-                inv.items.set(inv.selected, inv.items.get(i));
-                inv.items.set(i, held);
-                return true;
-            }
-        }
-        return false;
+        return holdMatching(stk -> stk.is(item));
     }
 
     @Override public void attackEntityUnchecked(net.minecraft.world.entity.Entity target) {

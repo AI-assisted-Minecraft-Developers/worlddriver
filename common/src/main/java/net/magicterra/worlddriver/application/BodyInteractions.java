@@ -69,9 +69,8 @@ final class BodyInteractions {
         if (hands == null) return noHands(host);
         Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, p.item()).orElseThrow(() -> ApiException.invalidParam(
                 "/item", ApiIssue.Code.INVALID_VALUE, "no item " + p.item() + " in this game"));
-        boolean held = hands.holdItem(item);
-        return held ? new HandContracts.Held(BuiltInRegistries.ITEM.getKey(host.entity().getMainHandItem().getItem()).toString())
-                : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no " + p.item() + " in " + host.id() + "'s inventory");
+        return hands.holdItemOrEmptyHand(item) ? new HandContracts.Held(RegistryIds.itemId(host.entity().getMainHandItem()))
+                : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, Hands.cannotHold(item, host.id()));
     }
 
     static ImmediateResponse useItem(BodyHost host, HandContracts.UseParams p) {
@@ -125,8 +124,8 @@ final class BodyInteractions {
             if (result.consumesAction()) sp.swing(hand, true);
             Entity vehicle = sp.getVehicle();
             return new HandContracts.Used(p.hand(), interaction(result), result.consumesAction(),
-                    new HandContracts.OnEntity(entityId, typeOf(target), distance,
-                            vehicle == null ? Optional.empty() : Optional.of(typeOf(vehicle)), Optional.empty(),
+                    new HandContracts.OnEntity(entityId, RegistryIds.typeId(target), distance,
+                            vehicle == null ? Optional.empty() : Optional.of(RegistryIds.typeId(vehicle)), Optional.empty(),
                             sp.containerMenu == sp.inventoryMenu ? Optional.empty()
                                     : Optional.of(sp.containerMenu.getClass().getSimpleName())));
         } finally {
@@ -155,7 +154,7 @@ final class BodyInteractions {
         self.setYRot(aim[0]);
         self.setXRot(aim[1]);
         self.swing(InteractionHand.MAIN_HAND, true);
-        return new HandContracts.Attacked(p.entityId(), typeOf(target), target.isAlive(), distance);
+        return new HandContracts.Attacked(p.entityId(), RegistryIds.typeId(target), target.isAlive(), distance);
     }
 
     /** Yaw and pitch from {@code eye} to a point. */
@@ -188,10 +187,6 @@ final class BodyInteractions {
 
     private static Interaction interaction(InteractionResult r) {
         return Interaction.valueOf(r.name());
-    }
-
-    private static String typeOf(Entity e) {
-        return BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
     }
 
     private static ImmediateResponse noHands(BodyHost host) {
