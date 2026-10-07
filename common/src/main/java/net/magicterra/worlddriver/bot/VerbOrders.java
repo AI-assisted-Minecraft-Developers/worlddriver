@@ -55,6 +55,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ElytraItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -270,6 +271,6 @@ public final class VerbOrders {
     /** Whether the chest slot holds an elytra with flight left in it. */
     public static boolean wearsElytra(LivingEntity self) {
         ItemStack chest = self.getItemBySlot(EquipmentSlot.CHEST);
-        return chest.is(Items.ELYTRA) && chest.getMaxDamage() > 0 && chest.getDamageValue() < chest.getMaxDamage() - 1;
+        return chest.is(Items.ELYTRA) && ElytraItem.isFlyEnabled(chest);   // vanilla's own test before it lets a player glide
     }
 }

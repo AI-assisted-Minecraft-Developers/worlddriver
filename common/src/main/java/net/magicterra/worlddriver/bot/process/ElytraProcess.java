@@ -14,6 +14,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ElytraItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
@@ -141,8 +142,7 @@ public final class ElytraProcess implements BotProcess {
                 phase = Phase.FLYING;
             } else {
                 ItemStack chest = p.getItemBySlot(EquipmentSlot.CHEST);
-                boolean flyable = chest.is(Items.ELYTRA)
-                        && chest.getMaxDamage() > 0 && chest.getDamageValue() < chest.getMaxDamage() - 1;
+                boolean flyable = chest.is(Items.ELYTRA) && ElytraItem.isFlyEnabled(chest);
                 if (!flyable) {
                     st.elytra.lastError = "no usable elytra in chest slot";
                     a.releaseInputs(); st.elytra.reset(); return true;
