@@ -394,12 +394,9 @@ public class ServerPlayerBody implements Body, Hands, Containers {
         // Compute the view vector directly from yRot/xRot rather than
         // getViewVector(1f): the latter lerps from yRotO, which is stale for a
         // FakePlayer that aimAtBlock just rotated without an intervening tick
-        // (it returned a +z vector for a -90° yaw — the raycast then missed).
-        double yawR = Math.toRadians(fp.getYRot());
-        double pitchR = Math.toRadians(fp.getXRot());
-        double cp = Math.cos(pitchR);
-        Vec3 look = new Vec3(-Math.sin(yawR) * cp, -Math.sin(pitchR), Math.cos(yawR) * cp);
-        Vec3 end = eye.add(look.x * 4.5, look.y * 4.5, look.z * 4.5);
+        // (it returned a +z vector for a -90° yaw — the raycast then missed). The reach is the
+        // player's own attribute, as the client's crosshair pick uses.
+        Vec3 end = eye.add(Vec3.directionFromRotation(fp.getXRot(), fp.getYRot()).scale(fp.blockInteractionRange()));
         var hit = fp.level().clip(new net.minecraft.world.level.ClipContext(
                 eye, end, net.minecraft.world.level.ClipContext.Block.OUTLINE,
                 net.minecraft.world.level.ClipContext.Fluid.NONE, fp));
