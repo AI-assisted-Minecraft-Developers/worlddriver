@@ -11,9 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   method a Java name, with the contract's records as parameters and result; an annotation processor
   checks it against the method's spec while `:common` compiles and generates its caller and registry
   entries, so a mismatch fails the build rather than the game. The caller goes through the registry
-  like any request: the same parameter checks, and on a game thread a call that would wait is refused.
-  `ApiRegistry.invoke` now applies that game-thread rule too; before, a typed call made there was
-  handed a context allowed to wait. See `docs/dev/java-api.md`.
+  like any request: the same parameter checks and the same handler. It answers a stage and never
+  holds its thread, so like `dispatch` it may be made on a game thread, and a hop to the other game
+  thread is queued rather than refused; only waiting on the stage there is wrong. Every reply union
+  is sealed, and the common requests have parameter factories. See `docs/dev/java-api.md`.
+- **A parameter built in Java with an unknown settings key is refused by name.** It is
+  `invalid_params` with an `unknown_field` issue at `/values/<key>`, as the same request over the
+  wire is; before, the typed path failed while encoding it, as `capability_unavailable`.
 
 ## 2026-10-06
 

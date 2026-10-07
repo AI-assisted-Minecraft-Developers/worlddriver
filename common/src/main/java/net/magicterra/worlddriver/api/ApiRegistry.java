@@ -174,8 +174,9 @@ public final class ApiRegistry {
 
     /**
      * A Java caller's typed call, which every generated {@link Api} binding makes: the parameters get
-     * the same checks a request does, and on a game thread a call that would wait is refused as
-     * {@link DriverApi#route} refuses it. The result is not encoded.
+     * the same checks a request does, and the result is not encoded. The caller's context is passed
+     * through as {@link #dispatch} passes it: the call answers a stage rather than holding its thread,
+     * so a game thread may make it, and a hop to the other game thread is queued, not refused.
      */
     @SuppressWarnings("unchecked")
     public <P, R> CompletionStage<R> invoke(MethodSpec<P, R> spec, P params, CallContext context) {
@@ -186,8 +187,7 @@ public final class ApiRegistry {
         }
         try {
             P checked = spec.input().validate(params);
-            CallContext ctx = GameThreads.onGameThread() ? context.onGameThread() : context;
-            CompletionStage<R> stage = ((ApiMethod<P, R>) m).handler().execute(checked, ctx);
+            CompletionStage<R> stage = ((ApiMethod<P, R>) m).handler().execute(checked, context);
             if (stage == null) throw new IllegalStateException(spec.name() + " returned no stage");
             return stage;
         } catch (Throwable t) {

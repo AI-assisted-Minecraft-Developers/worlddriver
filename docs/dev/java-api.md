@@ -47,13 +47,14 @@ The object `of` returns is a generated caller, not the implementation. Every cal
 the method registry exactly as a request from a transport does:
 
 - the parameters get the same checks (ranges, mutually exclusive fields, the contract's `check`);
-- on a game thread, a call that would wait is refused before it starts;
 - the call reaches whichever handler is registered for the method now, including one a mod put in
   its place.
 
 A call answers a `CompletionStage`. A failure completes it exceptionally with an `ApiException`;
-`DriverApi.await(stage, ms)` unwraps it. On the server or client thread, never wait on the stage:
-continue from it on a later tick instead (the test scenes do this through `SceneCalls`).
+`DriverApi.await(stage, ms)` unwraps it. A call never holds the thread that makes it, so the server
+or client thread may make one, including one the other game thread must serve; it is queued there.
+On those threads, never wait on the stage: continue from it on a later tick instead (the test scenes
+do this through `SceneCalls`).
 
 Call by name (`DriverApi.route`, `DriverApi.dispatch`) only when the method name is itself data
 (replay, wait conditions, watchers, the transports), or when the request's JSON is what is under

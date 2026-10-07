@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -50,9 +51,18 @@ class SettingsCallsTest {
     }
 
     @Test
-    void aTypedCallOnAGameThreadMayNotWait() {
+    void anUnknownKeyIsRefusedAtItsOwnPath() {
+        SettingsCalls calls = SettingsCalls.of(new DriverApplication());
+        ApiError e = failure(calls.setting(Patch.of(Map.of("definitelyNotAKnob", 1)), CallContext.standalone()));
+        assertEquals(ApiError.Code.INVALID_PARAMS, e.code(), e.toString());
+        assertTrue(e.issues().stream().anyMatch(i -> i.path().equals("/values/definitelyNotAKnob")), e.toString());
+    }
+
+    /** The call answers a stage, so a game thread may make it: a hop it needs is queued, not refused. */
+    @Test
+    void aTypedCallKeepsItsCallersContextOnAGameThread() {
         ApiRegistry registry = new ApiRegistry();
-        AtomicBoolean allowed = new AtomicBoolean(true);
+        AtomicBoolean allowed = new AtomicBoolean(false);
         registry.registerBatch(new ApiBatch("probe", "probe", List.of(new ApiMethod<>(ProbeMethods.ECHO, (p, ctx) -> {
             allowed.set(ctx.blockingAllowed());
             return CompletableFuture.completedFuture(p);
@@ -63,8 +73,9 @@ class SettingsCallsTest {
         } finally {
             GameThreads.installClient(null);
         }
-        assertFalse(allowed.get(), "a game thread's call was handed a context that may wait");
-        DriverApi.await(registry.invoke(ProbeMethods.ECHO, new ProbeMethods.Echo(3), CallContext.standalone()), 5_000);
-        assertTrue(allowed.get());
+        assertTrue(allowed.get(), "a game thread's call was handed a narrower context than its caller's");
+        DriverApi.await(registry.invoke(ProbeMethods.ECHO, new ProbeMethods.Echo(3),
+                CallContext.standalone().onGameThread()), 5_000);
+        assertFalse(allowed.get(), "the caller's own context was not passed through");
     }
 }
