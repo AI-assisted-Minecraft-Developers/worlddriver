@@ -20,7 +20,23 @@ public final class ControlContracts {
 
     // ------------------------------------------------------------------ cancel
 
-    public record CancelParams(Optional<String> actionId, Optional<String> body, Optional<String> process) {}
+    public record CancelParams(Optional<String> actionId, Optional<String> body, Optional<String> process) {
+
+        /** Cancel the action {@code actionId}, on whichever body runs it. */
+        public static CancelParams action(String actionId) {
+            return new CancelParams(Optional.of(actionId), Optional.empty(), Optional.empty());
+        }
+
+        /** Stop self's {@code process} ("all", a process kind, or a reflex chain). */
+        public static CancelParams process(String process) {
+            return new CancelParams(Optional.empty(), Optional.empty(), Optional.of(process));
+        }
+
+        /** Stop everything self runs. */
+        public static CancelParams all() {
+            return new CancelParams(Optional.empty(), Optional.empty(), Optional.empty());
+        }
+    }
 
     /**
      * {@code cancelled}: what was running and was stopped, empty when nothing matched. {@code action}: the
@@ -59,7 +75,11 @@ public final class ControlContracts {
 
     // ------------------------------------------------------------------ status
 
-    public record StatusParams(Optional<String> body) {}
+    public record StatusParams(Optional<String> body) {
+
+        /** Self's status, with the registered bots listed. */
+        public static StatusParams self() { return new StatusParams(Optional.empty()); }
+    }
 
     /** One process slot. {@code lastError} also holds success summaries; {@code lastProcessEnd} says how a task ended. */
     public record Slot(boolean active, Optional<String> goal, Optional<BlockPosition> target, int pathLen, int pathStep,

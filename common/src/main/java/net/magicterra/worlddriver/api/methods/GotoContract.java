@@ -72,7 +72,30 @@ public final class GotoContract {
     public record Axis() implements Target {}
 
     public record Params(String body, Optional<Target> target, boolean invert, Optional<Route> route,
-                         Optional<PlanMode> plan, boolean includePath, Optional<String> planId, int awaitMs) {}
+                         Optional<PlanMode> plan, boolean includePath, Optional<String> planId, int awaitMs) {
+
+        /** Walk self to exactly {@code pos}, every other field at its default. */
+        public static Params to(BlockPosition pos) {
+            return toTarget(new Position(pos, 0, GoalMode.IN));
+        }
+
+        /** Walk self to {@code target}, every other field at its default. */
+        public static Params toTarget(Target target) {
+            return new Params(ActionContract.SELF, Optional.of(target), false, Optional.empty(), Optional.empty(), false,
+                    Optional.empty(), 0);
+        }
+
+        /** Walk the route of the preview {@code planId}. */
+        public static Params walkPlan(String planId) {
+            return new Params(ActionContract.SELF, Optional.empty(), false, Optional.empty(), Optional.empty(), false,
+                    Optional.of(planId), 0);
+        }
+
+        /** This request, answered after waiting up to {@code ms} for the walk to end. */
+        public Params awaiting(int ms) {
+            return new Params(body, target, invert, route, plan, includePath, planId, ms);
+        }
+    }
 
     /** How the trip is made. */
     public enum Travel implements WireName {

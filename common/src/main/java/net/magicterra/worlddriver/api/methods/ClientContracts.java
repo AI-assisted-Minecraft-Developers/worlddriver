@@ -278,7 +278,18 @@ public final class ClientContracts {
 
     // ------------------------------------------------------------------ blocks
 
-    public record BlocksParams(Optional<BlockPosition> center, int radius, Optional<String> type) {}
+    public record BlocksParams(Optional<BlockPosition> center, int radius, Optional<String> type) {
+
+        /** Every block within {@code radius} of the player's feet. */
+        public static BlocksParams aroundPlayer(int radius) {
+            return new BlocksParams(Optional.empty(), radius, Optional.empty());
+        }
+
+        /** Every block within {@code radius} of {@code center}. */
+        public static BlocksParams around(BlockPosition center, int radius) {
+            return new BlocksParams(Optional.of(center), radius, Optional.empty());
+        }
+    }
 
     public record BlockRow(BlockPosition pos, String type, Optional<Map<String, String>> state) {}
 

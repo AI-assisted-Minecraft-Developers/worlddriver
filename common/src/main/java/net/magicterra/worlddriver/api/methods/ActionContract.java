@@ -84,6 +84,9 @@ public final class ActionContract {
     public record Accepted<R>(ActionSnapshot<R> action, boolean waitTimedOut) implements ActionResponse<R> {}
     public record Refused<R>(RefusalReason reason, String message) implements ActionResponse<R>, ImmediateResponse {}
 
+    /** The body ref of this client's own player, every body parameter's default. */
+    public static final String SELF = "self";
+
     /** {@code self}, {@code player:<name>} or {@code npc:<name>}. */
     public static final ApiType<String> BODY_REF = ApiTypes.pattern("self|(player|npc):[^\\s:]+",
                     "self, player:<name> or npc:<name>; a name has no whitespace or colon")

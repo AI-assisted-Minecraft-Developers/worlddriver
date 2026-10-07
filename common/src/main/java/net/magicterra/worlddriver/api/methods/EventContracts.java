@@ -79,7 +79,12 @@ public final class EventContracts {
 
     // ------------------------------------------------------------------ mc.observe.eventsSince
 
-    public record SinceParams(long cursor, Optional<List<String>> types, int limit) {}
+    public record SinceParams(long cursor, Optional<List<String>> types, int limit) {
+        /** The events after {@code cursor} of {@code types} (every type when none), at the default page size. */
+        public static SinceParams after(long cursor, String... types) {
+            return new SinceParams(cursor, types.length == 0 ? Optional.empty() : Optional.of(List.of(types)), 256);
+        }
+    }
 
     /** {@code cursor}: the seq of the last event in the page, or the asked cursor when the page is empty. */
     public record Page(List<Event> events, long cursor) {}

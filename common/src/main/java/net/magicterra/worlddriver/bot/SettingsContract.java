@@ -35,14 +35,43 @@ public final class SettingsContract {
     public record AvoidPoint(double x, double y, double z, double radius) {}
 
     public sealed interface SettingsOp permits Read, Patch, Apply {}
-    public record Read(Optional<List<String>> keys) implements SettingsOp {}
-    public record Patch(List<Entry> values) implements SettingsOp {}
+    public record Read(Optional<List<String>> keys) implements SettingsOp {
+        /** Read {@code keys}, in that order. */
+        public static Read of(String... keys) { return new Read(Optional.of(List.of(keys))); }
+
+        /** Read every readable key. */
+        public static Read all() { return new Read(Optional.empty()); }
+    }
+
+    public record Patch(List<Entry> values) implements SettingsOp {
+        /** Write {@code values}, in the map's iteration order. */
+        public static Patch of(Map<String, ?> values) {
+            List<Entry> entries = new java.util.ArrayList<>();
+            values.forEach((k, v) -> entries.add(new Entry(k, v)));
+            return new Patch(entries);
+        }
+    }
+
     public record Apply(String control, boolean value) implements SettingsOp {}
 
     public sealed interface SettingsReply permits Values, Patched, Applied {}
-    public record Values(List<Entry> values) implements SettingsReply {}
+
+    public record Values(List<Entry> values) implements SettingsReply {
+        /** What {@code key} holds, when it was read. */
+        public Optional<Object> get(String key) { return valueOf(values, key); }
+    }
+
     /** {@code values} are what the keys hold after the commit; a failed save leaves them committed. */
-    public record Patched(List<Entry> values, boolean persisted, Optional<String> persistError) implements SettingsReply {}
+    public record Patched(List<Entry> values, boolean persisted, Optional<String> persistError) implements SettingsReply {
+        /** What {@code key} holds after the commit, when it was written. */
+        public Optional<Object> get(String key) { return valueOf(values, key); }
+    }
+
+    private static Optional<Object> valueOf(List<Entry> values, String key) {
+        for (Entry e : values) if (e.key().equals(key)) return Optional.of(e.value());
+        return Optional.empty();
+    }
+
     public record Applied(String control, boolean value) implements SettingsReply {}
 
     /** Written with {@code apply} only. */

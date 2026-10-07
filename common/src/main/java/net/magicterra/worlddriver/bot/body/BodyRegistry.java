@@ -24,7 +24,7 @@ import net.magicterra.worlddriver.bot.BodyReady;
 public final class BodyRegistry {
 
     /** The id that names this client's own player. */
-    public static final String SELF = "self";
+    public static final String SELF = net.magicterra.worlddriver.api.methods.ActionContract.SELF;
 
     private static final Map<String, BodyHost> HOSTS = new LinkedHashMap<>();
 

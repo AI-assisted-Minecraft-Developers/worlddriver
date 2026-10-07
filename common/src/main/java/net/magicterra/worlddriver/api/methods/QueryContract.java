@@ -53,7 +53,18 @@ public final class QueryContract {
 
     public record EntityFilter(int inRadius, Optional<String> type, Optional<Boolean> isHostile, Optional<Boolean> isLiving) {}
 
-    public record Blocks(Optional<BlockPosition> center, BlockFilter filter, Optional<List<BlockField>> select) implements Query {}
+    public record Blocks(Optional<BlockPosition> center, BlockFilter filter, Optional<List<BlockField>> select) implements Query {
+
+        /** Every block within {@code radius} of {@code center}, all fields. */
+        public static Blocks around(BlockPosition center, int radius) {
+            return new Blocks(Optional.of(center), new BlockFilter(radius, Optional.empty()), Optional.empty());
+        }
+
+        /** This query, kept to blocks of {@code type}. */
+        public Blocks ofType(String type) {
+            return new Blocks(center, new BlockFilter(filter.inRadius(), Optional.of(type)), select);
+        }
+    }
 
     public record Entities(Optional<BlockPosition> center, EntityFilter filter, Optional<List<EntityField>> select)
             implements Query {}
