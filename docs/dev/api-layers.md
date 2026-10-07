@@ -23,7 +23,9 @@ recipe script system debug client screen test`. The implementations live outside
 `application/`, one `<Family>Service` per interface.
 
 Outside `api/`: the three transports (`rpc/`, `mcp/`, `script/`) use protocol, schema and the
-runtime, never the game layer, and so receive events already in their wire form. `application/`
+runtime, never the game layer, and so receive events already in their wire form. They subscribe
+through `EventFeed`, the half of the game layer's `DriverHost` that names no game type; the game
+side holds the driver by `DriverHost` (`WorldDriverCommon.host()`). `application/`
 may use every layer and `bot/`. The bot's planning and movement core uses none of `api/`.
 
 One family lives elsewhere: `mc.bot.setting`'s `SettingsApi` and `SettingsContracts` stay in

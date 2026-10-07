@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.testcontent;
 
-import static net.magicterra.worlddriver.api.Positions.blockPos;
-import static net.magicterra.worlddriver.api.Positions.position;
+import static net.magicterra.worlddriver.api.game.Positions.blockPos;
+import static net.magicterra.worlddriver.api.game.Positions.position;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -27,7 +27,7 @@ import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.TickEvent;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.ApiBatch;
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.ApiHandlers;
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.CallContext;

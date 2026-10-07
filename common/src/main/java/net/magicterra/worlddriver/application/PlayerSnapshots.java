@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static net.magicterra.worlddriver.api.Positions.point;
-import static net.magicterra.worlddriver.api.Positions.position;
+import static net.magicterra.worlddriver.api.game.Positions.point;
+import static net.magicterra.worlddriver.api.game.Positions.position;
 
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Armor;

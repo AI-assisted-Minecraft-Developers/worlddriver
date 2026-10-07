@@ -4,7 +4,7 @@ import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
-import net.magicterra.worlddriver.model.DriverEvent;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -74,16 +74,16 @@ class EventsWatchTest {
     @Test
     void aWatcherFiresOnTheRisingEdgeAndOnceRemovesIt() throws Exception {
         DriverApplication api = app();
-        List<DriverEvent> fired = new CopyOnWriteArrayList<>();
+        List<EventContracts.Event> fired = new CopyOnWriteArrayList<>();
         CountDownLatch got = new CountDownLatch(1);
         api.addEventListener(e -> {
-            if ("probe.fired".equals(e.type)) { fired.add(e); got.countDown(); }
+            if ("probe.fired".equals(e.type())) { fired.add(e); got.countDown(); }
         });
         Map<?, ?> ack = events(api, Map.of("op", "watch", "invoke", "probe.echo", "params", Map.of("value", 7),
                 "field", "value", "above", 5, "emitAs", "probe.fired", "everyMs", 200, "once", true));
         assertEquals("watch", ack.get("op"));
         assertTrue(got.await(10, TimeUnit.SECONDS), "the watcher never fired");
-        Map<?, ?> data = (Map<?, ?>) fired.get(0).data.tree();
+        Map<?, ?> data = (Map<?, ?>) fired.get(0).data().orElseThrow().tree();
         assertEquals(((Number) ack.get("id")).longValue(), ((Number) data.get("watch")).longValue());
         assertEquals(7L, ((Number) data.get("value")).longValue());
         assertEquals(0L, events(api, Map.of("op", "list")).get("count"), "once removes the watcher after it fires");

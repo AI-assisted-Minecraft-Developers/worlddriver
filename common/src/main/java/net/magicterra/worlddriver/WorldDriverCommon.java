@@ -5,6 +5,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.game.DriverHost;
 import net.magicterra.worlddriver.bot.BotConfigFile;
 import net.magicterra.worlddriver.mcp.McpServer;
 import net.magicterra.worlddriver.rpc.RpcServer;
@@ -35,7 +36,7 @@ public final class WorldDriverCommon {
     public static final String MOD_ID = "worlddriver";
     public static final Logger LOG = LoggerFactory.getLogger("WorldDriver");
 
-    private static volatile DriverApi api;
+    private static volatile DriverApplication api;
     private static RpcServer rpcServer;
     private static McpServer mcpServer;
     private static volatile int rpcPort = -1;
@@ -46,6 +47,8 @@ public final class WorldDriverCommon {
     public static int rpcPort() { return rpcPort; }
     public static int mcpPort() { return mcpPort; }
     public static DriverApi api() { return api; }
+    /** What the game side calls on the driver: lifecycle, events, restore. Null until {@link #ensureRpcUp}. */
+    public static DriverHost host() { return api; }
 
     /**
      * Idempotently bring up the DriverApi + RPC server. Called from both the

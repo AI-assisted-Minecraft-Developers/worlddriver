@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ActiveEffect;

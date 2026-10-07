@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.integration.debug;
 
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ChainPlan;

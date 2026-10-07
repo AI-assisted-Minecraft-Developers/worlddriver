@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.DecodeContext;

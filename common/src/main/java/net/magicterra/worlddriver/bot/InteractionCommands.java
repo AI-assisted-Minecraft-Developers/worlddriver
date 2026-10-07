@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot;
 
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts.Face;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts.OnEntity;

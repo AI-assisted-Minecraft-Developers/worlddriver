@@ -3,15 +3,16 @@ package net.magicterra.worlddriver.application;
 import net.magicterra.worlddriver.api.ApiBatch;
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.ApiRegistry;
-import net.magicterra.worlddriver.api.EventWire;
-import net.magicterra.worlddriver.api.WorldCell;
 import net.magicterra.worlddriver.api.ServerThreadGuard;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.game.DriverEvent;
+import net.magicterra.worlddriver.api.game.DriverHost;
+import net.magicterra.worlddriver.api.game.EventWire;
+import net.magicterra.worlddriver.api.game.WorldCell;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.model.DriverEvent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -41,7 +42,7 @@ import net.magicterra.worlddriver.client.ClientDriverApi;
  * through the registry {@link DriverApi} holds, so a core method is wired here
  * and in {@link CoreMethods}, nowhere else.
  */
-public final class DriverApplication extends DriverApi {
+public final class DriverApplication extends DriverApi implements DriverHost {
     public final SystemService system = new SystemService(this);
     public final ObserveService observe = new ObserveService(this);
     public final ActionService action = new ActionService(this);
@@ -69,7 +70,7 @@ public final class DriverApplication extends DriverApi {
      *  {@link #emit} hands the new event to each, off the caller's thread via
      *  {@link #eventDispatch} so neither the server tick nor a client tick ever
      *  blocks on socket I/O. Copy-on-write: registration is rare, iteration frequent. */
-    private final List<Consumer<DriverEvent>> eventListeners = new CopyOnWriteArrayList<>();
+    private final List<Consumer<EventContracts.Event>> eventListeners = new CopyOnWriteArrayList<>();
     private final ExecutorService eventDispatch = Executors.newSingleThreadExecutor(
             Thread.ofPlatform().name("agent-event-dispatch").daemon().factory());
     private volatile ScriptHost scriptHost;
@@ -183,8 +184,9 @@ public final class DriverApplication extends DriverApi {
                 // before. Evaluated here on the dispatch thread, the same moment the
                 // transports evaluated it, so the timing is unchanged too.
                 if (BotConfig.mutedEvents.contains(e.type)) return;
-                for (Consumer<DriverEvent> l : eventListeners) {
-                    try { l.accept(e); } catch (Throwable ignored) { /* a bad listener never breaks emission */ }
+                EventContracts.Event wire = EventWire.dto(e);
+                for (Consumer<EventContracts.Event> l : eventListeners) {
+                    try { l.accept(wire); } catch (Throwable ignored) { /* a bad listener never breaks emission */ }
                 }
             });
         }
@@ -193,11 +195,11 @@ public final class DriverApplication extends DriverApi {
 
     /** Register a live push listener (the WebSocket/SSE transports). Idempotent-ish:
      *  the same consumer may appear twice if added twice — callers add exactly once. */
-    public void addEventListener(Consumer<DriverEvent> listener) {
+    public void addEventListener(Consumer<EventContracts.Event> listener) {
         if (listener != null) eventListeners.add(listener);
     }
 
-    public void removeEventListener(Consumer<DriverEvent> listener) {
+    public void removeEventListener(Consumer<EventContracts.Event> listener) {
         eventListeners.remove(listener);
     }
 

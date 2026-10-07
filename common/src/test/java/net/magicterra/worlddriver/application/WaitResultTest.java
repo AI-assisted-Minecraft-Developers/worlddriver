@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.application;
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.model.DriverEvent;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -81,8 +81,8 @@ class WaitResultTest {
     @Test
     void theResultIsTheWaitsDoneReplyAndTheSameReachesTheEvent() throws Exception {
         DriverApplication api = app();
-        CompletableFuture<DriverEvent> done = new CompletableFuture<>();
-        api.addEventListener(e -> { if ("wait.done".equals(e.type)) done.complete(e); });
+        CompletableFuture<EventContracts.Event> done = new CompletableFuture<>();
+        api.addEventListener(e -> { if ("wait.done".equals(e.type())) done.complete(e); });
         String id = startQuickWait(api);
         awaitFinished(api, id);
         Map<?, ?> r = result(api, id, true);
@@ -91,7 +91,7 @@ class WaitResultTest {
         assertEquals(Boolean.TRUE, reply.get("satisfied"), r.toString());
         assertFalse(r.containsKey("error"), r.toString());
 
-        Map<?, ?> data = (Map<?, ?>) done.get(10, TimeUnit.SECONDS).data.tree();
+        Map<?, ?> data = (Map<?, ?>) done.get(10, TimeUnit.SECONDS).data().orElseThrow().tree();
         assertEquals(id, data.get("waitId"));
         assertEquals("mc.wait.condition", data.get("method"));
         assertEquals(reply, data.get("result"));

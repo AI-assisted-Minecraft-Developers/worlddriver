@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot;
 import java.util.Map;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.minecraft.core.BlockPos;
 

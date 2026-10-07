@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.model;
+package net.magicterra.worlddriver.api.game;
 import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.minecraft.core.BlockPos;
 

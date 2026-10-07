@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.api;
+package net.magicterra.worlddriver.api.game;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;

@@ -8,7 +8,7 @@ import dev.architectury.event.events.common.EntityEvent;
 import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.event.events.common.TickEvent;
-import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.game.DriverHost;
 import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarCommand;
@@ -27,7 +27,7 @@ import net.minecraft.world.level.block.state.BlockState;
  *
  * <p>The external events ({@code block.break}, {@code block.place}, {@code entity.death},
  * {@code player.join}, {@code player.leave}, {@code chat.message}) go out through
- * {@link DriverApi#emitExternal}. Two of them changed timing when the loaders' handlers were
+ * {@link DriverHost#emitExternal}. Two of them changed timing when the loaders' handlers were
  * merged: {@code block.break} fires BEFORE the block is removed on both loaders (Fabric used to
  * report after), and {@code entity.death} fires as the death is decided rather than after it.
  * Neither carries state that the timing changes, and a listener that cancels the vanilla action
@@ -77,7 +77,7 @@ public final class WorldDriverEvents {
 
     private static EventResult onBlockBreak(net.minecraft.world.level.Level level, BlockPos pos,
             BlockState state, ServerPlayer player, dev.architectury.utils.value.IntValue xp) {
-        DriverApi api = WorldDriverCommon.api();
+        DriverHost api = WorldDriverCommon.host();
         if (api != null) {
             String id = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
             api.emitExternal("block.break", pos.immutable(), JsonValue.of(id));
@@ -87,7 +87,7 @@ public final class WorldDriverEvents {
 
     private static EventResult onBlockPlace(net.minecraft.world.level.Level level, BlockPos pos,
             BlockState state, Entity placer) {
-        DriverApi api = WorldDriverCommon.api();
+        DriverHost api = WorldDriverCommon.host();
         if (api != null && placer != null) {
             String id = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
             api.emitExternal("block.place", pos.immutable(), JsonValue.of(id));
@@ -97,7 +97,7 @@ public final class WorldDriverEvents {
 
     private static EventResult onLivingDeath(LivingEntity entity,
             net.minecraft.world.damagesource.DamageSource source) {
-        DriverApi api = WorldDriverCommon.api();
+        DriverHost api = WorldDriverCommon.host();
         if (api != null) {
             String id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
             api.emitExternal("entity.death", entity.blockPosition(), JsonValue.of(id));
@@ -106,13 +106,13 @@ public final class WorldDriverEvents {
     }
 
     private static void emitPlayer(String type, ServerPlayer player) {
-        DriverApi api = WorldDriverCommon.api();
+        DriverHost api = WorldDriverCommon.host();
         if (api == null) return;
         api.emitExternal(type, player.blockPosition(), JsonValue.of(player.getGameProfile().getName()));
     }
 
     private static EventResult onChat(ServerPlayer player, net.minecraft.network.chat.Component message) {
-        DriverApi api = WorldDriverCommon.api();
+        DriverHost api = WorldDriverCommon.host();
         if (api != null) {
             api.emitExternal("chat.message", player.blockPosition(),
                     JsonValue.of(player.getGameProfile().getName() + ": " + message.getString()));

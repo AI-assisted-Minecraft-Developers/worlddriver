@@ -184,7 +184,7 @@ told, so the cursor is best-effort.
 | Package | What it is |
 |---|---|
 | `protocol/` | JDK-only JSON codec, shared refusal code and request-size budget |
-| `api/` | `DriverApi` and the `ApiRegistry`, the typed contracts (`contract/`, `methods/`), thread contracts and `WorldCell` |
+| `api/` | `DriverApi` and the `ApiRegistry`, the typed contracts (`contract/`, `methods/`), thread contracts, and in `game/` the host hooks (`DriverHost`) and the conversions between game objects and API values; layered as [api-layers.md](api-layers.md) describes |
 | `application/` | `DriverApplication` and concrete world, observe, action, wait and body handlers |
 | `integration/debug/` | The `mc.debug.*` batch and its handlers; recorders/analysis stay in `bot/debug` |
 | `mcp/` | MCP HTTP server and `McpTools`, the `tools/list` view of the registry |
@@ -192,7 +192,6 @@ told, so the cursor is best-effort.
 | `script/` | Rhino: `ScriptManager`, `ScriptEvaluator`, the bridges, `SkillLibrary`, the class filter |
 | `bot/` | The client-side autonomous layer behind `mc.bot.*` |
 | `client/` | `ClientDriverApi` and `ClientHooks`, reached through `requireClient()` |
-| `model/` | Two types: `Params` and `DriverEvent` |
 | `test/` | `ScriptTest` and `TestContext`, the harness the `validation/*.js` files call |
 | `mixin/` | The mixins each loader applies |
 

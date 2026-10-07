@@ -21,7 +21,7 @@ import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.ApiRegistry;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.CancellationToken;
-import net.magicterra.worlddriver.api.EventWire;
+import net.magicterra.worlddriver.api.game.EventWire;
 import net.magicterra.worlddriver.api.WaitPermits;
 import net.magicterra.worlddriver.api.action.ActionRegistry;
 import net.magicterra.worlddriver.api.contract.ApiError;
@@ -42,7 +42,7 @@ import net.magicterra.worlddriver.api.methods.wait.WaitContracts.Started;
 import net.magicterra.worlddriver.api.methods.wait.WaitContracts.WaitDone;
 import net.magicterra.worlddriver.api.methods.wait.WaitContracts.WorldReady;
 import net.magicterra.worlddriver.api.methods.wait.WaitContracts.WorldReadyParams;
-import net.magicterra.worlddriver.model.DriverEvent;
+import net.magicterra.worlddriver.api.game.DriverEvent;
 
 /**
  * {@code mc.wait.event}, {@code mc.wait.worldReady}, {@code mc.wait.condition} and the wait half of

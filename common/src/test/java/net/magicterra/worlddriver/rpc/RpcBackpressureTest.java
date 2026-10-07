@@ -24,7 +24,7 @@ class RpcBackpressureTest {
 
     @Test
     void aSubscriberThatStopsReadingIsDisconnected() throws Exception {
-        DriverApi api = new DriverApplication();
+        DriverApplication api = new DriverApplication();
         try (RpcServer server = new RpcServer(api, 0);
              WsTestClient client = new WsTestClient(server.port())) {
             client.roundTrip("{\"id\":1,\"method\":\"mc.events.subscribe\","
@@ -32,7 +32,7 @@ class RpcBackpressureTest {
             // Listeners run in registration order on one dispatch thread, so once this sees
             // the sentinel the server has been offered every flood frame before it.
             CountDownLatch dispatched = new CountDownLatch(1);
-            api.addEventListener(e -> { if ("test.done".equals(e.type)) dispatched.countDown(); });
+            api.addEventListener(e -> { if ("test.done".equals(e.type())) dispatched.countDown(); });
 
             client.channel.config().setAutoRead(false);
             String payload = "x".repeat(16 * 1024);
@@ -50,7 +50,7 @@ class RpcBackpressureTest {
     @Test
     void aSubscriberThatKeepsReadingStaysConnected() throws Exception {
         // Guards against "fixed the growth by closing everyone".
-        DriverApi api = new DriverApplication();
+        DriverApplication api = new DriverApplication();
         try (RpcServer server = new RpcServer(api, 0);
              WsTestClient client = new WsTestClient(server.port())) {
             client.roundTrip("{\"id\":1,\"method\":\"mc.events.subscribe\","

@@ -29,7 +29,7 @@ class McpHopTimeoutTest {
 
     @Test
     void theTwoTimeoutsCarryTheirOwnCodesAndOtherFailuresStayToolErrors() throws Exception {
-        DriverApi api = new DriverApplication();
+        DriverApplication api = new DriverApplication();
         ProbeMethods.failing(api, "probe.notExecuted", () -> new ServerThreadHop.NotExecutedException("withdrawn"));
         // A handler may wrap what the hop threw; the classification must survive that.
         ProbeMethods.failing(api, "probe.outcomeUnknown",

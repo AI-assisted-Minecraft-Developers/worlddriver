@@ -13,11 +13,11 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import net.magicterra.worlddriver.api.ApiHandlers;
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.ApiTimers;
 import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.EventWire;
+import net.magicterra.worlddriver.api.game.EventWire;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.JsonValue;
@@ -36,7 +36,7 @@ import net.magicterra.worlddriver.api.methods.event.EventContracts.Unwatched;
 import net.magicterra.worlddriver.api.methods.event.EventContracts.Watch;
 import net.magicterra.worlddriver.api.methods.event.EventContracts.Watchers;
 import net.magicterra.worlddriver.api.methods.event.EventContracts.Watching;
-import net.magicterra.worlddriver.model.DriverEvent;
+import net.magicterra.worlddriver.api.game.DriverEvent;
 import net.minecraft.core.BlockPos;
 
 /**

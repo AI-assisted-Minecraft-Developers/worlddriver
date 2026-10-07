@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.api;
+package net.magicterra.worlddriver.api.game;
 
 import java.util.List;
 import java.util.stream.Collectors;

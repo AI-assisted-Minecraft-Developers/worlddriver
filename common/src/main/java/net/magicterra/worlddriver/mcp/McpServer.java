@@ -16,8 +16,9 @@ import com.sun.net.httpserver.HttpServer;
 import net.magicterra.worlddriver.BuildStamp;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.EventFeed;
 import net.magicterra.worlddriver.api.ServerThreadHop;
-import net.magicterra.worlddriver.model.DriverEvent;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.rpc.EventNotifications;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.magicterra.worlddriver.rpc.OriginPolicy;
@@ -105,11 +106,11 @@ public final class McpServer implements Closeable {
      *  {@link #onEvent} fans each driver event out to all of them. */
     private final Set<SseSubscriber> sse = ConcurrentHashMap.newKeySet();
 
-    public McpServer(DriverApi api, int port) throws IOException {
+    public <A extends DriverApi & EventFeed> McpServer(A api, int port) throws IOException {
         this(api, "127.0.0.1", port);
     }
 
-    public McpServer(DriverApi api, String bindHost, int port) throws IOException {
+    public <A extends DriverApi & EventFeed> McpServer(A api, String bindHost, int port) throws IOException {
         this.api = api;
         this.http = HttpServer.create(new InetSocketAddress(bindHost, port), 0);
         this.http.createContext("/mcp", this::handle);
@@ -377,9 +378,9 @@ public final class McpServer implements Closeable {
      *  its filter to {@code warning} would otherwise silently drop every info/notice
      *  event. The frame still carries a severity {@code level} for display/ordering.
      *  Runs on DriverApi's event-dispatch thread. */
-    private void onEvent(DriverEvent e) {
+    private void onEvent(EventContracts.Event e) {
         if (sse.isEmpty()) return;
-        // No mutedEvents check here: DriverApi applies the per-type opt-out before it
+        // No mutedEvents check here: the host applies the per-type opt-out before it
         // calls any listener, so every transport gets the same policy for free.
         String frame = "data: " + EventNotifications.frame(e) + "\n\n";
         for (SseSubscriber sub : sse) sub.offer(frame);  // never blocks: see SseSubscriber.offer

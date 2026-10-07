@@ -3,8 +3,9 @@ package net.magicterra.worlddriver.integration.debug;
 import net.magicterra.worlddriver.bot.debug.*;
 
 import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.WorldCell;
+import net.magicterra.worlddriver.api.game.WorldCell;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
@@ -147,7 +148,7 @@ final class ReplayTool {
 
     /** The server's half: restore the envelope and teleport to the start's block centre. Off the game threads. */
     private static int prepare(DriverApi api, List<WorldCell> cells, BlockPos start, CallContext ctx) {
-        int restored = cells.isEmpty() ? 0 : api.restoreCellsOnServer(cells);
+        int restored = cells.isEmpty() ? 0 : WorldDriverCommon.host().restoreCellsOnServer(cells);
         String tp = String.format(Locale.ROOT, "tp %.1f %d %.1f", start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
         try {
             DriverApi.await(api.dispatch("mc.action.runCommand", Map.of("cmd", tp), ctx), ctx.remainingMillis());

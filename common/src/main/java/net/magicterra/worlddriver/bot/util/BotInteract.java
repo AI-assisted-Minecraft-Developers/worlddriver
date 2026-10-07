@@ -49,16 +49,6 @@ public final class BotInteract {
 
     private BotInteract() {}
 
-    /** {@link net.magicterra.worlddriver.model.Params#toHand}, which a bot on the server reads too. */
-    public static InteractionHand parseHand(Object o) {
-        return net.magicterra.worlddriver.model.Params.toHand(o);
-    }
-
-    /** {@link net.magicterra.worlddriver.model.Params#toFace}, which a bot on the server reads too. */
-    public static Direction parseFace(Object o) {
-        return net.magicterra.worlddriver.model.Params.toFace(o);
-    }
-
     /**
      * Advance the break on {@code cell} for one client tick, and swing for it.
      *

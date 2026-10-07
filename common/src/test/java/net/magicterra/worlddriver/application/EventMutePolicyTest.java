@@ -4,7 +4,7 @@ import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.application.DriverApplication;
 
 import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.model.DriverEvent;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -40,9 +40,9 @@ class EventMutePolicyTest {
             DriverApplication api = new DriverApplication();
             List<String> seen = new CopyOnWriteArrayList<>();
             CountDownLatch sentinel = new CountDownLatch(1);
-            api.addEventListener((DriverEvent e) -> {
-                if ("sentinel".equals(e.type)) sentinel.countDown();
-                else seen.add(e.type);
+            api.addEventListener((EventContracts.Event e) -> {
+                if ("sentinel".equals(e.type())) sentinel.countDown();
+                else seen.add(e.type());
             });
             for (String t : types) api.emitExternal(t, null, JsonValue.of("payload"));
             api.emitExternal("sentinel", null, JsonValue.of(""));

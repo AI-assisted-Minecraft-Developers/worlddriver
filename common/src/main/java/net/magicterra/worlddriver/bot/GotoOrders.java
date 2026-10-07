@@ -7,7 +7,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Travel;

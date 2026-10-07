@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.UnloadedAreaException;
+import net.magicterra.worlddriver.api.game.UnloadedAreaException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;

@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.api.action.ActionRegistry;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
 import dev.architectury.event.events.client.ClientTickEvent;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.game.DriverHost;
 import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.bot.BotApiImpl;
 import net.magicterra.worlddriver.bot.BotHooks;
@@ -41,7 +41,7 @@ public final class WorldDriverClientEvents {
         // Looked up per event: a driver that failed to boot leaves api() null, and the bot still
         // drives without one, as it always has; only its events have nowhere to go.
         BotApiImpl b = new BotApiImpl((type, pos, data) -> {
-            DriverApi api = WorldDriverCommon.api();
+            DriverHost api = WorldDriverCommon.host();
             if (api != null) api.emitExternal(type, pos, JsonValue.of(data));
         });
         BotHooks.register(b);

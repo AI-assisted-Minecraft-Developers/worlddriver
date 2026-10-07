@@ -201,7 +201,7 @@ class RpcFramingTest {
 
     @Test
     void aServerThreadTimeoutSaysWhetherTheTaskCanStillApply() throws Exception {
-        DriverApi api = new DriverApplication();
+        DriverApplication api = new DriverApplication();
         ProbeMethods.failing(api, "probe.notExecuted", () -> new ServerThreadHop.NotExecutedException("withdrawn"));
         // Handlers may wrap what the hop threw; the classification must survive that.
         ProbeMethods.failing(api, "probe.outcomeUnknown",
@@ -219,7 +219,7 @@ class RpcFramingTest {
     void aRouteRefusedAtACapIsBusyNotAnInternalFault() throws Exception {
         // The background-wait cap refuses inside a route, past the transport's own cap check;
         // it must reach the client with the same busy code the transport cap answers with.
-        DriverApi api = new DriverApplication();
+        DriverApplication api = new DriverApplication();
         ProbeMethods.failing(api, "probe.busy", () -> new ServerBusyException("busy: all background waits are running"));
         try (RpcServer server = new RpcServer(api, 0);
              WsTestClient raw = new WsTestClient(server.port())) {

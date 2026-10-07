@@ -78,7 +78,7 @@ final class ClientEventDetector {
      *  api.emitExternal → the same event stream all client-tick events use. */
     void detectSceneEvents(WorldModel worldModel) {
         var wmSnap = worldModel.snapshot();
-        net.magicterra.worlddriver.api.DriverApi sceneApi = net.magicterra.worlddriver.WorldDriverCommon.api();
+        net.magicterra.worlddriver.api.game.DriverHost sceneApi = net.magicterra.worlddriver.WorldDriverCommon.host();
         if (wmSnap.present() && sceneApi != null) {
             net.minecraft.core.BlockPos scenePos = wmSnap.pos();
             if (wmSnap.exposedAtNight() && !prevExposedAtNight) {
@@ -108,7 +108,7 @@ final class ClientEventDetector {
     void detectDeath(Minecraft mc, Runnable onDeathCancel) {
         boolean onDeath = mc.screen instanceof net.minecraft.client.gui.screens.DeathScreen;
         if (onDeath && !evtDeathScreenSeen) {
-            net.magicterra.worlddriver.api.DriverApi api = net.magicterra.worlddriver.WorldDriverCommon.api();
+            net.magicterra.worlddriver.api.game.DriverHost api = net.magicterra.worlddriver.WorldDriverCommon.host();
             String cause = net.magicterra.worlddriver.client.internal.ScreenIntrospection
                     .readDeathCause((net.minecraft.client.gui.screens.DeathScreen) mc.screen);
             if (api != null) {
@@ -126,10 +126,10 @@ final class ClientEventDetector {
 
     /** Emit driver→agent push events for the local player's threat/hurt/death
      *  transitions. Called once per client tick after the threat scan refreshes.
-     *  Everything funnels through {@code DriverApi.emitExternal} → the same event
+     *  Everything funnels through {@code DriverHost.emitExternal} → the same event
      *  stream block/chat/death use → subscribers on both transports. */
     void detectClientEvents(Minecraft mc) {
-        net.magicterra.worlddriver.api.DriverApi api = net.magicterra.worlddriver.WorldDriverCommon.api();
+        net.magicterra.worlddriver.api.game.DriverHost api = net.magicterra.worlddriver.WorldDriverCommon.host();
         if (api == null || mc.player == null) return;
         var pl = mc.player;
         net.minecraft.core.BlockPos at = pl.blockPosition();
@@ -312,7 +312,7 @@ final class ClientEventDetector {
      *  mapping shift silently no-ops, mirroring the advancement poll). The
      *  whole poll never breaks the tick. */
     void detectClientMessages(Minecraft mc) {
-        net.magicterra.worlddriver.api.DriverApi api = net.magicterra.worlddriver.WorldDriverCommon.api();
+        net.magicterra.worlddriver.api.game.DriverHost api = net.magicterra.worlddriver.WorldDriverCommon.host();
         net.minecraft.client.gui.Gui gui = mc.gui;
         if (api == null || gui == null) return;
         net.minecraft.core.BlockPos at = mc.player != null

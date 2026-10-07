@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
@@ -52,7 +52,6 @@ import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.client.internal.ClientChatLog;
 import net.magicterra.worlddriver.mcp.McpTools;
-import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.test.ScriptTest;
 import net.magicterra.worlddriver.testcontent.TestArena;
 import net.magicterra.worlddriver.testcontent.ValidationSuite;

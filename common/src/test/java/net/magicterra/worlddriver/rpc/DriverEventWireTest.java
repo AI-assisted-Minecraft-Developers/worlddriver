@@ -1,10 +1,11 @@
 package net.magicterra.worlddriver.rpc;
 
-import net.magicterra.worlddriver.api.EventWire;
 import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.game.DriverEvent;
+import net.magicterra.worlddriver.api.game.EventWire;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 
-import net.magicterra.worlddriver.model.DriverEvent;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
@@ -36,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DriverEventWireTest {
 
     private static Map<?, ?> encodeThenDecode(DriverEvent e) {
-        Object decoded = JsonCodec.decode(JsonCodec.encode(EventWire.tree(e)));
+        Object decoded = JsonCodec.decode(JsonCodec.encode(EventContracts.EVENT.encode(EventWire.dto(e))));
         return assertInstanceOf(Map.class, decoded);
     }
 
@@ -100,7 +101,7 @@ class DriverEventWireTest {
     void aSeqPastJavaScriptPrecisionArrivesExact() {
         DriverEvent e = event(9_007_199_254_740_993L, "x", null, "y");
         assertEquals("9007199254740993", encodeThenDecode(e).get("seq"));
-        Map<?, ?> frame = assertInstanceOf(Map.class, JsonCodec.decode(EventNotifications.frame(e)));
+        Map<?, ?> frame = assertInstanceOf(Map.class, JsonCodec.decode(EventNotifications.frame(EventWire.dto(e))));
         assertEquals("9007199254740993", ((Map<?, ?>) ((Map<?, ?>) frame.get("params")).get("data")).get("seq"));
     }
 
@@ -169,7 +170,7 @@ class DriverEventWireTest {
         DriverEvent e = event(6, "threat.appeared", new BlockPos(0, 64, 0),
                 Map.of("type", "minecraft:zombie", "dist", 7L));
         Map<?, ?> frame = assertInstanceOf(Map.class,
-                JsonCodec.decode(EventNotifications.frame(e)));
+                JsonCodec.decode(EventNotifications.frame(EventWire.dto(e))));
         Map<?, ?> params = assertInstanceOf(Map.class, frame.get("params"));
         Map<?, ?> event = assertInstanceOf(Map.class, params.get("data"));
         Map<?, ?> payload = assertInstanceOf(Map.class, event.get("data"),

@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.bot.util;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.body.Body;
-import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -79,17 +78,6 @@ public final class BotUtil {
     public static BlockPos blockPosOf(double x, double y, double z) {
         return new BlockPos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
     }
-
-    public static BlockPos readPos(Object o) { return Params.toPos(o); }
-
-    // These forward to Params so a bot-package caller need not import it. Only the ones
-    // something actually calls are kept: `doubleOr` and `parseStringList` sat here with
-    // zero call sites while their neighbours had 3-42 each, because callers reach
-    // Params.toDouble / Params.toStringList directly. A never-asked forwarder is not a
-    // convenience, it is a second name for one function — add one back the day a caller
-    // wants it, not in advance.
-    public static int intOr(Object o, int dflt) { return Params.toInt(o, dflt); }
-    public static int clamp(int v, int lo, int hi) { return Params.clamp(v, lo, hi); }
 
     public static Map<String, Object> unimplemented(String msg) {
         return Map.of("ok", false, "error", "unimplemented: " + msg);

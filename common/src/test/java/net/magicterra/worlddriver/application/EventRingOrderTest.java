@@ -12,7 +12,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import net.magicterra.worlddriver.model.DriverEvent;
+import net.magicterra.worlddriver.api.game.DriverEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 

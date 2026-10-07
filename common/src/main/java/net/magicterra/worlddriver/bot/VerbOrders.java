@@ -5,10 +5,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static net.magicterra.worlddriver.api.Positions.blockPos;
-import static net.magicterra.worlddriver.api.Positions.position;
+import static net.magicterra.worlddriver.api.game.Positions.blockPos;
+import static net.magicterra.worlddriver.api.game.Positions.position;
 
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.methods.bot.BuildContracts;
 import net.magicterra.worlddriver.api.methods.bot.BuildContracts.BuildParams;
 import net.magicterra.worlddriver.api.methods.bot.BuildContracts.BunkerParams;

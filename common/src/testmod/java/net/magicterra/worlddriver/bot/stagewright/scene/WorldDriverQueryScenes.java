@@ -6,11 +6,11 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import static net.magicterra.worlddriver.api.Positions.position;
+import static net.magicterra.worlddriver.api.game.Positions.position;
 
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.UnloadedAreaException;
+import net.magicterra.worlddriver.api.game.UnloadedAreaException;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.methods.client.ClientApi;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlocksParams;

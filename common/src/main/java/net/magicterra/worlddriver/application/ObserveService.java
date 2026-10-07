@@ -1,11 +1,11 @@
 package net.magicterra.worlddriver.application;
 
-import static net.magicterra.worlddriver.api.Positions.blockPos;
-import static net.magicterra.worlddriver.api.Positions.position;
+import static net.magicterra.worlddriver.api.game.Positions.blockPos;
+import static net.magicterra.worlddriver.api.game.Positions.position;
 
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.ApiException;
@@ -42,8 +42,7 @@ import net.magicterra.worlddriver.bot.world.SurvivalFacts;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
 import net.magicterra.worlddriver.client.ClientDriverApi;
 import net.magicterra.worlddriver.client.ClientHooks;
-import net.magicterra.worlddriver.model.DriverEvent;
-import net.magicterra.worlddriver.model.Params;
+import net.magicterra.worlddriver.api.game.DriverEvent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;

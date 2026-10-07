@@ -32,7 +32,6 @@ import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
@@ -422,7 +421,7 @@ public final class FixtureRunner {
 
         private BotProcess process(SceneFixture.Leg leg, int i) {
             String verb = leg.verb() == null ? "goto" : leg.verb().trim().toLowerCase(Locale.ROOT);
-            Params p = Params.of(leg.params() == null ? Map.of() : leg.params());
+            LegParams p = new LegParams(leg.params() == null ? Map.of() : leg.params());
             switch (verb) {
                 case "goto" -> {
                     if (leg.goal() == null) throw new SceneFailure("task " + i + ": goto needs a goal");
@@ -461,6 +460,27 @@ public final class FixtureRunner {
                             p.getIntClamped("ticks", reactive ? 2000 : 200, 1, 20_000), p.getDouble("stopXZDist", 3.0), reactive);
                 }
                 default -> throw new SceneFailure("task " + i + ": unknown verb '" + verb + "' (goto|mine|escape|elytra)");
+            }
+        }
+
+        /** A leg's {@code params} as the fixture file wrote them: a missing or mistyped field reads as its default. */
+        private record LegParams(Map<String, Object> m) {
+            Object get(String key) { return m.get(key); }
+            int getInt(String key, int dflt) { return m.get(key) instanceof Number n ? n.intValue() : dflt; }
+            int getIntClamped(String key, int dflt, int lo, int hi) { return Math.max(lo, Math.min(hi, getInt(key, dflt))); }
+            double getDouble(String key, double dflt) { return m.get(key) instanceof Number n ? n.doubleValue() : dflt; }
+            boolean getBool(String key) { return Boolean.TRUE.equals(m.get(key)); }
+            boolean getBool(String key, boolean dflt) { return m.get(key) instanceof Boolean b ? b : dflt; }
+
+            /** A list's strings, or a lone string as a list of one. */
+            List<String> getStringList(String key) {
+                List<String> out = new ArrayList<>();
+                if (m.get(key) instanceof List<?> l) {
+                    for (Object e : l) if (e instanceof String s) out.add(s);
+                } else if (m.get(key) instanceof String s) {
+                    out.add(s);
+                }
+                return out;
             }
         }
 

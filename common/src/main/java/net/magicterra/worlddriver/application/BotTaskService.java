@@ -8,7 +8,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 
-import static net.magicterra.worlddriver.api.Positions.position;
+import static net.magicterra.worlddriver.api.game.Positions.position;
 
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.CallContext;

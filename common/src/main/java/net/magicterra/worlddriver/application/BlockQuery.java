@@ -1,8 +1,8 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
-import net.magicterra.worlddriver.api.UnloadedAreaException;
+import net.magicterra.worlddriver.api.game.UnloadedAreaException;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts.BlockField;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts.BlockRow;

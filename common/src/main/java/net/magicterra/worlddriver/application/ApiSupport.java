@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.bot.util.ItemSnap;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
-import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.ItemStack;
@@ -21,9 +20,6 @@ import java.util.Collection;
 final class ApiSupport {
     private ApiSupport() {}
 
-    static long numL(Object o) { return Params.toLong(o, 0L); }
-    static long clamp(long v, long lo, long hi) { return Params.clamp(v, lo, hi); }
-
     /** Parse a coord token as an absolute decimal int. Returns null for
      *  Brigadier-style relative ({@code ~}, {@code ~N}, {@code ^N}) or otherwise
      *  non-integer tokens; callers fall back to the full command dispatcher
@@ -33,9 +29,6 @@ final class ApiSupport {
         try { return Integer.parseInt(tok); }
         catch (NumberFormatException nfe) { return null; }
     }
-
-    /** Decode {x,y,z} | BlockPos | "x,y,z" to BlockPos; null if shape doesn't match. */
-    static BlockPos readPos(Object o) { return Params.toPos(o); }
 
     /**
      * Resolve a block id to its default state, throwing on unknown ids instead of

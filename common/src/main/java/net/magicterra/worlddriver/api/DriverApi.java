@@ -2,12 +2,8 @@ package net.magicterra.worlddriver.api;
 
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
-import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.protocol.JsonCodec;
-import net.minecraft.core.BlockPos;
-import net.minecraft.server.MinecraftServer;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -19,12 +15,12 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
 
 /**
  * The single validated dispatch point shared by every transport.
  * The bootstrap supplies an application implementation; this package knows no
- * transport implementation or concrete business handler.
+ * transport implementation or concrete business handler. What the game side calls on that
+ * implementation is {@code api.game.DriverHost}.
  *
  * <p>Every method lives in the {@link ApiRegistry}: one entry binds a method's typed contract to its
  * handler, and owners publish theirs as {@link ApiBatch}es under the registry's namespace policy (the
@@ -119,13 +115,4 @@ public abstract class DriverApi {
         ApiMethod<?, ?> m = registry.method(method);
         return m == null ? null : m.spec();
     }
-
-    public abstract void attachServer(MinecraftServer server);
-    public abstract void detachServer();
-    public abstract void clearEvents();
-    /** Append an event; {@code data} is its payload as a value tree, {@link JsonValue#NULL} for none. */
-    public abstract void emitExternal(String type, BlockPos pos, JsonValue data);
-    public abstract void addEventListener(Consumer<DriverEvent> listener);
-    public abstract void removeEventListener(Consumer<DriverEvent> listener);
-    public abstract int restoreCellsOnServer(List<WorldCell> cells);
 }

@@ -7,7 +7,7 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.methods.bot.BotTaskApi;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.control.ControlApi;

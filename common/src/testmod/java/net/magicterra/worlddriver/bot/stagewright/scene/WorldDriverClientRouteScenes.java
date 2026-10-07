@@ -14,7 +14,6 @@ import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
-import net.magicterra.worlddriver.model.DriverEvent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 

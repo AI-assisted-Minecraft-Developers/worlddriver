@@ -44,12 +44,13 @@ import net.magicterra.worlddriver.api.ApiRegistry;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.CancellationToken;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.EventFeed;
 import net.magicterra.worlddriver.api.WaitPermits;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.DecodeContext;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.methods.shared.EventStreamContracts;
-import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.protocol.JsonRpcFrames;
 import java.io.Closeable;
 import java.net.InetSocketAddress;
@@ -135,16 +136,16 @@ public final class RpcServer implements Closeable {
      *  channel attribute so it's GC'd with the connection. */
     private static final AttributeKey<Set<String>> FILTER = AttributeKey.valueOf("worlddriver.eventFilter");
 
-    public RpcServer(DriverApi api, int requestedPort) {
+    public <A extends DriverApi & EventFeed> RpcServer(A api, int requestedPort) {
         this(api, "127.0.0.1", requestedPort);
     }
 
-    public RpcServer(DriverApi api, String bindHost, int requestedPort) {
+    public <A extends DriverApi & EventFeed> RpcServer(A api, String bindHost, int requestedPort) {
         this(api, bindHost, requestedPort, TransportLimits.WS_PING_INTERVAL_MS, TransportLimits.WS_IDLE_CLOSE_MS);
     }
 
     /** Liveness timings as parameters so a test can run them in seconds. */
-    RpcServer(DriverApi api, String bindHost, int requestedPort, long pingIntervalMs, long idleCloseMs) {
+    <A extends DriverApi & EventFeed> RpcServer(A api, String bindHost, int requestedPort, long pingIntervalMs, long idleCloseMs) {
         ServerBootstrap b = new ServerBootstrap();
         final ChannelGroup subs = this.subscribers;
         b.group(boss, worker)
@@ -193,15 +194,15 @@ public final class RpcServer implements Closeable {
      *  its type. Runs on DriverApi's single-thread event-dispatch executor; Netty's
      *  {@code writeAndFlush} is itself thread-safe and async, so this never blocks
      *  the game thread that produced the event. */
-    private void onEvent(DriverEvent e) {
+    private void onEvent(EventContracts.Event e) {
         if (subscribers.isEmpty()) return;
-        // No mutedEvents check here: DriverApi applies the per-type opt-out before it
+        // No mutedEvents check here: the host applies the per-type opt-out before it
         // calls any listener, so every transport gets the same policy for free.
         String frame = eventFrame(e);
         for (Channel ch : subscribers) {
             if (!ch.isActive()) continue;
             Set<String> filter = ch.attr(FILTER).get();
-            if (filter != null && !filter.isEmpty() && !filter.contains(e.type)) continue;
+            if (filter != null && !filter.isEmpty() && !filter.contains(e.type())) continue;
             // Async is not bounded: a peer that stops reading would keep every frame in
             // the outbound buffer. Close instead of dropping, as the SSE side does, so the
             // client can tell it missed events and replay them from its cursor.
@@ -218,7 +219,7 @@ public final class RpcServer implements Closeable {
 
     /** Frame an event as the shared MCP {@code notifications/message} (identical on
      *  the WS and MCP-HTTP transports — see {@link EventNotifications}). */
-    private static String eventFrame(DriverEvent e) {
+    private static String eventFrame(EventContracts.Event e) {
         return EventNotifications.frame(e);
     }
 

@@ -1,8 +1,8 @@
 package net.magicterra.worlddriver.bot;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
-import static net.magicterra.worlddriver.api.Positions.blockPos;
-import static net.magicterra.worlddriver.api.Positions.position;
+import static net.magicterra.worlddriver.api.game.Positions.blockPos;
+import static net.magicterra.worlddriver.api.game.Positions.position;
 import net.magicterra.worlddriver.bot.process.RouteEvents;
 import net.magicterra.worlddriver.bot.util.HandVerbs;
 
@@ -19,7 +19,6 @@ import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import java.util.Optional;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
-import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.client.KeyMapping;

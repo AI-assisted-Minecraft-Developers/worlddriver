@@ -19,22 +19,12 @@ MAY_USE = {'schema': {'protocol', 'schema'},
 TRANSPORTS = ('rpc', 'mcp', 'script')
 # Classes not yet in their layer's subpackage, by the layer they belong to. Shrinks as they move.
 UNMOVED = {'api/' + name: layer for layer, names in {
-    'registry': 'ApiBatch ApiErrors ApiHandler ApiHandlers ApiMethod ApiRegistry DriverApi Spec',
+    'registry': 'ApiBatch ApiErrors ApiHandler ApiHandlers ApiMethod ApiRegistry DriverApi EventFeed Spec',
     'call': 'ApiTimers CallContext CancellationToken RunContext WaitPermits',
-    'thread': 'GameThreads ServerThreadGuard ServerThreadHop',
-    'game': 'EventWire Positions UnloadedAreaException WorldCell'}.items() for name in names.split()}
-UNMOVED['model/DriverEvent'] = 'game'
+    'thread': 'GameThreads ServerThreadGuard ServerThreadHop'}.items() for name in names.split()}
 # Layer violations the move has not reached yet. A listed one that no longer occurs fails the
 # check as well, so the list can only shrink.
-PENDING = {
-    ('api/DriverApi.java', 'net.minecraft'): 'host hooks move to api/game/DriverHost',
-    ('api/DriverApi.java', 'game DriverEvent'): 'host hooks move to api/game/DriverHost',
-    ('api/DriverApi.java', 'game WorldCell'): 'host hooks move to api/game/DriverHost',
-    ('mcp/McpServer.java', 'game DriverEvent'): 'event listeners take EventContracts.Event',
-    ('rpc/EventNotifications.java', 'game DriverEvent'): 'event listeners take EventContracts.Event',
-    ('rpc/EventNotifications.java', 'game EventWire'): 'event listeners take EventContracts.Event',
-    ('rpc/RpcServer.java', 'game DriverEvent'): 'event listeners take EventContracts.Event',
-}
+PENDING = {}
 
 
 def code(path):

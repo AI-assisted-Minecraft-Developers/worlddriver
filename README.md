@@ -197,7 +197,6 @@ worlddriver/
 │   │   ├── mcp/            The MCP HTTP server and the tool catalog
 │   │   ├── rpc/            The Netty WebSocket server and the JSON codec
 │   │   ├── script/         Rhino integration, the evaluator, the optional class filter
-│   │   ├── model/          Wire types shared by the transports
 │   │   └── client/         The broker for client-only calls; implementations live per loader
 │   ├── src/testmod/     The scenes the StageWright tasks run, and the JavaScript validation suite
 │   └── src/test/        Plain JVM tests that need no game

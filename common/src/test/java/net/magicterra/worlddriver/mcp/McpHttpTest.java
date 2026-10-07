@@ -68,7 +68,7 @@ class McpHttpTest {
 
     @Test
     void anIdLessToolCallIsAcknowledgedButNotRun() throws Exception {
-        DriverApi api = new DriverApplication();
+        DriverApplication api = new DriverApplication();
         AtomicInteger calls = new AtomicInteger();
         ProbeMethods.counting(api, "test.probe", calls);
         try (McpServer server = new McpServer(api, 0)) {
@@ -85,7 +85,7 @@ class McpHttpTest {
 
     @Test
     void aBatchThatChangesTheToolListIsAnnouncedOnTheOpenStream() throws Exception {
-        DriverApi api = new DriverApplication();
+        DriverApplication api = new DriverApplication();
         try (McpServer server = new McpServer(api, 0)) {
             HttpRequest get = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + "/mcp"))
                     .header("Accept", "text/event-stream").GET().build();

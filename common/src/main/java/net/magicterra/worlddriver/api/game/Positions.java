@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.api;
+package net.magicterra.worlddriver.api.game;
 
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;

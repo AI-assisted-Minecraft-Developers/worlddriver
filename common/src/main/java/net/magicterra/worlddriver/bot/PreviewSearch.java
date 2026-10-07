@@ -11,7 +11,7 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Exposure;

@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.UnloadedAreaException;
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.UnloadedAreaException;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockScan;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChunkRef;

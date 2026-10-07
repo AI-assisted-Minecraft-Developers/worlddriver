@@ -11,7 +11,7 @@ import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.api.ApiHandlers;
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.WaitPermits;

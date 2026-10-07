@@ -5,7 +5,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
 import net.magicterra.worlddriver.api.ApiMethod;
-import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.ApiTimers;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.methods.interact.InteractApi;
