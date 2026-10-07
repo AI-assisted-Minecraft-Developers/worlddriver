@@ -12,7 +12,7 @@ import net.magicterra.worlddriver.api.methods.ClientContracts;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ImageFormat;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ScreenshotParams;
 
-import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
+import net.magicterra.worlddriver.bot.util.ClientHop;
 
 /**
  * Framebuffer capture + downscale/transcode for {@code mc.client.screenshot}.
@@ -38,7 +38,7 @@ public final class Screenshots {
         final boolean waited = !Minecraft.getInstance().isSameThread()
                 && FrameClock.awaitAfter(before, FRESH_FRAME_MS) > before;
 
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             RenderTarget rt = mc.getMainRenderTarget();
             NativeImage img = Screenshot.takeScreenshot(rt);

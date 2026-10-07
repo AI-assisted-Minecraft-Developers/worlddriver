@@ -27,7 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
+import net.magicterra.worlddriver.bot.util.ClientHop;
 
 /**
  * Phase G — boss-specific sensing behind {@code mc.observe.boss}. Reads the
@@ -46,7 +46,7 @@ public final class ClientBoss {
 
     public static BossReading observeBoss(int radius) {
         final int r = Math.max(1, Math.min(256, radius));
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             ClientLevel level = mc.level;
             LocalPlayer pl = mc.player;

@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
+import net.magicterra.worlddriver.bot.util.ClientHop;
 
 /**
  * {@code mc.client.input.keybind}: drives a key mapping by name rather than by key.
@@ -44,7 +44,7 @@ public final class ClientKeybinds {
         final String want = p.name().map(String::trim).orElse("");
         final KeyAction act = p.action();
         final KeyMapping[] held = new KeyMapping[1];
-        ClientReply out = runOnClient(() -> {
+        ClientReply out = ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             KeyMapping[] all = Minecraft.getInstance().options.keyMappings;
             if (want.isEmpty()) return list(all);

@@ -36,7 +36,7 @@ import net.minecraft.client.player.LocalPlayer;
 
 import java.util.Optional;
 
-import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
+import net.magicterra.worlddriver.bot.util.ClientHop;
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,7 +57,7 @@ public final class ClientInput {
     private ClientInput() {}
 
     public static Closed closeScreen(CloseParams p) {
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             Minecraft mc = Minecraft.getInstance();
             Optional<String> was = Optional.ofNullable(mc.screen).map(s -> s.getClass().getSimpleName());
@@ -75,7 +75,7 @@ public final class ClientInput {
     }
 
     public static ClientReply click(ClickParams p) {
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             Screen s = Minecraft.getInstance().screen;
             if (s == null) return noScreen();
@@ -101,7 +101,7 @@ public final class ClientInput {
             case PICKUP_ALL -> ClickType.PICKUP_ALL;
             case QUICK_CRAFT -> ClickType.QUICK_CRAFT;
         };
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             Minecraft mc = Minecraft.getInstance();
             if (!(mc.screen instanceof AbstractContainerScreen<?> acs)) {
@@ -122,7 +122,7 @@ public final class ClientInput {
     }
 
     public static Moved mouseMove(MoveParams p) {
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             Screen s = mc.screen;
             double scale = mc.getWindow().getGuiScale();
@@ -144,7 +144,7 @@ public final class ClientInput {
     }
 
     public static ClientReply setHotbarSlot(HotbarParams p) {
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             LocalPlayer player = Minecraft.getInstance().player;
             if (player == null) return noPlayer();
@@ -162,7 +162,7 @@ public final class ClientInput {
 
     public static ClientReply typeText(TypeParams p) {
         String t = p.text();
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             Screen s = Minecraft.getInstance().screen;
             if (s == null) return noScreen();
@@ -197,7 +197,7 @@ public final class ClientInput {
      */
     public static ClientReply replaceText(ReplaceParams p) {
         String m = p.match().map(x -> x.trim().toLowerCase(Locale.ROOT)).orElse("");
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             Screen s = Minecraft.getInstance().screen;
             if (s == null) return noScreen();
@@ -248,7 +248,7 @@ public final class ClientInput {
      */
     public static ClientReply slider(SliderParams p) {
         String m = p.match().map(x -> x.trim().toLowerCase(Locale.ROOT)).orElse("");
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             Screen s = Minecraft.getInstance().screen;
             if (s == null) return noScreen();
@@ -358,7 +358,7 @@ public final class ClientInput {
         int mods = modifierBits(p.modifiers());
         int scan = org.lwjgl.glfw.GLFW.glfwGetKeyScancode(code);
         boolean down = p.action() != KeyAction.RELEASE;
-        ClientReply first = runOnClient(() -> {
+        ClientReply first = ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             Minecraft mc = Minecraft.getInstance();
             if (mc.screen == null) {

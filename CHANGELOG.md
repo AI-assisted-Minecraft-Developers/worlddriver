@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`mc.bot.holdItem` with `minecraft:air` empties the hand, on every body.** It selects an empty
   hotbar slot and is refused, in the same words everywhere, when there is none. The client used to
   refuse air as "not in the inventory" while a server body moved whatever it held into the bag.
+- **Every `mc.client.*` read and write hops to the client thread the way the bot's verbs do**: within
+  8 seconds (`-Dworlddriver.clientThreadTimeoutMs`), and a task that missed its turn is withdrawn
+  and reported as safe to retry, or as already running, instead of a bare error after 30 seconds
+  with the task still queued. `mc.client.chat.send` with `awaitReplyMs` polls the chat log without
+  holding a thread or a wait slot, and stops at the caller's deadline.
 - **A server body pulls an item up from the bag into an empty hotbar slot first**, as the client
   always has, instead of displacing what it held; only a full hotbar swaps into the held slot.
 - **goto, clearArea and construct share one `Direction` type** (the TypeScript `GotoDirection` is now

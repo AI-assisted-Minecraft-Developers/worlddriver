@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
+import net.magicterra.worlddriver.bot.util.ClientHop;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.client.gui.screens.DeathScreen;
@@ -36,7 +36,7 @@ public final class ScreenIntrospection {
     private ScreenIntrospection() {}
 
     public static ScreenInfo screenInfo() {
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             Screen s = mc.screen;
             // Overlay (LoadingOverlay during early boot, ResourceLoadProgressScreen
@@ -63,7 +63,7 @@ public final class ScreenIntrospection {
     }
 
     public static ScreenTree screenTree() {
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             Screen s = mc.screen;
             String context = ScreenContext.current();

@@ -7,7 +7,6 @@ import net.magicterra.worlddriver.api.methods.ClientContracts.ChatLine;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ChatSendParams;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ChatSent;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ClientRefusal;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ClientReply;
 import net.magicterra.worlddriver.api.methods.ClientContracts.HistoryLine;
 import net.magicterra.worlddriver.api.methods.ClientContracts.LaterChat;
 import net.magicterra.worlddriver.api.methods.ClientContracts.OverlaysCleared;
@@ -25,7 +24,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
+import net.magicterra.worlddriver.bot.util.ClientHop;
+import net.magicterra.worlddriver.client.ClientDriverApi.ChatReplies;
+import net.magicterra.worlddriver.client.ClientDriverApi.ChatSendStart;
 
 /**
  * Chat send/history and HUD-overlay dismissal for {@code mc.client.chat.*} and
@@ -66,19 +67,13 @@ public final class ClientChat {
         return "player".equals(e.kind()) ? ChatKind.PLAYER : ChatKind.SYSTEM;
     }
 
-    /** The send, and where the log stood just before it. */
-    private record Sent(ChatSent reply, long baseline) {}
-
-    /**
-     * Sends on the client thread; with {@code awaitReplyMs} then polls the log on the CALLING thread,
-     * so ticks — including the server's response packets — keep flowing.
-     */
-    public static ClientReply chatSend(ChatSendParams p) {
+    /** Sends on the client thread. Replies are read afterwards, off it, so ticks keep flowing meanwhile. */
+    public static ChatSendStart chatSend(ChatSendParams p) {
         String t = p.text();
-        Object sent = runOnClient(() -> {
+        return ClientHop.call(() -> {
             LocalPlayer player = Minecraft.getInstance().player;
             if (player == null || player.connection == null) {
-                return new Refused(ClientRefusal.NO_PLAYER, "no player is connected to a server on this client");
+                return new ChatSendStart(new Refused(ClientRefusal.NO_PLAYER, "no player is connected to a server on this client"), null);
             }
             boolean isCommand = t.startsWith("/");
             // Snapshot the log position BEFORE the send: everything recorded at
@@ -89,11 +84,9 @@ public final class ClientChat {
             } else {
                 player.connection.sendChat(t);
             }
-            return new Sent(new ChatSent(isCommand ? SentAs.COMMAND : SentAs.CHAT, t.length(), Optional.empty()), baseline);
+            return new ChatSendStart(new ChatSent(isCommand ? SentAs.COMMAND : SentAs.CHAT, t.length(), Optional.empty()),
+                    new Replies(baseline));
         });
-        if (!(sent instanceof Sent s)) return (Refused) sent;
-        if (p.awaitReplyMs() <= 0) return s.reply();
-        return new ChatSent(s.reply().kind(), s.reply().length(), Optional.of(awaitLater(s.baseline(), p.awaitReplyMs())));
     }
 
     /**
@@ -101,53 +94,53 @@ public final class ClientChat {
      * multi-line feedback a short settle window before collecting, so one broadcast doesn't race out the
      * command output arriving a tick later. Nothing ties the lines to the send but their timing.
      */
-    private static LaterChat awaitLater(long baseline, int awaitReplyMs) {
-        long started = System.currentTimeMillis();
-        long deadline = started + awaitReplyMs;
-        long scanned = baseline;   // advances past seen lines so polls stay O(1)
-        while (System.currentTimeMillis() < deadline) {
-            boolean hit = false;
-            if (ClientChatLog.nextSeq() > scanned) {   // O(1) probe before copying
+    private static final class Replies implements ChatReplies {
+        private static final long SETTLE_MS = 150;
+        private final long baseline;
+        private final long started = System.currentTimeMillis();
+        private long scanned;            // advances past seen lines so polls stay O(1)
+        private long settleUntil = -1;   // set by the first reply; collected once it passes
+
+        Replies(long baseline) { this.baseline = baseline; this.scanned = baseline; }
+
+        @Override public synchronized Optional<LaterChat> poll() {
+            if (settleUntil < 0 && ClientChatLog.nextSeq() > scanned) {   // O(1) probe before copying
                 for (ClientChatLog.Entry e : ClientChatLog.since(scanned)) {
                     scanned = e.seq() + 1;
-                    // The server echoes our own plain-chat line back at us
-                    // (since 1.19 signed chat it isn't rendered locally) —
-                    // that echo is never the "reply". History keeps it.
-                    if (!e.self()) hit = true;
+                    // The server echoes our own plain-chat line back at us (since 1.19 signed chat it
+                    // isn't rendered locally); that echo is never the reply. History keeps it. Our own
+                    // /say echo carries our sender profile, so it is filtered the same way; a console
+                    // or command-block /say is profileless, so it is a reply.
+                    if (!e.self() && settleUntil < 0) settleUntil = System.currentTimeMillis() + SETTLE_MS;
                 }
             }
-            if (hit) {
-                // Our own /say echo carries our sender profile → self=true → filtered like plain
-                // chat; console/command-block /say is profileless → a reply.
-                long settle = Math.min(deadline, System.currentTimeMillis() + 150);
-                while (System.currentTimeMillis() < settle) {
-                    if (!sleep()) break;
-                }
-                List<ChatLine> rows = new ArrayList<>();
-                for (ClientChatLog.Entry e : ClientChatLog.since(baseline)) {
-                    if (!e.self()) rows.add(new ChatLine(e.seq(), kind(e), e.text(), false));
-                }
-                if (rows.isEmpty()) continue;   // flood-evicted during settle; keep waiting
-                return new LaterChat(rows, false, System.currentTimeMillis() - started);
+            if (settleUntil < 0 || System.currentTimeMillis() < settleUntil) return Optional.empty();
+            List<ChatLine> rows = replies();
+            if (rows.isEmpty()) {   // flood-evicted during the settle; keep waiting
+                settleUntil = -1;
+                return Optional.empty();
             }
-            if (!sleep()) break;
+            return Optional.of(new LaterChat(rows, false, System.currentTimeMillis() - started));
         }
-        return new LaterChat(List.of(), true, System.currentTimeMillis() - started);
-    }
 
-    private static boolean sleep() {
-        try {
-            Thread.sleep(50L);
-            return true;
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-            return false;
+        /** A reply that came in time but whose settle the deadline cut short is still the answer. */
+        @Override public synchronized LaterChat timedOut() {
+            List<ChatLine> rows = settleUntil >= 0 ? replies() : List.of();
+            return new LaterChat(rows, rows.isEmpty(), System.currentTimeMillis() - started);
+        }
+
+        private List<ChatLine> replies() {
+            List<ChatLine> rows = new ArrayList<>();
+            for (ClientChatLog.Entry e : ClientChatLog.since(baseline)) {
+                if (!e.self()) rows.add(new ChatLine(e.seq(), kind(e), e.text(), false));
+            }
+            return rows;
         }
     }
 
     public static ChatHistory chatHistory(ChatHistoryParams p) {
         // gameTime only needed to derive ageTicks; the log itself is thread-safe.
-        long now = runOnClient(ClientChat::gameTimeNow);
+        long now = ClientHop.call(ClientChat::gameTimeNow);
         // Newest first, sliced straight off the tail — tail() never touches the
         // up-to-512 older entries the cap is about to throw away.
         List<ClientChatLog.Entry> entries = ClientChatLog.tail(p.limit(), p.sinceSeq());
@@ -159,7 +152,7 @@ public final class ClientChat {
     }
 
     public static OverlaysCleared overlays(OverlaysParams p) {
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             boolean tutorial = false, toasts = false;
             Optional<String> tutorialError = Optional.empty(), toastsError = Optional.empty();

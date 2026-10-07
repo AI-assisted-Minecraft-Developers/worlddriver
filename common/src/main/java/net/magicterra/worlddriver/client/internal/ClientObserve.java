@@ -40,7 +40,7 @@ import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
 import net.magicterra.worlddriver.api.methods.ScreenContracts.MenuContainer;
 import net.magicterra.worlddriver.api.methods.ScreenContracts.SlotRow;
 
-import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClient;
+import net.magicterra.worlddriver.bot.util.ClientHop;
 import net.magicterra.worlddriver.api.methods.ObserveContracts;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
@@ -72,7 +72,7 @@ public final class ClientObserve {
     private ClientObserve() {}
 
     public static Map<String, Object> observePlayer() {
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             LocalPlayer p = mc.player;
             if (p == null) {
@@ -199,7 +199,7 @@ public final class ClientObserve {
 
     public static BlockScan scanBlocks(int radius, Double cx, Double cy, Double cz, Set<String> filterIds) {
         final int r = Math.max(0, Math.min(16, radius));
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             ClientLevel level = mc.level;
             if (level == null) {
@@ -265,7 +265,7 @@ public final class ClientObserve {
 
     public static Map<String, Object> queryEntities(int radius, Double cx, Double cy, Double cz, Boolean hostileFilter) {
         final int r = Math.max(0, Math.min(32, radius));
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             ClientLevel level = mc.level;
             if (level == null) return Map.of("present", false, "error", "no client level");
@@ -309,7 +309,7 @@ public final class ClientObserve {
     }
 
     public static ObserveContracts.Threats observeThreats(int radius) {
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             if (mc.level == null || mc.player == null) return new ObserveContracts.Threats(List.of(), List.of());
             return ThreatScanner.reading(ClientThreatScanner.compute(mc, radius));
@@ -318,7 +318,7 @@ public final class ClientObserve {
 
     /** The open container menu's slots, under the screen context they were read in. */
     public static MenuContainer menu() {
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             Screen s = mc.screen;
             String context = ScreenContext.current();
@@ -343,7 +343,7 @@ public final class ClientObserve {
      * untyped {@code mc.observe.player} fallback, grouped as the typed contract has them.
      */
     public static ClientPlayer player() {
-        return runOnClient(() -> {
+        return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             LocalPlayer p = mc.player;
             if (p == null) {

@@ -48,9 +48,8 @@ import net.magicterra.worlddriver.client.internal.Screenshots;
  * This class is a thin facade: each interface method delegates to a stateless
  * helper under {@code net.magicterra.worlddriver.client.internal} grouped by concern
  * (screen introspection, input, chat, observation, screenshot). The behavior —
- * including the client-thread marshalling — lives in those helpers; see
- * {@link net.magicterra.worlddriver.client.internal.ClientThread} for the shared
- * {@code runOnClient} jumper.
+ * including the client-thread marshalling — lives in those helpers, through
+ * {@link ClientHop}.
  */
 public final class ClientDriverApiImpl implements ClientDriverApi {
 
@@ -82,7 +81,7 @@ public final class ClientDriverApiImpl implements ClientDriverApi {
 
     @Override public MenuContainer menu() { return ClientObserve.menu(); }
 
-    @Override public ClientReply chatSend(ChatSendParams p) { return ClientChat.chatSend(p); }
+    @Override public ChatSendStart chatSend(ChatSendParams p) { return ClientChat.chatSend(p); }
 
     @Override public ChatHistory chatHistory(ChatHistoryParams p) { return ClientChat.chatHistory(p); }
 

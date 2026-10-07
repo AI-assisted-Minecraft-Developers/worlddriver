@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.client;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import net.magicterra.worlddriver.api.ServerThreadHop;
@@ -11,6 +12,7 @@ import net.magicterra.worlddriver.api.methods.ClientContracts.ChatHistoryParams;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ChatSendParams;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ClientPlayer;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ClientReply;
+import net.magicterra.worlddriver.api.methods.ClientContracts.LaterChat;
 import net.magicterra.worlddriver.api.methods.ClientContracts.OverlaysCleared;
 import net.magicterra.worlddriver.api.methods.ClientContracts.OverlaysParams;
 import net.magicterra.worlddriver.api.methods.ClientContracts.Screenshot;
@@ -39,9 +41,9 @@ import net.magicterra.worlddriver.api.methods.ScreenContracts.TypeParams;
  * it, and every {@code mc.client.*} method answers capability_unavailable there.
  *
  * <p>Each method may be called from any thread: the ones that read or write the client
- * run their body on the client thread themselves. {@link #key}, {@link #keybind},
- * {@link #chatSend} and {@link #screenshot} may hold their caller for client ticks, a
- * reply wait or a fresh frame, so they are for a thread that may wait. A write given a
+ * run their body on the client thread themselves. {@link #key}, {@link #keybind} and
+ * {@link #screenshot} may hold their caller for client ticks or a fresh frame, so they are
+ * for a thread that may wait. A write given a
  * {@code contextId} checks it on the client thread immediately before acting.
  *
  * <p>The few methods still answering a Map serve methods outside the client group
@@ -92,8 +94,20 @@ public interface ClientDriverApi {
     /** The container menu open on this client, with the screen context it belongs to. */
     MenuContainer menu();
 
-    /** With {@code awaitReplyMs}, holds the caller while later chat lines arrive. */
-    ClientReply chatSend(ChatSendParams p);
+    /** Sends a chat line, or a command with a leading slash, on the client thread; never waits for replies. */
+    ChatSendStart chatSend(ChatSendParams p);
+
+    /** A send's reply, and for a line that went out, the reader of what arrives after it (null when refused). */
+    record ChatSendStart(ClientReply reply, ChatReplies replies) {}
+
+    /** The lines that arrive after one send. Each read is short and safe from any thread, and nothing is held between reads. */
+    interface ChatReplies {
+        /** The lines once a reply has arrived and settled; empty until then. */
+        Optional<LaterChat> poll();
+
+        /** What the wait ends with when no reply came in time. */
+        LaterChat timedOut();
+    }
 
     ChatHistory chatHistory(ChatHistoryParams p);
 

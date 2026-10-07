@@ -145,11 +145,21 @@ final class ClientMethods implements ScreenCalls, ClientCalls {
         return onClient(ctx, c -> () -> blocks(c, p));
     }
 
+    /** A reply wait polls the chat log and holds no thread between reads; it ends at the caller's deadline at the latest. */
     @Override
     public CompletionStage<ClientReply> chatSend(ClientContracts.ChatSendParams p, CallContext ctx) {
-        return p.awaitReplyMs() > 0
-                ? waiting(ctx, "awaitReplyMs", c -> () -> c.chatSend(p)) : onClient(ctx, c -> () -> c.chatSend(p));
+        return onClient(ctx, c -> () -> c.chatSend(p)).thenCompose(start -> {
+            if (p.awaitReplyMs() <= 0 || !(start.reply() instanceof ClientContracts.ChatSent sent)) {
+                return CompletableFuture.completedFuture(start.reply());
+            }
+            ClientDriverApi.ChatReplies replies = start.replies();
+            return Polling.until(Math.min(p.awaitReplyMs(), ctx.remainingMillis()), CHAT_POLL_MS, ctx.requestCancelled(),
+                            () -> CompletableFuture.completedFuture(replies.poll()), replies::timedOut)
+                    .thenApply(later -> new ClientContracts.ChatSent(sent.kind(), sent.length(), Optional.of(later)));
+        });
     }
+
+    private static final long CHAT_POLL_MS = 50;
 
     @Override
     public CompletionStage<ClientContracts.ChatHistory> chatHistory(ClientContracts.ChatHistoryParams p, CallContext ctx) {
