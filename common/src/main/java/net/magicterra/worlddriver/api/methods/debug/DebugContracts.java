@@ -4,11 +4,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.contract.ApiField;
-import net.magicterra.worlddriver.api.contract.ApiType;
-import net.magicterra.worlddriver.api.contract.ApiTypes;
-import net.magicterra.worlddriver.api.contract.MethodSpec;
-import net.magicterra.worlddriver.api.contract.UnionType;
+import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.schema.ApiType;
+import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
+import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 
@@ -38,7 +38,7 @@ public final class DebugContracts {
 
     // ------------------------------------------------------------------ mc.debug.pathChart
 
-    public enum ChartView implements net.magicterra.worlddriver.api.contract.WireName {
+    public enum ChartView implements net.magicterra.worlddriver.api.schema.WireName {
         DASHBOARD("dashboard"), THREE_VIEW("threeview");
         private final String wire;
         ChartView(String wire) { this.wire = wire; }

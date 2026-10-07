@@ -9,7 +9,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses;
 import dev.architectury.event.events.client.ClientTickEvent;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.game.DriverHost;
-import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.bot.BotApiImpl;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.FocusPolicy;

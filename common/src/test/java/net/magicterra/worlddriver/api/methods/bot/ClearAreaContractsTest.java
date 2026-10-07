@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.methods.bot.ClearAreaContracts.Params;
 import net.magicterra.worlddriver.api.methods.bot.ClearAreaContracts.Summary;
 import net.magicterra.worlddriver.api.methods.bot.ClearAreaContracts.Tunnel;
@@ -107,7 +107,7 @@ class ClearAreaContractsTest {
 
     @Test
     void theTypeScriptNamesTheResponseUnion() {
-        net.magicterra.worlddriver.api.contract.TsContext ts = new net.magicterra.worlddriver.api.contract.TsContext();
+        net.magicterra.worlddriver.api.schema.TsContext ts = new net.magicterra.worlddriver.api.schema.TsContext();
         assertEquals("ClearAreaResponse", ClearAreaContracts.RESPONSE.ts(ts));
         assertEquals("ClearAreaParams", ClearAreaContracts.PARAMS.ts(ts));
         String d = ts.render("");

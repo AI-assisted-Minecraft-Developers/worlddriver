@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.api.thread;
 
 import net.magicterra.worlddriver.api.ProbeMethods;
-import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.application.DriverApplication;
 

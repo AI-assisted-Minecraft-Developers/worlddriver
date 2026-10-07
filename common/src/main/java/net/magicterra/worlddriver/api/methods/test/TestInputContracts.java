@@ -2,10 +2,10 @@ package net.magicterra.worlddriver.api.methods.test;
 
 import java.util.List;
 
-import net.magicterra.worlddriver.api.contract.ApiField;
-import net.magicterra.worlddriver.api.contract.ApiType;
-import net.magicterra.worlddriver.api.contract.ApiTypes;
-import net.magicterra.worlddriver.api.contract.RecordType;
+import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.schema.ApiType;
+import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.RecordType;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts.Face;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts.Hand;

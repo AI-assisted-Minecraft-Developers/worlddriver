@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot;
 
-import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.util.TimeSnap;

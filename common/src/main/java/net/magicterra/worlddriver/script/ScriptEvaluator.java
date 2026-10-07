@@ -12,7 +12,7 @@ import net.magicterra.worlddriver.api.call.ApiTimers;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.call.RunContext;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.Issue;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.Outcome;

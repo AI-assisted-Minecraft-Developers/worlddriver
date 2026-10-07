@@ -20,9 +20,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.api.contract.ApiError;
-import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.thread.GameThreads;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 

@@ -3,8 +3,8 @@ package net.magicterra.worlddriver.api.methods.shared;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.magicterra.worlddriver.api.contract.ApiTypes;
-import net.magicterra.worlddriver.api.contract.UnionType;
+import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.methods.bot.BuildContracts;
 import net.magicterra.worlddriver.api.methods.bot.ClearAreaContracts;
 import net.magicterra.worlddriver.api.methods.bot.CombatContracts;

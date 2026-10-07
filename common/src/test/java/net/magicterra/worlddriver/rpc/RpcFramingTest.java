@@ -22,7 +22,7 @@ import io.netty.handler.codec.http.websocketx.ContinuationWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import net.magicterra.worlddriver.api.ProbeMethods;
-import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import org.junit.jupiter.api.Test;
 

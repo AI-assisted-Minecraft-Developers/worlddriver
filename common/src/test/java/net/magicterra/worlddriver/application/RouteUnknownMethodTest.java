@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.contract.ApiError;
-import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;

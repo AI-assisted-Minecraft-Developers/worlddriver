@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.api.methods;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import net.magicterra.worlddriver.api.contract.ApiType;
+import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;

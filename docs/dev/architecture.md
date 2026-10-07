@@ -121,7 +121,7 @@ diverge. When a batch changes what `tools/list` shows, `McpServer` sends
 
 ### The api layer does not depend on the mcp layer
 
-`api/` holds the registry, the contract combinators (`api/contract/`) and the pure contracts
+`api/` holds the registry, the schema combinators (`api/schema/`) and the pure contracts
 (`api/methods/<family>/`); it imports no transport, handler or bot class (`check_architecture.py`).
 `mc.bot.setting`'s contract is built from the bot's settings table, so it lives in
 `bot/SettingsContracts`, and the list of core specs, `CoreMethods`, lives in `application/`.
@@ -184,7 +184,7 @@ told, so the cursor is best-effort.
 | Package | What it is |
 |---|---|
 | `protocol/` | JDK-only JSON codec, shared refusal code and request-size budget |
-| `api/` | the typed contracts (`contract/`, `methods/`), the `ApiRegistry` with its handler types (`registry/`), what one call carries (`call/`), the game-thread hops (`thread/`), and in `game/` the host hooks (`DriverHost`) and the conversions between game objects and API values; layered as [api-layers.md](api-layers.md) describes |
+| `api/` | the schema types (`schema/`), the method contracts (`methods/`), the `ApiRegistry` with its handler types (`registry/`), what one call carries (`call/`), the game-thread hops (`thread/`), and in `game/` the host hooks (`DriverHost`) and the conversions between game objects and API values; layered as [api-layers.md](api-layers.md) describes |
 | `application/` | `DriverApplication` and concrete world, observe, action, wait and body handlers |
 | `integration/debug/` | The `mc.debug.*` batch and its handlers; recorders/analysis stay in `bot/debug` |
 | `mcp/` | MCP HTTP server and `McpTools`, the `tools/list` view of the registry |

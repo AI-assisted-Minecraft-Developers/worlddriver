@@ -2,9 +2,9 @@ package net.magicterra.worlddriver.script;
 
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.protocol.JsonCodec;
-import net.magicterra.worlddriver.api.contract.ApiError;
-import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.DeleteSkill;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.GetSkill;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.ListSkills;

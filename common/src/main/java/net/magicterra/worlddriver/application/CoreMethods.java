@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.application;
 
 import java.util.List;
 
-import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.methods.action.ActionContracts;
 import net.magicterra.worlddriver.api.methods.bot.BuildContracts;
 import net.magicterra.worlddriver.api.methods.bot.ClearAreaContracts;

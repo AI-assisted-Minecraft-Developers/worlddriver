@@ -6,8 +6,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import net.magicterra.worlddriver.api.contract.ApiIssue;
-import net.magicterra.worlddriver.api.contract.KeyedValueType.Entry;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
+import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
 import net.magicterra.worlddriver.bot.SettingsContracts.AvoidPoint;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.magicterra.worlddriver.bot.util.RegistryIds;

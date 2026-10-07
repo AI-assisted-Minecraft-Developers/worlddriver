@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.client.internal;
 
-import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientRefusal;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientReply;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.Refused;

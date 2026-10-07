@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.magicterra.worlddriver.api.ProbeMethods;
-import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.registry.ApiBatch;
 import net.magicterra.worlddriver.api.registry.ApiHandlers;
 import net.magicterra.worlddriver.api.registry.ApiMethod;

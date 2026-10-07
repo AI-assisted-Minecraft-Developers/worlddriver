@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.application.DriverApplication;
 
 import net.magicterra.worlddriver.bot.BotConfig;

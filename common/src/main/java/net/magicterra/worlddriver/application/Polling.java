@@ -15,11 +15,11 @@ import net.magicterra.worlddriver.api.call.ApiTimers;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.call.CancellationToken;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.contract.ApiIssue;
-import net.magicterra.worlddriver.api.contract.DecodeContext;
-import net.magicterra.worlddriver.api.contract.JsonValue;
-import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
+import net.magicterra.worlddriver.api.schema.DecodeContext;
+import net.magicterra.worlddriver.api.schema.JsonValue;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
 
 /**
  * Repeated reads for the waits and the event watchers. A wait between two polls holds no thread: the

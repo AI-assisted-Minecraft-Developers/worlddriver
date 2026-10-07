@@ -8,9 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.contract.ApiIssue;
-import net.magicterra.worlddriver.api.contract.ApiType;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
+import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.BodyStatus;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.Slot;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.Slots;

@@ -2,10 +2,10 @@ package net.magicterra.worlddriver.api.methods.system;
 
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.contract.ApiField;
-import net.magicterra.worlddriver.api.contract.ApiType;
-import net.magicterra.worlddriver.api.contract.ApiTypes;
-import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.schema.ApiType;
+import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;

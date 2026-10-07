@@ -11,7 +11,7 @@ import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.SettingsContracts;
 import net.magicterra.worlddriver.bot.SettingsRegistry;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.bot.movement.AscendMovement;
 import net.magicterra.worlddriver.bot.movement.MovementContext;
 import net.magicterra.worlddriver.bot.movement.MovementStatus;

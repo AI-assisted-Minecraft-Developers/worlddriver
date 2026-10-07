@@ -1,11 +1,11 @@
 package net.magicterra.worlddriver.api.methods.shared;
 
 import java.util.Locale;
-import net.magicterra.worlddriver.api.contract.ApiField;
-import net.magicterra.worlddriver.api.contract.ApiType;
-import net.magicterra.worlddriver.api.contract.ApiTypes;
-import net.magicterra.worlddriver.api.contract.RecordType;
-import net.magicterra.worlddriver.api.contract.WireName;
+import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.schema.ApiType;
+import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.RecordType;
+import net.magicterra.worlddriver.api.schema.WireName;
 
 /** Shapes many methods share. Pure: nothing here reads a world or a registry. */
 public final class CommonTypes {

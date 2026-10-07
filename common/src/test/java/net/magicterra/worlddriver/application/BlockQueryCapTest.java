@@ -7,8 +7,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.api.contract.ApiError;
-import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
 import org.junit.jupiter.api.Test;
 
 /**

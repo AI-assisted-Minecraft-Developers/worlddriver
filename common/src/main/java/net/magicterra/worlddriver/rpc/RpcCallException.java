@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.rpc;
 
 import java.io.IOException;
 
-import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiError;
 
 /**
  * The server answered with a JSON-RPC error. {@link #apiError()} is the API's own error when the

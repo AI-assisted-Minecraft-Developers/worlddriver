@@ -7,14 +7,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import net.magicterra.worlddriver.api.contract.ApiField;
-import net.magicterra.worlddriver.api.contract.ApiIssue;
-import net.magicterra.worlddriver.api.contract.ApiType;
-import net.magicterra.worlddriver.api.contract.ApiTypes;
-import net.magicterra.worlddriver.api.contract.DecodeContext;
-import net.magicterra.worlddriver.api.contract.KeyedValueType;
-import net.magicterra.worlddriver.api.contract.KeyedValueType.Entry;
-import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
+import net.magicterra.worlddriver.api.schema.ApiType;
+import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.DecodeContext;
+import net.magicterra.worlddriver.api.schema.KeyedValueType;
+import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
 
 /**
  * {@code mc.bot.setting}: read the tuning surface, patch it, or apply one of its controls.

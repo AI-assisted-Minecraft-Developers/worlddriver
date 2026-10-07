@@ -3,8 +3,8 @@ package net.magicterra.worlddriver.client.internal;
 import java.security.SecureRandom;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.contract.ApiError;
-import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 

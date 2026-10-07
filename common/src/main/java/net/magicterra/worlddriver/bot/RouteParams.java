@@ -9,8 +9,8 @@ import java.util.Set;
 
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
-import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.contract.DecodeContext;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.BoxRegion;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.BreakPolicy;

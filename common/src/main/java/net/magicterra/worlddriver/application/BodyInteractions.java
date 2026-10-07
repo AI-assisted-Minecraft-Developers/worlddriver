@@ -2,8 +2,8 @@ package net.magicterra.worlddriver.application;
 
 import java.util.Optional;
 import net.magicterra.worlddriver.api.game.Positions;
-import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts.Face;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;

@@ -10,12 +10,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import net.magicterra.worlddriver.api.contract.ApiError;
-import net.magicterra.worlddriver.api.contract.ApiIssue;
-import net.magicterra.worlddriver.api.contract.DecodeContext;
-import net.magicterra.worlddriver.api.contract.WireName;
-import net.magicterra.worlddriver.api.contract.MethodSpec;
-import net.magicterra.worlddriver.api.contract.TsContext;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
+import net.magicterra.worlddriver.api.schema.DecodeContext;
+import net.magicterra.worlddriver.api.schema.WireName;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
+import net.magicterra.worlddriver.api.schema.TsContext;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
 import net.magicterra.worlddriver.application.CoreMethods;
 import net.magicterra.worlddriver.protocol.JsonCodec;

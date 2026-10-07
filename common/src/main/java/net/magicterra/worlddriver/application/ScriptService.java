@@ -7,8 +7,8 @@ import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.registry.ApiMethod;
-import net.magicterra.worlddriver.api.contract.ApiError;
-import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.methods.script.ScriptApi;
 import net.magicterra.worlddriver.api.methods.script.ScriptApiBinding;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts;

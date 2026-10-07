@@ -11,8 +11,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.api.call.RunContext;
-import net.magicterra.worlddriver.api.contract.ApiError;
-import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ActionSnapshot;
 import net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;

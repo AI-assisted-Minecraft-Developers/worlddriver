@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.integration.debug;
 
-import net.magicterra.worlddriver.api.contract.ApiError;
-import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.Chart;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ChartParams;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ChartView;

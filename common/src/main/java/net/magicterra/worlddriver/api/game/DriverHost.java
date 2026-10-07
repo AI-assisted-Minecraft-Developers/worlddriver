@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.api.game;
 import java.util.List;
 
 import net.magicterra.worlddriver.api.registry.EventFeed;
-import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 

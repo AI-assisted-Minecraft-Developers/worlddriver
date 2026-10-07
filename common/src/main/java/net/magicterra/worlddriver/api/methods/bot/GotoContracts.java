@@ -4,14 +4,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.contract.ApiField;
-import net.magicterra.worlddriver.api.contract.ApiIssue;
-import net.magicterra.worlddriver.api.contract.ApiType;
-import net.magicterra.worlddriver.api.contract.ApiTypes;
-import net.magicterra.worlddriver.api.contract.MethodSpec;
-import net.magicterra.worlddriver.api.contract.RecordType;
-import net.magicterra.worlddriver.api.contract.UnionType;
-import net.magicterra.worlddriver.api.contract.WireName;
+import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
+import net.magicterra.worlddriver.api.schema.ApiType;
+import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
+import net.magicterra.worlddriver.api.schema.RecordType;
+import net.magicterra.worlddriver.api.schema.UnionType;
+import net.magicterra.worlddriver.api.schema.WireName;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
@@ -208,7 +208,7 @@ public final class GotoContracts {
             .checked(GotoContracts::check);
 
     /** The combinations no single field can refuse. */
-    private static void check(Params p, net.magicterra.worlddriver.api.contract.DecodeContext at) {
+    private static void check(Params p, net.magicterra.worlddriver.api.schema.DecodeContext at) {
         if (p.planId().isPresent()) {
             String why = "planId walks the preview's own target and route";
             if (p.target().isPresent()) at.field("target").fail(ApiIssue.Code.INVALID_VALUE, why);

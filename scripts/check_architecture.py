@@ -10,7 +10,7 @@ JAVA_TOKENS = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|/\*.*?\*/|//[^
 DRIVER_REFERENCE = re.compile(r'net\.magicterra\.worlddriver\.((?:[a-z]\w*\.)*)([A-Z]\w*)')
 
 # The api layers (docs/dev/api-layers.md): the layers each may use, and which subpackage holds which.
-API_PACKAGES = {'contract': 'schema', 'schema': 'schema', 'methods': 'methods', 'registry': 'registry',
+API_PACKAGES = {'schema': 'schema', 'methods': 'methods', 'registry': 'registry',
                 'call': 'call', 'thread': 'thread', 'action': 'action', 'game': 'game'}
 RUNTIME = {'protocol', 'schema', 'methods', 'registry', 'call', 'thread', 'action'}
 MAY_USE = {'schema': {'protocol', 'schema'},

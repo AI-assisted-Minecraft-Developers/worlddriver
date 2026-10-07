@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
 import org.junit.jupiter.api.Test;
 
 /**

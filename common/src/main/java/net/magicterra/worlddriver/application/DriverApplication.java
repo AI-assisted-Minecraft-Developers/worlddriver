@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.game.DriverEvent;
 import net.magicterra.worlddriver.api.game.DriverHost;
 import net.magicterra.worlddriver.api.game.EventWire;

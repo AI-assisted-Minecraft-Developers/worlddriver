@@ -5,7 +5,7 @@ import java.util.Map;
 
 import net.magicterra.worlddriver.api.registry.ApiErrors;
 import net.magicterra.worlddriver.api.thread.ServerThreadGuard;
-import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.magicterra.worlddriver.rpc.RpcCallException;
 import net.magicterra.worlddriver.rpc.RpcClient;

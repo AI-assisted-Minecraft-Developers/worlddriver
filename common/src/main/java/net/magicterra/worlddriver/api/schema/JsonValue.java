@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.api.contract;
+package net.magicterra.worlddriver.api.schema;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;

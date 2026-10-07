@@ -13,8 +13,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.api.contract.ApiError;
-import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.registry.ApiBatch;
 import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;

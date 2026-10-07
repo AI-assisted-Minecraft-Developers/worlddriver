@@ -9,7 +9,7 @@ import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.event.events.common.TickEvent;
 import net.magicterra.worlddriver.api.game.DriverHost;
-import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarCommand;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;

@@ -15,8 +15,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import net.magicterra.worlddriver.api.game.Positions;
-import net.magicterra.worlddriver.api.contract.ApiError;
-import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ActiveEffect;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.Attack;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockHit;

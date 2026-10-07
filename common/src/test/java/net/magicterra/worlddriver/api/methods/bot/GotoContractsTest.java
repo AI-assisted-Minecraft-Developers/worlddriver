@@ -9,9 +9,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.contract.ApiIssue;
-import net.magicterra.worlddriver.api.contract.TsContext;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiIssue;
+import net.magicterra.worlddriver.api.schema.TsContext;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.GoalMode;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Params;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.PlanMode;

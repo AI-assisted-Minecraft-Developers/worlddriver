@@ -40,8 +40,8 @@ class ApiProcessorTest {
                     package net.magicterra.worlddriver.api.call;
                     public final class CallContext {}
                     """,
-            "net.magicterra.worlddriver.api.contract.MethodSpec", """
-                    package net.magicterra.worlddriver.api.contract;
+            "net.magicterra.worlddriver.api.schema.MethodSpec", """
+                    package net.magicterra.worlddriver.api.schema;
                     public final class MethodSpec<P, R> {}
                     """,
             "net.magicterra.worlddriver.api.registry.ApiHandler", """
@@ -52,14 +52,14 @@ class ApiProcessorTest {
                     """,
             "net.magicterra.worlddriver.api.registry.ApiMethod", """
                     package net.magicterra.worlddriver.api.registry;
-                    public record ApiMethod<P, R>(net.magicterra.worlddriver.api.contract.MethodSpec<P, R> spec,
+                    public record ApiMethod<P, R>(net.magicterra.worlddriver.api.schema.MethodSpec<P, R> spec,
                                                   ApiHandler<P, R> handler) {}
                     """,
             "net.magicterra.worlddriver.api.registry.ApiRegistry", """
                     package net.magicterra.worlddriver.api.registry;
                     public final class ApiRegistry {
                         public <P, R> java.util.concurrent.CompletionStage<R> invoke(
-                                net.magicterra.worlddriver.api.contract.MethodSpec<P, R> spec, P p,
+                                net.magicterra.worlddriver.api.schema.MethodSpec<P, R> spec, P p,
                                 net.magicterra.worlddriver.api.call.CallContext c) {
                             return null;
                         }
@@ -67,7 +67,7 @@ class ApiProcessorTest {
                     """,
             "demo.Specs", """
                     package demo;
-                    import net.magicterra.worlddriver.api.contract.MethodSpec;
+                    import net.magicterra.worlddriver.api.schema.MethodSpec;
                     public final class Specs {
                         public record In(int n) {}
                         public record Out(String s) {}

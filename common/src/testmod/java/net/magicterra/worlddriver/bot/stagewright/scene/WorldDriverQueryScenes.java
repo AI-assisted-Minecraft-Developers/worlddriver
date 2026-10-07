@@ -11,7 +11,7 @@ import static net.magicterra.worlddriver.api.game.Positions.position;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.game.UnloadedAreaException;
-import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.methods.client.ClientApi;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlocksParams;
 import net.magicterra.worlddriver.api.methods.query.QueryApi;

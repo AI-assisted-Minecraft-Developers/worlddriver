@@ -4,7 +4,7 @@ import static net.magicterra.worlddriver.application.TestTransports.rpc;
 
 import net.magicterra.worlddriver.application.DriverApplication;
 
-import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.schema.JsonValue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 

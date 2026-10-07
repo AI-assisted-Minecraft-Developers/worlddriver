@@ -7,8 +7,8 @@ import net.magicterra.worlddriver.api.registry.ApiErrors;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.registry.EventFeed;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
-import net.magicterra.worlddriver.api.contract.ApiError;
-import net.magicterra.worlddriver.api.contract.MethodSpec;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.protocol.JsonRpcFrames;
 import java.util.concurrent.CompletableFuture;
 

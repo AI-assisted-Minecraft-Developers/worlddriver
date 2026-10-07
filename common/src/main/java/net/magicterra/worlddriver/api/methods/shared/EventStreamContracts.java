@@ -3,10 +3,10 @@ package net.magicterra.worlddriver.api.methods.shared;
 import java.util.List;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.contract.ApiField;
-import net.magicterra.worlddriver.api.contract.ApiType;
-import net.magicterra.worlddriver.api.contract.ApiTypes;
-import net.magicterra.worlddriver.api.contract.RecordType;
+import net.magicterra.worlddriver.api.schema.ApiField;
+import net.magicterra.worlddriver.api.schema.ApiType;
+import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.RecordType;
 
 /**
  * The WebSocket's two connection-control calls. They set which events THIS socket is pushed, so the
