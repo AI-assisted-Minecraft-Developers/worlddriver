@@ -51,9 +51,43 @@ class JsonCodecStrictTest {
         assertEquals(7L, ((Map<?, ?>) JsonCodec.decode("{\"id\":7,\"n\":1e401}")).get("id"));
         assertInstanceOf(BigDecimal.class, JsonCodec.decode("1e400"));
         assertInstanceOf(BigDecimal.class, JsonCodec.decode("1e-0400"));
-        Object long101 = JsonCodec.decode("1" + "0".repeat(100));
+        Object long101 = JsonCodec.decode("7" + "1234567890".repeat(10));
         assertInstanceOf(RejectedNumber.class, long101);
-        assertInstanceOf(BigInteger.class, JsonCodec.decode("1" + "0".repeat(99)));
+        assertInstanceOf(BigInteger.class, JsonCodec.decode("1234567890".repeat(10)));
+    }
+
+    /**
+     * Two number tokens Gson 2.10's reader cannot lex, so they fail the whole parse instead of
+     * becoming a {@link RejectedNumber}: one past its 1024-character buffer, and an integer of 66 or
+     * more digits whose running value wraps to zero, which it mistakes for a leading zero. Both are
+     * refused either way; only the error is coarser.
+     */
+    @Test
+    void numbersGsonCannotLexAreSyntaxErrors() {
+        assertThrows(JsonCodec.JsonSyntaxException.class, () -> JsonCodec.decode("1" + "0".repeat(100)));
+        assertThrows(JsonCodec.JsonSyntaxException.class, () -> JsonCodec.decode("7".repeat(1100)));
+    }
+
+    @Test
+    void onlyTheEscapesJsonDefinesAreAccepted() {
+        assertThrows(JsonCodec.JsonSyntaxException.class, () -> JsonCodec.decode("\"\\'\""));
+        assertEquals("/\b\f\t\u00e9", JsonCodec.decode("\"\\/\\b\\f\\t\\u00e9\""));
+    }
+
+    @Test
+    void nestingIsBounded() {
+        assertEquals(64, depth(JsonCodec.decode("[".repeat(64) + "]".repeat(64))));
+        assertThrows(JsonCodec.JsonSyntaxException.class, () -> JsonCodec.decode("[".repeat(65) + "]".repeat(65)));
+    }
+
+    private static int depth(Object v) {
+        return v instanceof List<?> l ? 1 + (l.isEmpty() ? 0 : depth(l.get(0))) : 0;
+    }
+
+    @Test
+    void trailingDataIsNotJson() {
+        assertThrows(JsonCodec.JsonSyntaxException.class, () -> JsonCodec.decode("{} {}"));
+        assertThrows(JsonCodec.JsonSyntaxException.class, () -> JsonCodec.decode(""));
     }
 
     @Test

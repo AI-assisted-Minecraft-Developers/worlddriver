@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   out through its contract or as a tree its owner built, and anything else is an error at the call
   that produced it. NaN and Infinity are refused too; they used to be written as `null`, which hid
   whatever computed them. An event's payload is a JSON value from the moment it is emitted.
+- **JSON is read and written by Gson's streaming reader and writer** instead of a hand-written codec,
+  with the same strictness: repeated keys, unescaped control characters and undefined escapes are
+  refused, numbers keep every digit, nesting stops at 64. A number token Gson cannot lex (over 1024
+  characters, or an integer of 66+ digits it misreads as a leading zero) is now a parse error rather
+  than an invalid value at its own path; no field holds a number that long either way.
 
 ## 2026-10-06
 
