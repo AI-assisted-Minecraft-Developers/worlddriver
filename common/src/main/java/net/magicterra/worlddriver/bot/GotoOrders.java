@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
 import net.magicterra.worlddriver.api.methods.GotoContract;
@@ -97,7 +98,7 @@ public final class GotoOrders {
             return new Refuse(RefusalReason.INVALID_WORLD_TARGET, "flying needs a target cell, and " + goal + " has none");
         }
         MoveContracts.ElytraParams flight = new MoveContracts.ElytraParams(BodyRegistry.SELF,
-                Optional.of(VerbOrders.position(target)), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.of(Positions.position(target)), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 40, Optional.empty(), 3.0, true, 1, 0);
         return switch (VerbOrders.elytraFly(flight, self)) {
             case VerbOrders.Refuse<?> r -> new Refuse(r.reason(), r.message());

@@ -6,13 +6,14 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
+import static net.magicterra.worlddriver.api.Positions.position;
+
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.UnloadedAreaException;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.methods.ClientCalls;
 import net.magicterra.worlddriver.api.methods.ClientContracts.BlocksParams;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.QueryCalls;
 import net.magicterra.worlddriver.api.methods.QueryContract;
 import net.magicterra.worlddriver.api.methods.QueryContract.BlockRows;
@@ -59,7 +60,7 @@ public final class WorldDriverQueryScenes implements SceneProvider {
 
         BlockPos far = new BlockPos(ctx.originX() + 1_000_000, 80, ctx.originZ() + 1_000_000);
         int fcx = far.getX() >> 4, fcz = far.getZ() >> 4;
-        SceneCalls.ask(ctx, "farScan", client.blocks(BlocksParams.around(pos(far), 1), CallContext.standalone()), distant ->
+        SceneCalls.ask(ctx, "farScan", client.blocks(BlocksParams.around(position(far),1), CallContext.standalone()), distant ->
                 ctx.check(distant.unloaded().orElse(List.of()).stream().anyMatch(c -> c.x() == fcx && c.z() == fcz))
                         .as("B a scan far from the player names chunk [" + fcx + ", " + fcz + "] as unloaded").isTrue());
     }
@@ -78,12 +79,12 @@ public final class WorldDriverQueryScenes implements SceneProvider {
         level.setBlockAndUpdate(probe, Blocks.GOLD_BLOCK.defaultBlockState());
         ctx.cleanup(() -> level.setBlockAndUpdate(probe, Blocks.AIR.defaultBlockState()));
 
-        QueryContract.Rows rows = DriverApi.await(query.query(QueryContract.Blocks.around(pos(center), MAX_RADIUS)
+        QueryContract.Rows rows = DriverApi.await(query.query(QueryContract.Blocks.around(position(center),MAX_RADIUS)
                 .ofType("minecraft:gold_block"), CallContext.standalone()), QUERY_MS);
-        ctx.check(rows instanceof BlockRows b && b.blocks().stream().anyMatch(r -> r.pos().equals(java.util.Optional.of(pos(probe)))))
+        ctx.check(rows instanceof BlockRows b && b.blocks().stream().anyMatch(r -> r.pos().equals(java.util.Optional.of(position(probe)))))
                 .as("A the documented maximum radius answers and finds the probe block").isTrue();
 
-        String refused = errorOf(() -> DriverApi.await(query.query(QueryContract.Blocks.around(pos(center), MAX_RADIUS + 1),
+        String refused = errorOf(() -> DriverApi.await(query.query(QueryContract.Blocks.around(position(center),MAX_RADIUS + 1),
                 CallContext.standalone()), QUERY_MS));
         ctx.check(refused != null && refused.contains("0–" + MAX_RADIUS))
                 .as("B one past the maximum is refused and names the limit (" + refused + ")").isTrue();
@@ -95,7 +96,7 @@ public final class WorldDriverQueryScenes implements SceneProvider {
             ctx.skip("the far probe chunk [" + fcx + ", " + fcz + "] is already loaded");
         RuntimeException unloaded = null;
         try {
-            DriverApi.await(query.query(QueryContract.Blocks.around(pos(far), 2), CallContext.standalone()), QUERY_MS);
+            DriverApi.await(query.query(QueryContract.Blocks.around(position(far),2), CallContext.standalone()), QUERY_MS);
         } catch (RuntimeException e) {
             unloaded = e;
         }
@@ -106,10 +107,6 @@ public final class WorldDriverQueryScenes implements SceneProvider {
                 .as("D the refusal names the unloaded chunk").isTrue();
         ctx.check(level.getChunkSource().getChunkNow(fcx, fcz) == null)
                 .as("E the query left the chunk unloaded").isTrue();
-    }
-
-    private static BlockPosition pos(BlockPos p) {
-        return new BlockPosition(p.getX(), p.getY(), p.getZ());
     }
 
     private static String errorOf(Runnable call) {

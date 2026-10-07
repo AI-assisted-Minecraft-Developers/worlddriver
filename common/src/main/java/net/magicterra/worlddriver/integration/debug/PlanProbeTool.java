@@ -1,8 +1,8 @@
 package net.magicterra.worlddriver.integration.debug;
 
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.DebugContracts.ChainPlan;
 import net.magicterra.worlddriver.api.methods.DebugContracts.Column;
 import net.magicterra.worlddriver.api.methods.DebugContracts.Estimate;
@@ -52,7 +52,7 @@ final class PlanProbeTool {
         if (mc.player == null || mc.level == null) {
             throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
         }
-        BlockPos start = p.from().map(f -> new BlockPos(f.x(), f.y(), f.z())).orElse(mc.player.blockPosition());
+        BlockPos start = p.from().map(Positions::blockPos).orElse(mc.player.blockPosition());
         Goal goal = new Goal.XZ(p.goal().x(), p.goal().z());
         ClientWorldView world = new ClientWorldView();
         if (!p.chain()) {
@@ -83,13 +83,13 @@ final class PlanProbeTool {
             if (hEnd > hFrom + 1e-6) backwardSegs++;
             maxRegression = Math.max(maxRegression, hEnd - bestH);
             bestH = Math.min(bestH, hEnd);
-            segs.add(new Segment(xyz(end), Math.round(hEnd), Math.round(hEnd - hFrom), r.expanded(), r.goalReached(),
-                    cut > 0 ? Optional.of(xyz(path.get(path.size() - 1))) : Optional.empty()));
+            segs.add(new Segment(Positions.position(end), Math.round(hEnd), Math.round(hEnd - hFrom), r.expanded(), r.goalReached(),
+                    cut > 0 ? Optional.of(Positions.position(path.get(path.size() - 1))) : Optional.empty()));
             if (r.goalReached()) { reached = true; break; }
             if (end.equals(from)) break;            // no progress → stuck
             from = end;
         }
-        return new ChainPlan(xyz(start), p.goal(), reached, segs.size(), backwardSegs, Math.round(maxRegression),
+        return new ChainPlan(Positions.position(start), p.goal(), reached, segs.size(), backwardSegs, Math.round(maxRegression),
                 totalExpanded, Math.round(hStart), Math.round(bestH), segs);
     }
 
@@ -119,14 +119,11 @@ final class PlanProbeTool {
         }
         Map<String, MoveCost> moveOut = new LinkedHashMap<>();
         moves.forEach((k, m) -> moveOut.put(k, new MoveCost((int) m[0], Math.round(m[1]))));
-        return new SinglePlan(xyz(start), column, r.goalReached(), path.size(), xyz(end),
+        return new SinglePlan(Positions.position(start), column, r.goalReached(), path.size(), Positions.position(end),
                 new Search(r.expanded(), r.ms(), wallMs, Math.round(r.finalCost())),
                 new Estimate(Math.round(hStart), Math.round(hEnd), Math.round(hEnd - hStart), hEnd < hStart - 1e-6),
                 maxStepDrop, yProfile,
                 path.stream().map(n -> n.getX() + "," + n.getY() + "," + n.getZ()).toList(), moveOut, breaks, places);
     }
 
-    private static BlockPosition xyz(BlockPos p) {
-        return new BlockPosition(p.getX(), p.getY(), p.getZ());
-    }
 }

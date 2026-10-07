@@ -13,6 +13,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import net.magicterra.worlddriver.api.ApiHandlers;
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.ApiTimers;
 import net.magicterra.worlddriver.api.CallContext;
@@ -96,7 +97,7 @@ public final class EventsApi implements EventCalls {
     }
 
     private Emitted emit(Emit e) {
-        BlockPos pos = e.pos().map(p -> new BlockPos(p.x(), p.y(), p.z())).orElse(null);
+        BlockPos pos = e.pos().map(Positions::blockPos).orElse(null);
         // The caller's value as given: an object stays an object on the wire.
         long n = api.emit(e.type(), pos, e.data().orElse(JsonValue.NULL));
         return new Emitted(n, e.type());

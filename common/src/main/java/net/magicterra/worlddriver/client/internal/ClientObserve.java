@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ActiveEffect;
@@ -246,7 +247,7 @@ public final class ClientObserve {
                             }
                             state = Optional.of(stateMap);
                         }
-                        blocks.add(new BlockRow(new BlockPosition(pos.getX(), pos.getY(), pos.getZ()), id, state));
+                        blocks.add(new BlockRow(Positions.position(pos), id, state));
                     }
                 }
             }
@@ -396,7 +397,7 @@ public final class ClientObserve {
         HitResult hr = mc.hitResult;
         if (hr instanceof BlockHitResult bhr && hr.getType() == HitResult.Type.BLOCK) {
             var bp = bhr.getBlockPos();
-            return new BlockHit(new BlockPosition(bp.getX(), bp.getY(), bp.getZ()), bhr.getDirection().getName(),
+            return new BlockHit(Positions.position(bp), bhr.getDirection().getName(),
                     BuiltInRegistries.BLOCK.getKey(p.level().getBlockState(bp).getBlock()).toString(),
                     Math.sqrt(bhr.getLocation().distanceToSqr(p.getEyePosition())));
         }

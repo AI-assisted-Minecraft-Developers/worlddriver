@@ -5,6 +5,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import static net.magicterra.worlddriver.api.Positions.blockPos;
+import static net.magicterra.worlddriver.api.Positions.position;
+
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
 import net.magicterra.worlddriver.api.methods.BuildContracts;
 import net.magicterra.worlddriver.api.methods.BuildContracts.BuildParams;
@@ -158,7 +162,7 @@ public final class VerbOrders {
         }
         Set<String> crops = new LinkedHashSet<>();
         for (GatherContracts.Crop c : p.crops()) crops.add(c.wireName());
-        FarmProcess f = new FarmProcess(pos(p.from()), pos(p.to()), crops, p.replant());
+        FarmProcess f = new FarmProcess(blockPos(p.from()), blockPos(p.to()), crops, p.replant());
         return new Start<>(f, () -> new GatherContracts.Farmed(p.from(), p.to(), p.crops(), p.replant(), f.harvested(),
                 f.replanted()));
     }
@@ -195,7 +199,7 @@ public final class VerbOrders {
 
     public static Order<MoveContracts.Slept> sleep(SleepParams p, LivingEntity self) {
         if (!hasHands(self)) return handless("sleep", self);
-        SleepProcess s = new SleepProcess(p.pos().map(VerbOrders::pos).orElse(null), p.radius());
+        SleepProcess s = new SleepProcess(p.pos().map(Positions::blockPos).orElse(null), p.radius());
         return new Start<>(s, () -> new MoveContracts.Slept(position(s.bedPos())));
     }
 
@@ -213,7 +217,7 @@ public final class VerbOrders {
     /** {@code s} is {@link #schematic} of the order's schematic. */
     public static Order<BuildContracts.Built> build(BuildParams p, Schematic s, LivingEntity self) {
         if (!hasHands(self)) return handless("build", self);
-        BuildProcess build = new BuildProcess(pos(p.origin()), s);
+        BuildProcess build = new BuildProcess(blockPos(p.origin()), s);
         BuildContracts.Size size = new BuildContracts.Size(s.w, s.h, s.d);
         int blocks = s.entries.size();
         return new Start<>(build, () -> new BuildContracts.Built(p.origin(), size, blocks, build.placed(), build.skipped()));
@@ -233,7 +237,7 @@ public final class VerbOrders {
     }
 
     public static Order<MoveContracts.RanAway> runAway(RunAwayParams p, LivingEntity self) {
-        BlockPos src = p.from().map(VerbOrders::pos).orElseGet(() -> BlockPos.containing(self.getX(), self.getY(), self.getZ()));
+        BlockPos src = p.from().map(Positions::blockPos).orElseGet(() -> BlockPos.containing(self.getX(), self.getY(), self.getZ()));
         BlockPosition from = position(src);
         return new Start<>(new RunAwayProcess(src, p.minDist()),
                 () -> new MoveContracts.RanAway(from, p.minDist(), position(self.blockPosition())));
@@ -241,7 +245,7 @@ public final class VerbOrders {
 
     /** With no usable elytra and {@code groundFallback}, a walk to {@code pos} rather than a refusal. */
     public static Order<MoveContracts.Flown> elytraFly(ElytraParams p, LivingEntity self) {
-        BlockPos target = p.pos().map(VerbOrders::pos).orElse(null);
+        BlockPos target = p.pos().map(Positions::blockPos).orElse(null);
         boolean reactive = target != null && p.reactive().orElse(p.pitch().isEmpty());
         boolean fireworks = p.fireworks().orElse(reactive);
         if (!wearsElytra(self)) {
@@ -267,8 +271,4 @@ public final class VerbOrders {
         ItemStack chest = self.getItemBySlot(EquipmentSlot.CHEST);
         return chest.is(Items.ELYTRA) && chest.getMaxDamage() > 0 && chest.getDamageValue() < chest.getMaxDamage() - 1;
     }
-
-    static BlockPos pos(BlockPosition p) { return new BlockPos(p.x(), p.y(), p.z()); }
-
-    static BlockPosition position(BlockPos p) { return new BlockPosition(p.getX(), p.getY(), p.getZ()); }
 }

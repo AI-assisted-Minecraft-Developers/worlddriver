@@ -1,5 +1,8 @@
 package net.magicterra.worlddriver.testcontent;
 
+import static net.magicterra.worlddriver.api.Positions.blockPos;
+import static net.magicterra.worlddriver.api.Positions.position;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -24,6 +27,7 @@ import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.TickEvent;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.ApiBatch;
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.ApiHandlers;
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.CallContext;
@@ -33,7 +37,6 @@ import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.JsonValue;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.testcontent.SceneContracts.AcceptParams;
 import net.magicterra.worlddriver.testcontent.SceneContracts.Accepted;
 import net.magicterra.worlddriver.testcontent.SceneContracts.LastVerdict;
@@ -151,7 +154,7 @@ public final class SceneVerbs {
             ServerLevel level = overworld();
             // A scene already anchored under this name is saved where it stands, wherever the caller is.
             BlockPos anchor = FixtureIO.anchorNamed(level, name);
-            BlockPos centre = anchor != null ? anchor : p.around().map(SceneVerbs::blockPos).orElseGet(() -> firstPlayerFeet("around"));
+            BlockPos centre = anchor != null ? anchor : p.around().map(Positions::blockPos).orElseGet(() -> firstPlayerFeet("around"));
             String who = p.author().filter(a -> !a.isEmpty()).orElseGet(SceneVerbs::firstPlayerName);
             try {
                 SceneFixture fixture = FixtureIO.save(level, centre, name, who, p.verb(), p.budget());
@@ -198,10 +201,10 @@ public final class SceneVerbs {
                 SceneFixture fixture = FixtureIO.loadJson(fixtureJson(name));
                 var template = FixtureIO.loadNbt(level, FixtureIO.nbtPath(name));
                 // Back where the scene stands in this world when it is anchored here; else at `pos`, else the feet.
-                BlockPos at = p.pos().map(SceneVerbs::blockPos).orElse(null);
+                BlockPos at = p.pos().map(Positions::blockPos).orElse(null);
                 BlockPos anchored = at == null ? FixtureIO.locate(level, name, fixture) : null;
                 BlockPos origin = at != null ? at : anchored != null ? anchored
-                        : p.around().map(SceneVerbs::blockPos).orElseGet(() -> firstPlayerFeet("pos"));
+                        : p.around().map(Positions::blockPos).orElseGet(() -> firstPlayerFeet("pos"));
                 FixtureIO.placeTerrain(level, fixture, template, origin);
                 FixtureIO.placeMarkers(level, fixture, origin);
                 return new Placed(true, fixture.name(), position(origin), position(FixtureIO.minCorner(fixture, origin)),
@@ -244,8 +247,8 @@ public final class SceneVerbs {
         MinecraftServer s = server;
         ServerPlayer caller = s.getPlayerList().getPlayers().isEmpty() ? null : s.getPlayerList().getPlayers().get(0);
         String who = firstPlayerName();
-        BlockPos at = p.pos().map(SceneVerbs::blockPos).orElse(null);
-        BlockPos around = p.around().map(SceneVerbs::blockPos).orElse(null);
+        BlockPos at = p.pos().map(Positions::blockPos).orElse(null);
+        BlockPos around = p.around().map(Positions::blockPos).orElse(null);
         SceneFixture saved = null;
         if (!here && Files.exists(FixtureIO.jsonPath(name))) {
             try {
@@ -399,13 +402,6 @@ public final class SceneVerbs {
         return m;
     }
 
-    private static BlockPos blockPos(BlockPosition p) {
-        return new BlockPos(p.x(), p.y(), p.z());
-    }
-
-    private static BlockPosition position(BlockPos p) {
-        return new BlockPosition(p.getX(), p.getY(), p.getZ());
-    }
 
     private static ServerLevel overworld() {
         MinecraftServer s = server;

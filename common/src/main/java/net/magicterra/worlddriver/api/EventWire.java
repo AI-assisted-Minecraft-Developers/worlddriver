@@ -14,8 +14,7 @@ public final class EventWire {
     private EventWire() {}
 
     public static EventContracts.Event dto(DriverEvent e) {
-        Optional<BlockPosition> pos = e.pos == null ? Optional.empty()
-                : Optional.of(new BlockPosition(e.pos.getX(), e.pos.getY(), e.pos.getZ()));
+        Optional<BlockPosition> pos = e.pos == null ? Optional.empty() : Optional.of(Positions.position(e.pos));
         return new EventContracts.Event(e.seq, e.timestamp, e.type, pos,
                 e.data.isNull() ? Optional.empty() : Optional.of(e.data));
     }

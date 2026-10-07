@@ -8,6 +8,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 
+import static net.magicterra.worlddriver.api.Positions.position;
+
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.action.ActionRegistry;
@@ -24,7 +26,6 @@ import net.magicterra.worlddriver.api.methods.ClearAreaContract.Replace;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.Summary;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.Tunnel;
 import net.magicterra.worlddriver.api.methods.ClearAreaContract.WidthBias;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
 import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
 import net.magicterra.worlddriver.api.methods.BotTaskCalls;
@@ -345,7 +346,4 @@ final class BotActions implements BotTaskCalls {
         return rl.toString();
     }
 
-    private static BlockPosition position(BlockPos p) {
-        return new BlockPosition(p.getX(), p.getY(), p.getZ());
-    }
 }

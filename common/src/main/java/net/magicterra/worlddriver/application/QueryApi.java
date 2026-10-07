@@ -6,9 +6,9 @@ import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 
 import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.ServerThreadHop;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
 import net.magicterra.worlddriver.api.methods.QueryCalls;
 import net.magicterra.worlddriver.api.methods.QueryCallsBinding;
@@ -60,11 +60,11 @@ final class QueryApi implements QueryCalls {
         return switch (q) {
             case Blocks b -> {
                 BlockQuery blocks = BlockQuery.of(b);
-                BlockPos center = b.center().map(ObserveApi::pos).orElse(DriverApplication.ORIGIN);
+                BlockPos center = b.center().map(Positions::blockPos).orElse(DriverApplication.ORIGIN);
                 yield hop.<Rows>submit(() -> new BlockRows(blocks.scan(level, center)), ctx);
             }
             case Entities e -> {
-                BlockPos center = e.center().map(ObserveApi::pos).orElse(DriverApplication.ORIGIN);
+                BlockPos center = e.center().map(Positions::blockPos).orElse(DriverApplication.ORIGIN);
                 yield hop.<Rows>submit(() -> new EntityRows(entities(level, center, e)), ctx);
             }
         };
@@ -84,7 +84,7 @@ final class QueryApi implements QueryCalls {
             LivingEntity le = e instanceof LivingEntity l ? l : null;
             BlockPos cell = e.blockPosition();
             out.add(select(new EntityRow(Optional.of(new Point(e.getX(), e.getY(), e.getZ())),
-                    Optional.of(new BlockPosition(cell.getX(), cell.getY(), cell.getZ())), Optional.of(type),
+                    Optional.of(Positions.position(cell)), Optional.of(type),
                     Optional.of(e.getUUID().toString()), Optional.of(e.getId()),
                     le == null ? Optional.empty() : Optional.of((double) le.getHealth()),
                     le == null ? Optional.empty() : Optional.of(PlayerSnapshots.effects(le)),

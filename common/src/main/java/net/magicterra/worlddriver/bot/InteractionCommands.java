@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot;
 
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
 import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
@@ -62,7 +63,7 @@ final class InteractionCommands {
     private static ImmediateResponse useOnBlock(HandContracts.UseParams p, BlockPosition at) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
-        BlockPos blockPos = new BlockPos(at.x(), at.y(), at.z());
+        BlockPos blockPos = Positions.blockPos(at);
         InteractionHand hand = hand(p.hand());
         // Omitted, the face is the one toward the player, so the synthetic hit looks like a real ray from the eye.
         Direction face = p.face().map(f -> Direction.byName(f.wireName())).orElseGet(() -> pickFaceTowardsPlayer(blockPos, player));

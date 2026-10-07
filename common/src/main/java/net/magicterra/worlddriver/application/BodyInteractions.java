@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.application;
 
 import java.util.Optional;
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
 import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
@@ -81,7 +82,7 @@ final class BodyInteractions {
     }
 
     private static ImmediateResponse useOnBlock(ServerPlayer sp, HandContracts.UseParams p, BlockPosition at) {
-        BlockPos pos = new BlockPos(at.x(), at.y(), at.z());
+        BlockPos pos = Positions.blockPos(at);
         Direction face = p.face().map(f -> Direction.byName(f.wireName())).orElseGet(() -> BotUtil.faceTowardEye(pos, sp));
         InteractionHand hand = hand(p.hand());
         Vec3 hit = new Vec3(pos.getX() + 0.5 + face.getStepX() * 0.5,

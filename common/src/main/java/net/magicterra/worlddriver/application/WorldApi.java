@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.WorldCell;
 
 import net.magicterra.worlddriver.api.contract.ApiException;
@@ -111,7 +112,7 @@ public final class WorldApi implements WorldCalls {
      */
     @Override
     public CompletionStage<BlockReading> block(BlockParams p, CallContext ctx) {
-        BlockPos pos = ObserveApi.pos(p.pos());
+        BlockPos pos = Positions.blockPos(p.pos());
         ServerLevel level = api.level();
         return api.requireServerHop().submit(() -> {
             BlockState st = level.getBlockState(pos);

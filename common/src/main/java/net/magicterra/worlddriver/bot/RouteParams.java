@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.DecodeContext;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
@@ -108,7 +109,7 @@ public final class RouteParams {
         List<Constraint> cons = new ArrayList<>();
 
         List<BlockPos> via = new ArrayList<>();
-        for (BlockPosition p : r.via()) via.add(cell(p));
+        for (BlockPosition p : r.via()) via.add(Positions.blockPos(p));
 
         Set<TravelMode> modes = r.mode().map(EnumSet::copyOf).orElse(EnumSet.noneOf(TravelMode.class));
         boolean fly = modes.contains(TravelMode.FLY);
@@ -244,9 +245,5 @@ public final class RouteParams {
         }
         return new SightExposure(of, listed, s.range(), s.mode() == Enforcement.FORBID, s.penalty(), s.eye(),
                 BotConfig.sightRaysPerSearch);
-    }
-
-    static BlockPos cell(BlockPosition p) {
-        return new BlockPos(p.x(), p.y(), p.z());
     }
 }

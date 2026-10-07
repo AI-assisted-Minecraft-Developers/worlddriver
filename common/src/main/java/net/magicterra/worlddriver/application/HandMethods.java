@@ -5,6 +5,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
 import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.ApiTimers;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.methods.ActionContract.ActionResponse;
@@ -56,7 +57,7 @@ final class HandMethods implements HandCalls {
         if (BotConfig.smoothLook) {
             return actions.start(p.body(), p.awaitMs(), ctx, body -> {
                 float[] aim = BodyInteractions.aim(body, p);
-                BlockPos track = p.pos().map(b -> new BlockPos(b.x(), b.y(), b.z())).orElse(null);
+                BlockPos track = p.pos().map(Positions::blockPos).orElse(null);
                 return ActionService.Start.reporting(new LookProcess(track, aim[0], aim[1]), new Looked(aim[0], aim[1]));
             });
         }

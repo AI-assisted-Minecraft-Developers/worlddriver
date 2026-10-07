@@ -7,12 +7,12 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.methods.ActionContract.Accepted;
 import net.magicterra.worlddriver.api.methods.ActionContract.ActionResponse;
 import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
 import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
 import net.magicterra.worlddriver.api.methods.BotTaskCalls;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.ControlCalls;
 import net.magicterra.worlddriver.api.methods.ControlContracts.CancelParams;
 import net.magicterra.worlddriver.api.methods.ControlContracts.Status;
@@ -52,7 +52,7 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
 
     /** Self's goto to the cell {@code p}. */
     private static void walkTo(SceneContext ctx, String tag, BlockPos p, java.util.function.Consumer<ActionResponse<GotoContract.Result>> then) {
-        ask(ctx, tag, BotTaskCalls.of(api()).goTo(GotoContract.Params.to(new BlockPosition(p.getX(), p.getY(), p.getZ())),
+        ask(ctx, tag, BotTaskCalls.of(api()).goTo(GotoContract.Params.to(Positions.position(p)),
                 CallContext.standalone()), then);
     }
 

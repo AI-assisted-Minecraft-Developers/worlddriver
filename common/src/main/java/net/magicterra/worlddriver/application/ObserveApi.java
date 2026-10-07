@@ -1,11 +1,14 @@
 package net.magicterra.worlddriver.application;
 
+import static net.magicterra.worlddriver.api.Positions.blockPos;
+import static net.magicterra.worlddriver.api.Positions.position;
+
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.ObserveCalls;
 import net.magicterra.worlddriver.api.methods.ObserveCallsBinding;
 import net.magicterra.worlddriver.api.methods.ObserveContracts;
@@ -193,7 +196,7 @@ public final class ObserveApi implements ObserveCalls {
         return serverHop().submit(() -> {
             BlockPos c;
             if (p.center().isPresent()) {
-                c = pos(p.center().get());
+                c = blockPos(p.center().get());
             } else {
                 List<ServerPlayer> all = api.server.getPlayerList().getPlayers();
                 if (all.isEmpty()) throw ApiException.invalidParam("/center", ApiIssue.Code.REQUIRED, "no player is on to center on; give center");
@@ -316,7 +319,7 @@ public final class ObserveApi implements ObserveCalls {
         Optional<Integer> requested = p.radius() > radius ? Optional.of(p.radius()) : Optional.empty();
         ServerLevel level = api.level();
         return serverHop().submit(() -> {
-            BlockPos center = p.center().map(ObserveApi::pos).orElse(null);
+            BlockPos center = p.center().map(Positions::blockPos).orElse(null);
             int selfId = -1;
             if (center == null) {
                 List<ServerPlayer> all = api.server.getPlayerList().getPlayers();
@@ -368,11 +371,4 @@ public final class ObserveApi implements ObserveCalls {
         return new HeightStats(centerY, any ? Optional.of(minY) : Optional.empty(), any ? Optional.of(maxY) : Optional.empty());
     }
 
-    static BlockPos pos(BlockPosition p) {
-        return new BlockPos(p.x(), p.y(), p.z());
-    }
-
-    static BlockPosition position(BlockPos p) {
-        return new BlockPosition(p.getX(), p.getY(), p.getZ());
-    }
 }

@@ -5,7 +5,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import static net.magicterra.worlddriver.api.Positions.point;
+import static net.magicterra.worlddriver.api.Positions.position;
+
 import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
 import net.magicterra.worlddriver.api.methods.PlayerContract.Armor;
 import net.magicterra.worlddriver.api.methods.PlayerContract.Attack;
@@ -65,7 +67,7 @@ public final class PlayerSnapshots {
         }
         return new PlayerState(p.getGameProfile().getName(), p.getUUID().toString(),
                 p.level().dimension().location().toString(), gameMode(p), new Point(p.getX(), p.getY(), p.getZ()),
-                new BlockPosition(cell.getX(), cell.getY(), cell.getZ()), new Look(p.getYRot(), p.getXRot()), body, vitals,
+                position(cell), new Look(p.getYRot(), p.getXRot()), body, vitals,
                 effects(p), time, attack, equipment, inventory, CraftProcess.inventorySnapshot(p), view);
     }
 
@@ -105,9 +107,5 @@ public final class PlayerSnapshots {
 
     private static String blockId(Player p, BlockPos at) {
         return BuiltInRegistries.BLOCK.getKey(p.level().getBlockState(at).getBlock()).toString();
-    }
-
-    private static Point point(Vec3 v) {
-        return new Point(v.x, v.y, v.z);
     }
 }

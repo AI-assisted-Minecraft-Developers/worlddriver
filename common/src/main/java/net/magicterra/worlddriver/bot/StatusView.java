@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot;
 import java.util.Map;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.methods.ControlContracts;
 import net.minecraft.core.BlockPos;
 
@@ -22,7 +22,7 @@ public final class StatusView {
         long started = p.startedAtMs;
         double dist = p.finalDist;
         return new ControlContracts.Slot(p.active, Optional.ofNullable(p.goal),
-                target == null ? Optional.empty() : Optional.of(new BlockPosition(target.getX(), target.getY(), target.getZ())),
+                target == null ? Optional.empty() : Optional.of(Positions.position(target)),
                 p.pathLen, p.pathStep, started > 0 ? Optional.of(started) : Optional.empty(), Optional.ofNullable(p.lastError),
                 Optional.ofNullable(p.goalReached), Optional.ofNullable(p.endReason),
                 dist >= 0 ? Optional.of(dist) : Optional.empty());

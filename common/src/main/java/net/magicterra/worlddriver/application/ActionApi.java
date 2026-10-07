@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.JsonValue;
@@ -55,7 +56,7 @@ public final class ActionApi implements ActionCalls {
         int minX = Math.min(p.from().x(), p.to().x()), maxX = Math.max(p.from().x(), p.to().x());
         int minY = Math.min(p.from().y(), p.to().y()), maxY = Math.max(p.from().y(), p.to().y());
         int minZ = Math.min(p.from().z(), p.to().z()), maxZ = Math.max(p.from().z(), p.to().z());
-        BlockPos from = ObserveApi.pos(p.from()), to = ObserveApi.pos(p.to());
+        BlockPos from = Positions.blockPos(p.from()), to = Positions.blockPos(p.to());
         ServerLevel level = api.level();
         // An unknown id is refused here, before anything is written.
         BlockState state = block("/type", p.type());
@@ -87,7 +88,7 @@ public final class ActionApi implements ActionCalls {
         return api.requireServerHop().submit(() -> {
             for (int i = 0; i < states.size(); i++) {
                 WorldContracts.Placement row = p.blocks().get(i);
-                BlockPos bp = ObserveApi.pos(row.pos());
+                BlockPos bp = Positions.blockPos(row.pos());
                 level.setBlockAndUpdate(bp, states.get(i));
                 api.emit("block.place", bp, JsonValue.of(row.type()));
             }

@@ -7,6 +7,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
 import net.magicterra.worlddriver.api.ApiMethod;
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.action.ActionHandle;
@@ -16,7 +17,6 @@ import net.magicterra.worlddriver.api.methods.ActionContract.CancelReason;
 import net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
 import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.ControlCalls;
 import net.magicterra.worlddriver.api.methods.ControlCallsBinding;
 import net.magicterra.worlddriver.api.methods.ControlContracts;
@@ -120,7 +120,7 @@ final class ControlMethods implements ControlCalls {
             boolean present = e != null && !e.isRemoved();
             BlockPos at = present ? e.blockPosition() : null;
             out.add(new BodySummary(h.id(), h.kind(), present ? Optional.of(e.getId()) : Optional.empty(),
-                    present ? Optional.of(new BlockPosition(at.getX(), at.getY(), at.getZ())) : Optional.empty(), h.busy()));
+                    present ? Optional.of(Positions.position(at)) : Optional.empty(), h.busy()));
         }
         return out;
     }

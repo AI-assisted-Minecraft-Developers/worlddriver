@@ -11,6 +11,7 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.GotoContract;
@@ -258,7 +259,7 @@ public final class PreviewSearch {
         for (List<BlockPos> leg : cur.shown) {
             cells += leg.size();
             length += length(leg);
-            if (cur.req.includePath()) for (BlockPos c : leg) path.add(new BlockPosition(c.getX(), c.getY(), c.getZ()));
+            if (cur.req.includePath()) for (BlockPos c : leg) path.add(Positions.position(c));
         }
         Goal lastGoal = cur.req.goals().get(cur.req.goals().size() - 1);
         BlockPos end = lastGoal.targetPos() != null ? lastGoal.targetPos()

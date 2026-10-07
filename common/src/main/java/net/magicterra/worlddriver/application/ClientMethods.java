@@ -12,6 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.api.ApiHandlers;
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.ApiMethod;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.ServerThreadHop;
@@ -209,7 +210,7 @@ final class ClientMethods implements ScreenCalls, ClientCalls {
                     Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         }
         BlockPos p = s.pos();
-        return new ClientScene(true, Optional.of(new BlockPosition(p.getX(), p.getY(), p.getZ())),
+        return new ClientScene(true, Optional.of(Positions.position(p)),
                 Optional.of((double) s.health()), Optional.of(s.food()), Optional.of(s.dayPhase()),
                 Optional.of(s.skyExposed()), Optional.of(s.exposedAtNight()), Optional.of(s.cornered()),
                 Optional.of(s.lethalCount()), Optional.of(List.copyOf(s.rows())));
@@ -236,7 +237,7 @@ final class ClientMethods implements ScreenCalls, ClientCalls {
     }
 
     private static ContainerView blockContainer(ServerLevel level, BlockPosition at) {
-        BlockEntity be = level.getBlockEntity(new BlockPos(at.x(), at.y(), at.z()));
+        BlockEntity be = level.getBlockEntity(Positions.blockPos(at));
         if (be == null) return new BlockContainer(at, false, Optional.empty(), Optional.empty());
         Optional<List<SlotRow>> slots = Optional.empty();
         if (be instanceof Container c) {

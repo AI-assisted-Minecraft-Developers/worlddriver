@@ -1,13 +1,14 @@
 package net.magicterra.worlddriver.bot;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.api.Positions.blockPos;
+import static net.magicterra.worlddriver.api.Positions.position;
 import net.magicterra.worlddriver.bot.process.RouteEvents;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.ActionContract;
 import net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.CombatContract;
-import net.magicterra.worlddriver.api.methods.CommonTypes;
 import net.magicterra.worlddriver.api.methods.ControlContracts;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
@@ -218,7 +219,7 @@ public final class BotApiImpl implements BotApi {
     public GotoContract.Scored scoreGoto(GotoContract.Params p) {
         RouteContract.Route route = p.route().orElseThrow();
         List<BlockPos> points = new ArrayList<>();
-        for (var c : route.corridor().orElseThrow().points()) points.add(new BlockPos(c.x(), c.y(), c.z()));
+        for (var c : route.corridor().orElseThrow().points()) points.add(blockPos(c));
         return PreviewSearch.score(points, RouteParams.parse(route).profile(), scopeOf(Minecraft.getInstance().player));
     }
 
@@ -277,7 +278,7 @@ public final class BotApiImpl implements BotApi {
             case ControlContracts.Save s -> {
                 BlockPos pos;
                 if (s.pos().isPresent()) {
-                    pos = new BlockPos(s.pos().get().x(), s.pos().get().y(), s.pos().get().z());
+                    pos = blockPos(s.pos().get());
                 } else {
                     LocalPlayer pl = Minecraft.getInstance().player;
                     if (pl == null) throw new IllegalStateException("no pos given and no player to take one from");
@@ -305,10 +306,6 @@ public final class BotApiImpl implements BotApi {
                 yield new ControlContracts.Cleared(n);
             }
         };
-    }
-
-    private static CommonTypes.BlockPosition position(BlockPos p) {
-        return new CommonTypes.BlockPosition(p.getX(), p.getY(), p.getZ());
     }
 
     @Override
@@ -628,7 +625,7 @@ public final class BotApiImpl implements BotApi {
             Minecraft mc = Minecraft.getInstance();
             LocalPlayer p = mc.player;
             if (p == null || mc.gameMode == null) throw new IllegalStateException("no local player");
-            BlockPos block = new BlockPos(params.pos().x(), params.pos().y(), params.pos().z());
+            BlockPos block = blockPos(params.pos());
             Direction face = pickFaceTowardsPlayer(block, p);
             double cx = block.getX() + 0.5 + face.getStepX() * 0.5;
             double cy = block.getY() + 0.5 + face.getStepY() * 0.5;

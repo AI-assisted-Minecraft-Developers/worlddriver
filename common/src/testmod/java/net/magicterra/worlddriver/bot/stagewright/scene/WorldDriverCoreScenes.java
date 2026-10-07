@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
@@ -181,7 +182,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // teleport below (it did, for three gate runs, when the shape this read by hand moved).
         BlockPosition o = DriverApi.await(SystemCalls.of(WorldDriverCommon.api())
                 .testOrigin(new NoParams(), CallContext.standalone()), 5_000);
-        BlockPos pad = new BlockPos(o.x(), o.y(), o.z());
+        BlockPos pad = Positions.blockPos(o);
         // Offset by one on both axes rather than landing on the origin cell: the seed puts an
         // oak log at origin+(0,1,0) for the checks that mine one, and a player standing in it has
         // no free cell at their feet — which surfaces as the "crafting table needed (no free cell
