@@ -22,8 +22,10 @@ import net.magicterra.worlddriver.rpc.EventNotifications;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 import net.magicterra.worlddriver.rpc.OriginPolicy;
 import net.magicterra.worlddriver.protocol.ServerBusyException;
+import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -92,7 +94,7 @@ public final class McpServer implements Closeable {
     /** Maximum inbound POST body — shared with the WebSocket transport's frame
      *  limit so the two cannot disagree about what a request may weigh. See
      *  {@link RequestLimits}. */
-    private static final long MAX_BODY_BYTES = RequestLimits.MAX_REQUEST_BYTES;
+    private static final int MAX_BODY_BYTES = RequestLimits.MAX_REQUEST_BYTES;
 
     private final DriverApi api;
     private final HttpServer http;
@@ -204,12 +206,13 @@ public final class McpServer implements Closeable {
                 }
             } catch (NumberFormatException ignored) { /* fall through to bounded read */ }
         }
-        byte[] raw = readBounded(ex.getRequestBody(), MAX_BODY_BYTES);
-        if (raw == null) { send(ex, 413, "payload exceeds " + MAX_BODY_BYTES + " bytes"); return; }
-        String body = new String(raw, StandardCharsets.UTF_8);
+        // Never readAllBytes(): a client that keeps sending would fill the heap. One byte past the cap
+        // tells an oversized body from one exactly at it.
+        byte[] raw = ex.getRequestBody().readNBytes(MAX_BODY_BYTES + 1);
+        if (raw.length > MAX_BODY_BYTES) { send(ex, 413, "payload exceeds " + MAX_BODY_BYTES + " bytes"); return; }
 
         Object decoded;
-        try { decoded = JsonCodec.decode(body); }
+        try { decoded = JsonCodec.decode(new InputStreamReader(new ByteArrayInputStream(raw), StandardCharsets.UTF_8)); }
         catch (Throwable e) { sendJson(ex, 400, jsonRpcError(null, -32700, "parse error: " + e.getMessage())); return; }
 
         if (!(decoded instanceof Map<?, ?> req)) {
@@ -569,19 +572,11 @@ public final class McpServer implements Closeable {
     }
 
     private static String jsonRpcResult(Object id, Object result) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("jsonrpc", "2.0");
-        m.put("id", id == null ? null : id);
-        m.put("result", result);
-        return JsonCodec.encode(m);
+        return JsonCodec.encode(JsonRpcFrames.result(id, result));
     }
 
     private static String jsonRpcError(Object id, int code, String message) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("jsonrpc", "2.0");
-        m.put("id", id == null ? null : id);
-        m.put("error", Map.of("code", code, "message", message));
-        return JsonCodec.encode(m);
+        return JsonCodec.encode(JsonRpcFrames.error(id, code, message, null));
     }
 
     private static void sendJson(HttpExchange ex, int status, String body) throws IOException {
@@ -601,22 +596,6 @@ public final class McpServer implements Closeable {
     private static void sendNoBody(HttpExchange ex, int status) throws IOException {
         ex.sendResponseHeaders(status, -1);
         ex.getResponseBody().close();
-    }
-
-    /** Read at most {@code cap} bytes, returning the buffer or {@code null} if
-     *  the stream provides more than cap. We can't just call readAllBytes() — a
-     *  client misbehaving (or worse) could OOM us; defense in depth even on loopback. */
-    private static byte[] readBounded(java.io.InputStream in, long cap) throws IOException {
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        byte[] buf = new byte[8192];
-        long total = 0;
-        int r;
-        while ((r = in.read(buf)) >= 0) {
-            total += r;
-            if (total > cap) return null;
-            out.write(buf, 0, r);
-        }
-        return out.toByteArray();
     }
 
     @Override public void close() {
