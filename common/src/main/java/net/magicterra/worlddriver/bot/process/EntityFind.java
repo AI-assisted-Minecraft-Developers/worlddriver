@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.process;
 
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -23,17 +23,17 @@ public final class EntityFind {
         double bestDist = Double.POSITIVE_INFINITY;
         Entity best = null;
         boolean isType = nameOrType.indexOf(':') >= 0;
-        boolean isId = !nameOrType.isEmpty() && nameOrType.chars().allMatch(Character::isDigit);
-        if (isId) {
-            Entity byId = lvl.getEntity(Integer.parseInt(nameOrType));
+        if (!nameOrType.isEmpty() && nameOrType.chars().allMatch(Character::isDigit)) {
+            // All digits but past an int is an id no entity has, not a parse failure to throw.
+            Integer id = com.google.common.primitives.Ints.tryParse(nameOrType);
+            Entity byId = id == null ? null : lvl.getEntity(id);
             return byId == null || byId == self ? null : byId;
         }
         AABB box = self.getBoundingBox().inflate(96.0);
         for (Entity e : lvl.getEntities(self, box, x -> true)) {
             if (e == self) continue;
             if (isType) {
-                String t = BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
-                if (!nameOrType.equals(t)) continue;
+                if (!nameOrType.equals(RegistryIds.typeId(e))) continue;
             } else {
                 String n = e.getName().getString();
                 if (!nameOrType.equals(n)) continue;

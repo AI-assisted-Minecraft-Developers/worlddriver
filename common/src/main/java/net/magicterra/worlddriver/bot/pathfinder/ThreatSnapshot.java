@@ -49,11 +49,14 @@ public record ThreatSnapshot(List<Threat> threats) {
         }
 
         /** True when {@code selector} names this observer by type ({@code skeleton},
-         *  {@code minecraft:skeleton}), by name, or by numeric id. */
+         *  {@code minecraft:skeleton}), by name, or by numeric id; digits past an int name no one. */
         public boolean matches(String selector) {
             if (selector == null || selector.isBlank()) return false;
             String s = selector.trim();
-            if (s.chars().allMatch(Character::isDigit)) return Integer.parseInt(s) == id;
+            if (s.chars().allMatch(Character::isDigit)) {
+                Integer n = com.google.common.primitives.Ints.tryParse(s);
+                return n != null && n == id;
+            }
             if (s.equals(name)) return true;
             return RegistryIds.qualified(s).equals(type);
         }
