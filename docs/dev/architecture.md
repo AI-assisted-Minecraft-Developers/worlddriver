@@ -34,19 +34,20 @@ lists equal).
 
 | Class | Verb group |
 |---|---|
-| `SystemApi` | `mc.system.*` |
-| `ObserveApi` | `mc.observe.*` |
-| `ActionApi` | `mc.action.*` |
-| `WaitApi` | `mc.wait.*` |
-| `WorldApi` | `mc.world.*` |
-| `RecipeApi` | `mc.recipe.*`, `mc.plan.acquire` |
-| `EventsApi` | `mc.events` |
-| `QueryApi` | `mc.query` |
-| `BotActions`, `HandMethods`, `ControlMethods`, `SettingsMethods`, `BodyInteractions` | `mc.bot.*` |
-| `ScriptMethods` | `mc.script.eval`, `mc.skill`, `mc.bot.playbook` |
+| `SystemService` | `mc.system.*` |
+| `ObserveService` | `mc.observe.*` |
+| `ActionService` | `mc.action.*` |
+| `WaitService` | `mc.wait.*` |
+| `WorldService` | `mc.world.*` |
+| `RecipeService` | `mc.recipe.*`, `mc.plan.acquire` |
+| `EventService` | `mc.events` |
+| `QueryService` | `mc.query` |
+| `BotTaskService`, `InteractService`, `ControlService`, `SettingsService`, `BodyInteractions` | `mc.bot.*` |
+| `ScriptService` | `mc.script.eval`, `mc.skill`, `mc.bot.playbook` |
+| `ClientService`, `ScreenService` | `mc.client.*` |
 | `ApiSupport` | no verbs — parsing and encoding helpers |
 
-`mc.client.*` (in `ClientMethods`) resolves the client at call time, so a dedicated server
+`mc.client.*` resolves the client at call time, so a dedicated server
 that has no client still boots and fails those verbs with `capability_unavailable`.
 
 `mc.bot.*` is not client-only: a call naming `self` — or naming no bot at all — goes to the
@@ -121,9 +122,9 @@ diverge. When a batch changes what `tools/list` shows, `McpServer` sends
 ### The api layer does not depend on the mcp layer
 
 `api/` holds the registry, the contract combinators (`api/contract/`) and the pure contracts
-(`api/methods/`); it imports no transport, handler or bot class (`check_architecture.py`).
+(`api/methods/<family>/`); it imports no transport, handler or bot class (`check_architecture.py`).
 `mc.bot.setting`'s contract is built from the bot's settings table, so it lives in
-`bot/SettingsContract`, and the list of core specs, `CoreMethods`, lives in `application/`.
+`bot/SettingsContracts`, and the list of core specs, `CoreMethods`, lives in `application/`.
 
 ## Threading
 
@@ -149,9 +150,9 @@ runs out, and a task found abandoned is skipped. The waiter that wins throws
 **Reads hop as well as writes.** There is no family of snapshot helpers that lets another
 thread read the level directly; anything touching live level state goes through
 `onServerThread`. Measured by call site, the classes that hop are `DriverApplication` itself,
-`ActionApi`, `ObserveApi`, `WorldApi`, `RecipeApi`, `BodyRoutes`, and `bot/util/BotUtil`.
-The classes with no calls are the ones that genuinely never reach the level: `SystemApi`,
-`WaitApi`, `EventsApi` and `ApiSupport` — polling, the
+`ActionService`, `ObserveService`, `WorldService`, `RecipeService`, `BodyRoutes`, and `bot/util/BotUtil`.
+The classes with no calls are the ones that genuinely never reach the level: `SystemService`,
+`WaitService`, `EventService` and `ApiSupport` — polling, the
 event ring buffer, and pure parse/encode work.
 
 ### A caller must get off its own IO thread first

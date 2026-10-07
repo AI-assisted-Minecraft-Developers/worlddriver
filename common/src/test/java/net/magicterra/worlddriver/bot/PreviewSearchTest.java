@@ -8,8 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.methods.GotoContract;
-import net.magicterra.worlddriver.api.methods.GotoContract.Segment;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Segment;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.pathfinder.Region;
 import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
@@ -54,8 +54,8 @@ class PreviewSearchTest {
         assertEquals(List.of(3, 6), List.of(segs.get(1).from(), segs.get(1).to()));
         assertEquals(List.of(6, 8), List.of(segs.get(2).from(), segs.get(2).to()));
         assertEquals(List.of(8, 10), List.of(segs.get(3).from(), segs.get(3).to()));
-        GotoContract.SegmentRisk exposedRisk = segs.get(1).risk();
-        assertEquals(List.of(new GotoContract.Exposure(7, "minecraft:skeleton", 3)), exposedRisk.exposedTo());
+        GotoContracts.SegmentRisk exposedRisk = segs.get(1).risk();
+        assertEquals(List.of(new GotoContracts.Exposure(7, "minecraft:skeleton", 3)), exposedRisk.exposedTo());
         assertEquals(Optional.of(2.0), exposedRisk.nearestMob(), "the minimum over the segment");
         assertEquals(Optional.of(9.5), segs.get(0).risk().nearestMob());
         assertEquals(List.of("avoid#1"), segs.get(3).risk().regions());
@@ -75,7 +75,7 @@ class PreviewSearchTest {
 
     @Test
     void aSegmentEncodesToTheDeclaredShape() {
-        Object wire = GotoContract.SEGMENT.encode(PreviewSearch.segments(line(10), TABLE, 2).get(1));
+        Object wire = GotoContracts.SEGMENT.encode(PreviewSearch.segments(line(10), TABLE, 2).get(1));
         // Compared as text: the encoder's number classes are its own business, the order and values are not.
         assertEquals("{leg=2, from=3, to=6, risk={exposedTo=[{id=7, type=minecraft:skeleton, cells=3}], nearestMob=2.0, regions=[]}}",
                 String.valueOf(wire));

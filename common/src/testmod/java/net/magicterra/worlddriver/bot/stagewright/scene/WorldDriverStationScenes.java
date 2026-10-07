@@ -9,9 +9,9 @@ import java.util.Optional;
 import java.util.Set;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.methods.PlayerContract;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.application.PlayerSnapshots;
-import net.magicterra.worlddriver.application.RecipeApi;
+import net.magicterra.worlddriver.application.RecipeService;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.CraftProcess;
 import net.magicterra.worlddriver.bot.process.RecipeResolver;
@@ -425,15 +425,15 @@ public final class WorldDriverStationScenes implements SceneProvider {
         worn.setDamageValue(245);
         fp.getInventory().setItem(4, worn);
 
-        PlayerContract.PlayerState snap = PlayerSnapshots.of(fp, Optional.empty());
+        ObserveContracts.PlayerState snap = PlayerSnapshots.of(fp, Optional.empty());
         // The contract the wire answer is checked against holds the server-built record too.
-        PlayerContract.PLAYER_STATE.encode(snap);
+        ObserveContracts.PLAYER_STATE.encode(snap);
 
-        List<PlayerContract.InventorySlot> inv = snap.inventory();
+        List<ObserveContracts.InventorySlot> inv = snap.inventory();
         Map<String, Integer> items = snap.items();
         WorldDriverCommon.LOG.info("[wd.serverObservePlayerInventory] invRows={} items={}", inv.size(), items);
-        Map<Integer, PlayerContract.InventorySlot> bySlot = new LinkedHashMap<>();
-        for (PlayerContract.InventorySlot row : inv) bySlot.put(row.slot(), row);
+        Map<Integer, ObserveContracts.InventorySlot> bySlot = new LinkedHashMap<>();
+        for (ObserveContracts.InventorySlot row : inv) bySlot.put(row.slot(), row);
         if (bySlot.size() != 6)
             ctx.fail("wd.serverObservePlayerInventory: expected exactly the 6 stacks placed, got " + inv);
         for (int hidden : new int[]{9, 20, 33}) {
@@ -446,7 +446,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         if (!bySlot.containsKey(40) || !"minecraft:torch".equals(bySlot.get(40).id()))
             ctx.fail("wd.serverObservePlayerInventory: offhand (slot 40) not reported: " + inv);
 
-        PlayerContract.InventorySlot pick = bySlot.get(4);
+        ObserveContracts.InventorySlot pick = bySlot.get(4);
         if (pick == null || !"minecraft:iron_pickaxe".equals(pick.id()))
             ctx.fail("wd.serverObservePlayerInventory: worn pickaxe missing from slot 4: " + inv);
         if (pick.durability().isEmpty())
@@ -480,7 +480,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
     /** Ported from {@code serverPlanHaveDefaultsToBagArena} (gap #44): omitted {@code have} must plan
      *  against the REAL bag (the same one {@link CraftProcess} consumes), explicit empty stays the
      *  what-if hypothesis, an explicit map is used verbatim, and a null bot falls back to
-     *  have-nothing without crashing. Driven through {@link RecipeApi#resolveHave}. */
+     *  have-nothing without crashing. Driven through {@link RecipeService#resolveHave}. */
     private static void serverPlanHaveDefaultsToBag(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
@@ -505,7 +505,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         RecipeManager rm = level.getServer().getRecipeManager();
         HolderLookup.Provider ra = level.registryAccess();
 
-        Map<String, Integer> dflt = RecipeApi.resolveHave(Optional.empty(), fp);
+        Map<String, Integer> dflt = RecipeService.resolveHave(Optional.empty(), fp);
         WorldDriverCommon.LOG.info("[wd.serverPlanHaveDefaultsToBag] defaultHave={}", dflt);
         if (!Integer.valueOf(208).equals(dflt.get("minecraft:cobblestone")))
             ctx.fail("wd.serverPlanHaveDefaultsToBag: omitting `have` must plan against the REAL bag "
@@ -517,7 +517,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
                     + " for a bot that is carrying every ingredient — planner and executor "
                     + "are measuring different bags");
 
-        Map<String, Integer> hypo = RecipeApi.resolveHave(Optional.of(Map.of()), fp);
+        Map<String, Integer> hypo = RecipeService.resolveHave(Optional.of(Map.of()), fp);
         if (!hypo.isEmpty())
             ctx.fail("wd.serverPlanHaveDefaultsToBag: an explicit empty `have` must stay the "
                     + "'suppose I had nothing' hypothesis, got " + hypo);
@@ -527,12 +527,12 @@ public final class WorldDriverStationScenes implements SceneProvider {
             ctx.fail("wd.serverPlanHaveDefaultsToBag: what-if planning is broken: an empty hypothesis "
                     + "must still lack the ingredients");
 
-        Map<String, Integer> verbatim = RecipeApi.resolveHave(Optional.of(Map.of("minecraft:cobblestone", 3)), fp);
+        Map<String, Integer> verbatim = RecipeService.resolveHave(Optional.of(Map.of("minecraft:cobblestone", 3)), fp);
         if (verbatim.size() != 1 || !Integer.valueOf(3).equals(verbatim.get("minecraft:cobblestone")))
             ctx.fail("wd.serverPlanHaveDefaultsToBag: an explicit `have` must be used verbatim, not "
                     + "merged with the bag, got " + verbatim);
 
-        if (!RecipeApi.resolveHave(Optional.empty(), (Player) null).isEmpty())
+        if (!RecipeService.resolveHave(Optional.empty(), (Player) null).isEmpty())
             ctx.fail("wd.serverPlanHaveDefaultsToBag: a null bot must fall back to have-nothing");
     }
 

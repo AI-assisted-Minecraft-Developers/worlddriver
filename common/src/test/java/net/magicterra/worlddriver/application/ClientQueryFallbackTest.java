@@ -16,16 +16,16 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.methods.ClientContracts;
-import net.magicterra.worlddriver.api.methods.ClientContracts.BlockScan;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ChunkRef;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
-import net.magicterra.worlddriver.api.methods.QueryContract;
-import net.magicterra.worlddriver.api.methods.QueryContract.BlockRow;
-import net.magicterra.worlddriver.api.methods.QueryContract.BlockRows;
-import net.magicterra.worlddriver.api.methods.QueryContract.EntityRow;
-import net.magicterra.worlddriver.api.methods.QueryContract.EntityRows;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockScan;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChunkRef;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.BlockRow;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.BlockRows;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.EntityRow;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.EntityRows;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;
 import net.magicterra.worlddriver.client.ClientDriverApi;
 import net.minecraft.world.level.ChunkPos;
 import org.junit.jupiter.api.Test;
@@ -59,7 +59,7 @@ class ClientQueryFallbackTest {
 
     /** The request as the dispatcher hands it over: decoded by the method's own contract. */
     private static Object query(ClientDriverApi c, Map<String, Object> params) {
-        return ClientQueryFallback.query(c, QueryContract.PARAMS.decode(params));
+        return ClientQueryFallback.query(c, QueryContracts.PARAMS.decode(params));
     }
 
     private static List<EntityRow> entities(Map<String, Object> params) {
@@ -80,7 +80,7 @@ class ClientQueryFallbackTest {
         assertTrue(zombie.effects().isEmpty(), "a client is not told other entities' effects");
         assertTrue(rows.get(1).health().isEmpty(), "an item is not living");
         // Every row satisfies the reply contract the server's rows do.
-        QueryContract.REPLY.encode(new EntityRows(rows));
+        QueryContracts.REPLY.encode(new EntityRows(rows));
     }
 
     @Test

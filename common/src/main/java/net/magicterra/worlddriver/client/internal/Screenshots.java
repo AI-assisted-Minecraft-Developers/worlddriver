@@ -8,9 +8,9 @@ import net.minecraft.client.Screenshot;
 import java.io.IOException;
 import java.util.Base64;
 
-import net.magicterra.worlddriver.api.methods.ClientContracts;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ImageFormat;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ScreenshotParams;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ImageFormat;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ScreenshotParams;
 
 import net.magicterra.worlddriver.bot.util.ClientHop;
 

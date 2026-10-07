@@ -17,33 +17,33 @@ import java.util.Optional;
 import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ActiveEffect;
-import net.magicterra.worlddriver.api.methods.ClientContracts.Attack;
-import net.magicterra.worlddriver.api.methods.ClientContracts.BlockHit;
-import net.magicterra.worlddriver.api.methods.ClientContracts.BlockRow;
-import net.magicterra.worlddriver.api.methods.ClientContracts.BlockScan;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ChunkRef;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ClientBody;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ClientPlayer;
-import net.magicterra.worlddriver.api.methods.ClientContracts.EntityHit;
-import net.magicterra.worlddriver.api.methods.ClientContracts.Hit;
-import net.magicterra.worlddriver.api.methods.ClientContracts.Inventory;
-import net.magicterra.worlddriver.api.methods.ClientContracts.InventorySlot;
-import net.magicterra.worlddriver.api.methods.CommonTypes.Look;
-import net.magicterra.worlddriver.api.methods.ClientContracts.Miss;
-import net.magicterra.worlddriver.api.methods.ClientContracts.Stack;
-import net.magicterra.worlddriver.api.methods.ClientContracts.Time;
-import net.magicterra.worlddriver.api.methods.ClientContracts.Vitals;
-import net.magicterra.worlddriver.api.methods.ClientContracts.Wear;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
-import net.magicterra.worlddriver.api.methods.QueryContract.EntityRow;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ActiveEffect;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.Attack;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockHit;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockRow;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockScan;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChunkRef;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientBody;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientPlayer;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.EntityHit;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.Hit;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.Inventory;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.InventorySlot;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Look;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.Miss;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.Stack;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.Time;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.Vitals;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.Wear;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.EntityRow;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.MenuContainer;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.SlotRow;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.MenuContainer;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SlotRow;
 
 import net.magicterra.worlddriver.bot.util.ClientHop;
-import net.magicterra.worlddriver.api.methods.ObserveContracts;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.minecraft.world.entity.Entity;
@@ -120,7 +120,7 @@ public final class ClientObserve {
             out.put("maxHealth", p.getMaxHealth());
             // gap#70 (live death #18): air was invisible on both observation paths — a
             // bot sinking toward drowning gave no signal short of the one-shot
-            // player.enteredWater event. Mirrors ObserveApi's field of the same name.
+            // player.enteredWater event. Mirrors ObserveService's field of the same name.
             out.put("air", p.getAirSupply());
             out.put("maxAir", p.getMaxAirSupply());
             out.put("food", p.getFoodData().getFoodLevel());
@@ -161,13 +161,13 @@ public final class ClientObserve {
             // Full inventory snapshot — saves an openInventory + screen.tree
             // round-trip every time a caller wants to know "do I have a pickaxe".
             // ItemSnap.inventoryRows is the single enumeration; the server snapshot
-            // (ObserveApi.playerSnapshot) emits this field through the same call, so the
+            // (ObserveService.playerSnapshot) emits this field through the same call, so the
             // two sides cannot drift the way gap #41's rows did.
             out.put("inventory", ItemSnap.inventoryRows(p));
             // Aggregated id -> count, the exact shape mc.recipe.resolve / mc.plan.acquire
             // take as `have`. Same helper the craft executor counts with, so the bag the
             // agent plans against is the bag the executor reaches into — and the server
-            // snapshot emits this field through the same call (ObserveApi.playerSnapshot).
+            // snapshot emits this field through the same call (ObserveService.playerSnapshot).
             out.put("items", CraftProcess.inventorySnapshot(p));
             // HitResult — what the camera is aimed at right now (client-side raycast).
             HitResult hr = mc.hitResult;

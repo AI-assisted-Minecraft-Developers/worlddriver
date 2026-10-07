@@ -4,10 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.methods.ObserveContracts.DensityOverlay;
-import net.magicterra.worlddriver.api.methods.ObserveContracts.Observer;
-import net.magicterra.worlddriver.api.methods.ObserveContracts.SightOverlay;
-import net.magicterra.worlddriver.api.methods.RouteContract.Route;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.DensityOverlay;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Observer;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.SightOverlay;
 import net.magicterra.worlddriver.bot.pathfinder.Constraint;
 import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
 import net.magicterra.worlddriver.bot.pathfinder.SearchAware;

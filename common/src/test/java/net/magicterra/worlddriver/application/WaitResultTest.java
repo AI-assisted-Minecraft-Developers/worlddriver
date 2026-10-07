@@ -113,7 +113,7 @@ class WaitResultTest {
         DriverApplication api = app();
         List<String> started = new ArrayList<>();
         try {
-            for (int i = 0; i < WaitApi.MAX_BACKGROUND; i++) started.add(startSlowWait(api, 1500));
+            for (int i = 0; i < WaitService.MAX_BACKGROUND; i++) started.add(startSlowWait(api, 1500));
             ApiException e = assertThrows(ApiException.class, () -> startSlowWait(api, 1500));
             assertEquals(ApiError.Code.SERVER_BUSY, e.error().code());
         } finally {

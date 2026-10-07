@@ -8,9 +8,9 @@ import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.ServerThreadHop;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.CommonTypes.NoParams;
-import net.magicterra.worlddriver.api.methods.SystemCalls;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
+import net.magicterra.worlddriver.api.methods.system.SystemApi;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -84,7 +84,7 @@ public final class TestArena {
      */
     public static void seed(DriverApi api, MinecraftServer server) {
         ServerLevel level = server.overworld();
-        BlockPosition o = DriverApi.await(SystemCalls.of(api).testOrigin(new NoParams(), CallContext.standalone()), 5_000);
+        BlockPosition o = DriverApi.await(SystemApi.of(api).testOrigin(new NoParams(), CallContext.standalone()), 5_000);
         BlockPos origin = Positions.blockPos(o);
         new ServerThreadHop(server, server::isSameThread, SERVER_THREAD_TIMEOUT_MS).call(() -> {
             // Pin first, write second. The ticket's level has to reach ENTITY_TICKING (31) out to

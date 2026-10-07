@@ -20,16 +20,16 @@ import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.JsonValue;
-import net.magicterra.worlddriver.api.methods.ClientCalls;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.ControlCalls;
-import net.magicterra.worlddriver.api.methods.ControlContracts.CancelParams;
-import net.magicterra.worlddriver.api.methods.EventCalls;
-import net.magicterra.worlddriver.api.methods.EventContracts;
-import net.magicterra.worlddriver.api.methods.CommonTypes.NoParams;
-import net.magicterra.worlddriver.api.methods.SystemCalls;
-import net.magicterra.worlddriver.bot.SettingsCalls;
-import net.magicterra.worlddriver.bot.SettingsContract;
+import net.magicterra.worlddriver.api.methods.client.ClientApi;
+import net.magicterra.worlddriver.api.methods.control.ControlApi;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.CancelParams;
+import net.magicterra.worlddriver.api.methods.event.EventApi;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
+import net.magicterra.worlddriver.api.methods.system.SystemApi;
+import net.magicterra.worlddriver.bot.SettingsApi;
+import net.magicterra.worlddriver.bot.SettingsContracts;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.Goal;
@@ -180,7 +180,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ServerPlayer player = ctx.playerHere();
         // Typed, so a change to the verb's answer breaks this compile rather than silently skipping the
         // teleport below (it did, for three gate runs, when the shape this read by hand moved).
-        BlockPosition o = DriverApi.await(SystemCalls.of(WorldDriverCommon.api())
+        BlockPosition o = DriverApi.await(SystemApi.of(WorldDriverCommon.api())
                 .testOrigin(new NoParams(), CallContext.standalone()), 5_000);
         BlockPos pad = Positions.blockPos(o);
         // Offset by one on both axes rather than landing on the origin cell: the seed puts an
@@ -265,7 +265,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // out, on FAIL and TIMEOUT too. A dedicated server has no bot. Sent without waiting: self's
         // cancel runs on the client thread, which a cleanup on the server thread may not wait for.
         if (BotHooks.isAvailable()) {
-            ctx.cleanup(() -> ControlCalls.of(WorldDriverCommon.api()).cancel(CancelParams.all(), CallContext.standalone()));
+            ctx.cleanup(() -> ControlApi.of(WorldDriverCommon.api()).cancel(CancelParams.all(), CallContext.standalone()));
         }
 
         AtomicReference<Integer> result = new AtomicReference<>();
@@ -1561,19 +1561,19 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     private static void clientSettingSchema(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        SettingsCalls settings = SettingsCalls.of(WorldDriverCommon.api());
-        SceneCalls.askFailure(ctx, "unknownKey", settings.setting(SettingsContract.Patch.of(Map.of("definitelyNotAKnob", true)),
+        SettingsApi settings = SettingsApi.of(WorldDriverCommon.api());
+        SceneCalls.askFailure(ctx, "unknownKey", settings.setting(SettingsContracts.Patch.of(Map.of("definitelyNotAKnob", true)),
                 CallContext.standalone()), refused -> {
             List<ApiIssue> issues = refused.issues();
             ctx.expect(issues.stream().anyMatch(i -> i.path().equals("/values/definitelyNotAKnob") && i.message().contains("definitelyNotAKnob")))
                     .as("the unknown key is refused at its own path, by name: " + issues).isEqualTo(true);
             // The contract must not over-reach the other way: a KNOWN key commits, the reply carries
             // what it now holds, and a fresh read agrees. The pin restores it however this exits.
-            ask(ctx, "read", settings.setting(SettingsContract.Read.of("autoEat"), CallContext.standalone()), before -> {
+            ask(ctx, "read", settings.setting(SettingsContracts.Read.of("autoEat"), CallContext.standalone()), before -> {
                 boolean orig = Boolean.TRUE.equals(settingOf(before, "autoEat"));
-                ask(ctx, "patch", settings.setting(SettingsContract.Patch.of(Map.of("autoEat", !orig)), CallContext.standalone()), write -> {
+                ask(ctx, "patch", settings.setting(SettingsContracts.Patch.of(Map.of("autoEat", !orig)), CallContext.standalone()), write -> {
                     ctx.expect(settingOf(write, "autoEat")).as("the value the patch reports").isEqualTo(!orig);
-                    ask(ctx, "reread", settings.setting(SettingsContract.Read.of("autoEat"), CallContext.standalone()), after ->
+                    ask(ctx, "reread", settings.setting(SettingsContracts.Read.of("autoEat"), CallContext.standalone()), after ->
                             ctx.expect(settingOf(after, "autoEat")).as("a fresh read of autoEat").isEqualTo(!orig));
                 });
             });
@@ -1581,11 +1581,11 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     /** One key's value out of a {@code mc.bot.setting} reply, or null when the reply does not hold it. */
-    private static Object settingOf(SettingsContract.SettingsReply reply, String key) {
+    private static Object settingOf(SettingsContracts.SettingsReply reply, String key) {
         return switch (reply) {
-            case SettingsContract.Values v -> v.get(key).orElse(null);
-            case SettingsContract.Patched p -> p.get(key).orElse(null);
-            case SettingsContract.Applied a -> null;
+            case SettingsContracts.Values v -> v.get(key).orElse(null);
+            case SettingsContracts.Patched p -> p.get(key).orElse(null);
+            case SettingsContracts.Applied a -> null;
         };
     }
 
@@ -1987,7 +1987,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         AtomicLong cursor = new AtomicLong(-1);
         int[] settled = {0};
         ctx.await(() -> ++settled[0] >= 20).within(80).then(() -> {
-            cursor.set(DriverApi.await(EventCalls.of(api).cursor(new NoParams(), CallContext.standalone()), 5_000)
+            cursor.set(DriverApi.await(EventApi.of(api).cursor(new NoParams(), CallContext.standalone()), 5_000)
                     .cursor());
             // out_of_world is in BYPASSES_INVULNERABILITY, so it lands whichever gamemode the run's
             // template put the player in. Toggling /gamemode instead would be a far wider blast
@@ -2024,7 +2024,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     private static void clientPlayerInWorld(SceneContext ctx) {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.client.player is client-only — only an integrated server has its handler here");
-        ask(ctx, "clientPlayer", ClientCalls.of(WorldDriverCommon.api()).player(new NoParams(), CallContext.standalone()), cp -> {
+        ask(ctx, "clientPlayer", ClientApi.of(WorldDriverCommon.api()).player(new NoParams(), CallContext.standalone()), cp -> {
             ctx.expect(cp.present()).as("mc.client.player reports a LocalPlayer in a world")
                     .isEqualTo(true);
             ctx.expect(cp.pos().isPresent()).as("mc.client.player's pos is there, not a hole in a well-shaped payload")
@@ -2035,7 +2035,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
 
     /** The {@code player.hurt} payloads emitted since {@code cursor}, oldest first. */
     private static List<Map<?, ?>> hurtPayloads(DriverApi api, long cursor) {
-        EventContracts.Page page = DriverApi.await(EventCalls.of(api)
+        EventContracts.Page page = DriverApi.await(EventApi.of(api)
                 .eventsSince(EventContracts.SinceParams.after(cursor, "player.hurt"), CallContext.standalone()), 5_000);
         List<Map<?, ?>> out = new ArrayList<>();
         for (EventContracts.Event e : page.events())

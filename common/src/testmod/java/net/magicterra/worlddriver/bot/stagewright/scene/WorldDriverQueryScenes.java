@@ -12,11 +12,11 @@ import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.UnloadedAreaException;
 import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.methods.ClientCalls;
-import net.magicterra.worlddriver.api.methods.ClientContracts.BlocksParams;
-import net.magicterra.worlddriver.api.methods.QueryCalls;
-import net.magicterra.worlddriver.api.methods.QueryContract;
-import net.magicterra.worlddriver.api.methods.QueryContract.BlockRows;
+import net.magicterra.worlddriver.api.methods.client.ClientApi;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlocksParams;
+import net.magicterra.worlddriver.api.methods.query.QueryApi;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.BlockRows;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
@@ -51,7 +51,7 @@ public final class WorldDriverQueryScenes implements SceneProvider {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.client.blocks is client-only — only an integrated server has its handler here");
         if (WorldDriverCommon.api() == null) ctx.fail("DriverApi not initialized — was the mod loaded?");
-        ClientCalls client = ClientCalls.of(SceneCalls.api());
+        ClientApi client = ClientApi.of(SceneCalls.api());
 
         // Asked, not awaited: the scan runs on the client thread, which this server thread may not wait for.
         SceneCalls.ask(ctx, "nearScan", client.blocks(BlocksParams.aroundPlayer(1), CallContext.standalone()), near ->
@@ -68,7 +68,7 @@ public final class WorldDriverQueryScenes implements SceneProvider {
     private static void blocksStayInLoadedChunks(SceneContext ctx) {
         DriverApi api = WorldDriverCommon.api();
         if (api == null) ctx.fail("DriverApi not initialized — was the mod loaded?");
-        QueryCalls query = QueryCalls.of(api);
+        QueryApi query = QueryApi.of(api);
         for (int d : new int[] {-MAX_RADIUS, MAX_RADIUS})
             if (ctx.outsideForcedChunks(d, d) || ctx.outsideForcedChunks(d, -d))
                 ctx.skip("the arena's forced window is narrower than a radius-" + MAX_RADIUS + " cube");
@@ -79,12 +79,12 @@ public final class WorldDriverQueryScenes implements SceneProvider {
         level.setBlockAndUpdate(probe, Blocks.GOLD_BLOCK.defaultBlockState());
         ctx.cleanup(() -> level.setBlockAndUpdate(probe, Blocks.AIR.defaultBlockState()));
 
-        QueryContract.Rows rows = DriverApi.await(query.query(QueryContract.Blocks.around(position(center),MAX_RADIUS)
+        QueryContracts.Rows rows = DriverApi.await(query.query(QueryContracts.Blocks.around(position(center),MAX_RADIUS)
                 .ofType("minecraft:gold_block"), CallContext.standalone()), QUERY_MS);
         ctx.check(rows instanceof BlockRows b && b.blocks().stream().anyMatch(r -> r.pos().equals(java.util.Optional.of(position(probe)))))
                 .as("A the documented maximum radius answers and finds the probe block").isTrue();
 
-        String refused = errorOf(() -> DriverApi.await(query.query(QueryContract.Blocks.around(position(center),MAX_RADIUS + 1),
+        String refused = errorOf(() -> DriverApi.await(query.query(QueryContracts.Blocks.around(position(center),MAX_RADIUS + 1),
                 CallContext.standalone()), QUERY_MS));
         ctx.check(refused != null && refused.contains("0–" + MAX_RADIUS))
                 .as("B one past the maximum is refused and names the limit (" + refused + ")").isTrue();
@@ -96,7 +96,7 @@ public final class WorldDriverQueryScenes implements SceneProvider {
             ctx.skip("the far probe chunk [" + fcx + ", " + fcz + "] is already loaded");
         RuntimeException unloaded = null;
         try {
-            DriverApi.await(query.query(QueryContract.Blocks.around(position(far),2), CallContext.standalone()), QUERY_MS);
+            DriverApi.await(query.query(QueryContracts.Blocks.around(position(far),2), CallContext.standalone()), QUERY_MS);
         } catch (RuntimeException e) {
             unloaded = e;
         }

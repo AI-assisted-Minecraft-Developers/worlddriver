@@ -1,13 +1,14 @@
 package net.magicterra.worlddriver.bot;
 
 import net.magicterra.worlddriver.api.Positions;
-import net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse;
-import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
-import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.HandContracts;
-import net.magicterra.worlddriver.api.methods.HandContracts.Face;
-import net.magicterra.worlddriver.api.methods.HandContracts.OnEntity;
+import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
+import net.magicterra.worlddriver.api.methods.interact.InteractContracts.Face;
+import net.magicterra.worlddriver.api.methods.interact.InteractContracts.OnEntity;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
+import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
 import net.magicterra.worlddriver.bot.body.ClientPlayerBody;
 import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.util.HandVerbs;
@@ -39,15 +40,15 @@ final class InteractionCommands {
     private InteractionCommands() {}
 
     /** The same rule as any other body's hands; the method has already refused an unregistered id. */
-    static ImmediateResponse holdItem(HandContracts.HoldParams params) {
+    static ImmediateResponse holdItem(InteractContracts.HoldParams params) {
         Minecraft mc = Minecraft.getInstance();
         Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, params.item()).orElseThrow();
         return new ClientPlayerBody(mc).holdItemOrEmptyHand(item)
-                ? new HandContracts.Held(RegistryIds.itemId(mc.player.getMainHandItem()))
+                ? new Responses.Held(RegistryIds.itemId(mc.player.getMainHandItem()))
                 : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, Hands.cannotHold(item, params.body()));
     }
 
-    static ImmediateResponse useItem(HandContracts.UseParams p) {
+    static ImmediateResponse useItem(InteractContracts.UseParams p) {
         if (p.entityId().isPresent()) return useOnEntity(p, p.entityId().get());
         if (p.pos().isPresent()) return useOnBlock(p, p.pos().get());
         Minecraft mc = Minecraft.getInstance();
@@ -57,10 +58,10 @@ final class InteractionCommands {
         player.setShiftKeyDown(false);
         InteractionResult result = mc.gameMode.useItem(player, hand);
         if (result.consumesAction()) player.swing(hand);
-        return new HandContracts.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(), new HandContracts.InAir());
+        return new Responses.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(), new InteractContracts.InAir());
     }
 
-    private static ImmediateResponse useOnBlock(HandContracts.UseParams p, BlockPosition at) {
+    private static ImmediateResponse useOnBlock(InteractContracts.UseParams p, BlockPosition at) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
         BlockPos blockPos = Positions.blockPos(at);
@@ -73,11 +74,11 @@ final class InteractionCommands {
         player.setShiftKeyDown(false);
         InteractionResult result = mc.gameMode.useItemOn(player, hand, new BlockHitResult(hit, face, blockPos, false));
         if (result.consumesAction()) player.swing(hand);
-        return new HandContracts.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(),
-                new HandContracts.OnBlock(at, Face.valueOf(face.name())));
+        return new Responses.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(),
+                new InteractContracts.OnBlock(at, Face.valueOf(face.name())));
     }
 
-    private static ImmediateResponse useOnEntity(HandContracts.UseParams p, int entityId) {
+    private static ImmediateResponse useOnEntity(InteractContracts.UseParams p, int entityId) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
         Entity target = mc.level.getEntity(entityId);
@@ -96,7 +97,7 @@ final class InteractionCommands {
             InteractionResult result = mc.gameMode.interactAt(player, target, new EntityHitResult(target), hand);
             if (!result.consumesAction()) result = mc.gameMode.interact(player, target, hand);
             if (result.consumesAction()) player.swing(hand);
-            return new HandContracts.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(), before);
+            return new Responses.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(), before);
         } finally {
             player.setShiftKeyDown(false);
         }
@@ -112,7 +113,7 @@ final class InteractionCommands {
                 Optional.empty());
     }
 
-    static ImmediateResponse attackEntity(HandContracts.AttackParams p) {
+    static ImmediateResponse attackEntity(InteractContracts.AttackParams p) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
         Entity target = mc.level.getEntity(p.entityId());
@@ -132,7 +133,7 @@ final class InteractionCommands {
         float[] aim = HandVerbs.anglesAt(player, target);
         player.setYRot(aim[0]); player.setXRot(aim[1]);
         player.swing(InteractionHand.MAIN_HAND);
-        return new HandContracts.Attacked(p.entityId(), RegistryIds.typeId(target), target.isAlive(), Math.sqrt(player.distanceToSqr(target)));
+        return new Responses.Attacked(p.entityId(), RegistryIds.typeId(target), target.isAlive(), Math.sqrt(player.distanceToSqr(target)));
     }
 
 

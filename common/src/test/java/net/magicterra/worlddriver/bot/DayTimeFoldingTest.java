@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * One place folds {@code dayTime} into a day, and it is {@link TimeSnap}.
  *
  * <p>This exists because a comment saying "I agree with that other code" is not a constraint.
- * The day-phase bucketing had been written FOUR times — {@code ObserveApi},
+ * The day-phase bucketing had been written FOUR times — {@code ObserveService},
  * {@code ClientObserve}, {@code ClientEventDetector}, {@code WorldModel} — and the copies did
  * not agree: two folded negative {@code dayTime} into {@code [0, 24000)} and two did not, so a
  * negative time reported {@code "day"} through half the surface. {@code ClientEventDetector}

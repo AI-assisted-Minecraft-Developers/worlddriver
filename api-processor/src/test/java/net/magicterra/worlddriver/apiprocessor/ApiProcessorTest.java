@@ -31,10 +31,10 @@ class ApiProcessorTest {
 
     /** The driver types the processor and the generated code refer to, reduced to their signatures. */
     private static final Map<String, String> STUBS = Map.of(
-            "net.magicterra.worlddriver.api.Api", """
+            "net.magicterra.worlddriver.api.Spec", """
                     package net.magicterra.worlddriver.api;
                     @java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.SOURCE)
-                    public @interface Api { Class<?> value(); String spec() default "SPEC"; }
+                    public @interface Spec { Class<?> value(); String spec() default "SPEC"; }
                     """,
             "net.magicterra.worlddriver.api.CallContext", """
                     package net.magicterra.worlddriver.api;
@@ -82,19 +82,19 @@ class ApiProcessorTest {
         return """
                 package demo;
                 import java.util.concurrent.CompletionStage;
-                import net.magicterra.worlddriver.api.Api;
+                import net.magicterra.worlddriver.api.Spec;
                 import net.magicterra.worlddriver.api.CallContext;
                 import demo.Specs.In;
                 import demo.Specs.Out;
-                public interface DemoCalls {
+                public interface DemoApi {
                 """ + body + "\n}\n";
     }
 
-    /** Compiles the stubs plus {@code DemoCalls}; answers the errors, empty on success. */
-    private List<String> compile(String demoCalls) throws Exception {
+    /** Compiles the stubs plus {@code DemoApi}; answers the errors, empty on success. */
+    private List<String> compile(String demoApi) throws Exception {
         List<JavaFileObject> sources = new ArrayList<>();
         STUBS.forEach((name, text) -> sources.add(source(name, text)));
-        sources.add(source("demo.DemoCalls", demoCalls));
+        sources.add(source("demo.DemoApi", demoApi));
         JavaCompiler javac = ToolProvider.getSystemJavaCompiler();
         DiagnosticCollector<JavaFileObject> diags = new DiagnosticCollector<>();
         Path classes = Files.createDirectories(out.resolve("classes"));
@@ -117,61 +117,61 @@ class ApiProcessorTest {
         };
     }
 
-    private void assertRefused(String demoCalls, String expected) throws Exception {
-        List<String> errors = compile(demoCalls);
+    private void assertRefused(String demoApi, String expected) throws Exception {
+        List<String> errors = compile(demoApi);
         assertTrue(errors.stream().anyMatch(e -> e.contains(expected)), "wanted '" + expected + "', got " + errors);
     }
 
     @Test
     void aMatchingInterfaceCompilesWithItsBinding() throws Exception {
         assertEquals(List.of(), compile(calls("""
-                @Api(Specs.class) CompletionStage<Out> run(In in, CallContext ctx);
-                @Api(value = Specs.class, spec = "OTHER") CompletionStage<Out> other(In in, CallContext ctx);
+                @Spec(Specs.class) CompletionStage<Out> run(In in, CallContext ctx);
+                @Spec(value = Specs.class, spec = "OTHER") CompletionStage<Out> other(In in, CallContext ctx);
                 """)));
-        assertTrue(Files.exists(out.resolve("generated/demo/DemoCallsBinding.java")));
-        assertTrue(Files.exists(out.resolve("classes/demo/DemoCallsBinding.class")));
+        assertTrue(Files.exists(out.resolve("generated/demo/DemoApiBinding.java")));
+        assertTrue(Files.exists(out.resolve("classes/demo/DemoApiBinding.class")));
     }
 
     @Test
     void anUnboundAbstractMethodIsRefused() throws Exception {
         assertRefused(calls("""
-                @Api(Specs.class) CompletionStage<Out> run(In in, CallContext ctx);
+                @Spec(Specs.class) CompletionStage<Out> run(In in, CallContext ctx);
                 CompletionStage<Out> stray(In in, CallContext ctx);
-                """), "needs @Api");
+                """), "needs @Spec");
     }
 
     @Test
     void parametersTheSpecDoesNotDecodeAreRefused() throws Exception {
-        assertRefused(calls("@Api(Specs.class) CompletionStage<Out> run(Out wrong, CallContext ctx);"), "takes demo.Specs.Out");
+        assertRefused(calls("@Spec(Specs.class) CompletionStage<Out> run(Out wrong, CallContext ctx);"), "takes demo.Specs.Out");
     }
 
     @Test
     void aResultTheSpecDoesNotProduceIsRefused() throws Exception {
-        assertRefused(calls("@Api(Specs.class) CompletionStage<In> run(In in, CallContext ctx);"), "answers");
+        assertRefused(calls("@Spec(Specs.class) CompletionStage<In> run(In in, CallContext ctx);"), "answers");
     }
 
     @Test
     void aMissingContextIsRefused() throws Exception {
-        assertRefused(calls("@Api(Specs.class) CompletionStage<Out> run(In in);"), "an @Api method is");
+        assertRefused(calls("@Spec(Specs.class) CompletionStage<Out> run(In in);"), "an @Spec method is");
     }
 
     @Test
     void aSpecThatDoesNotExistIsRefused() throws Exception {
-        assertRefused(calls("@Api(value = Specs.class, spec = \"NOPE\") CompletionStage<Out> run(In in, CallContext ctx);"),
+        assertRefused(calls("@Spec(value = Specs.class, spec = \"NOPE\") CompletionStage<Out> run(In in, CallContext ctx);"),
                 "has no field NOPE");
     }
 
     @Test
     void aSpecThatCouldBeReplacedIsRefused() throws Exception {
-        assertRefused(calls("@Api(value = Specs.class, spec = \"LOOSE\") CompletionStage<Out> run(In in, CallContext ctx);"),
+        assertRefused(calls("@Spec(value = Specs.class, spec = \"LOOSE\") CompletionStage<Out> run(In in, CallContext ctx);"),
                 "must be public static final");
     }
 
     @Test
     void oneSpecBoundTwiceIsRefused() throws Exception {
         assertRefused(calls("""
-                @Api(Specs.class) CompletionStage<Out> run(In in, CallContext ctx);
-                @Api(Specs.class) CompletionStage<Out> again(In in, CallContext ctx);
+                @Spec(Specs.class) CompletionStage<Out> run(In in, CallContext ctx);
+                @Spec(Specs.class) CompletionStage<Out> again(In in, CallContext ctx);
                 """), "bound twice");
     }
 }

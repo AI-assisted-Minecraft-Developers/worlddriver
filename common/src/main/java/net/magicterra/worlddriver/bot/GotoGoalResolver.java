@@ -3,9 +3,9 @@ package net.magicterra.worlddriver.bot;
 import java.util.Map;
 import java.util.function.Function;
 
-import net.magicterra.worlddriver.api.methods.GotoContract;
-import net.magicterra.worlddriver.api.methods.GotoContract.GoalMode;
-import net.magicterra.worlddriver.api.methods.GotoContract.Target;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts.GoalMode;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Target;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
@@ -51,37 +51,37 @@ public final class GotoGoalResolver {
     private static Goal base(Target target, Entity self, Map<String, BlockPos> waypoints,
                              Function<String, Entity> nearestOfType) {
         return switch (target) {
-            case GotoContract.Position t -> cellGoal(new BlockPos(t.pos().x(), t.pos().y(), t.pos().z()), t.goalMode(), t.near());
-            case GotoContract.Column t -> new Goal.XZ(t.x(), t.z(), t.near());
-            case GotoContract.Level t -> new Goal.YLevel(t.y());
-            case GotoContract.Axis t -> new Goal.Axis(BotConfig.axisHeight);
-            case GotoContract.BlockTarget t -> {
+            case GotoContracts.Position t -> cellGoal(new BlockPos(t.pos().x(), t.pos().y(), t.pos().z()), t.goalMode(), t.near());
+            case GotoContracts.Column t -> new Goal.XZ(t.x(), t.z(), t.near());
+            case GotoContracts.Level t -> new Goal.YLevel(t.y());
+            case GotoContracts.Axis t -> new Goal.Axis(BotConfig.axisHeight);
+            case GotoContracts.BlockTarget t -> {
                 BlockPos stand = findNearestStandForBlock(self, t.block(), t.radius());
                 if (stand == null) throw new Unavailable("no reachable '" + t.block() + "' within radius " + t.radius());
                 yield new Goal.Block(stand);
             }
-            case GotoContract.EntityTarget t -> {
+            case GotoContracts.EntityTarget t -> {
                 Level lvl = self.level();
                 Entity e = lvl == null ? null : lvl.getEntity(t.entityId());
                 if (e == null) throw new Unavailable("no entity with id " + t.entityId());
                 yield cellGoal(blockPosOf(e), t.goalMode(), t.near());
             }
-            case GotoContract.EntityType t -> {
+            case GotoContracts.EntityType t -> {
                 Entity e = nearestOfType == null ? null : nearestOfType.apply(t.type());
                 if (e == null) throw new Unavailable("no '" + t.type() + "' visible nearby");
                 yield cellGoal(blockPosOf(e), t.goalMode(), t.near());
             }
-            case GotoContract.Heading t -> {
+            case GotoContracts.Heading t -> {
                 // Baritone GoalStrictDirection: keep boring this way with no fixed endpoint.
                 var face = snapped(self, t.direction());
                 yield new Goal.StrictDirection(blockPosOf(self.getX(), self.getY(), self.getZ()), face.getStepX(), face.getStepZ());
             }
-            case GotoContract.DirectionTarget t -> {
+            case GotoContracts.DirectionTarget t -> {
                 BlockPos cell = applyDirection(self, t.direction(), t.distance());
                 if (t.near() > 0) yield new Goal.Near(cell, t.near());
                 yield t.direction().vertical() ? new Goal.YLevel(cell.getY()) : new Goal.XZ(cell.getX(), cell.getZ());
             }
-            case GotoContract.Waypoint t -> {
+            case GotoContracts.Waypoint t -> {
                 BlockPos pos = waypoints.get(t.name());
                 if (pos == null) throw new Unavailable("no waypoint named '" + t.name() + "'");
                 yield cellGoal(pos, t.goalMode(), t.near());

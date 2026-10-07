@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.api;
 
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 

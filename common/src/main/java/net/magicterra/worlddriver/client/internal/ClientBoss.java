@@ -1,14 +1,14 @@
 package net.magicterra.worlddriver.client.internal;
 
-import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
-import net.magicterra.worlddriver.api.methods.ObserveContracts.Boss;
-import net.magicterra.worlddriver.api.methods.ObserveContracts.BossReading;
-import net.magicterra.worlddriver.api.methods.ObserveContracts.Crystal;
-import net.magicterra.worlddriver.api.methods.ObserveContracts.Dragon;
-import net.magicterra.worlddriver.api.methods.ObserveContracts.DragonHead;
-import net.magicterra.worlddriver.api.methods.ObserveContracts.DragonPhase;
-import net.magicterra.worlddriver.api.methods.ObserveContracts.Wither;
-import net.magicterra.worlddriver.api.methods.ObserveContracts.WitherPhase;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Boss;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.BossReading;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Crystal;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Dragon;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.DragonHead;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.DragonPhase;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Wither;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.WitherPhase;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;

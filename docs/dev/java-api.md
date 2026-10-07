@@ -10,14 +10,14 @@ Each group of methods has an interface whose methods have real Java names, with 
 records as parameters and results:
 
 ```java
-SettingsCalls settings = SettingsCalls.of(WorldDriverCommon.api());
+SettingsApi settings = SettingsApi.of(WorldDriverCommon.api());
 CompletionStage<SettingsReply> reply =
-        settings.setting(SettingsContract.Read.of("autoEat"), CallContext.standalone());
+        settings.setting(SettingsContracts.Read.of("autoEat"), CallContext.standalone());
 
 switch (DriverApi.await(reply, 5_000)) {
-    case SettingsContract.Values v  -> …
-    case SettingsContract.Patched p -> …
-    case SettingsContract.Applied a -> …
+    case SettingsContracts.Values v  -> …
+    case SettingsContracts.Patched p -> …
+    case SettingsContracts.Applied a -> …
 }
 ```
 
@@ -26,22 +26,23 @@ can answer.
 
 | Interface | Methods |
 |---|---|
-| `BotTaskCalls` | the body tasks: `goTo`, `mine`, `craft`, `build`, `combat`, … |
-| `HandCalls` | `lookAt`, `holdItem`, `useItem`, `attackEntity`, `equip` |
-| `ControlCalls` | `cancel`, `status`, `waypoint` |
-| `SettingsCalls` (in `bot`) | `setting` |
-| `WaitCalls` | `event`, `worldReady`, `condition`, `result` |
-| `ObserveCalls` | `player`, `threats`, `boss`, `scene`, `map` |
-| `EventCalls` | `cursor`, `eventsSince`, `events` |
-| `QueryCalls` | `query` |
-| `WorldCalls` / `ActionCalls` | `mc.world.*` / `mc.action.*` |
-| `ScreenCalls` / `ClientCalls` | `mc.client.screen.*` and `mc.client.input.*` / the rest of `mc.client.*` |
-| `RecipeCalls`, `ScriptCalls`, `SystemCalls`, `DebugCalls` | their namespaces |
+| `bot.BotTaskApi` | the body tasks: `goTo`, `mine`, `craft`, `build`, `combat`, … |
+| `interact.InteractApi` | `lookAt`, `holdItem`, `useItem`, `attackEntity`, `equip` |
+| `control.ControlApi` | `cancel`, `status`, `waypoint` |
+| `SettingsApi` (in `bot`, outside `api`) | `setting` |
+| `wait.WaitApi` | `event`, `worldReady`, `condition`, `result` |
+| `observe.ObserveApi` | `player`, `threats`, `boss`, `scene`, `map` |
+| `event.EventApi` | `cursor`, `eventsSince`, `events` |
+| `query.QueryApi` | `query` |
+| `world.WorldApi` / `action.ActionApi` | `mc.world.*` / `mc.action.*` |
+| `screen.ScreenApi` / `client.ClientApi` | `mc.client.screen.*` and `mc.client.input.*` / the rest of `mc.client.*` |
+| `recipe.RecipeApi`, `script.ScriptApi`, `system.SystemApi`, `debug.DebugApi` | their namespaces |
 
-The interfaces are in `api.methods` unless noted. Parameter records with many optional fields have
-static factories for the common requests (`GotoContract.Params.to(pos)`, `CancelParams.action(id)`,
-`QueryContract.Blocks.around(center, r)`, …); `ParamFactoriesTest` holds each one to the contract's
-defaults.
+The packages are under `api.methods` unless noted, one per family, each holding the family's
+interface and its `*Contracts`; what several families share is in `api.methods.shared`. Parameter
+records with many optional fields have static factories for the common requests
+(`GotoContracts.Params.to(pos)`, `CancelParams.action(id)`, `QueryContracts.Blocks.around(center, r)`,
+…); `ParamFactoriesTest` holds each one to the contract's defaults.
 
 The object `of` returns is a generated caller, not the implementation. Every call goes through
 the method registry exactly as a request from a transport does:
@@ -63,24 +64,24 @@ test: a scene that sends a field the contract refuses, or checks a reply's wire 
 
 ## Implementing methods
 
-Write the interface next to the contract it serves. Each abstract method carries `@Api`, naming
+Write the interface next to the contract it serves. Each abstract method carries `@Spec`, naming
 the class that declares its `MethodSpec` and, when that is not `SPEC`, the field:
 
 ```java
-public interface SettingsCalls {
-    static SettingsCalls of(DriverApi api) { return SettingsCallsBinding.calls(api); }
+public interface SettingsApi {
+    static SettingsApi of(DriverApi api) { return SettingsApiBinding.calls(api); }
 
-    @Api(SettingsContract.class)
+    @Spec(SettingsContracts.class)
     CompletionStage<SettingsReply> setting(SettingsOp op, CallContext ctx);
 }
 ```
 
-The implementation implements the same interface and publishes its registry entries from the
-generated binding:
+The implementation, named for the family with `Service`, implements the same interface and
+publishes its registry entries from the generated binding:
 
 ```java
-final class SettingsMethods implements SettingsCalls {
-    List<ApiMethod<?, ?>> methods() { return SettingsCallsBinding.methods(this); }
+final class SettingsService implements SettingsApi {
+    List<ApiMethod<?, ?>> methods() { return SettingsApiBinding.methods(this); }
 
     @Override
     public CompletionStage<SettingsReply> setting(SettingsOp op, CallContext ctx) { … }
@@ -92,10 +93,10 @@ registry, and with it every check above.
 
 ## What the compiler checks
 
-`:api-processor` runs while `:common` compiles. For each interface with `@Api` methods it refuses
+`:api-processor` runs while `:common` compiles. For each interface with `@Spec` methods it refuses
 the build when:
 
-- an abstract method has no `@Api`;
+- an abstract method has no `@Spec`;
 - the named field does not exist, is not a `MethodSpec<P, R>`, or is not `public static final`;
 - the method is not `CompletionStage<R> name(P params, CallContext ctx)` for exactly that `P` and `R`;
 - one spec is bound twice in the same interface.

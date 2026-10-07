@@ -31,16 +31,16 @@ import javax.tools.Diagnostic;
 import com.google.auto.service.AutoService;
 
 /**
- * Checks every {@code @Api} interface against the specs it names and generates its binding. Every
+ * Checks every {@code @Spec} interface against the specs it names and generates its binding. Every
  * check that can be made here is made here, so a game never starts with a binding that disagrees
  * with its contract: what is left for run time is only what run time knows (the parameter values, the
  * calling thread, who currently answers a method).
  */
 @AutoService(Processor.class)
-@SupportedAnnotationTypes(ApiProcessor.API)
+@SupportedAnnotationTypes(ApiProcessor.SPEC)
 public final class ApiProcessor extends AbstractProcessor {
     static final String API_PACKAGE = "net.magicterra.worlddriver.api";
-    static final String API = API_PACKAGE + ".Api";
+    static final String SPEC = API_PACKAGE + ".Spec";
     static final String CALL_CONTEXT = API_PACKAGE + ".CallContext";
     static final String METHOD_SPEC = API_PACKAGE + ".contract.MethodSpec";
     static final String COMPLETION_STAGE = "java.util.concurrent.CompletionStage";
@@ -53,13 +53,13 @@ public final class ApiProcessor extends AbstractProcessor {
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment round) {
-        TypeElement api = processingEnv.getElementUtils().getTypeElement(API);
+        TypeElement api = processingEnv.getElementUtils().getTypeElement(SPEC);
         if (api == null || annotations.isEmpty()) return false;
         Set<TypeElement> interfaces = new LinkedHashSet<>();
         for (Element e : round.getElementsAnnotatedWith(api)) {
             Element owner = e.getEnclosingElement();
             if (owner.getKind() != ElementKind.INTERFACE) {
-                error(e, "@Api binds a method of an interface; " + owner.getSimpleName() + " is not one");
+                error(e, "@Spec binds a method of an interface; " + owner.getSimpleName() + " is not one");
                 continue;
             }
             interfaces.add((TypeElement) owner);
@@ -75,7 +75,7 @@ public final class ApiProcessor extends AbstractProcessor {
     private List<Bound> check(TypeElement iface, TypeElement api) {
         boolean ok = true;
         if (!iface.getTypeParameters().isEmpty()) {
-            error(iface, "an @Api interface cannot be generic: each method calls one fixed spec");
+            error(iface, "an @Spec interface cannot be generic: each method calls one fixed spec");
             ok = false;
         }
         List<Bound> out = new ArrayList<>();
@@ -85,7 +85,7 @@ public final class ApiProcessor extends AbstractProcessor {
             if (!m.getModifiers().contains(Modifier.ABSTRACT)) continue;
             AnnotationMirror mirror = mirrorOf(m, api);
             if (mirror == null) {
-                error(m, "every abstract method of " + iface.getSimpleName() + " needs @Api: the binding has to "
+                error(m, "every abstract method of " + iface.getSimpleName() + " needs @Spec: the binding has to "
                         + "send it somewhere");
                 ok = false;
                 continue;
@@ -116,11 +116,11 @@ public final class ApiProcessor extends AbstractProcessor {
             if (key.equals("spec")) field = (String) v;
         }
         if (holder == null) {
-            error(m, mirror, "@Api names no class declaring the spec");
+            error(m, mirror, "@Spec names no class declaring the spec");
             return null;
         }
         if (!m.getTypeParameters().isEmpty()) {
-            error(m, "an @Api method cannot be generic: its spec fixes its types");
+            error(m, "an @Spec method cannot be generic: its spec fixes its types");
             return null;
         }
 
@@ -144,7 +144,7 @@ public final class ApiProcessor extends AbstractProcessor {
         }
         TypeMirror p = specArgs.get(0);
         TypeMirror r = specArgs.get(1);
-        String shape = "an @Api method is CompletionStage<" + r + "> " + m.getSimpleName() + "(" + p
+        String shape = "an @Spec method is CompletionStage<" + r + "> " + m.getSimpleName() + "(" + p
                 + " params, CallContext ctx), as " + holder.getSimpleName() + "." + field + " fixes";
 
         List<? extends VariableElement> params = m.getParameters();

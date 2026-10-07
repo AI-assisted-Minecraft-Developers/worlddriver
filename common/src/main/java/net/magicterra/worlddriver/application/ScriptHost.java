@@ -3,12 +3,12 @@ package net.magicterra.worlddriver.application;
 import java.util.concurrent.CompletionStage;
 
 import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.methods.ScriptContracts.EvalParams;
-import net.magicterra.worlddriver.api.methods.ScriptContracts.Outcome;
-import net.magicterra.worlddriver.api.methods.ScriptContracts.PlaybookOp;
-import net.magicterra.worlddriver.api.methods.ScriptContracts.PlaybookReply;
-import net.magicterra.worlddriver.api.methods.ScriptContracts.SkillOp;
-import net.magicterra.worlddriver.api.methods.ScriptContracts.SkillReply;
+import net.magicterra.worlddriver.api.methods.script.ScriptContracts.EvalParams;
+import net.magicterra.worlddriver.api.methods.script.ScriptContracts.Outcome;
+import net.magicterra.worlddriver.api.methods.script.ScriptContracts.PlaybookOp;
+import net.magicterra.worlddriver.api.methods.script.ScriptContracts.PlaybookReply;
+import net.magicterra.worlddriver.api.methods.script.ScriptContracts.SkillOp;
+import net.magicterra.worlddriver.api.methods.script.ScriptContracts.SkillReply;
 
 /**
  * What runs scripts. Bound at startup by the platform bootstrap, so the application does not load the

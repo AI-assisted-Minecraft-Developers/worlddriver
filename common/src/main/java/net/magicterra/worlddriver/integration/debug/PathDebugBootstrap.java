@@ -6,9 +6,9 @@ import net.magicterra.worlddriver.api.ApiHandlers;
 import net.magicterra.worlddriver.api.ApiRegistry;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.methods.DebugCalls;
-import net.magicterra.worlddriver.api.methods.DebugCallsBinding;
-import net.magicterra.worlddriver.api.methods.DebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.DebugApi;
+import net.magicterra.worlddriver.api.methods.debug.DebugApiBinding;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.pathfinder.MultiTrace;
 import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
@@ -53,12 +53,12 @@ public final class PathDebugBootstrap {
     private static ApiBatch batch(DriverApi api) {
         if (api != batchApi) {
             batchApi = api;
-            batch = new ApiBatch(ApiRegistry.CORE_OWNER, "debug", DebugCallsBinding.methods(new Methods(api)));
+            batch = new ApiBatch(ApiRegistry.CORE_OWNER, "debug", DebugApiBinding.methods(new Methods(api)));
         }
         return batch;
     }
 
-    private record Methods(DriverApi api) implements DebugCalls {
+    private record Methods(DriverApi api) implements DebugApi {
         @Override
         public CompletionStage<DebugContracts.Chart> pathChart(DebugContracts.ChartParams p, CallContext ctx) {
             return ApiHandlers.run(() -> PathChartTool.render(p));

@@ -47,8 +47,8 @@ import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.WaitPermits;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.DecodeContext;
-import net.magicterra.worlddriver.api.methods.CommonTypes;
-import net.magicterra.worlddriver.api.methods.EventStreamContract;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
+import net.magicterra.worlddriver.api.methods.shared.EventStreamContracts;
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.protocol.JsonRpcFrames;
 import java.io.Closeable;
@@ -431,21 +431,21 @@ public final class RpcServer implements Closeable {
         private Map<String, Object> subscriptionControl(String method, Object params, Channel ch, Object id) {
             try {
                 Object tree = params == null ? Map.of() : params;
-                if (EventStreamContract.SUBSCRIBE.equals(method)) {
-                    EventStreamContract.SubscribeParams p = EventStreamContract.SUBSCRIBE_PARAMS.decode(tree);
+                if (EventStreamContracts.SUBSCRIBE.equals(method)) {
+                    EventStreamContracts.SubscribeParams p = EventStreamContracts.SUBSCRIBE_PARAMS.decode(tree);
                     Set<String> types = new LinkedHashSet<>(p.types().orElse(List.of()));
                     // Event type names are open-world (scripts mint their own), so an unknown name
                     // cannot be rejected; the ack echoes what was installed, and allTypes says
                     // outright that an empty filter means every type.
                     ch.attr(FILTER).set(types.isEmpty() ? null : types);
                     subscribers.add(ch);
-                    return JsonRpcFrames.result(id, EventStreamContract.SUBSCRIPTION.encode(
-                            new EventStreamContract.Subscription(true, List.copyOf(types), types.isEmpty())));
+                    return JsonRpcFrames.result(id, EventStreamContracts.SUBSCRIPTION.encode(
+                            new EventStreamContracts.Subscription(true, List.copyOf(types), types.isEmpty())));
                 }
                 CommonTypes.NO_PARAMS.decode(tree);
                 subscribers.remove(ch);
                 ch.attr(FILTER).set(null);
-                return JsonRpcFrames.result(id, EventStreamContract.UNSUBSCRIBED.encode(new EventStreamContract.Unsubscribed(false)));
+                return JsonRpcFrames.result(id, EventStreamContracts.UNSUBSCRIBED.encode(new EventStreamContracts.Unsubscribed(false)));
             } catch (RuntimeException bad) {
                 ApiError e = ApiRegistry.asApi(bad).error();
                 return JsonRpcFrames.error(id, e.code().rpcCode, e.message(), ApiErrors.toTree(e));

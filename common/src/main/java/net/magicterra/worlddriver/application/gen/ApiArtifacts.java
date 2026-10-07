@@ -16,7 +16,7 @@ import net.magicterra.worlddriver.api.contract.DecodeContext;
 import net.magicterra.worlddriver.api.contract.WireName;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
 import net.magicterra.worlddriver.api.contract.TsContext;
-import net.magicterra.worlddriver.api.methods.DebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
 import net.magicterra.worlddriver.application.CoreMethods;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 

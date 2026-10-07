@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.util;
 
-import net.magicterra.worlddriver.api.methods.HandContracts.Hand;
-import net.magicterra.worlddriver.api.methods.HandContracts.Interaction;
+import net.magicterra.worlddriver.api.methods.interact.InteractContracts.Hand;
+import net.magicterra.worlddriver.api.methods.interact.InteractContracts.Interaction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;

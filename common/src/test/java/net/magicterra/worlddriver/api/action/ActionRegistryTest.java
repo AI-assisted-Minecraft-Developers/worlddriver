@@ -14,12 +14,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import net.magicterra.worlddriver.api.RunContext;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.methods.ActionContract.CancelReason;
-import net.magicterra.worlddriver.api.methods.ActionContract.Cancelled;
-import net.magicterra.worlddriver.api.methods.ActionContract.Failed;
-import net.magicterra.worlddriver.api.methods.ActionContract.Succeeded;
-import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
-import net.magicterra.worlddriver.api.methods.ActionContract.Running;
+import net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Cancelled;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Failed;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Succeeded;
+import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Running;
 import org.junit.jupiter.api.Test;
 
 class ActionRegistryTest {

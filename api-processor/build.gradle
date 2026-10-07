@@ -1,4 +1,4 @@
-// Generates each @Api interface's caller and registry entries while :common compiles; see
+// Generates each @Spec interface's caller and registry entries while :common compiles; see
 // docs/dev/java-api.md. On :common's annotationProcessor path only, so nothing here reaches a jar or a POM.
 plugins {
     id 'java'

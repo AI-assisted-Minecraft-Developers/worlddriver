@@ -13,9 +13,9 @@ import java.util.function.Supplier;
 import net.magicterra.worlddriver.api.RunContext;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.methods.ActionContract.ActionSnapshot;
-import net.magicterra.worlddriver.api.methods.ActionContract.CancelReason;
-import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ActionSnapshot;
+import net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason;
+import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 
 /**
  * Every action this JVM has accepted and not yet forgotten. Running actions are never evicted; the

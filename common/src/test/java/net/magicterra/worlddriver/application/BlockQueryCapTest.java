@@ -44,9 +44,9 @@ class BlockQueryCapTest {
     @Test
     void theLargestAllowedRadiusFitsTheBudgetAndPassesValidation() {
         long side = 2L * BlockQuery.MAX_RADIUS + 1;
-        assertTrue(side * side * side <= WorldApi.MAX_VOLUME);
+        assertTrue(side * side * side <= WorldService.MAX_VOLUME);
         long over = side + 2;
-        assertTrue(over * over * over > WorldApi.MAX_VOLUME, "MAX_RADIUS is the largest radius that fits");
+        assertTrue(over * over * over > WorldService.MAX_VOLUME, "MAX_RADIUS is the largest radius that fits");
         // Accepted: what stops it here is only the missing server.
         ApiError e = query(BlockQuery.MAX_RADIUS);
         assertEquals(ApiError.Code.CAPABILITY_UNAVAILABLE, e.code(), String.valueOf(e));

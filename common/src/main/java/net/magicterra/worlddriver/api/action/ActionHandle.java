@@ -6,14 +6,14 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-import net.magicterra.worlddriver.api.methods.ActionContract.ActionSnapshot;
-import net.magicterra.worlddriver.api.methods.ActionContract.CancelReason;
-import net.magicterra.worlddriver.api.methods.ActionContract.Cancelled;
-import net.magicterra.worlddriver.api.methods.ActionContract.Failed;
-import net.magicterra.worlddriver.api.methods.ActionContract.FailureReason;
-import net.magicterra.worlddriver.api.methods.ActionContract.Running;
-import net.magicterra.worlddriver.api.methods.ActionContract.Succeeded;
-import net.magicterra.worlddriver.api.methods.ActionContract.Superseded;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ActionSnapshot;
+import net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Cancelled;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Failed;
+import net.magicterra.worlddriver.api.methods.shared.Responses.FailureReason;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Running;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Succeeded;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Superseded;
 
 /**
  * One accepted action: its identity, and its state, which moves from running to one terminal state

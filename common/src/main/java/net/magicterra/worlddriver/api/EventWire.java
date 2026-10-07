@@ -2,8 +2,8 @@ package net.magicterra.worlddriver.api;
 
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.EventContracts;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.model.DriverEvent;
 
 /**

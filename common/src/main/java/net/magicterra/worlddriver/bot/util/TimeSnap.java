@@ -18,7 +18,7 @@ import java.util.Map;
  * disagreeing before it did. The day-phase bucketing was written three times:
  *
  * <ul>
- *   <li>{@code ObserveApi.playerSnapshot} — {@code ((dt % 24000) + 24000) % 24000}</li>
+ *   <li>{@code ObserveService.playerSnapshot} — {@code ((dt % 24000) + 24000) % 24000}</li>
  *   <li>{@code ClientEventDetector}'s {@code time.phase} event —
  *       {@code dt % 24000; if (tod &lt; 0) tod += 24000}</li>
  *   <li>{@code ClientObserve.observePlayer} — {@code dt % 24000}, and nothing else</li>

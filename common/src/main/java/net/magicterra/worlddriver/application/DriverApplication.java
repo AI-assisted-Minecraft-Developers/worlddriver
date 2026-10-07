@@ -9,7 +9,7 @@ import net.magicterra.worlddriver.api.ServerThreadGuard;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.contract.JsonValue;
-import net.magicterra.worlddriver.api.methods.EventContracts;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.minecraft.core.BlockPos;
@@ -34,21 +34,21 @@ import net.magicterra.worlddriver.client.ClientDriverApi;
  * batch. Operates on the live ServerLevel, dispatching writes to the server thread.
  *
  * The {@code mc.system/observe/action/wait} verb groups are implemented in the
- * sibling {@link SystemApi} / {@link ObserveApi} / {@link ActionApi} /
- * {@link WaitApi} handlers (each holding a back-reference to this instance for
+ * sibling {@link SystemService} / {@link ObserveService} / {@link ActionService} /
+ * {@link WaitService} handlers (each holding a back-reference to this instance for
  * the shared server handle, event ring buffer, and server-thread hop); pure
  * parse/encode helpers live in {@link ApiSupport}. Every transport dispatches
  * through the registry {@link DriverApi} holds, so a core method is wired here
  * and in {@link CoreMethods}, nowhere else.
  */
 public final class DriverApplication extends DriverApi {
-    public final SystemApi system = new SystemApi(this);
-    public final ObserveApi observe = new ObserveApi(this);
-    public final ActionApi action = new ActionApi(this);
-    public final WaitApi wait = new WaitApi(this);
-    public final WorldApi world = new WorldApi(this);
-    public final RecipeApi recipe = new RecipeApi(this);
-    public final EventsApi eventsApi = new EventsApi(this);
+    public final SystemService system = new SystemService(this);
+    public final ObserveService observe = new ObserveService(this);
+    public final ActionService action = new ActionService(this);
+    public final WaitService wait = new WaitService(this);
+    public final WorldService world = new WorldService(this);
+    public final RecipeService recipe = new RecipeService(this);
+    public final EventService eventService = new EventService(this);
 
     static final BlockPos ORIGIN = new BlockPos(0, 200, 0);
 
@@ -82,17 +82,18 @@ public final class DriverApplication extends DriverApi {
     private final ApiBatch coreBatch = new ApiBatch(ApiRegistry.CORE_OWNER, "core", coreMethods());
 
     private List<ApiMethod<?, ?>> coreMethods() {
-        List<ApiMethod<?, ?>> all = new ArrayList<>(new BotActions(this).methods());
-        all.addAll(new ScriptMethods(() -> scriptHost).methods());
-        all.addAll(eventsApi.methods());
+        List<ApiMethod<?, ?>> all = new ArrayList<>(new BotTaskService(this).methods());
+        all.addAll(new ScriptService(() -> scriptHost).methods());
+        all.addAll(eventService.methods());
         all.addAll(wait.methods());
         all.addAll(system.methods());
         all.addAll(observe.methods());
-        all.addAll(new QueryApi(this).methods());
+        all.addAll(new QueryService(this).methods());
         all.addAll(world.methods());
         all.addAll(action.methods());
         all.addAll(recipe.methods());
-        all.addAll(new ClientMethods(this).methods());
+        all.addAll(new ScreenService(this).methods());
+        all.addAll(new ClientService().methods());
         return all;
     }
 
@@ -128,7 +129,7 @@ public final class DriverApplication extends DriverApi {
     public int restoreCellsOnServer(List<WorldCell> cells) {
         ServerLevel level = level();
         return onServerThread(() -> {
-            WorldApi.restoreCells(level, cells);
+            WorldService.restoreCells(level, cells);
             return cells.size();
         });
     }
@@ -136,7 +137,7 @@ public final class DriverApplication extends DriverApi {
     public void detachServer() {
         this.server = null;
         ServerThreadGuard.uninstall();
-        eventsApi.clear(); // stop condition watchers — their routes need the server
+        eventService.clear(); // stop condition watchers — their routes need the server
         clearEvents();
         world.clearSnapshots();
     }

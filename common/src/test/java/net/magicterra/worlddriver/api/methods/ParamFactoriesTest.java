@@ -3,8 +3,13 @@ package net.magicterra.worlddriver.api.methods;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import net.magicterra.worlddriver.api.contract.ApiType;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.bot.SettingsContract;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.bot.SettingsContracts;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -26,13 +31,13 @@ class ParamFactoriesTest {
 
     @Test
     void gotoFactoriesMatchTheContractsDefaults() {
-        same(GotoContract.PARAMS, "{\"target\":{\"kind\":\"position\",\"pos\":" + POS_JSON + "}}",
-                GotoContract.Params.to(POS));
-        same(GotoContract.PARAMS, "{\"target\":{\"kind\":\"level\",\"y\":12}}",
-                GotoContract.Params.toTarget(new GotoContract.Level(12)));
-        same(GotoContract.PARAMS, "{\"planId\":\"p-1\"}", GotoContract.Params.walkPlan("p-1"));
-        same(GotoContract.PARAMS, "{\"target\":{\"kind\":\"position\",\"pos\":" + POS_JSON + "},\"awaitMs\":500}",
-                GotoContract.Params.to(POS).awaiting(500));
+        same(GotoContracts.PARAMS, "{\"target\":{\"kind\":\"position\",\"pos\":" + POS_JSON + "}}",
+                GotoContracts.Params.to(POS));
+        same(GotoContracts.PARAMS, "{\"target\":{\"kind\":\"level\",\"y\":12}}",
+                GotoContracts.Params.toTarget(new GotoContracts.Level(12)));
+        same(GotoContracts.PARAMS, "{\"planId\":\"p-1\"}", GotoContracts.Params.walkPlan("p-1"));
+        same(GotoContracts.PARAMS, "{\"target\":{\"kind\":\"position\",\"pos\":" + POS_JSON + "},\"awaitMs\":500}",
+                GotoContracts.Params.to(POS).awaiting(500));
     }
 
     @Test
@@ -45,11 +50,11 @@ class ParamFactoriesTest {
 
     @Test
     void queryFactoriesMatchTheContractsDefaults() {
-        same(QueryContract.PARAMS, "{\"q\":\"blocks\",\"center\":" + POS_JSON + ",\"filter\":{\"in_radius\":3}}",
-                QueryContract.Blocks.around(POS, 3));
-        same(QueryContract.PARAMS, "{\"q\":\"blocks\",\"center\":" + POS_JSON
+        same(QueryContracts.PARAMS, "{\"q\":\"blocks\",\"center\":" + POS_JSON + ",\"filter\":{\"in_radius\":3}}",
+                QueryContracts.Blocks.around(POS, 3));
+        same(QueryContracts.PARAMS, "{\"q\":\"blocks\",\"center\":" + POS_JSON
                         + ",\"filter\":{\"in_radius\":3,\"type\":\"minecraft:stone\"}}",
-                QueryContract.Blocks.around(POS, 3).ofType("minecraft:stone"));
+                QueryContracts.Blocks.around(POS, 3).ofType("minecraft:stone"));
         same(ClientContracts.BLOCKS_PARAMS, "{\"radius\":2}", ClientContracts.BlocksParams.aroundPlayer(2));
         same(ClientContracts.BLOCKS_PARAMS, "{\"center\":" + POS_JSON + ",\"radius\":2}",
                 ClientContracts.BlocksParams.around(POS, 2));
@@ -64,13 +69,13 @@ class ParamFactoriesTest {
 
     @Test
     void settingsFactoriesMatchTheContractsDefaults() {
-        same(SettingsContract.PARAMS, "{\"op\":\"read\",\"keys\":[\"autoEat\",\"allowBreak\"]}",
-                SettingsContract.Read.of("autoEat", "allowBreak"));
-        same(SettingsContract.PARAMS, "{\"op\":\"read\"}", SettingsContract.Read.all());
+        same(SettingsContracts.PARAMS, "{\"op\":\"read\",\"keys\":[\"autoEat\",\"allowBreak\"]}",
+                SettingsContracts.Read.of("autoEat", "allowBreak"));
+        same(SettingsContracts.PARAMS, "{\"op\":\"read\"}", SettingsContracts.Read.all());
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("autoEat", true);
         values.put("allowBreak", false);
-        same(SettingsContract.PARAMS, "{\"op\":\"patch\",\"values\":{\"autoEat\":true,\"allowBreak\":false}}",
-                SettingsContract.Patch.of(values));
+        same(SettingsContracts.PARAMS, "{\"op\":\"patch\",\"values\":{\"autoEat\":true,\"allowBreak\":false}}",
+                SettingsContracts.Patch.of(values));
     }
 }

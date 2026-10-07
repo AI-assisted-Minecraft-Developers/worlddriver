@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.bot.util.NearestFirstScan;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
-import net.magicterra.worlddriver.api.methods.CommonTypes;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import java.util.function.Predicate;
 
 /**

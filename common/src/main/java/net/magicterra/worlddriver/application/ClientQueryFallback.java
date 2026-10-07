@@ -3,18 +3,18 @@ package net.magicterra.worlddriver.application;
 import net.magicterra.worlddriver.api.UnloadedAreaException;
 import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
-import net.magicterra.worlddriver.api.methods.ClientContracts.BlockScan;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ChunkRef;
-import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
-import net.magicterra.worlddriver.api.methods.QueryContract.BlockRow;
-import net.magicterra.worlddriver.api.methods.QueryContract.BlockRows;
-import net.magicterra.worlddriver.api.methods.QueryContract.Blocks;
-import net.magicterra.worlddriver.api.methods.QueryContract.Entities;
-import net.magicterra.worlddriver.api.methods.QueryContract.EntityFilter;
-import net.magicterra.worlddriver.api.methods.QueryContract.EntityRow;
-import net.magicterra.worlddriver.api.methods.QueryContract.EntityRows;
-import net.magicterra.worlddriver.api.methods.QueryContract.Query;
-import net.magicterra.worlddriver.api.methods.QueryContract.Rows;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockScan;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChunkRef;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.BlockRow;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.BlockRows;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.Blocks;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.Entities;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.EntityFilter;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.EntityRow;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.EntityRows;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.Query;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.Rows;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -68,7 +68,7 @@ final class ClientQueryFallback {
             if (wantType != null && !row.type().orElseThrow().equals(wantType)) continue;
             // The client scan puts health on exactly the LivingEntity rows.
             if (f.isLiving().isPresent() && f.isLiving().get() != row.health().isPresent()) continue;
-            out.add(QueryApi.select(row, e.select()));
+            out.add(QueryService.select(row, e.select()));
         }
         return new EntityRows(out);
     }

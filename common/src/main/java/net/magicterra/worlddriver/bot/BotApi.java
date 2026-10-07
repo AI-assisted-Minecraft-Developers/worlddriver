@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot;
 
 import java.util.List;
 import java.util.Map;
-import net.magicterra.worlddriver.api.methods.TestInputContracts;
+import net.magicterra.worlddriver.api.methods.test.TestInputContracts;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 
@@ -18,25 +18,25 @@ import net.magicterra.worlddriver.bot.world.WorldModel;
  */
 public interface BotApi {
     /** {@code mc.bot.goto} on this client's player, with its waypoints, preview queue and plan cache. Client thread. */
-    GotoOrders.Order planGoto(net.magicterra.worlddriver.api.methods.GotoContract.Params params);
+    GotoOrders.Order planGoto(net.magicterra.worlddriver.api.methods.bot.GotoContracts.Params params);
 
     /** {@code mc.bot.goto} with {@code plan: 'score'}. Client thread. */
-    net.magicterra.worlddriver.api.methods.GotoContract.Scored scoreGoto(net.magicterra.worlddriver.api.methods.GotoContract.Params params);
+    net.magicterra.worlddriver.api.methods.shared.Responses.Scored scoreGoto(net.magicterra.worlddriver.api.methods.bot.GotoContracts.Params params);
 
     /**
      * {@code mc.bot.combat} on this client's player: the combat chain takes the fight at priority
      * COMBAT (60), above the user task, and ends {@code action} with it; a retreat or dodge only pauses
      * it. Binds the action's stopper. <b>Client thread only.</b>
      */
-    void engage(net.magicterra.worlddriver.api.methods.CombatContract.Params params,
+    void engage(net.magicterra.worlddriver.api.methods.bot.CombatContracts.Params params,
                 net.magicterra.worlddriver.api.action.ActionHandle action);
     /** {@code mc.bot.equip}: the best armour, and unless armour only the best weapon. Client thread. */
-    net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse equip(
-            net.magicterra.worlddriver.api.methods.HandContracts.EquipParams params);
+    net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse equip(
+            net.magicterra.worlddriver.api.methods.interact.InteractContracts.EquipParams params);
 
     /** {@code mc.bot.holdItem} on this client's player: hotbar select or main-inventory swap. Client thread. */
-    net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse holdItem(
-            net.magicterra.worlddriver.api.methods.HandContracts.HoldParams params);
+    net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse holdItem(
+            net.magicterra.worlddriver.api.methods.interact.InteractContracts.HoldParams params);
 
     /**
      * {@code mc.bot.useItem} on this client's player: the click a right mouse button sends, in the air, on
@@ -44,20 +44,20 @@ public interface BotApi {
      * the click, since the server's answer arrives on a later tick; {@link #afterUse} reads them again.
      * Client thread.
      */
-    net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse useItem(
-            net.magicterra.worlddriver.api.methods.HandContracts.UseParams params);
+    net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse useItem(
+            net.magicterra.worlddriver.api.methods.interact.InteractContracts.UseParams params);
 
     /** {@code on} with the vehicle and screen this client's player has now. Client thread. */
-    net.magicterra.worlddriver.api.methods.HandContracts.OnEntity afterUse(
-            net.magicterra.worlddriver.api.methods.HandContracts.OnEntity on);
+    net.magicterra.worlddriver.api.methods.interact.InteractContracts.OnEntity afterUse(
+            net.magicterra.worlddriver.api.methods.interact.InteractContracts.OnEntity on);
 
     /**
      * {@code mc.bot.attackEntity} on this client's player: one left click on an entity, through
      * {@code MultiPlayerGameMode.attack}, so the server applies the weapon, the cooldown, crits and
      * sweeps. Client thread.
      */
-    net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse attackEntity(
-            net.magicterra.worlddriver.api.methods.HandContracts.AttackParams params);
+    net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse attackEntity(
+            net.magicterra.worlddriver.api.methods.interact.InteractContracts.AttackParams params);
     /**
      * {@code mc.bot.cancel} on this client's player: {@code which} is all, a process kind or a reflex chain.
      * Answers what it stopped; all answers {@code [all]}, a best-effort broadcast.
@@ -68,7 +68,7 @@ public interface BotApi {
     Map<String, Object> status();
 
     /** {@code mc.bot.status} for this client's player. Client thread. */
-    net.magicterra.worlddriver.api.methods.ControlContracts.BodyStatus bodyStatus();
+    net.magicterra.worlddriver.api.methods.control.ControlContracts.BodyStatus bodyStatus();
 
     /** Whether every process is held still: the {@code paused} setting. */
     boolean paused();
@@ -119,8 +119,8 @@ public interface BotApi {
      * {@code mc.bot.waypoint}: named positions kept for the lifetime of the bot impl, for goto's waypoint
      * target. A save without {@code pos} takes the player's block. Client thread.
      */
-    net.magicterra.worlddriver.api.methods.ControlContracts.WaypointReply waypoint(
-            net.magicterra.worlddriver.api.methods.ControlContracts.WaypointOp op);
+    net.magicterra.worlddriver.api.methods.control.ControlContracts.WaypointReply waypoint(
+            net.magicterra.worlddriver.api.methods.control.ControlContracts.WaypointOp op);
 
     /**
      * Per-tick derived-facts blackboard updated on the client tick. Returns the

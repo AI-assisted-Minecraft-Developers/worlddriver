@@ -73,7 +73,7 @@ class EventMutePolicyTest {
         // The event is appended to the replay ring BEFORE the dispatch that applies the
         // mute, so mc.observe.eventsSince still returns it — muting is an opt-out from
         // the live push, not from history. Reading the ring back needs a running server
-        // (ObserveApi.eventsSince calls api.level()), so what is asserted here is that
+        // (ObserveService.eventsSince calls api.level()), so what is asserted here is that
         // emit still assigns a sequence number to a muted event: if the filter had been
         // hoisted above the append, the event would not exist at all and the seq would
         // not advance.

@@ -1,8 +1,8 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.api.methods.CommonTypes.Direction;
-import net.magicterra.worlddriver.api.methods.ClearAreaContract.Tunnel;
-import net.magicterra.worlddriver.api.methods.ClearAreaContract.WidthBias;
+import net.magicterra.worlddriver.api.methods.bot.ClearAreaContracts.Tunnel;
+import net.magicterra.worlddriver.api.methods.bot.ClearAreaContracts.WidthBias;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Direction;
 
 /**
  * The box a {@code clearArea} region covers, as plain arithmetic: no world, no entity, so every case

@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-07
 
-- **Java code calls methods through typed interfaces.** An interface such as `SettingsCalls` gives each
+- **Java code calls methods through typed interfaces.** An interface such as `SettingsApi` gives each
   method a Java name, with the contract's records as parameters and result; an annotation processor
   checks it against the method's spec while `:common` compiles and generates its caller and registry
   entries, so a mismatch fails the build rather than the game. The caller goes through the registry

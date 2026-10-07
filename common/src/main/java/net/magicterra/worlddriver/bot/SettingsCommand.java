@@ -8,13 +8,13 @@ import java.util.Set;
 
 import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.KeyedValueType.Entry;
-import net.magicterra.worlddriver.bot.SettingsContract.AvoidPoint;
+import net.magicterra.worlddriver.bot.SettingsContracts.AvoidPoint;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
 
 /**
  * Reads and writes the {@code mc.bot.setting} keys in {@link BotConfig}. Types and ranges are the
- * contract's ({@link SettingsContract}), so a value that reaches {@link #commit} is already the right
+ * contract's ({@link SettingsContracts}), so a value that reaches {@link #commit} is already the right
  * type and in range; what is left here is the check the contract cannot make without the game (that a
  * block id names a registered block) and the writes themselves.
  *

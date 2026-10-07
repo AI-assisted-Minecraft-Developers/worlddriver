@@ -4,12 +4,13 @@ import java.util.Optional;
 import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
-import net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse;
-import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
-import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.HandContracts;
-import net.magicterra.worlddriver.api.methods.HandContracts.Face;
+import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
+import net.magicterra.worlddriver.api.methods.interact.InteractContracts.Face;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
+import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
 import net.magicterra.worlddriver.bot.body.BodyHost;
 import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.util.BotUtil;
@@ -49,30 +50,30 @@ final class BodyInteractions {
     private static final double REACH_SLACK = 1.0;
 
     /** Yaw and pitch from {@code self}'s eyes to {@code p}'s block or angles. */
-    static float[] aim(LivingEntity self, HandContracts.LookParams p) {
+    static float[] aim(LivingEntity self, InteractContracts.LookParams p) {
         if (p.pos().isEmpty()) return new float[]{p.yaw().orElseThrow().floatValue(), p.pitch().orElseThrow().floatValue()};
         BlockPosition at = p.pos().get();
         return HandVerbs.anglesTo(self.getEyePosition(), at.x() + 0.5, at.y() + 0.5, at.z() + 0.5);
     }
 
     /** An instant look, on whichever body's thread {@code self} belongs to. */
-    static HandContracts.Turned turn(LivingEntity self, HandContracts.LookParams p) {
+    static Responses.Turned turn(LivingEntity self, InteractContracts.LookParams p) {
         float[] aim = aim(self, p);
         HandVerbs.turn(self, aim);
-        return new HandContracts.Turned(aim[0], aim[1]);
+        return new Responses.Turned(aim[0], aim[1]);
     }
 
     /** The item into the main hand through {@link Hands#holdItem}, the reach every process trusts. */
-    static ImmediateResponse holdItem(BodyHost host, HandContracts.HoldParams p) {
+    static ImmediateResponse holdItem(BodyHost host, InteractContracts.HoldParams p) {
         Hands hands = host.body().hands().orElse(null);
         if (hands == null) return noHands(host);
         Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, p.item()).orElseThrow(() -> ApiException.invalidParam(
                 "/item", ApiIssue.Code.INVALID_VALUE, "no item " + p.item() + " in this game"));
-        return hands.holdItemOrEmptyHand(item) ? new HandContracts.Held(RegistryIds.itemId(host.entity().getMainHandItem()))
+        return hands.holdItemOrEmptyHand(item) ? new Responses.Held(RegistryIds.itemId(host.entity().getMainHandItem()))
                 : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, Hands.cannotHold(item, host.id()));
     }
 
-    static ImmediateResponse useItem(BodyHost host, HandContracts.UseParams p) {
+    static ImmediateResponse useItem(BodyHost host, InteractContracts.UseParams p) {
         ServerPlayer sp = host.body().hands().isPresent() && host.entity() instanceof ServerPlayer s ? s : null;
         if (sp == null) return noHands(host);
         if (p.entityId().isPresent()) return useOnEntity(sp, p, p.entityId().get());
@@ -81,10 +82,10 @@ final class BodyInteractions {
         sp.setShiftKeyDown(false);
         InteractionResult result = sp.gameMode.useItem(sp, sp.serverLevel(), sp.getItemInHand(hand), hand);
         if (result.consumesAction()) sp.swing(hand, true);
-        return new HandContracts.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(), new HandContracts.InAir());
+        return new Responses.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(), new InteractContracts.InAir());
     }
 
-    private static ImmediateResponse useOnBlock(ServerPlayer sp, HandContracts.UseParams p, BlockPosition at) {
+    private static ImmediateResponse useOnBlock(ServerPlayer sp, InteractContracts.UseParams p, BlockPosition at) {
         BlockPos pos = Positions.blockPos(at);
         Direction face = p.face().map(f -> Direction.byName(f.wireName())).orElseGet(() -> BotUtil.faceTowardEye(pos, sp));
         InteractionHand hand = HandVerbs.hand(p.hand());
@@ -97,11 +98,11 @@ final class BodyInteractions {
         InteractionResult result = sp.gameMode.useItemOn(sp, sp.serverLevel(), sp.getItemInHand(hand), hand,
                 new BlockHitResult(hit, face, pos, false));
         if (result.consumesAction()) sp.swing(hand, true);
-        return new HandContracts.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(),
-                new HandContracts.OnBlock(at, Face.valueOf(face.name())));
+        return new Responses.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(),
+                new InteractContracts.OnBlock(at, Face.valueOf(face.name())));
     }
 
-    private static ImmediateResponse useOnEntity(ServerPlayer sp, HandContracts.UseParams p, int entityId) {
+    private static ImmediateResponse useOnEntity(ServerPlayer sp, InteractContracts.UseParams p, int entityId) {
         Entity target = sp.serverLevel().getEntity(entityId);
         if (target == null) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + entityId);
         if (target == sp) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot interact with self");
@@ -120,8 +121,8 @@ final class BodyInteractions {
             if (!result.consumesAction()) result = sp.interactOn(target, hand);
             if (result.consumesAction()) sp.swing(hand, true);
             Entity vehicle = sp.getVehicle();
-            return new HandContracts.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(),
-                    new HandContracts.OnEntity(entityId, RegistryIds.typeId(target), distance,
+            return new Responses.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(),
+                    new InteractContracts.OnEntity(entityId, RegistryIds.typeId(target), distance,
                             vehicle == null ? Optional.empty() : Optional.of(RegistryIds.typeId(vehicle)), Optional.empty(),
                             sp.containerMenu == sp.inventoryMenu ? Optional.empty()
                                     : Optional.of(sp.containerMenu.getClass().getSimpleName())));
@@ -131,7 +132,7 @@ final class BodyInteractions {
     }
 
     /** Through {@link Hands#attackEntity}, as the client's verb goes: the footing guard lives on that one path. */
-    static ImmediateResponse attackEntity(BodyHost host, HandContracts.AttackParams p) {
+    static ImmediateResponse attackEntity(BodyHost host, InteractContracts.AttackParams p) {
         Hands hands = host.body().hands().orElse(null);
         if (hands == null) return noHands(host);
         LivingEntity self = host.entity();
@@ -151,7 +152,7 @@ final class BodyInteractions {
         self.setYRot(aim[0]);
         self.setXRot(aim[1]);
         self.swing(InteractionHand.MAIN_HAND, true);
-        return new HandContracts.Attacked(p.entityId(), RegistryIds.typeId(target), target.isAlive(), distance);
+        return new Responses.Attacked(p.entityId(), RegistryIds.typeId(target), target.isAlive(), distance);
     }
 
     private static ImmediateResponse noHands(BodyHost host) {

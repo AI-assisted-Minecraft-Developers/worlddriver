@@ -7,17 +7,17 @@ import net.magicterra.worlddriver.bot.process.RouteEvents;
 import net.magicterra.worlddriver.bot.util.HandVerbs;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
-import net.magicterra.worlddriver.api.methods.ActionContract;
-import net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse;
-import net.magicterra.worlddriver.api.methods.CombatContract;
-import net.magicterra.worlddriver.api.methods.ControlContracts;
+import net.magicterra.worlddriver.api.methods.bot.CombatContracts;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
+import net.magicterra.worlddriver.api.methods.test.TestInputContracts;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
-import net.magicterra.worlddriver.api.methods.GotoContract;
-import net.magicterra.worlddriver.api.methods.HandContracts;
-import net.magicterra.worlddriver.api.methods.TestInputContracts;
 import java.util.Optional;
-import net.magicterra.worlddriver.api.methods.RouteContract;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
@@ -204,7 +204,7 @@ public final class BotApiImpl implements BotApi {
 
     /** Client thread. */
     @Override
-    public GotoOrders.Order planGoto(GotoContract.Params p) {
+    public GotoOrders.Order planGoto(GotoContracts.Params p) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (p.planId().isPresent()) return adoptPlan(p.planId().get());
         GotoOrders.Resolution resolution = GotoOrders.resolve(p, player, waypoints, type -> nearestRenderedEntity(player, type));
@@ -217,8 +217,8 @@ public final class BotApiImpl implements BotApi {
 
     /** Client thread: {@code plan: 'score'}, the caller's own line priced without a search. */
     @Override
-    public GotoContract.Scored scoreGoto(GotoContract.Params p) {
-        RouteContract.Route route = p.route().orElseThrow();
+    public Responses.Scored scoreGoto(GotoContracts.Params p) {
+        RouteContracts.Route route = p.route().orElseThrow();
         List<BlockPos> points = new ArrayList<>();
         for (var c : route.corridor().orElseThrow().points()) points.add(blockPos(c));
         return PreviewSearch.score(points, RouteParams.parse(route).profile(), scopeOf(Minecraft.getInstance().player));
@@ -235,7 +235,7 @@ public final class BotApiImpl implements BotApi {
     private GotoOrders.Order adoptPlan(String planId) {
         PreviewSearch.Plan plan = preview.take(planId);
         if (plan == null) {
-            return new GotoOrders.Refuse(ActionContract.RefusalReason.INVALID_WORLD_TARGET, "planId '" + planId
+            return new GotoOrders.Refuse(Responses.RefusalReason.INVALID_WORLD_TARGET, "planId '" + planId
                     + "' is unknown or expired (a preview is kept " + PreviewSearch.TTL_MS / 1000 + " s, the last "
                     + PreviewSearch.KEEP + " of them)");
         }
@@ -249,10 +249,10 @@ public final class BotApiImpl implements BotApi {
             adopted = WalkerPlanAdoption.adopt(process.walker(), plan.legs.get(0), world, Minecraft.getInstance().player.blockPosition());
             if (!adopted) why = "the walker refused the route: the bot is no longer near its start, or its first stretch is no longer walkable";
         }
-        GotoContract.Adoption adoption = new GotoContract.Adoption(planId, adopted,
+        GotoContracts.Adoption adoption = new GotoContracts.Adoption(planId, adopted,
                 java.util.Optional.ofNullable(why == null ? null : why + "; searched normally instead"));
-        return new GotoOrders.Start(process, new GotoContract.Trip(plan.goals.get(plan.goals.size() - 1).toString(),
-                plan.goals.size() - 1, GotoContract.Travel.WALK, java.util.Optional.of(adoption)));
+        return new GotoOrders.Start(process, new GotoContracts.Trip(plan.goals.get(plan.goals.size() - 1).toString(),
+                plan.goals.size() - 1, GotoContracts.Travel.WALK, java.util.Optional.of(adoption)));
     }
 
     /**
@@ -310,22 +310,22 @@ public final class BotApiImpl implements BotApi {
     }
 
     @Override
-    public void engage(CombatContract.Params p, ActionHandle action) {
+    public void engage(CombatContracts.Params p, ActionHandle action) {
         Ticket ticket = ActionTickets.of(action);
         action.bindStopper(why -> Minecraft.getInstance().execute(() -> combatChain.cancelAction(ticket)));
         combatChain.engage(VerbOrders.mode(p.mode()), VerbOrders.entityId(p), VerbOrders.entityType(p), p.force(), ticket,
-                new CombatContract.Fought(p.mode(), p.target()));
+                new CombatContracts.Fought(p.mode(), p.target()));
     }
 
     @Override
-    public ImmediateResponse equip(HandContracts.EquipParams params) {
-        boolean armorOnly = params.armorOnly() || params.profile() == HandContracts.Profile.ARMOR;
+    public ImmediateResponse equip(InteractContracts.EquipParams params) {
+        boolean armorOnly = params.armorOnly() || params.profile() == InteractContracts.Profile.ARMOR;
         LocalPlayer player = Minecraft.getInstance().player;
         AutoEquip.Result r = AutoEquip.equipBest(Minecraft.getInstance(), player, !armorOnly, BotConfig.equipDurabilityThreshold);
-        return new HandContracts.Equipped(armorOnly ? HandContracts.Profile.ARMOR : params.profile(), r.equipped(),
-                new HandContracts.Loadout(slot(r, "head"), slot(r, "chest"), slot(r, "legs"), slot(r, "feet"), slot(r, "mainHand")),
+        return new Responses.Equipped(armorOnly ? InteractContracts.Profile.ARMOR : params.profile(), r.equipped(),
+                new InteractContracts.Loadout(slot(r, "head"), slot(r, "chest"), slot(r, "legs"), slot(r, "feet"), slot(r, "mainHand")),
                 r.lowDurability(),
-                r.missing().stream().map(s -> HandContracts.ArmorSlot.valueOf(s.toUpperCase(java.util.Locale.ROOT))).toList());
+                r.missing().stream().map(s -> InteractContracts.ArmorSlot.valueOf(s.toUpperCase(java.util.Locale.ROOT))).toList());
     }
 
     private static Optional<String> slot(AutoEquip.Result r, String name) {
@@ -461,22 +461,22 @@ public final class BotApiImpl implements BotApi {
     // pause/resume removed — handled inside setting() via the {paused:bool} key.
 
     @Override
-    public ImmediateResponse useItem(HandContracts.UseParams params) {
+    public ImmediateResponse useItem(InteractContracts.UseParams params) {
         return InteractionCommands.useItem(params);
     }
 
     @Override
-    public HandContracts.OnEntity afterUse(HandContracts.OnEntity on) {
+    public InteractContracts.OnEntity afterUse(InteractContracts.OnEntity on) {
         return InteractionCommands.afterUse(on);
     }
 
     @Override
-    public ImmediateResponse holdItem(HandContracts.HoldParams params) {
+    public ImmediateResponse holdItem(InteractContracts.HoldParams params) {
         return InteractionCommands.holdItem(params);
     }
 
     @Override
-    public ImmediateResponse attackEntity(HandContracts.AttackParams params) {
+    public ImmediateResponse attackEntity(InteractContracts.AttackParams params) {
         return InteractionCommands.attackEntity(params);
     }
 
@@ -631,7 +631,7 @@ public final class BotApiImpl implements BotApi {
             InteractionResult r = mc.gameMode.useItemOn(p, hand, hit);
             if (r.consumesAction()) p.swing(hand);
             return new TestInputContracts.UsedOnBlock(HandVerbs.interaction(r), r.consumesAction(),
-                    params.hand(), HandContracts.Face.valueOf(face.name()));
+                    params.hand(), InteractContracts.Face.valueOf(face.name()));
         });
     }
 

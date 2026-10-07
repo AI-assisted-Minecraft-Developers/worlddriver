@@ -7,8 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.methods.ObserveContracts.DensityOverlay;
-import net.magicterra.worlddriver.api.methods.ObserveContracts.SightOverlay;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.DensityOverlay;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.SightOverlay;
 
 import net.magicterra.worlddriver.bot.pathfinder.SearchScope;
 import net.magicterra.worlddriver.bot.pathfinder.ThreatSnapshot;

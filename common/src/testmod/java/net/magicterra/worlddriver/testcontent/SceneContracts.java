@@ -9,8 +9,8 @@ import net.magicterra.worlddriver.api.contract.ApiType;
 import net.magicterra.worlddriver.api.contract.ApiTypes;
 import net.magicterra.worlddriver.api.contract.JsonValue;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
-import net.magicterra.worlddriver.api.methods.CommonTypes;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 
 /**
  * The hand-built scene verbs' contracts: {@code worlddriver.mark} and {@code worlddriver.scene.*}. All

@@ -3,10 +3,10 @@ package net.magicterra.worlddriver.application;
 import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.api.UnloadedAreaException;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.QueryContract;
-import net.magicterra.worlddriver.api.methods.QueryContract.BlockField;
-import net.magicterra.worlddriver.api.methods.QueryContract.BlockRow;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.BlockField;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts.BlockRow;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +29,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
  */
 final class BlockQuery {
     /** The largest radius whose {@code (2r+1)^3} cube fits the cell budget: 31^3 = 29,791. */
-    static final int MAX_RADIUS = QueryContract.MAX_BLOCK_RADIUS;
+    static final int MAX_RADIUS = QueryContracts.MAX_BLOCK_RADIUS;
 
     private final int radius;
     private final Predicate<BlockState> match;
@@ -42,7 +42,7 @@ final class BlockQuery {
     }
 
     /** The contract has bounded the radius and the select keys; a {@code #tag} filter is resolved here. */
-    static BlockQuery of(QueryContract.Blocks p) {
+    static BlockQuery of(QueryContracts.Blocks p) {
         return new BlockQuery(p.filter().inRadius(), p.filter().type().map(BlockMatch::of).orElse(null), p.select());
     }
 

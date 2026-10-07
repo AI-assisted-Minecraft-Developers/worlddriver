@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
-import net.magicterra.worlddriver.api.methods.PlayerContract.Attack;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Attack;
 import net.magicterra.worlddriver.application.PlayerSnapshots;
 
 import net.magicterra.worlddriver.application.DriverApplication;

@@ -19,7 +19,7 @@ MAY_USE = {'schema': {'protocol', 'schema'},
 TRANSPORTS = ('rpc', 'mcp', 'script')
 # Classes not yet in their layer's subpackage, by the layer they belong to. Shrinks as they move.
 UNMOVED = {'api/' + name: layer for layer, names in {
-    'registry': 'Api ApiBatch ApiErrors ApiHandler ApiHandlers ApiMethod ApiRegistry DriverApi',
+    'registry': 'ApiBatch ApiErrors ApiHandler ApiHandlers ApiMethod ApiRegistry DriverApi Spec',
     'call': 'ApiTimers CallContext CancellationToken RunContext WaitPermits',
     'thread': 'GameThreads ServerThreadGuard ServerThreadHop',
     'game': 'EventWire Positions UnloadedAreaException WorldCell'}.items() for name in names.split()}

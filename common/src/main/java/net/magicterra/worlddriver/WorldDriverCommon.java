@@ -11,7 +11,7 @@ import net.magicterra.worlddriver.rpc.RpcServer;
 import net.magicterra.worlddriver.script.ScriptManager;
 import net.magicterra.worlddriver.script.McpBridge;
 import net.magicterra.worlddriver.script.RpcBridge;
-import net.magicterra.worlddriver.script.ScriptService;
+import net.magicterra.worlddriver.script.ScriptEngine;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -64,7 +64,7 @@ public final class WorldDriverCommon {
                 api = app;
                 // Scripts, skills and playbooks, all allow-everything unless -Dworlddriver.sandbox=on
                 // (see ScriptClassFilter; nothing in the build sets it).
-                app.setScriptHost(new ScriptService(app, userScriptsDir().resolve("skills")));
+                app.setScriptHost(new ScriptEngine(app,userScriptsDir().resolve("skills")));
                 // Every method is typed and validated by its own contract, so nothing more needs wiring
                 // before a socket listens. StageWright publishes mc.test.* as its own batch at
                 // SERVER_STARTED; a server without it simply has no mc.test.* surface.
@@ -253,7 +253,7 @@ public final class WorldDriverCommon {
         // Every action here, the client player's included when this is its integrated server, loses
         // its world now; mark that before the hosts go, so body_removed does not claim the cause.
         net.magicterra.worlddriver.api.action.ActionRegistry.GLOBAL.cancelAll(
-                net.magicterra.worlddriver.api.methods.ActionContract.CancelReason.WORLD_CLOSED);
+                net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason.WORLD_CLOSED);
         // Every addressable bot player wraps an entity of the stopping server.
         net.magicterra.worlddriver.bot.body.BodyRegistry.clear();
         if (api != null) {

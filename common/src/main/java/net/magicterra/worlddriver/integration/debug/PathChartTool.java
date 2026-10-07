@@ -2,9 +2,9 @@ package net.magicterra.worlddriver.integration.debug;
 
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
-import net.magicterra.worlddriver.api.methods.DebugContracts.Chart;
-import net.magicterra.worlddriver.api.methods.DebugContracts.ChartParams;
-import net.magicterra.worlddriver.api.methods.DebugContracts.ChartView;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts.Chart;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ChartParams;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ChartView;
 import net.magicterra.worlddriver.bot.debug.*;
 
 import java.util.Map;

@@ -1,13 +1,13 @@
 package net.magicterra.worlddriver.client.internal;
 
-import net.magicterra.worlddriver.api.methods.ClientContracts.ClientRefusal;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ClientReply;
-import net.magicterra.worlddriver.api.methods.ClientContracts.Refused;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.KeyAction;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.KeybindDriven;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.KeybindParams;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.Keybinding;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.KeybindsListed;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientRefusal;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientReply;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.KeybindDriven;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.KeybindsListed;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.Refused;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.KeyAction;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.KeybindParams;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.Keybinding;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.language.I18n;

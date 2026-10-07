@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.rpc;
 import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.application.DriverApplication;
 
-import net.magicterra.worlddriver.application.WaitApi;
+import net.magicterra.worlddriver.application.WaitService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -82,7 +82,7 @@ class RpcServerLifecycleTest {
 
     @Test
     void theSilenceWindowOutlastsTheLongestWait() {
-        assertTrue(TransportLimits.WS_IDLE_CLOSE_MS > WaitApi.MAX_BUDGET_MS + TransportLimits.WS_PING_INTERVAL_MS,
+        assertTrue(TransportLimits.WS_IDLE_CLOSE_MS > WaitService.MAX_BUDGET_MS + TransportLimits.WS_PING_INTERVAL_MS,
                 "a client blocked on mc.wait.* would be cut off before its wait returns");
     }
 

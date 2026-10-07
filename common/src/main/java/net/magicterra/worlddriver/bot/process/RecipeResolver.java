@@ -27,7 +27,7 @@ import java.util.Set;
  * it works the same whether the {@code mc.recipe.resolve} verb runs it on the
  * integrated server thread or {@link CraftProcess} runs it on the client.
  *
- * <p>The verb ({@code api.RecipeApi}) serializes a {@link Plan} to JSON; the
+ * <p>The verb ({@code api.RecipeService}) serializes a {@link Plan} to JSON; the
  * process consumes the same {@link Job}s (each carrying a live {@link RecipeHolder}
  * for {@code handlePlaceRecipe}) to actually craft. Keeping one resolver means the
  * plan the agent <em>sees</em> and the plan the bot <em>executes</em> can never drift.
@@ -313,10 +313,10 @@ public final class RecipeResolver {
     }
 
     /**
-     * The crafting station for a recipe — the only implementation, and {@code RecipeApi} calls
+     * The crafting station for a recipe — the only implementation, and {@code RecipeService} calls
      * this one for {@code mc.recipe.*}'s {@code station} field.
      *
-     * <p>It used to say "mirrors {@code RecipeApi.station}", above a byte-identical copy of it.
+     * <p>It used to say "mirrors {@code RecipeService.station}", above a byte-identical copy of it.
      * The two agreed by luck; what they were describing is the verb's own choice of station, so
      * a drift would have made {@code mc.recipe.find} advertise one station while {@code CraftProcess}
      * walked to another.

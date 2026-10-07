@@ -11,21 +11,21 @@ import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.DecodeContext;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.RouteContract;
-import net.magicterra.worlddriver.api.methods.RouteContract.BoxRegion;
-import net.magicterra.worlddriver.api.methods.RouteContract.BreakPolicy;
-import net.magicterra.worlddriver.api.methods.RouteContract.EntityAnchor;
-import net.magicterra.worlddriver.api.methods.RouteContract.Enforcement;
-import net.magicterra.worlddriver.api.methods.RouteContract.Leash;
-import net.magicterra.worlddriver.api.methods.RouteContract.PlacePolicy;
-import net.magicterra.worlddriver.api.methods.RouteContract.PointAnchor;
-import net.magicterra.worlddriver.api.methods.RouteContract.RegionSpec;
-import net.magicterra.worlddriver.api.methods.RouteContract.Risk;
-import net.magicterra.worlddriver.api.methods.RouteContract.Route;
-import net.magicterra.worlddriver.api.methods.RouteContract.SphereRegion;
-import net.magicterra.worlddriver.api.methods.RouteContract.TravelMode;
-import net.magicterra.worlddriver.api.methods.RouteContract.YRange;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.BoxRegion;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.BreakPolicy;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.EntityAnchor;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Enforcement;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Leash;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.PlacePolicy;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.PointAnchor;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.RegionSpec;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Risk;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.SphereRegion;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.TravelMode;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.YRange;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.bot.pathfinder.Capability;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.pathfinder.Constraint;
@@ -75,7 +75,7 @@ public final class RouteParams {
     private RouteParams() {}
 
     /** Default eye height a sight ray is aimed at: a standing player's, and the same number as
-     *  {@code RouteContract}'s {@code sight.eye} default, so {@code risk: safe} and an explicit sight agree. */
+     *  {@code RouteContracts}'s {@code sight.eye} default, so {@code risk: safe} and an explicit sight agree. */
     public static final double SIGHT_EYE = 1.62;
     /** {@code risk: safe}'s cluster: three mobs within six blocks make a cell impassable. */
     public static final MobCluster.Cluster SAFE_CLUSTER = new MobCluster.Cluster(3, 6, true, 0);
@@ -101,7 +101,7 @@ public final class RouteParams {
      */
     public static Parsed parse(Map<String, Object> route) {
         DecodeContext at = DecodeContext.root().field("route");
-        Route r = RouteContract.ROUTE.decode(route == null ? Map.of() : route, at);
+        Route r = RouteContracts.ROUTE.decode(route == null ? Map.of() : route, at);
         if (!at.issues().isEmpty()) throw ApiException.invalidParams(at.issues());
         return parse(r);
     }
@@ -178,7 +178,7 @@ public final class RouteParams {
             case EntityAnchor e -> {
                 return new EntityLeash(e.entity(), l.radius(), l.hard() ? 0 : l.weight(), l.hard());
             }
-            case RouteContract.ColumnAnchor c -> {
+            case RouteContracts.ColumnAnchor c -> {
                 if (l.hard()) cons.add(new ColumnRadius(c.x() + 0.5, c.z() + 0.5, l.radius()));
                 else bias.add(new ColumnAnchor(c.x() + 0.5, c.z() + 0.5, l.radius(), l.weight()));
             }
@@ -212,13 +212,13 @@ public final class RouteParams {
     }
 
     /** The berth {@code m} describes; null {@code m} is the settings' own berth with {@code presetCluster}. */
-    static MobCluster mobs(RouteContract.Mobs m, MobCluster.Cluster presetCluster) {
+    static MobCluster mobs(RouteContracts.Mobs m, MobCluster.Cluster presetCluster) {
         double radius = m == null ? BotConfig.mobAvoidRadius : m.radius().orElse(BotConfig.mobAvoidRadius);
         double ranged = m == null ? BotConfig.rangedAvoidRadius : m.rangedRadius().orElse((double) BotConfig.rangedAvoidRadius);
         double penalty = m == null ? BotConfig.mobAvoidPenalty : m.penalty().orElse(BotConfig.mobAvoidPenalty);
         MobCluster.Cluster cluster = presetCluster;
         if (m != null && m.cluster().isPresent()) {
-            RouteContract.Cluster c = m.cluster().get();
+            RouteContracts.Cluster c = m.cluster().get();
             cluster = new MobCluster.Cluster(c.count(), c.radius(), c.mode() == Enforcement.FORBID, c.penalty());
         }
         Set<String> types = new LinkedHashSet<>();
@@ -232,14 +232,14 @@ public final class RouteParams {
                 BotConfig.sightRaysPerSearch);
     }
 
-    static SightExposure sight(RouteContract.Sight s) {
+    static SightExposure sight(RouteContracts.Sight s) {
         SightExposure.Of of;
         List<String> listed = List.of();
         if (s.observers().isPresent()) {
             of = SightExposure.Of.LISTED;
             listed = s.observers().get();
         } else {
-            of = switch (s.of().orElse(RouteContract.SightOf.RANGED)) {
+            of = switch (s.of().orElse(RouteContracts.SightOf.RANGED)) {
                 case RANGED -> SightExposure.Of.RANGED;
                 case HOSTILE -> SightExposure.Of.HOSTILE;
                 case PLAYERS -> SightExposure.Of.PLAYERS;

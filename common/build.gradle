@@ -47,7 +47,7 @@ sourceSets {
 }
 
 dependencies {
-    // Generates each @Api interface's binding (docs/dev/java-api.md); javac-only, never on a runtime path.
+    // Generates each @Spec interface's binding (docs/dev/java-api.md); javac-only, never on a runtime path.
     annotationProcessor project(':api-processor')
 
     // StageWright's scene SPI (Scene/SceneContext/SceneProvider) for the wd.* scenes.

@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.magicterra.worlddriver.api.action.ActionRegistry;
-import net.magicterra.worlddriver.api.methods.ActionContract;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.bot.BodyReady;
 
 /**
@@ -24,7 +24,7 @@ import net.magicterra.worlddriver.bot.BodyReady;
 public final class BodyRegistry {
 
     /** The id that names this client's own player. */
-    public static final String SELF = net.magicterra.worlddriver.api.methods.ActionContract.SELF;
+    public static final String SELF = Responses.SELF;
 
     private static final Map<String, BodyHost> HOSTS = new LinkedHashMap<>();
 
@@ -39,7 +39,7 @@ public final class BodyRegistry {
     public static void unregister(String id) {
         boolean removed;
         synchronized (HOSTS) { removed = HOSTS.remove(id) != null; }
-        if (removed) ActionRegistry.GLOBAL.cancelBody(id, ActionContract.CancelReason.BODY_REMOVED);
+        if (removed) ActionRegistry.GLOBAL.cancelBody(id, Responses.CancelReason.BODY_REMOVED);
     }
 
     /** The host registered under {@code id}, or null. */

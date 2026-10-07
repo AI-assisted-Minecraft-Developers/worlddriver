@@ -9,27 +9,27 @@ import static net.magicterra.worlddriver.api.Positions.blockPos;
 import static net.magicterra.worlddriver.api.Positions.position;
 
 import net.magicterra.worlddriver.api.Positions;
-import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
-import net.magicterra.worlddriver.api.methods.BuildContracts;
-import net.magicterra.worlddriver.api.methods.BuildContracts.BuildParams;
-import net.magicterra.worlddriver.api.methods.BuildContracts.BunkerParams;
-import net.magicterra.worlddriver.api.methods.BuildContracts.ConstructParams;
-import net.magicterra.worlddriver.api.methods.BuildContracts.EscapeParams;
-import net.magicterra.worlddriver.api.methods.CombatContract;
-import net.magicterra.worlddriver.api.methods.CommonTypes;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.GatherContracts;
-import net.magicterra.worlddriver.api.methods.GatherContracts.CraftParams;
-import net.magicterra.worlddriver.api.methods.GatherContracts.FarmParams;
-import net.magicterra.worlddriver.api.methods.GatherContracts.MineParams;
-import net.magicterra.worlddriver.api.methods.GatherContracts.SmeltParams;
-import net.magicterra.worlddriver.api.methods.MoveContracts;
-import net.magicterra.worlddriver.api.methods.MoveContracts.ElytraParams;
-import net.magicterra.worlddriver.api.methods.MoveContracts.ExploreParams;
-import net.magicterra.worlddriver.api.methods.MoveContracts.FollowParams;
-import net.magicterra.worlddriver.api.methods.MoveContracts.RunAwayParams;
-import net.magicterra.worlddriver.api.methods.MoveContracts.SleepParams;
-import net.magicterra.worlddriver.api.methods.RouteContract.Route;
+import net.magicterra.worlddriver.api.methods.bot.BuildContracts;
+import net.magicterra.worlddriver.api.methods.bot.BuildContracts.BuildParams;
+import net.magicterra.worlddriver.api.methods.bot.BuildContracts.BunkerParams;
+import net.magicterra.worlddriver.api.methods.bot.BuildContracts.ConstructParams;
+import net.magicterra.worlddriver.api.methods.bot.BuildContracts.EscapeParams;
+import net.magicterra.worlddriver.api.methods.bot.CombatContracts;
+import net.magicterra.worlddriver.api.methods.bot.GatherContracts;
+import net.magicterra.worlddriver.api.methods.bot.GatherContracts.CraftParams;
+import net.magicterra.worlddriver.api.methods.bot.GatherContracts.FarmParams;
+import net.magicterra.worlddriver.api.methods.bot.GatherContracts.MineParams;
+import net.magicterra.worlddriver.api.methods.bot.GatherContracts.SmeltParams;
+import net.magicterra.worlddriver.api.methods.bot.MoveContracts;
+import net.magicterra.worlddriver.api.methods.bot.MoveContracts.ElytraParams;
+import net.magicterra.worlddriver.api.methods.bot.MoveContracts.ExploreParams;
+import net.magicterra.worlddriver.api.methods.bot.MoveContracts.FollowParams;
+import net.magicterra.worlddriver.api.methods.bot.MoveContracts.RunAwayParams;
+import net.magicterra.worlddriver.api.methods.bot.MoveContracts.SleepParams;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.process.BridgeProcess;
 import net.magicterra.worlddriver.bot.process.BuildProcess;
@@ -131,13 +131,13 @@ public final class VerbOrders {
      * {@code mc.bot.combat} as a held process: any body but the client's own player, whose fight belongs
      * to its combat chain. {@code force} has nothing to lift here: the frail-health gate is the chain's.
      */
-    public static Order<CombatContract.Fought> combat(CombatContract.Params p, LivingEntity self) {
+    public static Order<CombatContracts.Fought> combat(CombatContracts.Params p, LivingEntity self) {
         if (!hasHands(self)) return handless("combat", self);
         return new Start<>(new CombatProcess(mode(p.mode()), entityId(p), entityType(p)),
-                () -> new CombatContract.Fought(p.mode(), p.target()));
+                () -> new CombatContracts.Fought(p.mode(), p.target()));
     }
 
-    public static CombatProcess.Mode mode(CombatContract.Mode m) {
+    public static CombatProcess.Mode mode(CombatContracts.Mode m) {
         return switch (m) {
             case ENGAGE -> CombatProcess.Mode.ENGAGE;
             case DEFEND -> CombatProcess.Mode.DEFEND;
@@ -145,12 +145,12 @@ public final class VerbOrders {
         };
     }
 
-    public static Integer entityId(CombatContract.Params p) {
-        return p.target().orElse(null) instanceof CombatContract.FoeEntity e ? e.entityId() : null;
+    public static Integer entityId(CombatContracts.Params p) {
+        return p.target().orElse(null) instanceof CombatContracts.FoeEntity e ? e.entityId() : null;
     }
 
-    public static String entityType(CombatContract.Params p) {
-        return p.target().orElse(null) instanceof CombatContract.FoeType t ? t.type() : null;
+    public static String entityType(CombatContracts.Params p) {
+        return p.target().orElse(null) instanceof CombatContracts.FoeType t ? t.type() : null;
     }
 
     public static Order<GatherContracts.Farmed> farm(FarmParams p, LivingEntity self) {

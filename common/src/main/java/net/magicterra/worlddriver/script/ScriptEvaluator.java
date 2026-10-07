@@ -13,10 +13,10 @@ import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.RunContext;
 import net.magicterra.worlddriver.api.contract.JsonValue;
-import net.magicterra.worlddriver.api.methods.ScriptContracts;
-import net.magicterra.worlddriver.api.methods.ScriptContracts.Issue;
-import net.magicterra.worlddriver.api.methods.ScriptContracts.Outcome;
-import net.magicterra.worlddriver.api.methods.ScriptContracts.ScriptError;
+import net.magicterra.worlddriver.api.methods.script.ScriptContracts;
+import net.magicterra.worlddriver.api.methods.script.ScriptContracts.Issue;
+import net.magicterra.worlddriver.api.methods.script.ScriptContracts.Outcome;
+import net.magicterra.worlddriver.api.methods.script.ScriptContracts.ScriptError;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 
 import java.util.ArrayList;

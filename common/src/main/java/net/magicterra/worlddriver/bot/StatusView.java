@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import net.magicterra.worlddriver.api.Positions;
-import net.magicterra.worlddriver.api.methods.ControlContracts;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.minecraft.core.BlockPos;
 
 /** {@code mc.bot.status}'s view of a {@link BotState}, the same for this client's player and any other bot. */

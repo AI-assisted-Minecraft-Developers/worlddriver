@@ -1,10 +1,10 @@
 package net.magicterra.worlddriver.client.internal;
 
-import net.magicterra.worlddriver.api.methods.ScreenContracts.Box;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.ScreenInfo;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.ScreenTree;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.SlotItem;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.WidgetNode;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.Box;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenInfo;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenTree;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SlotItem;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.WidgetNode;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractSelectionList;
 import net.minecraft.client.gui.components.AbstractWidget;

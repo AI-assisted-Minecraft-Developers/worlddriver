@@ -18,7 +18,7 @@ the StageWright harness's `mc.test.run` / `mc.test.reset` / `mc.test.input.*`, p
 when those are loaded — one of the reasons this skill exists.
 
 Source of truth: the contracts under `common/.../api/methods/*.java` (each method's params,
-reply and description; `mc.bot.setting`'s is `common/.../bot/SettingsContract.java`, built from
+reply and description; `mc.bot.setting`'s is `common/.../bot/SettingsContracts.java`, built from
 `bot/SettingsRegistry.java` — the canonical ordered key list — backed by `bot/BotConfig.java`, the
 fields and their ranges), `common/.../application/CoreMethods.java` (which core methods exist),
 and `.../rpc/RpcServer.java` (envelope; binds `127.0.0.1` on port 39801, WS path `/rpc`). A
@@ -312,7 +312,7 @@ auto-includes every `public static volatile` primitive/String field of
 makes it a valid key with no second edit. Ranges live in **`SettingsDocs.java`**: a
 key's row opens with `[min,max]`, that row is the key's schema description, and the
 contract rejects any number outside it as `out_of_range` (an aliased field's own name,
-e.g. `walkerRepathEveryTicks`, is held to its alias's range). `SettingsContract.java`
+e.g. `walkerRepathEveryTicks`, is held to its alias's range). `SettingsContracts.java`
 turns that table into one typed property per key, so the schema and the
 generated TypeScript (`SettingValues`) both know each key's value type.
 The set is large — **on the order of 200 keys** (currently ~120 boolean, ~70

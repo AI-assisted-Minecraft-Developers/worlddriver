@@ -9,12 +9,12 @@ import java.util.function.Function;
 
 import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.action.ActionHandle;
-import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
-import net.magicterra.worlddriver.api.methods.GotoContract;
-import net.magicterra.worlddriver.api.methods.GotoContract.Travel;
-import net.magicterra.worlddriver.api.methods.GotoContract.Trip;
-import net.magicterra.worlddriver.api.methods.MoveContracts;
-import net.magicterra.worlddriver.api.methods.RouteContract.Route;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Travel;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Trip;
+import net.magicterra.worlddriver.api.methods.bot.MoveContracts;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
+import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.bot.body.BodyRegistry;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.process.RouteEvents;
@@ -51,7 +51,7 @@ public final class GotoOrders {
     public record Resolved(Goal goal, RouteParams.Parsed route) implements Resolution {}
 
     /** Resolve on the body's thread. */
-    public static Resolution resolve(GotoContract.Params p, LivingEntity self, Map<String, BlockPos> waypoints,
+    public static Resolution resolve(GotoContracts.Params p, LivingEntity self, Map<String, BlockPos> waypoints,
                                  Function<String, Entity> nearestOfType) {
         RouteParams.Parsed route = RouteParams.parse(p.route().orElse(Route.NONE));
         if (route.requireTool() != null) {

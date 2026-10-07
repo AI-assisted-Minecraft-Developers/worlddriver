@@ -18,7 +18,7 @@ import java.util.Set;
  * read snapshot, the write if-chain, and a hand-written schema. A newly-declared {@link BotConfig}
  * flag whose schema or branch lagged was <em>silently dropped</em> by the write path — the #280
  * disease. This registry owns the KEY + TYPE enumeration ONCE; the contract
- * ({@code SettingsContract}) builds every key's wire type from it, and {@link SettingsCommand} reads
+ * ({@code SettingsContracts}) builds every key's wire type from it, and {@link SettingsCommand} reads
  * and writes through {@link #readOf} and {@link #backingField}.
  *
  * <p><b>Pure.</b> Nothing here touches the game: enumeration reads {@link BotConfig}'s field

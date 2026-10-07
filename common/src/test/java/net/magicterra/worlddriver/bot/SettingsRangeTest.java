@@ -31,7 +31,7 @@ class SettingsRangeTest {
 
     /** Decode a one-key patch and commit it as the method would. */
     static void patch(String key, Object value) {
-        SettingsContract.Patch p = (SettingsContract.Patch) SettingsContract.PARAMS.decode(patchOf(key, value));
+        SettingsContracts.Patch p = (SettingsContracts.Patch) SettingsContracts.PARAMS.decode(patchOf(key, value));
         SettingsCommand.commit(null, p.values());
     }
 

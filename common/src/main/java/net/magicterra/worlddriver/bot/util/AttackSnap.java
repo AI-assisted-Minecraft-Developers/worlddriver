@@ -21,7 +21,7 @@ import java.util.Map;
  * correctly and handed the agent zero bytes of it.
  *
  * <p>Single helper rather than two copies because the snapshot is built on both sides
- * (server {@code ObserveApi.playerSnapshot}, client {@code ClientObserve.observePlayer});
+ * (server {@code ObserveService.playerSnapshot}, client {@code ClientObserve.observePlayer});
  * duplicating the arithmetic is exactly how one field grows two meanings — see gap #41.
  * Derived purely from public API.
  */

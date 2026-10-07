@@ -10,12 +10,12 @@ import java.util.Optional;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.action.ActionRegistry;
-import net.magicterra.worlddriver.api.methods.ActionContract.CancelReason;
-import net.magicterra.worlddriver.api.methods.ActionContract.Cancelled;
-import net.magicterra.worlddriver.api.methods.ActionContract.Failed;
-import net.magicterra.worlddriver.api.methods.ActionContract.Running;
-import net.magicterra.worlddriver.api.methods.ActionContract.Succeeded;
-import net.magicterra.worlddriver.api.methods.ActionContract.Superseded;
+import net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Cancelled;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Failed;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Running;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Succeeded;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Superseded;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;

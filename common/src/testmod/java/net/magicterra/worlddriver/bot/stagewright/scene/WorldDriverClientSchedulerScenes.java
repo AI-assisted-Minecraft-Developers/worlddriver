@@ -9,12 +9,12 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.api.CallContext;
-import net.magicterra.worlddriver.api.methods.ControlCalls;
-import net.magicterra.worlddriver.api.methods.ControlContracts.BodyStatus;
-import net.magicterra.worlddriver.api.methods.ControlContracts.CancelParams;
-import net.magicterra.worlddriver.api.methods.ControlContracts.ProcessEnd;
-import net.magicterra.worlddriver.api.methods.ControlContracts.Status;
-import net.magicterra.worlddriver.api.methods.ControlContracts.StatusParams;
+import net.magicterra.worlddriver.api.methods.control.ControlApi;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.BodyStatus;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.CancelParams;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.ProcessEnd;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.StatusParams;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Status;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.SleepProcess;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
@@ -214,7 +214,7 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
                 ctx.record("beforeCancel", helm.where() + String.format(Locale.ROOT, ", %.2f blocks from the bed; goto=%s",
                         gap, helm.slot("goto")));
                 ctx.check(gap > 2.0).as("test setup: at cancellation the bot is still on its way to the bed (" + gap + " blocks from the bed)").isTrue();
-                ControlCalls control = ControlCalls.of(api());
+                ControlApi control = ControlApi.of(api());
                 ask(ctx, "cancel", control.cancel(CancelParams.process("sleep"), CallContext.standalone()), stopped -> helm.sync(5, () ->
                         ask(ctx, "afterCancel.status", control.status(StatusParams.self(), CallContext.standalone()), reply -> {
                     Optional<BodyStatus> status = reply instanceof Status s ? s.status() : Optional.empty();

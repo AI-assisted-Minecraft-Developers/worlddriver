@@ -13,13 +13,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.Positions;
 import net.magicterra.worlddriver.api.action.ActionHandle;
-import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.GotoContract;
-import net.magicterra.worlddriver.api.methods.GotoContract.Exposure;
-import net.magicterra.worlddriver.api.methods.GotoContract.Preview;
-import net.magicterra.worlddriver.api.methods.GotoContract.Scored;
-import net.magicterra.worlddriver.api.methods.GotoContract.Segment;
-import net.magicterra.worlddriver.api.methods.GotoContract.SegmentRisk;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Exposure;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Preview;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Segment;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts.SegmentRisk;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Scored;
 import net.magicterra.worlddriver.bot.movement.PathSmoothing;
 import net.magicterra.worlddriver.bot.pathfinder.Constraint;
 import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
@@ -235,7 +235,7 @@ public final class PreviewSearch {
                 evict();
             }
             @SuppressWarnings("unchecked")
-            Map<String, Object> shown = preview != null ? (Map<String, Object>) GotoContract.RESULT.encode(preview)
+            Map<String, Object> shown = preview != null ? (Map<String, Object>) GotoContracts.RESULT.encode(preview)
                     : Map.of("planId", cur.id, "ok", false, "error", error);
             state.planResult = shown;
             state.plan.lastError = error;

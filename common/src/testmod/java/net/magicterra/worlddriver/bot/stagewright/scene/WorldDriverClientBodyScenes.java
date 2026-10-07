@@ -8,16 +8,16 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.Positions;
-import net.magicterra.worlddriver.api.methods.ActionContract.Accepted;
-import net.magicterra.worlddriver.api.methods.ActionContract.ActionResponse;
-import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
-import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
-import net.magicterra.worlddriver.api.methods.BotTaskCalls;
-import net.magicterra.worlddriver.api.methods.ControlCalls;
-import net.magicterra.worlddriver.api.methods.ControlContracts.CancelParams;
-import net.magicterra.worlddriver.api.methods.ControlContracts.Status;
-import net.magicterra.worlddriver.api.methods.ControlContracts.StatusParams;
-import net.magicterra.worlddriver.api.methods.GotoContract;
+import net.magicterra.worlddriver.api.methods.bot.BotTaskApi;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.control.ControlApi;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.CancelParams;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.StatusParams;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Accepted;
+import net.magicterra.worlddriver.api.methods.shared.Responses.ActionResponse;
+import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Status;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
@@ -51,15 +51,15 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
     private static final int GROUND = 20;
 
     /** Self's goto to the cell {@code p}. */
-    private static void walkTo(SceneContext ctx, String tag, BlockPos p, java.util.function.Consumer<ActionResponse<GotoContract.Result>> then) {
-        ask(ctx, tag, BotTaskCalls.of(api()).goTo(GotoContract.Params.to(Positions.position(p)),
+    private static void walkTo(SceneContext ctx, String tag, BlockPos p, java.util.function.Consumer<ActionResponse<GotoContracts.Result>> then) {
+        ask(ctx, tag, BotTaskApi.of(api()).goTo(GotoContracts.Params.to(Positions.position(p)),
                 CallContext.standalone()), then);
     }
 
     /** Stops the action a goto started, by its id. */
     private static void cancel(SceneContext ctx, String tag, ActionResponse<?> started) {
         if (started instanceof Accepted<?> a) {
-            ask(ctx, tag, ControlCalls.of(api()).cancel(CancelParams.action(a.action().actionId()), CallContext.standalone()), r -> { });
+            ask(ctx, tag, ControlApi.of(api()).cancel(CancelParams.action(a.action().actionId()), CallContext.standalone()), r -> { });
         }
     }
 
@@ -96,7 +96,7 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
                 ctx.check(dead instanceof Refused<?> r && r.reason() == RefusalReason.BODY_UNAVAILABLE && r.message().contains("dead"))
                         .as("B: after death, goto is refused as body_unavailable, saying the player is dead: " + dead).isTrue();
                 ctx.check(!(dead instanceof Accepted)).as("C: the refused request did not start: " + dead).isTrue();
-                ask(ctx, "dead.status", ControlCalls.of(api()).status(StatusParams.self(), CallContext.standalone()), status -> {
+                ask(ctx, "dead.status", ControlApi.of(api()).status(StatusParams.self(), CallContext.standalone()), status -> {
                     ctx.check(status instanceof Status s && s.status().isPresent())
                             .as("D: read-only methods are unaffected by the player's death: " + status).isTrue();
                     // The client's own Respawn button, sent from here: the packet handler runs on this thread.

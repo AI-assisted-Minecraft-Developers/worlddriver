@@ -8,7 +8,7 @@ import java.util.Map;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.SettingsContract;
+import net.magicterra.worlddriver.bot.SettingsContracts;
 import net.magicterra.worlddriver.bot.SettingsRegistry;
 import net.magicterra.worlddriver.api.ApiRegistry;
 import net.magicterra.worlddriver.api.contract.ApiException;
@@ -281,14 +281,14 @@ public final class WorldDriverScenes implements SceneProvider {
         // (4) mc.bot.setting's contract: one typed member per known key, and an unknown key refused.
         boolean closed = false;
         try {
-            SettingsContract.PARAMS.decode(Map.of("op", "patch", "values", Map.of("definitelyNotAKnob", true)));
+            SettingsContracts.PARAMS.decode(Map.of("op", "patch", "values", Map.of("definitelyNotAKnob", true)));
         } catch (ApiException e) {
             closed = e.error().issues().stream().anyMatch(i -> i.path().equals("/values/definitelyNotAKnob"));
         }
         if (!closed)
             ctx.fail("settingRegistry: mc.bot.setting accepted an unknown key — #280 would silently return");
-        int propCount = SettingsContract.TYPES.size();
-        if (!SettingsContract.TYPES.keySet().equals(SettingsRegistry.knownKeys()))
+        int propCount = SettingsContracts.TYPES.size();
+        if (!SettingsContracts.TYPES.keySet().equals(SettingsRegistry.knownKeys()))
             ctx.fail("settingRegistry: mc.bot.setting's " + propCount + " keys are not the registry's " + known
                     + " — the contract drifted from SettingsRegistry");
 

@@ -3,27 +3,26 @@ package net.magicterra.worlddriver.application;
 import java.util.List;
 
 import net.magicterra.worlddriver.api.contract.MethodSpec;
-import net.magicterra.worlddriver.api.methods.BuildContracts;
-import net.magicterra.worlddriver.api.methods.ClearAreaContract;
-import net.magicterra.worlddriver.api.methods.ClientContracts;
-import net.magicterra.worlddriver.api.methods.CombatContract;
-import net.magicterra.worlddriver.api.methods.ControlContracts;
-import net.magicterra.worlddriver.api.methods.EventContracts;
-import net.magicterra.worlddriver.api.methods.GatherContracts;
-import net.magicterra.worlddriver.api.methods.GotoContract;
-import net.magicterra.worlddriver.api.methods.HandContracts;
-import net.magicterra.worlddriver.api.methods.MoveContracts;
-import net.magicterra.worlddriver.api.methods.ObserveContracts;
-import net.magicterra.worlddriver.api.methods.PlayerContract;
-import net.magicterra.worlddriver.api.methods.QueryContract;
-import net.magicterra.worlddriver.api.methods.RecipeContracts;
-import net.magicterra.worlddriver.api.methods.ScreenContracts;
-import net.magicterra.worlddriver.api.methods.ScriptContracts;
-import net.magicterra.worlddriver.api.methods.SystemContracts;
-import net.magicterra.worlddriver.api.methods.WaitContracts;
-import net.magicterra.worlddriver.api.methods.WaitResultContract;
-import net.magicterra.worlddriver.api.methods.WorldContracts;
-import net.magicterra.worlddriver.bot.SettingsContract;
+import net.magicterra.worlddriver.api.methods.action.ActionContracts;
+import net.magicterra.worlddriver.api.methods.bot.BuildContracts;
+import net.magicterra.worlddriver.api.methods.bot.ClearAreaContracts;
+import net.magicterra.worlddriver.api.methods.bot.CombatContracts;
+import net.magicterra.worlddriver.api.methods.bot.GatherContracts;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.bot.MoveContracts;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.methods.event.EventContracts;
+import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
+import net.magicterra.worlddriver.api.methods.query.QueryContracts;
+import net.magicterra.worlddriver.api.methods.recipe.RecipeContracts;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts;
+import net.magicterra.worlddriver.api.methods.script.ScriptContracts;
+import net.magicterra.worlddriver.api.methods.system.SystemContracts;
+import net.magicterra.worlddriver.api.methods.wait.WaitContracts;
+import net.magicterra.worlddriver.api.methods.world.WorldContracts;
+import net.magicterra.worlddriver.bot.SettingsContracts;
 
 /**
  * Every core method's description, in the order they are documented. The artifact generator loads this
@@ -36,8 +35,8 @@ public final class CoreMethods {
 
     public static List<MethodSpec<?, ?>> all() {
         return List.of(
-                GotoContract.SPEC,
-                ClearAreaContract.SPEC,
+                GotoContracts.SPEC,
+                ClearAreaContracts.SPEC,
                 GatherContracts.MINE,
                 GatherContracts.CRAFT,
                 GatherContracts.SMELT,
@@ -51,17 +50,17 @@ public final class CoreMethods {
                 MoveContracts.RUN_AWAY,
                 MoveContracts.SLEEP,
                 MoveContracts.ELYTRA_FLY,
-                CombatContract.SPEC,
-                HandContracts.LOOK_AT,
-                HandContracts.HOLD_ITEM,
-                HandContracts.USE_ITEM,
-                HandContracts.ATTACK_ENTITY,
-                HandContracts.EQUIP,
+                CombatContracts.SPEC,
+                InteractContracts.LOOK_AT,
+                InteractContracts.HOLD_ITEM,
+                InteractContracts.USE_ITEM,
+                InteractContracts.ATTACK_ENTITY,
+                InteractContracts.EQUIP,
                 ControlContracts.STATUS,
                 ControlContracts.CANCEL,
                 ControlContracts.WAYPOINT_SPEC,
-                SettingsContract.SPEC,
-                WaitResultContract.SPEC,
+                SettingsContracts.SPEC,
+                WaitContracts.RESULT,
                 ScriptContracts.EVAL,
                 ScriptContracts.SKILL,
                 ScriptContracts.PLAYBOOK,
@@ -74,18 +73,18 @@ public final class CoreMethods {
                 SystemContracts.VERSION,
                 SystemContracts.TEST_ORIGIN,
                 SystemContracts.WAIT_TICKS,
-                PlayerContract.SPEC,
+                ObserveContracts.PLAYER,
                 ObserveContracts.THREATS,
                 ObserveContracts.BOSS_SPEC,
                 ObserveContracts.SCENE,
                 ObserveContracts.MAP,
-                QueryContract.SPEC,
+                QueryContracts.SPEC,
                 WorldContracts.BLOCK,
                 WorldContracts.SNAPSHOT,
                 WorldContracts.RESTORE,
-                WorldContracts.RUN_COMMAND,
-                WorldContracts.FILL,
-                WorldContracts.PLACE_MANY,
+                ActionContracts.RUN_COMMAND,
+                ActionContracts.FILL,
+                ActionContracts.PLACE_MANY,
                 RecipeContracts.LOOKUP,
                 RecipeContracts.RESOLVE,
                 RecipeContracts.ACQUIRE,

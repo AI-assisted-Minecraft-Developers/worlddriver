@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.util;
 
-import net.magicterra.worlddriver.api.methods.ClientContracts;
-import net.magicterra.worlddriver.api.methods.ScreenContracts;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -71,7 +71,7 @@ public final class ItemSnap {
      * <p><b>Why this is here and not written out twice.</b> This class's own header cites gap #41
      * — server and client {@code inventory} drifting apart — as the reason the WEAR fields were
      * centralised. The enumeration that produces the rows those fields go into was left copied:
-     * {@code ObserveApi.playerSnapshot} and {@code ClientObserve.observePlayer} each carried this
+     * {@code ObserveService.playerSnapshot} and {@code ClientObserve.observePlayer} each carried this
      * loop, byte-identical but for the local's declared type. The server one's comment states the
      * contract outright — "Shape is deliberately byte-identical to the client's — same verb, same
      * field, same rows — so an agent never has to know which side answered" — and a contract of

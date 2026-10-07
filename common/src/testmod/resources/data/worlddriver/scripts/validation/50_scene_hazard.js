@@ -98,7 +98,7 @@ ScriptTest.run("50_scene: lava pit neighbour is lethal", function (t) {
 });
 
 // ── Test 5: deep water (depth>=2) lethal, shallow (depth=1) not ──────────────
-// Center (0,200,200). deepWaterMax=2 (hardcoded in ObserveApi.scene).
+// Center (0,200,200). deepWaterMax=2 (hardcoded in ObserveService.scene).
 //   Lethal side  (x=+1): water at y=200 AND y=199, stone at y=198 -> depth=2 -> lethal.
 //   Safe side    (x=-1): water at y=200 only, stone at y=199       -> depth=1 -> not lethal.
 ScriptTest.run("50_scene: deep water (>=2) lethal, shallow (1) not", function (t) {

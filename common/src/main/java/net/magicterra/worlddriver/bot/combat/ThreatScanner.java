@@ -2,8 +2,8 @@ package net.magicterra.worlddriver.bot.combat;
 
 import static net.magicterra.worlddriver.bot.util.RegistryIds.typeId;
 
-import net.magicterra.worlddriver.api.methods.CommonTypes;
-import net.magicterra.worlddriver.api.methods.ObserveContracts;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;

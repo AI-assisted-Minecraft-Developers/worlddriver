@@ -4,31 +4,31 @@ import java.util.Map;
 import java.util.Set;
 
 import net.magicterra.worlddriver.api.ServerThreadHop;
-import net.magicterra.worlddriver.api.methods.ClientContracts.BlockScan;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ChatHistory;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ChatHistoryParams;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ChatSendParams;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ClientPlayer;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ClientReply;
-import net.magicterra.worlddriver.api.methods.ClientContracts.OverlaysCleared;
-import net.magicterra.worlddriver.api.methods.ClientContracts.OverlaysParams;
-import net.magicterra.worlddriver.api.methods.ClientContracts.Screenshot;
-import net.magicterra.worlddriver.api.methods.ClientContracts.ScreenshotParams;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.ClickParams;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.CloseParams;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.Closed;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.HotbarParams;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.KeyParams;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.KeybindParams;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.MenuContainer;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.MoveParams;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.Moved;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.ReplaceParams;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.ScreenInfo;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.ScreenTree;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.SliderParams;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.SlotClickParams;
-import net.magicterra.worlddriver.api.methods.ScreenContracts.TypeParams;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockScan;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChatHistory;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChatHistoryParams;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChatSendParams;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientPlayer;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientReply;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.OverlaysCleared;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.OverlaysParams;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.Screenshot;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ScreenshotParams;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ClickParams;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.CloseParams;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.Closed;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.HotbarParams;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.KeyParams;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.KeybindParams;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.MenuContainer;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.MoveParams;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.Moved;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ReplaceParams;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenInfo;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenTree;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SliderParams;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SlotClickParams;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.TypeParams;
 import net.magicterra.worlddriver.bot.util.ClientHop;
 import net.magicterra.worlddriver.client.internal.ClientBoss;
 import net.magicterra.worlddriver.client.internal.ClientChat;
@@ -99,18 +99,18 @@ public final class ClientDriverApiImpl implements ClientDriverApi {
     @Override public Map<String, Object> observePlayer() { return ClientObserve.observePlayer(); }
 
     @Override
-    public java.util.List<net.magicterra.worlddriver.api.methods.QueryContract.EntityRow> queryEntities(
+    public java.util.List<net.magicterra.worlddriver.api.methods.query.QueryContracts.EntityRow> queryEntities(
             int radius, Double cx, Double cy, Double cz, Boolean hostileFilter) {
         return ClientObserve.queryEntities(radius, cx, cy, cz, hostileFilter);
     }
 
     @Override
-    public net.magicterra.worlddriver.api.methods.ObserveContracts.Threats observeThreats(int radius) {
+    public net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Threats observeThreats(int radius) {
         return ClientObserve.observeThreats(radius);
     }
 
     @Override
-    public net.magicterra.worlddriver.api.methods.ObserveContracts.BossReading observeBoss(int radius) {
+    public net.magicterra.worlddriver.api.methods.observe.ObserveContracts.BossReading observeBoss(int radius) {
         return ClientBoss.observeBoss(radius);
     }
 }

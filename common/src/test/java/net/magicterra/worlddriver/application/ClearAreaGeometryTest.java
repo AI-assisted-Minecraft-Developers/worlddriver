@@ -5,9 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.util.Optional;
 
-import net.magicterra.worlddriver.api.methods.CommonTypes.Direction;
-import net.magicterra.worlddriver.api.methods.ClearAreaContract.Tunnel;
-import net.magicterra.worlddriver.api.methods.ClearAreaContract.WidthBias;
+import net.magicterra.worlddriver.api.methods.bot.ClearAreaContracts.Tunnel;
+import net.magicterra.worlddriver.api.methods.bot.ClearAreaContracts.WidthBias;
+import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Direction;
 import org.junit.jupiter.api.Test;
 
 class ClearAreaGeometryTest {

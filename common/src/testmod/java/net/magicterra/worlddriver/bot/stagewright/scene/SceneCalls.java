@@ -21,7 +21,7 @@ import net.magicterra.worlddriver.api.contract.ApiException;
  * thread, and one game thread may not wait for another, so a scene never waits on a call: {@link #ask}
  * sends it and continues the scene once the reply lands.
  *
- * <p>Calls go through the typed interfaces ({@code BotTaskCalls.of(api())} and the like), which take
+ * <p>Calls go through the typed interfaces ({@code BotTaskApi.of(api())} and the like), which take
  * the same path a request does. The by-name forms are for the scenes whose subject is the request
  * itself: a method name, a parameter the contract refuses, a reply's JSON shape.
  */
