@@ -12,7 +12,7 @@ records as parameters and results:
 ```java
 SettingsCalls settings = SettingsCalls.of(WorldDriverCommon.api());
 CompletionStage<SettingsReply> reply =
-        settings.setting(new SettingsContract.Read(Optional.of(List.of("autoEat"))), CallContext.standalone());
+        settings.setting(SettingsContract.Read.of("autoEat"), CallContext.standalone());
 
 switch (DriverApi.await(reply, 5_000)) {
     case SettingsContract.Values v  -> …
@@ -20,6 +20,28 @@ switch (DriverApi.await(reply, 5_000)) {
     case SettingsContract.Applied a -> …
 }
 ```
+
+Every reply union is sealed, so a `switch` like the one above is checked for every case the method
+can answer.
+
+| Interface | Methods |
+|---|---|
+| `BotTaskCalls` | the body tasks: `goTo`, `mine`, `craft`, `build`, `combat`, … |
+| `HandCalls` | `lookAt`, `holdItem`, `useItem`, `attackEntity`, `equip` |
+| `ControlCalls` | `cancel`, `status`, `waypoint` |
+| `SettingsCalls` (in `bot`) | `setting` |
+| `WaitCalls` | `event`, `worldReady`, `condition`, `result` |
+| `ObserveCalls` | `player`, `threats`, `boss`, `scene`, `map` |
+| `EventCalls` | `cursor`, `eventsSince`, `events` |
+| `QueryCalls` | `query` |
+| `WorldCalls` / `ActionCalls` | `mc.world.*` / `mc.action.*` |
+| `ScreenCalls` / `ClientCalls` | `mc.client.screen.*` and `mc.client.input.*` / the rest of `mc.client.*` |
+| `RecipeCalls`, `ScriptCalls`, `SystemCalls`, `DebugCalls` | their namespaces |
+
+The interfaces are in `api.methods` unless noted. Parameter records with many optional fields have
+static factories for the common requests (`GotoContract.Params.to(pos)`, `CancelParams.action(id)`,
+`QueryContract.Blocks.around(center, r)`, …); `ParamFactoriesTest` holds each one to the contract's
+defaults.
 
 The object `of` returns is a generated caller, not the implementation. Every call goes through
 the method registry exactly as a request from a transport does:
@@ -33,8 +55,10 @@ A call answers a `CompletionStage`. A failure completes it exceptionally with an
 `DriverApi.await(stage, ms)` unwraps it. On the server or client thread, never wait on the stage:
 continue from it on a later tick instead (the test scenes do this through `SceneCalls`).
 
-Call by name (`DriverApi.route`, `DriverApi.dispatch`) only when the method name is itself data:
-replay, wait conditions, watchers, and the transports.
+Call by name (`DriverApi.route`, `DriverApi.dispatch`) only when the method name is itself data
+(replay, wait conditions, watchers, the transports), or when the request's JSON is what is under
+test: a scene that sends a field the contract refuses, or checks a reply's wire shape, uses
+`SceneCalls.askByName`.
 
 ## Implementing methods
 
