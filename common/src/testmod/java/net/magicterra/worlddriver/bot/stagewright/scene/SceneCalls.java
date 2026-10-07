@@ -3,18 +3,27 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.contract.ApiError;
+import net.magicterra.worlddriver.api.contract.ApiException;
 
 /**
  * Driver calls from a scene body, which runs on the server thread. self's verbs run on the client
- * thread, and one game thread may not wait for another, so {@code DriverApi.route} refuses them there;
- * {@link #ask} sends the call and continues the scene once the reply lands.
+ * thread, and one game thread may not wait for another, so a scene never waits on a call: {@link #ask}
+ * sends it and continues the scene once the reply lands.
+ *
+ * <p>Calls go through the typed interfaces ({@code BotTaskCalls.of(api())} and the like), which take
+ * the same path a request does. The by-name forms are for the scenes whose subject is the request
+ * itself: a method name, a parameter the contract refuses, a reply's JSON shape.
  */
 final class SceneCalls {
     private SceneCalls() {}
@@ -22,11 +31,75 @@ final class SceneCalls {
     /** How long a reply may take, in server ticks. */
     private static final int REPLY_TICKS = 40;
 
+    static DriverApi api() { return WorldDriverCommon.api(); }
+
+    /** Continues with {@code call}'s reply; a call that fails fails the scene. */
+    static <R> void ask(SceneContext ctx, String tag, CompletionStage<R> call, Consumer<R> then) {
+        CompletableFuture<R> reply = call.toCompletableFuture();
+        ctx.await(reply::isDone).within(REPLY_TICKS).then(() -> {
+            ApiError error = errorOf(reply);
+            ctx.record(tag, error == null ? String.valueOf(reply.join()) : "error " + error);
+            if (error != null) {
+                ctx.fail(tag + ": the call failed: " + error);
+                return;
+            }
+            then.accept(reply.join());
+        });
+    }
+
+    /** Continues with how {@code call} failed; a call that succeeds fails the scene. */
+    static void askFailure(SceneContext ctx, String tag, CompletionStage<?> call, Consumer<ApiError> then) {
+        CompletableFuture<?> reply = call.toCompletableFuture();
+        ctx.await(reply::isDone).within(REPLY_TICKS).then(() -> {
+            ApiError error = errorOf(reply);
+            ctx.record(tag, error == null ? String.valueOf(reply.join()) : "error " + error);
+            if (error == null) {
+                ctx.fail(tag + ": the call was expected to fail and answered " + reply.join());
+                return;
+            }
+            then.accept(error);
+        });
+    }
+
     /**
-     * Calls {@code method} through the door every transport shares and hands the reply to {@code then}.
-     * A call that failed reaches {@code then} as {@code {error: <the exception>}}.
+     * Makes {@code call} again each time the last reply has landed, until a reply satisfies {@code until},
+     * and continues with that reply; the scene fails when none does within {@code ticks}. For a state the
+     * client reaches a few ticks later. A failed reply counts as not yet.
      */
-    static void ask(SceneContext ctx, String tag, String method, Map<String, Object> params, Consumer<Map<?, ?>> then) {
+    static <R> void askUntil(SceneContext ctx, String tag, Supplier<CompletionStage<R>> call,
+                             Predicate<R> until, int ticks, Consumer<R> then) {
+        AtomicReference<CompletableFuture<R>> inFlight = new AtomicReference<>();
+        AtomicReference<R> hit = new AtomicReference<>();
+        ctx.await(() -> {
+            CompletableFuture<R> f = inFlight.get();
+            if (f != null && !f.isDone()) return false;
+            if (f != null && errorOf(f) == null && until.test(f.join())) {
+                hit.set(f.join());
+                return true;
+            }
+            inFlight.set(call.get().toCompletableFuture());
+            return false;
+        }).within(ticks).then(() -> {
+            ctx.record(tag, String.valueOf(hit.get()));
+            then.accept(hit.get());
+        });
+    }
+
+    /** {@code reply}'s failure as the API reports it, or null when it succeeded. */
+    private static ApiError errorOf(CompletableFuture<?> reply) {
+        if (!reply.isCompletedExceptionally()) return null;
+        Throwable t = reply.exceptionNow();
+        ApiException a = ApiException.find(t);
+        return a != null ? a.error() : ApiError.of(ApiError.Code.INTERNAL_ERROR, String.valueOf(t));
+    }
+
+    // ---------------------------------------------------------------- by name, for the request itself
+
+    /**
+     * Calls {@code method} by name and hands the reply tree to {@code then}; a call that failed reaches
+     * {@code then} as {@code {error: <the exception>}}.
+     */
+    static void askByName(SceneContext ctx, String tag, String method, Map<String, Object> params, Consumer<Map<?, ?>> then) {
         CompletableFuture<Object> reply = send(method, params);
         ctx.await(reply::isDone).within(REPLY_TICKS).then(() -> {
             Map<?, ?> r = settled(reply);
@@ -35,13 +108,9 @@ final class SceneCalls {
         });
     }
 
-    /**
-     * Asks {@code method} again each time the last reply has landed, until a reply satisfies
-     * {@code until}, and hands that reply to {@code then}; the scene fails when none does within
-     * {@code ticks}. The polling form of {@link #ask}, for a state the client reaches a few ticks later.
-     */
-    static void askUntil(SceneContext ctx, String tag, String method, Map<String, Object> params,
-                         Predicate<Map<?, ?>> until, int ticks, Consumer<Map<?, ?>> then) {
+    /** {@link #askUntil} by name, for a method no typed interface binds. */
+    static void askUntilByName(SceneContext ctx, String tag, String method, Map<String, Object> params,
+                               Predicate<Map<?, ?>> until, int ticks, Consumer<Map<?, ?>> then) {
         AtomicReference<CompletableFuture<Object>> inFlight = new AtomicReference<>();
         AtomicReference<Map<?, ?>> hit = new AtomicReference<>();
         ctx.await(() -> {
@@ -59,9 +128,9 @@ final class SceneCalls {
         });
     }
 
-    /** Sends {@code method} without waiting for it: for a cleanup, which may not wait on the client. */
+    /** Sends {@code method} by name without waiting for it. */
     static CompletableFuture<Object> send(String method, Map<String, Object> params) {
-        return WorldDriverCommon.api().dispatch(method, params, CallContext.standalone()).toCompletableFuture();
+        return api().dispatch(method, params, CallContext.standalone()).toCompletableFuture();
     }
 
     /** A landed reply as a map; a failure as {@code {error: <the exception>}}. */

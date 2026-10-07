@@ -18,7 +18,7 @@ import net.magicterra.worlddriver.model.DriverEvent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
-import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.askByName;
 
 /**
  * The verb layer of route selection, on the client's REAL player: {@code mc.bot.goto} with a
@@ -27,8 +27,9 @@ import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
  * player through {@link ClientHelm} and skips on a dedicated server — the constraint layer under it
  * is covered there by {@code wd.route*}.
  *
- * <p>Every call goes through {@link SceneCalls#ask}, into the same door every transport uses, with the
- * schema validation in front of it, so "the schema refused it" is a thing these scenes can say.
+ * <p>Every call goes by name through {@link SceneCalls#askByName}, as JSON into the same door every
+ * transport uses, with the schema validation in front of it, so "the schema refused it" is a thing these
+ * scenes can say; a typed call could not even express {@code forbidDig}.
  */
 public final class WorldDriverClientRouteScenes implements SceneProvider {
 
@@ -61,7 +62,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
     private static void goTo(SceneContext ctx, String tag, BlockPos p, Map<String, Object> extra, Consumer<Map<?, ?>> then) {
         Map<String, Object> params = new java.util.LinkedHashMap<>(extra);
         params.put("target", Map.of("kind", "position", "pos", pos(p)));
-        ask(ctx, tag, "mc.bot.goto", params, then);
+        askByName(ctx, tag, "mc.bot.goto", params, then);
     }
 
     /** The action an accepted reply carries; empty when the call was refused. */
@@ -122,7 +123,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                 ctx.check("succeeded".equals(preview.get("state")) && Boolean.TRUE.equals(plan.get("reached")))
                         .as("B: the preview reaches the goal: state=" + preview.get("state") + " reached=" + plan.get("reached")).isTrue();
                 Walker.lastStats = null;
-                ask(ctx, "adopt.reply", "mc.bot.goto", Map.of("planId", String.valueOf(plan.get("planId"))), walked -> {
+                askByName(ctx, "adopt.reply", "mc.bot.goto", Map.of("planId", String.valueOf(plan.get("planId"))), walked -> {
                 final int[] arrived = { -1 };
                 final int[] searches = { 0 };
                 final Walker.PathStats[] seen = { null };
@@ -155,7 +156,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                                 java.util.Set.of(), 90f, 0f);
                         helm.sync(20, () -> {
                             ctx.record("offset.afterSync", helm.where());
-                            ask(ctx, "adopt2.reply", "mc.bot.goto", Map.of("planId", backId), declined -> {
+                            askByName(ctx, "adopt2.reply", "mc.bot.goto", Map.of("planId", backId), declined -> {
                             ctx.check(!action(declined).isEmpty())
                                     .as("G: when it declines, the goto still starts its own search: " + declined).isTrue();
                             awaitEnd(ctx, actionId(declined), 400, t -> { }, trip2 -> {

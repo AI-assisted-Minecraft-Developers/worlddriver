@@ -18,6 +18,17 @@ import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.ApiIssue;
+import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.methods.ClientCalls;
+import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.ControlCalls;
+import net.magicterra.worlddriver.api.methods.ControlContracts.CancelParams;
+import net.magicterra.worlddriver.api.methods.EventCalls;
+import net.magicterra.worlddriver.api.methods.EventContracts;
+import net.magicterra.worlddriver.api.methods.EventStreamContract.NoParams;
+import net.magicterra.worlddriver.api.methods.SystemCalls;
+import net.magicterra.worlddriver.bot.SettingsCalls;
+import net.magicterra.worlddriver.bot.SettingsContract;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.Goal;
@@ -59,6 +70,7 @@ import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.Vec3;
 
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.askByName;
 
 /**
  * Dogfooded worlddriver scenes — <b>P4b wave 5, the Core (main {@code AgentGameTest}) family</b>:
@@ -165,16 +177,11 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     private static void standOnTestArea(SceneContext ctx) {
         if (ctx.playerOrNull() == null) return;
         ServerPlayer player = ctx.playerHere();
-        Object origin = WorldDriverCommon.api().route("mc.system.testOrigin", Map.of());
-        // Loud, not a quiet return: a shape this code cannot use has to stop the scene, or the next
-        // change to that verb silently skips the teleport below (it did, for three gate runs, when
-        // the verb answered a BlockPos and this checked for a Map; route() now answers the JSON tree).
-        if (!(origin instanceof Map<?, ?> o && o.get("x") instanceof Number x && o.get("y") instanceof Number y
-                && o.get("z") instanceof Number z)) {
-            ctx.fail("mc.system.testOrigin answered " + origin + ", not {x,y,z} — cannot stand the player on the seeded pad");
-            return;
-        }
-        BlockPos pad = new BlockPos(x.intValue(), y.intValue(), z.intValue());
+        // Typed, so a change to the verb's answer breaks this compile rather than silently skipping the
+        // teleport below (it did, for three gate runs, when the shape this read by hand moved).
+        BlockPosition o = DriverApi.await(SystemCalls.of(WorldDriverCommon.api())
+                .testOrigin(new NoParams(), CallContext.standalone()), 5_000);
+        BlockPos pad = new BlockPos(o.x(), o.y(), o.z());
         // Offset by one on both axes rather than landing on the origin cell: the seed puts an
         // oak log at origin+(0,1,0) for the checks that mine one, and a player standing in it has
         // no free cell at their feet — which surfaces as the "crafting table needed (no free cell
@@ -257,7 +264,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // out, on FAIL and TIMEOUT too. A dedicated server has no bot. Sent without waiting: self's
         // cancel runs on the client thread, which a cleanup on the server thread may not wait for.
         if (BotHooks.isAvailable()) {
-            ctx.cleanup(() -> WorldDriverCommon.api().dispatch("mc.bot.cancel", Map.of(), CallContext.standalone()));
+            ctx.cleanup(() -> ControlCalls.of(WorldDriverCommon.api()).cancel(CancelParams.all(), CallContext.standalone()));
         }
 
         AtomicReference<Integer> result = new AtomicReference<>();
@@ -1553,28 +1560,32 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     private static void clientSettingSchema(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ask(ctx, "unknownKey", "mc.bot.setting", Map.of("op", "patch",
-                "values", Map.of("definitelyNotAKnob", true)), refused -> {
-            List<ApiIssue> issues = refused.get("error") instanceof ApiException e ? e.error().issues() : List.of();
+        SettingsCalls settings = SettingsCalls.of(WorldDriverCommon.api());
+        SceneCalls.askFailure(ctx, "unknownKey", settings.setting(SettingsContract.Patch.of(Map.of("definitelyNotAKnob", true)),
+                CallContext.standalone()), refused -> {
+            List<ApiIssue> issues = refused.issues();
             ctx.expect(issues.stream().anyMatch(i -> i.path().equals("/values/definitelyNotAKnob") && i.message().contains("definitelyNotAKnob")))
                     .as("the unknown key is refused at its own path, by name: " + issues).isEqualTo(true);
             // The contract must not over-reach the other way: a KNOWN key commits, the reply carries
             // what it now holds, and a fresh read agrees. The pin restores it however this exits.
-            ask(ctx, "read", "mc.bot.setting", Map.of("op", "read", "keys", List.of("autoEat")), before -> {
+            ask(ctx, "read", settings.setting(SettingsContract.Read.of("autoEat"), CallContext.standalone()), before -> {
                 boolean orig = Boolean.TRUE.equals(settingOf(before, "autoEat"));
-                ask(ctx, "patch", "mc.bot.setting", Map.of("op", "patch",
-                        "values", Map.of("autoEat", !orig)), write -> {
+                ask(ctx, "patch", settings.setting(SettingsContract.Patch.of(Map.of("autoEat", !orig)), CallContext.standalone()), write -> {
                     ctx.expect(settingOf(write, "autoEat")).as("the value the patch reports").isEqualTo(!orig);
-                    ask(ctx, "reread", "mc.bot.setting", Map.of("op", "read", "keys", List.of("autoEat")), after ->
+                    ask(ctx, "reread", settings.setting(SettingsContract.Read.of("autoEat"), CallContext.standalone()), after ->
                             ctx.expect(settingOf(after, "autoEat")).as("a fresh read of autoEat").isEqualTo(!orig));
                 });
             });
         });
     }
 
-    /** One key's value out of a {@code mc.bot.setting} reply's {@code values}. */
-    private static Object settingOf(Map<?, ?> reply, String key) {
-        return reply.get("values") instanceof Map<?, ?> values ? values.get(key) : null;
+    /** One key's value out of a {@code mc.bot.setting} reply, or null when the reply does not hold it. */
+    private static Object settingOf(SettingsContract.SettingsReply reply, String key) {
+        return switch (reply) {
+            case SettingsContract.Values v -> v.get(key).orElse(null);
+            case SettingsContract.Patched p -> p.get(key).orElse(null);
+            case SettingsContract.Applied a -> null;
+        };
     }
 
     /**
@@ -1727,19 +1738,19 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ctx.cleanup(() -> SceneCalls.send("mc.client.screen.close", Map.of()));
 
         // Start from a known no-screen state, then dirty both: a chat line and the inventory keybind.
-        ask(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
-                ask(ctx, "chat", "mc.client.chat.send", Map.of("text", "stagewright-reset-probe"), sent ->
-                        ask(ctx, "key", "mc.client.input.key", Map.of("key", "E"), pressed ->
+        askByName(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
+                askByName(ctx, "chat", "mc.client.chat.send", Map.of("text", "stagewright-reset-probe"), sent ->
+                        askByName(ctx, "key", "mc.client.input.key", Map.of("key", "E"), pressed ->
                                 resetClearsWhatWasDirtied(ctx))));
     }
 
     private static void resetClearsWhatWasDirtied(SceneContext ctx) {
         // Separate awaits so a timeout names which half of the dirtying never landed; steps drain
         // in registration order, so the reset below only runs once both have.
-        SceneCalls.askUntil(ctx, "dirtiedScreen", "mc.client.screen.info", Map.of(),
+        SceneCalls.askUntilByName(ctx, "dirtiedScreen", "mc.client.screen.info", Map.of(),
                 info -> Boolean.TRUE.equals(info.get("hasScreen")), 100, info -> {});
-        SceneCalls.askUntil(ctx, "dirtiedChat", "mc.client.chat.history", Map.of("limit", 50),
-                history -> chatCount(history) >= 1, 100, history -> ask(ctx, "reset", "mc.test.reset", Map.of(), r -> {
+        SceneCalls.askUntilByName(ctx, "dirtiedChat", "mc.client.chat.history", Map.of("limit", 50),
+                history -> chatCount(history) >= 1, 100, history -> askByName(ctx, "reset", "mc.test.reset", Map.of(), r -> {
             Object reset = r.get("reset");
             ctx.expect(String.valueOf(r.get("error"))).as("mc.test.reset answered without an error").isEqualTo("null");
             List<?> tokens = reset instanceof List<?> l ? l : List.of();
@@ -1753,14 +1764,14 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.expect(clearedChat).as("reset[] names the chat log it cleared").isEqualTo(true);
             ctx.record("resetTokens", String.valueOf(reset));
 
-            ask(ctx, "afterReset", "mc.client.screen.info", Map.of(), info -> {
+            askByName(ctx, "afterReset", "mc.client.screen.info", Map.of(), info -> {
                 ctx.expect(info.get("hasScreen")).as("a screen is still open after the reset")
                         .isEqualTo(false);
                 // The reset must close the screen without closing the WORLD — a disconnect would also
                 // satisfy "no screen open" and would take every scene after this one down with it.
                 ctx.expect(info.get("worldOpen")).as("the reset kept us in the world").isEqualTo(true);
             });
-            ask(ctx, "chatAfterReset", "mc.client.chat.history", Map.of("limit", 50), after ->
+            askByName(ctx, "chatAfterReset", "mc.client.chat.history", Map.of("limit", 50), after ->
                     ctx.expect(chatCount(after)).as("chat readback entries after the reset").isEqualTo(0));
         }));
     }
@@ -1789,22 +1800,22 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ctx.cleanup(() -> SceneCalls.send("mc.client.input.key", Map.of("key", "W", "action", "release")));
 
         // No screen → the key takes the keybind path.
-        ask(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
-                ask(ctx, "press", "mc.client.input.key", Map.of("key", "W", "action", "press"), pressed ->
+        askByName(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
+                askByName(ctx, "press", "mc.client.input.key", Map.of("key", "W", "action", "press"), pressed ->
                         resetReleasesTheHeldKey(ctx)));
     }
 
     private static void resetReleasesTheHeldKey(SceneContext ctx) {
-        SceneCalls.askUntil(ctx, "heldBefore", "mc.test.input.heldKeys", Map.of(),
+        SceneCalls.askUntilByName(ctx, "heldBefore", "mc.test.input.heldKeys", Map.of(),
                 held -> Boolean.TRUE.equals(keysOf(held).get("up")), 100, held ->
-                        ask(ctx, "reset", "mc.test.reset", Map.of(), r -> {
+                        askByName(ctx, "reset", "mc.test.reset", Map.of(), r -> {
             Object reset = r.get("reset");
             List<?> tokens = reset instanceof List<?> l ? l : List.of();
             ctx.expect(token(tokens, "keys:"))
                     .as("reset[] names the key it released, and nothing left held")
                     .isEqualTo("keys:up");
 
-            ask(ctx, "heldAfter", "mc.test.input.heldKeys", Map.of(), after -> {
+            askByName(ctx, "heldAfter", "mc.test.input.heldKeys", Map.of(), after -> {
                 Map<?, ?> keys = keysOf(after);
                 ctx.expect(joinSorted(keys.keySet())).as("the keys mc.test.input.heldKeys reports")
                         .isEqualTo("attack,down,jump,left,right,shift,sprint,up");
@@ -1863,10 +1874,10 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // The mode reaches the client as a packet, and the screen it opens is the client's
         // decision, so drive only once the client agrees about the mode: mc.client.player's view of
         // it is the one that picks the screen.
-        ask(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
-                SceneCalls.askUntil(ctx, "clientMode", "mc.client.player", Map.of(),
+        askByName(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
+                SceneCalls.askUntilByName(ctx, "clientMode", "mc.client.player", Map.of(),
                         p -> "survival".equals(p.get("gameMode")), 100, p ->
-                                ask(ctx, "keybind.reply", "mc.client.input.keybind", Map.of("name", "key.inventory"),
+                                askByName(ctx, "keybind.reply", "mc.client.input.keybind", Map.of("name", "key.inventory"),
                                         m -> keybindOpensTheInventory(ctx, m))));
     }
 
@@ -1889,14 +1900,14 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ctx.expect(m.get("screenAfter")).as("the screen this keystroke left standing")
                 .isEqualTo("InventoryScreen");
 
-        SceneCalls.askUntil(ctx, "opened", "mc.client.screen.info", Map.of(),
+        SceneCalls.askUntilByName(ctx, "opened", "mc.client.screen.info", Map.of(),
                 info -> Boolean.TRUE.equals(info.get("hasScreen")), 100, info -> {
             ctx.expect(info.get("type")).as("the screen the inventory binding opens")
                     .isEqualTo("InventoryScreen");
             // Read back from the listing, not from the reply that claimed it: the reply is the
             // verb's own account of the release, and a release that only the replier believes in
             // is the failure this checks for.
-            ask(ctx, "listing", "mc.client.input.keybind", Map.of(), listing ->
+            askByName(ctx, "listing", "mc.client.input.keybind", Map.of(), listing ->
                     ctx.expect(keybindDown(listing, "key.inventory"))
                             .as("key.inventory still down after the click, read back from the listing")
                             .isEqualTo(false));
@@ -1975,8 +1986,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         AtomicLong cursor = new AtomicLong(-1);
         int[] settled = {0};
         ctx.await(() -> ++settled[0] >= 20).within(80).then(() -> {
-            cursor.set(api.route("mc.observe.cursor", Map.of()) instanceof Map<?, ?> m
-                    && m.get("cursor") instanceof String s ? Long.parseLong(s) : 0L);
+            cursor.set(DriverApi.await(EventCalls.of(api).cursor(new EventContracts.NoParams(), CallContext.standalone()), 5_000)
+                    .cursor());
             // out_of_world is in BYPASSES_INVULNERABILITY, so it lands whichever gamemode the run's
             // template put the player in. Toggling /gamemode instead would be a far wider blast
             // radius for a scene that only needs two points of damage.
@@ -2005,33 +2016,29 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * connection) and does it on the multiplayer topology too. What is left, and what this covers,
      * is the CLIENT face's own answer: the verb an agent actually asks "where am I".
      *
-     * <p>A position is asserted per axis rather than as a whole, because the failure this guards is
-     * a payload that arrives shaped right and empty — {@code present:true} with no {@code pos} at
-     * all reads as in-world to any caller that does not look.
+     * <p>The position is asserted on its own, because the failure this guards is a payload that
+     * arrives shaped right and empty — {@code present:true} with no {@code pos} at all reads as
+     * in-world to any caller that does not look.
      */
     private static void clientPlayerInWorld(SceneContext ctx) {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.client.player is client-only — only an integrated server has its handler here");
-        ask(ctx, "clientPlayer", "mc.client.player", Map.of(), cp -> {
-            ctx.expect(cp.get("present")).as("mc.client.player reports a LocalPlayer in a world")
+        ask(ctx, "clientPlayer", ClientCalls.of(WorldDriverCommon.api()).player(new NoParams(), CallContext.standalone()), cp -> {
+            ctx.expect(cp.present()).as("mc.client.player reports a LocalPlayer in a world")
                     .isEqualTo(true);
-
-            Map<?, ?> pos = cp.get("pos") instanceof Map<?, ?> m ? m : Map.of();
-            for (String axis : new String[]{"x", "y", "z"})
-                ctx.expect(pos.get(axis) instanceof Number).as("mc.client.player's pos." + axis
-                        + " is a number, not a hole in a well-shaped payload").isEqualTo(true);
-            ctx.record("clientPos", pos.get("x") + "," + pos.get("y") + "," + pos.get("z"));
+            ctx.expect(cp.pos().isPresent()).as("mc.client.player's pos is there, not a hole in a well-shaped payload")
+                    .isEqualTo(true);
+            ctx.record("clientPos", cp.pos().map(String::valueOf).orElse("none"));
         });
     }
 
     /** The {@code player.hurt} payloads emitted since {@code cursor}, oldest first. */
     private static List<Map<?, ?>> hurtPayloads(DriverApi api, long cursor) {
-        Object r = api.route("mc.observe.eventsSince",
-                Map.of("cursor", Long.toString(cursor), "types", List.of("player.hurt")));
+        EventContracts.Page page = DriverApi.await(EventCalls.of(api)
+                .eventsSince(EventContracts.SinceParams.after(cursor, "player.hurt"), CallContext.standalone()), 5_000);
         List<Map<?, ?>> out = new ArrayList<>();
-        if (r instanceof Map<?, ?> page && page.get("events") instanceof List<?> list)
-            for (Object e : list)
-                if (e instanceof Map<?, ?> ev && ev.get("data") instanceof Map<?, ?> m) out.add(m);
+        for (EventContracts.Event e : page.events())
+            if (e.data().map(JsonValue::tree).orElse(null) instanceof Map<?, ?> m) out.add(m);
         return out;
     }
 }

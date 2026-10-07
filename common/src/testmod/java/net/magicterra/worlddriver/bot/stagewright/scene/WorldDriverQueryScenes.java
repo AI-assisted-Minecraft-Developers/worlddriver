@@ -1,15 +1,21 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
-import java.util.Map;
 
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.UnloadedAreaException;
 import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.methods.ClientCalls;
+import net.magicterra.worlddriver.api.methods.ClientContracts.BlocksParams;
+import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.QueryCalls;
+import net.magicterra.worlddriver.api.methods.QueryContract;
+import net.magicterra.worlddriver.api.methods.QueryContract.BlockRows;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
@@ -23,6 +29,9 @@ import net.minecraft.world.level.block.Blocks;
 public final class WorldDriverQueryScenes implements SceneProvider {
 
     private static final int MAX_RADIUS = 15;
+
+    /** A query on the server thread hops to itself and is done when the call returns. */
+    private static final long QUERY_MS = 5_000;
 
     @Override
     public List<Scene> scenes() {
@@ -41,24 +50,24 @@ public final class WorldDriverQueryScenes implements SceneProvider {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.client.blocks is client-only — only an integrated server has its handler here");
         if (WorldDriverCommon.api() == null) ctx.fail("DriverApi not initialized — was the mod loaded?");
+        ClientCalls client = ClientCalls.of(SceneCalls.api());
 
-        // Asked, not routed: the scan runs on the client thread, which this server thread may not wait for.
-        SceneCalls.ask(ctx, "nearScan", "mc.client.blocks", Map.of("radius", 1), near ->
-                ctx.check(near.get("blocks") instanceof List<?> && !near.containsKey("unloaded"))
+        // Asked, not awaited: the scan runs on the client thread, which this server thread may not wait for.
+        SceneCalls.ask(ctx, "nearScan", client.blocks(BlocksParams.aroundPlayer(1), CallContext.standalone()), near ->
+                ctx.check(near.unloaded().isEmpty())
                         .as("A a scan around the player reports no unloaded chunk (" + near + ")").isTrue());
 
         BlockPos far = new BlockPos(ctx.originX() + 1_000_000, 80, ctx.originZ() + 1_000_000);
         int fcx = far.getX() >> 4, fcz = far.getZ() >> 4;
-        SceneCalls.ask(ctx, "farScan", "mc.client.blocks", Map.of("center", pos(far), "radius", 1), distant ->
-                ctx.check(distant.get("unloaded") instanceof List<?> l
-                                && l.stream().anyMatch(c -> c instanceof Map<?, ?> cm && cm.get("x") instanceof Number x
-                                        && cm.get("z") instanceof Number z && x.intValue() == fcx && z.intValue() == fcz))
+        SceneCalls.ask(ctx, "farScan", client.blocks(BlocksParams.around(pos(far), 1), CallContext.standalone()), distant ->
+                ctx.check(distant.unloaded().orElse(List.of()).stream().anyMatch(c -> c.x() == fcx && c.z() == fcz))
                         .as("B a scan far from the player names chunk [" + fcx + ", " + fcz + "] as unloaded").isTrue());
     }
 
     private static void blocksStayInLoadedChunks(SceneContext ctx) {
         DriverApi api = WorldDriverCommon.api();
         if (api == null) ctx.fail("DriverApi not initialized — was the mod loaded?");
+        QueryCalls query = QueryCalls.of(api);
         for (int d : new int[] {-MAX_RADIUS, MAX_RADIUS})
             if (ctx.outsideForcedChunks(d, d) || ctx.outsideForcedChunks(d, -d))
                 ctx.skip("the arena's forced window is narrower than a radius-" + MAX_RADIUS + " cube");
@@ -69,15 +78,13 @@ public final class WorldDriverQueryScenes implements SceneProvider {
         level.setBlockAndUpdate(probe, Blocks.GOLD_BLOCK.defaultBlockState());
         ctx.cleanup(() -> level.setBlockAndUpdate(probe, Blocks.AIR.defaultBlockState()));
 
-        Object rows = api.route("mc.query", Map.of("q", "blocks", "center", pos(center),
-                "filter", Map.of("in_radius", MAX_RADIUS, "type", "minecraft:gold_block")));
-        ctx.check(rows instanceof Map<?, ?> reply && reply.get("blocks") instanceof List<?> l
-                        && l.stream().anyMatch(r -> r instanceof Map<?, ?> m
-                        && isCell(m.get("pos"), probe)))
+        QueryContract.Rows rows = DriverApi.await(query.query(QueryContract.Blocks.around(pos(center), MAX_RADIUS)
+                .ofType("minecraft:gold_block"), CallContext.standalone()), QUERY_MS);
+        ctx.check(rows instanceof BlockRows b && b.blocks().stream().anyMatch(r -> r.pos().equals(java.util.Optional.of(pos(probe)))))
                 .as("A the documented maximum radius answers and finds the probe block").isTrue();
 
-        String refused = errorOf(() -> api.route("mc.query", Map.of("q", "blocks", "center", pos(center),
-                "filter", Map.of("in_radius", MAX_RADIUS + 1))));
+        String refused = errorOf(() -> DriverApi.await(query.query(QueryContract.Blocks.around(pos(center), MAX_RADIUS + 1),
+                CallContext.standalone()), QUERY_MS));
         ctx.check(refused != null && refused.contains("0–" + MAX_RADIUS))
                 .as("B one past the maximum is refused and names the limit (" + refused + ")").isTrue();
 
@@ -88,7 +95,7 @@ public final class WorldDriverQueryScenes implements SceneProvider {
             ctx.skip("the far probe chunk [" + fcx + ", " + fcz + "] is already loaded");
         RuntimeException unloaded = null;
         try {
-            api.route("mc.query", Map.of("q", "blocks", "center", pos(far), "filter", Map.of("in_radius", 2)));
+            DriverApi.await(query.query(QueryContract.Blocks.around(pos(far), 2), CallContext.standalone()), QUERY_MS);
         } catch (RuntimeException e) {
             unloaded = e;
         }
@@ -101,15 +108,8 @@ public final class WorldDriverQueryScenes implements SceneProvider {
                 .as("E the query left the chunk unloaded").isTrue();
     }
 
-    private static Map<String, Object> pos(BlockPos p) {
-        return Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ());
-    }
-
-    /** A decoded {@code {x,y,z}}: the integer class is the parser's choice, so compare values. */
-    private static boolean isCell(Object tree, BlockPos p) {
-        return tree instanceof Map<?, ?> m && m.get("x") instanceof Number x && m.get("y") instanceof Number y
-                && m.get("z") instanceof Number z
-                && x.intValue() == p.getX() && y.intValue() == p.getY() && z.intValue() == p.getZ();
+    private static BlockPosition pos(BlockPos p) {
+        return new BlockPosition(p.getX(), p.getY(), p.getZ());
     }
 
     private static String errorOf(Runnable call) {

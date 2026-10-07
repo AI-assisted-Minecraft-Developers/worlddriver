@@ -1,12 +1,23 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
+import net.magicterra.worlddriver.api.CallContext;
+import net.magicterra.worlddriver.api.methods.ActionContract.Accepted;
+import net.magicterra.worlddriver.api.methods.ActionContract.ActionResponse;
+import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
+import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
+import net.magicterra.worlddriver.api.methods.BotTaskCalls;
+import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.ControlCalls;
+import net.magicterra.worlddriver.api.methods.ControlContracts.CancelParams;
+import net.magicterra.worlddriver.api.methods.ControlContracts.Status;
+import net.magicterra.worlddriver.api.methods.ControlContracts.StatusParams;
+import net.magicterra.worlddriver.api.methods.GotoContract;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
@@ -15,6 +26,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 
+import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.api;
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 
 /**
@@ -26,7 +38,7 @@ import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
  * death screen while every {@code goto} reported it had started.
  *
  * <p>Adopts the player through {@link ClientHelm}, so it skips on a dedicated server like every
- * {@code wd.client*} scene; every call goes through {@code DriverApi.dispatch}, the door all transports
+ * {@code wd.client*} scene; every call goes through the method registry, the door all transports
  * share.
  */
 public final class WorldDriverClientBodyScenes implements SceneProvider {
@@ -38,15 +50,16 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
 
     private static final int GROUND = 20;
 
-    /** A goto target: the cell {@code p}. */
-    private static Map<String, Object> at(BlockPos p) {
-        return Map.of("kind", "position", "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ()));
+    /** Self's goto to the cell {@code p}. */
+    private static void walkTo(SceneContext ctx, String tag, BlockPos p, java.util.function.Consumer<ActionResponse<GotoContract.Result>> then) {
+        ask(ctx, tag, BotTaskCalls.of(api()).goTo(GotoContract.Params.to(new BlockPosition(p.getX(), p.getY(), p.getZ())),
+                CallContext.standalone()), then);
     }
 
     /** Stops the action a goto started, by its id. */
-    private static void cancel(SceneContext ctx, String tag, Map<?, ?> started) {
-        if (started.get("action") instanceof Map<?, ?> a && a.get("actionId") instanceof String id) {
-            ask(ctx, tag, "mc.bot.cancel", Map.of("actionId", id), r -> { });
+    private static void cancel(SceneContext ctx, String tag, ActionResponse<?> started) {
+        if (started instanceof Accepted<?> a) {
+            ask(ctx, tag, ControlCalls.of(api()).cancel(CancelParams.action(a.action().actionId()), CallContext.standalone()), r -> { });
         }
     }
 
@@ -75,18 +88,16 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
                 p.teleportTo(was.serverLevel(), hx, hy, hz, Set.of(), hYaw, hPitch);
             }
         });
-        helm.sync(20, () -> ask(ctx, "alive.goto", "mc.bot.goto", Map.of("target", at(start)), alive -> {
-            ctx.check("accepted".equals(alive.get("outcome"))).as("A: while the player is alive, goto accepts the request: " + alive).isTrue();
+        helm.sync(20, () -> walkTo(ctx, "alive.goto", start, alive -> {
+            ctx.check(alive instanceof Accepted).as("A: while the player is alive, goto accepts the request: " + alive).isTrue();
             cancel(ctx, "alive.cancel", alive);
             body.kill();
-            ctx.await(body::isDeadOrDying).within(60).then(() -> helm.sync(15, () ->
-                    ask(ctx, "dead.goto", "mc.bot.goto", Map.of("target", at(start)), dead -> {
-                ctx.check("refused".equals(dead.get("outcome")) && "body_unavailable".equals(dead.get("reason"))
-                                && String.valueOf(dead.get("message")).contains("dead"))
+            ctx.await(body::isDeadOrDying).within(60).then(() -> helm.sync(15, () -> walkTo(ctx, "dead.goto", start, dead -> {
+                ctx.check(dead instanceof Refused<?> r && r.reason() == RefusalReason.BODY_UNAVAILABLE && r.message().contains("dead"))
                         .as("B: after death, goto is refused as body_unavailable, saying the player is dead: " + dead).isTrue();
-                ctx.check(dead.get("action") == null).as("C: the refused request did not start: " + dead).isTrue();
-                ask(ctx, "dead.status", "mc.bot.status", Map.of(), status -> {
-                    ctx.check("done".equals(status.get("outcome")) && status.get("status") instanceof Map<?, ?>)
+                ctx.check(!(dead instanceof Accepted)).as("C: the refused request did not start: " + dead).isTrue();
+                ask(ctx, "dead.status", ControlCalls.of(api()).status(StatusParams.self(), CallContext.standalone()), status -> {
+                    ctx.check(status instanceof Status s && s.status().isPresent())
                             .as("D: read-only methods are unaffected by the player's death: " + status).isTrue();
                     // The client's own Respawn button, sent from here: the packet handler runs on this thread.
                     body.connection.handleClientCommand(new ServerboundClientCommandPacket(
@@ -97,8 +108,8 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
                     }).within(100).then(() -> {
                         ServerPlayer again = SceneBody.humanPlayers(ctx).get(0);
                         again.teleportTo(ctx.level(), start.getX() + 0.5, start.getY(), start.getZ() + 0.5, Set.of(), 0f, 0f);
-                        helm.sync(20, () -> ask(ctx, "respawned.goto", "mc.bot.goto", Map.of("target", at(start)), back -> {
-                            ctx.check("accepted".equals(back.get("outcome"))).as("E: after respawn, the same request is accepted again: " + back).isTrue();
+                        helm.sync(20, () -> walkTo(ctx, "respawned.goto", start, back -> {
+                            ctx.check(back instanceof Accepted).as("E: after respawn, the same request is accepted again: " + back).isTrue();
                             cancel(ctx, "respawned.cancel", back);
                         }));
                     });
