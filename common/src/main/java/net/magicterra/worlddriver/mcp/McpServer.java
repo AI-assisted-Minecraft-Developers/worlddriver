@@ -119,11 +119,7 @@ public final class McpServer implements Closeable {
         // without an answer, which is the HTTP server's own behaviour on rejection.
         int threads = McpLimits.MCP_MAX_IN_FLIGHT + McpLimits.MCP_MAX_EVENT_STREAMS + 8;
         this.executor = new ThreadPoolExecutor(threads, threads, 60L, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<>(64), r -> {
-            Thread t = new Thread(r, "agent-mcp-worker");
-            t.setDaemon(true);
-            return t;
-        });
+                new ArrayBlockingQueue<>(64), Thread.ofPlatform().name("agent-mcp-worker").daemon().factory());
         this.executor.allowCoreThreadTimeOut(true);
         this.http.setExecutor(executor);
         this.http.start();

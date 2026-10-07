@@ -10,11 +10,8 @@ import java.util.concurrent.TimeUnit;
  * up. A task here only completes a future; it never encodes, writes to a socket or touches the game.
  */
 public final class ApiTimers {
-    private static final ScheduledExecutorService TIMER = Executors.newSingleThreadScheduledExecutor(r -> {
-        Thread t = new Thread(r, "worlddriver-timer");
-        t.setDaemon(true);
-        return t;
-    });
+    private static final ScheduledExecutorService TIMER = Executors.newSingleThreadScheduledExecutor(
+            Thread.ofPlatform().name("worlddriver-timer").daemon().factory());
 
     private ApiTimers() {}
 

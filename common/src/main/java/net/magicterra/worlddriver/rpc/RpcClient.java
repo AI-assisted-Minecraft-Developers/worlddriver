@@ -53,11 +53,8 @@ public final class RpcClient implements Closeable {
     /** A call's budget when the caller gives none; sent to the server as {@code _meta.budgetMs}. */
     public static final long DEFAULT_CALL_TIMEOUT_MS = 30_000L;
 
-    private final EventLoopGroup group = new NioEventLoopGroup(1, r -> {
-        Thread t = new Thread(r, "agent-rpc-client-io");
-        t.setDaemon(true);
-        return t;
-    });
+    private final EventLoopGroup group = new NioEventLoopGroup(1,
+            Thread.ofPlatform().name("agent-rpc-client-io").daemon().factory());
     private final Channel channel;
     private final ClientHandler handler;
     private final AtomicLong nextId = new AtomicLong(1);

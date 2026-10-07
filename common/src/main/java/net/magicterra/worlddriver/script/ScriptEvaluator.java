@@ -29,7 +29,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -55,15 +54,10 @@ public final class ScriptEvaluator {
 
     private final DriverApi api;
     private final ExecutorService executor;
-    private final AtomicLong seq = new AtomicLong();
 
     public ScriptEvaluator(DriverApi api) {
         this.api = api;
-        this.executor = Executors.newCachedThreadPool(r -> {
-            Thread t = new Thread(r, "agent-script-eval-" + seq.incrementAndGet());
-            t.setDaemon(true);
-            return t;
-        });
+        this.executor = Executors.newCachedThreadPool(Thread.ofPlatform().name("agent-script-eval-", 1).daemon().factory());
     }
 
     /**

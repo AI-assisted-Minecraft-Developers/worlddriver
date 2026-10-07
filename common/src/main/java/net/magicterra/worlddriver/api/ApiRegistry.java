@@ -47,11 +47,7 @@ public final class ApiRegistry {
      * long list is encoded here instead. Bounded; the work per task is one encode.
      */
     private static final ExecutorService ENCODE = new ThreadPoolExecutor(1, 4, 30, TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>(), r -> {
-                Thread t = new Thread(r, "worlddriver-encode");
-                t.setDaemon(true);
-                return t;
-            });
+            new LinkedBlockingQueue<>(), Thread.ofPlatform().name("worlddriver-encode").daemon().factory());
 
     public Snapshot snapshot() { return snapshot; }
 

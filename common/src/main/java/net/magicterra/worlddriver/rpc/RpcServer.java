@@ -234,11 +234,7 @@ public final class RpcServer implements Closeable {
     }
 
     private static ThreadFactory daemonFactory(String prefix) {
-        return r -> {
-            Thread t = new Thread(r, prefix + "-" + Thread.currentThread().threadId());
-            t.setDaemon(true);
-            return t;
-        };
+        return Thread.ofPlatform().name(prefix + "-", 1).daemon().factory();
     }
 
     /** Refuses the upgrade request of a browser page from a foreign origin. WebSockets are

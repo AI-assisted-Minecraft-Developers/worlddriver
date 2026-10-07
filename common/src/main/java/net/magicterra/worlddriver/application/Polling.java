@@ -32,11 +32,7 @@ final class Polling {
 
     /** Every poll is a short read; a slow one queues the next rather than starting another thread. */
     private static final ExecutorService POLLS = new ThreadPoolExecutor(4, 4, 30, TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>(), r -> {
-                Thread t = new Thread(r, "worlddriver-poll");
-                t.setDaemon(true);
-                return t;
-            });
+            new LinkedBlockingQueue<>(), Thread.ofPlatform().name("worlddriver-poll").daemon().factory());
 
     static {
         ((ThreadPoolExecutor) POLLS).allowCoreThreadTimeOut(true);

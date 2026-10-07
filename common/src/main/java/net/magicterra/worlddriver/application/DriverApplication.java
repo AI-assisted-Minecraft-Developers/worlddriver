@@ -70,11 +70,8 @@ public final class DriverApplication extends DriverApi {
      *  {@link #eventDispatch} so neither the server tick nor a client tick ever
      *  blocks on socket I/O. Copy-on-write: registration is rare, iteration frequent. */
     private final List<Consumer<DriverEvent>> eventListeners = new CopyOnWriteArrayList<>();
-    private final ExecutorService eventDispatch = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "agent-event-dispatch");
-        t.setDaemon(true);
-        return t;
-    });
+    private final ExecutorService eventDispatch = Executors.newSingleThreadExecutor(
+            Thread.ofPlatform().name("agent-event-dispatch").daemon().factory());
     private volatile ScriptHost scriptHost;
 
     public DriverApplication() {

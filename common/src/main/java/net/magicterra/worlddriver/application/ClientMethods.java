@@ -54,11 +54,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  */
 final class ClientMethods implements ScreenCalls, ClientCalls {
     /** Where the waiting calls sit out their wait; their number is bounded by the wait permits they hold. */
-    private static final ExecutorService WAITS = Executors.newCachedThreadPool(r -> {
-        Thread t = new Thread(r, "worlddriver-client-wait");
-        t.setDaemon(true);
-        return t;
-    });
+    private static final ExecutorService WAITS = Executors.newCachedThreadPool(
+            Thread.ofPlatform().name("worlddriver-client-wait").daemon().factory());
 
     private final DriverApplication app;
 
