@@ -4,6 +4,7 @@ import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.world.CellRules;
 import net.magicterra.worlddriver.bot.world.HazardField;
+import net.magicterra.worlddriver.bot.world.StateWorldView;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 import net.minecraft.core.BlockPos;
@@ -35,15 +36,16 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.effect.MobEffectInstance;
 import java.util.ArrayList;
 
 /** Reads the live client {@link Level} for the pathfinder: passability, solidity,
- *  fluids, climbables, hazards and break-cost. Extracted from BotApiImpl. */
+ *  fluids, climbables, hazards and break-cost. Extracted from BotApiImpl. The cell predicates are
+ *  {@link StateWorldView}'s, shared with the server views so the wd.* suite plans on the rules the
+ *  shipped client plans on ({@code wd.clientWorldViewParity}); this view supplies the cached state. */
 
-public final class ClientWorldView implements WorldView {
+public final class ClientWorldView implements StateWorldView {
     // A* cost units are calibrated so one cardinal cell of walking (Move.Walk's
     // base cost, 10) ≈ the real time to traverse it: vanilla ground speed
     // 4.317 b/s → 20/4.317 ≈ 4.63 ticks/block (Baritone's WALK_ONE_BLOCK_COST).
@@ -131,10 +133,9 @@ public final class ClientWorldView implements WorldView {
         }
         return s;
     }
+    @Override public BlockState blockState(BlockPos p) { return state(p); }
+    @Override public Level stateLevel() { return Minecraft.getInstance().level; }
 
-    public boolean isSolid(BlockPos p) {
-        return state(p).blocksMotion();
-    }
     @Override public boolean isKnown(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return false;
@@ -142,23 +143,6 @@ public final class ClientWorldView implements WorldView {
         // (an unloaded position reads as air from getBlockState, which is the
         // very ambiguity isKnown disambiguates for the long-distance planner).
         return lvl.getChunkSource().hasChunk(p.getX() >> 4, p.getZ() >> 4);
-    }
-    // Passability, footing and obstruction are CellRules' answers, shared with the server views
-    // so the wd.* suite plans on the rules the shipped client plans on (wd.clientWorldViewParity).
-    public boolean isPassable(BlockPos p) {
-        Level lvl = Minecraft.getInstance().level;
-        if (lvl == null) return false;
-        return CellRules.isPassable(lvl, p, state(p));
-    }
-    @Override public boolean isBreakableObstruction(BlockPos p) {
-        Level lvl = Minecraft.getInstance().level;
-        if (lvl == null) return false;
-        return CellRules.isBreakableObstruction(lvl, p, state(p));
-    }
-    @Override public boolean canStandOn(BlockPos p) {
-        Level lvl = Minecraft.getInstance().level;
-        if (lvl == null) return false;
-        return CellRules.canStandOn(lvl, p, state(p));
     }
     @Override public Vec3 waterFlow(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
@@ -200,20 +184,6 @@ public final class ClientWorldView implements WorldView {
         if (upstream <= 0) return dc;                          // crossing or with the flow → no extra cost
         return dc + BotConfig.waterFlowPenalty * upstream;         // |flow|·cosθ scaled
     }
-    /** The shared policy — this file was its author and the other two views each carried a copy
-     *  that pointed BACK here in a comment. {@code BotUtil.isHazardState} now holds both the code
-     *  and the FluidTags-not-Fluids account of why it is written that way. */
-    public boolean isHazard(BlockPos p) { return isHazardState(state(p)); }
-    public boolean isWater(BlockPos p) {
-        return state(p).getFluidState().is(FluidTags.WATER);
-    }
-    @Override public boolean isFallingBlock(BlockPos p) {
-        return state(p).getBlock() instanceof FallingBlock;
-    }
-    public boolean isClimbable(BlockPos p) {
-        return state(p).is(BlockTags.CLIMBABLE);
-    }
-    @Override public boolean isLeaves(BlockPos p) { return state(p).is(BlockTags.LEAVES); }
     @Override public double breakCost(BlockPos p) {
         // Hopeless-dig poison (see BreakFeasibility): cells the executor proved
         // unfinishable price +INF so the next search routes around (live 2026-07-21:

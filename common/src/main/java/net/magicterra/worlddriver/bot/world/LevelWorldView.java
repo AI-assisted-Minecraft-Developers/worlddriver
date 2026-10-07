@@ -2,16 +2,12 @@ package net.magicterra.worlddriver.bot.world;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
-import net.magicterra.worlddriver.bot.util.BotUtil;
 import net.minecraft.core.BlockPos;
-import net.minecraft.tags.BlockTags;
-import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -31,7 +27,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * {@code new LevelWorldView} comes from {@code ServerWorldDriver} (the FakePlayer driver) and
  * the scenes, {@code new ClientWorldView} from {@code BotApiImpl}, the real client player.
  */
-public final class LevelWorldView implements WorldView {
+public final class LevelWorldView implements StateWorldView {
 
     private final Level level;
     /** The entity this view plans for; its step height is the planner's. */
@@ -76,33 +72,11 @@ public final class LevelWorldView implements WorldView {
 
     @Override public void beginSearch() { dig = CellRules.DigSnapshot.of(controller, level); }
 
-    private BlockState state(BlockPos p) { return level.getBlockState(p); }
+    @Override public BlockState blockState(BlockPos p) { return level.getBlockState(p); }
 
-    @Override public boolean isSolid(BlockPos p) { return state(p).blocksMotion(); }
+    @Override public Level stateLevel() { return level; }
 
     @Override public boolean isKnown(BlockPos p) { return level.isLoaded(p); }
-
-    @Override public boolean isPassable(BlockPos p) { return CellRules.isPassable(level, p, state(p)); }
-
-    @Override public boolean canStandOn(BlockPos p) { return CellRules.canStandOn(level, p, state(p)); }
-
-    /** The shared policy, not a third opinion about it — {@link BotUtil#isHazardState} carries the
-     *  FluidTags-not-Fluids reasoning and the extras list this used to restate line for line. */
-    @Override public boolean isHazard(BlockPos p) { return BotUtil.isHazardState(state(p)); }
-
-    @Override public boolean isWater(BlockPos p) { return state(p).getFluidState().is(FluidTags.WATER); }
-
-    @Override public boolean isFallingBlock(BlockPos p) { return state(p).getBlock() instanceof FallingBlock; }
-
-    @Override public boolean isClimbable(BlockPos p) { return state(p).is(BlockTags.CLIMBABLE); }
-
-    @Override public boolean isLeaves(BlockPos p) { return state(p).is(BlockTags.LEAVES); }
-
-    /** The lily-pad taxes ({@code padCellTax} / {@code padOverWaterTax}) key on this, so the
-     *  server planner must answer it too rather than take the interface's {@code false}. */
-    @Override public boolean isBreakableObstruction(BlockPos p) {
-        return CellRules.isBreakableObstruction(level, p, state(p));
-    }
 
     // ---- break / place (live) ----
 
@@ -110,7 +84,7 @@ public final class LevelWorldView implements WorldView {
         // An entity that is not a player cannot break anything; a view built over no entity at all
         // keeps the bare-hand price it always had.
         if (!BotConfig.allowBreak || (controller == null && body != null)) return Double.POSITIVE_INFINITY;
-        return CellRules.breakCost(level, p, state(p), controller, dig);
+        return CellRules.breakCost(level, p, blockState(p), controller, dig);
     }
 
     /**
