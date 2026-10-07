@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.EventStreamContract.NoParams;
+import net.magicterra.worlddriver.api.methods.CommonTypes.NoParams;
 import net.magicterra.worlddriver.api.methods.SystemCalls;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;

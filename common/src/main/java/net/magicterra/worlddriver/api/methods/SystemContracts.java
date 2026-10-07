@@ -6,16 +6,14 @@ import net.magicterra.worlddriver.api.contract.ApiField;
 import net.magicterra.worlddriver.api.contract.ApiType;
 import net.magicterra.worlddriver.api.contract.ApiTypes;
 import net.magicterra.worlddriver.api.contract.MethodSpec;
-import net.magicterra.worlddriver.api.contract.RecordType;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.EventStreamContract.NoParams;
+import net.magicterra.worlddriver.api.methods.CommonTypes.NoParams;
+
+import static net.magicterra.worlddriver.api.methods.CommonTypes.NO_PARAMS;
 
 /** {@code mc.system.version}, {@code mc.system.testOrigin} and {@code mc.system.waitTicks}. */
 public final class SystemContracts {
     private SystemContracts() {}
-
-    /** The parameters of a method that takes none; one shared object, so TypeScript sees one NoParams. */
-    public static final RecordType<NoParams> NO_PARAMS = EventStreamContract.NO_PARAMS;
 
     // ------------------------------------------------------------------ version
 

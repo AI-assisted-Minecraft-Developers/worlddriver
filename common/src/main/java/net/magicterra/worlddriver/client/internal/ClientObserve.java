@@ -28,7 +28,7 @@ import net.magicterra.worlddriver.api.methods.ClientContracts.EntityHit;
 import net.magicterra.worlddriver.api.methods.ClientContracts.Hit;
 import net.magicterra.worlddriver.api.methods.ClientContracts.Inventory;
 import net.magicterra.worlddriver.api.methods.ClientContracts.InventorySlot;
-import net.magicterra.worlddriver.api.methods.ClientContracts.Look;
+import net.magicterra.worlddriver.api.methods.CommonTypes.Look;
 import net.magicterra.worlddriver.api.methods.ClientContracts.Miss;
 import net.magicterra.worlddriver.api.methods.ClientContracts.Stack;
 import net.magicterra.worlddriver.api.methods.ClientContracts.Time;

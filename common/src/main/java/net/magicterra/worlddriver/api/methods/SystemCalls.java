@@ -5,7 +5,7 @@ import java.util.concurrent.CompletionStage;
 import net.magicterra.worlddriver.api.Api;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.api.methods.EventStreamContract.NoParams;
+import net.magicterra.worlddriver.api.methods.CommonTypes.NoParams;
 
 /** The {@code mc.system.*} methods: which build is running, the test origin, and waiting game ticks. */
 public interface SystemCalls {

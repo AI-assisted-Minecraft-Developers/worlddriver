@@ -14,7 +14,10 @@ import net.magicterra.worlddriver.api.contract.UnionType;
 import net.magicterra.worlddriver.api.contract.WireName;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
-import net.magicterra.worlddriver.api.methods.EventStreamContract.NoParams;
+import net.magicterra.worlddriver.api.methods.CommonTypes.Look;
+import net.magicterra.worlddriver.api.methods.CommonTypes.NoParams;
+
+import static net.magicterra.worlddriver.api.methods.CommonTypes.NO_PARAMS;
 
 /**
  * What this game client sees and says: its own player, its scene and blocks, chat, overlays and the
@@ -48,8 +51,6 @@ public final class ClientContracts {
             ScreenContracts.SliderSet, ScreenContracts.KeySent, ScreenContracts.KeybindsListed, ScreenContracts.KeybindDriven {}
 
     public record Refused(ClientRefusal reason, String message) implements ClientReply {}
-
-    public static final RecordType<NoParams> NO_PARAMS = EventStreamContract.NO_PARAMS;
 
     /**
      * The open screen as of a read, opaque. It changes whenever a screen opens or closes, so closing and
@@ -88,7 +89,6 @@ public final class ClientContracts {
 
     // ------------------------------------------------------------------ player
 
-    public record Look(double yaw, double pitch) {}
 
     /** The client's own physics, which the server's copy of the player does not report. */
     public record ClientBody(boolean onGround, Point eyePos, String pose, boolean inWall, boolean inWater,

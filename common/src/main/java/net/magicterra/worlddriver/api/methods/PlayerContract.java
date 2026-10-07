@@ -12,6 +12,7 @@ import net.magicterra.worlddriver.api.contract.RecordType;
 import net.magicterra.worlddriver.api.contract.UnionType;
 import net.magicterra.worlddriver.api.contract.WireName;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.CommonTypes.Look;
 import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
 
 /**
@@ -32,7 +33,6 @@ public final class PlayerContract {
                               TimeOfDay time, Attack attack, Equipment equipment, List<InventorySlot> inventory,
                               Map<String, Integer> items, Optional<ClientView> view) {}
 
-    public record Look(double yaw, double pitch) {}
 
     public record BodyState(boolean onGround, Point eyePos, String pose, boolean inWall, boolean inWater,
                             boolean underWater, boolean crouching, String eyeBlock, String feetBlock) {}

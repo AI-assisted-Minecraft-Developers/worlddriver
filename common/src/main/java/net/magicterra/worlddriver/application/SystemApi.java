@@ -15,7 +15,7 @@ import net.magicterra.worlddriver.api.WaitPermits;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.EventStreamContract.NoParams;
+import net.magicterra.worlddriver.api.methods.CommonTypes.NoParams;
 import net.magicterra.worlddriver.api.methods.SystemCalls;
 import net.magicterra.worlddriver.api.methods.SystemCallsBinding;
 import net.magicterra.worlddriver.api.methods.SystemContracts;

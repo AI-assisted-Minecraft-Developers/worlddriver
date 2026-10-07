@@ -25,8 +25,6 @@ public final class EventStreamContract {
 
     public record Unsubscribed(boolean subscribed) {}
 
-    public record NoParams() {}
-
     public static final RecordType<SubscribeParams> SUBSCRIBE_PARAMS = ApiTypes.record("SubscribeParams",
             ApiField.field("types", ApiTypes.list(ApiTypes.string(1, 128), 256))
                     .describe("Event types to receive; omit or [] for every type.")
@@ -40,8 +38,6 @@ public final class EventStreamContract {
                     .describe("True when types is empty: every type is pushed, not none.")
                     .required().forGetter(Subscription::allTypes),
             Subscription::new);
-
-    public static final RecordType<NoParams> NO_PARAMS = ApiTypes.record("NoParams", NoParams::new);
 
     public static final ApiType<Unsubscribed> UNSUBSCRIBED = ApiTypes.record("Unsubscribed",
             ApiField.field("subscribed", ApiTypes.bool()).required().forGetter(Unsubscribed::subscribed),

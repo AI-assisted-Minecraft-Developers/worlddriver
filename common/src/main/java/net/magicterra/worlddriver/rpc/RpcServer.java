@@ -47,6 +47,7 @@ import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.WaitPermits;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.DecodeContext;
+import net.magicterra.worlddriver.api.methods.CommonTypes;
 import net.magicterra.worlddriver.api.methods.EventStreamContract;
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.protocol.JsonRpcFrames;
@@ -445,7 +446,7 @@ public final class RpcServer implements Closeable {
                     return JsonRpcFrames.result(id, EventStreamContract.SUBSCRIPTION.encode(
                             new EventStreamContract.Subscription(true, List.copyOf(types), types.isEmpty())));
                 }
-                EventStreamContract.NO_PARAMS.decode(tree);
+                CommonTypes.NO_PARAMS.decode(tree);
                 subscribers.remove(ch);
                 ch.attr(FILTER).set(null);
                 return JsonRpcFrames.result(id, EventStreamContract.UNSUBSCRIBED.encode(new EventStreamContract.Unsubscribed(false)));

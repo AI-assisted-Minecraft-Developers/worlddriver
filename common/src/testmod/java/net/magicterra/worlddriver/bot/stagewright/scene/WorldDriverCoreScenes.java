@@ -25,7 +25,7 @@ import net.magicterra.worlddriver.api.methods.ControlCalls;
 import net.magicterra.worlddriver.api.methods.ControlContracts.CancelParams;
 import net.magicterra.worlddriver.api.methods.EventCalls;
 import net.magicterra.worlddriver.api.methods.EventContracts;
-import net.magicterra.worlddriver.api.methods.EventStreamContract.NoParams;
+import net.magicterra.worlddriver.api.methods.CommonTypes.NoParams;
 import net.magicterra.worlddriver.api.methods.SystemCalls;
 import net.magicterra.worlddriver.bot.SettingsCalls;
 import net.magicterra.worlddriver.bot.SettingsContract;
@@ -1986,7 +1986,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         AtomicLong cursor = new AtomicLong(-1);
         int[] settled = {0};
         ctx.await(() -> ++settled[0] >= 20).within(80).then(() -> {
-            cursor.set(DriverApi.await(EventCalls.of(api).cursor(new EventContracts.NoParams(), CallContext.standalone()), 5_000)
+            cursor.set(DriverApi.await(EventCalls.of(api).cursor(new NoParams(), CallContext.standalone()), 5_000)
                     .cursor());
             // out_of_world is in BYPASSES_INVULNERABILITY, so it lands whichever gamemode the run's
             // template put the player in. Toggling /gamemode instead would be a far wider blast

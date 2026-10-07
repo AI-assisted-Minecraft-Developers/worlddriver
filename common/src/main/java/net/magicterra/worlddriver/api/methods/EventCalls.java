@@ -13,7 +13,7 @@ public interface EventCalls {
     static EventCalls of(DriverApi api) { return EventCallsBinding.calls(api); }
 
     @Api(value = EventContracts.class, spec = "CURSOR")
-    CompletionStage<EventContracts.Cursor> cursor(EventContracts.NoParams p, CallContext ctx);
+    CompletionStage<EventContracts.Cursor> cursor(CommonTypes.NoParams p, CallContext ctx);
 
     @Api(value = EventContracts.class, spec = "EVENTS_SINCE")
     CompletionStage<EventContracts.Page> eventsSince(EventContracts.SinceParams p, CallContext ctx);

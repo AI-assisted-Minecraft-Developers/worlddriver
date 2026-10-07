@@ -13,7 +13,7 @@ import net.magicterra.worlddriver.api.contract.RecordType;
 import net.magicterra.worlddriver.api.contract.UnionType;
 import net.magicterra.worlddriver.api.contract.WireName;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ClientReply;
-import net.magicterra.worlddriver.api.methods.EventStreamContract.NoParams;
+import net.magicterra.worlddriver.api.methods.CommonTypes.NoParams;
 import net.magicterra.worlddriver.api.methods.ClientContracts.Refused;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 
@@ -60,7 +60,7 @@ public final class ScreenContracts {
                     .optional().forGetter(ScreenInfo::causeOfDeath),
             ScreenInfo::new);
 
-    public static final MethodSpec<NoParams, ScreenInfo> INFO = MethodSpec.of("mc.client.screen.info", ClientContracts.NO_PARAMS,
+    public static final MethodSpec<NoParams, ScreenInfo> INFO = MethodSpec.of("mc.client.screen.info", CommonTypes.NO_PARAMS,
                     SCREEN_INFO,
                     "The open screen in brief, and whether a world and a player are there: the cheap probe to make "
                             + "before any other mc.client.* call, and the contextId a screen write can be held to. "
@@ -144,7 +144,7 @@ public final class ScreenContracts {
                     .required().forGetter(ScreenTree::nodes),
             ScreenTree::new);
 
-    public static final MethodSpec<NoParams, ScreenTree> TREE = MethodSpec.of("mc.client.screen.tree", ClientContracts.NO_PARAMS,
+    public static final MethodSpec<NoParams, ScreenTree> TREE = MethodSpec.of("mc.client.screen.tree", CommonTypes.NO_PARAMS,
                     SCREEN_TREE,
                     "Every widget, list row and menu slot on the open screen, with its box in GUI coordinates: what "
                             + "to pick a click target from without a screenshot, and right for modded, self-drawn "

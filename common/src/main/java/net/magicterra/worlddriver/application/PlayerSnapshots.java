@@ -16,7 +16,7 @@ import net.magicterra.worlddriver.api.methods.PlayerContract.Effect;
 import net.magicterra.worlddriver.api.methods.PlayerContract.Equipment;
 import net.magicterra.worlddriver.api.methods.PlayerContract.InventorySlot;
 import net.magicterra.worlddriver.api.methods.PlayerContract.Item;
-import net.magicterra.worlddriver.api.methods.PlayerContract.Look;
+import net.magicterra.worlddriver.api.methods.CommonTypes.Look;
 import net.magicterra.worlddriver.api.methods.PlayerContract.PlayerState;
 import net.magicterra.worlddriver.api.methods.PlayerContract.TimeOfDay;
 import net.magicterra.worlddriver.api.methods.PlayerContract.Vitals;

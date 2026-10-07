@@ -9,6 +9,15 @@ import net.magicterra.worlddriver.api.contract.RecordType;
 public final class CommonTypes {
     private CommonTypes() {}
 
+    /** The parameters of a method that takes none. */
+    public record NoParams() {}
+
+    /** One shared object, so TypeScript sees one NoParams. */
+    public static final RecordType<NoParams> NO_PARAMS = ApiTypes.record("NoParams", NoParams::new);
+
+    /** Which way a body faces, in degrees. */
+    public record Look(double yaw, double pitch) {}
+
     /** A block cell; each axis is any int, and whether the world holds it is checked where the world is known. */
     public record BlockPosition(int x, int y, int z) {}
 

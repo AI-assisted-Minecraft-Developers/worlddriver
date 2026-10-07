@@ -6,7 +6,7 @@ import net.magicterra.worlddriver.api.Api;
 import net.magicterra.worlddriver.api.CallContext;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ClientReply;
-import net.magicterra.worlddriver.api.methods.EventStreamContract.NoParams;
+import net.magicterra.worlddriver.api.methods.CommonTypes.NoParams;
 
 /**
  * This client's screen and the input sent to it: {@code mc.client.screen.*}, {@code mc.client.input.*},

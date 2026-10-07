@@ -63,12 +63,10 @@ public final class EventContracts {
 
     // ------------------------------------------------------------------ mc.observe.cursor
 
-    public record NoParams() {}
-
     public record Cursor(long cursor) {}
 
-    public static final MethodSpec<NoParams, Cursor> CURSOR = MethodSpec.of("mc.observe.cursor",
-                    ApiTypes.record("CursorParams", NoParams::new),
+    public static final MethodSpec<CommonTypes.NoParams, Cursor> CURSOR = MethodSpec.of("mc.observe.cursor",
+                    ApiTypes.record("CursorParams", CommonTypes.NoParams::new),
                     ApiTypes.record("Cursor",
                             ApiField.field("cursor", cursor()).describe("The seq of the newest event so far.")
                                     .required().forGetter(Cursor::cursor),

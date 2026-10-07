@@ -20,6 +20,7 @@ import net.magicterra.worlddriver.api.EventWire;
 import net.magicterra.worlddriver.api.contract.ApiError;
 import net.magicterra.worlddriver.api.contract.ApiException;
 import net.magicterra.worlddriver.api.contract.JsonValue;
+import net.magicterra.worlddriver.api.methods.CommonTypes;
 import net.magicterra.worlddriver.api.methods.EventCalls;
 import net.magicterra.worlddriver.api.methods.EventCallsBinding;
 import net.magicterra.worlddriver.api.methods.EventContracts;
@@ -63,7 +64,7 @@ public final class EventsApi implements EventCalls {
     }
 
     @Override
-    public CompletionStage<EventContracts.Cursor> cursor(EventContracts.NoParams p, CallContext ctx) {
+    public CompletionStage<EventContracts.Cursor> cursor(CommonTypes.NoParams p, CallContext ctx) {
         return ApiHandlers.run(() -> new EventContracts.Cursor(api.observe.cursor()));
     }
 

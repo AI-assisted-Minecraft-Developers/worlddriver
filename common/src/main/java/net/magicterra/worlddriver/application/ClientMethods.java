@@ -25,7 +25,7 @@ import net.magicterra.worlddriver.api.methods.ClientContracts.BlocksParams;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ClientReply;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ClientScene;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.api.methods.EventStreamContract.NoParams;
+import net.magicterra.worlddriver.api.methods.CommonTypes.NoParams;
 import net.magicterra.worlddriver.api.methods.ScreenCalls;
 import net.magicterra.worlddriver.api.methods.ScreenCallsBinding;
 import net.magicterra.worlddriver.api.methods.ScreenContracts;
