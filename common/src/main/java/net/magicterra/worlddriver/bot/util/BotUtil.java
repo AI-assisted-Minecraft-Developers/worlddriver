@@ -501,14 +501,7 @@ public final class BotUtil {
      * Player} that has no client camera at all.
      */
     public static void aimAt(LivingEntity p, double tx, double ty, double tz) {
-        Vec3 eye = p.getEyePosition();
-        double dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
-        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-        p.setYRot(yaw);
-        p.yHeadRot = yaw;
-        p.yBodyRot = yaw;
-        p.setXRot(pitch);
+        HandVerbs.turn(p, HandVerbs.anglesTo(p.getEyePosition(), tx, ty, tz));
     }
 
     /**
@@ -531,12 +524,8 @@ public final class BotUtil {
      *
      * <p>So: the parameter is {@link Player} and the bot names no {@code net.minecraft.client}
      * type, not even as a local — that is the property that lets a server-side caller reach it,
-     * and it is the property to preserve if this method ever grows.
-     * {@code BotInteract.pickFaceTowardsPlayer} is now a one-line delegate, so its
-     * client-side callers are unchanged and there is still exactly one answer. Count them
-     * with a grep, not from here: this sentence and the delegate's own said "six" while
-     * there were five, in both places, which is exactly the two-copies-drift-together
-     * failure the rest of this javadoc is about.
+     * and it is the property to preserve if this method ever grows. The client-side callers
+     * call it directly too, so there is one name and one answer.
      */
     public static Direction faceTowardEye(BlockPos block, Player p) {
         Vec3 eye = p.getEyePosition();

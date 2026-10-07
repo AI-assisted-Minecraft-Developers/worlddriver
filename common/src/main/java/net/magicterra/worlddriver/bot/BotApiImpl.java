@@ -4,6 +4,7 @@ import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.api.Positions.blockPos;
 import static net.magicterra.worlddriver.api.Positions.position;
 import net.magicterra.worlddriver.bot.process.RouteEvents;
+import net.magicterra.worlddriver.bot.util.HandVerbs;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.ActionContract;
@@ -611,7 +612,7 @@ public final class BotApiImpl implements BotApi {
     /**
      * {@code mc.test.input.useOnBlock} — see {@link BotApi#useOnBlock}. Instrument-grade:
      * the ONLY state change is the {@code gameMode.useItemOn} right-click itself. The face is
-     * the one nearest the player's eye ({@code pickFaceTowardsPlayer}) and the hit Vec3 is that
+     * the one nearest the player's eye ({@code faceTowardEye}) and the hit Vec3 is that
      * face's centre — the exact synthetic-hit shape {@code mc.bot.useItemOn} builds — but unlike
      * the behaviour verb it does NOT aim (no yaw/pitch write), NOT move, and NOT toggle sneak, so
      * nothing in the path/aim pipeline runs. Opening a block-entity container (empty hand +
@@ -619,21 +620,17 @@ public final class BotApiImpl implements BotApi {
      */
     @Override
     public TestInputContracts.UsedOnBlock useOnBlock(TestInputContracts.UseOnBlock params) {
-        final InteractionHand hand = params.hand() == HandContracts.Hand.OFF
-                ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+        final InteractionHand hand = HandVerbs.hand(params.hand());
         return onClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             LocalPlayer p = mc.player;
             if (p == null || mc.gameMode == null) throw new IllegalStateException("no local player");
             BlockPos block = blockPos(params.pos());
-            Direction face = pickFaceTowardsPlayer(block, p);
-            double cx = block.getX() + 0.5 + face.getStepX() * 0.5;
-            double cy = block.getY() + 0.5 + face.getStepY() * 0.5;
-            double cz = block.getZ() + 0.5 + face.getStepZ() * 0.5;
-            BlockHitResult hit = new BlockHitResult(new Vec3(cx, cy, cz), face, block, false);
+            Direction face = faceTowardEye(block, p);
+            BlockHitResult hit = new BlockHitResult(HandVerbs.faceCentre(block, face), face, block, false);
             InteractionResult r = mc.gameMode.useItemOn(p, hand, hit);
             if (r.consumesAction()) p.swing(hand);
-            return new TestInputContracts.UsedOnBlock(HandContracts.Interaction.valueOf(r.name()), r.consumesAction(),
+            return new TestInputContracts.UsedOnBlock(HandVerbs.interaction(r), r.consumesAction(),
                     params.hand(), HandContracts.Face.valueOf(face.name()));
         });
     }

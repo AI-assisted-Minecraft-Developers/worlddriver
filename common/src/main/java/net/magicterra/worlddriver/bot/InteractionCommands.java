@@ -7,11 +7,10 @@ import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.HandContracts;
 import net.magicterra.worlddriver.api.methods.HandContracts.Face;
-import net.magicterra.worlddriver.api.methods.HandContracts.Hand;
-import net.magicterra.worlddriver.api.methods.HandContracts.Interaction;
 import net.magicterra.worlddriver.api.methods.HandContracts.OnEntity;
 import net.magicterra.worlddriver.bot.body.ClientPlayerBody;
 import net.magicterra.worlddriver.bot.body.Hands;
+import net.magicterra.worlddriver.bot.util.HandVerbs;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -26,7 +25,6 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.Locale;
 import java.util.Optional;
 
 import static net.magicterra.worlddriver.bot.util.BotInteract.*;
@@ -54,38 +52,28 @@ final class InteractionCommands {
         if (p.pos().isPresent()) return useOnBlock(p, p.pos().get());
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
-        InteractionHand hand = hand(p.hand());
+        InteractionHand hand = HandVerbs.hand(p.hand());
         // A process may have left keyShift down; vanilla's useItem does not read it, but the next click would.
         player.setShiftKeyDown(false);
         InteractionResult result = mc.gameMode.useItem(player, hand);
         if (result.consumesAction()) player.swing(hand);
-        return new HandContracts.Used(p.hand(), interaction(result), result.consumesAction(), new HandContracts.InAir());
+        return new HandContracts.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(), new HandContracts.InAir());
     }
 
     private static ImmediateResponse useOnBlock(HandContracts.UseParams p, BlockPosition at) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
         BlockPos blockPos = Positions.blockPos(at);
-        InteractionHand hand = hand(p.hand());
+        InteractionHand hand = HandVerbs.hand(p.hand());
         // Omitted, the face is the one toward the player, so the synthetic hit looks like a real ray from the eye.
-        Direction face = p.face().map(f -> Direction.byName(f.wireName())).orElseGet(() -> pickFaceTowardsPlayer(blockPos, player));
-        // The centre of that face: the server's reach check reads it, and so do items keyed off the hit
-        // (a slab's top or bottom half).
-        double cx = blockPos.getX() + 0.5 + face.getStepX() * 0.5;
-        double cy = blockPos.getY() + 0.5 + face.getStepY() * 0.5;
-        double cz = blockPos.getZ() + 0.5 + face.getStepZ() * 0.5;
-        if (p.lookAt()) {
-            // So the server-side rotation matches the synthetic ray, which a modded server's checks may read.
-            Vec3 eye = player.getEyePosition();
-            double dx = cx - eye.x, dy = cy - eye.y, dz = cz - eye.z;
-            float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-            float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-            player.setYRot(yaw); player.yHeadRot = yaw; player.yBodyRot = yaw; player.setXRot(pitch);
-        }
+        Direction face = p.face().map(f -> Direction.byName(f.wireName())).orElseGet(() -> faceTowardEye(blockPos, player));
+        Vec3 hit = HandVerbs.faceCentre(blockPos, face);
+        // So the server-side rotation matches the synthetic ray, which a modded server's checks may read.
+        if (p.lookAt()) HandVerbs.turn(player, HandVerbs.anglesTo(player.getEyePosition(), hit.x, hit.y, hit.z));
         player.setShiftKeyDown(false);
-        InteractionResult result = mc.gameMode.useItemOn(player, hand, new BlockHitResult(new Vec3(cx, cy, cz), face, blockPos, false));
+        InteractionResult result = mc.gameMode.useItemOn(player, hand, new BlockHitResult(hit, face, blockPos, false));
         if (result.consumesAction()) player.swing(hand);
-        return new HandContracts.Used(p.hand(), interaction(result), result.consumesAction(),
+        return new HandContracts.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(),
                 new HandContracts.OnBlock(at, Face.valueOf(face.name())));
     }
 
@@ -95,11 +83,8 @@ final class InteractionCommands {
         Entity target = mc.level.getEntity(entityId);
         if (target == null) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + entityId);
         if (target == player) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot interact with self");
-        InteractionHand hand = hand(p.hand());
-        if (p.lookAt()) {
-            float[] aim = aimAnglesAt(player, target);
-            player.setYRot(aim[0]); player.yHeadRot = aim[0]; player.yBodyRot = aim[0]; player.setXRot(aim[1]);
-        }
+        InteractionHand hand = HandVerbs.hand(p.hand());
+        if (p.lookAt()) HandVerbs.turn(player, HandVerbs.anglesAt(player, target));
         // The interact packets snapshot isShiftKeyDown, and sneak-gated interactions (a tamed horse's
         // inventory, an armour stand) need it held for exactly this call.
         player.setShiftKeyDown(p.sneak());
@@ -111,7 +96,7 @@ final class InteractionCommands {
             InteractionResult result = mc.gameMode.interactAt(player, target, new EntityHitResult(target), hand);
             if (!result.consumesAction()) result = mc.gameMode.interact(player, target, hand);
             if (result.consumesAction()) player.swing(hand);
-            return new HandContracts.Used(p.hand(), interaction(result), result.consumesAction(), before);
+            return new HandContracts.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(), before);
         } finally {
             player.setShiftKeyDown(false);
         }
@@ -144,18 +129,11 @@ final class InteractionCommands {
         if (refusal != null) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, refusal);
         // Then what the MouseHandler does around a left click on an entity: face it and swing the main arm.
         player.setShiftKeyDown(false);
-        float[] aim = aimAnglesAt(player, target);
+        float[] aim = HandVerbs.anglesAt(player, target);
         player.setYRot(aim[0]); player.setXRot(aim[1]);
         player.swing(InteractionHand.MAIN_HAND);
         return new HandContracts.Attacked(p.entityId(), RegistryIds.typeId(target), target.isAlive(), Math.sqrt(player.distanceToSqr(target)));
     }
 
-    private static InteractionHand hand(Hand h) {
-        return h == Hand.OFF ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
-    }
-
-    static Interaction interaction(InteractionResult r) {
-        return Interaction.valueOf(r.name().toUpperCase(Locale.ROOT));
-    }
 
 }

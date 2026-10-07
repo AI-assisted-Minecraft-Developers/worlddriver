@@ -59,39 +59,6 @@ public final class BotInteract {
         return net.magicterra.worlddriver.model.Params.toFace(o);
     }
 
-    /** Yaw/pitch to aim from {@code p} at {@code target}'s mid-bounding-box —
-     *  the shared math {@code InteractionCommands.attackEntity} and
-     *  {@code useItemOnEntity} both computed inline before this was extracted.
-     *  Returns {@code {yaw, pitch}}; callers apply the angles exactly as they
-     *  did before (attackEntity sets only body yaw/pitch, useItemOnEntity also
-     *  drives yHeadRot/yBodyRot) — this only dedupes the trig, not the effect. */
-    public static float[] aimAnglesAt(LocalPlayer p, Entity target) {
-        Vec3 ep = target.position();
-        double dx = ep.x - p.getX();
-        double dz = ep.z - p.getZ();
-        float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0);
-        float pitch = (float) -Math.toDegrees(Math.atan2(
-                (ep.y + target.getBbHeight() * 0.5) - p.getEyeY(),
-                Math.sqrt(dx * dx + dz * dz)));
-        return new float[]{yaw, pitch};
-    }
-
-    /** Pick the face of {@code block} closest to the player's eye — the face the
-     *  player would naturally hit if they ray-cast at the block. Used when the
-     *  caller didn't specify a face.
-     *
-     *  <p>The implementation lives in {@link BotUtil#faceTowardEye} so the two PROCESSES that need the
-     *  same answer can have it without naming this client-only class — see that method for why
-     *  their private copies existed and why deleting them did not put a client type on a
-     *  dedicated server's class path. This name stays because its callers are all
-     *  client-side and all use it — {@code grep -rn "pickFaceTowardsPlayer"} for the set;
-     *  it read "six callers" while a grep returned five, and the same wrong count was
-     *  written into {@link BotUtil#faceTowardEye}'s javadoc too, which is the copy-drift
-     *  both of these paragraphs otherwise argue against. */
-    public static Direction pickFaceTowardsPlayer(BlockPos block, net.minecraft.world.entity.player.Player p) {
-        return BotUtil.faceTowardEye(block, p);
-    }
-
     /**
      * Advance the break on {@code cell} for one client tick, and swing for it.
      *
@@ -137,7 +104,7 @@ public final class BotInteract {
         // creative) would go one per tick where a held button goes one per six. continueDestroyBlock
         // is what counts it down; burning it before the cell is reached is WalkerDig.preDigNextBreak's
         // job (live cliff stair cuts: 9 ticks for a 3-tick grass block).
-        Direction face = pickFaceTowardsPlayer(cell, p);
+        Direction face = BotUtil.faceTowardEye(cell, p);
         boolean ok = mc.gameMode.isDestroying() || mc.gameMode.destroyDelay > 0
                 ? mc.gameMode.continueDestroyBlock(cell, face)
                 : mc.gameMode.startDestroyBlock(cell, face);
@@ -393,15 +360,7 @@ public final class BotInteract {
     }
 
     public static void aimAtBlockSnap(LocalPlayer p, BlockPos block) {
-        Vec3 eye = p.getEyePosition();
-        double dx = (block.getX() + 0.5) - eye.x, dy = (block.getY() + 0.5) - eye.y, dz = (block.getZ() + 0.5) - eye.z;
-        double horiz = Math.sqrt(dx * dx + dz * dz);
-        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        float pitch = (float) -Math.toDegrees(Math.atan2(dy, horiz));
-        p.setYRot(yaw);
-        p.yHeadRot = yaw;
-        p.yBodyRot = yaw;
-        p.setXRot(pitch);
+        BotUtil.aimAt(p, block.getX() + 0.5, block.getY() + 0.5, block.getZ() + 0.5);
         // Functional exact aim: vanilla's use-item pass / interaction raycasts off
         // the crosshair, so this snap must NOT be rate-limited by the global camera
         // slew (a lagged crosshair would mine/click the wrong block). Exempt this one
