@@ -15,6 +15,8 @@ import net.magicterra.worlddriver.api.contract.KeyedValueType.Entry;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.bot.SettingsCalls;
+import net.magicterra.worlddriver.bot.SettingsCallsBinding;
 import net.magicterra.worlddriver.bot.SettingsCommand;
 import net.magicterra.worlddriver.bot.SettingsContract;
 import net.magicterra.worlddriver.bot.SettingsContract.Applied;
@@ -31,16 +33,17 @@ import net.magicterra.worlddriver.bot.SettingsContract.Values;
  * most: this client's when there is one, else the server's, where the named bots run. The controls act
  * on this client's player, so they need a client.
  */
-final class SettingsMethods {
+final class SettingsMethods implements SettingsCalls {
     private final DriverApplication app;
 
     SettingsMethods(DriverApplication app) { this.app = app; }
 
     List<ApiMethod<?, ?>> methods() {
-        return List.of(new ApiMethod<>(SettingsContract.SPEC, this::handle));
+        return SettingsCallsBinding.methods(this);
     }
 
-    private CompletionStage<SettingsReply> handle(SettingsOp op, CallContext ctx) {
+    @Override
+    public CompletionStage<SettingsReply> setting(SettingsOp op, CallContext ctx) {
         BotApi bot = BotHooks.impl();
         return switch (op) {
             case Read r -> owner(bot).<SettingsReply>submit(() -> read(bot, r), ctx);

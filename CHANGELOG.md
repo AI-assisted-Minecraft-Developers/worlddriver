@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-07
+
+- **Java code calls methods through typed interfaces.** An interface such as `SettingsCalls` gives each
+  method a Java name, with the contract's records as parameters and result; an annotation processor
+  checks it against the method's spec while `:common` compiles and generates its caller and registry
+  entries, so a mismatch fails the build rather than the game. The caller goes through the registry
+  like any request: the same parameter checks, and on a game thread a call that would wait is refused.
+  `ApiRegistry.invoke` now applies that game-thread rule too; before, a typed call made there was
+  handed a context allowed to wait. See `docs/dev/java-api.md`.
+
 ## 2026-10-06
 
 - **Every method is a typed contract, and every caller sees the same one.** Each method's params and
