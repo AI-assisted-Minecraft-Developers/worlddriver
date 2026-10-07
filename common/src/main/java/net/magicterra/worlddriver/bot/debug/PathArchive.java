@@ -325,7 +325,8 @@ public final class PathArchive {
         m.put("inWater",     t.inWater());
         m.put("pose",        t.pose());
         m.put("aabbOverlap", t.aabbOverlap());
-        m.put("deviation",   t.deviation()); // NaN → null via codec
+        // NaN is "not measured" here, and the reader maps null back to it; JSON has no NaN.
+        m.put("deviation",   Double.isNaN(t.deviation()) ? null : t.deviation());
         return m;
     }
 
