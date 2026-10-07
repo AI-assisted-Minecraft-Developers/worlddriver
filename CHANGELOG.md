@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-08
+
+- **The Java API is reorganised; code built against the old names must be rebuilt.** Nothing on the
+  wire changed: every method name, parameter, reply and generated TypeScript file is byte-identical.
+  What moved is the Java surface other mods link against:
+  - `api/contract` is now `api/schema`, and `ApiTypes` holds only the factories; each type it builds
+    has its own file.
+  - The runtime is split by purpose: `api/registry` (the registry, batches, handlers, `@Spec`, the
+    event feed), `api/call` (what one call carries: `CallContext`, `RunContext`, cancellation, timers,
+    wait permits) and `api/thread` (the game-thread hops and the server-thread guard).
+  - `DriverApi` is gone. Its calls (`route`, `dispatch`, `invokeJson`, `await`, `methods`, `spec`)
+    are on `ApiRegistry`, reached through `WorldDriverCommon.registry()`. The hooks the loaders and
+    event sources drive (attaching a server, emitting an event) are on `DriverHost`, reached through
+    `WorldDriverCommon.host()`.
+  - Event listeners receive the event as the wire sees it (`EventContracts.Event`), and register
+    through `EventFeed`.
+  - The method contracts live in one package per family under `api/methods`, each next to its
+    interface; the interfaces end in `Api` (`SettingsApi`, `BotTaskApi`, …), the annotation on their
+    methods is `@Spec`, and the implementations end in `Service`.
+
+  The layers and what each may depend on are in `docs/dev/api-layers.md`; `scripts/check_architecture.py`
+  enforces them.
+
 ## 2026-10-07
 
 - **Java code calls methods through typed interfaces.** An interface such as `SettingsApi` gives each
