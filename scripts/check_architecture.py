@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 JAVA_TOKENS = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|/\*.*?\*/|//[^\n]*', re.S)
 DRIVER_REFERENCE = re.compile(r'net\.magicterra\.worlddriver\.((?:[a-z]\w*\.)*)([A-Z]\w*)')
 
-# The api layers (docs/api-layers.md): the layers each may use, and which subpackage holds which.
+# The api layers (docs/dev/api-layers.md): the layers each may use, and which subpackage holds which.
 API_PACKAGES = {'contract': 'schema', 'schema': 'schema', 'methods': 'methods', 'registry': 'registry',
                 'call': 'call', 'thread': 'thread', 'action': 'action', 'game': 'game'}
 RUNTIME = {'protocol', 'schema', 'methods', 'registry', 'call', 'thread', 'action'}
