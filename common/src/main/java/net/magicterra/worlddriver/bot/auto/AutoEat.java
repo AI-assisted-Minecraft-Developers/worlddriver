@@ -8,7 +8,7 @@ import net.minecraft.world.item.ItemStack;
 
 import static net.magicterra.worlddriver.bot.util.BotInteract.findFoodHotbarSlot;
 import static net.magicterra.worlddriver.bot.util.BotInteract.isFoodStack;
-import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import static net.magicterra.worlddriver.bot.util.BotInteract.selectHotbar;
 
 /**
  * Baritone-style autoEat. Holds the use intent on a food item until the player is
@@ -49,10 +49,7 @@ public final class AutoEat {
             }
             // Switch hotbar slot; defer the use hold until next tick so the held item
             // change is visible to the integrated server first.
-            p.getInventory().selected = slot;
-            if (p.connection != null) {
-                p.connection.send(new ServerboundSetCarriedItemPacket(slot));
-            }
+            selectHotbar(p, slot);
             return;
         }
         ClientIntents.holdUse(true);

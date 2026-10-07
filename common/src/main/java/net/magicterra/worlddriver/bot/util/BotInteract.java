@@ -499,16 +499,10 @@ public final class BotInteract {
             int hb = inv.selected;                                          // default: swap into the held slot
             for (int h = 0; h < 9; h++) if (inv.items.get(h).isEmpty()) { hb = h; break; }  // prefer empty (keep tools)
             mc.gameMode.handleInventoryMouseClick(menu.containerId, bestMainMenuSlot, hb, ClickType.SWAP, p);
-            inv.selected = hb;
-            if (p.connection != null) p.connection.send(new ServerboundSetCarriedItemPacket(hb));
+            selectHotbar(p, hb);
             return;
         }
-        if (bestSlot >= 0 && bestSlot != inv.selected) {
-            inv.selected = bestSlot;
-            if (p.connection != null) {
-                p.connection.send(new ServerboundSetCarriedItemPacket(bestSlot));
-            }
-        }
+        if (bestSlot >= 0) selectHotbar(p, bestSlot);
     }
 
     /** A BlockItem that forms a SOLID footing when placed over air — what the
@@ -573,27 +567,11 @@ public final class BotInteract {
      *  NOT fall back to a valuable block; the caller's gate then skips the placement and the
      *  bot keeps its resource. */
     public static boolean ensureHoldingPlaceableAny(Minecraft mc, boolean avoidValuable) {
+        java.util.function.Predicate<ItemStack> ok =
+                avoidValuable ? BotInteract::isThrowawaySupportBlock : BotInteract::isSupportBlock;
         LocalPlayer p = mc.player;
         if (p == null) return false;
-        Inventory inv = p.getInventory();
-        if (avoidValuable ? isThrowawaySupportBlock(inv.getSelected()) : isSupportBlock(inv.getSelected())) return true;
-        for (int s = 0; s < 9; s++) {
-            if (avoidValuable ? isThrowawaySupportBlock(inv.items.get(s)) : isSupportBlock(inv.items.get(s))) {
-                inv.selected = s;
-                if (p.connection != null) p.connection.send(
-                        new ServerboundSetCarriedItemPacket(s));
-                return true;
-            }
-        }
-        if (p.isCreative()) {
-            for (int s = 9; s < inv.items.size(); s++) {
-                if (avoidValuable ? isThrowawaySupportBlock(inv.items.get(s)) : isSupportBlock(inv.items.get(s))) {
-                    inv.pickSlot(s);
-                    return avoidValuable ? isThrowawaySupportBlock(inv.getSelected()) : isSupportBlock(inv.getSelected());
-                }
-            }
-        }
-        return false;
+        return holdFromHotbar(p, ok) || creativePick(p, ok);
     }
 
     /**
@@ -633,24 +611,8 @@ public final class BotInteract {
                 avoidValuable ? BotInteract::isThrowawayPillarBlock : BotInteract::isPillarBlock;
         LocalPlayer p = mc.player;
         if (p == null) return false;
-        Inventory inv = p.getInventory();
-        if (ok.test(inv.getSelected())) return true;
-        for (int s = 0; s < 9; s++) {
-            if (ok.test(inv.items.get(s))) {
-                inv.selected = s;
-                if (p.connection != null) p.connection.send(
-                        new ServerboundSetCarriedItemPacket(s));
-                return true;
-            }
-        }
-        if (p.isCreative()) {
-            for (int s = 9; s < inv.items.size(); s++) {
-                if (ok.test(inv.items.get(s))) {
-                    inv.pickSlot(s);
-                    return ok.test(inv.getSelected());
-                }
-            }
-        }
+        if (holdFromHotbar(p, ok)) return true;
+        if (p.isCreative()) return creativePick(p, ok);
         // Survival: a pillar block may sit in the MAIN INVENTORY (menu slots 9-35) while the hotbar
         // holds only non-pillar items — the creative pickSlot above is creative-only, so without this
         // a survival bot that mined cobble into the inventory could NEVER pillar-recover off a steep
@@ -675,38 +637,46 @@ public final class BotInteract {
      *  live 2026-07-13 "craft fails with a crafting_table in slot 9" wall, the
      *  same #27 family as bare-hand mining with pickaxes stranded in slot 33. */
     public static boolean ensureHolding(Minecraft mc, Item item) {
-        LocalPlayer p = mc.player;
-        if (p == null) return false;
-        Inventory inv = p.getInventory();
-        if (inv.getSelected().getItem() == item) return true;
-        int s = hotbarSlotOf(p, item);
-        if (s >= 0) {
-            inv.selected = s;
-            if (p.connection != null) p.connection.send(
-                    new ServerboundSetCarriedItemPacket(s));
-            return true;
-        }
-        return swapFromMainInv(mc, p, stk -> stk.getItem() == item)
-                && inv.getSelected().getItem() == item;
+        return ensureHolding(mc, stk -> stk.is(item));
     }
 
-    /** Predicate variant of {@link #ensureHolding(Minecraft, Item)} — same hotbar-then-
-     *  main-inventory reach, but matched by predicate so string-id callers
-     *  ({@code mc.bot.holdItem}) never need to resolve an {@link Item} object. */
+    /** Predicate variant of {@link #ensureHolding(Minecraft, Item)}, with the same hotbar-then-
+     *  main-inventory reach. */
     public static boolean ensureHolding(Minecraft mc, java.util.function.Predicate<ItemStack> want) {
         LocalPlayer p = mc.player;
         if (p == null) return false;
+        return holdFromHotbar(p, want) || (swapFromMainInv(mc, p, want) && want.test(p.getInventory().getSelected()));
+    }
+
+    /** Select hotbar {@code slot} (0..8) and tell the server; nothing is sent when it is already selected. */
+    public static void selectHotbar(LocalPlayer p, int slot) {
+        Inventory inv = p.getInventory();
+        if (slot < 0 || slot >= Inventory.getSelectionSize() || inv.selected == slot) return;
+        inv.selected = slot;
+        if (p.connection != null) p.connection.send(new ServerboundSetCarriedItemPacket(slot));
+    }
+
+    /** True when the held stack is one {@code want} accepts, or a hotbar slot holds one and is now selected. */
+    private static boolean holdFromHotbar(LocalPlayer p, java.util.function.Predicate<ItemStack> want) {
         Inventory inv = p.getInventory();
         if (want.test(inv.getSelected())) return true;
-        for (int s = 0; s < 9; s++) {
+        for (int s = 0; s < Inventory.getSelectionSize(); s++) {
+            if (want.test(inv.items.get(s))) { selectHotbar(p, s); return true; }
+        }
+        return false;
+    }
+
+    /** Creative only: pick a matching stack up from the main inventory into the hand. */
+    private static boolean creativePick(LocalPlayer p, java.util.function.Predicate<ItemStack> want) {
+        if (!p.isCreative()) return false;
+        Inventory inv = p.getInventory();
+        for (int s = Inventory.getSelectionSize(); s < inv.items.size(); s++) {
             if (want.test(inv.items.get(s))) {
-                inv.selected = s;
-                if (p.connection != null) p.connection.send(
-                        new ServerboundSetCarriedItemPacket(s));
-                return true;
+                inv.pickSlot(s);
+                return want.test(inv.getSelected());
             }
         }
-        return swapFromMainInv(mc, p, want) && want.test(inv.getSelected());
+        return false;
     }
 
     /** Pull the first main-inventory stack matching {@code want} into the hotbar
@@ -723,8 +693,7 @@ public final class BotInteract {
             for (int h = 0; h < 9; h++) if (inv.items.get(h).isEmpty()) { hb = h; break; }  // prefer empty (keep tools)
             if (mc.gameMode != null)
                 mc.gameMode.handleInventoryMouseClick(menu.containerId, ms, hb, ClickType.SWAP, p);
-            inv.selected = hb;
-            if (p.connection != null) p.connection.send(new ServerboundSetCarriedItemPacket(hb));
+            selectHotbar(p, hb);
             return want.test(inv.getSelected());
         }
         return false;

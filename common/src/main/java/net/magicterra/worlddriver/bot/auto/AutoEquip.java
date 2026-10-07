@@ -1,10 +1,10 @@
 package net.magicterra.worlddriver.bot.auto;
 
+import static net.magicterra.worlddriver.bot.util.BotInteract.selectHotbar;
 import static net.magicterra.worlddriver.bot.util.RegistryIds.itemId;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -145,13 +145,6 @@ public final class AutoEquip {
         if (!menu.getCarried().isEmpty()) {
             mc.gameMode.handleInventoryMouseClick(id, invSlot, 0, ClickType.PICKUP, p);    // old -> emptied slot
         }
-    }
-
-    private static void selectHotbar(LocalPlayer p, int hotbar) {
-        if (hotbar < 0 || hotbar > 8) return;
-        if (p.getInventory().selected == hotbar) return;
-        p.getInventory().selected = hotbar;
-        if (p.connection != null) p.connection.send(new ServerboundSetCarriedItemPacket(hotbar));
     }
 
     // === scoring =============================================================

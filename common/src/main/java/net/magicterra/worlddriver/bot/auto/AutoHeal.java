@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.auto;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.util.BotInteract;
 import net.magicterra.worlddriver.bot.movement.ClientIntents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -11,7 +12,6 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.alchemy.PotionContents;
-import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 
 /**
  * Phase B reflex — when health is at/below {@link BotConfig#healHpThreshold} and
@@ -34,8 +34,7 @@ public final class AutoHeal {
         if (p.getInventory().selected != slot) {
             // Switch first; defer the use hold a tick so the held item change
             // reaches the server before we start consuming (mirrors AutoEat).
-            p.getInventory().selected = slot;
-            if (p.connection != null) p.connection.send(new ServerboundSetCarriedItemPacket(slot));
+            BotInteract.selectHotbar(p, slot);
             return;
         }
         ClientIntents.holdUse(true);
