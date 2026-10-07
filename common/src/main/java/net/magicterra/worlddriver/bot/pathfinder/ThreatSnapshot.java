@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.pathfinder;
 import java.util.List;
 import java.util.Locale;
 
-import net.magicterra.worlddriver.bot.util.RegistryIds;
+import net.magicterra.worlddriver.bot.util.EntitySelector;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -48,17 +48,9 @@ public record ThreatSnapshot(List<Threat> threats) {
             return 16;
         }
 
-        /** True when {@code selector} names this observer by type ({@code skeleton},
-         *  {@code minecraft:skeleton}), by name, or by numeric id; digits past an int name no one. */
+        /** True when {@code selector} names this observer; see {@link EntitySelector}. */
         public boolean matches(String selector) {
-            if (selector == null || selector.isBlank()) return false;
-            String s = selector.trim();
-            if (s.chars().allMatch(Character::isDigit)) {
-                Integer n = com.google.common.primitives.Ints.tryParse(s);
-                return n != null && n == id;
-            }
-            if (s.equals(name)) return true;
-            return RegistryIds.qualified(s).equals(type);
+            return EntitySelector.matches(selector, id, name, type);
         }
     }
 }

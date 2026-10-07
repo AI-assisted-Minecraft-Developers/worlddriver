@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.process;
 
+import net.magicterra.worlddriver.bot.util.EntitySelector;
 import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -7,37 +8,27 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 
 /** Generalized entity lookup shared by {@link FollowProcess} and the dynamic
- *  leash re-solve in {@link IntentProcess}: nearest entity matching a name,
- *  an entity-type id, or a numeric entity id — by exact display-name match (no
- *  colon), entity-type id match (contains ':', e.g. "minecraft:armor_stand"),
- *  or {@code Entity.getId()} (all digits, what {@code route.leash.entity} takes
- *  as a number). Uses {@code Level} (EntityGetter), which works on BOTH
- *  ClientLevel and ServerLevel — unlike the client-only
- *  {@code entitiesForRendering()}. */
+ *  leash re-solve in {@link IntentProcess}: the nearest entity an
+ *  {@link EntitySelector} names, an id being {@code Entity.getId()} (what
+ *  {@code route.leash.entity} takes as a number). Uses {@code Level}
+ *  (EntityGetter), which works on BOTH ClientLevel and ServerLevel — unlike the
+ *  client-only {@code entitiesForRendering()}. */
 public final class EntityFind {
     private EntityFind() {}
 
     /** Nearest entity to {@code self} within a 96-block AABB matching
-     *  {@code nameOrType}, or {@code null} if none found. */
-    public static Entity nearest(Level lvl, LivingEntity self, String nameOrType) {
-        double bestDist = Double.POSITIVE_INFINITY;
-        Entity best = null;
-        boolean isType = nameOrType.indexOf(':') >= 0;
-        if (!nameOrType.isEmpty() && nameOrType.chars().allMatch(Character::isDigit)) {
-            // All digits but past an int is an id no entity has, not a parse failure to throw.
-            Integer id = com.google.common.primitives.Ints.tryParse(nameOrType);
+     *  {@code selector}, or {@code null} if none found. */
+    public static Entity nearest(Level lvl, LivingEntity self, String selector) {
+        if (EntitySelector.isId(selector)) {
+            Integer id = EntitySelector.id(selector);
             Entity byId = id == null ? null : lvl.getEntity(id);
             return byId == null || byId == self ? null : byId;
         }
+        double bestDist = Double.POSITIVE_INFINITY;
+        Entity best = null;
         AABB box = self.getBoundingBox().inflate(96.0);
         for (Entity e : lvl.getEntities(self, box, x -> true)) {
-            if (e == self) continue;
-            if (isType) {
-                if (!nameOrType.equals(RegistryIds.typeId(e))) continue;
-            } else {
-                String n = e.getName().getString();
-                if (!nameOrType.equals(n)) continue;
-            }
+            if (e == self || !EntitySelector.matches(selector, e.getId(), e.getName().getString(), RegistryIds.typeId(e))) continue;
             double d = e.distanceToSqr(self);
             if (d < bestDist) { bestDist = d; best = e; }
         }

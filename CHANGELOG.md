@@ -41,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and reported as safe to retry, or as already running, instead of a bare error after 30 seconds
   with the task still queued. `mc.client.chat.send` with `awaitReplyMs` polls the chat log without
   holding a thread or a wait slot, and stops at the caller's deadline.
+- **`follow` and a route's `leash.entity` read an entity selector the way `sight.of` does**: a bare
+  type such as `zombie` now matches `minecraft:zombie`, not only an entity named "zombie". Digits
+  past the int range name no entity rather than failing the lookup.
 - **A server body pulls an item up from the bag into an empty hotbar slot first**, as the client
   always has, instead of displacing what it held; only a full hotbar swaps into the held slot.
 - **goto, clearArea and construct share one `Direction` type** (the TypeScript `GotoDirection` is now
