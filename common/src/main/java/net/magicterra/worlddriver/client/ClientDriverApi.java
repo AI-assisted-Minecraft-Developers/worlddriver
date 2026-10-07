@@ -1,11 +1,11 @@
 package net.magicterra.worlddriver.client;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import net.magicterra.worlddriver.api.ServerThreadHop;
-import net.magicterra.worlddriver.api.methods.ClientContracts;
 import net.magicterra.worlddriver.api.methods.ClientContracts.BlockScan;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ChatHistory;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ChatHistoryParams;
@@ -17,6 +17,7 @@ import net.magicterra.worlddriver.api.methods.ClientContracts.OverlaysCleared;
 import net.magicterra.worlddriver.api.methods.ClientContracts.OverlaysParams;
 import net.magicterra.worlddriver.api.methods.ClientContracts.Screenshot;
 import net.magicterra.worlddriver.api.methods.ClientContracts.ScreenshotParams;
+import net.magicterra.worlddriver.api.methods.QueryContract;
 import net.magicterra.worlddriver.api.methods.ScreenContracts;
 import net.magicterra.worlddriver.api.methods.ScreenContracts.ClickParams;
 import net.magicterra.worlddriver.api.methods.ScreenContracts.CloseParams;
@@ -126,12 +127,6 @@ public interface ClientDriverApi {
      */
     BlockScan scanBlocks(int radius, Double cx, Double cy, Double cz, Set<String> filterIds);
 
-    /** {@link #scanBlocks} as the {@code mc.query} client fallback reads it. */
-    @SuppressWarnings("unchecked")
-    default Map<String, Object> observeArea(int radius, Double cx, Double cy, Double cz, Set<String> filterIds) {
-        return (Map<String, Object>) ClientContracts.BLOCK_SCAN.encode(scanBlocks(radius, cx, cy, cz, filterIds));
-    }
-
     /**
      * The {@code mc.observe.player} snapshot read from the LocalPlayer, for a client with no server
      * attached; {@code present:false} with no player.
@@ -139,15 +134,14 @@ public interface ClientDriverApi {
     Map<String, Object> observePlayer();
 
     /**
-     * Client-side entity scan — equivalent to the server-side {@code mc.query}
-     * with {@code q='entities'} but reads {@code ClientLevel}. Each row carries
-     * the numeric {@code id} (suitable for {@code mc.bot.attackEntity}) plus
-     * {@code type, pos, health?, hostile}. Center defaults to the local
-     * player when not provided; radius is capped at 32 (client interest range).
-     * Optional {@code hostileFilter} matches only Enemy instances (true) or
-     * only non-Enemy instances (false); omit for all.
+     * Client-side entity scan — the server-side {@code mc.query q='entities'} rows, every field
+     * filled except {@code effects}, which a client is not told for other entities, read from
+     * {@code ClientLevel}. Center defaults to the local player when not provided; radius is capped
+     * at 32 (client interest range). Optional {@code hostileFilter} matches only Enemy instances
+     * (true) or only non-Enemy instances (false); omit for all. Throws capability_unavailable with
+     * no world open.
      */
-    Map<String, Object> queryEntities(int radius, Double cx, Double cy, Double cz, Boolean hostileFilter);
+    List<QueryContract.EntityRow> queryEntities(int radius, Double cx, Double cy, Double cz, Boolean hostileFilter);
 
     /** Scored hostile + incoming-projectile assessment around the local player
      *  (Phase B/C ThreatScanner): {@code mc.observe.threats}' reply. */

@@ -8,7 +8,6 @@ import net.magicterra.worlddriver.api.methods.QueryContract;
 import net.magicterra.worlddriver.api.methods.QueryContract.BlockField;
 import net.magicterra.worlddriver.api.methods.QueryContract.BlockRow;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -18,7 +17,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.chunk.LevelChunk;
 
 /**
@@ -90,23 +88,8 @@ final class BlockQuery {
                     BlockState st = chunk.getBlockState(bp);
                     if (st.isAir()) continue;
                     if (match != null && !match.test(st)) continue;
-                    out.add(row(Positions.position(bp), RegistryIds.blockId(st), state(st)));
+                    out.add(row(Positions.position(bp), RegistryIds.blockId(st), RegistryIds.stateProperties(st)));
                 }
         return out;
-    }
-
-    /**
-     * Blockstate properties (lit/facing/half/…) as a /setblock predicate spells them, so callers can verify more
-     * than the id; absent for a property-less state, which keeps large scans lean.
-     */
-    static Optional<Map<String, String>> state(BlockState st) {
-        if (st.getProperties().isEmpty()) return Optional.empty();
-        Map<String, String> stateMap = new LinkedHashMap<>();
-        for (var prop : st.getProperties()) stateMap.put(prop.getName(), stringifyProperty(st, prop));
-        return Optional.of(stateMap);
-    }
-
-    private static <T extends Comparable<T>> String stringifyProperty(BlockState st, Property<T> prop) {
-        return prop.getName(st.getValue(prop));
     }
 }

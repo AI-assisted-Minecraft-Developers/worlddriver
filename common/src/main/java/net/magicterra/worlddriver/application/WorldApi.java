@@ -123,7 +123,7 @@ public final class WorldApi implements WorldCalls {
                 BlockEntity be = level.getBlockEntity(pos);
                 if (be != null) nbt = Optional.of(be.saveWithFullMetadata(level.registryAccess()).toString());
             }
-            return new BlockReading(p.pos(), RegistryIds.blockId(st), BlockQuery.state(st), light, nbt);
+            return new BlockReading(p.pos(), RegistryIds.blockId(st), RegistryIds.stateProperties(st), light, nbt);
         }, ctx);
     }
 

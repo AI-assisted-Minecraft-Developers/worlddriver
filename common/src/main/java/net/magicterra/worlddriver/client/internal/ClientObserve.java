@@ -37,6 +37,8 @@ import net.magicterra.worlddriver.api.methods.ClientContracts.Vitals;
 import net.magicterra.worlddriver.api.methods.ClientContracts.Wear;
 import net.magicterra.worlddriver.api.methods.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.CommonTypes.Point;
+import net.magicterra.worlddriver.api.methods.QueryContract.EntityRow;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.api.methods.ScreenContracts.MenuContainer;
 import net.magicterra.worlddriver.api.methods.ScreenContracts.SlotRow;
 
@@ -236,18 +238,8 @@ public final class ClientObserve {
                             for (var m : matchers) { if (m.test(bs)) { ok = true; break; } }
                             if (!ok) continue;
                         }
-                        String id = BuiltInRegistries.BLOCK.getKey(bs.getBlock()).toString();
-                        // Blockstate property map, mirroring the server-side
-                        // q='blocks' rows; omitted for property-less states.
-                        Optional<Map<String, String>> state = Optional.empty();
-                        if (!bs.getProperties().isEmpty()) {
-                            Map<String, String> stateMap = new LinkedHashMap<>();
-                            for (var prop : bs.getProperties()) {
-                                stateMap.put(prop.getName(), propValue(bs, prop));
-                            }
-                            state = Optional.of(stateMap);
-                        }
-                        blocks.add(new BlockRow(Positions.position(pos), id, state));
+                        // The same id and property map as the server-side q='blocks' rows.
+                        blocks.add(new BlockRow(Positions.position(pos), RegistryIds.blockId(bs), RegistryIds.stateProperties(bs)));
                     }
                 }
             }
@@ -263,19 +255,21 @@ public final class ClientObserve {
         });
     }
 
-    public static Map<String, Object> queryEntities(int radius, Double cx, Double cy, Double cz, Boolean hostileFilter) {
+    public static List<EntityRow> queryEntities(int radius, Double cx, Double cy, Double cz, Boolean hostileFilter) {
         final int r = Math.max(0, Math.min(32, radius));
         return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             ClientLevel level = mc.level;
-            if (level == null) return Map.of("present", false, "error", "no client level");
+            if (level == null) {
+                throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
+            }
             double dx, dy, dz;
             if (cx != null && cy != null && cz != null) { dx = cx; dy = cy; dz = cz; }
             else if (mc.player != null) { dx = mc.player.getX(); dy = mc.player.getY(); dz = mc.player.getZ(); }
-            else return Map.of("present", false, "error", "no player and no center");
+            else throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no player to centre on; pass a center");
             AABB box = new AABB(
                     dx - r, dy - r, dz - r, dx + r, dy + r, dz + r);
-            List<Object> entities = new ArrayList<>();
+            List<EntityRow> entities = new ArrayList<>();
             // entitiesForRendering() returns the loaded ClientLevel entity set —
             // includes mobs, items, projectiles, players. Filter by bbox + class.
             for (Entity e : level.entitiesForRendering()) {
@@ -283,28 +277,16 @@ public final class ClientObserve {
                 if (!box.intersects(e.getBoundingBox())) continue;
                 boolean hostile = e instanceof Enemy;
                 if (hostileFilter != null && hostileFilter != hostile) continue;
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("id", e.getId());
-                // uuid for identity parity with the server-side q='entities' rows.
-                // (effects stays server-only: the client doesn't receive other
-                // entities' MobEffect instances, only its own.)
-                row.put("uuid", e.getUUID().toString());
-                row.put("type", BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString());
-                Map<String, Object> pos = new LinkedHashMap<>();
-                pos.put("x", e.getX()); pos.put("y", e.getY()); pos.put("z", e.getZ());
-                row.put("pos", pos);
-                row.put("hostile", hostile);
-                if (e instanceof LivingEntity le) {
-                    row.put("health", (double) le.getHealth());
-                    row.put("maxHealth", (double) le.getMaxHealth());
-                }
-                row.put("distance", Math.sqrt(e.distanceToSqr(dx, dy, dz)));
-                entities.add(row);
+                LivingEntity le = e instanceof LivingEntity l ? l : null;
+                // Effects stay server-only: the client is told its own MobEffects, not other entities'.
+                entities.add(new EntityRow(Optional.of(new Point(e.getX(), e.getY(), e.getZ())),
+                        Optional.of(Positions.position(e.blockPosition())), Optional.of(RegistryIds.typeId(e)),
+                        Optional.of(e.getUUID().toString()), Optional.of(e.getId()),
+                        le == null ? Optional.empty() : Optional.of((double) le.getHealth()), Optional.empty(),
+                        Optional.of(hostile), le == null ? Optional.empty() : Optional.of((double) le.getMaxHealth()),
+                        Optional.of(Math.sqrt(e.distanceToSqr(dx, dy, dz)))));
             }
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("entities", entities);
-            out.put("radius", r);
-            return out;
+            return entities;
         });
     }
 
@@ -411,7 +393,4 @@ public final class ClientObserve {
     }
 
     /** Property value as the string a /setblock predicate would use ("true", "north", "3"). */
-    private static <T extends Comparable<T>> String propValue(BlockState bs, Property<T> prop) {
-        return prop.getName(bs.getValue(prop));
-    }
 }

@@ -99,7 +99,8 @@ public final class ClientDriverApiImpl implements ClientDriverApi {
     @Override public Map<String, Object> observePlayer() { return ClientObserve.observePlayer(); }
 
     @Override
-    public Map<String, Object> queryEntities(int radius, Double cx, Double cy, Double cz, Boolean hostileFilter) {
+    public java.util.List<net.magicterra.worlddriver.api.methods.QueryContract.EntityRow> queryEntities(
+            int radius, Double cx, Double cy, Double cz, Boolean hostileFilter) {
         return ClientObserve.queryEntities(radius, cx, cy, cz, hostileFilter);
     }
 
