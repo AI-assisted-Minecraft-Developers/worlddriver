@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.debug;
 
 import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -335,7 +336,7 @@ public final class PathChartRenderer {
         for (PathTrace.WalkerSample t : tr) { Double b = targetBearing(t); if (b == null) continue; m = Math.max(m, Math.abs(wrap180(t.yawActual() - b))); }
         return m;
     }
-    private static double wrap180(double deg) { double d = ((deg + 180) % 360 + 360) % 360 - 180; return d; }
+    private static double wrap180(double deg) { return Mth.wrapDegrees(deg); }
     private static Color speedColor(double bps) {
         double t = Math.max(0, Math.min(1, bps / 6.0)); // 0=red(slow) → 1=green(fast)
         return new Color((int) (230 * (1 - t)) + 20, (int) (210 * t) + 20, 40);

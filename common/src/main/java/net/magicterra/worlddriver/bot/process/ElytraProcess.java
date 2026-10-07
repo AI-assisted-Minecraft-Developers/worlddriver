@@ -9,6 +9,7 @@ import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.elytra.ElytraPhysics;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -311,7 +312,7 @@ public final class ElytraProcess implements BotProcess {
                             "[elytra] reactive t={} pos=({},{},{}) wp{}/{}=({},{},{}) goalDist={} yawTgt={} yaw={} dYaw={} pitch={} fire={} boostOk={} knownFwd={} front={} |v|={} hp={} hcol={}",
                             ticks, f(pos.x), f(pos.y), f(pos.z), wpIndex, waypoints.size() - 1,
                             f(wp.x), f(wp.y), f(wp.z), f(goalDist), f(rawYaw), f(yaw),
-                            f(((yaw - prevYaw) % 360f + 540f) % 360f - 180f), f(d.pitch()), d.fire(),
+                            f(Mth.degreesDifference(prevYaw, yaw)), f(d.pitch()), d.fire(),
                             boostOk, f(knownFwd), frontierMode, f(curVel.length()),
                             f(p.getHealth()), p.horizontalCollision);
                 if (onFinal && goalDist <= Math.max(stopXZDist, 2.5)) {

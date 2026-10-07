@@ -7,6 +7,7 @@ import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -134,7 +135,7 @@ public final class BridgeProcess implements BotProcess {
                 // the raw impulse walks along the camera yaw, which pans toward `yaw` at
                 // the LookController's slew rate — walking before it arrives drives off
                 // the bridge line (over a pillar start, into the void). Gap #75-a.
-                if (Math.abs(wrapDeg(yawNow - yaw)) > YAW_ALIGN_DEG) {
+                if (Math.abs(Mth.degreesDifference(yaw, yawNow)) > YAW_ALIGN_DEG) {
                     a.commandForward(0f);
                     return false;
                 }
@@ -204,13 +205,5 @@ public final class BridgeProcess implements BotProcess {
             }
         }
         return best != null ? best : foot;
-    }
-
-    /** Signed shortest-arc degrees in (-180, 180]. */
-    private static float wrapDeg(float d) {
-        d %= 360f;
-        if (d > 180f) d -= 360f;
-        if (d <= -180f) d += 360f;
-        return d;
     }
 }

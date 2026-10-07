@@ -108,7 +108,7 @@ public final class WalkerGeometry {
         return best;
     }
 
-    public static float angleDiff(float a, float b) { return ((b - a) % 360f + 540f) % 360f - 180f; }
+    public static float angleDiff(float a, float b) { return Mth.degreesDifference(a, b); }
 
     /** An edge whose landing is below its start. A bot found BELOW such a node overshot it on the
      *  way down; climbing back up to it is never the recovery (live 2026-09-28: a fall4 node left

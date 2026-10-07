@@ -8,6 +8,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -137,7 +138,7 @@ public final class BotUtil {
     public static float smoothAngle(float cur, float target) {
         if (!BotConfig.smoothLook) return target;
         float max = Math.max(0.1f, BotConfig.smoothLookDegPerTick);
-        float d = ((target - cur) % 360f + 540f) % 360f - 180f; // shortest signed delta
+        float d = Mth.degreesDifference(cur, target);
         if (Math.abs(d) <= max) return target;
         return cur + Math.copySign(max, d);
     }

@@ -5,6 +5,7 @@ import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
@@ -56,7 +57,7 @@ public final class LookProcess implements BotProcess {
         float ny = smoothAngle(curY, ty);
         float np = smoothAngle(curP, tp);
         p.setYRot(ny); p.yHeadRot = ny; p.yBodyRot = ny; p.setXRot(np);
-        float yawErr = Math.abs(((ty - ny) % 360f + 540f) % 360f - 180f);
+        float yawErr = Math.abs(Mth.degreesDifference(ny, ty));
         boolean aligned = yawErr < ALIGN_EPS && Math.abs(tp - np) < ALIGN_EPS;
         if (BotConfig.walkerDebug)
             LOG.info("[look] t={} yaw {}->{} (tgt {}) pitch {}->{} (tgt {}) yawErr={} aligned={}",

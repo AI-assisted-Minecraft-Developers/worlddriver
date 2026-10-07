@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.bot.movement.WalkerGeometry.angleDiff;
 
 /** Expectation alarms (walkerExpectAlarm): compare the world's actual response against
  *  what the pressed actions should produce, and WARN with cause the tick they diverge.
@@ -42,8 +43,6 @@ public final class WalkerExpectAlarms {
     private int exGearCheckTicks;      // sampling countdown for the hotbar gear sentinel (GEAR-degraded)
     private BlockPos exPlacePos;       // cell a placement expects to fill (PLACE-noBlock)
     private int exPlaceTicksLeft;      // ticks left for the placed block to appear
-
-    private static float angleDiff(float a, float b) { return ((b - a) % 360f + 540f) % 360f - 180f; }
 
     /** Note a placement's expected cell for the PLACE-noBlock observer (call right
      *  after {@code a.placeOn(clicked, UP)} with {@code clicked.above()}). */

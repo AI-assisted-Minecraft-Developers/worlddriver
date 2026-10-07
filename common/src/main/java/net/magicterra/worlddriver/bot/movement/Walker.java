@@ -2935,9 +2935,7 @@ public final class Walker {
         }
         arc.shadowPath = path;
         arc.shadowS = arc.proj.s;
-        float dYaw = liveYaw - arc.proj.tangentYaw;    // wrap to [-180,180] for the camera-vs-tangent gap
-        while (dYaw > 180) dYaw -= 360;
-        while (dYaw < -180) dYaw += 360;
+        float dYaw = angleDiff(arc.proj.tangentYaw, liveYaw);    // the camera-vs-tangent gap
         if (BotConfig.walkerDebug)
             LOG.info("[walker] arc-shadow step={} projSeg={} segFrac={} s={} ds={} perp={} tanYaw={} liveYaw={} dYaw={} monoViol={} inW={}",
                     step, arc.proj.segIdx, String.format("%.2f", arc.proj.segFrac), String.format("%.2f", arc.proj.s),

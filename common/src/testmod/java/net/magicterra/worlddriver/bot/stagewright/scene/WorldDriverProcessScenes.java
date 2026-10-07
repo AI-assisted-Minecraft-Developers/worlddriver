@@ -31,6 +31,7 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.core.Direction;
 import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
 import net.minecraft.server.level.ServerLevel;
@@ -1931,7 +1932,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         double dx = track.getX() + 0.5 - eye.x, dy = track.getY() + 0.5 - eye.y, dz = track.getZ() + 0.5 - eye.z;
         float ty = (float) Math.toDegrees(Math.atan2(-dx, dz));
         float tp = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-        float yawErr = Math.abs(((ty - fp.getYRot()) % 360f + 540f) % 360f - 180f);
+        float yawErr = Math.abs(Mth.degreesDifference(fp.getYRot(), ty));
         float pitchErr = Math.abs(tp - fp.getXRot());
         WorldDriverCommon.LOG.info("[wd.serverLook] yaw={} (tgt {}) pitch={} (tgt {}) finished={} active={}",
                 fp.getYRot(), ty, fp.getXRot(), tp, driver.finished(), ServerAvatarManager.activeCount());

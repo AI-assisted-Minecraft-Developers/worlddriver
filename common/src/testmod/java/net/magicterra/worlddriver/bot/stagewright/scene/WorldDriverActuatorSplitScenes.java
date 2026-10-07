@@ -20,6 +20,7 @@ import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -725,7 +726,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
      */
     private static String requirementDrift(Vec3 from, Vec3 to, float[] wantAtWrite, float[] wantNow) {
         double moved = from.distanceTo(to);
-        float dy = Math.abs(wrap(wantNow[0] - wantAtWrite[0]));
+        float dy = Math.abs(Mth.wrapDegrees(wantNow[0] - wantAtWrite[0]));
         float dp = Math.abs(wantNow[1] - wantAtWrite[1]);
         boolean stale = Math.max(dy, dp) >= AIM_TOLERANCE_DEG;
         return (stale ? "WARNING: " : "") + "the bot moved " + String.format(Locale.ROOT, "%.3f", moved)
@@ -758,7 +759,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
      */
     private static boolean aimSatisfies(float[] look, float[] want) {
         return look != null
-                && Math.abs(wrap(look[0] - want[0])) <= AIM_TOLERANCE_DEG
+                && Math.abs(Mth.wrapDegrees(look[0] - want[0])) <= AIM_TOLERANCE_DEG
                 && Math.abs(look[1] - want[1]) <= AIM_TOLERANCE_DEG;
     }
 
@@ -796,7 +797,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         for (int[] o : AIM_CANDIDATES) {
             BlockPos cell = body.blockPosition().offset(o[0], o[1], o[2]);
             float[] want = aimFromEyeTo(body, cell);
-            float score = Math.min(Math.abs(wrap(want[0] - body.getYRot())),
+            float score = Math.min(Math.abs(Mth.wrapDegrees(want[0] - body.getYRot())),
                     Math.abs(want[1] - body.getXRot()));
             if (score > bestScore) { bestScore = score; best = cell; }
         }
@@ -811,7 +812,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         for (int[] o : AIM_CANDIDATES) {
             BlockPos cell = body.blockPosition().offset(o[0], o[1], o[2]);
             float[] want = aimFromEyeTo(body, cell);
-            float score = Math.min(Math.abs(wrap(want[0] - targetWant[0])),
+            float score = Math.min(Math.abs(Mth.wrapDegrees(want[0] - targetWant[0])),
                     Math.abs(want[1] - targetWant[1]));
             if (score > bestScore) { bestScore = score; best = cell; }
         }
@@ -830,7 +831,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
      */
     private static String aimChoiceEvidence(ServerPlayer body, BlockPos cell) {
         float[] w = aimFromEyeTo(body, cell);
-        float dy = Math.abs(wrap(w[0] - body.getYRot()));
+        float dy = Math.abs(Mth.wrapDegrees(w[0] - body.getYRot()));
         float dp = Math.abs(w[1] - body.getXRot());
         return "the bot's facing when the block was chosen " + deg(body.getYRot()) + " / " + deg(body.getXRot())
                 + " (this is the chooser's input; read it together with the result) → chose "
@@ -845,7 +846,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
      *  visible instead of having to be recomputed by hand from two other rows. */
     private static String aimGap(float[] look, float[] want) {
         if (look == null) return "unavailable/client did not answer";
-        return "yaw difference " + deg(Math.abs(wrap(look[0] - want[0])))
+        return "yaw difference " + deg(Math.abs(Mth.wrapDegrees(look[0] - want[0])))
                 + "°, pitch difference " + deg(Math.abs(look[1] - want[1]))
                 + "° (tolerance " + deg(AIM_TOLERANCE_DEG) + "°)";
     }
@@ -891,17 +892,10 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
 
     /** Angular distance between two look directions, wrapped so 359° and 1° read as 2° apart. */
     private static String drift(float yaw0, float pitch0, float yaw1, float pitch1) {
-        float dy = Math.abs(wrap(yaw1 - yaw0));
+        float dy = Math.abs(Mth.wrapDegrees(yaw1 - yaw0));
         float dp = Math.abs(pitch1 - pitch0);
         if (dy < 0.01f && dp < 0.01f) return "no (neither yaw nor pitch changed)";
         return "yes: yaw difference " + deg(dy) + "°, pitch difference " + deg(dp) + "°";
-    }
-
-    private static float wrap(float deg) {
-        float d = deg % 360f;
-        if (d > 180f) d -= 360f;
-        if (d < -180f) d += 360f;
-        return d;
     }
 
     // ------------------------------------------------------------------ topology

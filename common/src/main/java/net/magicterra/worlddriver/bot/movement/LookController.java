@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,7 +88,7 @@ public final class LookController {
         // GROUND TRUTH of the RENDERED camera: a snap that jumps the view >=30° this tick is
         // exactly what the video sees (and what walk-keys, captured pre-apply, cannot show).
         if (BotConfig.walkerDebug && havePrev) {
-            float rd = Math.abs(((yaw - prevYaw) % 360f + 540f) % 360f - 180f);
+            float rd = Math.abs(Mth.degreesDifference(prevYaw, yaw));
             if (rd >= 30f)
                 LOG.info("[lookctrl] RENDER {} dyaw={} {}->{}",
                         snap ? "SNAP" : "slew", String.format("%.0f", rd),
@@ -103,13 +104,14 @@ public final class LookController {
             // Same heading, but the VALUE nearest last tick's: the renderer lerps yRotO→yRot by value, so a dig
             // snap from -547 to 56 (117° of real turn) drew a 603° spin, twice a run on the R1 cliff.
             if (havePrev) {
-                yaw = prevYaw + (((yaw - prevYaw) % 360f + 540f) % 360f - 180f);
+                yaw = prevYaw + Mth.degreesDifference(prevYaw, yaw);
                 p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw;
             }
             prevYaw = yaw; prevPitch = pitch; havePrev = true;
             rendered = yaw;
         } else {
-            float ny = stepAngle(prevYaw, yaw, BotConfig.cameraSlewDegPerTick);
+            // Shortest arc, at most the slew per tick: MC yaw is unwrapped.
+            float ny = Mth.approachDegrees(prevYaw, yaw, BotConfig.cameraSlewDegPerTick);
             float dp = pitch - prevPitch;
             float maxP = BotConfig.cameraPitchSlewDegPerTick;
             if (dp > maxP) dp = maxP; else if (dp < -maxP) dp = -maxP;
@@ -122,7 +124,7 @@ public final class LookController {
         // single snap) still reads as spinning — this is what per-tick snap-counting missed.
         if (BotConfig.walkerDebug) {
             if (windHavePrev) {
-                float d = ((rendered - windPrev) % 360f + 540f) % 360f - 180f;
+                float d = Mth.degreesDifference(windPrev, rendered);
                 windCumAbs += Math.abs(d); windUnwrapped += d;
                 if (windUnwrapped < windMin) windMin = windUnwrapped;
                 if (windUnwrapped > windMax) windMax = windUnwrapped;
@@ -132,14 +134,6 @@ public final class LookController {
             }
             windPrev = rendered; windHavePrev = true;
         }
-    }
-
-    /** Move {@code from} toward {@code to} by at most {@code maxDeg}, on the shortest
-     *  signed arc (MC yaw is unwrapped, so use the wrapped difference). */
-    private static float stepAngle(float from, float to, float maxDeg) {
-        float d = ((to - from) % 360f + 540f) % 360f - 180f;
-        if (d > maxDeg) d = maxDeg; else if (d < -maxDeg) d = -maxDeg;
-        return from + d;
     }
 
     private static float clamp(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }

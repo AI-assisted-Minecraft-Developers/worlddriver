@@ -32,6 +32,7 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -641,7 +642,7 @@ public final class WorldDriverScenes implements SceneProvider {
             if (fp.getX() >= cx) {                          // on the descending slope
                 double yaw = fp.getYRot();
                 if (!Double.isNaN(prevYaw)) {
-                    double d = ((yaw - prevYaw + 540) % 360) - 180;
+                    double d = Mth.wrapDegrees(yaw - prevYaw);
                     sumAbsDyaw += Math.abs(d);
                     if (Math.abs(d) > maxDyaw) maxDyaw = Math.abs(d);
                     if (Math.abs(d) > 2) {
