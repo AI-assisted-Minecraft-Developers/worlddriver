@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.AbstractFurnaceMenu;
 import net.minecraft.world.inventory.ClickType;
@@ -180,8 +180,7 @@ public final class SmeltProcess implements BotProcess {
     }
 
     private void init(Body a, Player p, Level lvl, BotState s) {
-        ResourceLocation rl = ResourceLocation.tryParse(input == null ? "" : input);
-        if (rl == null || !BuiltInRegistries.ITEM.containsKey(rl)) { fail(s, "unknown item: " + input); return; }
+        if (!RegistryIds.registered(BuiltInRegistries.ITEM, input)) { fail(s, "unknown item: " + input); return; }
         int have = countInInventory(p, input);
         if (have <= 0) {
             // Wait for the client inventory to catch up before declaring it missing.

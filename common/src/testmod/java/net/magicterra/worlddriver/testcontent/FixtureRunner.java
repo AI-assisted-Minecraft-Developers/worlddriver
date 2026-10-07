@@ -35,7 +35,7 @@ import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.network.chat.Component;
@@ -623,9 +623,7 @@ public final class FixtureRunner {
         }
 
         private static Item item(String id) {
-            ResourceLocation rl = ResourceLocation.tryParse(id.contains(":") ? id : "minecraft:" + id);
-            if (rl == null || !BuiltInRegistries.ITEM.containsKey(rl)) throw new SceneFailure("unknown item '" + id + "'");
-            return BuiltInRegistries.ITEM.get(rl);
+            return RegistryIds.lookup(BuiltInRegistries.ITEM, id).orElseThrow(() -> new SceneFailure("unknown item '" + id + "'"));
         }
     }
 

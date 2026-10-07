@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.process;
 
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
@@ -179,8 +179,7 @@ public final class AcquireResolver {
     private static List<String> mineBlocksFor(String item) {
         List<String> ore = ORE_SOURCES.get(item);
         if (ore != null) return ore;
-        ResourceLocation rl = ResourceLocation.tryParse(item);
-        if (rl != null && BuiltInRegistries.BLOCK.containsKey(rl) && BuiltInRegistries.ITEM.containsKey(rl))
+        if (RegistryIds.registered(BuiltInRegistries.BLOCK, item) && RegistryIds.registered(BuiltInRegistries.ITEM, item))
             return List.of(item);
         return List.of();
     }

@@ -2,6 +2,8 @@ package net.magicterra.worlddriver.application;
 
 import java.util.Optional;
 import net.magicterra.worlddriver.api.Positions;
+import net.magicterra.worlddriver.api.contract.ApiException;
+import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.methods.ActionContract.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.ActionContract.RefusalReason;
 import net.magicterra.worlddriver.api.methods.ActionContract.Refused;
@@ -13,16 +15,17 @@ import net.magicterra.worlddriver.api.methods.HandContracts.Interaction;
 import net.magicterra.worlddriver.bot.body.BodyHost;
 import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.util.BotUtil;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
@@ -64,7 +67,9 @@ final class BodyInteractions {
     static ImmediateResponse holdItem(BodyHost host, HandContracts.HoldParams p) {
         Hands hands = host.body().hands().orElse(null);
         if (hands == null) return noHands(host);
-        boolean held = hands.holdItem(BuiltInRegistries.ITEM.get(ResourceLocation.parse(p.item())));
+        Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, p.item()).orElseThrow(() -> ApiException.invalidParam(
+                "/item", ApiIssue.Code.INVALID_VALUE, "no item " + p.item() + " in this game"));
+        boolean held = hands.holdItem(item);
         return held ? new HandContracts.Held(BuiltInRegistries.ITEM.getKey(host.entity().getMainHandItem().getItem()).toString())
                 : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no " + p.item() + " in " + host.id() + "'s inventory");
     }

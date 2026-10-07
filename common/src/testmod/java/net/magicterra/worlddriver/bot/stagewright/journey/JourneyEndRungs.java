@@ -27,7 +27,7 @@ import net.magicterra.worlddriver.bot.process.TowerProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.minecraft.server.level.FullChunkStatus;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
@@ -2930,7 +2930,7 @@ public final class JourneyEndRungs {
     // had drifted apart, and the rungs that fight FIRST (FOOD, BED) could reach neither.
 
     private static Item itemOf(String id) {
-        return BuiltInRegistries.ITEM.get(ResourceLocation.parse(id));
+        return RegistryIds.lookup(BuiltInRegistries.ITEM, id).orElseThrow(() -> new IllegalArgumentException("no item " + id));
     }
 
     private static String heldItem(JourneyRig rig) {

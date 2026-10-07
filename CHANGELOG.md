@@ -29,6 +29,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refused, numbers keep every digit, nesting stops at 64. A number token Gson cannot lex (over 1024
   characters, or an integer of 66+ digits it misreads as a leading zero) is now a parse error rather
   than an invalid value at its own path; no field holds a number that long either way.
+- **An id nothing is registered under is refused, not read as air.** The block and item registries
+  answer air for an unknown id, so `mc.hand.holdItem` with a typo went looking for air, and a replay
+  archive naming a block this game lacks restored air over the terrain. The first is now
+  `invalid_params` at `/item`, the second an unreadable archive.
+- **goto, clearArea and construct share one `Direction` type** (the TypeScript `GotoDirection` is now
+  `Direction`) and one rule for which way a turning word points. goto's `direction` target still
+  follows the body's exact heading; a heading, a tunnel and a bridge snap to the nearest compass
+  direction.
 
 ## 2026-10-06
 

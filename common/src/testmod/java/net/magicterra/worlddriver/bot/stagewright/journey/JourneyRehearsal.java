@@ -13,7 +13,7 @@ import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -1865,7 +1865,8 @@ public final class JourneyRehearsal {
     // =====================================================================================
 
     private static void give(ServerPlayer fp, String itemId, int count) {
-        var item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
+        var item = RegistryIds.lookup(BuiltInRegistries.ITEM, itemId)
+                .orElseThrow(() -> new IllegalArgumentException("no item " + itemId));
         fp.getInventory().add(new ItemStack(item, count));
     }
 

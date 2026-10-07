@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.body.Hands;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -106,12 +106,9 @@ final class HeldItem {
     static boolean holdByIdFromAnywhere(Hands hands, String itemId) {
         if (!(hands.entity() instanceof Player p)) return false;
         if (holdById(hands, itemId)) return true;
-        ResourceLocation id = ResourceLocation.tryParse(itemId);
-        if (id == null) return false;
-        // BuiltInRegistries.ITEM is DEFAULTED: an id nothing is registered under answers AIR rather
-        // than null, and `holdItem(AIR)` would then match the empty stacks that fill a sparse
-        // inventory and report a hand it never arranged.
-        Item item = BuiltInRegistries.ITEM.get(id);
+        // `holdItem(AIR)` would match the empty stacks that fill a sparse inventory and report a
+        // hand it never arranged.
+        Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, itemId).orElse(Items.AIR);
         if (item == Items.AIR) return false;
         return hands.holdItem(item) && matches(p.getInventory().getSelected(), itemId);
     }

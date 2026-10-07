@@ -23,7 +23,7 @@ import java.util.Set;
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.util.BotInteract.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
-import net.minecraft.resources.ResourceLocation;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 
 public final class BuildProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
@@ -151,17 +151,7 @@ public final class BuildProcess implements BotProcess {
                 // Sanity-check the id before invoking the simulation so a typo
                 // surfaces as `skipped` rather than as a vanilla useItemOn
                 // FAIL that's harder to attribute.
-                ResourceLocation rl;
-                try {
-                    rl = ResourceLocation.parse(wantId);
-                } catch (RuntimeException badId) {
-                    failedIdx.add(idx);
-                    skipped++;
-                    idx++;
-                    phase = Phase.NEXT;
-                    return false;
-                }
-                if (!BuiltInRegistries.BLOCK.containsKey(rl)) {
+                if (!RegistryIds.registered(BuiltInRegistries.BLOCK, wantId)) {
                     failedIdx.add(idx);
                     skipped++;
                     idx++;

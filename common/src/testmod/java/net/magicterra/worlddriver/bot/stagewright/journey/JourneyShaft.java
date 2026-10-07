@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
@@ -893,7 +894,8 @@ public final class JourneyShaft {
         // and losing the hand each time. What keeps the hand across courses is the tower's own
         // `reachIntoBag` opt-in at the settle below. Kept here because the two do different jobs —
         // this one also sets the SERVER's hand and records the failure to do so as `.hand`.
-        var pillarItem = BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse(pillar));
+        var pillarItem = RegistryIds.lookup(BuiltInRegistries.ITEM, pillar)
+                .orElseThrow(() -> new IllegalArgumentException("no item " + pillar));
         // BOTH PLAYERS, CLIENT AND SERVER. `TowerProcess` places through `gameMode.useItemOn`, and
         // what lands is decided by the hand the SERVER has — which the mine that preceded this
         // course moved to a pickaxe without telling anyone (see JourneyHands.holdBoth). A pickaxe's `useOn` against

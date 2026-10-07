@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.KeyedValueType.Entry;
 import net.magicterra.worlddriver.bot.SettingsContract.AvoidPoint;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 
 /**
  * Reads and writes the {@code mc.bot.setting} keys in {@link BotConfig}. Types and ranges are the
@@ -86,8 +86,7 @@ public final class SettingsCommand {
     }
 
     private static boolean isBlock(String id) {
-        ResourceLocation rl = ResourceLocation.tryParse(id);
-        return rl != null && BuiltInRegistries.BLOCK.containsKey(rl);
+        return RegistryIds.registered(BuiltInRegistries.BLOCK, id);
     }
 
     private static ApiIssue notABlock(String path, String id) {

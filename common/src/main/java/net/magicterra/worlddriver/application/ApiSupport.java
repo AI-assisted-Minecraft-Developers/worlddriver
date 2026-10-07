@@ -1,10 +1,10 @@
 package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.bot.util.ItemSnap;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import java.util.LinkedHashMap;
@@ -48,13 +48,9 @@ final class ApiSupport {
      * erase whatever was at the target position while reporting ok:true.
      */
     static BlockState parseBlock(String id) {
-        ResourceLocation rl;
-        try { rl = ResourceLocation.parse(id); }
-        catch (Exception e) { throw new IllegalArgumentException("invalid block id: " + id); }
-        if (!BuiltInRegistries.BLOCK.containsKey(rl)) {
-            throw new IllegalArgumentException("unknown block: " + id);
-        }
-        return BuiltInRegistries.BLOCK.get(rl).defaultBlockState();
+        return RegistryIds.lookup(BuiltInRegistries.BLOCK, id)
+                .orElseThrow(() -> new IllegalArgumentException("unknown block: " + id))
+                .defaultBlockState();
     }
 
     static Map<String, Object> itemSnapshot(ItemStack s) {

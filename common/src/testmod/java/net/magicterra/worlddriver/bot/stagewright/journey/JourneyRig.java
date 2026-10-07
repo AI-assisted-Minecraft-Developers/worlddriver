@@ -2236,8 +2236,8 @@ public final class JourneyRig {
      * that needed it could not reach it.
      */
     public static net.minecraft.world.item.Item item(String itemId) {
-        return net.minecraft.core.registries.BuiltInRegistries.ITEM
-                .get(net.minecraft.resources.ResourceLocation.parse(itemId));
+        return net.magicterra.worlddriver.bot.util.RegistryIds.lookup(net.minecraft.core.registries.BuiltInRegistries.ITEM, itemId)
+                .orElseThrow(() -> new IllegalArgumentException("no item " + itemId));
     }
 
     /** How many of an item the bot is carrying, across the whole inventory. */
@@ -2574,8 +2574,8 @@ public final class JourneyRig {
      * ladder out of wood.
      */
     public BlockPos nearestBlock(String blockId, int radius, int yRadius) {
-        var wanted = net.minecraft.core.registries.BuiltInRegistries.BLOCK
-                .get(net.minecraft.resources.ResourceLocation.parse(blockId));
+        var wanted = net.magicterra.worlddriver.bot.util.RegistryIds.lookup(net.minecraft.core.registries.BuiltInRegistries.BLOCK, blockId)
+                .orElseThrow(() -> new IllegalArgumentException("no block " + blockId));
         BlockPos centre = player().blockPosition();
         ServerLevel lvl = (ServerLevel) player().level();
         BlockPos best = null;

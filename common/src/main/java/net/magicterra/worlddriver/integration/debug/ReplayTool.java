@@ -22,7 +22,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.TagParser;
-import net.minecraft.resources.ResourceLocation;
+import net.magicterra.worlddriver.bot.util.RegistryIds;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import java.nio.file.Files;
@@ -80,7 +80,9 @@ final class ReplayTool {
                 int[] pos = ec.pos();
                 BlockState st = parseState(ec.state());
                 if (st == null) {
-                    Block b = BuiltInRegistries.BLOCK.get(ResourceLocation.parse(ec.block()));
+                    // An unknown id restored as the registry's default (air) would carve the terrain being replayed.
+                    Block b = RegistryIds.lookup(BuiltInRegistries.BLOCK, ec.block()).orElseThrow(() -> ApiException.invalidParam(
+                            "/file", ApiIssue.Code.INVALID_VALUE, file + " restores " + ec.block() + ", which this game has no block for"));
                     st = b.defaultBlockState();
                     defaulted++;
                 }
