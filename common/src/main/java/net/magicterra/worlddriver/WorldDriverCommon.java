@@ -5,7 +5,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.magicterra.worlddriver.api.DriverApi;
-import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.BotConfigFile;
 import net.magicterra.worlddriver.mcp.McpServer;
 import net.magicterra.worlddriver.rpc.RpcServer;
 import net.magicterra.worlddriver.script.ScriptManager;
@@ -59,7 +59,7 @@ public final class WorldDriverCommon {
         if (api != null && rpcServer != null) return;
         try {
             if (api == null) {
-                BotConfig.load();   // restore persisted bot settings before any tick reads them
+                BotConfigFile.load();   // restore persisted bot settings before any tick reads them
                 DriverApplication app = new DriverApplication();
                 api = app;
                 // Scripts, skills and playbooks, all allow-everything unless -Dworlddriver.sandbox=on

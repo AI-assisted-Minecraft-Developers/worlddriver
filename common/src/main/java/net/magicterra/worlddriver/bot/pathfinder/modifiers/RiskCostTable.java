@@ -61,7 +61,7 @@ public final class RiskCostTable {
     private static volatile byte[] planes = new byte[0];
     private static volatile boolean loaded;
     /** Optional filesystem override (relative to the game working dir, same
-     *  convention as BotConfig.persistPath() / the pathArchive replays dir). */
+     *  convention as BotConfigFile.persistPath() / the pathArchive replays dir). */
     private static Path override = Path.of("config", "worlddriver", FILE_NAME);
 
     /** Test/ops hook: repoint the override + force reload. */

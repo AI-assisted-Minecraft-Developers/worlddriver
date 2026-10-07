@@ -1,14 +1,11 @@
 package net.magicterra.worlddriver.bot;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
@@ -2646,43 +2643,15 @@ public final class BotConfig {
      *  focus-loss pause is suppressed. See {@link FocusPolicy}. */
     public static volatile boolean keepTickingUnfocused = true;
 
-    // ===================== persistence (survives a restart) =====================
-    // Without persistence every relaunch resets these volatiles to their defaults, so
-    // survival toggles (autoSwim, autoRetreat, …) would have to be re-applied by hand after
-    // each restart — and a default-off autoSwim can drown the bot on reload before it is
-    // set. A successful mc.bot.setting apply writes every scalar (+ the
-    // hazard-block Set) to a properties file via reflection, and the file is reloaded
-    // at startup. Reflection means new tunables persist automatically with no per-field
-    // code. Opt-in via -Dworlddriver.persistConfig=true (set by the dev runClient/runServer
-    // launch, NOT the headless validation/GameTest tasks) so the suites stay
-    // deterministic on pure defaults. avoidZones (a transient per-goto double[][]) is
-    // intentionally NOT persisted.
-
-    private static Path persistPath() {
-        return Path.of("config", "worlddriver_bot.properties");
-    }
-
-    /** Persistence is opt-in so headless validation / GameTest never read or write
-     *  the file (their setting tests must run on pristine defaults). */
-    private static boolean persistEnabled() {
-        return Boolean.getBoolean("worlddriver.persistConfig")
-                && !Boolean.getBoolean("worlddriver.runValidation");
-    }
-
-    /** Suffix of the SHADOW-DEFAULT companion line written next to every persisted
-     *  key: {@code <key>.default=<compiled default when the file was saved>}. A '.'
-     *  can never collide with a field name (Java identifiers have no dots), so a
-     *  {@code .default} line is never mistaken for an unknown field — and legacy
-     *  code (which only ever looks up keys by field name) simply ignores it, so a
-     *  new-format file stays readable by an older build. */
-    private static final String SHADOW_SUFFIX = ".default";
+    // ===================== reflection over the persistable set =====================
+    // The file itself is BotConfigFile; what lives here is shared with snapshotAll/restoreAll.
 
     /** Serialize a field's current value to the persisted string form (the Set is
      *  comma-joined; scalars via {@code String.valueOf}). Returns {@code null} for a
-     *  null value so save can skip it. The ONE encoder shared by {@link #save()} and
+     *  null value so save can skip it. The ONE encoder shared by {@link BotConfigFile#save()} and
      *  {@link #COMPILED_DEFAULTS} capture, so a value and its shadow default are
      *  byte-for-byte comparable. */
-    private static String serialize(Field f) throws IllegalAccessException {
+    static String serialize(Field f) throws IllegalAccessException {
         Object v = f.get(null);
         if (v == null) return null;
         if (v instanceof Set<?> set) {
@@ -2700,14 +2669,14 @@ public final class BotConfig {
     }
 
     /** The compiled-in default of every persistable field, captured at class
-     *  initialization — which completes BEFORE {@link #load()} (a method call) can
+     *  initialization — which completes BEFORE {@link BotConfigFile#load()} (a method call) can
      *  apply any persisted value, so these are the true defaults baked into THIS
-     *  build. The shadow-default scheme leans on this map twice: {@link #save()}
-     *  writes it as the {@code <key>.default} line, and {@link #load()} re-saves a
+     *  build. The shadow-default scheme leans on this map twice: {@link BotConfigFile#save()}
+     *  writes it as the {@code <key>.default} line, and {@link BotConfigFile#load()} re-saves a
      *  file whose stored snapshot no longer matches the current compiled default.
      *  Assigned in a static block at the very END of the class so every field it
      *  reads (all the volatiles above) is already class-initialized. */
-    private static final Map<String, String> COMPILED_DEFAULTS;
+    static final Map<String, String> COMPILED_DEFAULTS;
 
     private static Map<String, String> captureCompiledDefaults() {
         Map<String, String> m = new LinkedHashMap<>();
@@ -2716,118 +2685,6 @@ public final class BotConfig {
             catch (Exception ignored) { /* own field — cannot happen */ }
         }
         return m;
-    }
-
-    /** Write every persistable field to disk in SHADOW-DEFAULT format. Called after
-     *  a successful {@code mc.bot.setting} apply (and by {@link #load()} to upgrade a
-     *  stale/legacy file). For each field two lines are emitted:
-     *  <pre>  &lt;key&gt;=&lt;current value&gt;
-     *  &lt;key&gt;.default=&lt;compiled default of THIS build&gt;</pre>
-     *  On the next {@link #load()} a key whose value equals its shadow default is a
-     *  mere snapshot of the-then default and yields to the current compiled default;
-     *  a key whose value differs was set by the user and is preserved. Setting a key
-     *  explicitly back to its default therefore counts as following the default (its
-     *  value will equal the freshly-written shadow), which is the intended semantics:
-     *  "I want the default" and "I never touched it" persist identically.
-     *  Never throws: returns why nothing was written, or null when it was. */
-    public static synchronized String save() {
-        if (!persistEnabled()) return "persistence is off (-Dworlddriver.persistConfig=true turns it on)";
-        try {
-            Properties props = new Properties();
-            for (Field f : persistableFields()) {
-                String v = serialize(f);
-                if (v == null) continue;
-                props.setProperty(f.getName(), v);
-                String def = COMPILED_DEFAULTS.get(f.getName());
-                if (def != null) props.setProperty(f.getName() + SHADOW_SUFFIX, def);
-            }
-            Path path = persistPath();
-            if (path.getParent() != null) Files.createDirectories(path.getParent());
-            // Written beside the target and moved over it, so a crash mid-write leaves the old file, not half of one.
-            Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
-            try (var w = Files.newBufferedWriter(tmp)) {
-                props.store(w, "worlddriver bot settings — auto-saved by mc.bot.setting (<key>.default = compiled default"
-                        + " at save time; a key equal to its default is a snapshot and follows the current build's default)");
-            }
-            Files.move(tmp, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                    java.nio.file.StandardCopyOption.ATOMIC_MOVE);
-            return null;
-        } catch (Exception e) {
-            LOG.warn("[config] save failed: {}", e.toString());
-            return "save failed: " + e;
-        }
-    }
-
-    /** Reload persisted settings at startup, before any tick reads them, applying
-     *  SHADOW-DEFAULT semantics per key. Missing file → defaults stand; a malformed
-     *  individual key is skipped (a partial/old file still applies what it can).
-     *  <ul>
-     *    <li><b>shadow present, value == shadow</b> → SKIP: the persisted value was
-     *        just a snapshot of the default when the file was saved, so the current
-     *        compiled default wins (this is the fix for the config-persistence trap —
-     *        a stale snapshot no longer crushes a later default flip).</li>
-     *    <li><b>shadow present, value != shadow</b> → APPLY: the user changed it;
-     *        preserve their value.</li>
-     *    <li><b>no shadow (legacy file)</b> → APPLY conservatively, then emit ONE
-     *        WARN listing the keys that differ from the current compiled default, and
-     *        upgrade-re-save the file in shadow format.</li>
-     *  </ul>
-     *  {@code .default} lines are looked up deliberately as each key's companion; the
-     *  loop iterates the field set (never the raw property keys), so a shadow line is
-     *  never treated as an unknown field. A stale snapshot (SKIP where the stored
-     *  value no longer equals the current compiled default) also triggers an upgrade
-     *  re-save so the file reflects the winning default. Any re-save is best-effort —
-     *  an IO failure is logged, never fatal to startup. */
-    public static synchronized void load() {
-        if (!persistEnabled()) return;
-        try {
-            Path path = persistPath();
-            if (!Files.exists(path)) return;
-            Properties props = new Properties();
-            try (var r = Files.newBufferedReader(path)) { props.load(r); }
-            int applied = 0, skipped = 0;
-            boolean needsUpgrade = false;          // any legacy key, or any stale snapshot
-            List<String> legacyDrift = new ArrayList<>();
-            for (Field f : persistableFields()) {
-                String key = f.getName();
-                String s = props.getProperty(key);
-                if (s == null) continue;
-                String shadow = props.getProperty(key + SHADOW_SUFFIX);
-                String curDefault = COMPILED_DEFAULTS.get(key);
-                if (shadow == null) {
-                    // Legacy line (no shadow): keep the user's value conservatively.
-                    try {
-                        assign(f, s); applied++;
-                        if (curDefault != null && !s.trim().equals(curDefault.trim())) legacyDrift.add(key);
-                    } catch (Exception ex) { LOG.warn("[config] skip {}: {}", key, ex.toString()); }
-                    needsUpgrade = true;
-                } else if (s.trim().equals(shadow.trim())) {
-                    // Snapshot of the-then default → the current compiled default wins.
-                    skipped++;
-                    if (curDefault != null && !s.trim().equals(curDefault.trim())) needsUpgrade = true;
-                } else {
-                    // User set it away from the saved default → preserve.
-                    try { assign(f, s); applied++; }
-                    catch (Exception ex) { LOG.warn("[config] skip {}: {}", key, ex.toString()); }
-                }
-            }
-            LOG.info("[config] loaded {} persisted bot setting(s) ({} snapshot key(s) followed current default) from {}",
-                    applied, skipped, path.toAbsolutePath());
-            if (!legacyDrift.isEmpty()) {
-                // NOTE the permanence: the upgrade re-save stamps each legacy drift key with
-                // shadow = CURRENT compiled default while keeping its stale value, so from then
-                // on value != shadow and the key is treated as user-set FOREVER. Only files
-                // written by shadow-aware code get true snapshot-follows-default semantics;
-                // this WARN list is the operator's one chance to spot and hand-fix stale keys.
-                LOG.warn("[config] legacy config file (no shadow defaults) — applied as-is;"
-                        + " {} key(s) differ from this build's compiled default and were preserved"
-                        + " (they will remain user-set after the upgrade): {}."
-                        + " Upgrading file to shadow-default format.", legacyDrift.size(), legacyDrift);
-            }
-            if (needsUpgrade) save();   // best-effort upgrade re-save (IO failure logged, not fatal)
-        } catch (Exception e) {
-            LOG.warn("[config] load failed: {}", e.toString());
-        }
     }
 
     /** Reset every persistable field to THIS build's compiled default — the live
@@ -2862,7 +2719,7 @@ public final class BotConfig {
     /** The {@link #persistable} fields, in declaration order — the ONE
      *  enumeration save/load/snapshotAll/restoreAll all iterate, so the
      *  persisted set and the snapshot set can't drift apart. */
-    private static List<Field> persistableFields() {
+    static List<Field> persistableFields() {
         List<Field> out = new ArrayList<>();
         for (Field f : BotConfig.class.getDeclaredFields()) {
             if (persistable(f)) out.add(f);
@@ -2870,7 +2727,7 @@ public final class BotConfig {
         return out;
     }
 
-    private static void assign(Field f, String s) throws IllegalAccessException {
+    static void assign(Field f, String s) throws IllegalAccessException {
         Class<?> t = f.getType();
         if (t == boolean.class) f.setBoolean(null, Boolean.parseBoolean(s.trim()));
         else if (t == int.class) f.setInt(null, Integer.parseInt(s.trim()));

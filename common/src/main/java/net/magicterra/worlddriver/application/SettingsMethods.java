@@ -14,6 +14,7 @@ import net.magicterra.worlddriver.api.contract.ApiIssue;
 import net.magicterra.worlddriver.api.contract.KeyedValueType.Entry;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.BotConfigFile;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.SettingsCalls;
 import net.magicterra.worlddriver.bot.SettingsCallsBinding;
@@ -93,7 +94,7 @@ final class SettingsMethods implements SettingsCalls {
         List<ApiIssue> issues = SettingsCommand.check(p.values(), "/values");
         if (!issues.isEmpty()) throw ApiException.invalidParams(issues);
         SettingsCommand.commit(bot, p.values());
-        String saveError = BotConfig.save();
+        String saveError = BotConfigFile.save();
         List<Entry> values = new ArrayList<>();
         for (Entry u : p.values()) values.add(new Entry(u.key(), SettingsCommand.read(bot, u.key())));
         return new Patched(values, saveError == null, Optional.ofNullable(saveError));
