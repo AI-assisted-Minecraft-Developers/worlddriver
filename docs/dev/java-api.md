@@ -10,9 +10,8 @@ Each group of methods has an interface whose methods have real Java names, with 
 records as parameters and results:
 
 ```java
-SettingsApi settings = SettingsApi.of(WorldDriverCommon.registry());
-CompletionStage<SettingsReply> reply =
-        settings.setting(SettingsContracts.Read.of("autoEat"), CallContext.standalone());
+SettingsStubApi settings = SettingsApi.of(WorldDriverCommon.registry());
+CompletionStage<SettingsReply> reply = settings.setting(SettingsContracts.Read.of("autoEat"));
 
 switch (ApiRegistry.await(reply, 5_000)) {
     case SettingsContracts.Values v  -> …
@@ -51,6 +50,12 @@ the method registry exactly as a request from a transport does:
 - the call reaches whichever handler is registered for the method now, including one a mod put in
   its place.
 
+Its type is the family's generated `<Family>StubApi` (`SettingsStubApi`, `QueryStubApi`, …): the
+interface plus an overload of each method without the `CallContext`. Leaving it out makes the call
+with `CallContext.standalone()`, created fresh for that call: the server's own time limit, nothing
+that cancels it, the shared wait quota. Pass a context only when the call belongs to another one, so
+that it inherits that call's deadline and cancellation (`ctx.child(ms)`).
+
 A call answers a `CompletionStage`. A failure completes it exceptionally with an `ApiException`;
 `ApiRegistry.await(stage, ms)` unwraps it. A call never holds the thread that makes it, so the server
 or client thread may make one, including one the other game thread must serve; it is queued there.
@@ -69,15 +74,15 @@ the class that declares its `MethodSpec` and, when that is not `SPEC`, the field
 
 ```java
 public interface SettingsApi {
-    static SettingsApi of(ApiRegistry registry) { return SettingsApiBinding.calls(registry); }
+    static SettingsStubApi of(ApiRegistry registry) { return SettingsApiBinding.calls(registry); }
 
     @Spec(SettingsContracts.class)
     CompletionStage<SettingsReply> setting(SettingsOp op, CallContext ctx);
 }
 ```
 
-The implementation, named for the family with `Service`, implements the same interface and
-publishes its registry entries from the generated binding:
+The implementation, named for the family with `Service`, implements the interface (not the stub,
+whose overloads are for callers) and publishes its registry entries from the generated binding:
 
 ```java
 final class SettingsService implements SettingsApi {
@@ -101,8 +106,8 @@ the build when:
 - the method is not `CompletionStage<R> name(P params, CallContext ctx)` for exactly that `P` and `R`;
 - one spec is bound twice in the same interface.
 
-It then writes `<Interface>Binding` into `common/build/generated/sources/annotationProcessor/`.
-That file is not committed: it is rebuilt on every compile and ships in the sources jar.
+It then writes `<Interface>Binding` and `<Family>StubApi` into
+`common/build/generated/sources/annotationProcessor/`. Neither file is committed: it is rebuilt on every compile and ships in the sources jar.
 
 Left for run time is only what run time knows: whether the parameter values are valid, which
 thread is calling, and who currently answers the method.

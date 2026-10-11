@@ -11,7 +11,7 @@ import net.magicterra.worlddriver.api.methods.event.EventApi;
 public interface ObserveApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static ObserveApi of(ApiRegistry registry) { return ObserveApiBinding.calls(registry); }
+    static ObserveStubApi of(ApiRegistry registry) { return ObserveApiBinding.calls(registry); }
 
     @Spec(value = ObserveContracts.class, spec = "PLAYER")
     CompletionStage<ObserveContracts.PlayerReading> player(ObserveContracts.PlayerParams p, CallContext ctx);

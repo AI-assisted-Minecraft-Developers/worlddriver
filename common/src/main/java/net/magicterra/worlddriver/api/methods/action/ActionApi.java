@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.api.registry.Spec;
 public interface ActionApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static ActionApi of(ApiRegistry registry) { return ActionApiBinding.calls(registry); }
+    static ActionStubApi of(ApiRegistry registry) { return ActionApiBinding.calls(registry); }
 
     @Spec(value = ActionContracts.class, spec = "RUN_COMMAND")
     CompletionStage<ActionContracts.CommandResult> runCommand(ActionContracts.CommandParams p, CallContext ctx);

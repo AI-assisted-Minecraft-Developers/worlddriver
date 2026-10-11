@@ -11,7 +11,7 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 public interface EventApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static EventApi of(ApiRegistry registry) { return EventApiBinding.calls(registry); }
+    static EventStubApi of(ApiRegistry registry) { return EventApiBinding.calls(registry); }
 
     @Spec(value = EventContracts.class, spec = "CURSOR")
     CompletionStage<EventContracts.Cursor> cursor(CommonTypes.NoParams p, CallContext ctx);

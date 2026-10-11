@@ -15,7 +15,7 @@ import net.magicterra.worlddriver.api.methods.wait.WaitApi;
 public interface BotTaskApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static BotTaskApi of(ApiRegistry registry) { return BotTaskApiBinding.calls(registry); }
+    static BotTaskStubApi of(ApiRegistry registry) { return BotTaskApiBinding.calls(registry); }
 
     @Spec(GotoContracts.class)
     CompletionStage<ActionResponse<GotoContracts.Result>> goTo(GotoContracts.Params p, CallContext ctx);

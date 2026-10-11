@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.api.registry.Spec;
 public interface DebugApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static DebugApi of(ApiRegistry registry) { return DebugApiBinding.calls(registry); }
+    static DebugStubApi of(ApiRegistry registry) { return DebugApiBinding.calls(registry); }
 
     @Spec(value = DebugContracts.class, spec = "PATH_CHART")
     CompletionStage<DebugContracts.Chart> pathChart(DebugContracts.ChartParams p, CallContext ctx);

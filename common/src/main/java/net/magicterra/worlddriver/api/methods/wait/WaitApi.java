@@ -14,7 +14,7 @@ import net.magicterra.worlddriver.api.registry.Spec;
 public interface WaitApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static WaitApi of(ApiRegistry registry) { return WaitApiBinding.calls(registry); }
+    static WaitStubApi of(ApiRegistry registry) { return WaitApiBinding.calls(registry); }
 
     @Spec(value = WaitContracts.class, spec = "EVENT")
     CompletionStage<WaitContracts.Outcome> event(WaitContracts.EventParams p, CallContext ctx);

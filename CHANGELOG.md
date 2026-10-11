@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-11
+
+- **A typed call no longer has to name a `CallContext`.** `XxxApi.of(registry)` now answers the
+  generated `XxxStubApi`, which adds to each method an overload without the context:
+  `QueryApi.of(registry).query(q)`. Leaving it out calls with `CallContext.standalone()`, made fresh
+  for each call, which is what almost every caller passed by hand. The two-argument form remains for
+  a call that belongs to another one. Code that stored the caller as `XxxApi` still compiles but sees
+  only the two-argument methods; declare it as `XxxStubApi` or `var`. See `docs/dev/java-api.md`.
+
 ## 2026-10-08
 
 - **The Java API is reorganised; code built against the old names must be rebuilt.** Nothing on the

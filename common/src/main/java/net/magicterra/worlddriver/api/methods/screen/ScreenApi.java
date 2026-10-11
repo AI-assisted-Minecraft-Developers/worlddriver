@@ -15,7 +15,7 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 public interface ScreenApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static ScreenApi of(ApiRegistry registry) { return ScreenApiBinding.calls(registry); }
+    static ScreenStubApi of(ApiRegistry registry) { return ScreenApiBinding.calls(registry); }
 
     @Spec(value = ScreenContracts.class, spec = "INFO")
     CompletionStage<ScreenContracts.ScreenInfo> screenInfo(NoParams p, CallContext ctx);

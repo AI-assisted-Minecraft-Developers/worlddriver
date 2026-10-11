@@ -36,23 +36,23 @@ class SettingsApiTest {
 
     @Test
     void theCallerChecksParametersAsARequestIs() {
-        SettingsApi calls = SettingsApi.of(new DriverApplication().registry());
-        ApiError e = failure(calls.setting(new Patch(List.of()), CallContext.standalone()));
+        var calls = SettingsApi.of(new DriverApplication().registry());
+        ApiError e = failure(calls.setting(new Patch(List.of())));
         assertEquals(ApiError.Code.INVALID_PARAMS, e.code(), e.toString());
     }
 
     @Test
     void theCallerReachesTheRegisteredHandler() {
-        SettingsApi calls = SettingsApi.of(new DriverApplication().registry());
+        var calls = SettingsApi.of(new DriverApplication().registry());
         // No client and no server: only the handler knows to say so.
-        ApiError e = failure(calls.setting(new Read(Optional.empty()), CallContext.standalone()));
+        ApiError e = failure(calls.setting(new Read(Optional.empty())));
         assertEquals(ApiError.Code.CAPABILITY_UNAVAILABLE, e.code(), e.toString());
     }
 
     @Test
     void anUnknownKeyIsRefusedAtItsOwnPath() {
-        SettingsApi calls = SettingsApi.of(new DriverApplication().registry());
-        ApiError e = failure(calls.setting(Patch.of(Map.of("definitelyNotAKnob", 1)), CallContext.standalone()));
+        var calls = SettingsApi.of(new DriverApplication().registry());
+        ApiError e = failure(calls.setting(Patch.of(Map.of("definitelyNotAKnob", 1))));
         assertEquals(ApiError.Code.INVALID_PARAMS, e.code(), e.toString());
         assertTrue(e.issues().stream().anyMatch(i -> i.path().equals("/values/definitelyNotAKnob")), e.toString());
     }

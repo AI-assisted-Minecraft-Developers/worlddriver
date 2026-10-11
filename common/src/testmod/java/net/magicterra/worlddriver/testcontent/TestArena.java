@@ -4,7 +4,6 @@ package net.magicterra.worlddriver.testcontent;
 import java.util.Comparator;
 import java.util.concurrent.locks.LockSupport;
 
-import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
@@ -85,7 +84,7 @@ public final class TestArena {
      */
     public static void seed(ApiRegistry api, MinecraftServer server) {
         ServerLevel level = server.overworld();
-        BlockPosition o = ApiRegistry.await(SystemApi.of(api).testOrigin(new NoParams(), CallContext.standalone()), 5_000);
+        BlockPosition o = ApiRegistry.await(SystemApi.of(api).testOrigin(new NoParams()), 5_000);
         BlockPos origin = Positions.blockPos(o);
         new ServerThreadHop(server, server::isSameThread, SERVER_THREAD_TIMEOUT_MS).call(() -> {
             // Pin first, write second. The ticket's level has to reach ENTITY_TICKING (31) out to

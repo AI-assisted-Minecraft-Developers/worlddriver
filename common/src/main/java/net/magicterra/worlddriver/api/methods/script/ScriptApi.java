@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.api.registry.Spec;
 public interface ScriptApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static ScriptApi of(ApiRegistry registry) { return ScriptApiBinding.calls(registry); }
+    static ScriptStubApi of(ApiRegistry registry) { return ScriptApiBinding.calls(registry); }
 
     @Spec(value = ScriptContracts.class, spec = "EVAL")
     CompletionStage<ScriptContracts.Outcome> eval(ScriptContracts.EvalParams p, CallContext ctx);

@@ -12,7 +12,7 @@ import net.magicterra.worlddriver.bot.SettingsContracts.SettingsReply;
 public interface SettingsApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static SettingsApi of(ApiRegistry registry) { return SettingsApiBinding.calls(registry); }
+    static SettingsStubApi of(ApiRegistry registry) { return SettingsApiBinding.calls(registry); }
 
     @Spec(SettingsContracts.class)
     CompletionStage<SettingsReply> setting(SettingsOp op, CallContext ctx);

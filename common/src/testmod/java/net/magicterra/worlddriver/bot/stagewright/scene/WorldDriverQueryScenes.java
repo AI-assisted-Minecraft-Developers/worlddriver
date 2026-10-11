@@ -8,7 +8,6 @@ import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import static net.magicterra.worlddriver.api.game.Positions.position;
 
-import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.game.UnloadedAreaException;
 import net.magicterra.worlddriver.api.schema.ApiException;
@@ -51,16 +50,16 @@ public final class WorldDriverQueryScenes implements SceneProvider {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.client.blocks is client-only — only an integrated server has its handler here");
         if (WorldDriverCommon.registry() == null) ctx.fail("the API registry is not initialized — was the mod loaded?");
-        ClientApi client = ClientApi.of(SceneCalls.api());
+        var client = ClientApi.of(SceneCalls.api());
 
         // Asked, not awaited: the scan runs on the client thread, which this server thread may not wait for.
-        SceneCalls.ask(ctx, "nearScan", client.blocks(BlocksParams.aroundPlayer(1), CallContext.standalone()), near ->
+        SceneCalls.ask(ctx, "nearScan", client.blocks(BlocksParams.aroundPlayer(1)), near ->
                 ctx.check(near.unloaded().isEmpty())
                         .as("A a scan around the player reports no unloaded chunk (" + near + ")").isTrue());
 
         BlockPos far = new BlockPos(ctx.originX() + 1_000_000, 80, ctx.originZ() + 1_000_000);
         int fcx = far.getX() >> 4, fcz = far.getZ() >> 4;
-        SceneCalls.ask(ctx, "farScan", client.blocks(BlocksParams.around(position(far),1), CallContext.standalone()), distant ->
+        SceneCalls.ask(ctx, "farScan", client.blocks(BlocksParams.around(position(far),1)), distant ->
                 ctx.check(distant.unloaded().orElse(List.of()).stream().anyMatch(c -> c.x() == fcx && c.z() == fcz))
                         .as("B a scan far from the player names chunk [" + fcx + ", " + fcz + "] as unloaded").isTrue());
     }
@@ -68,7 +67,7 @@ public final class WorldDriverQueryScenes implements SceneProvider {
     private static void blocksStayInLoadedChunks(SceneContext ctx) {
         ApiRegistry api = WorldDriverCommon.registry();
         if (api == null) ctx.fail("the API registry is not initialized — was the mod loaded?");
-        QueryApi query = QueryApi.of(api);
+        var query = QueryApi.of(api);
         for (int d : new int[] {-MAX_RADIUS, MAX_RADIUS})
             if (ctx.outsideForcedChunks(d, d) || ctx.outsideForcedChunks(d, -d))
                 ctx.skip("the arena's forced window is narrower than a radius-" + MAX_RADIUS + " cube");
@@ -80,12 +79,11 @@ public final class WorldDriverQueryScenes implements SceneProvider {
         ctx.cleanup(() -> level.setBlockAndUpdate(probe, Blocks.AIR.defaultBlockState()));
 
         QueryContracts.Rows rows = ApiRegistry.await(query.query(QueryContracts.Blocks.around(position(center),MAX_RADIUS)
-                .ofType("minecraft:gold_block"), CallContext.standalone()), QUERY_MS);
+                .ofType("minecraft:gold_block")), QUERY_MS);
         ctx.check(rows instanceof BlockRows b && b.blocks().stream().anyMatch(r -> r.pos().equals(java.util.Optional.of(position(probe)))))
                 .as("A the documented maximum radius answers and finds the probe block").isTrue();
 
-        String refused = errorOf(() -> ApiRegistry.await(query.query(QueryContracts.Blocks.around(position(center),MAX_RADIUS + 1),
-                CallContext.standalone()), QUERY_MS));
+        String refused = errorOf(() -> ApiRegistry.await(query.query(QueryContracts.Blocks.around(position(center),MAX_RADIUS + 1)), QUERY_MS));
         ctx.check(refused != null && refused.contains("0–" + MAX_RADIUS))
                 .as("B one past the maximum is refused and names the limit (" + refused + ")").isTrue();
 
@@ -96,7 +94,7 @@ public final class WorldDriverQueryScenes implements SceneProvider {
             ctx.skip("the far probe chunk [" + fcx + ", " + fcz + "] is already loaded");
         RuntimeException unloaded = null;
         try {
-            ApiRegistry.await(query.query(QueryContracts.Blocks.around(position(far),2), CallContext.standalone()), QUERY_MS);
+            ApiRegistry.await(query.query(QueryContracts.Blocks.around(position(far),2)), QUERY_MS);
         } catch (RuntimeException e) {
             unloaded = e;
         }

@@ -12,7 +12,7 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 public interface SystemApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static SystemApi of(ApiRegistry registry) { return SystemApiBinding.calls(registry); }
+    static SystemStubApi of(ApiRegistry registry) { return SystemApiBinding.calls(registry); }
 
     @Spec(value = SystemContracts.class, spec = "VERSION")
     CompletionStage<SystemContracts.Version> version(NoParams p, CallContext ctx);

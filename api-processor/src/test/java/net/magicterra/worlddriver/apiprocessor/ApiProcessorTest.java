@@ -38,7 +38,9 @@ class ApiProcessorTest {
                     """,
             "net.magicterra.worlddriver.api.call.CallContext", """
                     package net.magicterra.worlddriver.api.call;
-                    public final class CallContext {}
+                    public final class CallContext {
+                        public static CallContext standalone() { return new CallContext(); }
+                    }
                     """,
             "net.magicterra.worlddriver.api.schema.MethodSpec", """
                     package net.magicterra.worlddriver.api.schema;
@@ -129,6 +131,19 @@ class ApiProcessorTest {
                 """)));
         assertTrue(Files.exists(out.resolve("generated/demo/DemoApiBinding.java")));
         assertTrue(Files.exists(out.resolve("classes/demo/DemoApiBinding.class")));
+        assertTrue(Files.exists(out.resolve("classes/demo/DemoStubApi.class")));
+    }
+
+    @Test
+    void theCallerTypeAddsAContextFreeOverloadOfEachMethod() throws Exception {
+        assertEquals(List.of(), compile(calls("""
+                @Spec(Specs.class) CompletionStage<Out> run(In in, CallContext ctx);
+                static CompletionStage<Out> callers(DemoStubApi api, In in) { return api.run(in); }
+                """)));
+        String stub = Files.readString(out.resolve("generated/demo/DemoStubApi.java"));
+        assertTrue(stub.contains("interface DemoStubApi extends DemoApi"), stub);
+        assertTrue(stub.contains("default CompletionStage<Specs.Out> run(Specs.In in)")
+                || stub.contains("default CompletionStage<Out> run(In in)"), stub);
     }
 
     @Test

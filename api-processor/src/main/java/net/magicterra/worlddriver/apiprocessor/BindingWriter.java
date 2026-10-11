@@ -21,27 +21,46 @@ import com.palantir.javapoet.TypeSpec;
 import com.palantir.javapoet.WildcardTypeName;
 
 /**
- * Writes {@code <Interface>Binding} for a checked interface: {@code calls(…)}, a caller that sends
- * each method through the registry, and {@code methods(impl)}, an implementation's registry entries.
+ * Writes two files for a checked interface. {@code <Interface>Binding} holds {@code calls(…)}, a caller
+ * that sends each method through the registry, and {@code methods(impl)}, an implementation's registry
+ * entries. The caller's type is {@code <Family>StubApi}, the interface plus a default overload of each
+ * method that leaves out the {@code CallContext}; an implementation still implements the interface alone.
  */
 final class BindingWriter {
     private BindingWriter() {}
 
     private static final ClassName REGISTRY = ClassName.get(ApiProcessor.REGISTRY_PACKAGE, "ApiRegistry");
     private static final ClassName API_METHOD = ClassName.get(ApiProcessor.REGISTRY_PACKAGE, "ApiMethod");
+    private static final ClassName CALL_CONTEXT = ClassName.bestGuess(ApiProcessor.CALL_CONTEXT);
     private static final ClassName GENERATED = ClassName.get("javax.annotation.processing", "Generated");
+
+    /** {@code QueryApi} → {@code QueryStubApi}; an interface not named {@code …Api} gets {@code Stub} appended. */
+    static String stubName(ClassName type) {
+        String base = String.join("_", type.simpleNames());
+        return base.endsWith("Api") ? base.substring(0, base.length() - 3) + "StubApi" : base + "Stub";
+    }
 
     static void write(ProcessingEnvironment env, TypeElement iface, List<ApiProcessor.Bound> bound) {
         ClassName type = ClassName.get(iface);
         String name = String.join("_", type.simpleNames()) + "Binding";
+        ClassName stubType = ClassName.get(type.packageName(), stubName(type));
         boolean open = iface.getModifiers().contains(Modifier.PUBLIC);
         TypeName entry = ParameterizedTypeName.get(API_METHOD,
                 WildcardTypeName.subtypeOf(Object.class), WildcardTypeName.subtypeOf(Object.class));
         TypeName entries = ParameterizedTypeName.get(ClassName.get(List.class), entry);
 
+        TypeSpec.Builder stub = TypeSpec.interfaceBuilder(stubType)
+                .addOriginatingElement(iface)
+                .addSuperinterface(type)
+                .addAnnotation(AnnotationSpec.builder(GENERATED)
+                        .addMember("value", "$S", ApiProcessor.class.getName()).build())
+                .addJavadoc("Generated from {@link $T}: what {@code of(registry)} answers, each method also callable\n"
+                        + "without a {@link $T}.\n", type, CALL_CONTEXT);
+        if (open) stub.addModifiers(Modifier.PUBLIC);
+
         TypeSpec.Builder caller = TypeSpec.classBuilder("Caller")
                 .addModifiers(Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
-                .addSuperinterface(type)
+                .addSuperinterface(stubType)
                 .addField(FieldSpec.builder(REGISTRY, "registry", Modifier.PRIVATE, Modifier.FINAL).build())
                 .addMethod(MethodSpec.constructorBuilder()
                         .addParameter(REGISTRY, "registry")
@@ -54,6 +73,16 @@ final class BindingWriter {
             String ctx = b.method().getParameters().get(1).getSimpleName().toString();
             caller.addMethod(MethodSpec.overriding(b.method(), (DeclaredType) iface.asType(), env.getTypeUtils())
                     .addStatement("return registry.invoke($T.$N, $N, $N)", ClassName.get(b.holder()), b.field(), params, ctx)
+                    .build());
+            String method = b.method().getSimpleName().toString();
+            // standalone() reads the clock, so each call makes its own rather than sharing one made earlier.
+            stub.addMethod(MethodSpec.methodBuilder(method)
+                    .addJavadoc("{@link #$N} as a call of its own: {@code CallContext.standalone()}, made for this call.\n",
+                            method)
+                    .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                    .returns(TypeName.get(b.method().getReturnType()))
+                    .addParameter(TypeName.get(b.method().getParameters().get(0).asType()), params)
+                    .addStatement("return $N($N, $T.standalone())", method, params, CALL_CONTEXT)
                     .build());
             list.add(i == 0 ? "\n" : ",\n").add("new $T<>($T.$N, impl::$N)", API_METHOD, ClassName.get(b.holder()),
                     b.field(), b.method().getSimpleName().toString());
@@ -70,7 +99,7 @@ final class BindingWriter {
                 .addMethod(MethodSpec.methodBuilder("calls")
                         .addJavadoc("Calls through {@code registry}: checked and refused as a request is.\n")
                         .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-                        .returns(type)
+                        .returns(stubType)
                         .addParameter(REGISTRY, "registry")
                         .addStatement("return new Caller(registry)")
                         .build())
@@ -84,11 +113,15 @@ final class BindingWriter {
                 .addType(caller.build());
         if (open) binding.addModifiers(Modifier.PUBLIC);
 
+        writeFile(env, iface, type.packageName(), stub.build());
+        writeFile(env, iface, type.packageName(), binding.build());
+    }
+
+    private static void writeFile(ProcessingEnvironment env, TypeElement iface, String pkg, TypeSpec spec) {
         try {
-            JavaFile.builder(type.packageName(), binding.build()).skipJavaLangImports(true).build()
-                    .writeTo(env.getFiler());
+            JavaFile.builder(pkg, spec).skipJavaLangImports(true).build().writeTo(env.getFiler());
         } catch (IOException e) {
-            env.getMessager().printMessage(Diagnostic.Kind.ERROR, "cannot write " + name + ": " + e.getMessage(), iface);
+            env.getMessager().printMessage(Diagnostic.Kind.ERROR, "cannot write " + spec.name() + ": " + e.getMessage(), iface);
         }
     }
 }

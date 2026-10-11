@@ -16,7 +16,7 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 public interface ClientApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static ClientApi of(ApiRegistry registry) { return ClientApiBinding.calls(registry); }
+    static ClientStubApi of(ApiRegistry registry) { return ClientApiBinding.calls(registry); }
 
     @Spec(value = ClientContracts.class, spec = "PLAYER")
     CompletionStage<ClientContracts.ClientPlayer> player(NoParams p, CallContext ctx);

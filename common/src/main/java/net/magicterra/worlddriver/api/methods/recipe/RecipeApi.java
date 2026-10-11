@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.api.registry.Spec;
 public interface RecipeApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static RecipeApi of(ApiRegistry registry) { return RecipeApiBinding.calls(registry); }
+    static RecipeStubApi of(ApiRegistry registry) { return RecipeApiBinding.calls(registry); }
 
     @Spec(value = RecipeContracts.class, spec = "LOOKUP")
     CompletionStage<RecipeContracts.Recipes> lookup(RecipeContracts.LookupParams p, CallContext ctx);

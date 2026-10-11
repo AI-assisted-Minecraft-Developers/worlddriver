@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.schema.ApiException;
@@ -180,7 +179,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // Typed, so a change to the verb's answer breaks this compile rather than silently skipping the
         // teleport below (it did, for three gate runs, when the shape this read by hand moved).
         BlockPosition o = ApiRegistry.await(SystemApi.of(WorldDriverCommon.registry())
-                .testOrigin(new NoParams(), CallContext.standalone()), 5_000);
+                .testOrigin(new NoParams()), 5_000);
         BlockPos pad = Positions.blockPos(o);
         // Offset by one on both axes rather than landing on the origin cell: the seed puts an
         // oak log at origin+(0,1,0) for the checks that mine one, and a player standing in it has
@@ -264,7 +263,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // out, on FAIL and TIMEOUT too. A dedicated server has no bot. Sent without waiting: self's
         // cancel runs on the client thread, which a cleanup on the server thread may not wait for.
         if (BotHooks.isAvailable()) {
-            ctx.cleanup(() -> ControlApi.of(WorldDriverCommon.registry()).cancel(CancelParams.all(), CallContext.standalone()));
+            ctx.cleanup(() -> ControlApi.of(WorldDriverCommon.registry()).cancel(CancelParams.all()));
         }
 
         AtomicReference<Integer> result = new AtomicReference<>();
@@ -1560,19 +1559,18 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     private static void clientSettingSchema(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        SettingsApi settings = SettingsApi.of(WorldDriverCommon.registry());
-        SceneCalls.askFailure(ctx, "unknownKey", settings.setting(SettingsContracts.Patch.of(Map.of("definitelyNotAKnob", true)),
-                CallContext.standalone()), refused -> {
+        var settings = SettingsApi.of(WorldDriverCommon.registry());
+        SceneCalls.askFailure(ctx, "unknownKey", settings.setting(SettingsContracts.Patch.of(Map.of("definitelyNotAKnob", true))), refused -> {
             List<ApiIssue> issues = refused.issues();
             ctx.expect(issues.stream().anyMatch(i -> i.path().equals("/values/definitelyNotAKnob") && i.message().contains("definitelyNotAKnob")))
                     .as("the unknown key is refused at its own path, by name: " + issues).isEqualTo(true);
             // The contract must not over-reach the other way: a KNOWN key commits, the reply carries
             // what it now holds, and a fresh read agrees. The pin restores it however this exits.
-            ask(ctx, "read", settings.setting(SettingsContracts.Read.of("autoEat"), CallContext.standalone()), before -> {
+            ask(ctx, "read", settings.setting(SettingsContracts.Read.of("autoEat")), before -> {
                 boolean orig = Boolean.TRUE.equals(settingOf(before, "autoEat"));
-                ask(ctx, "patch", settings.setting(SettingsContracts.Patch.of(Map.of("autoEat", !orig)), CallContext.standalone()), write -> {
+                ask(ctx, "patch", settings.setting(SettingsContracts.Patch.of(Map.of("autoEat", !orig))), write -> {
                     ctx.expect(settingOf(write, "autoEat")).as("the value the patch reports").isEqualTo(!orig);
-                    ask(ctx, "reread", settings.setting(SettingsContracts.Read.of("autoEat"), CallContext.standalone()), after ->
+                    ask(ctx, "reread", settings.setting(SettingsContracts.Read.of("autoEat")), after ->
                             ctx.expect(settingOf(after, "autoEat")).as("a fresh read of autoEat").isEqualTo(!orig));
                 });
             });
@@ -1986,7 +1984,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         AtomicLong cursor = new AtomicLong(-1);
         int[] settled = {0};
         ctx.await(() -> ++settled[0] >= 20).within(80).then(() -> {
-            cursor.set(ApiRegistry.await(EventApi.of(api).cursor(new NoParams(), CallContext.standalone()), 5_000)
+            cursor.set(ApiRegistry.await(EventApi.of(api).cursor(new NoParams()), 5_000)
                     .cursor());
             // out_of_world is in BYPASSES_INVULNERABILITY, so it lands whichever gamemode the run's
             // template put the player in. Toggling /gamemode instead would be a far wider blast
@@ -2023,7 +2021,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     private static void clientPlayerInWorld(SceneContext ctx) {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.client.player is client-only — only an integrated server has its handler here");
-        ask(ctx, "clientPlayer", ClientApi.of(WorldDriverCommon.registry()).player(new NoParams(), CallContext.standalone()), cp -> {
+        ask(ctx, "clientPlayer", ClientApi.of(WorldDriverCommon.registry()).player(new NoParams()), cp -> {
             ctx.expect(cp.present()).as("mc.client.player reports a LocalPlayer in a world")
                     .isEqualTo(true);
             ctx.expect(cp.pos().isPresent()).as("mc.client.player's pos is there, not a hole in a well-shaped payload")
@@ -2035,7 +2033,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     /** The {@code player.hurt} payloads emitted since {@code cursor}, oldest first. */
     private static List<Map<?, ?>> hurtPayloads(ApiRegistry api, long cursor) {
         EventContracts.Page page = ApiRegistry.await(EventApi.of(api)
-                .eventsSince(EventContracts.SinceParams.after(cursor, "player.hurt"), CallContext.standalone()), 5_000);
+                .eventsSince(EventContracts.SinceParams.after(cursor, "player.hurt")), 5_000);
         List<Map<?, ?>> out = new ArrayList<>();
         for (EventContracts.Event e : page.events())
             if (e.data().map(JsonValue::tree).orElse(null) instanceof Map<?, ?> m) out.add(m);

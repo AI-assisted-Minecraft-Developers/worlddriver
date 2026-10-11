@@ -8,7 +8,6 @@ import java.util.Optional;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.methods.control.ControlApi;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.BodyStatus;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.CancelParams;
@@ -214,9 +213,9 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
                 ctx.record("beforeCancel", helm.where() + String.format(Locale.ROOT, ", %.2f blocks from the bed; goto=%s",
                         gap, helm.slot("goto")));
                 ctx.check(gap > 2.0).as("test setup: at cancellation the bot is still on its way to the bed (" + gap + " blocks from the bed)").isTrue();
-                ControlApi control = ControlApi.of(api());
-                ask(ctx, "cancel", control.cancel(CancelParams.process("sleep"), CallContext.standalone()), stopped -> helm.sync(5, () ->
-                        ask(ctx, "afterCancel.status", control.status(StatusParams.self(), CallContext.standalone()), reply -> {
+                var control = ControlApi.of(api());
+                ask(ctx, "cancel", control.cancel(CancelParams.process("sleep")), stopped -> helm.sync(5, () ->
+                        ask(ctx, "afterCancel.status", control.status(StatusParams.self()), reply -> {
                     Optional<BodyStatus> status = reply instanceof Status s ? s.status() : Optional.empty();
                     Map<?, ?> go = helm.slot("goto");
                     ctx.check(Boolean.FALSE.equals(go.get("active")))

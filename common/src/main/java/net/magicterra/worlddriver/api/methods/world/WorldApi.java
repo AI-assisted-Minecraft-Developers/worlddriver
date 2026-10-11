@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.api.registry.Spec;
 public interface WorldApi {
 
     /** A caller that goes through {@code registry}, checked as a request is. */
-    static WorldApi of(ApiRegistry registry) { return WorldApiBinding.calls(registry); }
+    static WorldStubApi of(ApiRegistry registry) { return WorldApiBinding.calls(registry); }
 
     @Spec(value = WorldContracts.class, spec = "BLOCK")
     CompletionStage<WorldContracts.BlockReading> block(WorldContracts.BlockParams p, CallContext ctx);
