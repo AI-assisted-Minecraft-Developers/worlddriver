@@ -21,6 +21,14 @@ TRANSPORTS = ('rpc', 'mcp', 'script')
 # check as well, so the list can only shrink.
 PENDING = {}
 
+# The layers below the api (docs/dev/bot-layering.md). The bot stack is ordered: each layer may
+# use the ones after it, then game and config. Only the facade (bot's own package) speaks the api.
+BOT_ORDER = ['bot', 'bot/arbitration', 'bot/behavior', 'bot/control', 'bot/planning', 'bot/rules',
+             'bot/world']
+GAME = ('game', 'game/observe', 'game/body', 'game/edit', 'game/ui')
+# Stack violations not fixed yet, one "file<TAB>what" per line, under the same shrink-only rule.
+STACK_PENDING = ROOT / 'scripts/architecture-pending.txt'
+
 
 def code(path):
     return JAVA_TOKENS.sub(lambda m: m.group() if m.group().startswith(('"', "'")) else ' ',
@@ -68,6 +76,65 @@ def layer_violations(source):
     return found
 
 
+def stack_unit(name):
+    """The stack layer of a class given as its path under worlddriver/ without .java."""
+    parts = name.split('/')
+    if parts[0] in ('bot', 'game'):
+        return parts[0] if len(parts) == 2 else parts[0] + '/' + parts[1]
+    return parts[0] if len(parts) > 1 else '(root)'
+
+
+def stack_allows(src, dst):
+    """Whether a class in layer src may use one in layer dst."""
+    if src == dst or dst in ('protocol', 'mixin'):
+        return True
+    if dst == 'config':
+        return True
+    if src == 'config':
+        return False
+    if dst == 'debug':
+        # Debug tooling plugs in at the facade and the wiring; nothing it records may depend on it.
+        return src in ('(root)', 'bot', 'integration')
+    if src in BOT_ORDER:
+        if dst in BOT_ORDER:
+            return BOT_ORDER.index(dst) > BOT_ORDER.index(src)
+        return dst in GAME or (src == 'bot' and dst == 'api')
+    if src in GAME:
+        return dst in ('game', 'game/observe')
+    if src == 'application':
+        return dst in GAME or dst in ('api', 'bot')
+    # Everything else reaches the bot only through its facade.
+    return not (dst in BOT_ORDER and dst != 'bot') or src == 'debug'
+
+
+def stack_violations(source):
+    """Each (file, what) where a class outside the api reaches past its layer."""
+    classes = {p.relative_to(source).with_suffix('').as_posix() for p in source.rglob('*.java')}
+    found = set()
+    for path in source.rglob('*.java'):
+        relative = path.relative_to(source)
+        name = relative.with_suffix('').as_posix()
+        src = stack_unit(name)
+        if src == 'api':
+            continue
+        text = re.sub(r"(?m)^package [^;]+;", "", code(path))
+        if (src in BOT_ORDER or src == 'config') and 'net.minecraft.client.' in text:
+            found.add((relative.as_posix(), 'net.minecraft.client'))
+        used = {(p.replace('.', '/') + c) for p, c in DRIVER_REFERENCE.findall(text)}
+        for target in used & classes:
+            dst = stack_unit(target)
+            if target != name and not stack_allows(src, dst):
+                found.add((relative.as_posix(), f'{dst} {target.rsplit("/", 1)[-1]}'))
+    return found
+
+
+def read_pending():
+    if not STACK_PENDING.exists():
+        return set()
+    return {tuple(line.split('\t')) for line in STACK_PENDING.read_text(encoding='utf-8').splitlines()
+            if line and not line.startswith('#')}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--jars', action='store_true')
@@ -109,6 +176,13 @@ def main():
         errors.append(f'{file}: layer violation, uses {what}')
     for file, what in sorted(PENDING.keys() - violations):
         errors.append(f'{file}: listed as pending "{what}" but no longer does it; drop it from PENDING')
+    stack = stack_violations(source)
+    pending = read_pending()
+    for file, what in sorted(stack - pending):
+        errors.append(f'{file}: layer violation, uses {what}')
+    for file, what in sorted(pending - stack):
+        errors.append(f'{file}: listed as pending "{what}" but no longer does it; '
+                      f'drop it from {STACK_PENDING.name}')
     if args.jars:
         for module in ('common', 'fabric', 'neoforge'):
             jars = list((ROOT / module / 'build/libs').glob('*.jar'))
