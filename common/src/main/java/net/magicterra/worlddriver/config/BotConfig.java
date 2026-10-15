@@ -205,7 +205,7 @@ public final class BotConfig {
 
     /** A static, non-final field of a scalar type (or the hazard-block Set) — the
      *  set we round-trip. Arrays (avoidZones), {@link RuntimeState} fields (a saved
-     *  {@code fleeActive=true} would reload and boost every goto's terrain cost), and
+     *  {@code pathfinderBoxedEscalate=true} would reload a search state nobody is in), and
      *  anything else are excluded. */
     private static boolean persistable(Field f) {
         int m = f.getModifiers();

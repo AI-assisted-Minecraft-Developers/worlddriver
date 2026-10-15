@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.debug;
 
+import net.magicterra.worlddriver.bot.world.MoveSignals;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 
@@ -19,6 +20,9 @@ import net.minecraft.core.BlockPos;
  */
 public final class GridWorldView implements WorldView {
     public static final byte AIR = 0, SOLID = 1, WATER = 2;
+
+    private final MoveSignals signals = new MoveSignals();
+    @Override public MoveSignals signals() { return signals; }
 
     private final int x0, y0, z0, sx, sy, sz;
     private final byte[] cells;

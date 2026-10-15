@@ -17,6 +17,11 @@ import net.magicterra.worlddriver.config.WorldConfig;
  * for the duration of one {@link PathFinder#findPath} call.
  */
 public interface WorldView {
+    /** This bot's movement signals for the current tick. A view that is not a bot's own (a
+     *  throwaway snapshot, a test grid) may hand out a fresh one each call, so writes to it are
+     *  lost and reads say nothing is happening. */
+    default MoveSignals signals() { return new MoveSignals(); }
+
     /** True if the block at {@code pos} is solid (can be stood on, blocks movement). */
     boolean isSolid(BlockPos pos);
 

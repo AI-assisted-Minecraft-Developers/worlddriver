@@ -12,7 +12,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
-import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.control.PathSmoothing.*;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
@@ -194,14 +193,14 @@ final class WalkerTickPrelude {
                         "[walker] landed at y={} → resume ground pathing", p.getY());
         }
 
-        // Water-bucket (MLG) fall execution is owned by the always-on
-        // CLUTCH (see BotApiImpl#clientTick): once armed — planned, via
-        // CLUTCH.armPlanned below as we step off a fallBucket lip, OR
-        // reactively, on any unplanned damaging fall — the clutch runs at the
-        // top of clientTick, takes the keys for the whole descent, and returns
+        // Water-bucket (MLG) fall execution is owned by the bot's always-on
+        // ClutchController: once armed — planned, via the MoveSignals.planClutch
+        // the edge guards send as we step off a fallBucket lip, OR reactively,
+        // on any unplanned damaging fall — the clutch runs at the top of the
+        // bot's tick, takes the keys for the whole descent, and returns
         // early so this Walker is suspended until the bot has landed and
         // scooped. So there's nothing to do here; the walk dispatch below only
-        // ARMS the planned case and biases the step-off keys.
+        // SIGNALS the planned case and biases the step-off keys.
 
         BlockPos foot = hopFoot(wk, p, blockPosOf(p));
         // Search start for a bot floating AT the water surface. foot=floor(p.y) DIPS underwater on a
@@ -328,7 +327,7 @@ final class WalkerTickPrelude {
                             wk.stickyDig.stallTicks, String.format("%.2f", wk.stickyDig.lastProgress));
                 wk.stickyDig.engage(null);
             } else {
-                ControlConfig.walkerDigActive = true;   // dig-priority: AutoSwim's backstop yields while this hold is live and air is healthy
+                world.signals().digging = true;   // dig-priority: AutoSwim's backstop yields while this hold is live and air is healthy
                 wk.equipment.selectTool(wk.stickyDig.pos);
                 a.aimAtBlock(wk.stickyDig.pos);
                 // The drive advances the exact cell regardless of where the crosshair is — while

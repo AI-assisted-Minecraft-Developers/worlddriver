@@ -4,28 +4,29 @@ import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.ClientPlayerBody;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.magicterra.worlddriver.game.body.Hotbar;
+import net.magicterra.worlddriver.bot.world.MoveSignals;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
-import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Locale;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 
+/**
+ * The always-on water-bucket clutch, one per bot. Ticked at the top of the bot's tick, before its
+ * scheduler, so it self-rescues whether or not a process is driving the bot.
+ */
 public final class ClutchController {
 
-    /** The one always-on water-bucket clutch — one client = one falling
-     *  player. Ticked at the top of {@code clientTick} so it self-rescues
-     *  whether or not a process is driving the bot. */
-    public static final ClutchController CLUTCH = new ClutchController();
     /** Blocks above the landing floor at which water placement starts. Must
      *  stay within block-interaction reach (~4.5 from the eye, i.e. ~2.9 above
      *  the floor); a touch over is fine — the first in-reach tick succeeds and
@@ -57,30 +58,22 @@ public final class ClutchController {
     private int landingX = Integer.MIN_VALUE;  // target landing column X (MIN_VALUE = current column)
     private int landingZ = Integer.MIN_VALUE;  // target landing column Z
 
-    boolean armed() { return armed; }
-
     /**
      * Yield the movement channel for this tick: the clutch OWNS the descent, so nothing the
      * walker or a process commanded may move the bot sideways or add a jump.
      *
-     * <p>Was two byte-identical six-line blocks clearing keyUp/Down/Left/Right/Jump/Sprint —
-     * and clearing those keys did nothing at all while a process was driving:
-     * {@link AvatarInput#tick} runs vanilla's key pass and then OVERWRITES the impulses with
-     * the walker's command, so the four direction keys were the one input nobody read. During
-     * an MLG that is not cosmetic: the drift-damping spring below fights the residual momentum
-     * one way while the still-live walker command pushes the other, and coasting one block off
-     * a 1-wide landing column is exactly the failure the spring exists to prevent.
-     * {@link Body#commandMove} is the channel that outranks the walker's own command.
-     *
-     * <p>{@code keySprint.setDown(false)} is gone rather than translated: both sites already
-     * paired it with {@code setSprinting(false)}, which is the flag {@code aiStep} actually
-     * reads to emit STOP_SPRINTING. The key was redundant at both.
+     * <p>{@link Body#commandMove} is the channel that outranks the walker's own command. Clearing
+     * the direction keys, which is what this used to do, did nothing while a process was driving:
+     * the client's input layer runs vanilla's key pass and then OVERWRITES the impulses with the
+     * walker's command. During an MLG that is not cosmetic: the drift-damping spring below fights
+     * the residual momentum one way while a still-live walker command pushes the other, and
+     * coasting one block off a 1-wide landing column is exactly the failure the spring exists to
+     * prevent.
      */
-    private static void yieldMovement(Minecraft mc) {
-        ClientPlayerBody a = new ClientPlayerBody(mc);
-        a.commandMove(0f, 0f);
-        a.commandJump(false);
-        a.commandSprint(false);
+    private static void yieldMovement(Body body) {
+        body.commandMove(0f, 0f);
+        body.commandJump(false);
+        body.commandSprint(false);
     }
 
     /** One-word state for {@code mc.bot.status.clutch}: idle / lip (planned,
@@ -99,7 +92,7 @@ public final class ClutchController {
     /** Commit to a planned MLG fall while still on the launch lip, recording
      *  the planned landing column so the airborne latch can damp drift back
      *  toward it. No-op if already armed (an in-progress fall wins). */
-    public void armPlanned(int x, int z) {
+    private void armPlanned(int x, int z) {
         if (armed) return;
         armed = true;
         landingX = x;
@@ -110,11 +103,12 @@ public final class ClutchController {
      *  holding a water bucket, an MLG-able non-hazard floor more than {@link
      *  #EMERGENCY_CLUTCH_MIN_DROP} below, and no water already in the column
      *  (existing water breaks the fall and owns its own descent — also avoids
-     *  hijacking a FallIntoWater landing). Holds the current column as target. */
-    public void armReactive(Minecraft mc, WorldView world) {
-        LocalPlayer p = mc.player;
+     *  hijacking a FallIntoWater landing). Holds the current column as target.
+     *  Gates on {@code allowWaterBucketFall} here rather than at the caller, so a dangerous fall
+     *  with the flag off still raises the CLUTCH-noArm alarm instead of vanishing. */
+    private void armReactive(Body body, LivingEntity p, WorldView world) {
         if (noArmThrottle > 0) noArmThrottle--;
-        if (p == null || armed) return;
+        if (armed) return;
         // While the elytra is open the bot is gliding, not falling to its
         // death — never hijack that descent with a water clutch (the elytra
         // process / milestone-D failsafe owns recovery if the wing closes).
@@ -134,7 +128,8 @@ public final class ClutchController {
             if (world.isWater(new BlockPos(cx, y, cz))) return;   // water already breaks it
         String why = null;
         if (!WorldConfig.allowWaterBucketFall) why = "allowWaterBucketFall=false";
-        else if (hotbarSlotOf(p, Items.WATER_BUCKET) < 0) why = "water_bucket not in hotbar";
+        else if (body.equipment().isEmpty()) why = "this body has no hands";
+        else if (!onHotbar(p, Items.WATER_BUCKET)) why = "water_bucket not in hotbar";
         else if (!world.isMlgFloor(floor) || world.isHazard(floor)) why = "landing floor not MLG-able (hazard/non-solid)";
         if (why != null) {
             if (ControlConfig.walkerExpectAlarm && noArmThrottle == 0) {
@@ -156,18 +151,23 @@ public final class ClutchController {
                     floor.getX(), floor.getY(), floor.getZ());
     }
 
-    /** Drive the committed descent. Returns true while the clutch OWNS this
-     *  tick (caller must suspend everything else and yield the keys); false
-     *  when not armed, or armed-but-still-on-the-launch-lip (let the walker
-     *  step off), or just disarmed this tick. */
-    public boolean tick(Minecraft mc, WorldView world) {
-        if (!armed) return false;
-        LocalPlayer p = mc.player;
+    /** Arm on a fall the walker planned last tick ({@link MoveSignals#planClutch}) or on an
+     *  unplanned damaging one, then drive the committed descent. Returns true while the clutch
+     *  OWNS this tick (caller must suspend everything else and yield the keys); false when not
+     *  armed, or armed-but-still-on-the-launch-lip (let the walker step off), or just disarmed
+     *  this tick. */
+    public boolean tick(Body body, WorldView world) {
+        LivingEntity p = body.entity();
         if (p == null) { reset(); return false; }
+        MoveSignals s = world.signals();
+        if (s.clutchPlanned()) armPlanned(s.clutchX(), s.clutchZ());
+        armReactive(body, p, world);
+        if (!armed) return false;
+        Equipment hands = body.equipment().orElse(null);
         if (!p.onGround()) {
             airborne = true;
             lipTicks = 0;
-            yieldMovement(mc);
+            yieldMovement(body);
             // Drift control: a walk-off leaves the lip with residual horizontal
             // momentum, and air has no friction, so over a tall fall the bot
             // coasts a full block sideways — clean off a 1-wide landing column
@@ -193,9 +193,9 @@ public final class ClutchController {
                 double aboveFloor = p.getY() - cell.getY();
                 if (p.getDeltaMovement().y < -0.1 && aboveFloor > 0.4 && aboveFloor <= MLG_PLACE_HEIGHT
                         && !world.isWater(cell)
-                        && ensureHolding(mc, Items.WATER_BUCKET)) {
+                        && hands != null && hands.holdItem(Items.WATER_BUCKET)) {
                     p.setXRot(89.9f);                      // straight down → POV ray hits the floor
-                    InteractionResult pr = mc.gameMode.useItem(p, InteractionHand.MAIN_HAND);
+                    InteractionResult pr = hands.useItemInHand();
                     if (pr.consumesAction()) p.swing(InteractionHand.MAIN_HAND);
                     if (GameConfig.walkerDebug)
                         LOG.info(
@@ -208,14 +208,12 @@ public final class ClutchController {
             return true;
         } else if (airborne) {
             // Landed after the fall → scoop the source back, then disarm.
-            if (scoopPending(world, p) && ensureHolding(mc, Items.BUCKET)) {
-                yieldMovement(mc);
+            if (scoopPending(world, p) && hands != null && hands.holdItem(Items.BUCKET)) {
+                yieldMovement(body);
                 scoopTicks++;
-                // Three doubles, not `p`: widening a LocalPlayer into blockPosOf(Entity) makes
-                // the verifier load that class.
                 BlockPos feet = blockPosOf(p.getX(), p.getY(), p.getZ());
-                aimAtBlockSnap(p, feet);
-                InteractionResult sr = mc.gameMode.useItem(p, InteractionHand.MAIN_HAND);
+                body.aimAtBlock(feet);
+                InteractionResult sr = hands.useItemInHand();
                 if (sr.consumesAction()) p.swing(InteractionHand.MAIN_HAND);
                 if (GameConfig.walkerDebug)
                     LOG.info(
@@ -237,12 +235,14 @@ public final class ClutchController {
      *  grounded standing IN water, an empty bucket on the hotbar, and the
      *  scoop budget not yet exhausted. Checks the feet cell (where the bot
      *  actually landed), so horizontal drift can't strand the placed source. */
-    private boolean scoopPending(WorldView w, LocalPlayer p) {
+    private boolean scoopPending(WorldView w, LivingEntity p) {
         if (!ControlConfig.waterBucketScoop || !p.onGround() || scoopTicks >= MLG_SCOOP_MAX) return false;
-        // Three doubles, not `p`: widening a LocalPlayer into blockPosOf(Entity) makes the
-        // verifier load that class.
         BlockPos feet = blockPosOf(p.getX(), p.getY(), p.getZ());
-        return w.isWater(feet) && hotbarSlotOf(p, Items.BUCKET) >= 0;
+        return w.isWater(feet) && onHotbar(p, Items.BUCKET);
+    }
+
+    private static boolean onHotbar(LivingEntity p, Item item) {
+        return p instanceof Player pl && Hotbar.slotOf(pl, item) >= 0;
     }
 
     /** First solid block at or below {@code (x, yStart, z)}, scanning down up

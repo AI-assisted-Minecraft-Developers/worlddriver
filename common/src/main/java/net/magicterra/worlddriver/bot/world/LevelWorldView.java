@@ -33,6 +33,9 @@ import net.magicterra.worlddriver.game.observe.BuildBlocks;
  */
 public final class LevelWorldView implements StateWorldView {
 
+    private final MoveSignals signals = new MoveSignals();
+    @Override public MoveSignals signals() { return signals; }
+
     private final Level level;
     /** The entity this view plans for; its step height is the planner's. */
     private final LivingEntity body;

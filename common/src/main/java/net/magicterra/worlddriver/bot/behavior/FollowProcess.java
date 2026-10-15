@@ -16,7 +16,6 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.Locale;
 
-import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 

@@ -8,7 +8,6 @@ import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
-import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.control.PathSmoothing.*;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
@@ -259,7 +258,7 @@ final class WalkerTickEdgeGuards {
             // to be below the drifted-into column instead.
             BlockPos land = (edge != null && edge.move != null && edge.move.startsWith("fallBucket"))
                     ? wp : wk.path.get(wk.step + 1);
-            if (land != null) CLUTCH.armPlanned(land.getX(), land.getZ());
+            if (land != null) world.signals().planClutch(land.getX(), land.getZ());
         }
         // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
         cx.edges.wp = wp;

@@ -132,9 +132,14 @@ scenes pass a null `Body` when they tick the scheduler to exercise the bidding a
 Two things regularly surprise contributors.
 
 **Unplanned falls are not the walker's job.** Water-bucket clutch handling lives in the
-always-on `ClutchController`, ticked at the top of `clientTick`, so a falling bot
-rescues itself whether or not a walker is driving. The walker only arms a *planned* fall as
+always-on `ClutchController`, one per bot, ticked at the top of the bot's tick, so a falling bot
+rescues itself whether or not a walker is driving. The walker only signals a *planned* fall as
 it steps off a lip, and biases the step-off keys so the bot drops close to vertically.
+
+**What a walker reports goes through `MoveSignals`.** Each `WorldView` carries one: the walker
+says it is digging or cruising underwater, a flee process says it is fleeing, the edge guards
+plan a clutch. The bot clears it every tick, once the clutch has taken last tick's plan and
+before the scheduler runs. These used to be static flags, which every bot in the JVM shared.
 
 **Its static counters are monotone and never reset.** `Walker.lastStats` and counters such
 as `descentHolds` accumulate for the life of the process; a caller that wants a window

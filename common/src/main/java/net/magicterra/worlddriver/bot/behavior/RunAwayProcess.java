@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
@@ -8,7 +7,6 @@ import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 
-import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
@@ -56,8 +54,8 @@ public final class RunAwayProcess implements BotProcess {
         // its A* search, so ClientWorldView.beginSearch snapshots fleeSearch=true
         // and boosts water/ledge danger (no diving into water / off a cliff while
         // running). Covers both the RetreatChain reflex and user mc.bot.runAway —
-        // both drive this process. Reset to false each clientTick (BotApiImpl).
-        WorldConfig.fleeActive = true;
+        // both drive this process. Cleared at the start of each bot tick.
+        w.signals().fleeing = true;
         BotState.ProcessSlot s = slot(st);
         Walker.Step step = walker.tick(a, w);
         s.pathLen = walker.pathLen();

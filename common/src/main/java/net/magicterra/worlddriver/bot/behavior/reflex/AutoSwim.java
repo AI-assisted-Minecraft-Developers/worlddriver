@@ -156,12 +156,12 @@ public final class AutoSwim {
         // WalkerTickClimb), so yielding down to the escape floor is safe: below
         // threshold+reserve the backstop resumes, and DrownEscapeChain (bid 500,
         // air<=drownEscapeAirThreshold) remains the untouched hard survival floor.
-        if (ControlConfig.walkerDigActive
+        if (world.signals().digging
                 && p.getAirSupply() > ControlConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE) return;
         // Same yield for the Walker's surface sprint-swim cruise: it puts the eyes under on purpose
         // (the prone pose starts only from there) and breathes on its own above this floor; the
         // held jump and the sprint cancel here would undo the pose every stroke.
-        if (ControlConfig.walkerCruiseActive
+        if (world.signals().cruising
                 && p.getAirSupply() > ControlConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE) return;
         boolean inWater = p.isInWater();
         if (inWater && p.isUnderWater()) {

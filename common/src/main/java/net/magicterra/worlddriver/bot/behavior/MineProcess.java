@@ -42,7 +42,6 @@ import net.magicterra.worlddriver.game.observe.NearestFirstScan;
 import java.util.Set;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Deque;

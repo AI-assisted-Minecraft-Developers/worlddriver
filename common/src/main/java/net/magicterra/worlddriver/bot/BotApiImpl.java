@@ -41,6 +41,7 @@ import net.magicterra.worlddriver.game.ui.ClientChatLog;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.ClientIntents;
 import net.magicterra.worlddriver.game.body.ClientPlayerBody;
+import net.magicterra.worlddriver.bot.control.ClutchController;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerPlanAdoption;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
@@ -63,7 +64,6 @@ import net.magicterra.worlddriver.bot.arbitration.ProcessScheduler;
 import net.magicterra.worlddriver.bot.arbitration.RetreatChain;
 import net.magicterra.worlddriver.bot.arbitration.UserTaskChain;
 import static net.magicterra.worlddriver.bot.GoalResolver.*;
-import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Locale;
@@ -129,6 +129,8 @@ public final class BotApiImpl implements BotApi {
     /** Movement-channel scheduler: each tick runs the highest-priority chain,
      *  letting survival/combat chains preempt the user task and hand it back. */
     private final ProcessScheduler scheduler = new ProcessScheduler();
+    /** This bot's water-bucket clutch, ticked before the scheduler. */
+    private final ClutchController clutch = new ClutchController();
     private final RouteEvents.Emitter eventEmitter;
 
     public BotApiImpl(RouteEvents.Emitter eventEmitter) {
@@ -425,7 +427,7 @@ public final class BotApiImpl implements BotApi {
         snap.put("chains", chains);
         // Always-on water-bucket clutch state (idle/lip/falling) — lets a test
         // confirm an unplanned fall actually armed and is self-rescuing.
-        snap.put("clutch", CLUTCH.phase());
+        snap.put("clutch", clutch.phase());
         return snap;
     }
 
@@ -446,7 +448,7 @@ public final class BotApiImpl implements BotApi {
         ControlContracts.Reflexes reflexes = new ControlContracts.Reflexes(paused,
                 c == null ? Optional.empty() : Optional.ofNullable(c.statusDetail()),
                 Optional.ofNullable(scheduler.currentName()), c != null && scheduler.current() != userTask, chains, lastPath,
-                String.valueOf(CLUTCH.phase()),
+                String.valueOf(clutch.phase()),
                 new ControlContracts.CombatTally(state.combatSwings, state.combatWellTimed, state.combatCrits, state.combatKills));
         return new ControlContracts.BodyStatus(net.magicterra.worlddriver.bot.BotRegistry.SELF, c != null,
                 c == null ? Optional.empty() : Optional.of(c.kind()), StatusView.end(userTask.lastEnd()),
@@ -756,15 +758,15 @@ public final class BotApiImpl implements BotApi {
         // process runs. While the clutch is driving the fall (placing/scooping
         // water) it holds the keys and we return early, so an active goto/mine/
         // build is suspended for those airborne ticks instead of fighting it. A
-        // planned fallBucket fall is armed by the Walker as it steps off the lip
-        // and drives the same descent here. armReactive gates on
-        // allowWaterBucketFall INTERNALLY (not here) so a dangerous fall with the
-        // flag off can still raise the CLUTCH-noArm alarm instead of vanishing.
-        CLUTCH.armReactive(mc, world);
+        // planned fallBucket fall is signalled by the Walker as it steps off the lip
+        // and drives the same descent here.
+        boolean clutching = clutch.tick(body, world);
+        // The clutch has taken last tick's plan; everything else in the signals is this tick's to say.
+        world.signals().clear();
         // The clutch owns the whole tick when it fires (look-down + place + return), so
         // it is a bot drive in its own right — mark it for the mouse gate, which no
         // process slot would report (the clutch is slot-less by design).
-        if (CLUTCH.tick(mc, world)) { releaseGate.markDirtied(); MouseYield.markDriving("clutch"); return; }
+        if (clutching) { releaseGate.markDirtied(); MouseYield.markDriving("clutch"); return; }
         // Screen watchdog (gap #58): an unexpectedly-open container GUI swallows
         // every movement input, paralysing the walker AND all reflex chains (live
         // death #3: a stray place-click opened a FurnaceScreen; the pinned walker's
@@ -864,12 +866,6 @@ public final class BotApiImpl implements BotApi {
         // Movement channel: run the highest-priority chain (user task, or a
         // survival/combat chain preempting it). When every chain sits out, the
         // bot is idle — release the keys, matching the old single-process path.
-        // Reset the flee-context flag first: RunAwayProcess.tick (driven below by
-        // the scheduler) re-sets it true right before its A* search, so fleeSearch
-        // snapshots true only for an active flee and is never stuck-true.
-        WorldConfig.fleeActive = false;
-        ControlConfig.walkerDigActive = false;   // same per-tick reset contract as fleeActive: the Walker re-sets it below while holding a dig
-        ControlConfig.walkerCruiseActive = false;   // likewise: the Walker re-sets it below while its surface cruise holds the eyes under
         // Capture BEFORE the tick: a chain that runs this tick presses movement
         // keys even if it finishes mid-tick (current() then nulls) — its trailing
         // presses still need the one-shot cleanup below. A user chain holding nothing

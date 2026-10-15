@@ -72,7 +72,7 @@ import net.minecraft.world.phys.Vec3;
  * {@code PlayerBot.create} → {@link PlayerBot#createIsolated} (per-scene player);
  * legacy NeoForge {@code FakePlayer} → common {@link ServerPlayer}; {@code try/finally} config
  * save/restore → {@link BotConfig#pinnedBaseline()} + {@code ctx.cleanup(pin::close)} (snapshots EVERY
- * mutable field, so {@code fleeActive}/{@code walkerWallDigFallback}/… are restored too); {@code throw
+ * mutable field, so {@code walkerWallDigFallback}/… are restored too); {@code throw
  * new GameTestAssertException} → {@link SceneContext#fail}; {@code helper.succeed()} → return;
  * {@code gtOnlySkips(...)} → deleted. The real {@code IntentProcess}/{@code MineProcess}/
  * {@code RunAwayProcess}/{@code BuildProcess}/{@code FollowProcess}/{@code CombatProcess}/

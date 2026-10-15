@@ -13,7 +13,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.core.Direction;
 
-import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.control.PathSmoothing.*;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
@@ -1134,7 +1133,7 @@ final class WalkerTickClimb {
                     // kept resetting through the bob while actuator digs held fine. Engage
                     // the same holder; it self-releases on break/stall/drift as everywhere.
                     // (The engage moved ABOVE the dig — see the claim note there.)
-                    ControlConfig.walkerDigActive = true;   // AutoSwim's backstop yields while air is healthy
+                    world.signals().digging = true;   // AutoSwim's backstop yields while air is healthy
                     // Mark the dig active: next tick's breakingEdge holds the leash and
                     // exempts the burst so the dig can finish (see the breakingEdge note).
                     // Clear any burst count accrued during the pre-dig bob-stall so the
@@ -1235,7 +1234,7 @@ final class WalkerTickClimb {
                     wk.avatarJump(a, false);
                     wk.equipment.selectTool(b);
                     if (bailOnBreathInfeasibleDig(wk, a, p, b)) return Walker.Step.WALKING;
-                    ControlConfig.walkerDigActive = true;
+                    world.signals().digging = true;
                     // Claim, aim and drive all live inside avatarDig now: this site used to dig `b`
                     // first and claim it afterwards, so it drove a cell another phase already held.
                     WalkerDig.avatarDig(wk, a, b, false);
@@ -1454,7 +1453,7 @@ final class WalkerTickClimb {
                 if (world.isSolid(b)) {
                     wk.equipment.selectTool(b);
                     if (bailOnBreathInfeasibleDig(wk, a, p, b)) return Walker.Step.WALKING;
-                    ControlConfig.walkerDigActive = true;
+                    world.signals().digging = true;
                     // Claim, aim and drive all live inside avatarDig now: this site used to dig `b`
                     // first and claim it afterwards, so it drove a cell another phase already held.
                     WalkerDig.avatarDig(wk, a, b, false);

@@ -71,6 +71,8 @@ public final class ClientWorldView implements StateWorldView {
      *  driving this search) water/ledge danger is boosted so the flee won't dive
      *  into water or off a cliff. Consistent for the whole A* run. */
     private volatile boolean fleeSearch;
+    private final MoveSignals signals = new MoveSignals();
+    @Override public MoveSignals signals() { return signals; }
     /** Survivable fall depth (blocks) for the controlled entity's CURRENT health,
      *  snapshotted per search. The ledge penalty fires only for drops DEEPER than
      *  this (a genuinely lethal lip) — a healthy bot descends hillsides freely; a
@@ -525,7 +527,7 @@ public final class ClientWorldView implements StateWorldView {
         // so the search and the Walker agree on what heights are reachable.
         snapshotMovementCaps();
         // Flee-context flag, snapshotted consistent for the whole A* run.
-        fleeSearch = WorldConfig.fleeActive;
+        fleeSearch = signals.fleeing;
         // Survivable-fall depth for the ledge penalty (HP-aware lethal-lip detection).
         {
             LocalPlayer lp = Minecraft.getInstance().player;

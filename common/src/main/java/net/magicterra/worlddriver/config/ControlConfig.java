@@ -258,8 +258,6 @@ public final class ControlConfig {
      *  the world is left clean and the bucket is reusable for the next fall.
      *  Off → the water source is left in place (single-use bucket). On by default. */
     public static volatile boolean waterBucketScoop = true;
-    @RuntimeState public static volatile boolean walkerCruiseActive = false; // RUNTIME: the Walker's surface sprint-swim cruise holds the eyes under on purpose this frame; NOT persisted. AutoSwim's drowning backstop yields to it while air is healthy, as it does to a dig.
-    @RuntimeState public static volatile boolean walkerDigActive = false; // RUNTIME dig-context flag (the Walker held a block-break this frame); NOT persisted, NOT in MCP schema. Read by AutoSwim so the in-process drowning backstop yields to an active dig while air is healthy (2026-07-21 live: deep-ascent had NO air gate and fought every underwater dig from full lungs, resetting destroyProgress each bob).
 
     /** Walker sneak-brake guard: while walking, if a LETHAL drop (fall deeper than
      *  the bot can survive at its current HP) is one step ahead in the heading, hold

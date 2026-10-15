@@ -25,8 +25,7 @@ import net.magicterra.worlddriver.config.SettingsRegistry;
  */
 class SettingsRuntimeStateTest {
 
-    private static final List<String> RUNTIME = List.of(
-            "fleeActive", "walkerDigActive", "walkerCruiseActive", "pathfinderBoxedEscalate");
+    private static final List<String> RUNTIME = List.of("pathfinderBoxedEscalate");
 
     private Map<String, Object> saved;
 

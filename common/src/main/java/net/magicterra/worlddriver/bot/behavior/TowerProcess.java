@@ -20,7 +20,6 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 
-import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import net.minecraft.world.item.BlockItem;

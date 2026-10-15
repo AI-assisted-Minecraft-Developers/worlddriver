@@ -262,7 +262,6 @@ public final class WorldConfig {
      *  or through the tree. Additive, admissible, not a ban; 0 disables. */
     public static volatile double leafSnagPenalty = 20;
     public static volatile double fleeDangerBoost = 8;   // during an active flee, water/ledge danger ×this so the flee won't dive into water or off a cliff (F2)
-    @RuntimeState public static volatile boolean fleeActive = false;   // RUNTIME flee-context flag (a RunAwayProcess ticked this frame); NOT persisted, NOT in MCP schema
 
     /** §91 steep-ascent chain tax (#15): extra cost on an ascending edge whose landing faces another 2-high wall
      *  (continued climbs measured ~5 s/block against a price of 15 vs walk 10), steering onto switchbacks. 0 = off; trial 12. */

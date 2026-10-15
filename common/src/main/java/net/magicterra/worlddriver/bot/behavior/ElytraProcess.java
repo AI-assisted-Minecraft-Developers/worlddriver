@@ -387,7 +387,7 @@ public final class ElytraProcess implements BotProcess {
      * <p>If this happened mid-air (wing broke, ran out of room) the always-on water-bucket clutch —
      * which deliberately stands down while isFallFlying() — now sees a fast unplanned fall and arms
      * reactively, so a bucketed bot still self-rescues. Nothing to do here but release;
-     * clientTick's CLUTCH.armReactive picks it up.
+     * the bot's clutch picks it up at the top of its next tick.
      */
     private boolean wingClosed(Body a, LivingEntity p, BotState st) {
         if (BehaviorConfig.elytraDebug) {

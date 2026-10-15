@@ -19,7 +19,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
-import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.control.PathSmoothing.*;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
@@ -140,7 +139,7 @@ final class WalkerTickDrive {
     private static Cruise surfaceCruise(Walker wk, WorldView world, LivingEntity p, Body a, BlockPos foot, BlockPos wp,
                                         boolean diving, boolean diveUnderCap) {
         Cruise c = cruiseVerdict(wk, world, p, a, foot, wp, diving, diveUnderCap);
-        ControlConfig.walkerCruiseActive = c.on();   // AutoSwim's drowning backstop yields to it (per-tick reset in BotApiImpl)
+        world.signals().cruising = c.on();   // AutoSwim's drowning backstop yields to it (cleared at the start of each bot tick)
         return c;
     }
 

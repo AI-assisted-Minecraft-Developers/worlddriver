@@ -254,6 +254,7 @@ public class PlayerBot implements Bot {
      *  the target (level.destroyBlock — no reach gate) and the task completes. */
     public Walker.Step tick() {
         if (finished) return last;
+        world().signals().clear();
         BotProcess process = held.process();
         if (process != null) {                       // real BotProcess over the avatar
             boolean done = process.tick(avatar, world(), botState);

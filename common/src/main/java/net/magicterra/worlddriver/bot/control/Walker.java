@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.control.PathSmoothing.*;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
@@ -41,9 +40,9 @@ import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
 public final class Walker {
     public enum Step { WALKING, ARRIVED, FAILED }
     // Water-bucket (MLG) fall handling lives in the always-on {@link
-    // ClutchController} (BotApiImpl#CLUTCH), so an unplanned fall self-rescues
-    // whether or not a Walker is driving. The Walker only ARMS a planned fall
-    // (CLUTCH.armPlanned) as it steps off a fallBucket lip and biases the
+    // ClutchController} the bot ticks, so an unplanned fall self-rescues
+    // whether or not a Walker is driving. The Walker only SIGNALS a planned fall
+    // (MoveSignals.planClutch) as it steps off a fallBucket lip and biases the
     // step-off keys (walk-speed, no sprint) so the bot drops near-vertically.
     // Other tuning lives in BotConfig (mutable via mc.bot.setting).
 
