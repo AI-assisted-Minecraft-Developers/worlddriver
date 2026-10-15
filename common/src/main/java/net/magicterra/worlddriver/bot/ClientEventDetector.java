@@ -109,8 +109,8 @@ final class ClientEventDetector {
         boolean onDeath = mc.screen instanceof net.minecraft.client.gui.screens.DeathScreen;
         if (onDeath && !evtDeathScreenSeen) {
             net.magicterra.worlddriver.api.game.DriverHost api = net.magicterra.worlddriver.WorldDriverCommon.host();
-            String cause = net.magicterra.worlddriver.game.ui.ScreenIntrospection
-                    .readDeathCause((net.minecraft.client.gui.screens.DeathScreen) mc.screen);
+            String cause = net.magicterra.worlddriver.game.ui.DeathCause
+                    .of((net.minecraft.client.gui.screens.DeathScreen) mc.screen);
             if (api != null) {
                 net.minecraft.core.BlockPos at = mc.player != null
                         ? mc.player.blockPosition() : net.minecraft.core.BlockPos.ZERO;

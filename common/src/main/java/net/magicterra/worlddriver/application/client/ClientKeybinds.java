@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.game.ui;
+package net.magicterra.worlddriver.application.client;
 
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientRefusal;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientReply;
@@ -18,6 +18,7 @@ import java.util.Locale;
 import java.util.Optional;
 
 import net.magicterra.worlddriver.game.ClientHop;
+import net.magicterra.worlddriver.game.ui.ClientThread;
 
 /**
  * {@code mc.client.input.keybind}: drives a key mapping by name rather than by key.

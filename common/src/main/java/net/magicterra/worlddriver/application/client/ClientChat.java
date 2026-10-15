@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.game.ui;
+package net.magicterra.worlddriver.application.client;
 
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChatHistory;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChatHistoryParams;
@@ -25,8 +25,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import net.magicterra.worlddriver.game.ClientHop;
-import net.magicterra.worlddriver.game.ui.ClientDriverApi.ChatReplies;
-import net.magicterra.worlddriver.game.ui.ClientDriverApi.ChatSendStart;
+import net.magicterra.worlddriver.application.client.ClientDriverApi.ChatReplies;
+import net.magicterra.worlddriver.application.client.ClientDriverApi.ChatSendStart;
+import net.magicterra.worlddriver.game.ui.ClientChatLog;
 
 /**
  * Chat send/history and HUD-overlay dismissal for {@code mc.client.chat.*} and

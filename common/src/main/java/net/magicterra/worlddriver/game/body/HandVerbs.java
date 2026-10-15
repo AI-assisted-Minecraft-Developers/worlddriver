@@ -1,30 +1,17 @@
 package net.magicterra.worlddriver.game.body;
 
-import net.magicterra.worlddriver.api.methods.interact.InteractContracts.Hand;
-import net.magicterra.worlddriver.api.methods.interact.InteractContracts.Interaction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * What the hand verbs share between the client's own player and a server body: the wire's hand and
- * result words, where a synthetic click lands, and the aim at an entity. No client type is named here,
- * so a dedicated server links it.
+ * What the hand verbs share between the client's own player and a server body: where a synthetic click
+ * lands, and the aim at an entity. No client type is named here, so a dedicated server links it.
  */
 public final class HandVerbs {
     private HandVerbs() {}
-
-    public static InteractionHand hand(Hand h) {
-        return h == Hand.OFF ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
-    }
-
-    public static Interaction interaction(InteractionResult r) {
-        return Interaction.valueOf(r.name());
-    }
 
     /** The centre of {@code face} of {@code pos}: the server's reach check reads it, and so do items keyed off the
      *  hit (a slab's top or bottom half). */

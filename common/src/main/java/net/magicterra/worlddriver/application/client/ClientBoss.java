@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.game.observe;
+package net.magicterra.worlddriver.application.client;
 
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Boss;

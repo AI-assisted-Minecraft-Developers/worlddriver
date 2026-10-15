@@ -13,7 +13,7 @@ import java.util.Map;
  *
  * <p>Fed at the packet layer by the platform client entrypoints (Fabric
  * {@code ClientReceiveMessageEvents.CHAT/GAME}, NeoForge
- * {@code ClientChatReceivedEvent}) through {@link ClientChat#recordReceived},
+ * {@code ClientChatReceivedEvent}) through {@code ClientChat.recordReceived},
  * so it sees every player/system line the server delivers and hands out a
  * <em>monotonic</em> {@code seq}. The previous implementation reflected on the
  * GUI's {@code ChatComponent.allMessages}, which is newest-first, hard-capped

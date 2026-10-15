@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.game.ui;
+package net.magicterra.worlddriver.application.client;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.NativeImage;
@@ -13,6 +13,7 @@ import net.magicterra.worlddriver.api.methods.client.ClientContracts.ImageFormat
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ScreenshotParams;
 
 import net.magicterra.worlddriver.game.ClientHop;
+import net.magicterra.worlddriver.game.ui.FrameClock;
 
 /**
  * Framebuffer capture + downscale/transcode for {@code mc.client.screenshot}.

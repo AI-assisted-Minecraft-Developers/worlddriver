@@ -22,8 +22,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import net.magicterra.worlddriver.game.ui.ClientHooks;
-import net.magicterra.worlddriver.game.ui.ClientDriverApi;
+import net.magicterra.worlddriver.application.client.ClientHooks;
+import net.magicterra.worlddriver.application.client.ClientDriverApi;
 
 /* Ring buffer cap keeps memory bounded for long-running servers. Old events
  * roll off; eventsSince(cursor) on an out-of-window cursor returns whatever

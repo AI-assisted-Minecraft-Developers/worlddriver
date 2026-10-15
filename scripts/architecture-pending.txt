@@ -15,6 +15,9 @@ application/RecipeService.java	bot/behavior AcquireResolver
 application/RecipeService.java	bot/behavior CraftProcess
 application/RecipeService.java	bot/behavior RecipeResolver
 application/SystemService.java	(root) BuildStamp
+application/client/ClientObserve.java	bot/behavior CraftProcess
+application/client/ClientObserve.java	bot/world ClientThreatScanner
+application/client/ClientObserve.java	bot/world ThreatScanner
 bot/BotApiImpl.java	(root) WorldDriverCommon
 bot/BotApiImpl.java	net.minecraft.client
 bot/ClientEventDetector.java	(root) WorldDriverCommon
@@ -80,51 +83,13 @@ bot/planning/PathFinder.java	(root) WorldDriverCommon
 bot/rules/modifiers/RiskCostTable.java	(root) WorldDriverCommon
 bot/world/ClientThreatScanner.java	net.minecraft.client
 bot/world/ClientWorldView.java	net.minecraft.client
-bot/world/ThreatScanner.java	api CommonTypes
-bot/world/ThreatScanner.java	api ObserveContracts
+bot/world/ThreatScanner.java	api/methods CommonTypes
+bot/world/ThreatScanner.java	api/methods ObserveContracts
 bot/world/WorldModel.java	net.minecraft.client
 config/BotConfig.java	(root) WorldDriverCommon
 config/BotConfigFile.java	(root) WorldDriverCommon
-game/ClientHop.java	api ServerThreadHop
 game/body/BotInteract.java	(root) WorldDriverCommon
 game/body/ClientPlayerBody.java	(root) WorldDriverCommon
-game/body/HandVerbs.java	api InteractContracts
 game/body/JoinedPlayerBodies.java	(root) WorldDriverCommon
 game/body/ServerPlayerBody.java	(root) WorldDriverCommon
-game/observe/ClientBoss.java	api CommonTypes
-game/observe/ClientBoss.java	api ObserveContracts
-game/observe/ClientObserve.java	api ApiError
-game/observe/ClientObserve.java	api ApiException
-game/observe/ClientObserve.java	api ClientContracts
-game/observe/ClientObserve.java	api CommonTypes
-game/observe/ClientObserve.java	api ObserveContracts
-game/observe/ClientObserve.java	api Positions
-game/observe/ClientObserve.java	api QueryContracts
-game/observe/ClientObserve.java	api ScreenContracts
-game/observe/ClientObserve.java	application ItemSnap
-game/observe/ClientObserve.java	bot/behavior CraftProcess
-game/observe/ClientObserve.java	bot/world ClientThreatScanner
-game/observe/ClientObserve.java	bot/world ThreatScanner
-game/observe/ClientObserve.java	game/ui ScreenContext
-game/ui/ClientChat.java	api ClientContracts
-game/ui/ClientDriverApi.java	api ClientContracts
-game/ui/ClientDriverApi.java	api ObserveContracts
-game/ui/ClientDriverApi.java	api QueryContracts
-game/ui/ClientDriverApi.java	api ScreenContracts
-game/ui/ClientDriverApi.java	api ServerThreadHop
-game/ui/ClientDriverApiImpl.java	api ClientContracts
-game/ui/ClientDriverApiImpl.java	api ObserveContracts
-game/ui/ClientDriverApiImpl.java	api QueryContracts
-game/ui/ClientDriverApiImpl.java	api ScreenContracts
-game/ui/ClientDriverApiImpl.java	api ServerThreadHop
-game/ui/ClientInput.java	api ApiException
-game/ui/ClientInput.java	api ApiIssue
-game/ui/ClientInput.java	api ClientContracts
-game/ui/ClientInput.java	api ScreenContracts
-game/ui/ClientKeybinds.java	api ClientContracts
-game/ui/ClientKeybinds.java	api ScreenContracts
 game/ui/FocusPolicy.java	(root) WorldDriverCommon
-game/ui/ScreenContext.java	api ApiError
-game/ui/ScreenContext.java	api ApiException
-game/ui/ScreenIntrospection.java	api ScreenContracts
-game/ui/Screenshots.java	api ClientContracts

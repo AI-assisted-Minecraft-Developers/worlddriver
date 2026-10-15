@@ -18,8 +18,8 @@ import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.game.ui.FocusPolicy;
 import net.magicterra.worlddriver.game.ui.MouseYieldHud;
 import net.magicterra.worlddriver.game.ui.ClientThread;
-import net.magicterra.worlddriver.game.ui.ClientDriverApiImpl;
-import net.magicterra.worlddriver.game.ui.ClientHooks;
+import net.magicterra.worlddriver.application.client.ClientDriverApiImpl;
+import net.magicterra.worlddriver.application.client.ClientHooks;
 
 /**
  * The driver's client-side bootstrap and event subscriptions, shared by both loaders' client

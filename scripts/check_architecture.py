@@ -79,7 +79,7 @@ def layer_violations(source):
 def stack_unit(name):
     """The stack layer of a class given as its path under worlddriver/ without .java."""
     parts = name.split('/')
-    if parts[0] in ('bot', 'game'):
+    if parts[0] in ('bot', 'game', 'api'):
         return parts[0] if len(parts) == 2 else parts[0] + '/' + parts[1]
     return parts[0] if len(parts) > 1 else '(root)'
 
@@ -98,14 +98,16 @@ def stack_allows(src, dst):
     if src in ('(root)', 'mixin'):
         # The loader wiring and the hooks into vanilla reach whichever layer they hook up.
         return True
+    api = dst == 'api' or dst.startswith('api/')
     if src in BOT_ORDER:
         if dst in BOT_ORDER:
             return BOT_ORDER.index(dst) > BOT_ORDER.index(src)
-        return dst in GAME or (src == 'bot' and dst == 'api')
+        return dst in GAME or (src == 'bot' and api)
     if src in GAME:
-        return dst in ('game', 'game/observe')
+        # The game layer hops threads with the api's hop, and speaks no contract.
+        return dst in ('game', 'game/observe', 'api/thread')
     if src == 'application':
-        return dst in GAME or dst in ('api', 'bot')
+        return dst in GAME or dst == 'bot' or api
     # Everything else reaches the bot only through its facade.
     return not (dst in BOT_ORDER and dst != 'bot') or src == 'debug'
 
@@ -118,7 +120,7 @@ def stack_violations(source):
         relative = path.relative_to(source)
         name = relative.with_suffix('').as_posix()
         src = stack_unit(name)
-        if src == 'api':
+        if src.split('/')[0] == 'api':
             continue
         text = re.sub(r"(?m)^package [^;]+;", "", code(path))
         if (src in BOT_ORDER or src == 'config') and 'net.minecraft.client.' in text:

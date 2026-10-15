@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.game.ui;
+package net.magicterra.worlddriver.application.client;
 
 /**
  * Broker between the platform-neutral driver and the platform-supplied

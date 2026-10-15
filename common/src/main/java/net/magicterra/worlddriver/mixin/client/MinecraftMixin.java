@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.mixin.client;
 
 import net.magicterra.worlddriver.game.body.ClientIntents;
 import net.magicterra.worlddriver.bot.control.FrameSearchPump;
-import net.magicterra.worlddriver.game.ui.ScreenContext;
+import net.magicterra.worlddriver.application.client.ScreenContext;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;

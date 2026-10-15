@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.game.ui;
+package net.magicterra.worlddriver.application.client;
 
 import java.security.SecureRandom;
 import java.util.Optional;

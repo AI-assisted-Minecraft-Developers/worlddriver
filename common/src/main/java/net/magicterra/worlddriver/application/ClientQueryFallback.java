@@ -18,7 +18,7 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import net.magicterra.worlddriver.game.ui.ClientDriverApi;
+import net.magicterra.worlddriver.application.client.ClientDriverApi;
 import net.minecraft.world.level.ChunkPos;
 
 /**

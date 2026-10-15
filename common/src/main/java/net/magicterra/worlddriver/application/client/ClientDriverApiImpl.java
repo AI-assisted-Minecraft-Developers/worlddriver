@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.game.ui;
+package net.magicterra.worlddriver.application.client;
 
 import java.util.Map;
 import java.util.Set;
@@ -30,13 +30,6 @@ import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SliderParam
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SlotClickParams;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.TypeParams;
 import net.magicterra.worlddriver.game.ClientHop;
-import net.magicterra.worlddriver.game.observe.ClientBoss;
-import net.magicterra.worlddriver.game.ui.ClientChat;
-import net.magicterra.worlddriver.game.ui.ClientInput;
-import net.magicterra.worlddriver.game.ui.ClientKeybinds;
-import net.magicterra.worlddriver.game.observe.ClientObserve;
-import net.magicterra.worlddriver.game.ui.ScreenIntrospection;
-import net.magicterra.worlddriver.game.ui.Screenshots;
 
 /**
  * Default {@link ClientDriverApi} implementation. Lives in the common module
@@ -47,7 +40,7 @@ import net.magicterra.worlddriver.game.ui.Screenshots;
  *
  * This class is a thin facade: each interface method delegates to a stateless
  * helper in this package grouped by concern (screen introspection, input, chat,
- * screenshot), or in {@code game.observe} for observation. The behavior —
+ * screenshot, observation). The behavior —
  * including the client-thread marshalling — lives in those helpers, through
  * {@link ClientHop}.
  */

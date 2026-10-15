@@ -4,6 +4,7 @@ import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.api.game.Positions.blockPos;
 import static net.magicterra.worlddriver.api.game.Positions.position;
 import net.magicterra.worlddriver.bot.behavior.RouteEvents;
+import net.magicterra.worlddriver.api.game.HandWords;
 import net.magicterra.worlddriver.game.body.HandVerbs;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
@@ -626,7 +627,7 @@ public final class BotApiImpl implements BotApi {
      */
     @Override
     public TestInputContracts.UsedOnBlock useOnBlock(TestInputContracts.UseOnBlock params) {
-        final InteractionHand hand = HandVerbs.hand(params.hand());
+        final InteractionHand hand = HandWords.hand(params.hand());
         return onClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             LocalPlayer p = mc.player;
@@ -636,7 +637,7 @@ public final class BotApiImpl implements BotApi {
             BlockHitResult hit = new BlockHitResult(HandVerbs.faceCentre(block, face), face, block, false);
             InteractionResult r = mc.gameMode.useItemOn(p, hand, hit);
             if (r.consumesAction()) p.swing(hand);
-            return new TestInputContracts.UsedOnBlock(HandVerbs.interaction(r), r.consumesAction(),
+            return new TestInputContracts.UsedOnBlock(HandWords.interaction(r), r.consumesAction(),
                     params.hand(), InteractContracts.Face.valueOf(face.name()));
         });
     }

@@ -11,6 +11,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
 import net.magicterra.worlddriver.game.body.ClientPlayerBody;
 import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.api.game.HandWords;
 import net.magicterra.worlddriver.game.body.HandVerbs;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.client.Minecraft;
@@ -53,19 +54,19 @@ final class InteractionCommands {
         if (p.pos().isPresent()) return useOnBlock(p, p.pos().get());
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
-        InteractionHand hand = HandVerbs.hand(p.hand());
+        InteractionHand hand = HandWords.hand(p.hand());
         // A process may have left keyShift down; vanilla's useItem does not read it, but the next click would.
         player.setShiftKeyDown(false);
         InteractionResult result = mc.gameMode.useItem(player, hand);
         if (result.consumesAction()) player.swing(hand);
-        return new Responses.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(), new InteractContracts.InAir());
+        return new Responses.Used(p.hand(), HandWords.interaction(result), result.consumesAction(), new InteractContracts.InAir());
     }
 
     private static ImmediateResponse useOnBlock(InteractContracts.UseParams p, BlockPosition at) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
         BlockPos blockPos = Positions.blockPos(at);
-        InteractionHand hand = HandVerbs.hand(p.hand());
+        InteractionHand hand = HandWords.hand(p.hand());
         // Omitted, the face is the one toward the player, so the synthetic hit looks like a real ray from the eye.
         Direction face = p.face().map(f -> Direction.byName(f.wireName())).orElseGet(() -> faceTowardEye(blockPos, player));
         Vec3 hit = HandVerbs.faceCentre(blockPos, face);
@@ -74,7 +75,7 @@ final class InteractionCommands {
         player.setShiftKeyDown(false);
         InteractionResult result = mc.gameMode.useItemOn(player, hand, new BlockHitResult(hit, face, blockPos, false));
         if (result.consumesAction()) player.swing(hand);
-        return new Responses.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(),
+        return new Responses.Used(p.hand(), HandWords.interaction(result), result.consumesAction(),
                 new InteractContracts.OnBlock(at, Face.valueOf(face.name())));
     }
 
@@ -84,7 +85,7 @@ final class InteractionCommands {
         Entity target = mc.level.getEntity(entityId);
         if (target == null) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + entityId);
         if (target == player) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot interact with self");
-        InteractionHand hand = HandVerbs.hand(p.hand());
+        InteractionHand hand = HandWords.hand(p.hand());
         if (p.lookAt()) HandVerbs.turn(player, HandVerbs.anglesAt(player, target));
         // The interact packets snapshot isShiftKeyDown, and sneak-gated interactions (a tamed horse's
         // inventory, an armour stand) need it held for exactly this call.
@@ -97,7 +98,7 @@ final class InteractionCommands {
             InteractionResult result = mc.gameMode.interactAt(player, target, new EntityHitResult(target), hand);
             if (!result.consumesAction()) result = mc.gameMode.interact(player, target, hand);
             if (result.consumesAction()) player.swing(hand);
-            return new Responses.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(), before);
+            return new Responses.Used(p.hand(), HandWords.interaction(result), result.consumesAction(), before);
         } finally {
             player.setShiftKeyDown(false);
         }

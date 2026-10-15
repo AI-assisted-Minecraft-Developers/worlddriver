@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.game.observe;
+package net.magicterra.worlddriver.application.client;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -64,7 +64,6 @@ import net.magicterra.worlddriver.game.observe.AttackSnap;
 import net.magicterra.worlddriver.application.ItemSnap;
 import net.magicterra.worlddriver.game.observe.TimeSnap;
 import net.minecraft.world.entity.LivingEntity;
-import net.magicterra.worlddriver.game.ui.ScreenContext;
 
 /**
  * World/player observation for {@code mc.client.player}, {@code mc.client.blocks},

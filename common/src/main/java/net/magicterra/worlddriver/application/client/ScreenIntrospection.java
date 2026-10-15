@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.game.ui;
+package net.magicterra.worlddriver.application.client;
 
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.Box;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenInfo;
@@ -27,6 +27,7 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.client.gui.screens.DeathScreen;
 import net.minecraft.client.gui.screens.Overlay;
 import net.minecraft.client.gui.components.EditBox;
+import net.magicterra.worlddriver.game.ui.DeathCause;
 
 /**
  * Screen / widget-tree introspection for {@code mc.client.screen.*}. Stateless;
@@ -58,7 +59,7 @@ public final class ScreenIntrospection {
                     Optional.ofNullable(s).map(x -> x.getClass().getSimpleName()),
                     Optional.ofNullable(s).map(x -> x.getTitle().getString()),
                     Optional.ofNullable(s).map(x -> x.width), Optional.ofNullable(s).map(x -> x.height),
-                    s instanceof DeathScreen ds ? Optional.ofNullable(readDeathCause(ds)) : Optional.empty());
+                    s instanceof DeathScreen ds ? Optional.ofNullable(DeathCause.of(ds)) : Optional.empty());
         });
     }
 
@@ -99,22 +100,11 @@ public final class ScreenIntrospection {
             // private Component field, never a child widget — without this
             // surfacing, the agent has no client-side way to find out what
             // killed the player (server log is the only other source).
-            Optional<String> cause = s instanceof DeathScreen ds ? Optional.ofNullable(readDeathCause(ds)) : Optional.empty();
+            Optional<String> cause = s instanceof DeathScreen ds ? Optional.ofNullable(DeathCause.of(ds)) : Optional.empty();
             return new ScreenTree(context, true, Optional.of(s.getClass().getSimpleName()),
                     Optional.of(s.getTitle().getString()), Optional.of(s.width), Optional.of(s.height), cause,
                     error, slotsError, nodes.build());
         });
-    }
-
-    /** Read the DeathScreen's specific cause-of-death Component (e.g. "… was
-     *  slain by Drowned", "… drowned", "… was blown up by Creeper"). Public so
-     *  the death-event detector can read it the moment the screen appears —
-     *  the local combat tracker lacks this at the isDeadOrDying tick; the
-     *  specific message arrives with the combat-kill packet that builds the
-     *  DeathScreen. Returns null when the screen carries no cause. */
-    public static String readDeathCause(DeathScreen ds) {
-        // Private in vanilla, opened by worlddriver.accesswidener.
-        return ds.causeOfDeath == null ? null : ds.causeOfDeath.getString();
     }
 
     /**

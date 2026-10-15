@@ -5,7 +5,7 @@ import java.time.Instant;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.magicterra.worlddriver.WorldDriverClientEvents;
-import net.magicterra.worlddriver.game.ui.ClientChat;
+import net.magicterra.worlddriver.application.client.ClientChat;
 import net.minecraft.network.chat.ChatType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.PlayerChatMessage;

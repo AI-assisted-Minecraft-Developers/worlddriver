@@ -14,6 +14,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
 import net.magicterra.worlddriver.bot.BodyHost;
 import net.magicterra.worlddriver.game.body.Hands;
 import net.magicterra.worlddriver.game.body.BotUtil;
+import net.magicterra.worlddriver.api.game.HandWords;
 import net.magicterra.worlddriver.game.body.HandVerbs;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.core.BlockPos;
@@ -78,17 +79,17 @@ final class BodyInteractions {
         if (sp == null) return noHands(host);
         if (p.entityId().isPresent()) return useOnEntity(sp, p, p.entityId().get());
         if (p.pos().isPresent()) return useOnBlock(sp, p, p.pos().get());
-        InteractionHand hand = HandVerbs.hand(p.hand());
+        InteractionHand hand = HandWords.hand(p.hand());
         sp.setShiftKeyDown(false);
         InteractionResult result = sp.gameMode.useItem(sp, sp.serverLevel(), sp.getItemInHand(hand), hand);
         if (result.consumesAction()) sp.swing(hand, true);
-        return new Responses.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(), new InteractContracts.InAir());
+        return new Responses.Used(p.hand(), HandWords.interaction(result), result.consumesAction(), new InteractContracts.InAir());
     }
 
     private static ImmediateResponse useOnBlock(ServerPlayer sp, InteractContracts.UseParams p, BlockPosition at) {
         BlockPos pos = Positions.blockPos(at);
         Direction face = p.face().map(f -> Direction.byName(f.wireName())).orElseGet(() -> BotUtil.faceTowardEye(pos, sp));
-        InteractionHand hand = HandVerbs.hand(p.hand());
+        InteractionHand hand = HandWords.hand(p.hand());
         Vec3 hit = HandVerbs.faceCentre(pos, face);
         if (p.lookAt()) HandVerbs.turn(sp, HandVerbs.anglesTo(sp.getEyePosition(), hit.x, hit.y, hit.z));
         sp.setShiftKeyDown(false);
@@ -98,7 +99,7 @@ final class BodyInteractions {
         InteractionResult result = sp.gameMode.useItemOn(sp, sp.serverLevel(), sp.getItemInHand(hand), hand,
                 new BlockHitResult(hit, face, pos, false));
         if (result.consumesAction()) sp.swing(hand, true);
-        return new Responses.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(),
+        return new Responses.Used(p.hand(), HandWords.interaction(result), result.consumesAction(),
                 new InteractContracts.OnBlock(at, Face.valueOf(face.name())));
     }
 
@@ -106,7 +107,7 @@ final class BodyInteractions {
         Entity target = sp.serverLevel().getEntity(entityId);
         if (target == null) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + entityId);
         if (target == sp) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot interact with self");
-        InteractionHand hand = HandVerbs.hand(p.hand());
+        InteractionHand hand = HandWords.hand(p.hand());
         if (p.lookAt()) HandVerbs.turn(sp, HandVerbs.anglesAt(sp, target));
         double distance = Math.sqrt(sp.distanceToSqr(target));
         if (!sp.canInteractWithEntity(target, REACH_SLACK)) {
@@ -121,7 +122,7 @@ final class BodyInteractions {
             if (!result.consumesAction()) result = sp.interactOn(target, hand);
             if (result.consumesAction()) sp.swing(hand, true);
             Entity vehicle = sp.getVehicle();
-            return new Responses.Used(p.hand(), HandVerbs.interaction(result), result.consumesAction(),
+            return new Responses.Used(p.hand(), HandWords.interaction(result), result.consumesAction(),
                     new InteractContracts.OnEntity(entityId, RegistryIds.typeId(target), distance,
                             vehicle == null ? Optional.empty() : Optional.of(RegistryIds.typeId(vehicle)), Optional.empty(),
                             sp.containerMenu == sp.inventoryMenu ? Optional.empty()
