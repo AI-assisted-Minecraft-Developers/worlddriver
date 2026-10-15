@@ -41,8 +41,10 @@ facade hands out whole.
 
 `scripts/check_architecture.py` enforces all of this on every source file. What it still
 finds is listed in `scripts/architecture-pending.txt`, which may only shrink: a listed line
-that stops occurring fails the check too. Most of the remaining lines are client imports in
-the bot layers, which come out when the server side gets the full decision stack.
+that stops occurring fails the check too. It is empty now: no class in the bot layers names a
+client type. What only a client has — the window, the mouse, the death screen, the chat
+surfaces — lives in `application/client/` around the client bot's `BotBrain`, and the client's
+own `Level` and `Player` reach `ClientWorldView` as suppliers the client wiring hands in.
 
 ## The spine
 

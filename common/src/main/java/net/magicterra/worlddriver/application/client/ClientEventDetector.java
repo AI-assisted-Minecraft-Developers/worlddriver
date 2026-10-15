@@ -1,9 +1,7 @@
-package net.magicterra.worlddriver.bot;
+package net.magicterra.worlddriver.application.client;
 
-import net.magicterra.worlddriver.api.schema.JsonValue;
-import net.magicterra.worlddriver.bot.world.ThreatScanner;
+import net.magicterra.worlddriver.bot.BotBrain;
 import net.magicterra.worlddriver.game.observe.TimeSnap;
-import net.magicterra.worlddriver.bot.world.WorldModel;
 import net.magicterra.worlddriver.game.ui.ClientChatLog;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementProgress;
@@ -18,24 +16,27 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Driver→agent client-tick push-event detection. The client bot's tick ({@code ClientBot})
- * calls into an instance of this per tick. Owns the cross-tick edge-detection state so a one-shot
- * event fires on each transition rather than every tick. {@code detectDeath} takes a cancel
- * callback so the death edge can still cancel the bot's active processes.
+ * Driver→agent push events only this client can see: the local player's body, the death screen,
+ * advancements and the chat / action-bar / title surfaces. The client bot's tick ({@link ClientBot})
+ * calls into an instance of this per tick, and every event goes out on its brain's stream. Owns the
+ * cross-tick edge-detection state so a one-shot event fires on each transition rather than every
+ * tick. {@code detectDeath} takes a cancel callback so the death edge can still cancel the bot's
+ * active processes. The edges of what the bot itself perceives (threats, the world model) are the
+ * brain's own, and fire for any bot.
  */
-public final class ClientEventDetector {
+final class ClientEventDetector {
 
-    // WorldModel rising-edge push: emit duskExposed/cornered once per false→true
-    // transition so the Agent learns of these without polling mc.client.scene.
-    private boolean prevExposedAtNight = false;
-    private boolean prevCornered = false;
+    private final BotBrain brain;
+
+    ClientEventDetector(BotBrain brain) {
+        this.brain = brain;
+    }
 
     // Client-tick event detectors (driver→agent push channel). Track the local
-    // player's health/death and the current top threat across ticks so we emit a
-    // one-shot event on each transition rather than every tick.
+    // player's health/death across ticks so we emit a one-shot event on each
+    // transition rather than every tick.
     private float evtLastHealth = Float.NaN;
     private boolean evtDeathScreenSeen = false;
-    private int evtLastThreatId = -1;
     // Day-phase transition (day/sunset/night/sunrise) — emit on change so the Agent
     // gets a sunset alert to bunker/return before dark, and a sunrise cue to resume.
     private String evtLastPhase = null;
@@ -70,67 +71,32 @@ public final class ClientEventDetector {
     // nothing — there was a field here suggesting otherwise that nothing ever read or wrote.
     private String evtLastTitle = null;
 
-    /** Rising-edge scene events: emit duskExposed / cornered once per
-     *  false→true transition so the Agent learns of these without polling.
-     *  Mirrors the fluid-entry (player.enteredWater/enteredLava) pattern:
-     *  api.emitExternal → the same event stream all client-tick events use. */
-    public void detectSceneEvents(BotBrain brain) {
-        WorldModel.Snapshot wmSnap = brain.worldModel().snapshot();
-        net.magicterra.worlddriver.api.game.DriverHost sceneApi = net.magicterra.worlddriver.WorldDriverCommon.host();
-        if (wmSnap.present() && sceneApi != null) {
-            net.minecraft.core.BlockPos scenePos = wmSnap.pos();
-            if (wmSnap.exposedAtNight() && !prevExposedAtNight) {
-                sceneApi.emitExternal("duskExposed", scenePos, JsonValue.of(Map.of(
-                                "pos", Map.of("x", scenePos.getX(),
-                                              "y", scenePos.getY(),
-                                              "z", scenePos.getZ()))));
-            }
-            if (wmSnap.cornered() && !prevCornered) {
-                sceneApi.emitExternal("cornered", scenePos, JsonValue.of(Map.of(
-                                "pos", Map.of("x", scenePos.getX(),
-                                              "y", scenePos.getY(),
-                                              "z", scenePos.getZ()))));
-            }
-            prevExposedAtNight = wmSnap.exposedAtNight();
-            prevCornered = wmSnap.cornered();
-        } else {
-            prevExposedAtNight = false;
-            prevCornered = false;
-        }
-    }
-
     /** Fire player.death off the DeathScreen rising edge, carrying the screen's
      *  SPECIFIC cause (combat-kill message). Also cancels active bot processes so
      *  an autoRespawn can't resume the lethal action into a death loop. Runs
      *  before autoRespawn so the screen — and its cause — is still readable. */
-    public void detectDeath(Minecraft mc, Runnable onDeathCancel) {
+    void detectDeath(Minecraft mc, Runnable onDeathCancel) {
         boolean onDeath = mc.screen instanceof net.minecraft.client.gui.screens.DeathScreen;
         if (onDeath && !evtDeathScreenSeen) {
-            net.magicterra.worlddriver.api.game.DriverHost api = net.magicterra.worlddriver.WorldDriverCommon.host();
             String cause = net.magicterra.worlddriver.game.ui.DeathCause
                     .of((net.minecraft.client.gui.screens.DeathScreen) mc.screen);
-            if (api != null) {
-                net.minecraft.core.BlockPos at = mc.player != null
-                        ? mc.player.blockPosition() : net.minecraft.core.BlockPos.ZERO;
-                java.util.Map<String, Object> data = new java.util.HashMap<>();
-                data.put("health", mc.player != null ? (double) mc.player.getHealth() : 0.0);
-                if (cause != null && !cause.isEmpty()) data.put("cause", cause);
-                api.emitExternal("player.death", at, JsonValue.of(data));
-            }
+            net.minecraft.core.BlockPos at = mc.player != null
+                    ? mc.player.blockPosition() : net.minecraft.core.BlockPos.ZERO;
+            java.util.Map<String, Object> data = new java.util.HashMap<>();
+            data.put("health", mc.player != null ? (double) mc.player.getHealth() : 0.0);
+            if (cause != null && !cause.isEmpty()) data.put("cause", cause);
+            brain.emit("player.death", at, data);
             onDeathCancel.run();
         }
         evtDeathScreenSeen = onDeath;
     }
 
-    /** Emit driver→agent push events for the local player's threat/hurt/death
-     *  transitions. Called once per client tick after the threat scan refreshes.
-     *  Everything funnels through {@code DriverHost.emitExternal} → the same event
-     *  stream block/chat/death use → subscribers on both transports. Reads {@code brain}'s threat
-     *  scan from this tick. */
-    public void detectClientEvents(Minecraft mc, BotBrain brain) {
-        ThreatScanner.Scan threats = brain.threats();
-        net.magicterra.worlddriver.api.game.DriverHost api = net.magicterra.worlddriver.WorldDriverCommon.host();
-        if (api == null || mc.player == null) return;
+    /** Emit driver→agent push events for the local player's hurt, fluid-entry, day-phase,
+     *  pickup, tool-broke and advancement transitions. Called once per client tick after the
+     *  threat scan refreshes. Everything funnels through the brain's stream → the same event
+     *  stream block/chat/death use → subscribers on both transports. */
+    void detectClientEvents(Minecraft mc) {
+        if (mc.player == null) return;
         var pl = mc.player;
         net.minecraft.core.BlockPos at = pl.blockPosition();
 
@@ -161,19 +127,9 @@ public final class ClientEventDetector {
                     hurtData.put("attackerDistance", att.distanceTo(pl));
                 }
             }
-            api.emitExternal("player.hurt", at, JsonValue.of(hurtData));
+            brain.emit("player.hurt", at, hurtData);
         }
         evtLastHealth = hp;
-
-        ThreatScanner.Threat top = threats.top();
-        int topId = (top != null) ? top.id() : -1;
-        if (topId != -1 && topId != evtLastThreatId) {
-            net.minecraft.core.BlockPos tp = top.entity().blockPosition();
-            api.emitExternal("threat.appeared", tp, JsonValue.of(Map.of(
-                    "type", top.type(), "id", topId,
-                    "distance", top.distance(), "score", top.score())));
-        }
-        evtLastThreatId = topId;
 
         // --- Fluid entry (fell into water / lava alert) -------------------------
         // One-shot on the rising edge of stepping into water / lava — the "I fell
@@ -184,14 +140,12 @@ public final class ClientEventDetector {
         // re-entering re-fires.
         boolean inWater = pl.isInWater();
         if (inWater && !evtInWater) {
-            api.emitExternal("player.enteredWater", at, JsonValue.of(Map.of(
-                    "submerged", pl.isUnderWater())));
+            brain.emit("player.enteredWater", at, Map.of("submerged", pl.isUnderWater()));
         }
         evtInWater = inWater;
         boolean inLava = pl.isInLava();
         if (inLava && !evtInLava) {
-            api.emitExternal("player.enteredLava", at, JsonValue.of(Map.of(
-                    "health", (double) pl.getHealth())));
+            brain.emit("player.enteredLava", at, Map.of("health", (double) pl.getHealth()));
         }
         evtInLava = inLava;
 
@@ -208,8 +162,8 @@ public final class ClientEventDetector {
             String phase = TimeSnap.phase(mc.level.getDayTime());
             if (!phase.equals(evtLastPhase)) {
                 if (evtLastPhase != null) {
-                    api.emitExternal("time.phase", at, JsonValue.of(Map.of(
-                            "phase", phase, "prev", evtLastPhase, "dayTime", tod)));
+                    brain.emit("time.phase", at, Map.of(
+                            "phase", phase, "prev", evtLastPhase, "dayTime", tod));
                 }
                 evtLastPhase = phase;
             }
@@ -232,8 +186,8 @@ public final class ClientEventDetector {
                 for (Map.Entry<String, Integer> e : cur.entrySet()) {
                     int delta = e.getValue() - evtInvCounts.getOrDefault(e.getKey(), 0);
                     if (delta > 0) {
-                        api.emitExternal("item.pickup", at, JsonValue.of(Map.of(
-                                "id", e.getKey(), "count", delta, "total", e.getValue())));
+                        brain.emit("item.pickup", at, Map.of(
+                                "id", e.getKey(), "count", delta, "total", e.getValue()));
                     }
                 }
             }
@@ -250,9 +204,9 @@ public final class ClientEventDetector {
             if (evtInvInit && evtMainhandId != null
                     && evtMainhandDamage >= evtMainhandMax - 2
                     && cur.getOrDefault(evtMainhandId, 0) < evtInvCounts.getOrDefault(evtMainhandId, 0)) {
-                api.emitExternal("tool.broke", at, JsonValue.of(Map.of(
+                brain.emit("tool.broke", at, Map.of(
                         "id", evtMainhandId,
-                        "damage", evtMainhandDamage, "maxDamage", evtMainhandMax)));
+                        "damage", evtMainhandDamage, "maxDamage", evtMainhandMax));
             }
             ItemStack mh = pl.getMainHandItem();
             if (!mh.isEmpty() && mh.isDamageableItem()) {
@@ -293,7 +247,7 @@ public final class ClientEventDetector {
                         if (!(e.getKey() instanceof AdvancementHolder holder)) continue;
                         String key = holder.id().toString();
                         if (evtDoneAdv.add(key) && evtAdvInit) {
-                            api.emitExternal("advancement", at, JsonValue.of(Map.of("id", key)));
+                            brain.emit("advancement", at, Map.of("id", key));
                         }
                     }
                     break;   // first Map field is the progress map
@@ -311,10 +265,9 @@ public final class ClientEventDetector {
      *  {@code Gui} stashes in private fields, read via guarded reflection (a
      *  mapping shift silently no-ops, mirroring the advancement poll). The
      *  whole poll never breaks the tick. */
-    public void detectClientMessages(Minecraft mc) {
-        net.magicterra.worlddriver.api.game.DriverHost api = net.magicterra.worlddriver.WorldDriverCommon.host();
+    void detectClientMessages(Minecraft mc) {
         net.minecraft.client.gui.Gui gui = mc.gui;
-        if (api == null || gui == null) return;
+        if (gui == null) return;
         net.minecraft.core.BlockPos at = mc.player != null
                 ? mc.player.blockPosition() : net.minecraft.core.BlockPos.ZERO;
 
@@ -333,7 +286,7 @@ public final class ClientEventDetector {
                     // Entry.row() = the same {seq,kind,text,self} shape chat.history
                     // returns, so consumers can reconcile the two surfaces by seq
                     // and skip the bot's own echoed lines via self.
-                    api.emitExternal("client.message", at, JsonValue.of(e.row()));
+                    brain.emit("client.message", at, e.row());
                 }
             }
         } catch (Throwable ignored) { /* never break the tick */ }
@@ -342,7 +295,7 @@ public final class ClientEventDetector {
         try {
             String ab = componentFieldText(gui, "overlayMessageString");
             if (ab != null && !ab.isEmpty() && !ab.equals(evtLastActionBar)) {
-                api.emitExternal("client.actionBar", at, JsonValue.of(Map.of("text", ab)));
+                brain.emit("client.actionBar", at, Map.of("text", ab));
             }
             evtLastActionBar = ab;
         } catch (Throwable ignored) { }
@@ -352,9 +305,9 @@ public final class ClientEventDetector {
             String title = componentFieldText(gui, "title");
             if (title != null && !title.isEmpty() && !title.equals(evtLastTitle)) {
                 String sub = componentFieldText(gui, "subtitle");
-                api.emitExternal("client.title", at, JsonValue.of(
+                brain.emit("client.title", at,
                         sub != null && !sub.isEmpty()
-                                ? Map.of("text", title, "subtitle", sub) : Map.of("text", title)));
+                                ? Map.of("text", title, "subtitle", sub) : Map.of("text", title));
             }
             evtLastTitle = title;
         } catch (Throwable ignored) { }

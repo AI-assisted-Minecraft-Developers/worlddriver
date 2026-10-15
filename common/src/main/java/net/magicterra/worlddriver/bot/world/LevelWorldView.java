@@ -29,7 +29,7 @@ import net.magicterra.worlddriver.game.observe.BuildBlocks;
  *
  * <p>Which view a task plans through is decided by construction, not by the task's name:
  * {@code new LevelWorldView} comes from {@code PlayerBot} (the FakePlayer driver) and
- * the scenes, {@code new ClientWorldView} from {@code BotApiImpl}, the real client player.
+ * the scenes, {@code new ClientWorldView} from the client wiring, over the real client player.
  */
 public final class LevelWorldView implements StateWorldView {
 

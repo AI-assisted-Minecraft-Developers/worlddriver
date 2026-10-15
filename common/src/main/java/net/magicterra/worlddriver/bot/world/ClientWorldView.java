@@ -7,11 +7,10 @@ import net.magicterra.worlddriver.bot.world.StateWorldView;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 import net.minecraft.core.BlockPos;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -27,6 +26,7 @@ import java.util.Set;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.function.Supplier;
 
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
@@ -42,9 +42,21 @@ import net.magicterra.worlddriver.game.observe.BuildBlocks;
 /** Reads the live client {@link Level} for the pathfinder: passability, solidity,
  *  fluids, climbables, hazards and break-cost. Extracted from BotApiImpl. The cell predicates are
  *  {@link StateWorldView}'s, shared with the server views so the wd.* suite plans on the rules the
- *  shipped client plans on ({@code wd.clientWorldViewParity}); this view supplies the cached state. */
+ *  shipped client plans on ({@code wd.clientWorldViewParity}); this view supplies the cached state.
+ *  The level and the player come from whoever builds it — the client wiring hands in the client's
+ *  own — so the view names no client class. */
 
 public final class ClientWorldView implements StateWorldView {
+    /** Read afresh on every call: either may be null (title screen, a world being torn down) and
+     *  both change across a dimension hop or a reconnect. */
+    private final Supplier<? extends Level> level;
+    private final Supplier<? extends Player> player;
+
+    public ClientWorldView(Supplier<? extends Level> level, Supplier<? extends Player> player) {
+        this.level = level;
+        this.player = player;
+    }
+
     // A* cost units are calibrated so one cardinal cell of walking (Move.Walk's
     // base cost, 10) ≈ the real time to traverse it: vanilla ground speed
     // 4.317 b/s → 20/4.317 ≈ 4.63 ticks/block (Baritone's WALK_ONE_BLOCK_COST).
@@ -60,7 +72,7 @@ public final class ClientWorldView implements StateWorldView {
     private volatile boolean diveSearch;
     @Override public void diveSearch(boolean on) { diveSearch = on; }
     @Override public boolean surfaceWaterNodes() { return WorldConfig.pathfinderSurfaceWaterNodes && !diveSearch; }
-    /** WorldModel injected from BotApiImpl so dangerCost can query the
+    /** The bot's WorldModel, injected by the client wiring so dangerCost can query the
      *  per-tick HazardField; null until wired (headless / unit tests). */
     private WorldModel worldModel;
     /** HazardField snapshotted at the start of each search (beginSearch) so
@@ -115,7 +127,7 @@ public final class ClientWorldView implements StateWorldView {
      *  and the default sentinel disables the accounting rather than folding every search
      *  into one imaginary tick. */
     @Override public long tickMarker() {
-        Level lvl = Minecraft.getInstance().level;
+        Level lvl = level.get();
         return lvl == null ? Long.MIN_VALUE : lvl.getGameTime();
     }
     /** Single funnel for every world blockstate read in this class. Cached only
@@ -123,7 +135,7 @@ public final class ClientWorldView implements StateWorldView {
      *  otherwise reads straight through. Returns AIR when the level is gone so callers
      *  behave as for an unloaded cell. */
     private BlockState state(BlockPos p) {
-        Level lvl = Minecraft.getInstance().level;
+        Level lvl = level.get();
         if (lvl == null) return Blocks.AIR.defaultBlockState();
         if (!cacheActive || !WorldConfig.pathfinderCacheEnabled) return lvl.getBlockState(p);
         long k = p.asLong();
@@ -135,10 +147,10 @@ public final class ClientWorldView implements StateWorldView {
         return s;
     }
     @Override public BlockState blockState(BlockPos p) { return state(p); }
-    @Override public Level stateLevel() { return Minecraft.getInstance().level; }
+    @Override public Level stateLevel() { return level.get(); }
 
     @Override public boolean isKnown(BlockPos p) {
-        Level lvl = Minecraft.getInstance().level;
+        Level lvl = level.get();
         if (lvl == null) return false;
         // ClientChunkCache.hasChunk → the chunk is actually loaded client-side
         // (an unloaded position reads as air from getBlockState, which is the
@@ -146,7 +158,7 @@ public final class ClientWorldView implements StateWorldView {
         return lvl.getChunkSource().hasChunk(p.getX() >> 4, p.getZ() >> 4);
     }
     @Override public Vec3 waterFlow(BlockPos p) {
-        Level lvl = Minecraft.getInstance().level;
+        Level lvl = level.get();
         if (lvl == null) return Vec3.ZERO;
         FluidState fs = state(p).getFluidState();
         if (!fs.is(FluidTags.WATER)) return Vec3.ZERO;
@@ -304,9 +316,8 @@ public final class ClientWorldView implements StateWorldView {
     /** Tool-aware mining cost, independent of which break-gate authorised it
      *  (general allowBreak vs the water-escape allowSwimEscapeBreak). */
     private double rawBreakCost(BlockPos p) {
-        Minecraft mc = Minecraft.getInstance();
-        Level lvl = mc.level;
-        LocalPlayer pl = mc.player;
+        Level lvl = level.get();
+        Player pl = player.get();
         if (lvl == null || pl == null) return Double.POSITIVE_INFINITY;
         return CellRules.breakCost(lvl, p, state(p), pl, dig);
     }
@@ -346,8 +357,8 @@ public final class ClientWorldView implements StateWorldView {
      *  </ul>
      *  Left as-is: splitting this into a build scan and a pillar scan LOOSENS what A*
      *  will plan, which is the direction that needs a gate run rather than a tidy-up. */
-    private static boolean hasPlaceableBlock() {
-        LocalPlayer pl = Minecraft.getInstance().player;
+    private boolean hasPlaceableBlock() {
+        Player pl = player.get();
         if (pl == null) return false;
         if (pl.isCreative()) return true;
         Inventory inv = pl.getInventory();
@@ -362,7 +373,7 @@ public final class ClientWorldView implements StateWorldView {
     /** Total count of placeable, non-falling blocks on the hotbar — the placement
      *  budget (see {@link WorldView#placeableBlockCount}). Creative = unbounded. */
     @Override public int placeableBlockCount() {
-        LocalPlayer pl = Minecraft.getInstance().player;
+        Player pl = player.get();
         if (pl == null) return 0;
         if (pl.isCreative()) return Integer.MAX_VALUE;
         Inventory inv = pl.getInventory();
@@ -460,7 +471,7 @@ public final class ClientWorldView implements StateWorldView {
     /** Refresh {@link #stepUpBlocks}/{@link #jumpUpBlocks} from the entity the
      *  player is actually controlling (itself, or its vehicle when riding). */
     private void snapshotMovementCaps() {
-        LocalPlayer pl = Minecraft.getInstance().player;
+        Player pl = player.get();
         Entity mover = pl;
         if (pl != null && pl.getControlledVehicle() != null) mover = pl.getControlledVehicle();
         if (mover == null) { stepUpBlocks = 0; jumpUpBlocks = 1; moveModes = Locomotion.WALK_AND_SWIM; return; }
@@ -472,7 +483,7 @@ public final class ClientWorldView implements StateWorldView {
     @Override public boolean canWaterBucketFall() { return bucketFallReady; }
     @Override public int maxWaterBucketFall() { return WorldConfig.maxWaterBucketFall; }
     @Override public boolean isMlgFloor(BlockPos p) {
-        Level lvl = Minecraft.getInstance().level;
+        Level lvl = level.get();
         if (lvl == null) return false;
         BlockPos bp = p;
         BlockState s = state(bp);
@@ -494,14 +505,14 @@ public final class ClientWorldView implements StateWorldView {
         // break candidates to a small bubble around the (stuck) bot — see
         // ESCAPE_RADIUS. Without this the break moves explode the search in open water.
         {
-            LocalPlayer op = Minecraft.getInstance().player;
+            Player op = player.get();
             escapeOrigin = op != null ? op.blockPosition() : null;
         }
         bucketFallReady = WorldConfig.allowWaterBucketFall
-                && Minecraft.getInstance().player != null
-                && hotbarSlotOf(Minecraft.getInstance().player,
+                && player.get() != null
+                && hotbarSlotOf(player.get(),
                                 Items.WATER_BUCKET) >= 0;
-        dig = CellRules.DigSnapshot.of(Minecraft.getInstance().player, Minecraft.getInstance().level);
+        dig = CellRules.DigSnapshot.of(player.get(), level.get());
         // Mobs are no longer snapshotted here. The per-mob berth lives in the profile's MobCluster
         // component (route.mobs, or the avoidMobs default that RouteParams expands), fed by the
         // SearchScope the Walker gathers per search — one snapshot for both the client player and
@@ -530,7 +541,7 @@ public final class ClientWorldView implements StateWorldView {
         fleeSearch = signals.fleeing;
         // Survivable-fall depth for the ledge penalty (HP-aware lethal-lip detection).
         {
-            LocalPlayer lp = Minecraft.getInstance().player;
+            Player lp = player.get();
             ledgeSafeDepth = lp != null ? SurvivalMath.survivableFall(lp.getHealth()) : 22;
         }
         // Snapshot the HazardField from WorldModel so dangerCost can apply the
@@ -541,7 +552,7 @@ public final class ClientWorldView implements StateWorldView {
     @Override public double dangerCost(BlockPos foot) {
         double penalty = 0;
         if (WorldConfig.avoidDanger) {
-            Level lvl = Minecraft.getInstance().level;
+            Level lvl = level.get();
             if (lvl != null) {
                 // Severity-graded hazard ring: lava (lethal) ≫ fire > contact
                 // plants. The old model lumped lava and fire at one flat cost

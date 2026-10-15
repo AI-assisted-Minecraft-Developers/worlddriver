@@ -16,7 +16,6 @@ import net.magicterra.worlddriver.api.methods.debug.DebugContracts.Replayed;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.magicterra.worlddriver.application.client.ClientBot;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.ReplayInstaller;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.minecraft.core.BlockPos;

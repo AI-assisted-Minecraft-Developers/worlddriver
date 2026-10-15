@@ -142,6 +142,6 @@ means it looked rather than that it found nothing.
 the shape of a call** — folding a duplicated expression into a shared helper, extracting a method,
 adding a parameter. Those read as tidy-ups, which is the disguise this rule keeps being broken in.
 
-That test guards one package. The rest of `bot/` is moving to the same state — the client-only
-classes still left there are listed in `scripts/architecture-pending.txt` — and until a package
-is clean, disassemble the class and count the calls taking a `Player` parameter by hand.
+That test guards one package. The architecture check keeps every other `bot/` package from
+naming a client type, but it reads source text, not call shapes: outside `bot/arbitration`,
+disassemble the class and count the calls taking a `Player` parameter by hand.

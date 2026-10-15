@@ -64,7 +64,7 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  * geometry: the client player's {@code getLastDamageSource()} mirrors the server's last
  * hurt cause via {@code ClientboundDamageEventPacket} (vanilla's own ~40-tick
  * last-damager window, same one {@link net.magicterra.worlddriver.bot.world.ThreatScanner}
- * and {@link net.magicterra.worlddriver.bot.ClientEventDetector} already lean on for
+ * and the client's {@code player.hurt} event already lean on for
  * gap#55 attribution) — its {@code msgId} is {@code "inWall"} while suffocation
  * damage keeps landing, geometry read or not. {@link AntiSuffocateGate#shouldTrigger}
  * folds both signals into one static, matrix-tested gate (split into its own

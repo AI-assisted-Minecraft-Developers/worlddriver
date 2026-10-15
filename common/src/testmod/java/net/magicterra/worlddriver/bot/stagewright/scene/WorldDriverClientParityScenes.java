@@ -188,8 +188,10 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
         });
     }
 
-    /** Built here, behind the adopt() skip, so a dedicated server never reaches the client class. */
+    /** The client's own level and player, the ones the shipped client bot plans over. Built here,
+     *  behind the adopt() skip, so a dedicated server never reaches the client class. */
     private static WorldView clientView() {
-        return new ClientWorldView();
+        return new ClientWorldView(() -> net.minecraft.client.Minecraft.getInstance().level,
+                () -> net.minecraft.client.Minecraft.getInstance().player);
     }
 }

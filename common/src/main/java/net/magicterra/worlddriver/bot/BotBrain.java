@@ -104,6 +104,7 @@ public final class BotBrain {
     /** This bot's water-bucket clutch, ticked before the scheduler. */
     private final ClutchController clutch = new ClutchController();
     private final RouteEvents.Emitter events;
+    private final PerceptionEvents perceptionEvents;
     /** The view this bot plans and moves over. A supplier, because a server bot's view is rebuilt
      *  when it changes dimension. */
     private final Supplier<? extends WorldView> world;
@@ -152,6 +153,7 @@ public final class BotBrain {
 
     public BotBrain(RouteEvents.Emitter events, Supplier<? extends WorldView> world) {
         this.events = events;
+        this.perceptionEvents = new PerceptionEvents(events);
         this.world = world;
         this.userTask = new UserTaskChain(state);
         this.combatChain = new CombatChain(state);
@@ -189,9 +191,7 @@ public final class BotBrain {
     /** {@code mc.client.scene}: the world model's latest snapshot. Safe off the tick thread. */
     public ClientScene scene() { return WorldReadings.clientScene(worldModel.snapshot()); }
 
-    /** The current threat scan; the projectile velocities behind it are {@link #threatVelocities}. */
-    public ThreatScanner.Scan threats() { return state.threats.current(); }
-
+    /** The projectile velocities behind the current threat scan. */
     public Map<Integer, Vec3> threatVelocities() { return state.threats.velocities(); }
 
     /** Push an event to the agent, on the stream the bot's own events use. */
@@ -199,11 +199,12 @@ public final class BotBrain {
 
     // === the tick ===========================================================
 
-    /** Phase one: the world model, then a slice of any route preview in progress. */
+    /** Phase one: the world model and its edge events, then a slice of any route preview in progress. */
     public void perceive(Body body) {
         // Update the perception blackboard every tick so mc.client.scene always
         // serves the freshest snapshot.
         worldModel.update(body, world.get());
+        perceptionEvents.scene(worldModel.snapshot());
         // A route preview in progress gets its thin slice here, beside whatever walks.
         preview.tick();
     }
@@ -226,9 +227,10 @@ public final class BotBrain {
 
     /** Phase three: refresh the threat picture once per tick — reflex chains (panic/dodge) and
      *  the use-key arbiter (shield) all read it. {@code loaded} is every entity the host can see,
-     *  projectiles among them. */
+     *  projectiles among them. Then {@code threat.appeared} when the top threat changed. */
     public void refreshThreats(Body body, Iterable<? extends Entity> loaded) {
         state.threats.refresh(body.entity() instanceof Player p ? p : null, loaded);
+        perceptionEvents.threats(state.threats.current());
     }
 
     /** Phase four: the ambient reflexes, the movement channel, and the body-safety backstops. */

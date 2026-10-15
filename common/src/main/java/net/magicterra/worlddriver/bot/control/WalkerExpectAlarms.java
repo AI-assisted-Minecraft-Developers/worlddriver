@@ -6,6 +6,7 @@ import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.List;
 import java.util.Locale;
@@ -191,16 +192,11 @@ public final class WalkerExpectAlarms {
         }
         // GEAR-degraded: mined-drop pickups crowd the pickaxe / water bucket out of the
         // hotbar mid-journey (observed live: 9/9 slots junk → hand-mining + dead MLG).
-        // Sampled every 100t; only meaningful for a LocalPlayer with an Items-based check.
+        // Sampled every 100t; watched on the client's own player only, the one body whose
+        // gear the journey ladder hands over.
         if (++exGearCheckTicks >= 100) {
             exGearCheckTicks = 0;
-            // Side guard is load-bearing: LocalPlayer does not exist in a DEDICATED-server
-            // environment and even the instanceof resolves the class — walkerExpectAlarm=true
-            // on a dedicated server crashed the walker tick with "Cannot load class
-            // net.minecraft.client.player.LocalPlayer" (ad.expectAlarmWallRam, 2026-07-19).
-            // Every LocalPlayer reference lives in ClientGearCheck so the server JVM never
-            // loads it; the sentinel is a client-player concern anyway (hotbar gear).
-            String missing = p.level().isClientSide() ? ClientGearCheck.missing(p) : null;
+            String missing = p.level().isClientSide() ? GearCheck.missing(p) : null;
             if (missing != null) {
                 FIRED.incrementAndGet();
                 LOG.warn("[expect] GEAR-degraded: hotbar missing {}— pickups crowded the gear out (MLG dead / hand-mining)",
@@ -209,8 +205,8 @@ public final class WalkerExpectAlarms {
         }
     }
 
-    /** Client-only holder for the GEAR sentinel — see the side guard above. */
-    private static final class ClientGearCheck {
+    /** The GEAR sentinel's inventory reads. */
+    private static final class GearCheck {
         /** EVERY pickaxe tier. The tier is irrelevant to what this sentinel watches: a wooden pick
          *  stranded in slot 33 leaves the bot mining by hand exactly as a diamond one would.
          *  Listing only IRON/DIAMOND — as this did until 2026-08-26 — put the alarm's threshold
@@ -229,11 +225,11 @@ public final class WalkerExpectAlarms {
                 List.of(net.minecraft.world.item.Items.WATER_BUCKET);
 
         /** @return the missing-gear description ("water_bucket(slot 12) ", …) or null if OK / not a
-         *  LocalPlayer. The slot is printed because this alarm names a cause, and a reader who wants
+         *  player. The slot is printed because this alarm names a cause, and a reader who wants
          *  to refute it needs the cell to look in — an alarm that asserts "crowded out" without
          *  saying out of WHERE is asking to be believed rather than checked. */
         static String missing(LivingEntity p) {
-            if (!(p instanceof net.minecraft.client.player.LocalPlayer lp)) return null;
+            if (!(p instanceof Player lp)) return null;
             int bucket = strandedSlot(lp, BUCKET);
             int pick = strandedSlot(lp, PICKS);
             String out = (bucket >= 0 ? "water_bucket(slot " + bucket + ") " : "")
@@ -247,15 +243,14 @@ public final class WalkerExpectAlarms {
          *  alarm's business; conflating the two is what made it fire on a bot that was fine.
          *
          *  <p>Note this feeds the shared {@link WalkerExpectAlarms#FIRED} counter, which scenes diff across an
-         *  edge. Today that is safe only because those scenes drive a FakePlayer and {@link #missing}
-         *  returns null for anything that is not a LocalPlayer — a client-side scene doing the same
-         *  edge trick would see GEAR ticks bleed into its own.
+         *  edge. Today that is safe only because those scenes drive a server-side player, which the
+         *  sentinel never samples — a client-side scene doing the same edge trick would see GEAR
+         *  ticks bleed into its own.
          *
          *  @return the slot holding the stranded gear, or -1 when nothing is crowded out — which
          *          covers BOTH "it is on the hotbar" and "we own none of it".
          */
-        private static int strandedSlot(net.minecraft.client.player.LocalPlayer lp,
-                                        List<net.minecraft.world.item.Item> family) {
+        private static int strandedSlot(Player lp, List<net.minecraft.world.item.Item> family) {
             int stranded = -1;
             for (net.minecraft.world.item.Item it : family) {
                 if (net.magicterra.worlddriver.game.body.BotInteract.hotbarSlotOf(lp, it) >= 0) return -1;
@@ -266,8 +261,7 @@ public final class WalkerExpectAlarms {
 
         /** Scans all 36 main-inventory slots. The hotbar is among them, but every caller has already
          *  ruled the hotbar out, so a hit here is necessarily out of reach. */
-        private static int bagSlot(net.minecraft.client.player.LocalPlayer lp,
-                                   net.minecraft.world.item.Item it) {
+        private static int bagSlot(Player lp, net.minecraft.world.item.Item it) {
             net.minecraft.world.entity.player.Inventory inv = lp.getInventory();
             for (int s = 0; s < inv.items.size(); s++) {
                 if (inv.items.get(s).getItem() == it) return s;

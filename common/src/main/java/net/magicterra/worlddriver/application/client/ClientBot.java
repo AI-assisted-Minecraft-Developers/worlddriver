@@ -6,9 +6,7 @@ import net.magicterra.worlddriver.api.game.HandWords;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotBrain;
 import net.magicterra.worlddriver.bot.BotRegistry;
-import net.magicterra.worlddriver.bot.ClientEventDetector;
 import net.magicterra.worlddriver.bot.GotoOrders;
-import net.magicterra.worlddriver.bot.InteractionCommands;
 import net.magicterra.worlddriver.bot.WorldReadings;
 import net.magicterra.worlddriver.game.body.HandVerbs;
 
@@ -67,6 +65,7 @@ public final class ClientBot implements BotApi {
     /** {@code brain} plans over the client's world view; the wiring builds both. */
     public ClientBot(BotBrain brain) {
         this.brain = brain;
+        this.eventDetector = new ClientEventDetector(brain);
     }
 
     /** The brain, for the debug tools that install processes on it directly. */
@@ -301,10 +300,10 @@ public final class ClientBot implements BotApi {
         });
     }
 
-    /** Driver→agent client-tick push-event detection (threat/hurt/death, fluid
-     *  entry, day-phase, item pickup, advancements, chat/title, scene edges).
-     *  Owns its own cross-tick edge state; {@link #clientTick()} drives it. */
-    private final ClientEventDetector eventDetector = new ClientEventDetector();
+    /** Driver→agent client-tick push-event detection (hurt/death, fluid entry, day-phase,
+     *  item pickup, advancements, chat/title). Owns its own cross-tick edge state;
+     *  {@link #clientTick()} drives it. */
+    private final ClientEventDetector eventDetector;
 
     /**
      * The two policies that key off "is the bot currently driving", applied at the very top of
@@ -349,11 +348,6 @@ public final class ClientBot implements BotApi {
         // tick for the reason clientAvatar() gives.
         ClientPlayerBody body = new ClientPlayerBody(mc);
         brain.perceive(body);
-        // Rising-edge scene events: emit duskExposed / cornered once per
-        // false→true transition so the Agent learns of these without polling.
-        // Mirrors the fluid-entry (player.enteredWater/enteredLava) pattern:
-        // api.emitExternal → the same event stream all client-tick events use.
-        eventDetector.detectSceneEvents(brain);
         // The clutch owns the whole tick when it fires (look-down + place + return), so
         // it is a bot drive in its own right — mark it for the mouse gate, which no
         // process slot would report (the clutch is slot-less by design).
@@ -382,10 +376,9 @@ public final class ClientBot implements BotApi {
             screenBlockTicks = 0;
         }
         brain.refreshThreats(body, mc.level.entitiesForRendering());
-        // Driver→agent push: emit one-shot events on threat-appeared / player-hurt
-        // / player-death transitions (client-sensed; no server-side equivalent for
-        // threats, and this is the player the agent actually controls).
-        eventDetector.detectClientEvents(mc, brain);
+        // Driver→agent push: one-shot events on this player's hurt / fluid / pickup / ...
+        // transitions (the brain fired threat.appeared from the refresh above).
+        eventDetector.detectClientEvents(mc);
         // Driver→agent push: surface new chat / system / command-result lines
         // (packet-level ClientChatLog drain) and action-bar / title text (guarded
         // reflection) — no server-side hook in client-MCP mode. Both paths are

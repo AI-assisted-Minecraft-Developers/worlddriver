@@ -61,7 +61,9 @@ public final class WorldDriverClientEvents {
         else WorldDriverCommon.LOG.warn("[{}] driver not ready; mc.debug.* not registered", WorldDriverCommon.MOD_ID);
         // Looked up per event: a driver that failed to boot leaves api() null, and the bot still
         // drives without one, as it always has; only its events have nowhere to go.
-        ClientWorldView world = new ClientWorldView();
+        ClientWorldView world = new ClientWorldView(
+                () -> net.minecraft.client.Minecraft.getInstance().level,
+                () -> net.minecraft.client.Minecraft.getInstance().player);
         BotBrain brain = new BotBrain((type, pos, data) -> {
             DriverHost api = WorldDriverCommon.host();
             if (api != null) api.emitExternal(type, pos, JsonValue.of(data));

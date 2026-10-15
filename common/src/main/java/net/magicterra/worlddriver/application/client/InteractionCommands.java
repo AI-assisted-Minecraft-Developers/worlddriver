@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.bot;
+package net.magicterra.worlddriver.application.client;
 
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
@@ -36,7 +36,7 @@ import static net.magicterra.worlddriver.game.body.BotUtil.*;
  * {@code mc.bot.holdItem}, {@code useItem} and {@code attackEntity} on this client's player: what the
  * mouse buttons send. Called on the client thread with a player present.
  */
-public final class InteractionCommands {
+final class InteractionCommands {
 
     private InteractionCommands() {}
 
