@@ -14,7 +14,7 @@ import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.SettingsContracts;
-import net.magicterra.worlddriver.bot.SettingsRegistry;
+import net.magicterra.worlddriver.config.SettingsRegistry;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.bot.control.AscendMovement;

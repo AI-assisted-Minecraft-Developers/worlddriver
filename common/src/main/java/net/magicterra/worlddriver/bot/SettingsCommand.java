@@ -14,6 +14,7 @@ import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
+import net.magicterra.worlddriver.config.SettingsRegistry;
 
 /**
  * Reads and writes the {@code mc.bot.setting} keys in {@link BotConfig}. Types and ranges are the

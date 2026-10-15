@@ -15,6 +15,8 @@ import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.KeyedValueType;
 import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
+import net.magicterra.worlddriver.config.SettingsDocs;
+import net.magicterra.worlddriver.config.SettingsRegistry;
 
 /**
  * {@code mc.bot.setting}: read the tuning surface, patch it, or apply one of its controls.

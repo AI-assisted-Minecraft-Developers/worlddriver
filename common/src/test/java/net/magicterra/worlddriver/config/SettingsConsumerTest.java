@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.bot;
+package net.magicterra.worlddriver.config;
 
 import org.junit.jupiter.api.Test;
 

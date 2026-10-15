@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.bot;
+package net.magicterra.worlddriver.config;
 
 import org.junit.jupiter.api.Test;
 
@@ -11,7 +11,6 @@ import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import net.magicterra.worlddriver.config.BotConfig;
 
 /**
  * Every default-ON behaviour flag must have a recorded decision about whether the arena

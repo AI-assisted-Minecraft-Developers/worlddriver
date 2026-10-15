@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.bot;
+package net.magicterra.worlddriver.config;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -20,7 +20,7 @@ import net.magicterra.worlddriver.config.RuntimeState;
  * read snapshot, the write if-chain, and a hand-written schema. A newly-declared {@link BotConfig}
  * flag whose schema or branch lagged was <em>silently dropped</em> by the write path — the #280
  * disease. This registry owns the KEY + TYPE enumeration ONCE; the contract
- * ({@code SettingsContracts}) builds every key's wire type from it, and {@link SettingsCommand} reads
+ * ({@code SettingsContracts}) builds every key's wire type from it, and {@code SettingsCommand} reads
  * and writes through {@link #readOf} and {@link #backingField}.
  *
  * <p><b>Pure.</b> Nothing here touches the game: enumeration reads {@link BotConfig}'s field
@@ -80,8 +80,8 @@ public final class SettingsRegistry {
         }
     }
 
-    /** How {@link SettingsCommand} reads and writes a hand-listed key's live value. */
-    enum Read { CONFIG_FIELD, BOT_PAUSED, HAZARD_LIST, WHITELIST_LIST, MUTED_LIST, AVOID_POINTS }
+    /** How {@code SettingsCommand} reads and writes a hand-listed key's live value. */
+    public enum Read { CONFIG_FIELD, BOT_PAUSED, HAZARD_LIST, WHITELIST_LIST, MUTED_LIST, AVOID_POINTS }
 
     /** One hand-listed key: its wire name, how to read its value, and the backing field (if any). */
     record Hand(String key, Read read, String field) {}
@@ -277,7 +277,7 @@ public final class SettingsRegistry {
     /**
      * Write-only keys with NO {@link BotConfig} field, so the reflective completion never surfaces
      * them — they must be declared here to be KNOWN. {@code debugFly} is a creative-flight test
-     * affordance, applied through {@link BotApi#debugFly}.
+     * affordance, applied through {@code BotApi.debugFly}.
      */
     private static final Map<String, Type> APPLY_ONLY = new LinkedHashMap<>();
     static { APPLY_ONLY.put("debugFly", Type.BOOLEAN); }
@@ -379,13 +379,13 @@ public final class SettingsRegistry {
     static List<Hand> handEntries() { return HAND; }
 
     /** How {@code key}'s value is read: a field for every key but the hand-read lists and {@code paused}. */
-    static Read readOf(String key) {
+    public static Read readOf(String key) {
         Hand h = HAND_BY_KEY.get(key);
         return h == null ? Read.CONFIG_FIELD : h.read();
     }
 
     /** The field behind {@code key}, primitive or not, or null for a key {@link #readOf} reads another way. */
-    static Field backingField(String key) {
+    public static Field backingField(String key) {
         Hand h = HAND_BY_KEY.get(key);
         if (h == null) return PRIMITIVE_FIELDS.get(key);
         return h.read() == Read.CONFIG_FIELD ? CONFIG_FIELDS.get(h.field()) : null;

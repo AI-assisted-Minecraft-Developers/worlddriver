@@ -14,6 +14,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.PlanningConfig;
+import net.magicterra.worlddriver.config.SettingsDocs;
+import net.magicterra.worlddriver.config.SettingsRegistry;
 
 /**
  * A value outside a key's documented range is invalid_params at its own path, and nothing is written.
