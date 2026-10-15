@@ -1,13 +1,48 @@
 # The `bot/` layers
 
-Everything behind `mc.bot.*` — the autonomous layer that plans and drives a bot. Read
-[`architecture.md`](architecture.md) first; this document picks up where `ApiRegistry.route`
-hands off.
+Everything behind `mc.bot.*` — the autonomous layer that plans and drives a bot — and the
+`game/` layer it drives through. Read [`architecture.md`](architecture.md) first; this
+document picks up where `ApiRegistry.route` hands off.
 
 `bot/` is the largest and fastest-changing subsystem in the repository. **This document
 describes seams and invariants, not inventories.** It deliberately lists no processes, no
 knobs and no priority numbers, because those change from week to week and a stale list is
 worse than none. For the current set, read the package; for how the pieces fit, read this.
+
+## The layers
+
+The bot is a stack. Each package may use the ones below it in this table, then `game/` and
+`config/`, and nothing above it:
+
+| Package | What it is |
+|---|---|
+| `bot/` | The facade: `BotApi` and its implementation, the verb orders, the status view, the addressable bots (`Bot`, `PlayerBot`, `BotRegistry`, `BotTicker`, `BotCommand`), the `mc.bot.setting` verb |
+| `bot/arbitration/` | Who gets the one movement channel: `ProcessScheduler`, `Chain`, `Priorities`, the chain implementations, `HeldProcess` |
+| `bot/behavior/` | One class per verb (`BotProcess` and its implementations), `Readiness`, and in `reflex/` the always-on ambient behaviours (eat, heal, shield, swim, tool, …) |
+| `bot/control/` | Executing a path: `Walker`, the `WalkerTick*` phases, aim and path smoothing, the clutch |
+| `bot/planning/` | Searching for a path: `PathFinder` and the elytra planner |
+| `bot/rules/` | What a search may do: `Move` and `MoveCatalog`, and in `moves/`, `constraints/` and `modifiers/` the moves, hard limits and cost taxes |
+| `bot/world/` | The bot's picture of the world: `WorldView` and its implementations, hazard fields, threat scans, survival facts |
+
+Below the bot stack:
+
+| Package | What it is |
+|---|---|
+| `game/observe/` | Reads every caller shares — recipes, item counts, block matches, registry ids |
+| `game/body/` | Driving one entity: `Body` and its capabilities (below) |
+| `game/edit/` | Operator writes that go through no body: fills, snapshots and their restore, commands |
+| `game/ui/` | What the client's screens and input share: the client thread, focus, mouse yield, the chat log |
+| `config/` | The settings, one class per layer (see [Settings](#settings)) |
+
+`game/` speaks no contract — only the facade in `bot/` itself speaks the api — and a
+`game/` package may use only `game/`, `game/observe/` and the api's thread hop. Code
+outside the bot reaches it only through the facade; `BotProcess` is the one type the
+facade hands out whole.
+
+`scripts/check_architecture.py` enforces all of this on every source file. What it still
+finds is listed in `scripts/architecture-pending.txt`, which may only shrink: a listed line
+that stops occurring fails the check too. Most of the remaining lines are client imports in
+the bot layers, which come out when the server side gets the full decision stack.
 
 ## The spine
 
@@ -19,7 +54,7 @@ mc.bot.<verb>
               └─ Chain          a policy: how badly it wants the channel this tick
                   └─ BotProcess one verb's behaviour, ticked
                       └─ Walker executes a path
-                          └─ PathFinder  A* over the Move catalog
+                          └─ PathFinder  A* over the move catalog
 ```
 
 Each layer is a seam that can be changed without touching its neighbours. That is the
@@ -68,9 +103,9 @@ mid-mutation. New off-thread state should follow that pattern.
 
 ## A process is one verb, ticked
 
-`BotProcess` is a behaviour driven once per tick; the implementations live in `process/`.
-Its one entry point is `tick(Body, WorldView, BotState)`. The scheduler's chains hand a
-process the `Body` the scheduler was given, and the client tick chain builds a
+`BotProcess` is a behaviour driven once per tick; the implementations live in
+`bot/behavior/`. Its one entry point is `tick(Body, WorldView, BotState)`. The scheduler's
+chains hand a process the `Body` the scheduler was given, and the client tick chain builds a
 `ClientPlayerBody` once per tick for that purpose. A process that names `Minecraft` in its
 own signature will not run on a server-side player.
 
@@ -134,14 +169,20 @@ Three extension families are what a contributor actually touches:
 
 | Package | What it is |
 |---|---|
-| `pathfinder/moves/` | One file per concrete `Move` — an A* edge with a cost and its world preconditions |
-| `pathfinder/constraints/` | Hard validity gates: a move is legal or it is not |
-| `pathfinder/modifiers/` | `CostModifier`s — additive taxes that steer without forbidding |
+| `bot/rules/moves/` | One file per concrete `Move` — an A* edge with a cost and its world preconditions |
+| `bot/rules/constraints/` | Hard validity limits: a move is legal or it is not |
+| `bot/rules/modifiers/` | `CostModifier`s — additive taxes that steer without forbidding |
 
 Costs are in tenths of a tick, roughly ten per tick of expected travel, and `Move` owns
-the shared constants plus the `ALL` catalog assembled from its subclasses. Prefer a
-`CostModifier` over a new hard constraint: a tax steers the search, while a gate can make
-a region unreachable and turn a slow path into no path.
+the shared constants plus the `ALL` list assembled from its subclasses. Prefer a
+`CostModifier` over a new hard constraint: a tax steers the search, while a hard limit can
+make a region unreachable and turn a slow path into no path.
+
+Every move also names the way of moving it starts in — walking or swimming today — and
+`MoveCatalog` partitions `ALL` by that answer. A search takes the catalogs of the modes the
+controlled entity has (`WorldView.moveModes()`, read from its `Locomotion`), in `ALL`'s
+order, because the search breaks ties by insertion. A player walks and swims, so its
+catalog is all of `ALL`. Flying and riding have no moves yet.
 
 ## The `Body` seam
 
@@ -152,40 +193,49 @@ water, velocity, bounding box, health — and every pose it sets is identical on
 what every driven entity has: locomotion impulse and the look.
 
 What only some entities have sits behind one optional per capability: `Equipment` (hold, use
-what is held), `Attack` (swing), `BlockInteraction` (place, break, use a block), `Bag` (what is
-carried) and `Menus` (recipe book, container clicks, closing). A process
-that needs them asks at the top of its tick and, when the answer is empty, stamps its
-slot's `lastError` with the `no_hands` reason from `BodyReady` and finishes; a caller that
-never asks cannot compile a call to them. `asPlayer()` is the raw `Player` view for the
-few readers of a player's own state such as food, abilities and the attack cooldown, and
-is null for an entity that is not a player. The walker, which cannot refuse an order, drives
-`WalkerNoHands` for an entity without hands, so its dig and place gates fall closed on their own
+what is held), `Attack` (swing), `BlockInteraction` (place, break, use a block), `Bag` (what
+is carried) and `Menus` (recipe book, container clicks, closing). A process that needs them
+asks at the top of its tick and, when one is empty, stamps its slot's `lastError` with the
+`no_hands` reason from `Readiness` and finishes; a caller that never asks cannot compile a
+call to them. `asPlayer()` is the raw `Player` view for the few readers of a player's own
+state such as food, abilities and the attack cooldown, and is null for an entity that is
+not a player. The walker, which cannot refuse an order, drives `WalkerNoHands` for an entity
+without equipment or block interaction, so its dig and place checks fail closed on their own
 readings.
 
-`ClientPlayerBody` and `ServerPlayerBody` implement all three interfaces, so a caller
-holding either concrete type is unchanged. That is what lets one process run on a client
-player and headless on a server tick, and what the test scenes' driven-mob `Body` plugs into.
+How the entity moves — its size, how high it steps and jumps, its speeds and which of
+walking, swimming and flying it has — is `Locomotion`, read off the entity's attributes
+rather than written down per kind.
+
+`ClientPlayerBody` and `ServerPlayerBody` implement every capability, so a caller holding
+either concrete type is unchanged. That is what lets one process run on a client player and
+headless on a server tick, and what the test scenes' driven-mob `Body` plugs into. The
+server-side players come from `JoinedPlayers`: a `ServerPlayer` that has joined through the
+player list, with a connection that goes nowhere.
 
 ### Naming a bot
 
-`bot/BodyRegistry` holds the bots the API can address besides the client's own player.
-Whoever creates a host registers it: `/worlddriver server spawn <name>` registers
+A `Bot` is a body and the stack that drives it, addressed by name: `PlayerBot` over a
+joined server player, and in the test content `NpcBot` over a driven mob. `BotTicker`
+advances every registered bot once per server tick and drops it when it finishes, and
+`BotRegistry` holds the bots the API can address besides the client's own player. Whoever
+creates a bot registers it: `/worlddriver server spawn <name>` (`BotCommand`) registers
 `player:<name>`, the test content registers `npc:<name>`, and a third-party mod registers
 whatever it builds. Transport threads read the registry and the server thread writes it,
 so every method synchronizes on the map; iteration is in registration order, which is the
 order `mc.bot.status` lists bots in. The registry empties when the server stops, since
-every host wraps an entity of that server.
+every bot wraps an entity of that server.
 
 The `mc.bot.*` verbs that drive a bot take a `body` parameter; `equip`, `setting`,
 `waypoint` and `playbook` stay with the client. Anything other than `self` goes to
-`application/BodyRoutes`, which hops to the server thread and refuses in `BodyReady` terms judged
-on the entity. A process verb's parameters are read by `bot/VerbOrders`, the same builder
-`BotApiImpl` uses for `self`, so the two cannot read one order differently. The hand verbs
-are `application/BodyInteractions`, which does on the server what a client click's packets would
-have done there, reach check included. A host runs one process on the server tick with no
-scheduler, chains or reflexes; `self` keeps all three. `BodyRoutes`, `BodyInteractions`
-and `VerbOrders` must not name a client class — on a dedicated server they are the only
-`mc.bot.*` code that runs.
+`application/BodyRoutes`, which hops to the server thread and refuses in `Readiness` terms
+judged on the entity. A process verb's parameters are read by `bot/VerbOrders`, the same
+builder `BotApiImpl` uses for `self`, so the two cannot read one order differently. The hand
+verbs are `application/BodyInteractions`, which does on the server what a client click's
+packets would have done there, reach check included. A server bot runs one process on the
+server tick with no scheduler, chains or reflexes; `self` keeps all three and is not yet a
+`Bot`. `BodyRoutes`, `BodyInteractions` and `VerbOrders` must not name a client class — on a
+dedicated server they are the only `mc.bot.*` code that runs.
 
 How faithfully a server-side player reproduces a real player, and every known divergence, is
 tabulated in [`fake-player-parity.md`](fake-player-parity.md). Read it before assuming a
@@ -200,7 +250,8 @@ Two kinds of class, one surface:
   its own class and the ones below (`check_architecture.py` holds it to that). `BotConfig`
   holds the facade's own and enumerates, persists and pins them all. They are common- and
   server-safe, so a dedicated-server scene can read them.
-- `SettingsRegistry` is the single source of truth for the `mc.bot.setting` key surface.
+- `SettingsRegistry`, beside them in `config/`, is the single source of truth for the
+  `mc.bot.setting` key surface.
   The read snapshot, the MCP schema and the write path all derive from it, and applying an
   unrecognised key is rejected.
 
@@ -234,24 +285,9 @@ The `WalkerTick*` phase classes are the reference pattern for carving up a large
 sequential method. Five of them are on the grandfather list precisely because that split
 moved text without decomposing the method — which is why the method budget exists at all.
 
-## The rest of the packages
-
-| Package | What it is |
-|---|---|
-| `body/` | `Body`, `Equipment`, `Attack`, `BlockInteraction`, `Bag`, `Menus`, `Locomotion`, `BodyRegistry`, `ClientPlayerBody` |
-| `movement/` | `Walker`, the `WalkerTick*` phases, the look and input controllers, the clutch |
-| `pathfinder/` | A*, the move catalog, constraints, cost modifiers |
-| `process/` | One class per verb behaviour |
-| `scheduler/` | `ProcessScheduler`, `Chain`, `Priorities` and the chain implementations |
-| `world/` | The bot's world model: `WorldView` implementations, hazard fields, scene model, survival facts |
-| `sim/` | Server-side players and their hosts |
-| `debug/` | Path archive and replay, chart rendering, probe tools — instrumentation, strippable |
-| `auto/` | Always-on ambient behaviours that are not chains (eat, heal, shield, swim, tool, …) |
-| `combat/`, `elytra/` | Domain helpers behind the matching processes |
-| `util/` | Shared helpers |
-
-`FocusPolicy` and `MouseYield` govern how the bot shares keyboard and mouse with a human
-at the same client; read [`input-sharing.md`](input-sharing.md) before changing them.
+`FocusPolicy` and `MouseYield` (in `game/ui/`) govern how the bot shares keyboard and mouse
+with a human at the same client; read [`input-sharing.md`](input-sharing.md) before changing
+them.
 
 ## Before pushing a change here
 
