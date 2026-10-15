@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-15
+
+- **The mod's internals are re-layered; code built against the old names must be rebuilt.** Nothing on
+  the wire changed: every method, parameter, reply and generated file is the same, except that the
+  settings in the generated reference are now grouped by the layer that reads them. What moved is the
+  Java surface other mods link against:
+  - `bot/` is a stack — `arbitration/`, `behavior/`, `control/`, `planning/`, `rules/`, `world/`, each
+    using only the ones after it — over a `game/` layer that every caller shares: `observe/` reads,
+    `edit/` writes as an operator (fills, snapshots, commands), `body/` drives one entity, `ui/` holds
+    what the client's screens and input share. `docs/dev/bot-layering.md` has the table, and
+    `scripts/check_architecture.py` enforces it.
+  - `BotConfig` is split into one settings class per layer (`GameConfig`, `WorldConfig`, `RulesConfig`,
+    `PlanningConfig`, `ControlConfig`, `BehaviorConfig`, `ArbitrationConfig`); `BotConfig` keeps the
+    facade's own and still lists, saves and pins them all. Setting names are unchanged, and an
+    existing settings file loads as before. `SettingsRegistry` and `SettingsDocs` moved to `config/`.
+  - A body's optional parts are one interface each: `Hands` became `Equipment`, `Attack` and
+    `BlockInteraction`; `Containers` became `Menus`; `Bag` is new. `BodyCapabilities` is replaced by
+    `Locomotion`, read off the entity's attributes, and each move names the way of moving it belongs
+    to, so the pathfinder merges the move lists of the modes the entity has (`MoveCatalog`).
+  - The addressable server bot is one type, `Bot`, which was `BodyHost` plus `BodyDriver`.
+    `ServerWorldDriver` and `ServerBodyHost` became `PlayerBot`; `BodyRegistry` is `BotRegistry`,
+    `ServerAvatarManager` is `BotTicker`, `ServerAvatarCommand` is `BotCommand`, `BodyReady` is
+    `Readiness`, and `JoinedPlayerBodies` with `ServerAvatarBodies` is `JoinedPlayers`.
+
 ## 2026-10-11
 
 - **A typed call no longer has to name a `CallContext`.** `XxxApi.of(registry)` now answers the
