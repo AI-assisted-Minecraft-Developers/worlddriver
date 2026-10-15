@@ -11,7 +11,7 @@ import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
-import net.magicterra.worlddriver.bot.planning.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.rules.constraints.ColumnRadius;
 import net.magicterra.worlddriver.bot.rules.constraints.LeashHardRadius;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;

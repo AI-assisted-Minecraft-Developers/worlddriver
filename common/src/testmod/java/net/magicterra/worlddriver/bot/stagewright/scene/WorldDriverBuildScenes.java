@@ -10,6 +10,7 @@ import net.magicterra.stagewright.scene.SceneProvider;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.magicterra.worlddriver.game.observe.BuildBlocks;
 
 /**
  * Dogfooded worlddriver scenes — <b>P4b wave 5, the BuildBlock family</b>: the 2
@@ -19,7 +20,7 @@ import net.minecraft.world.level.block.Blocks;
  *
  * <p><b>Both are pure {@link BotConfig} predicate probes — planner/API-only, no world,
  * no avatar, no {@link net.magicterra.worlddriver.bot.control.Walker} drive.</b> Each builds
- * nothing in the level: it calls {@code BotConfig.isUsableBuildBlock} /
+ * nothing in the level: it calls {@code BuildBlocks.isUsableBuildBlock} /
  * {@code isValuablePlacementBlock} / {@code isThrowawaySupportBlock} on a fixed block/item
  * matrix and asserts the classification. So there is no {@code SceneContext.origin()}
  * geometry, no {@code ServerPlayerBody}, no config pin, and the bot resolves on the
@@ -30,7 +31,7 @@ import net.minecraft.world.level.block.Blocks;
  * probe line → deleted (the testkit gate self-reconciles).
  *
  * <p><b>Dedicated-server safety carried over verbatim.</b> {@code valuablePlacementBlockMatrix}
- * deliberately exercises the dist-neutral {@link BotConfig#isThrowawaySupportBlock} core rather
+ * deliberately exercises the dist-neutral {@link BuildBlocks#isThrowawaySupportBlock} core rather
  * than {@code BotInteract.isThrowawaySupportBlock} — merely loading {@code BotInteract.class} on a
  * dedicated server fails (it mixes in client-only {@code LocalPlayer}/{@code Minecraft} methods,
  * refused by NeoForge's {@code RuntimeDistCleaner} for the DEDICATED_SERVER dist). The dogfood
@@ -56,17 +57,17 @@ public final class WorldDriverBuildScenes implements SceneProvider {
         };
         Block[] mustAccept = { Blocks.COBBLESTONE, Blocks.DIRT, Blocks.MUD, Blocks.OAK_PLANKS };
         for (Block b : mustReject)
-            if (BotConfig.isUsableBuildBlock(b))
+            if (BuildBlocks.isUsableBuildBlock(b))
                 ctx.fail("buildBlockRejectsInteractive: interactive block accepted as build material: " + b);
         for (Block b : mustAccept)
-            if (!BotConfig.isUsableBuildBlock(b))
+            if (!BuildBlocks.isUsableBuildBlock(b))
                 ctx.fail("buildBlockRejectsInteractive: plain block wrongly rejected: " + b);
         WorldDriverCommon.LOG.info("[wd.buildBlockRejectsInteractive] all {} interactive rejected, {} plain accepted",
                 mustReject.length, mustAccept.length);
     }
 
     /** Ported from {@code AgentGameTestBuildBlock#valuablePlacementBlockMatrix} (gap #81): the
-     *  value-awareness layer ON TOP of {@link BotConfig#isUsableBuildBlock} flags gathered-wood
+     *  value-awareness layer ON TOP of {@link BuildBlocks#isUsableBuildBlock} flags gathered-wood
      *  resources so the throwaway-only picker skips them, WITHOUT touching the gap #57 build-block
      *  predicate (OAK_PLANKS must stay a usable build block). */
     private static void valuablePlacementBlockMatrix(SceneContext ctx) {
@@ -78,28 +79,28 @@ public final class WorldDriverBuildScenes implements SceneProvider {
                 Blocks.DIRT, Blocks.COBBLESTONE, Blocks.STONE, Blocks.GRAVEL, Blocks.SAND, Blocks.MUD,
         };
         for (Block b : mustBeValuable)
-            if (!BotConfig.isValuablePlacementBlock(b))
+            if (!BuildBlocks.isValuablePlacementBlock(b))
                 ctx.fail("valuablePlacementBlockMatrix: gathered-wood block wrongly NOT flagged valuable: " + b);
         for (Block b : mustNotBeValuable)
-            if (BotConfig.isValuablePlacementBlock(b))
+            if (BuildBlocks.isValuablePlacementBlock(b))
                 ctx.fail("valuablePlacementBlockMatrix: plain block wrongly flagged valuable: " + b);
 
         // Regression guard: value-awareness must NOT touch the existing build-block predicate
         // (gap #57 — OAK_PLANKS stays a usable build block for explicit build/construct commands).
-        if (!BotConfig.isUsableBuildBlock(Blocks.OAK_PLANKS))
+        if (!BuildBlocks.isUsableBuildBlock(Blocks.OAK_PLANKS))
             ctx.fail("valuablePlacementBlockMatrix: regression: OAK_PLANKS no longer a usable build block");
-        if (!BotConfig.isUsableBuildBlock(Blocks.DIRT))
+        if (!BuildBlocks.isUsableBuildBlock(Blocks.DIRT))
             ctx.fail("valuablePlacementBlockMatrix: regression: DIRT no longer a usable build block");
 
-        // Exercised via BotConfig.isThrowawaySupportBlock (the dist-neutral core), NOT
+        // Exercised via BuildBlocks.isThrowawaySupportBlock (the dist-neutral core), NOT
         // BotInteract.isThrowawaySupportBlock — merely loading BotInteract.class fails on a
         // dedicated server (client-only LocalPlayer/Minecraft mixins; RuntimeDistCleaner refuses
         // the whole class for DEDICATED_SERVER dist). BotInteract delegates to this same core.
-        if (!BotConfig.isThrowawaySupportBlock(new ItemStack(Blocks.DIRT.asItem())))
+        if (!BuildBlocks.isThrowawaySupportBlock(new ItemStack(Blocks.DIRT.asItem())))
             ctx.fail("valuablePlacementBlockMatrix: DIRT wrongly rejected as throwaway support");
-        if (BotConfig.isThrowawaySupportBlock(new ItemStack(Blocks.OAK_LOG.asItem())))
+        if (BuildBlocks.isThrowawaySupportBlock(new ItemStack(Blocks.OAK_LOG.asItem())))
             ctx.fail("valuablePlacementBlockMatrix: OAK_LOG wrongly accepted as throwaway support (valuable)");
-        if (BotConfig.isThrowawaySupportBlock(new ItemStack(Blocks.OAK_PLANKS.asItem())))
+        if (BuildBlocks.isThrowawaySupportBlock(new ItemStack(Blocks.OAK_PLANKS.asItem())))
             ctx.fail("valuablePlacementBlockMatrix: OAK_PLANKS wrongly accepted as throwaway support (valuable)");
 
         WorldDriverCommon.LOG.info("[wd.valuablePlacementBlockMatrix] {} valuable, {} non-valuable, throwaway matrix all pass",

@@ -4,7 +4,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
 
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import net.magicterra.worlddriver.game.observe.BlockMatch;
 import net.magicterra.worlddriver.game.observe.NearestFirstScan;
 import net.minecraft.world.entity.Entity;

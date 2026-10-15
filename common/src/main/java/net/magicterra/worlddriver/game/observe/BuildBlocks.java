@@ -1,14 +1,14 @@
-package net.magicterra.worlddriver.bot.rules;
+package net.magicterra.worlddriver.game.observe;
 
 import java.util.Set;
 import net.magicterra.worlddriver.config.BotConfig;
 
 /**
  * Which blocks the bot may PLACE, and which it must not spend. Dist-neutral (callable from both
- * client and dedicated-server WorldViews); the {@code BotConfig.is*Block} entry points delegate here
- * so call sites keep their historical spelling. Split out of {@code BotConfig} when that file hit
- * its 3000-line budget — the predicates read {@link BotConfig#buildBlockWhitelist} at call time
- * and touch no class-init state, so the move carries none of the persistence block's clinit trap.
+ * client and dedicated-server WorldViews, and from the bodies that pick what to hold). Split out of
+ * {@code BotConfig} when that file hit its 3000-line budget — the predicates read
+ * {@link BotConfig#buildBlockWhitelist} at call time and touch no class-init state, so the move
+ * carries none of the persistence block's clinit trap.
  */
 public final class BuildBlocks {
     private BuildBlocks() {}

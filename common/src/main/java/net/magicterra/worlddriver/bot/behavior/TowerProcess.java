@@ -7,6 +7,7 @@ import net.magicterra.worlddriver.game.body.Hands;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerGeometry;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.BodyGeometry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -21,7 +22,7 @@ import java.util.List;
 
 import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import net.minecraft.world.item.BlockItem;
 
 public final class TowerProcess implements BotProcess {
@@ -213,7 +214,7 @@ public final class TowerProcess implements BotProcess {
                 // answer was "stuck (no Y gain in 60t: placed=0, holding=64, phase=JUMPING)", printed
                 // sixty ticks later, naming the phase the code stopped in rather than the block.
                 if (!p.level().noCollision(p,
-                        p.getBoundingBox().move(0.0, WalkerGeometry.PILLAR_RISE, 0.0))) {
+                        p.getBoundingBox().move(0.0, BodyGeometry.PILLAR_RISE, 0.0))) {
                     st.builder.lastError = "blocked overhead (placed=" + placed + ", feetY=" + feetY
                             + ", cannot rise a full block: " + overheadRow(p) + ")";
                     failure = st.builder.lastError;
@@ -310,9 +311,9 @@ public final class TowerProcess implements BotProcess {
      *  out loud, because vanilla's collision test answers "blocked" for a hard-collision entity that
      *  no cell scan can name. */
     private static String overheadRow(Player p) {
-        List<BlockPos> lid = WalkerGeometry.pillarRiseBlockers(p);
+        List<BlockPos> lid = BodyGeometry.pillarRiseBlockers(p);
         if (lid.isEmpty()) {
-            return p.level().noCollision(p, p.getBoundingBox().move(0.0, WalkerGeometry.PILLAR_RISE, 0.0))
+            return p.level().noCollision(p, p.getBoundingBox().move(0.0, BodyGeometry.PILLAR_RISE, 0.0))
                     ? "none" : "blocked by something that is not a block (entity collision)";
         }
         StringBuilder sb = new StringBuilder();

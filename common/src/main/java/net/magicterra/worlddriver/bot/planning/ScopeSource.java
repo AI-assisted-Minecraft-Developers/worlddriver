@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.planning;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.minecraft.core.BlockPos;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
+import net.magicterra.worlddriver.bot.rules.SearchProfile;
 
 /**
  * Where a {@link PathFinder} gets its {@link SearchScope}: called once by every

@@ -1,7 +1,8 @@
 package net.magicterra.worlddriver.bot.control;
 
+import java.util.function.Predicate;
+
 import net.magicterra.worlddriver.game.body.Hands;
-import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionResult;
@@ -35,7 +36,7 @@ final class WalkerNoHands implements Hands {
     @Override public void selectTool(BlockPos cell) {}
     @Override public void setSelectedSlot(int slot) {}
     @Override public boolean holdItem(Item item) { return false; }
-    @Override public void place(WorldView w, BlockPos cell) {}
+    @Override public void place(Predicate<BlockPos> solid, BlockPos cell) {}
     @Override public void placeOn(BlockPos cell, Direction face) {}
     @Override public void useBlock(BlockPos cell, Direction face) {}
     @Override public void breakHold(boolean v) {}

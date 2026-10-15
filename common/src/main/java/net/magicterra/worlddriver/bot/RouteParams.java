@@ -31,7 +31,7 @@ import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
 import net.magicterra.worlddriver.bot.rules.Region;
-import net.magicterra.worlddriver.bot.planning.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
 import net.magicterra.worlddriver.bot.rules.constraints.ColumnRadius;
 import net.magicterra.worlddriver.bot.rules.constraints.Corridor;

@@ -41,11 +41,9 @@ bot/behavior/CraftProcess.java	(root) WorldDriverCommon
 bot/behavior/DescendProcess.java	(root) WorldDriverCommon
 bot/behavior/ElytraProcess.java	(root) WorldDriverCommon
 bot/behavior/EscapeProcess.java	(root) WorldDriverCommon
-bot/behavior/IntentProcess.java	bot PreviewSearch
 bot/behavior/LookProcess.java	(root) WorldDriverCommon
 bot/behavior/MineProcess.java	(root) WorldDriverCommon
 bot/behavior/PlaceNearby.java	(root) WorldDriverCommon
-bot/behavior/RouteEvents.java	bot PreviewSearch
 bot/behavior/SmeltProcess.java	(root) WorldDriverCommon
 bot/behavior/reflex/AntiSuffocate.java	(root) WorldDriverCommon
 bot/behavior/reflex/AntiSuffocate.java	net.minecraft.client
@@ -56,7 +54,6 @@ bot/behavior/reflex/AutoRespawn.java	net.minecraft.client
 bot/behavior/reflex/AutoShield.java	net.minecraft.client
 bot/behavior/reflex/AutoSwim.java	(root) WorldDriverCommon
 bot/behavior/reflex/AutoSwim.java	net.minecraft.client
-bot/behavior/reflex/AutoTool.java	bot/arbitration ProcessScheduler
 bot/behavior/reflex/AutoTool.java	net.minecraft.client
 bot/behavior/reflex/AutoTotem.java	net.minecraft.client
 bot/behavior/reflex/ContactDamageEscape.java	(root) WorldDriverCommon
@@ -80,38 +77,20 @@ bot/control/WalkerTickSearch.java	(root) WorldDriverCommon
 bot/control/WalkerTickStallDetect.java	(root) WorldDriverCommon
 bot/planning/CoarseGoalField.java	(root) WorldDriverCommon
 bot/planning/PathFinder.java	(root) WorldDriverCommon
-bot/planning/PathFinder.java	bot ServerAvatarManager
-bot/rules/SearchScope.java	bot/planning SearchProfile
 bot/rules/modifiers/RiskCostTable.java	(root) WorldDriverCommon
-bot/world/CellRules.java	bot/behavior MineProcess
 bot/world/ClientThreatScanner.java	net.minecraft.client
-bot/world/ClientWorldView.java	bot/rules Move
 bot/world/ClientWorldView.java	net.minecraft.client
 bot/world/ThreatScanner.java	api CommonTypes
 bot/world/ThreatScanner.java	api ObserveContracts
-bot/world/WorldModel.java	bot TimeSnap
 bot/world/WorldModel.java	net.minecraft.client
 config/BotConfig.java	(root) WorldDriverCommon
-config/BotConfig.java	bot/planning PathFinder
-config/BotConfig.java	bot/rules BuildBlocks
 config/BotConfigFile.java	(root) WorldDriverCommon
-game/BotUtil.java	game/body Body
-game/BotUtil.java	game/body HandVerbs
 game/ClientHop.java	api ServerThreadHop
-game/body/Body.java	bot/control WalkerGeometry
 game/body/BotInteract.java	(root) WorldDriverCommon
-game/body/BotInteract.java	bot/control WalkerGeometry
-game/body/BotInteract.java	bot/world WorldView
 game/body/ClientPlayerBody.java	(root) WorldDriverCommon
-game/body/ClientPlayerBody.java	bot/world WorldView
 game/body/HandVerbs.java	api InteractContracts
-game/body/Hands.java	bot/control BlastFooting
-game/body/Hands.java	bot/world WorldView
 game/body/JoinedPlayerBodies.java	(root) WorldDriverCommon
 game/body/ServerPlayerBody.java	(root) WorldDriverCommon
-game/body/ServerPlayerBody.java	bot/control WalkerGeometry
-game/body/ServerPlayerBody.java	bot/world ServerWorldView
-game/body/ServerPlayerBody.java	bot/world WorldView
 game/observe/ClientBoss.java	api CommonTypes
 game/observe/ClientBoss.java	api ObserveContracts
 game/observe/ClientObserve.java	api ApiError
@@ -122,9 +101,7 @@ game/observe/ClientObserve.java	api ObserveContracts
 game/observe/ClientObserve.java	api Positions
 game/observe/ClientObserve.java	api QueryContracts
 game/observe/ClientObserve.java	api ScreenContracts
-game/observe/ClientObserve.java	bot AttackSnap
-game/observe/ClientObserve.java	bot ItemSnap
-game/observe/ClientObserve.java	bot TimeSnap
+game/observe/ClientObserve.java	application ItemSnap
 game/observe/ClientObserve.java	bot/behavior CraftProcess
 game/observe/ClientObserve.java	bot/world ClientThreatScanner
 game/observe/ClientObserve.java	bot/world ThreatScanner

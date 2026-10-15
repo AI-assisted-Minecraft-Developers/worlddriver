@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Hands;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
-import net.magicterra.worlddriver.bot.planning.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
 import net.minecraft.core.BlockPos;
@@ -25,7 +25,7 @@ import java.util.Set;
 
 import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 public final class BackfillProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */

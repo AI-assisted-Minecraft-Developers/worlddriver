@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.world;
 
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.world.WorldView;
-import net.magicterra.worlddriver.bot.TimeSnap;
+import net.magicterra.worlddriver.game.observe.TimeSnap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 

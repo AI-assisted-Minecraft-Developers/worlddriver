@@ -70,6 +70,7 @@ import net.minecraft.world.phys.Vec3;
 
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.askByName;
+import net.magicterra.worlddriver.game.observe.BuildBlocks;
 
 /**
  * Dogfooded worlddriver scenes — <b>P4b wave 5, the Core (main {@code AgentGameTest}) family</b>:
@@ -1241,7 +1242,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                     + " onGroundAfterRefusal=" + groundAfterRefusal + " (a ground jump is +0.42)");
     }
 
-    /** Ported from {@code AgentGameTest#buildBlockWhitelistArena}: gates {@link BotConfig#isUsableBuildBlock}
+    /** Ported from {@code AgentGameTest#buildBlockWhitelistArena}: gates {@link BuildBlocks#isUsableBuildBlock}
      *  + the {@link LevelWorldView} placement-count delegation (bamboo/sand rejected; the Agent-settable
      *  whitelist override). */
     private static void buildBlockWhitelist(SceneContext ctx) {
@@ -1254,13 +1255,13 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ctx.cleanup(() -> BotConfig.buildBlockWhitelist = savedWl);
 
         // Default heuristic: full cube → usable; bamboo (thin column) / sand (FallingBlock) → NOT usable.
-        if (!BotConfig.isUsableBuildBlock(Blocks.DIRT))
+        if (!BuildBlocks.isUsableBuildBlock(Blocks.DIRT))
             ctx.fail("buildBlockWhitelist: dirt must be a usable build block");
-        if (!BotConfig.isUsableBuildBlock(Blocks.COBBLESTONE))
+        if (!BuildBlocks.isUsableBuildBlock(Blocks.COBBLESTONE))
             ctx.fail("buildBlockWhitelist: cobblestone must be a usable build block");
-        if (BotConfig.isUsableBuildBlock(Blocks.BAMBOO))
+        if (BuildBlocks.isUsableBuildBlock(Blocks.BAMBOO))
             ctx.fail("buildBlockWhitelist: bamboo must NOT be a usable build block (thin, no footing)");
-        if (BotConfig.isUsableBuildBlock(Blocks.SAND))
+        if (BuildBlocks.isUsableBuildBlock(Blocks.SAND))
             ctx.fail("buildBlockWhitelist: sand must NOT be usable (FallingBlock drops over gaps)");
 
         // LevelWorldView count delegates to the predicate: dirt+bamboo inventory → only dirt counts.
@@ -1276,9 +1277,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
 
         // Whitelist override: pin to bamboo only → dirt now rejected, bamboo allowed by explicit id.
         BotConfig.buildBlockWhitelist = Set.of("minecraft:bamboo");
-        if (!BotConfig.isUsableBuildBlock(Blocks.BAMBOO))
+        if (!BuildBlocks.isUsableBuildBlock(Blocks.BAMBOO))
             ctx.fail("buildBlockWhitelist: whitelisted bamboo must be usable when explicitly listed");
-        if (BotConfig.isUsableBuildBlock(Blocks.DIRT))
+        if (BuildBlocks.isUsableBuildBlock(Blocks.DIRT))
             ctx.fail("buildBlockWhitelist: dirt must be rejected when whitelist excludes it");
         if (w.placeableBlockCount() != 20)
             ctx.fail("buildBlockWhitelist: whitelist=[bamboo] → count should be the 20 bamboo, got " + w.placeableBlockCount());

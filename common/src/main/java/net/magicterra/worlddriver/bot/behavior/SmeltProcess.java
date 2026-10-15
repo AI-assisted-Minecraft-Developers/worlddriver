@@ -23,11 +23,12 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
-import static net.magicterra.worlddriver.game.BotUtil.faceTowardEye;
-import static net.magicterra.worlddriver.game.BotUtil.STATION_REACH;
-import static net.magicterra.worlddriver.game.BotUtil.nearestBlockWithinReach;
+import static net.magicterra.worlddriver.game.body.BotUtil.faceTowardEye;
+import static net.magicterra.worlddriver.game.body.BotUtil.STATION_REACH;
+import static net.magicterra.worlddriver.game.body.BotUtil.nearestBlockWithinReach;
 import static net.magicterra.worlddriver.game.observe.RegistryIds.itemId;
 import static net.magicterra.worlddriver.game.observe.RegistryIds.path;
+import net.magicterra.worlddriver.game.observe.BuildBlocks;
 
 /**
  * Phase E — smelt {@code count}× {@code input} in a furnace, the slot-simulation
@@ -454,7 +455,7 @@ public final class SmeltProcess implements BotProcess {
      * Explicit {@code fuelId} wins verbatim (the caller knows what they want).
      * Auto mode fixes gap#64①: the old rule was "first {@code isFuel} stack in slot
      * order", which fed the CRAFTING TABLE to the furnace while coal sat in the bag.
-     * Now: never burn an interactive workstation ({@link BotConfig#isInteractiveBlock}
+     * Now: never burn an interactive workstation ({@link BuildBlocks#isInteractiveBlock}
      * — same safety class that keeps the walker from bridging with furnaces, #57),
      * and among the rest prefer the highest vanilla burn value per item, so a
      * dedicated fuel (coal 1600t) beats scaffolding wood (planks 300t).
@@ -471,7 +472,7 @@ public final class SmeltProcess implements BotProcess {
                 continue;
             }
             if (!AbstractFurnaceBlockEntity.isFuel(stk)) continue;
-            if (stk.getItem() instanceof BlockItem bi && BotConfig.isInteractiveBlock(bi.getBlock())) continue;
+            if (stk.getItem() instanceof BlockItem bi && BuildBlocks.isInteractiveBlock(bi.getBlock())) continue;
             int burn = AbstractFurnaceBlockEntity.getFuel().getOrDefault(stk.getItem(), 0);
             if (burn > bestBurn) { bestBurn = burn; best = i; }
         }
@@ -528,7 +529,7 @@ public final class SmeltProcess implements BotProcess {
 
     /** Nearest furnace within interaction reach of the eye. Twin of
      *  {@code CraftProcess.findTable} — the scan lives in
-     *  {@link net.magicterra.worlddriver.game.BotUtil#nearestBlockWithinReach} so the two
+     *  {@link net.magicterra.worlddriver.game.body.BotUtil#nearestBlockWithinReach} so the two
      *  cannot drift the way the PLACE half of this same pair did (see {@code PlaceNearby}). */
     private static BlockPos findFurnace(Player p, Level lvl) {
         return nearestBlockWithinReach(p, lvl, Blocks.FURNACE, STATION_REACH, 4, 2);

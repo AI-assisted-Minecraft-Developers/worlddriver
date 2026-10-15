@@ -2,8 +2,6 @@ package net.magicterra.worlddriver.game.body;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 
-import net.magicterra.worlddriver.game.body.ClientIntents;
-import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.client.KeyMapping;
@@ -28,6 +26,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Predicate;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.Item;
@@ -37,7 +36,8 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.core.Holder;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.core.component.DataComponents;
-import net.magicterra.worlddriver.game.BotUtil;
+import net.magicterra.worlddriver.game.body.BotUtil;
+import net.magicterra.worlddriver.game.observe.BuildBlocks;
 
 
 /**
@@ -133,7 +133,7 @@ public final class BotInteract {
      */
     public static BlockPos riseBlockedCell(Minecraft mc, LocalPlayer p, double rise) {
         if (mc.level == null) return null;
-        List<BlockPos> hits = net.magicterra.worlddriver.bot.control.WalkerGeometry.riseBlockers(p, rise);
+        List<BlockPos> hits = BodyGeometry.riseBlockers(p, rise);
         return hits.isEmpty() ? null : hits.get(0);
     }
 
@@ -465,25 +465,25 @@ public final class BotInteract {
      *  actuator's block-selection agree on what counts as buildable. */
     public static boolean isSupportBlock(ItemStack stk) {
         if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) return false;
-        return net.magicterra.worlddriver.config.BotConfig.isUsableBuildBlock(bi.getBlock());
+        return BuildBlocks.isUsableBuildBlock(bi.getBlock());
     }
 
     /** Like {@link #isSupportBlock} but ALSO excludes gathered-wood resources (see
-     *  {@link net.magicterra.worlddriver.config.BotConfig#isValuablePlacementBlock}) — a support
+     *  {@link net.magicterra.worlddriver.game.observe.BuildBlocks#isValuablePlacementBlock}) — a support
      *  block the picker may spend as disposable filler without eating something the bot
      *  deliberately gathered (gap#81). Delegates to the dist-neutral
-     *  {@link net.magicterra.worlddriver.config.BotConfig#isThrowawaySupportBlock} core (this class mixes
+     *  {@link net.magicterra.worlddriver.game.observe.BuildBlocks#isThrowawaySupportBlock} core (this class mixes
      *  in unrelated client-only methods, so IT cannot be loaded on a dedicated server — the pure
      *  logic lives where it's gametestable). */
     public static boolean isThrowawaySupportBlock(ItemStack stk) {
-        return net.magicterra.worlddriver.config.BotConfig.isThrowawaySupportBlock(stk);
+        return BuildBlocks.isThrowawaySupportBlock(stk);
     }
 
     /** Like {@link #isSupportBlock} but accepts supported FallingBlocks (sand/gravel) — for a
-     *  strictly vertical pillar-up only (see {@link net.magicterra.worlddriver.config.BotConfig#isUsablePillarBlock}). */
+     *  strictly vertical pillar-up only (see {@link net.magicterra.worlddriver.game.observe.BuildBlocks#isUsablePillarBlock}). */
     public static boolean isPillarBlock(ItemStack stk) {
         if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) return false;
-        return net.magicterra.worlddriver.config.BotConfig.isUsablePillarBlock(bi.getBlock());
+        return BuildBlocks.isUsablePillarBlock(bi.getBlock());
     }
 
     /**
@@ -491,7 +491,7 @@ public final class BotInteract {
      * Creative can pull from main inventory. Returns false when none is available.
      *
      * <p><b>Cheap filler first, gathered resources only as a last resort.</b> {@code gap#81} put the
-     * intent in a predicate — {@link net.magicterra.worlddriver.config.BotConfig#isValuablePlacementBlock}
+     * intent in a predicate — {@link net.magicterra.worlddriver.game.observe.BuildBlocks#isValuablePlacementBlock}
      * says gathered wood "must not be spent as disposable pillar/scaffold filler" — and then only
      * ONE of the fourteen callers in this repo ever asked for it, via
      * {@code holdThrowawayPlaceable()}. An invariant that lives in a predicate almost nobody
@@ -552,8 +552,8 @@ public final class BotInteract {
      *  of the resources {@code isValuablePlacementBlock} names. */
     public static boolean isThrowawayPillarBlock(ItemStack stk) {
         if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) return false;
-        return net.magicterra.worlddriver.config.BotConfig.isUsablePillarBlock(bi.getBlock())
-                && !net.magicterra.worlddriver.config.BotConfig.isValuablePlacementBlock(bi.getBlock());
+        return BuildBlocks.isUsablePillarBlock(bi.getBlock())
+                && !BuildBlocks.isValuablePlacementBlock(bi.getBlock());
     }
 
     private static boolean ensureHoldingPillarBlock(Minecraft mc, boolean avoidValuable) {
@@ -649,22 +649,22 @@ public final class BotInteract {
         return false;
     }
 
-    /** Place a block into {@code cell} by clicking a solid neighbour's face.
+    /** Place a block into {@code cell} by clicking the face of a neighbour {@code solid} accepts.
      *  Used by the Walker's bridge actuator. */
-    public static void walkerPlace(Minecraft mc, LocalPlayer p, WorldView w, BlockPos cell) {
+    public static void walkerPlace(Minecraft mc, LocalPlayer p, Predicate<BlockPos> solid, BlockPos cell) {
         if (!ensureHoldingPlaceableAny(mc)) return;
         // Prefer placing on top of a block below the cell, then the sides — the
         // support under our feet is adjacent to the gap floor we bridge.
         Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
         for (Direction d : order) {
             BlockPos support = cell.offset(d.getStepX(), d.getStepY(), d.getStepZ());
-            if (w.isSolid(support)) {
+            if (solid.test(support)) {
                 // Never click an interactive support (furnace/table/chest …): the
                 // right-click OPENS ITS GUI instead of placing, and the open screen
                 // paralyses every input channel (gap #58, live death #3). Try the
                 // next face — a plain-block support usually exists.
                 if (mc.level != null
-                        && net.magicterra.worlddriver.config.BotConfig.isInteractiveBlock(
+                        && BuildBlocks.isInteractiveBlock(
                                 mc.level.getBlockState(support).getBlock())) continue;
                 clientUseItemOn(mc, p, support, d.getOpposite());   // face points from support back at cell
                 return;

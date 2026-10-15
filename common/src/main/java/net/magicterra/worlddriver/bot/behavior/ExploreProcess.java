@@ -13,7 +13,7 @@ import java.util.Set;
 
 import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 public final class ExploreProcess implements BotProcess {
     private final int centerChunkX, centerChunkZ;

@@ -27,9 +27,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
-import static net.magicterra.worlddriver.game.BotUtil.faceTowardEye;
-import static net.magicterra.worlddriver.game.BotUtil.STATION_REACH;
-import static net.magicterra.worlddriver.game.BotUtil.nearestBlockWithinReach;
+import static net.magicterra.worlddriver.game.body.BotUtil.faceTowardEye;
+import static net.magicterra.worlddriver.game.body.BotUtil.STATION_REACH;
+import static net.magicterra.worlddriver.game.body.BotUtil.nearestBlockWithinReach;
 import static net.magicterra.worlddriver.game.observe.RegistryIds.itemId;
 import static net.magicterra.worlddriver.game.observe.RegistryIds.path;
 
@@ -359,7 +359,7 @@ public final class CraftProcess implements BotProcess {
 
     /** Nearest crafting table within interaction reach of the eye. Twin of
      *  {@code SmeltProcess.findFurnace} — the scan lives in
-     *  {@link net.magicterra.worlddriver.game.BotUtil#nearestBlockWithinReach} so the two
+     *  {@link net.magicterra.worlddriver.game.body.BotUtil#nearestBlockWithinReach} so the two
      *  cannot drift the way the PLACE half of this same pair did (see {@code PlaceNearby}). */
     private static BlockPos findTable(Player p, Level lvl) {
         return nearestBlockWithinReach(p, lvl, Blocks.CRAFTING_TABLE, STATION_REACH, 4, 2);

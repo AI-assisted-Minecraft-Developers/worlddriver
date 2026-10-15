@@ -1,16 +1,9 @@
 package net.magicterra.worlddriver.game.body;
 
 import java.util.Optional;
+import java.util.function.Predicate;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.BodyCapabilities;
-import net.magicterra.worlddriver.game.body.Containers;
-import net.magicterra.worlddriver.game.body.Hands;
-import net.magicterra.worlddriver.game.body.JumpRelease;
-import net.magicterra.worlddriver.bot.control.WalkerGeometry;
-import net.magicterra.worlddriver.bot.world.WorldView;
-import net.magicterra.worlddriver.bot.world.ServerWorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket;
@@ -443,12 +436,12 @@ public class ServerPlayerBody implements Body, Hands, Containers {
                 + "; first noBlock: " + (firstNoBlockAt == null ? "none" : firstNoBlockAt);
     }
 
-    @Override public void place(WorldView w, BlockPos cell) {
+    @Override public void place(Predicate<BlockPos> solid, BlockPos cell) {
         placeCalls++;
         if (firstCallAt == null) firstCallAt = placeSample(cell);
         for (Direction d : Direction.values()) {
             BlockPos against = cell.relative(d);
-            if (w.isSolid(against)) { placeOn(against, d.getOpposite()); return; }
+            if (solid.test(against)) { placeOn(against, d.getOpposite()); return; }
         }
         // NOTHING TO CLICK. Not an error and not a no-op worth hiding: this player places by clicking a
         // face, so a cell with six non-solid neighbours cannot be placed into at all, however much
@@ -522,11 +515,12 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      */
     private void destroyAimed() {
         BlockPos target = aimTarget;
-        double soleBefore = loggedDugOwnFloor ? 0.0
-                : WalkerGeometry.soleOnSolid(new ServerWorldView(fp.serverLevel()), fp);
+        // Solid as the pathfinder's views read it: the block stops motion.
+        Predicate<BlockPos> solid = c -> fp.level().getBlockState(c).blocksMotion();
+        double soleBefore = loggedDugOwnFloor ? 0.0 : BodyGeometry.soleOnSolid(solid, fp);
         fp.level().destroyBlock(target, DROP_HARVEST, fp);
         if (soleBefore <= 0.0) return;
-        if (WalkerGeometry.soleOnSolid(new ServerWorldView(fp.serverLevel()), fp) > 0.0) return;
+        if (BodyGeometry.soleOnSolid(solid, fp) > 0.0) return;
         loggedDugOwnFloor = true;
         WorldDriverCommon.LOG.info("[avatar] dug out its own footing: t={} target={} soleOnSolid {}→0.0000 y={} foot={}",
                 fp.level().getGameTime(), target.toShortString(),

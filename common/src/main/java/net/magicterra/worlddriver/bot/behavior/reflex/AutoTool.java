@@ -3,7 +3,6 @@ package net.magicterra.worlddriver.bot.behavior.reflex;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.game.body.BotInteract;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
-import net.magicterra.worlddriver.bot.arbitration.ProcessScheduler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.player.Inventory;
@@ -31,8 +30,8 @@ public final class AutoTool {
     /** Whether the host may run the picker this tick: no user task, and no chain held the channel
      *  last tick. The user slot alone is not enough — the bunker reflex picks its own tool and seal
      *  block, and dusk shelter and retreat drive processes that do, all with the user slot empty. */
-    public static boolean mayRun(BotProcess userProcess, ProcessScheduler scheduler) {
-        return userProcess == null && scheduler.current() == null;
+    public static boolean mayRun(BotProcess userProcess, boolean chainHeld) {
+        return userProcess == null && !chainHeld;
     }
 
     /** Pure yield policy (matrix-testable). */

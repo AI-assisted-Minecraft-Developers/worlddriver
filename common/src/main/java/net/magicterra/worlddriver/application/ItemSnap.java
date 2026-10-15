@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.bot;
+package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.api.methods.client.ClientContracts;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts;

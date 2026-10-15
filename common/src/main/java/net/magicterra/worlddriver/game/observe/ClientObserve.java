@@ -60,9 +60,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.magicterra.worlddriver.game.observe.BlockMatch;
 import net.magicterra.worlddriver.bot.behavior.CraftProcess;
-import net.magicterra.worlddriver.bot.AttackSnap;
-import net.magicterra.worlddriver.bot.ItemSnap;
-import net.magicterra.worlddriver.bot.TimeSnap;
+import net.magicterra.worlddriver.game.observe.AttackSnap;
+import net.magicterra.worlddriver.application.ItemSnap;
+import net.magicterra.worlddriver.game.observe.TimeSnap;
 import net.minecraft.world.entity.LivingEntity;
 import net.magicterra.worlddriver.game.ui.ScreenContext;
 

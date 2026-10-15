@@ -23,9 +23,9 @@ import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.PlayerSta
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.TimeOfDay;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Vitals;
 import net.magicterra.worlddriver.bot.behavior.CraftProcess;
-import net.magicterra.worlddriver.bot.AttackSnap;
-import net.magicterra.worlddriver.bot.ItemSnap;
-import net.magicterra.worlddriver.bot.TimeSnap;
+import net.magicterra.worlddriver.game.observe.AttackSnap;
+import net.magicterra.worlddriver.application.ItemSnap;
+import net.magicterra.worlddriver.game.observe.TimeSnap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;

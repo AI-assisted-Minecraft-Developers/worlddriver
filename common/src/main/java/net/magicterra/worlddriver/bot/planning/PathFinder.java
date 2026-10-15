@@ -26,6 +26,7 @@ import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.rules.SearchAware;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.bot.rules.SearchProfile;
 
 /**
  * A* over BlockPos with the {@link Move} catalog as the neighbor function.
@@ -51,8 +52,9 @@ import net.magicterra.worlddriver.bot.world.WorldView;
  */
 public final class PathFinder {
 
-    public static final int DEFAULT_MAX_NODES = 100_000;
-    public static final long DEFAULT_MAX_MS = 1500;
+    /** How many server-side drivers are ticking, printed by the stall rows below so a slow search
+     *  can be told apart from a crowded tick. The bot layer installs it; the planner only reads. */
+    public static volatile java.util.function.IntSupplier driverCount = () -> 0;
 
     /**
      * Incremental cost backoff weightings (Baritone's {@code COEFFICIENTS}).
@@ -1137,8 +1139,7 @@ public final class PathFinder {
                 LOG.info("[pathfinder] ENTER unbounded-slice owner={} start={} goal={} expanded={}"
                         + " polled={} open={} nodes={} elapsedMs={} drivers={}",
                         owner, start.toShortString(), goal, expanded, polled, open.size(),
-                        nodes.size(), elapsedNanos / 1_000_000L,
-                        net.magicterra.worlddriver.bot.ServerAvatarManager.activeCount());
+                        nodes.size(), elapsedNanos / 1_000_000L, driverCount.getAsInt());
             }
             // HEARTBEAT — the only instrument here that can describe a call which never returns.
             // Rides the clock the loop already reads, so a healthy search pays one long compare.
@@ -1191,8 +1192,7 @@ public final class PathFinder {
                                     + " {} ms ceiling never fired.",
                                     sliceNanos / 1_000_000L, owner, start.toShortString(), goal,
                                     expanded, expanded - beatExpanded, polled, polled - beatPolled,
-                                    open.size(), nodes.size(), sliceMs,
-                                    net.magicterra.worlddriver.bot.ServerAvatarManager.activeCount(),
+                                    open.size(), nodes.size(), sliceMs, driverCount.getAsInt(),
                                     CEILING_MS);
                             beatExpanded = expanded;
                             beatPolled = polled;

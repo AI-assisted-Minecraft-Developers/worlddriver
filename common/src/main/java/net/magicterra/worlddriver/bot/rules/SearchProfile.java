@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.bot.planning;
+package net.magicterra.worlddriver.bot.rules;
 
 import java.util.List;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;

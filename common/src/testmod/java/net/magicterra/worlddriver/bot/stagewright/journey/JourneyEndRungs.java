@@ -15,8 +15,7 @@ import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Hands;
-import net.magicterra.worlddriver.bot.control.BlastFooting;
-import net.magicterra.worlddriver.bot.control.WalkerGeometry;
+import net.magicterra.worlddriver.game.body.BlastFooting;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
@@ -1405,7 +1404,7 @@ public final class JourneyEndRungs {
      * what the bot did; these two describe what the search was allowed to consider.
      * {@code BridgePlace.eval} opens with {@code if (!w.canPlace()) return null}, and
      * {@link net.magicterra.worlddriver.bot.world.LevelWorldView#placeableBlockCount} counts only
-     * the HOTBAR, and only items {@code BotConfig.isUsableBuildBlock} accepts — so a bot carrying
+     * the HOTBAR, and only items {@code BuildBlocks.isUsableBuildBlock} accepts — so a bot carrying
      * 1024 cobblestone in its backpack reads {@code canPlace=false} and no bridge edge is ever
      * generated. That is a different defect from a bridge edge that IS generated and then loses on
      * price: a {@code parkour3} across the same two cells costs 32, while the bridge chain costs

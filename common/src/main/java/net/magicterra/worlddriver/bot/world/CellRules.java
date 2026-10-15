@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.bot.world;
 
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.bot.behavior.MineProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
@@ -188,7 +187,7 @@ public final class CellRules {
         int ticks = Math.max(1, (int) Math.ceil(1.0 / damage));
         double cost = COST_PER_TICK * ticks;
         if (!bestCorrect) cost *= WRONG_TOOL_TAX;
-        if (BotConfig.pathfinderLogBreakTax != 1.0 && s.is(BlockTags.LOGS) && !MineProcess.miningALog())
+        if (BotConfig.pathfinderLogBreakTax != 1.0 && s.is(BlockTags.LOGS) && !LogWaiver.active())
             cost *= BotConfig.pathfinderLogBreakTax;
         return cost * BotConfig.pathfinderBreakCostMultiplier;
     }

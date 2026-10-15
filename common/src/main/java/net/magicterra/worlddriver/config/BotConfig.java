@@ -7,9 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import net.magicterra.worlddriver.bot.planning.PathFinder;
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
-import net.magicterra.worlddriver.bot.rules.BuildBlocks;
 
 /**
  * Mutable tuning values exposed via {@code mc.bot.setting}. Read by Walker,
@@ -398,10 +396,8 @@ public final class BotConfig {
      *  a certain wedge — deliberately conservative; A/B sweeps {20,40,80}. */
     public static volatile int riskBiasScale = 15;
 
-    /** A* node cap surfaced as a tunable knob — Baritone's {@code pathTimeoutMS} analogue.
-     *  Maps directly to {@link net.magicterra.worlddriver.bot.planning.PathFinder} default. */
-    public static volatile int pathfinderMaxNodes =
-            PathFinder.DEFAULT_MAX_NODES;
+    /** A* node cap surfaced as a tunable knob — Baritone's {@code pathTimeoutMS} analogue. */
+    public static volatile int pathfinderMaxNodes = 100_000;
 
     /** Per-tick compute slice (ms) for the time-sliced A* search. The Walker
      *  advances an in-flight search by at most this much each client tick, so a
@@ -430,9 +426,8 @@ public final class BotConfig {
     /** Debounce of the route events: one per (event, culprit) within this many process ticks. */
     public static volatile int routeEventCooldownTicks = 100;
 
-    /** A* wall-clock cap, ms. Default mirrors {@code PathFinder.DEFAULT_MAX_MS}. */
-    public static volatile long pathfinderMaxMs =
-            PathFinder.DEFAULT_MAX_MS;
+    /** A* wall-clock cap, ms. */
+    public static volatile long pathfinderMaxMs = 1500;
 
     /** Weighted-A* heuristic multiplier (W in {@code f = g + W·h}). W>1 makes the
      *  search greedier toward the goal (bounded-suboptimal A*). The best-effort
@@ -650,14 +645,14 @@ public final class BotConfig {
      *  rising) edge that enters a DEEP floating-submerged water cell ({@link WorldView#isFloatingWater}
      *  — water at the cell AND below it, ≥2 deep, no foothold — with water also directly ABOVE it, so
      *  a surface swimmer would have to stay UNDER to thread it) for a Y-AWARE goal ({@code goto pos}/
-     *  {@code Near}). {@link PathFinder#submergedTax} already prices the DESCENT into such a cell, but
+     *  {@code Near}). {@code PathFinder.submergedTax} already prices the DESCENT into such a cell, but
      *  once the bot ENTERS deep water already submerged (a Fall/dive landed it one below the surface,
      *  or the search start is submerged), the rest of the crossing is HORIZONTAL — never a fresh
      *  descent — so the descent tax never fires and A* threads the WHOLE crossing one cell below the
      *  surface (cheaper than a swimUp), where the floating bot cannot follow: it bobs at the surface
      *  ABOVE the y-1 path and jams until a repath happens to re-route on top (live #47 R3 seg0:
      *  {@code Near[-862,62,300]}, a 35-block diag run routed at y61 one below the y62 surface →
-     *  ~2.8-3.4 s bob-jam at -832,355). XZ goals already pay this via {@link PathFinder#waterCellTax}'s
+     *  ~2.8-3.4 s bob-jam at -832,355). XZ goals already pay this via {@code PathFinder.waterCellTax}'s
      *  submerged overhead, so this clause is Y-aware-goals-ONLY (no double-charge). A deliberate dive
      *  to an UNDERWATER target ({@code diveGoal}) stays exempt — a sunken-ship/monument {@code goto pos}
      *  threads water freely. SHALLOW grounded wading (solid floor below → not floating water) is exempt
@@ -1013,12 +1008,6 @@ public final class BotConfig {
      *  Whole-list replace; pass [] to clear. */
     public static volatile Set<String> buildBlockWhitelist = Set.of();
 
-    // Block-placement policy lives in BuildBlocks; these delegates keep the historical call sites.
-    public static boolean isUsableBuildBlock(net.minecraft.world.level.block.Block block) { return BuildBlocks.isUsableBuildBlock(block); }
-    public static boolean isInteractiveBlock(net.minecraft.world.level.block.Block block) { return BuildBlocks.isInteractiveBlock(block); }
-    public static boolean isUsablePillarBlock(net.minecraft.world.level.block.Block block) { return BuildBlocks.isUsablePillarBlock(block); }
-    public static boolean isValuablePlacementBlock(net.minecraft.world.level.block.Block block) { return BuildBlocks.isValuablePlacementBlock(block); }
-    public static boolean isThrowawaySupportBlock(net.minecraft.world.item.ItemStack stk) { return BuildBlocks.isThrowawaySupportBlock(stk); }
 
     /** Event types muted from the live PUSH channel via
      *  {@code mc.bot.setting{mutedEvents:[type,...]}}. By default EVERY driver event

@@ -9,7 +9,7 @@ import java.util.Map;
 
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.PreviewSearch;
+import net.magicterra.worlddriver.bot.rules.RiskAt;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
 import net.minecraft.core.BlockPos;
@@ -104,7 +104,7 @@ class RouteEventsTest {
     @Test
     void exposedFiresForANewObserverOnlyAndDebounces() {
         BotConfig.routeEventCooldownTicks = 3;
-        PreviewSearch.RiskAt risk = new PreviewSearch.RiskAt() {
+        RiskAt risk = new RiskAt() {
             @Override public List<ThreatSnapshot.Threat> seeing(BlockPos c) {
                 return c.getX() >= 3 && c.getX() <= 5 ? List.of(skel(7)) : List.of();
             }
@@ -137,7 +137,7 @@ class RouteEventsTest {
 
     @Test
     void noSightComponentNoExposedEvent() {
-        PreviewSearch.RiskAt sees = new PreviewSearch.RiskAt() {
+        RiskAt sees = new RiskAt() {
             @Override public List<ThreatSnapshot.Threat> seeing(BlockPos c) { return List.of(skel(1)); }
             @Override public double nearestMob(BlockPos c) { return 1; }
             @Override public List<String> regions(BlockPos c) { return List.of(); }

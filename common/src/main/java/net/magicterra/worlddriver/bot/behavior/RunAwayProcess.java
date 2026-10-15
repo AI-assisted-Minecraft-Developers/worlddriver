@@ -10,7 +10,7 @@ import net.minecraft.core.BlockPos;
 
 import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 public final class RunAwayProcess implements BotProcess {
     private final BlockPos from;

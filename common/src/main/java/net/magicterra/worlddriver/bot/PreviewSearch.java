@@ -26,14 +26,13 @@ import net.magicterra.worlddriver.bot.rules.CostModifier;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.planning.ScopeSource;
 import net.magicterra.worlddriver.bot.rules.SearchAware;
-import net.magicterra.worlddriver.bot.planning.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
 import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
 import net.magicterra.worlddriver.bot.world.WorldView;
-import net.magicterra.worlddriver.bot.rules.constraints.ForbidRegion;
-import net.magicterra.worlddriver.bot.rules.constraints.MobCluster;
+import net.magicterra.worlddriver.bot.rules.ProfileRisk;
+import net.magicterra.worlddriver.bot.rules.RiskAt;
 import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
-import net.magicterra.worlddriver.bot.rules.modifiers.AvoidRegion;
 import net.minecraft.core.BlockPos;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
@@ -321,55 +320,6 @@ public final class PreviewSearch {
     }
 
     // ------------------------------------------------------------------ segments
-
-    /** What a cell's risk is made of; the preview asks the profile, a test asks a table. */
-    public interface RiskAt {
-        /** The observers seeing the cell, as (id, type). */
-        List<ThreatSnapshot.Threat> seeing(BlockPos cell);
-        /** Distance to the nearest mob of the mob condition; +∞ without one. */
-        double nearestMob(BlockPos cell);
-        /** The regions the cell is inside, as {@code avoid#1} / {@code forbid#2}. */
-        List<String> regions(BlockPos cell);
-    }
-
-    /** {@link RiskAt} over a profile's components: every {@link SightExposure} and
-     *  {@link MobCluster} in it, and the regions in declaration order. */
-    public static final class ProfileRisk implements RiskAt {
-        private final List<SightExposure> sight = new ArrayList<>();
-        private final List<MobCluster> mobs = new ArrayList<>();
-        private final List<Map.Entry<String, net.magicterra.worlddriver.bot.rules.Region>> regions = new ArrayList<>();
-
-        public ProfileRisk(SearchProfile profile) {
-            int avoid = 0, forbid = 0;
-            for (CostModifier m : profile.bias()) {
-                if (m instanceof SightExposure s) sight.add(s);
-                else if (m instanceof MobCluster c) mobs.add(c);
-                else if (m instanceof AvoidRegion a) regions.add(Map.entry("avoid#" + (++avoid), a.region()));
-            }
-            for (Constraint c : profile.constraints()) {
-                if (c instanceof SightExposure s && !sight.contains(s)) sight.add(s);
-                else if (c instanceof ForbidRegion f) regions.add(Map.entry("forbid#" + (++forbid), f.region()));
-            }
-        }
-
-        @Override public List<ThreatSnapshot.Threat> seeing(BlockPos cell) {
-            List<ThreatSnapshot.Threat> out = new ArrayList<>();
-            for (SightExposure s : sight) for (ThreatSnapshot.Threat t : s.seeing(cell)) if (!out.contains(t)) out.add(t);
-            return out;
-        }
-
-        @Override public double nearestMob(BlockPos cell) {
-            double best = Double.POSITIVE_INFINITY;
-            for (MobCluster m : mobs) best = Math.min(best, m.nearest(cell));
-            return best;
-        }
-
-        @Override public List<String> regions(BlockPos cell) {
-            List<String> out = new ArrayList<>();
-            for (var e : regions) if (e.getValue().contains(cell.getX() + 0.5, cell.getY(), cell.getZ() + 0.5)) out.add(e.getKey());
-            return out;
-        }
-    }
 
     /**
      * Cuts a route into segments where its risk changes: a new segment starts at the first cell

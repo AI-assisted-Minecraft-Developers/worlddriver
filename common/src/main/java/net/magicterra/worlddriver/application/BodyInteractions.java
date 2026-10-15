@@ -13,7 +13,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
 import net.magicterra.worlddriver.bot.BodyHost;
 import net.magicterra.worlddriver.game.body.Hands;
-import net.magicterra.worlddriver.game.BotUtil;
+import net.magicterra.worlddriver.game.body.BotUtil;
 import net.magicterra.worlddriver.game.body.HandVerbs;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.core.BlockPos;

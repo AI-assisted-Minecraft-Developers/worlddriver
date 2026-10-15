@@ -20,6 +20,7 @@ import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.Region;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
 import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
+import net.magicterra.worlddriver.bot.rules.SearchProfile;
 
 /**
  * The route conditions on a hand-made {@link SearchScope}: the count and the rejoin rule of

@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.bot;
+package net.magicterra.worlddriver.game.observe;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

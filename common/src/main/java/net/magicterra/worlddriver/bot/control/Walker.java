@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
 import net.magicterra.worlddriver.bot.planning.PathTraceHolder;
-import net.magicterra.worlddriver.bot.planning.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -27,7 +27,7 @@ import java.util.List;
 import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.control.PathSmoothing.*;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Locale;
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
@@ -1741,7 +1741,7 @@ public final class Walker {
                     if (!world.isPassable(new BlockPos(cx, y, cz))) { bottomless = false; break; }
                 }
                 if (!bottomless) continue;
-                hands.place(world, support);
+                hands.place(world::isSolid, support);
                 exAlarms.notePlace(support);
                 LOG.info("[walker] footing guard: placed support at {},{},{} (sole {} < {}, the column drops into the void)",
                         support.getX(), support.getY(), support.getZ(),
@@ -2384,7 +2384,7 @@ public final class Walker {
         boolean canPlug = BotConfig.allowPlace && !hands.breakHeld()
                 && (bottomless || constructionPlan || guardPlugFires >= GUARD_PLUG_ARM_FIRES);
         boolean held = canPlug && hands.holdPlaceable();
-        if (held) hands.place(world, strideCell.below());
+        if (held) hands.place(world::isSolid, strideCell.below());
         // place() has no return value, so read the WORLD for the outcome. A client-side place
         // may land a tick later — then the next scan finds floor and stops firing, which is the
         // same signal; what matters is that repeated fires on one cell now read "plug FAILED"

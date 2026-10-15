@@ -11,8 +11,10 @@ import java.util.Optional;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Segment;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
+import net.magicterra.worlddriver.bot.rules.ProfileRisk;
 import net.magicterra.worlddriver.bot.rules.Region;
-import net.magicterra.worlddriver.bot.planning.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.RiskAt;
+import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
 import net.magicterra.worlddriver.bot.rules.constraints.ForbidRegion;
 import net.magicterra.worlddriver.bot.rules.modifiers.AvoidRegion;
@@ -38,7 +40,7 @@ class PreviewSearchTest {
     }
 
     /** A table: cells 3..5 seen by skeleton 7, cells 8..9 in avoid#1, mob 2 blocks from cell 4. */
-    private static final PreviewSearch.RiskAt TABLE = new PreviewSearch.RiskAt() {
+    private static final RiskAt TABLE = new RiskAt() {
         @Override public List<ThreatSnapshot.Threat> seeing(BlockPos c) {
             return c.getX() >= 3 && c.getX() <= 5 ? List.of(skel(7)) : List.of();
         }
@@ -111,7 +113,7 @@ class PreviewSearchTest {
                 List.of(new AvoidRegion(new Region.Sphere(0.5, Y, 0.5, 2), 10), new AvoidRegion(new Region.Box(5, Y - 1, -1, 6, Y + 1, 1), 10)),
                 CapabilityProfile.ALL,
                 List.of(new ForbidRegion(new Region.Box(9, Y - 1, -1, 9, Y + 1, 1))));
-        PreviewSearch.ProfileRisk risk = new PreviewSearch.ProfileRisk(profile);
+        ProfileRisk risk = new ProfileRisk(profile);
         assertEquals(List.of("avoid#1"), risk.regions(new BlockPos(0, Y, 0)));
         assertEquals(List.of("avoid#2"), risk.regions(new BlockPos(5, Y, 0)));
         assertEquals(List.of("forbid#1"), risk.regions(new BlockPos(9, Y, 0)));

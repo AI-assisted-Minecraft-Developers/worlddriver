@@ -31,7 +31,7 @@ class AutoToolGateTest {
         ProcessScheduler sched = new ProcessScheduler();
         sched.register(bidding("bunker", Priorities.BUNKER));
         sched.tick(null, null, new BotState());
-        assertFalse(AutoTool.mayRun(null, sched), "the bunker reflex selects its own hotbar slots");
+        assertFalse(AutoTool.mayRun(null, sched.current() != null), "the bunker reflex selects its own hotbar slots");
     }
 
     @Test
@@ -39,6 +39,6 @@ class AutoToolGateTest {
         ProcessScheduler sched = new ProcessScheduler();
         sched.register(bidding("bunker", 0f));
         sched.tick(null, null, new BotState());
-        assertTrue(AutoTool.mayRun(null, sched));
+        assertTrue(AutoTool.mayRun(null, sched.current() != null));
     }
 }

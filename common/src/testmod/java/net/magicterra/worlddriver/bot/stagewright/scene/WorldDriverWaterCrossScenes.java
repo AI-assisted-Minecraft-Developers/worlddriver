@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
-import net.magicterra.worlddriver.bot.planning.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.rules.moves.Fall;
 import net.magicterra.worlddriver.bot.rules.moves.FallIntoWater;

@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.behavior.reflex;
 
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.game.body.ClientPlayerBody;
-import net.magicterra.worlddriver.game.BotUtil;
+import net.magicterra.worlddriver.game.body.BotUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;

@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot;
 import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.bot.world.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.bot.TimeSnap;
+import net.magicterra.worlddriver.game.observe.TimeSnap;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 import net.magicterra.worlddriver.game.ui.ClientChatLog;
 import net.minecraft.advancements.AdvancementHolder;

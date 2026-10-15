@@ -9,6 +9,7 @@ import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.BodyGeometry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.core.Direction;
@@ -18,7 +19,7 @@ import net.minecraft.world.phys.Vec3;
 import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.control.PathSmoothing.*;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.List;
 import java.util.Locale;
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
@@ -229,7 +230,8 @@ final class WalkerTickDrive {
      * asks the same question.
      */
     private static BlockPos pillarRecoverCeiling(Walker wk, LivingEntity p) {
-        List<BlockPos> ceiling = riseBlockers(p, wk.pillarRecover.cell.getY() + PILLAR_RISE - p.getY());
+        List<BlockPos> ceiling = BodyGeometry.riseBlockers(p,
+                wk.pillarRecover.cell.getY() + BodyGeometry.PILLAR_RISE - p.getY());
         return ceiling.isEmpty() ? null : ceiling.get(0);
     }
 

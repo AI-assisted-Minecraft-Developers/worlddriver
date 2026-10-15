@@ -29,7 +29,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.Optional;
 
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 /**
  * {@code mc.bot.holdItem}, {@code useItem} and {@code attackEntity} on this client's player: what the

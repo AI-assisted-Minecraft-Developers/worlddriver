@@ -33,7 +33,7 @@ import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.SceneOverlays;
-import net.magicterra.worlddriver.bot.ItemSnap;
+import net.magicterra.worlddriver.application.ItemSnap;
 import net.magicterra.worlddriver.bot.world.AsciiMapRenderer;
 import net.magicterra.worlddriver.bot.world.HazardCell;
 import net.magicterra.worlddriver.bot.world.HazardField;

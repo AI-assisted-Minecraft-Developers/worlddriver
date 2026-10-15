@@ -9,7 +9,7 @@ import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.PreviewSearch;
+import net.magicterra.worlddriver.bot.rules.RiskAt;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
 import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
@@ -25,7 +25,7 @@ import net.minecraft.core.BlockPos;
  * conditions raises nothing, as before. Debounced: one event per (type, culprit) within
  * {@link BotConfig#routeEventCooldownTicks}.
  *
- * <p>Pure on purpose: the process hands in the result, the goal, a {@link PreviewSearch.RiskAt}
+ * <p>Pure on purpose: the process hands in the result, the goal, a {@link RiskAt}
  * over its profile, and a supplier of the tax totals; the emitter is a seam so a test reads the
  * events off a list. The exposure summary of the previous plan lives here, and this object lives
  * on the intent — it dies with it.
@@ -77,7 +77,7 @@ public final class RouteEvents {
      * only called when a detour is being reported.
      */
     public void onSearch(PathFinder.Result res, Goal goal, BlockPos foot, int leg,
-                         PreviewSearch.RiskAt risk, Supplier<Map<String, Double>> taxes) {
+                         RiskAt risk, Supplier<Map<String, Double>> taxes) {
         if (res == null) return;
         blocked(res, foot, leg);
         detour(res, goal, foot, leg, taxes);
@@ -131,7 +131,7 @@ public final class RouteEvents {
         emitter.emit("route.detour", foot, data);
     }
 
-    private void exposed(PathFinder.Result res, BlockPos foot, int leg, PreviewSearch.RiskAt risk) {
+    private void exposed(PathFinder.Result res, BlockPos foot, int leg, RiskAt risk) {
         if (!hasSight || risk == null) return;
         // The route AND the current cell: a bot standing in sight while its route is clear is
         // exposed right now, and the previous plan's cells say nothing about where it stands.

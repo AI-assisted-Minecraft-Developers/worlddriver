@@ -8,7 +8,7 @@ import net.minecraft.world.phys.Vec3;
 
 import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 public final class ElytraController {
     /** Pitch fan searched each tick, MC sign (+ dives, − climbs). Spans hard

@@ -12,12 +12,13 @@ import net.magicterra.worlddriver.bot.behavior.BridgeProcess;
 import net.magicterra.worlddriver.bot.behavior.BuildProcess;
 import net.magicterra.worlddriver.bot.behavior.CombatProcess;
 import net.magicterra.worlddriver.bot.behavior.EntityLeash;
-import net.magicterra.worlddriver.bot.planning.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.behavior.FollowProcess;
 import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.magicterra.worlddriver.bot.behavior.LookProcess;
 import net.magicterra.worlddriver.bot.behavior.MineProcess;
+import net.magicterra.worlddriver.bot.world.LogWaiver;
 import net.magicterra.worlddriver.bot.behavior.RunAwayProcess;
 import net.magicterra.worlddriver.bot.behavior.Schematic;
 import net.magicterra.worlddriver.bot.behavior.TowerProcess;
@@ -2149,7 +2150,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
     /** The guard every scene here opens with. Returns true when the run must stop. */
     private static boolean waiverLeakedIn(SceneContext ctx, String scene) {
-        if (!MineProcess.miningALog()) return false;
+        if (!LogWaiver.active()) return false;
         ctx.fail(scene + ": the waiver was already on when the scene started; another scene leaked its owner. "
                 + "Any 'waiver on' reading in this run would not be caused by this scene and cannot count as evidence.");
         return true;
@@ -2179,10 +2180,10 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         int onTicks = 0;
         for (int t = 0; t < 600 && ServerAvatarManager.activeCount() > 0; t++) {
             ServerAvatarManager.tickAll();
-            if (MineProcess.miningALog()) onTicks++;
+            if (LogWaiver.active()) onTicks++;
         }
         boolean mined = !level.getBlockState(logPos).is(Blocks.OAK_LOG);
-        boolean stillOn = MineProcess.miningALog();
+        boolean stillOn = LogWaiver.active();
         ctx.record("gate.ticks with the waiver on", onTicks);
         ctx.record("gate.log mined", mined);
         ctx.record("gate.waiver still on after the order ended", stillOn);
@@ -2231,7 +2232,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         int onTicks = 0;
         for (int t = 0; t < 600 && ServerAvatarManager.activeCount() > 0; t++) {
             ServerAvatarManager.tickAll();
-            if (MineProcess.miningALog()) onTicks++;
+            if (LogWaiver.active()) onTicks++;
         }
         boolean stoneGone = !level.getBlockState(stonePos).is(Blocks.STONE);
         ctx.record("gate.ticks with the waiver on", onTicks);
@@ -2277,7 +2278,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         int armedAt = -1;
         for (int t = 0; t < 400 && ServerAvatarManager.activeCount() > 0 && !armed; t++) {
             ServerAvatarManager.tickAll();
-            if (MineProcess.miningALog()) { armed = true; armedAt = t; }
+            if (LogWaiver.active()) { armed = true; armedAt = t; }
         }
         ctx.record("gate.tick the waiver armed at", armedAt);
         if (!armed) {
@@ -2287,7 +2288,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         }
 
         driver.runProcess(new HoldStill(1));       // the production door: hand it a new order
-        boolean afterSupersede = MineProcess.miningALog();
+        boolean afterSupersede = LogWaiver.active();
         ctx.record("gate.waiver still on after supersede", afterSupersede);
         if (afterSupersede)
             ctx.fail("mineLogWaiverReleasedOnSupersede: the order was replaced but the waiver is still on; a mining order "

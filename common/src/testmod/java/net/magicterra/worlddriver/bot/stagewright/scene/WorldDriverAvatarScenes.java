@@ -340,7 +340,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
 
         // PLACE: hold a placeable + fill the empty cell against the floor face.
         av.holdPlaceable();
-        av.place(w, placeCell);
+        av.place(w::isSolid, placeCell);
         boolean placed = !level.getBlockState(placeCell).isAir();
 
         WorldDriverCommon.LOG.info("[wd.serverCapability] broke={} placed={}", broke, placed);

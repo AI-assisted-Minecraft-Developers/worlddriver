@@ -2,6 +2,8 @@ package net.magicterra.worlddriver.bot;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import net.magicterra.worlddriver.bot.planning.PathFinder;
+
 /**
  * Phase 2 registry: the server-tick driver of every active
  * {@link BodyDriver}. The platform calls {@link #tickAll()} once per
@@ -24,6 +26,10 @@ public final class ServerAvatarManager {
     private ServerAvatarManager() {}
 
     private static final CopyOnWriteArrayList<BodyDriver> ACTIVE = new CopyOnWriteArrayList<>();
+
+    // The server tick loads this class before any driver can search, so the planner's stall rows
+    // count drivers from the first one on.
+    static { PathFinder.driverCount = ServerAvatarManager::activeCount; }
 
     public static void register(BodyDriver d) { ACTIVE.addIfAbsent(d); }
     public static void unregister(BodyDriver d) { ACTIVE.remove(d); }

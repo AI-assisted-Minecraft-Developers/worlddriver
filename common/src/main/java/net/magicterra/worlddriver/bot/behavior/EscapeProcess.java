@@ -13,7 +13,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.FallingBlock;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
-import static net.magicterra.worlddriver.game.BotUtil.yawFor;
+import static net.magicterra.worlddriver.game.body.BotUtil.yawFor;
 
 /**
  * Block-less vertical pit / well escape — carve a staircase UP through the solid

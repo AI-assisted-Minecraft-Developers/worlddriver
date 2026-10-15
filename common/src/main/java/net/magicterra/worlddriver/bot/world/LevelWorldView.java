@@ -9,6 +9,7 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.magicterra.worlddriver.game.observe.BuildBlocks;
 
 /**
  * Live, mutable server {@link WorldView} over a {@link Level} (server-side),
@@ -166,7 +167,7 @@ public final class LevelWorldView implements StateWorldView {
         for (int slot = 0; slot < items.size(); slot++) {
             ItemStack stk = items.get(slot);
             if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) continue;
-            if (!BotConfig.isUsableBuildBlock(bi.getBlock())) continue;   // falling/thin/non-cube → no footing
+            if (!BuildBlocks.isUsableBuildBlock(bi.getBlock())) continue;   // falling/thin/non-cube → no footing
             n += stk.getCount();
         }
         return n;

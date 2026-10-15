@@ -162,7 +162,7 @@ public final class BunkerChain implements Chain {
         if (w.isSolid(ceiling)) { a.sealed = true; releaseKeys(); return; }
         if (ensureHoldingPlaceableAny(mc)) {
             aimAtBlockSnap(p, ceiling);
-            walkerPlace(mc, p, w, ceiling);
+            walkerPlace(mc, p, w::isSolid, ceiling);
         } else {
             // Nothing placeable (e.g. hand-mined stone dropped nothing). The deep
             // hole still buys time; stop churning and hold.

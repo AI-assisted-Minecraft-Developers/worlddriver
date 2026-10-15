@@ -7,6 +7,7 @@ import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Hands;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.world.LogWaiver;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -40,7 +41,7 @@ import java.util.Set;
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Deque;
 import java.util.ArrayDeque;
 
@@ -87,53 +88,8 @@ public final class MineProcess implements BotProcess {
     private Direction currentFace;
 
     /**
-     * Which MineProcess owns the trunk-tax waiver, or null when nobody is working a log.
-     *
-     * <p><b>Why this exists.</b> {@code pathfinderLogBreakTax} ships at 3.0 so A* stops chewing
-     * through forests it is merely PASSING, and that is correct everywhere except the one job whose
-     * whole purpose is to chew through a tree: reaching the fifth log of a trunk means breaking the
-     * four under it, and at 3× those paths price out. Measured on the ladder's wood rung, same seed,
-     * one variable: 13 logs / 2 914 ticks at 1.0 against 6 logs / 13 899 ticks at 3.0, with 49 rows
-     * of {@code [mine] no approach to stand} naming the mechanism. So the tax is waived for the walk
-     * that goes to fetch a log, and left at 3.0 for every walk that is merely travelling.
-     *
-     * <p><b>Do not grep for that string</b> — it no longer exists. The row that records this
-     * failure is {@link #retireTarget}'s unconditional {@code [mine] blacklist <pos> (<why>)}, and
-     * the {@code why} for it reads {@code made no progress toward stand … within …t (closest …
-     * blocks) — unreachable}. Counting a retired wording on a current run yields zero, which reads
-     * as "fixed" and means "the instrument was renamed".
-     *
-     * <p><b>Why an owner and not a boolean.</b> Clearing on any exit would let a winding-down
-     * instance wipe a live one's waiver: old instance's {@code finish()} can run after a new
-     * instance's first {@code aimAt}. One textual writer with two calling instances is still two
-     * authors. Only the owner may release.
-     *
-     * <p><b>Why {@link #onCancelled} overrides.</b> {@code BotProcess.onCancelled} is a no-op by
-     * default and this class did not override it, while {@code cancelAllProcesses("player-death")}
-     * and {@code ChainProcessLifecycle.drop} both end a process WITHOUT running any of the five
-     * assignment sites. Dying up a tree would otherwise leave the waiver set for the rest of the
-     * session — every subsequent journey silently priced at 1.0, which is the regression the tax
-     * was added to fix.
-     *
-     * <p><b>Where that call actually happens</b>, because grepping {@code BotApiImpl} for
-     * {@code onCancelled} returns nothing and reads as "it never gets called": the client funnel is
-     * {@code cancelAllProcesses → cancelCurrent → UserTaskChain.cancel}, and the call is on
-     * {@code UserTaskChain:47}. Starting a new order funnels there too — {@code setProcess} cancels
-     * the outgoing process with {@code "superseded"} before attaching the new one. The server rig's
-     * two entry points ({@code ServerWorldDriver.runProcess} / {@code mine}) did NOT, and were given
-     * the same door for this waiver's sake.
-     */
-    private static volatile MineProcess logWaiverOwner;
-
-    /** True while some MineProcess is working a goal whose target block IS a log — the trunk tax is
-     *  waived for exactly that stretch. Read by {@code ClientWorldView.breakCost}, which runs once
-     *  per candidate node inside the A* loop; that is why this answers from a stored boolean-ish
-     *  reference rather than resolving a BlockPos against the level. */
-    public static boolean miningALog() { return logWaiverOwner != null; }
-
-    /**
-     * The one place {@link #currentTarget} changes, so the waiver is DERIVED from the goal rather
-     * than latched beside it: aim at a non-log (or at nothing) and it lapses on the same line.
+     * The one place {@link #currentTarget} changes, so the {@link LogWaiver} is DERIVED from the goal
+     * rather than latched beside it: aim at a non-log (or at nothing) and it lapses on the same line.
      *
      * <p>That also gets the sub-goals right for free. The leaf-clearing and overburden sites aim at
      * a leaf or a covering block, not at a log, so the waiver correctly lifts for those stretches
@@ -142,15 +98,31 @@ public final class MineProcess implements BotProcess {
     private void aimAt(BlockPos target, Level lvl) {
         currentTarget = target;
         if (target != null && lvl != null && lvl.getBlockState(target).is(BlockTags.LOGS)) {
-            logWaiverOwner = this;
-        } else if (logWaiverOwner == this) {
-            logWaiverOwner = null;
+            LogWaiver.claim(this);
+        } else {
+            LogWaiver.release(this);
         }
     }
 
-    /** Release the waiver on the paths that never reach {@link #aimAt} — see {@link #logWaiverOwner}. */
+    /**
+     * Release the waiver on the paths that never reach {@link #aimAt}.
+     *
+     * <p>{@code BotProcess.onCancelled} is a no-op by default, while
+     * {@code cancelAllProcesses("player-death")} and {@code ChainProcessLifecycle.drop} both end a
+     * process WITHOUT running any of the five assignment sites. Dying up a tree would otherwise leave
+     * the waiver set for the rest of the session — every subsequent journey silently priced at 1.0,
+     * which is the regression the tax was added to fix.
+     *
+     * <p><b>Where this call actually happens</b>, because grepping {@code BotApiImpl} for
+     * {@code onCancelled} returns nothing and reads as "it never gets called": the client funnel is
+     * {@code cancelAllProcesses → cancelCurrent → UserTaskChain.cancel}, and the call is on
+     * {@code UserTaskChain:47}. Starting a new order funnels there too — {@code setProcess} cancels
+     * the outgoing process with {@code "superseded"} before attaching the new one. The server rig's
+     * two entry points ({@code ServerWorldDriver.runProcess} / {@code mine}) did NOT, and were given
+     * the same door for this waiver's sake.
+     */
     @Override public void onCancelled(String reason) {
-        if (logWaiverOwner == this) logWaiverOwner = null;
+        LogWaiver.release(this);
     }
     // True when currentTarget is a leaf being cleared to open access to a real
     // target (not itself a quota block) — see findClearingTarget.
@@ -1193,7 +1165,7 @@ public final class MineProcess implements BotProcess {
         return hit.getType() == HitResult.Type.BLOCK && hit.getBlockPos().equals(target);
     }
 
-    /** The shared stand test ({@link net.magicterra.worlddriver.game.BotUtil#canStandHereStatic})
+    /** The shared stand test ({@link net.magicterra.worlddriver.game.body.BotUtil#canStandHereStatic})
      *  plus one clause only mining needs. Written as "the shared answer AND …" on purpose: a digger's
      *  extra refusal must be visibly extra, or it reads as a second opinion about what standing is
      *  and the three processes drift apart. */

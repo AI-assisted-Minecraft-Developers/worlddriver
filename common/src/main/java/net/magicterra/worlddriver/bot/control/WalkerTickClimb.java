@@ -14,7 +14,7 @@ import net.minecraft.core.Direction;
 import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.control.PathSmoothing.*;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Locale;
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
@@ -167,7 +167,7 @@ final class WalkerTickClimb {
         }
         if (!fcSolid && fcSupport && fcCleared) {     // feet cleared the cell
             Walker.waterPillarPlaceCalls++;
-            wk.hands.place(world, fillCell);
+            wk.hands.place(world::isSolid, fillCell);
             // Remember THIS cell, overwriting any older attempt: an earlier cell that filled late
             // must not be allowed to pay for the one being clicked now.
             wk.waterClimb.placeAttemptCell = fillCell;
@@ -454,7 +454,7 @@ final class WalkerTickClimb {
                             LOG.info("[walker] climbout-place side foothold {},{},{} (one-deep water, bot afloat at y={})",
                                     side.getX(), side.getY(), side.getZ(), String.format("%.2f", p.getY()));
                         Walker.waterPillarPlaceCalls++;
-                        wk.hands.place(world, side);
+                        wk.hands.place(world::isSolid, side);
                         wk.waterClimb.placeAttemptCell = side;
                         wk.waterClimb.placedRungs.add(side);
                         wk.waterClimb.sideRung = true;
@@ -1369,7 +1369,7 @@ final class WalkerTickClimb {
                 // here is already a tick stale by the time the place lands. The margin is bought
                 // on purpose — see BotUtil#standingEye for the table of what each reach site pays.
                 if (eyeWithin(p, floor, PARKOUR_PLACE_REACH)) {
-                    wk.hands.place(world,floor);
+                    wk.hands.place(world::isSolid, floor);
                     if (BotConfig.walkerDebug)
                         LOG.info(
                                 "[walker] parkour-place floor={},{},{} y={} dy={} solid={}",
@@ -1490,7 +1490,7 @@ final class WalkerTickClimb {
                                 foot.getX(), foot.getY(), foot.getZ(), String.format(Locale.ROOT, "%.2f", p.getY()),
                                 wk.step, b.getX(), b.getY(), b.getZ(), p.onGround(), edge.move);
                     a.aimAtBlock(b);
-                    wk.hands.place(world,b);
+                    wk.hands.place(world::isSolid, b);
                     return Walker.Step.WALKING;
                 }
             }

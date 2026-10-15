@@ -16,7 +16,7 @@ import net.minecraft.world.phys.AABB;
 import java.util.Locale;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
-import static net.magicterra.worlddriver.game.BotUtil.yawFor;
+import static net.magicterra.worlddriver.game.body.BotUtil.yawFor;
 
 /**
  * Agent-invoked "dig three, fill one" bunker — a sand-SAFE emergency shelter. The Agent calls
@@ -394,7 +394,7 @@ public final class BunkerProcess implements BotProcess {
         }
         a.commandForward(0f);
         a.aimAtBlock(target);
-        hands.place(w, target);
+        hands.place(w::isSolid, target);
         acted = true;
         dbg("PLUG place target={} solidNow={} t={}", target, w.isSolid(target), actTicks);
         if (++plugTicks > BotConfig.breakTimeoutTicks) {

@@ -1,10 +1,9 @@
-package net.magicterra.worlddriver.bot.control;
+package net.magicterra.worlddriver.game.body;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
@@ -144,8 +143,8 @@ public final class BlastFooting {
      * Why this bot must not swing at {@code target} from where it is standing, or {@code null} to
      * go ahead.
      *
-     * <p>The footing is read with {@link WalkerGeometry#eachSoleCell} — the same row and the same
-     * cells {@link WalkerGeometry#soleOnSolid} sums and {@link WalkerGeometry#soleRow} prints, so
+     * <p>The footing is read with {@link BodyGeometry#eachSoleCell} — the same row and the same
+     * cells {@link BodyGeometry#soleOnSolid} sums and {@link BodyGeometry#soleRow} prints, so
      * this guard and every edge guard in the walker agree by construction about which block the
      * bot is standing on. The only predicate added on top is {@code isAir}, to skip cells that
      * hold nothing; the weakest remaining cell decides, because losing any one of them is losing
@@ -169,7 +168,7 @@ public final class BlastFooting {
         BlockPos[] weakest = new BlockPos[1];
         float[] weakestRes = { Float.MAX_VALUE };
         int[] solidCells = { 0 };
-        WalkerGeometry.eachSoleCell(p, (cell, area) -> {
+        BodyGeometry.eachSoleCell(p, (cell, area) -> {
             BlockState st = level.getBlockState(cell);
             if (st.isAir()) return;
             solidCells[0]++;
@@ -185,7 +184,7 @@ public final class BlastFooting {
             return head + String.format(Locale.ROOT,
                     "The row under the bot's feet, y=%d, is all air (the bot is not on the ground), so "
                     + "the explosion decides where it lands. Swing again once the bot is standing on "
-                    + "the ground.", WalkerGeometry.soleRowY(p));
+                    + "the ground.", BodyGeometry.soleRowY(p));
         }
         if (weakestRes[0] >= need) return null;
 

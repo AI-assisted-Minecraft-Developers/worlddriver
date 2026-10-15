@@ -1138,7 +1138,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * stays registered/un-finished for the whole 200-tick window. Phase 2: the stand
      * teleports 4 blocks PAST the goal; within the leash's 20-tick re-solve rate limit
      * {@link IntentProcess} notices the anchor moved &gt; 2 blocks, rebuilds the
-     * {@link net.magicterra.worlddriver.bot.planning.SearchProfile} centred on the NEW
+     * {@link net.magicterra.worlddriver.bot.rules.SearchProfile} centred on the NEW
      * anchor and force-repaths — now the true goal is inside the radius, so the bot
      * ARRIVES for real within 600 more ticks. Both assertions (phase1 held + not
      * finished, phase2 reached + finished+unregistered) are the legacy originals,

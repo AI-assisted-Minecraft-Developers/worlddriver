@@ -21,7 +21,7 @@ import net.magicterra.worlddriver.config.BotConfig;
  * differently from each other and from the executor:
  * <ul>
  *   <li>{@code ClientWorldView.hasPlaceableBlock} reads hotbar slots 0..8 and applies
- *       {@code BotConfig.isUsableBuildBlock}, which EXCLUDES falling blocks;</li>
+ *       {@code BuildBlocks.isUsableBuildBlock}, which EXCLUDES falling blocks;</li>
  *   <li>{@code LevelWorldView.placeableBlockCount} reads the whole inventory 0..35 with the same
  *       exclusion, and drops {@code BotConfig.allowPlace} altogether — see the note on it;</li>
  *   <li>the client executor — {@code ClientPlayerBody#holdPillarBlock} →

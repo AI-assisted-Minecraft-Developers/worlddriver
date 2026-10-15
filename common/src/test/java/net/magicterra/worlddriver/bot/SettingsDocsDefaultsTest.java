@@ -39,8 +39,7 @@ import net.magicterra.worlddriver.config.BotConfig;
  * last test left set. {@code COMPILED_DEFAULTS} is captured in a static block at the end of
  * BotConfig, before any {@code load()} — the same source {@link GameTestBaselineManifestTest}
  * reads, for the same reason. It also stores the SERIALIZED value, so a field initialised from
- * a symbolic constant ({@code pathfinderMaxNodes = PathFinder.DEFAULT_MAX_NODES}) is already
- * folded to {@code "100000"} and compares correctly.
+ * a symbolic constant is already folded to its value and compares correctly.
  *
  * <p><b>Why this test asserts about its own instrument.</b> Twice while it was being written,
  * the checker was believed complete and was not. The first pass matched only

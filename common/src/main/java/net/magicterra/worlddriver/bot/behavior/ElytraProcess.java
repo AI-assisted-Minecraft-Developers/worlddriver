@@ -21,7 +21,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Locale;
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import net.minecraft.world.effect.MobEffects;

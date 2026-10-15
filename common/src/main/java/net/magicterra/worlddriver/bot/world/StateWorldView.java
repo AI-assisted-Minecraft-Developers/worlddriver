@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.world;
 
 import net.magicterra.worlddriver.bot.world.WorldView;
-import net.magicterra.worlddriver.game.BotUtil;
+import net.magicterra.worlddriver.game.body.BotUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;

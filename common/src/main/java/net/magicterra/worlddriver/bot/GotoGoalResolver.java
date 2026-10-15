@@ -13,7 +13,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
 import static net.magicterra.worlddriver.bot.GoalResolver.*;
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 

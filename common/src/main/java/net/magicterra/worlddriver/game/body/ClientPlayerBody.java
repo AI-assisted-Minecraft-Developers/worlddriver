@@ -1,13 +1,9 @@
 package net.magicterra.worlddriver.game.body;
 
 import java.util.Optional;
+import java.util.function.Predicate;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.game.body.AvatarInput;
-import net.magicterra.worlddriver.game.body.ClientIntents;
-import net.magicterra.worlddriver.game.body.LookController;
-import net.magicterra.worlddriver.bot.world.WorldView;
-import net.magicterra.worlddriver.game.body.BotInteract;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -65,7 +61,7 @@ public final class ClientPlayerBody implements Body, Hands, Containers {
     @Override public BlockPos lookingAtBlock() {
         return mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult br ? br.getBlockPos() : null;
     }
-    @Override public void place(WorldView w, BlockPos cell) { BotInteract.walkerPlace(mc, p, w, cell); }
+    @Override public void place(Predicate<BlockPos> solid, BlockPos cell) { BotInteract.walkerPlace(mc, p, solid, cell); }
     @Override public void placeOn(BlockPos cell, Direction face) { BotInteract.clientUseItemOn(mc, p, cell, face); }
     @Override public void breakHold(boolean v) { ClientIntents.holdDig(v); }
     @Override public void attackEntityUnchecked(net.minecraft.world.entity.Entity target) {

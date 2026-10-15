@@ -18,7 +18,7 @@ import net.minecraft.world.entity.monster.RangedAttackMob;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.game.body.BotInteract.releaseKeys;
-import static net.magicterra.worlddriver.game.BotUtil.blockPosOf;
+import static net.magicterra.worlddriver.game.body.BotUtil.blockPosOf;
 
 /**
  * Survival reflex (ROADMAP Phase B): when {@link BotConfig#autoRetreat} is on and

@@ -5,13 +5,14 @@ import org.slf4j.LoggerFactory;
 
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.PreviewSearch;
+import net.magicterra.worlddriver.bot.rules.ProfileRisk;
+import net.magicterra.worlddriver.bot.rules.RiskAt;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
-import net.magicterra.worlddriver.bot.planning.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.rules.constraints.LeashHardRadius;
 import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
@@ -63,7 +64,7 @@ public final class IntentProcess implements BotProcess {
      *  judged once per finished deep search: {@link #searchesJudged} is the walker's count the
      *  last judgement saw. Dies with the intent, as the exposure memory it keeps should. */
     private final RouteEvents events;
-    private final PreviewSearch.RiskAt risk;
+    private final RiskAt risk;
     private int searchesJudged;
     private BlockPos lastAnchor;           // last solved anchor block (null = not yet solved)
     private int ticksSinceAnchorSolve;     // rate limiter
@@ -82,7 +83,7 @@ public final class IntentProcess implements BotProcess {
         boolean sight = intent.bias().stream().anyMatch(m -> m instanceof SightExposure)
                 || intent.constraints().stream().anyMatch(c -> c instanceof SightExposure);
         events = conditions ? new RouteEvents(intent.constraintNames(), true, sight, emitter) : null;
-        risk = sight ? new PreviewSearch.ProfileRisk(intent.searchProfile()) : null;
+        risk = sight ? new ProfileRisk(intent.searchProfile()) : null;
     }
 
     /** Judges the route events for a deep search the walker finished since the last tick. */

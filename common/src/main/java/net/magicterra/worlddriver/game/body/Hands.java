@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.game.body;
 
-import net.magicterra.worlddriver.bot.control.BlastFooting;
-import net.magicterra.worlddriver.bot.world.WorldView;
+import java.util.function.Predicate;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -73,8 +73,9 @@ public interface Hands {
     }
 
     // --- placing ---
-    /** Place a support block into {@code cell} (finds a solid neighbour face). */
-    void place(WorldView w, BlockPos cell);
+    /** Place a support block into {@code cell}, clicking a face of the first neighbour
+     *  {@code solid} accepts. */
+    void place(Predicate<BlockPos> solid, BlockPos cell);
     /** Place against the given face of {@code cell} directly. */
     void placeOn(BlockPos cell, Direction face);
     /** Right-click a block face to USE it (open a crafting table / furnace) — the raw

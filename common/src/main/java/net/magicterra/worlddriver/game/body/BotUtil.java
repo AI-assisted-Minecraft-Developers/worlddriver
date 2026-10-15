@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.game;
+package net.magicterra.worlddriver.game.body;
 
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.game.body.Body;
@@ -23,6 +23,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.Vec3;
 import net.magicterra.worlddriver.game.body.HandVerbs;
+import net.magicterra.worlddriver.game.ClientHop;
 
 /**
  * Stateless conversion / parsing / threading helpers shared across the bot

@@ -6,7 +6,7 @@ import java.util.function.Consumer;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.WalkerGeometry;
+import net.magicterra.worlddriver.game.body.BodyGeometry;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.behavior.Intent;
@@ -802,7 +802,7 @@ public final class JourneyShaft {
         // Collision shapes, not blocksMotion — same intent (swamp groundwater is not air and mining
         // it is a no-op, so an air test would spend the whole budget breaking water that was never
         // in the way), asked of the thing that actually stops a jump.
-        List<BlockPos> overhead = WalkerGeometry.pillarRiseBlockers(rig.player());
+        List<BlockPos> overhead = BodyGeometry.pillarRiseBlockers(rig.player());
         BlockPos ceiling = overhead.isEmpty() ? at.above(2) : overhead.get(0);
         rig.evidence(climbKey(step, ""), String.format("%d,%d,%d above=%s onGround=%s water=%s",
                 at.getX(), at.getY(), at.getZ(), overheadRow(lvl, overhead),

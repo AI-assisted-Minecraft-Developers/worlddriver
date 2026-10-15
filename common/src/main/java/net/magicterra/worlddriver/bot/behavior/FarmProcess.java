@@ -21,7 +21,7 @@ import java.util.Set;
 
 import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import net.minecraft.world.level.block.CropBlock;
 
 public final class FarmProcess implements BotProcess {

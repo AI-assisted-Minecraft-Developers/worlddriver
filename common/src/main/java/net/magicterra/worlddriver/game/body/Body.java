@@ -2,8 +2,8 @@ package net.magicterra.worlddriver.game.body;
 
 import java.util.Optional;
 
-import net.magicterra.worlddriver.bot.control.WalkerGeometry;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
@@ -95,7 +95,7 @@ public interface Body {
         double dx = wx - p.getX(), dz = wz - p.getZ();
         if (dx * dx + dz * dz < 1.0E-6) { commandMove(0f, 0f); return; }
         float bearing = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        double d = Math.toRadians(WalkerGeometry.angleDiff(p.getYRot(), bearing));
+        double d = Math.toRadians(Mth.degreesDifference(p.getYRot(), bearing));
         commandMove((float) (-Math.sin(d) * scale), (float) (Math.cos(d) * scale));
     }
     /** Exempt this tick's heading from the cosmetic camera slew (no-op server-side). */

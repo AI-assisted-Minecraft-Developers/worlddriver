@@ -23,6 +23,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.VineBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.magicterra.worlddriver.game.observe.BuildBlocks;
 
 /**
  * Dogfooded worlddriver scenes — <b>P4b wave 4, the WaterBank family</b>: the 11
@@ -695,11 +696,11 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each repath completes in one go
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         // Predicate-level guard for the root-cause fix: falling blocks stay rejected, mud accepted.
-        if (BotConfig.isUsableBuildBlock(Blocks.SAND))
+        if (BuildBlocks.isUsableBuildBlock(Blocks.SAND))
             ctx.fail("waterLowBank: isUsableBuildBlock: SAND (FallingBlock) must NOT be a usable foothold");
-        if (BotConfig.isUsableBuildBlock(Blocks.GRAVEL))
+        if (BuildBlocks.isUsableBuildBlock(Blocks.GRAVEL))
             ctx.fail("waterLowBank: isUsableBuildBlock: GRAVEL (FallingBlock) must NOT be a usable foothold");
-        if (!BotConfig.isUsableBuildBlock(Blocks.MUD))
+        if (!BuildBlocks.isUsableBuildBlock(Blocks.MUD))
             ctx.fail("waterLowBank: isUsableBuildBlock: MUD must be a usable foothold (standable, non-falling)");
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);

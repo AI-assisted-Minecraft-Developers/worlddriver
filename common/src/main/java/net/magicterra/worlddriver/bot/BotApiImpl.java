@@ -56,7 +56,7 @@ import net.magicterra.worlddriver.bot.arbitration.UserTaskChain;
 import static net.magicterra.worlddriver.bot.GoalResolver.*;
 import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Locale;
 import net.magicterra.worlddriver.bot.behavior.reflex.AutoEat;
 import net.magicterra.worlddriver.bot.behavior.reflex.AutoEquip;
@@ -817,7 +817,7 @@ public final class BotApiImpl implements BotApi {
         // manage hotbar themselves and would fight us. So this is essentially "swap
         // to best tool when the player is manually mining" (or scripted-attack via
         // input.click), the same scope as Baritone's autoTool.
-        if (BotConfig.autoTool && AutoTool.mayRun(c, scheduler)) {
+        if (BotConfig.autoTool && AutoTool.mayRun(c, scheduler.current() != null)) {
             AutoTool.tick(mc, mc.player);
         }
         // autoBackfill puts back only what the bot broke — every process's digs, taken here

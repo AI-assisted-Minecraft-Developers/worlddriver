@@ -68,7 +68,7 @@ public interface BotProcess {
      *
      *  <p><b>No process in this package flushes an archive here except {@code IntentProcess}.</b>
      *  It is not the only OVERRIDE — {@code MineProcess} overrides it too — but that one releases
-     *  the log-cost waiver ({@code logWaiverOwner}) and never touches its {@code Walker}, so a
+     *  the log-cost waiver ({@code LogWaiver}) and never touches its {@code Walker}, so a
      *  cancelled mine drops its path archive exactly like build/farm/follow do. Count the overrides
      *  with {@code grep -rn "void onCancelled"}, and read each method body before concluding it repaths:
      *  "overrides the hook" and "finalizes the walker" are two different questions, and this

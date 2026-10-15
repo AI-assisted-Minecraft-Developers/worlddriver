@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.bot.world;
 
-import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.world.CellRules;
 import net.magicterra.worlddriver.bot.world.HazardField;
@@ -29,7 +28,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
-import static net.magicterra.worlddriver.game.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -40,6 +39,7 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.effect.MobEffectInstance;
 import java.util.ArrayList;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.game.observe.BuildBlocks;
 
 /** Reads the live client {@link Level} for the pathfinder: passability, solidity,
  *  fluids, climbables, hazards and break-cost. Extracted from BotApiImpl. The cell predicates are
@@ -327,7 +327,7 @@ public final class ClientWorldView implements StateWorldView {
      *
      *  <p><b>This list said PillarUp too, and for PillarUp the reason is false.</b> A
      *  pillar sets its block on the solid rung the bot is standing on, so nothing
-     *  drops away — {@code BotConfig#isUsablePillarBlock} exists precisely to say so
+     *  drops away — {@code BuildBlocks#isUsablePillarBlock} exists precisely to say so
      *  ("that hazard does not exist for an in-place pillar") and accepts sand/gravel.
      *  Two separate things follow, and only the first is a real divergence:
      *  <ul>
@@ -354,7 +354,7 @@ public final class ClientWorldView implements StateWorldView {
         for (int slot = 0; slot < 9; slot++) {
             ItemStack stk = inv.items.get(slot);
             if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) continue;
-            if (!BotConfig.isUsableBuildBlock(bi.getBlock())) continue;   // falling/thin/non-cube → no footing
+            if (!BuildBlocks.isUsableBuildBlock(bi.getBlock())) continue;   // falling/thin/non-cube → no footing
             return true;
         }
         return false;
@@ -370,7 +370,7 @@ public final class ClientWorldView implements StateWorldView {
         for (int slot = 0; slot < 9; slot++) {
             ItemStack stk = inv.items.get(slot);
             if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) continue;
-            if (!BotConfig.isUsableBuildBlock(bi.getBlock())) continue;   // falling/thin/non-cube → no footing
+            if (!BuildBlocks.isUsableBuildBlock(bi.getBlock())) continue;   // falling/thin/non-cube → no footing
             n += stk.getCount();
         }
         return n;
