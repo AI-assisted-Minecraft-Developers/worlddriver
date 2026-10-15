@@ -1,17 +1,19 @@
 package net.magicterra.worlddriver.bot.world;
 
 import net.magicterra.worlddriver.config.WorldConfig;
-import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.observe.TimeSnap;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Per-tick derived-facts blackboard. Mutated ONLY on the client tick thread; each
+ * Per-tick derived-facts blackboard over one bot's body. Mutated ONLY on that bot's tick thread; each
  * {@link #update} publishes an immutable {@link Snapshot} to a volatile field for
  * off-thread readers (mc.client.scene). Makes NO decisions — pure derived facts.
  * See docs/design/perception-and-decision-layers.md.
@@ -24,9 +26,10 @@ public final class WorldModel {
     public Snapshot snapshot() { return snapshot; }
     public HazardField hazard() { return hazard; }
 
-    public void update(Minecraft mc, WorldView w, Object state) {
-        var p = mc.player;
-        if (p == null || mc.level == null) { snapshot = Snapshot.absent(); hazard = null; return; }
+    public void update(Body body, WorldView w) {
+        LivingEntity p = body == null ? null : body.entity();
+        if (p == null) { snapshot = Snapshot.absent(); hazard = null; return; }
+        Level level = p.level();
         tick++;
         BlockPos foot = p.blockPosition();
         int survivable = SurvivalMath.survivableFall(p.getHealth());
@@ -37,11 +40,13 @@ public final class WorldModel {
         }
         boolean cornered = SurvivalFacts.cornered(hazard);
         int lethal = SurvivalFacts.lethalCount(hazard);
-        long timeOfDay = TimeSnap.timeOfDay(mc.level.getDayTime());
+        long timeOfDay = TimeSnap.timeOfDay(level.getDayTime());
         String phase = dayPhase(timeOfDay);
-        boolean skyExposed = mc.level.canSeeSky(foot.above());
+        boolean skyExposed = level.canSeeSky(foot.above());
         boolean exposedAtNight = ("NIGHT".equals(phase) || "DUSK".equals(phase)) && skyExposed;
-        this.snapshot = new Snapshot(true, foot, p.getHealth(), p.getFoodData().getFoodLevel(),
+        // Only a player eats; any other body reads as the absent snapshot's 0.
+        int food = p instanceof Player pl ? pl.getFoodData().getFoodLevel() : 0;
+        this.snapshot = new Snapshot(true, foot, p.getHealth(), food,
                 phase, skyExposed, exposedAtNight, cornered, lethal, AsciiMapRenderer.rows(hazard));
     }
 

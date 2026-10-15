@@ -38,6 +38,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.magicterra.worlddriver.game.ui.ClientChatLog;
+import net.magicterra.worlddriver.game.ui.ClientScreen;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.ClientIntents;
 import net.magicterra.worlddriver.game.body.ClientPlayerBody;
@@ -365,7 +366,7 @@ public final class BotApiImpl implements BotApi {
 
     @Override public Map<String, Object> bodyRefusal() {
         return onClient(() -> {
-            Readiness.Refusal r = Readiness.refusal();
+            Readiness.Refusal r = Readiness.refusal(body(), ClientScreen.now());
             return r == null ? null : r.result();
         });
     }
@@ -745,7 +746,7 @@ public final class BotApiImpl implements BotApi {
         ClientPlayerBody body = new ClientPlayerBody(mc);
         // Update the perception blackboard every tick so mc.client.scene always
         // serves the freshest client-authoritative snapshot.
-        worldModel.update(mc, world, state);
+        worldModel.update(body, world);
         // A route preview in progress gets its thin slice here, beside whatever walks.
         preview.tick();
         // Rising-edge scene events: emit duskExposed / cornered once per

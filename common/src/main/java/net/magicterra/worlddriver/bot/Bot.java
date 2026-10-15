@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.bot;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
@@ -96,12 +95,8 @@ public interface Bot {
         return null;
     }
 
-    /** A refusal in the shape {@code Readiness.Refusal} gives, built without loading that client class. */
+    /** A refusal in the shape {@code Readiness.Refusal} gives. */
     static Map<String, Object> refuse(String reason, String error) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("ok", false);
-        m.put("error", error);
-        m.put("reason", reason);
-        return m;
+        return new Readiness.Refusal(reason, error).result();
     }
 }

@@ -3,12 +3,9 @@ package net.magicterra.worlddriver.bot.behavior;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.DeathScreen;
-import net.minecraft.client.gui.screens.LevelLoadingScreen;
-import net.minecraft.client.gui.screens.ReceivingLevelScreen;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.player.LocalPlayer;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.ui.ClientScreen;
+import net.minecraft.world.entity.LivingEntity;
 
 /**
  * Whether the client player can take an order right now, and the one failure every verb that
@@ -25,9 +22,9 @@ import net.minecraft.client.player.LocalPlayer;
  * what is wrong and what to do about it, {@code reason} is one of the fixed words in
  * {@link Reason} for a program to switch on.
  *
- * <p>{@link Facts} is a plain snapshot of the client so the decision is a pure function and a unit
- * test can walk every branch without a game; {@link #facts} reads the snapshot and is the only
- * thing here that touches {@link Minecraft} (client thread only).
+ * <p>{@link Facts} is a plain snapshot so the decision is a pure function and a unit test can walk
+ * every branch without a game; {@link #facts} builds it from the body and from the client window's
+ * own facts ({@link ClientScreen}).
  */
 public final class Readiness {
 
@@ -43,11 +40,9 @@ public final class Readiness {
         public static final String CHUNK_UNLOADED = "chunk_unloaded";
         /** The controlled entity lacks a capability the verb needs ({@code Equipment},
          *  {@code BlockInteraction}, {@code Menus}, ...). Stamped by the process itself on its slot's {@code lastError}, since the
-         *  controlled player is only known at tick time; a compile-time constant, so a server-side process naming it loads nothing
-         *  from this client-only class. */
+         *  controlled player is only known at tick time. */
         public static final String NO_HANDS = "no_hands";
-        /** A {@code body} param names no registered bot player. A compile-time constant for the same
-         *  reason as {@link #NO_HANDS}. */
+        /** A {@code body} param names no registered bot player. */
         public static final String UNKNOWN_BODY = "unknown_body";
         private Reason() { }
     }
@@ -108,23 +103,19 @@ public final class Readiness {
         return null;
     }
 
-    /** The client's snapshot. Client thread only: it reads {@link Minecraft} state directly. */
-    public static Facts facts() {
-        Minecraft mc = Minecraft.getInstance();
-        LocalPlayer p = mc.player;
-        Screen s = mc.screen;
-        String screen = s == null ? null : s.getClass().getSimpleName();
-        boolean loading = s instanceof ReceivingLevelScreen || s instanceof LevelLoadingScreen;
-        if (mc.level == null || p == null) {
-            return new Facts(mc.level != null, false, screen, loading, false, false, false, false);
+    /** The snapshot of {@code body} seen through the client window {@code ui}. */
+    public static Facts facts(Body body, ClientScreen ui) {
+        LivingEntity p = body == null ? null : body.entity();
+        if (!ui.worldOpen() || p == null) {
+            return new Facts(ui.worldOpen(), false, ui.name(), ui.loading(), false, false, false, false);
         }
-        boolean dead = p.isDeadOrDying() || p.getHealth() <= 0f || s instanceof DeathScreen;
-        return new Facts(true, true, screen, loading, mc.isPaused(), dead, p.isSleeping(),
-                mc.level.hasChunkAt(p.blockPosition()));
+        boolean dead = p.isDeadOrDying() || p.getHealth() <= 0f || ui.death();
+        return new Facts(true, true, ui.name(), ui.loading(), ui.paused(), dead, p.isSleeping(),
+                p.level().hasChunkAt(p.blockPosition()));
     }
 
-    /** {@link #judge} of {@link #facts}: the refusal to answer with, or null to go ahead. Client thread only. */
-    public static Refusal refusal() {
-        return judge(facts());
+    /** {@link #judge} of {@link #facts}: the refusal to answer with, or null to go ahead. */
+    public static Refusal refusal(Body body, ClientScreen ui) {
+        return judge(facts(body, ui));
     }
 }
