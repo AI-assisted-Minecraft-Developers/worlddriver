@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.config.GameConfig;
 /**
  * Client adapter around {@link MouseYieldGate}: samples the real ESC key / cursor state
  * and performs the grab/release the gate asks for. Driven once per client tick from
- * {@code BotApiImpl.clientTick}, before any of its early returns, so the cursor is
+ * {@code ClientBot.clientTick}, before any of its early returns, so the cursor is
  * handed back even on the ticks the bot bails early.
  *
  * <p><b>Why poll ESC instead of a keybind.</b> The mod ships no mixins, and a
@@ -22,7 +22,7 @@ import net.magicterra.worlddriver.config.GameConfig;
  * muscle memory, just with the yield latch cleared as well. Sampling is per client tick
  * (50 ms), well inside the {@value #ESC_DOUBLE_TAP_MS} ms window.
  *
- * <p>Client-only by construction — {@code BotApiImpl} is registered from the per-loader
+ * <p>Client-only by construction — {@code ClientBot} is registered from the per-loader
  * client bootstrap, so a dedicated server never loads this class.
  */
 public final class MouseYield {

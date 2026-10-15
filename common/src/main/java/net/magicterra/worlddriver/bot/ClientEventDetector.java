@@ -18,13 +18,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Driver→agent client-tick push-event detection. Extracted verbatim from
- * BotApiImpl; {@link BotApiImpl#clientTick()} calls into an instance of this per
- * tick. Owns the cross-tick edge-detection state so a one-shot event fires on
- * each transition rather than every tick. {@code detectDeath} takes a cancel
- * callback so the death edge can still cancel the impl's active processes.
+ * Driver→agent client-tick push-event detection. The client bot's tick ({@code ClientBot})
+ * calls into an instance of this per tick. Owns the cross-tick edge-detection state so a one-shot
+ * event fires on each transition rather than every tick. {@code detectDeath} takes a cancel
+ * callback so the death edge can still cancel the bot's active processes.
  */
-final class ClientEventDetector {
+public final class ClientEventDetector {
 
     // WorldModel rising-edge push: emit duskExposed/cornered once per false→true
     // transition so the Agent learns of these without polling mc.client.scene.
@@ -75,8 +74,8 @@ final class ClientEventDetector {
      *  false→true transition so the Agent learns of these without polling.
      *  Mirrors the fluid-entry (player.enteredWater/enteredLava) pattern:
      *  api.emitExternal → the same event stream all client-tick events use. */
-    void detectSceneEvents(WorldModel worldModel) {
-        var wmSnap = worldModel.snapshot();
+    public void detectSceneEvents(BotBrain brain) {
+        WorldModel.Snapshot wmSnap = brain.worldModel().snapshot();
         net.magicterra.worlddriver.api.game.DriverHost sceneApi = net.magicterra.worlddriver.WorldDriverCommon.host();
         if (wmSnap.present() && sceneApi != null) {
             net.minecraft.core.BlockPos scenePos = wmSnap.pos();
@@ -104,7 +103,7 @@ final class ClientEventDetector {
      *  SPECIFIC cause (combat-kill message). Also cancels active bot processes so
      *  an autoRespawn can't resume the lethal action into a death loop. Runs
      *  before autoRespawn so the screen — and its cause — is still readable. */
-    void detectDeath(Minecraft mc, Runnable onDeathCancel) {
+    public void detectDeath(Minecraft mc, Runnable onDeathCancel) {
         boolean onDeath = mc.screen instanceof net.minecraft.client.gui.screens.DeathScreen;
         if (onDeath && !evtDeathScreenSeen) {
             net.magicterra.worlddriver.api.game.DriverHost api = net.magicterra.worlddriver.WorldDriverCommon.host();
@@ -126,9 +125,10 @@ final class ClientEventDetector {
     /** Emit driver→agent push events for the local player's threat/hurt/death
      *  transitions. Called once per client tick after the threat scan refreshes.
      *  Everything funnels through {@code DriverHost.emitExternal} → the same event
-     *  stream block/chat/death use → subscribers on both transports. {@code threats} is the bot's
+     *  stream block/chat/death use → subscribers on both transports. Reads {@code brain}'s threat
      *  scan from this tick. */
-    void detectClientEvents(Minecraft mc, ThreatScanner.Scan threats) {
+    public void detectClientEvents(Minecraft mc, BotBrain brain) {
+        ThreatScanner.Scan threats = brain.threats();
         net.magicterra.worlddriver.api.game.DriverHost api = net.magicterra.worlddriver.WorldDriverCommon.host();
         if (api == null || mc.player == null) return;
         var pl = mc.player;
@@ -311,7 +311,7 @@ final class ClientEventDetector {
      *  {@code Gui} stashes in private fields, read via guarded reflection (a
      *  mapping shift silently no-ops, mirroring the advancement poll). The
      *  whole poll never breaks the tick. */
-    void detectClientMessages(Minecraft mc) {
+    public void detectClientMessages(Minecraft mc) {
         net.magicterra.worlddriver.api.game.DriverHost api = net.magicterra.worlddriver.WorldDriverCommon.host();
         net.minecraft.client.gui.Gui gui = mc.gui;
         if (api == null || gui == null) return;

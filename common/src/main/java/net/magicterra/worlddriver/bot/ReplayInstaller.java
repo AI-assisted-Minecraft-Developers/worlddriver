@@ -13,13 +13,12 @@ import java.util.List;
 import net.magicterra.worlddriver.bot.rules.Goal;
 
 /**
- * Installs replay runs for {@code mc.debug.replay}; the impl's public {@code startReplay} /
- * {@code startReplayReplan} delegate here. Client thread only. The caller has already done the server's
- * half — restored the block envelope and teleported the player — off every game thread, so this only
- * places the client player, arms capture and starts the driving process (through the impl's
- * package-private {@code startProcess}).
+ * Installs replay runs for {@code mc.debug.replay} on the client bot's brain. Client thread only. The
+ * caller has already done the server's half — restored the block envelope and teleported the player —
+ * off every game thread, so this only places the client player, arms capture and starts the driving
+ * process.
  */
-final class ReplayInstaller {
+public final class ReplayInstaller {
 
     private ReplayInstaller() {}
 
@@ -28,7 +27,7 @@ final class ReplayInstaller {
      * {@link ReplayProcess} that drives {@link Walker#beginReplay} so the wedge reproduces with no
      * re-planning. Throws when there is no player.
      */
-    static void startReplay(BotApiImpl bot, List<BlockPos> plan, List<Move.Edge> edges, BlockPos start, Goal endGoal,
+    public static void startReplay(BotBrain bot, List<BlockPos> plan, List<Move.Edge> edges, BlockPos start, Goal endGoal,
                             BlockPos startFoot, String archiveName) {
         LocalPlayer player = place(start);
         // Armed BEFORE the process is installed so its very first tick (which calls beginReplay) is captured.
@@ -42,7 +41,7 @@ final class ReplayInstaller {
      * A* re-derives it deterministically in the restored terrain, so emergent live behaviour (repaths,
      * execution wedges) reproduces. A normal path archive of the re-run is captured when pathArchive is on.
      */
-    static void startReplayReplan(BotApiImpl bot, BlockPos start, Goal goal) {
+    public static void startReplayReplan(BotBrain bot, BlockPos start, Goal goal) {
         place(start);
         bot.startProcess(new IntentProcess(new Intent(goal)));
     }

@@ -16,7 +16,7 @@ The bot is a stack. Each package may use the ones below it in this table, then `
 
 | Package | What it is |
 |---|---|
-| `bot/` | The facade: `BotApi` and its implementation, the verb orders, the status view, the addressable bots (`Bot`, `PlayerBot`, `BotRegistry`, `BotTicker`, `BotCommand`), the `mc.bot.setting` verb |
+| `bot/` | The facade: `BotApi`, `BotBrain` (one bot's decision stack; the client's `BotApi` is `application/client/ClientBot` around one), the verb orders, the status view, the addressable bots (`Bot`, `PlayerBot`, `BotRegistry`, `BotTicker`, `BotCommand`), the `mc.bot.setting` verb |
 | `bot/arbitration/` | Who gets the one movement channel: `ProcessScheduler`, `Chain`, `Priorities`, the chain implementations, `HeldProcess` |
 | `bot/behavior/` | One class per verb (`BotProcess` and its implementations), `Readiness`, and in `reflex/` the always-on ambient behaviours (eat, heal, shield, swim, tool, …) |
 | `bot/control/` | Executing a path: `Walker`, the `WalkerTick*` phases, aim and path smoothing, the clutch |
@@ -49,8 +49,9 @@ the bot layers, which come out when the server side gets the full decision stack
 ```
 mc.bot.<verb>
   └─ BotApi              facade — returns fast, work continues on the tick
-      └─ BotApiImpl      binds the chains, owns the scheduler
-          └─ ProcessScheduler   one movement channel, chains bid per tick
+      └─ ClientBot       the client's player: client-only work around one brain
+          └─ BotBrain    one bot's chains, reflexes, threat scan, world model, clutch
+              └─ ProcessScheduler   one movement channel, chains bid per tick
               └─ Chain          a policy: how badly it wants the channel this tick
                   └─ BotProcess one verb's behaviour, ticked
                       └─ Walker executes a path
@@ -86,7 +87,7 @@ This replaced a single `volatile BotProcess current` slot with a preempt-and-res
 a reflex chain can take the channel from a long-running user task and hand it back when
 the situation clears, firing the interrupted chain's `onInterrupt` and `onResume` across
 the switch. `Priorities` declares the bands and explains why each sits where it does; the
-ladder itself is the `scheduler.register(...)` block in `BotApiImpl`, with the bid written
+ladder itself is the `scheduler.register(...)` block in `BotBrain`, with the bid written
 beside each line. Read those two places rather than any prose summary — the foreground
 user task is not the bottom of the ladder, and at least one idle-only chain deliberately
 bids below it.
@@ -235,7 +236,7 @@ The `mc.bot.*` verbs that drive a bot take a `body` parameter; `equip`, `setting
 `waypoint` and `playbook` stay with the client. Anything other than `self` goes to
 `application/BodyRoutes`, which hops to the server thread and refuses in `Readiness` terms
 judged on the entity. A process verb's parameters are read by `bot/VerbOrders`, the same
-builder `BotApiImpl` uses for `self`, so the two cannot read one order differently. The hand
+builder `BotBrain` uses for `self`, so the two cannot read one order differently. The hand
 verbs are `application/BodyInteractions`, which does on the server what a client click's
 packets would have done there, reach check included. A server bot runs one process on the
 server tick with no scheduler, chains or reflexes; `self` keeps all three and is not yet a

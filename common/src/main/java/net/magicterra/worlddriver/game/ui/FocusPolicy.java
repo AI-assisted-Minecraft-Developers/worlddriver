@@ -31,7 +31,7 @@ import net.magicterra.worlddriver.config.GameConfig;
  * </ul>
  *
  * <p>Client-only: {@link Minecraft} is never loaded on a dedicated server, and this class is
- * only ever reached from {@code BotApiImpl.clientTick}.
+ * only ever reached from {@code ClientBot.clientTick}.
  */
 public final class FocusPolicy {
 

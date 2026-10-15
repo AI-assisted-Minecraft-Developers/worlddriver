@@ -13,8 +13,10 @@ import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.thread.GameThreads;
 import net.magicterra.worlddriver.debug.PathDebugBootstrap;
-import net.magicterra.worlddriver.bot.BotApiImpl;
+import net.magicterra.worlddriver.application.client.ClientBot;
+import net.magicterra.worlddriver.bot.BotBrain;
 import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.bot.world.ClientWorldView;
 import net.magicterra.worlddriver.game.ui.FocusPolicy;
 import net.magicterra.worlddriver.game.ui.MouseYieldHud;
 import net.magicterra.worlddriver.game.ui.ClientThread;
@@ -36,7 +38,7 @@ import net.magicterra.worlddriver.application.client.ClientHooks;
  * Architectury's {@code ClientChatEvent.RECEIVED} has no canceled variant.
  */
 public final class WorldDriverClientEvents {
-    private static volatile BotApiImpl bot;
+    private static volatile ClientBot bot;
 
     private WorldDriverClientEvents() {}
 
@@ -59,10 +61,14 @@ public final class WorldDriverClientEvents {
         else WorldDriverCommon.LOG.warn("[{}] driver not ready; mc.debug.* not registered", WorldDriverCommon.MOD_ID);
         // Looked up per event: a driver that failed to boot leaves api() null, and the bot still
         // drives without one, as it always has; only its events have nowhere to go.
-        BotApiImpl b = new BotApiImpl((type, pos, data) -> {
+        ClientWorldView world = new ClientWorldView();
+        BotBrain brain = new BotBrain((type, pos, data) -> {
             DriverHost api = WorldDriverCommon.host();
             if (api != null) api.emitExternal(type, pos, JsonValue.of(data));
-        });
+        }, () -> world);
+        // The world view applies the world model's lethal-cell penalty in its danger cost.
+        world.setWorldModel(brain.worldModel());
+        ClientBot b = new ClientBot(brain);
         BotHooks.register(b);
         bot = b;
         WorldDriverCommon.LOG.info("[{}] client api + bot registered", WorldDriverCommon.MOD_ID);
@@ -71,7 +77,7 @@ public final class WorldDriverClientEvents {
     /** Subscribes the client-side handlers; they tolerate running before {@link #install}. */
     public static void subscribe() {
         ClientTickEvent.CLIENT_POST.register(mc -> {
-            BotApiImpl b = bot;
+            ClientBot b = bot;
             if (b != null) b.clientTick();
             // Whatever asked for a tick boundary rather than the next render task — the release
             // half of mc.client.input.key's click, so far.
@@ -86,7 +92,7 @@ public final class WorldDriverClientEvents {
         // task into the next world. Marked before the chain drops it, so the ending is the cause.
         ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(player -> {
             ActionRegistry.GLOBAL.cancelScope(ActionHandle.Scope.CLIENT, Responses.CancelReason.CONNECTION_CLOSED);
-            BotApiImpl b = bot;
+            ClientBot b = bot;
             if (b != null) b.onDisconnect();
         });
         // "Bot is driving" badge — the visible half of the mouse-yield handshake

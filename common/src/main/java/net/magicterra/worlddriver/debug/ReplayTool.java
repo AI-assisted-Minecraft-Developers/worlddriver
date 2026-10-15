@@ -14,8 +14,9 @@ import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ReplayReply;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.Replanned;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.Replayed;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import net.magicterra.worlddriver.bot.BotApiImpl;
+import net.magicterra.worlddriver.application.client.ClientBot;
 import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.bot.ReplayInstaller;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.minecraft.core.BlockPos;
@@ -53,7 +54,7 @@ final class ReplayTool {
 
     static CompletionStage<ReplayReply> replay(ApiRegistry api, ReplayParams p, CallContext ctx) {
         ctx.requireBlockingAllowed("mc.debug.replay");
-        if (!(BotHooks.impl() instanceof BotApiImpl bot)) {
+        if (!(BotHooks.impl() instanceof ClientBot bot)) {
             throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "replay drives this client's player, and there is none");
         }
         Path archivePath = p.file().map(REPLAY_DIR::resolve).orElseGet(ReplayTool::newestPlanArchive);
@@ -106,7 +107,7 @@ final class ReplayTool {
             BlockPos start = new BlockPos(hs[0], hs[1], hs[2]);
             int restored = prepare(api, cells, start, ctx);
             return bot.clientHop().submit(() -> {
-                bot.startReplayReplan(start, goal);
+                ReplayInstaller.startReplayReplan(bot.brain(), start, goal);
                 return new Replanned(file, goal.toString(), a.envelope().size(), restored, fidelity);
             }, ctx);
         }
@@ -141,7 +142,7 @@ final class ReplayTool {
         Goal endGoal = new Goal.Block(plan.get(plan.size() - 1));
         int restored = prepare(api, cells, start, ctx);
         return bot.clientHop().submit(() -> {
-            bot.startReplay(plan, edges, start, endGoal, startFoot, file);
+            ReplayInstaller.startReplay(bot.brain(), plan, edges, start, endGoal, startFoot, file);
             return new Replayed(file, a.segments().size(), plan.size(), restored, fidelity);
         }, ctx);
     }

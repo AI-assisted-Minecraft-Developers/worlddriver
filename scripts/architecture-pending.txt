@@ -1,9 +1,7 @@
 # Layer violations below the api still to be fixed; see scripts/check_architecture.py.
-bot/BotApiImpl.java	net.minecraft.client
 bot/ClientEventDetector.java	(root) WorldDriverCommon
 bot/ClientEventDetector.java	net.minecraft.client
 bot/InteractionCommands.java	net.minecraft.client
 bot/ReplayInstaller.java	net.minecraft.client
-bot/behavior/reflex/AutoRespawn.java	net.minecraft.client
 bot/control/WalkerExpectAlarms.java	net.minecraft.client
 bot/world/ClientWorldView.java	net.minecraft.client

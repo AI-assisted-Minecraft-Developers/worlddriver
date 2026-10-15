@@ -46,7 +46,7 @@ public final class UserTaskChain implements Chain {
     }
 
     /** Start a process, superseding any current one. Mirrors the old
-     *  {@code BotApiImpl.startProcess}. */
+     *  {@code BotApiImpl.startProcess}, now {@code BotBrain.startProcess}. */
     public void setProcess(BotProcess next) {
         install(next, true, null);
     }

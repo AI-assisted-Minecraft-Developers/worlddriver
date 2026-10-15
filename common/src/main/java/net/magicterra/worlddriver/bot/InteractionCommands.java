@@ -36,12 +36,12 @@ import static net.magicterra.worlddriver.game.body.BotUtil.*;
  * {@code mc.bot.holdItem}, {@code useItem} and {@code attackEntity} on this client's player: what the
  * mouse buttons send. Called on the client thread with a player present.
  */
-final class InteractionCommands {
+public final class InteractionCommands {
 
     private InteractionCommands() {}
 
     /** The same rule as any other body's hands; the method has already refused an unregistered id. */
-    static ImmediateResponse holdItem(InteractContracts.HoldParams params) {
+    public static ImmediateResponse holdItem(InteractContracts.HoldParams params) {
         Minecraft mc = Minecraft.getInstance();
         Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, params.item()).orElseThrow();
         return new ClientPlayerBody(mc).holdItemOrEmptyHand(item)
@@ -49,7 +49,7 @@ final class InteractionCommands {
                 : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, Equipment.cannotHold(item, params.body()));
     }
 
-    static ImmediateResponse useItem(InteractContracts.UseParams p) {
+    public static ImmediateResponse useItem(InteractContracts.UseParams p) {
         if (p.entityId().isPresent()) return useOnEntity(p, p.entityId().get());
         if (p.pos().isPresent()) return useOnBlock(p, p.pos().get());
         Minecraft mc = Minecraft.getInstance();
@@ -105,7 +105,7 @@ final class InteractionCommands {
     }
 
     /** {@code on} with the vehicle and the screen the player has now. */
-    static OnEntity afterUse(OnEntity on) {
+    public static OnEntity afterUse(OnEntity on) {
         Minecraft mc = Minecraft.getInstance();
         Entity vehicle = mc.player == null ? null : mc.player.getVehicle();
         return new OnEntity(on.entityId(), on.type(), on.distance(),
@@ -114,7 +114,7 @@ final class InteractionCommands {
                 Optional.empty());
     }
 
-    static ImmediateResponse attackEntity(InteractContracts.AttackParams p) {
+    public static ImmediateResponse attackEntity(InteractContracts.AttackParams p) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
         Entity target = mc.level.getEntity(p.entityId());

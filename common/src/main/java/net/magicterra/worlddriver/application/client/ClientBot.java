@@ -1,9 +1,15 @@
-package net.magicterra.worlddriver.bot;
+package net.magicterra.worlddriver.application.client;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.api.game.Positions.blockPos;
-import net.magicterra.worlddriver.bot.behavior.RouteEvents;
 import net.magicterra.worlddriver.api.game.HandWords;
+import net.magicterra.worlddriver.bot.BotApi;
+import net.magicterra.worlddriver.bot.BotBrain;
+import net.magicterra.worlddriver.bot.BotRegistry;
+import net.magicterra.worlddriver.bot.ClientEventDetector;
+import net.magicterra.worlddriver.bot.GotoOrders;
+import net.magicterra.worlddriver.bot.InteractionCommands;
+import net.magicterra.worlddriver.bot.WorldReadings;
 import net.magicterra.worlddriver.game.body.HandVerbs;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
@@ -15,7 +21,6 @@ import net.magicterra.worlddriver.api.methods.interact.InteractContracts;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.test.TestInputContracts;
-import net.magicterra.worlddriver.bot.rules.Move;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.client.KeyMapping;
@@ -39,11 +44,8 @@ import net.magicterra.worlddriver.game.body.ClientPlayerBody;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
-import net.magicterra.worlddriver.bot.behavior.reflex.AutoRespawn;
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.bot.world.ClientWorldView;
 import net.magicterra.worlddriver.game.ui.FocusPolicy;
-import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.ui.MouseYield;
 
 /**
@@ -53,24 +55,22 @@ import net.magicterra.worlddriver.game.ui.MouseYield;
  * the {@code mc.bot.*} and test verbs that read the client directly.
  *
  * Threading: every {@code mc.bot.*} call marshals to the client thread via
- * {@link #onClient}; {@link #clientTick} runs on it already.
+ * {@code onClient}; {@link #clientTick} runs on it already.
  */
-public final class BotApiImpl implements BotApi {
+public final class ClientBot implements BotApi {
 
     private final BotBrain brain;
-    private final ClientWorldView world = new ClientWorldView();
     /** Consecutive ticks a stray container screen has been blocking input while a
      *  movement process is live — the gap #58 screen-watchdog counter. */
     private int screenBlockTicks = 0;
-    private final RouteEvents.Emitter eventEmitter;
 
-    public BotApiImpl(RouteEvents.Emitter eventEmitter) {
-        this.eventEmitter = eventEmitter;
-        this.brain = new BotBrain(eventEmitter, () -> world);
-        // Wire the WorldModel into the ClientWorldView so dangerCost can apply the
-        // HazardField lethal-cell penalty.
-        world.setWorldModel(brain.worldModel());
+    /** {@code brain} plans over the client's world view; the wiring builds both. */
+    public ClientBot(BotBrain brain) {
+        this.brain = brain;
     }
+
+    /** The brain, for the debug tools that install processes on it directly. */
+    public BotBrain brain() { return brain; }
 
     @Override public ClientScene scene() { return brain.scene(); }
     @Override public net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Threats threats(int radius) {
@@ -83,7 +83,7 @@ public final class BotApiImpl implements BotApi {
 
     /**
      * The nearest entity of {@code typeId} this client has loaded, for {@code goto entity:}. It reads
-     * the client's render list, so it lives here and not in {@link GotoGoalResolver}, which a
+     * the client's render list, so it lives here and not in the goto resolver, which a
      * server-side bot runs too.
      */
     private static Entity nearestRenderedEntity(LocalPlayer self, String typeId) {
@@ -112,24 +112,6 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Responses.Scored scoreGoto(GotoContracts.Params p) {
         return brain.scoreGoto(p, Minecraft.getInstance().player);
-    }
-
-    /**
-     * Walk a stored plan from {@code start} with no re-planning ({@code mc.debug.replay}, replan false). The
-     * caller has restored the terrain and teleported the player. Client thread only; logic in
-     * {@link ReplayInstaller}.
-     */
-    public void startReplay(List<BlockPos> plan, List<Move.Edge> edges, BlockPos start, Goal endGoal,
-                            BlockPos startFoot, String archiveName) {
-        ReplayInstaller.startReplay(this, plan, edges, start, endGoal, startFoot, archiveName);
-    }
-
-    /**
-     * Re-issue a recorded goal from {@code start} with normal planning ({@code mc.debug.replay}, the
-     * default). The caller has restored the terrain and teleported the player. Client thread only.
-     */
-    public void startReplayReplan(BlockPos start, Goal goal) {
-        ReplayInstaller.startReplayReplan(this, start, goal);
     }
 
     @Override
@@ -371,7 +353,7 @@ public final class BotApiImpl implements BotApi {
         // false→true transition so the Agent learns of these without polling.
         // Mirrors the fluid-entry (player.enteredWater/enteredLava) pattern:
         // api.emitExternal → the same event stream all client-tick events use.
-        eventDetector.detectSceneEvents(brain.worldModel());
+        eventDetector.detectSceneEvents(brain);
         // The clutch owns the whole tick when it fires (look-down + place + return), so
         // it is a bot drive in its own right — mark it for the mouse gate, which no
         // process slot would report (the clutch is slot-less by design).
@@ -390,7 +372,7 @@ public final class BotApiImpl implements BotApi {
                 String type = mc.screen.getClass().getSimpleName();
                 mc.player.closeContainer();
                 mc.setScreen(null);
-                eventEmitter.emit("screen.autoClosed", mc.player.blockPosition(), java.util.Map.of(
+                brain.emit("screen.autoClosed", mc.player.blockPosition(), java.util.Map.of(
                                 "screen", type, "blockedTicks", (double) screenBlockTicks));
                 LOG.warn(
                         "[screenWatchdog] closed stray {} after {} blocked ticks", type, screenBlockTicks);
@@ -403,7 +385,7 @@ public final class BotApiImpl implements BotApi {
         // Driver→agent push: emit one-shot events on threat-appeared / player-hurt
         // / player-death transitions (client-sensed; no server-side equivalent for
         // threats, and this is the player the agent actually controls).
-        eventDetector.detectClientEvents(mc, brain.threats());
+        eventDetector.detectClientEvents(mc, brain);
         // Driver→agent push: surface new chat / system / command-result lines
         // (packet-level ClientChatLog drain) and action-bar / title text (guarded
         // reflection) — no server-side hook in client-MCP mode. Both paths are
@@ -418,13 +400,7 @@ public final class BotApiImpl implements BotApi {
         net.magicterra.worlddriver.game.body.LookController.apply(mc.player);
     }
 
-    /** Start a foreground user task. Package-private so extracted command/installer classes in this
-     *  package (e.g. {@link ReplayInstaller}, {@link InteractionCommands}) can start tasks. */
-    void startProcess(BotProcess next) {
-        brain.startProcess(next);
-    }
-
-    /** {@link #startProcess} for an accepted action, which the user task chain ends with the process. Client thread only. */
+    /** Start a foreground user task for an accepted action, which the user task chain ends with the process. Client thread only. */
     @Override public void startAction(BotProcess next, ActionHandle action) {
         brain.startAction(next, action);
     }

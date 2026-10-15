@@ -9,7 +9,7 @@ that interface read a real level:
 
 | View | Used by | Player |
 |---|---|---|
-| `bot/world/ClientWorldView` | `BotApiImpl` on a shipping client, and `PlanProbeTool` | the real player, a `LocalPlayer` |
+| `bot/world/ClientWorldView` | the client bot's `BotBrain` on a shipping client, and `PlanProbeTool` | the real player, a `LocalPlayer` |
 | `bot/world/LevelWorldView` | `PlayerBot`, the `wd.*` scenes, the journey harness | a server-side player |
 | `bot/world/ServerWorldView` | `mc.observe.scene` and `WalkerGeometry`'s read-only probes | none |
 
