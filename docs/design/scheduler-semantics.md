@@ -10,7 +10,7 @@ it; and an emergency needs to take the bot away from whatever was driving it and
 afterwards.
 
 There was one piece of the answer already in the tree and it turned out to be the right piece.
-The ambient behaviours under `bot/auto/` — eat, tool, respawn, swim — already ran concurrently
+The ambient behaviours under `bot/behavior/reflex/` — eat, tool, respawn, swim — already ran concurrently
 with the foreground process, gated by *channel ownership*: automatic eating only runs when no
 process is holding the use key. And the water-bucket fall catch was already an unconditional
 early return at the top of the tick, which is a preemption with no name.
@@ -130,14 +130,14 @@ with a setting, not cancelled, because they have no episode to cancel.
 
 ## Where to look
 
-- `bot/scheduler/ProcessScheduler.java` — the bid, the hysteresis, the bail cooldown, and the interrupt
+- `bot/arbitration/ProcessScheduler.java` — the bid, the hysteresis, the bail cooldown, and the interrupt
   and resume calls. Its JVM test, `ProcessSchedulerTest`, drives it with fake chains.
-- `bot/scheduler/Priorities.java` — the bands, each with the reason for its position.
-- `bot/scheduler/Chain.java` — the interface, including the episode-cancellation seam.
-- `bot/scheduler/CancelRouting.java` — where a cancel is turned into the right chain's clear.
-- `bot/scheduler/UserTaskChain.java` — the foreground slot and the forced replan on resume.
-- `bot/auto/` — the ambient behaviours and their channel gating.
-- `bot/movement/Walker.java` — the exit classification and the terminal report.
+- `bot/arbitration/Priorities.java` — the bands, each with the reason for its position.
+- `bot/arbitration/Chain.java` — the interface, including the episode-cancellation seam.
+- `bot/arbitration/CancelRouting.java` — where a cancel is turned into the right chain's clear.
+- `bot/arbitration/UserTaskChain.java` — the foreground slot and the forced replan on resume.
+- `bot/behavior/reflex/` — the ambient behaviours and their channel gating.
+- `bot/control/Walker.java` — the exit classification and the terminal report.
 
 The scenes are in `WorldDriverSchedulerScenes`; the two that matter most are the terminal-report matrix
 and the retreat-gate matrix, both of which run headless.

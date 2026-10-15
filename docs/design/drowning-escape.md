@@ -9,7 +9,7 @@ channel with the process and the process's own per-tick steering suppressed it.
 
 So the fix had to be a scheduling one: drowning under an active process must preempt the
 movement channel outright, the way the bunker, retreat and panic reflexes do. That is
-`bot/scheduler/DrownEscapeChain`.
+`bot/arbitration/DrownEscapeChain`.
 
 Everything after that is arithmetic. Once the reflex holds the channel it has a fixed budget,
 and every choice it makes has to fit inside it.
@@ -48,7 +48,7 @@ It stays at 100.
 
 ## The decision layer
 
-Entry and release live in `bot/auto/DrownEscapeGate`, a pure function with no client types,
+Entry and release live in `bot/behavior/reflex/DrownEscapeGate`, a pure function with no client types,
 so it can be exercised as a headless matrix. The latch arms when the bot is underwater and
 air has fallen to `drownEscapeAirThreshold` (100), which is well below the idle float's 240 so
 a deliberate dive is not preempted. It releases on wide hysteresis: air back above
@@ -173,11 +173,11 @@ the hypothesis is settled it should be promoted in the same change, or it become
 
 ## Where to look
 
-- `bot/scheduler/DrownEscapeChain.java` — both arms, the recentre, and the stand-up-to-dig release.
-- `bot/auto/DrownEscapeGate.java` — the pure latch, and the only part a dedicated server exercises.
-- `bot/util/BotInteract.java` — `riseBlockedCell`, `drownVerticalRow`, `continueDestroy`.
-- `bot/BotConfig.java` — `autoDrownEscape`, `drownEscapeAirThreshold`, `drownEscapeReleaseAir`.
-- `bot/scheduler/Priorities.java` — where 500 sits relative to the other reflexes.
+- `bot/arbitration/DrownEscapeChain.java` — both arms, the recentre, and the stand-up-to-dig release.
+- `bot/behavior/reflex/DrownEscapeGate.java` — the pure latch, and the only part a dedicated server exercises.
+- `game/body/BotInteract.java` — `riseBlockedCell`, `drownVerticalRow`, `continueDestroy`.
+- `config/BotConfig.java` — `autoDrownEscape`, `drownEscapeAirThreshold`, `drownEscapeReleaseAir`.
+- `bot/arbitration/Priorities.java` — where 500 sits relative to the other reflexes.
 
 The scenes are `wd.drownEscapeGateMatrix`, `wd.drownEscapePreempt` and `wd.drownEscapeSurface` for the
 decision layer, which run anywhere, and the five `wd.drownEscapeClient*` scenes for the execution

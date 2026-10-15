@@ -196,13 +196,13 @@ bot passes its goal. An earlier version cleared on that, and a 929-tick orbit in
 
 ## Where to look
 
-- `bot/pathfinder/moves/SurfaceClimbOut.java` — the exit edge and its three legal shapes.
-- `bot/pathfinder/WorldView.java` — `surfaceWaterNodes()` and `diveSearch()`.
-- `bot/movement/WalkerTickDrive.java` — the cruise state machine; its constants are in
-  `bot/movement/WalkerConstants.java`.
-- `bot/movement/WalkerTickClimb.java` — `pillarTakeoverTick`, the executor half of the exit.
-- `bot/movement/WalkerTickAim.java` — the orbit break.
-- `bot/BotConfig.java` — `pathfinderSurfaceWaterNodes`, `walkerSurfaceSprintSwim`,
+- `bot/rules/moves/SurfaceClimbOut.java` — the exit edge and its three legal shapes.
+- `bot/world/WorldView.java` — `surfaceWaterNodes()` and `diveSearch()`.
+- `bot/control/WalkerTickDrive.java` — the cruise state machine; its constants are in
+  `bot/control/WalkerConstants.java`.
+- `bot/control/WalkerTickClimb.java` — `pillarTakeoverTick`, the executor half of the exit.
+- `bot/control/WalkerTickAim.java` — the orbit break.
+- `config/BotConfig.java` — `pathfinderSurfaceWaterNodes`, `walkerSurfaceSprintSwim`,
   `pathfinderDeepWaterPriced`, `waterDangerPenalty`, `walkerOrbitBreaksAimLag`.
 
 The scenes that hold this behaviour are the `wd.client*` water family; `wd.clientOpenWaterCross`

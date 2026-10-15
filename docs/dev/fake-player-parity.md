@@ -17,7 +17,7 @@ it is worse than a missing row, because it is believed.
 ## The bots
 
 Everything the walker and the per-verb processes actuate goes through
-[`Body`](../../common/src/main/java/net/magicterra/worlddriver/bot/body/Body.java), which
+[`Body`](../../common/src/main/java/net/magicterra/worlddriver/game/body/Body.java), which
 exposes locomotion and the look. What only a bot with an inventory has is behind two
 optionals, `Body.hands()` and `Body.containers()`; a process that needs either asks at the
 top of its tick and refuses the order with `no_hands` when it is absent.
@@ -29,9 +29,9 @@ enough to count separately. Class paths below are relative to
 
 | Bot | Class | Underlying entity | In `level.players()` |
 |---|---|---|---|
-| Client player | `bot/body/ClientPlayerBody.java` | the client's own `LocalPlayer` | yes, as the person's player |
-| Joined player | `bot/sim/ServerPlayerBody.java` over `bot/sim/JoinedPlayerBodies.JoinedBody` | a `ServerPlayer` the server joined to itself | yes |
-| Adopted player | `bot/sim/ServerPlayerBody.java` over a client's own `ServerPlayer` | the server-side half of a connected player | yes |
+| Client player | `game/body/ClientPlayerBody.java` | the client's own `LocalPlayer` | yes, as the person's player |
+| Joined player | `game/body/ServerPlayerBody.java` over `game/body/JoinedPlayerBodies.JoinedBody` | a `ServerPlayer` the server joined to itself | yes |
+| Adopted player | `game/body/ServerPlayerBody.java` over a client's own `ServerPlayer` | the server-side half of a connected player | yes |
 | Mob | `bot/stagewright/LivingBody.java` (test sources) | a `DrivenPiglin`, a mob | no — it is not a player |
 
 **The client player** writes the player's own `AvatarInput` rather than the shared

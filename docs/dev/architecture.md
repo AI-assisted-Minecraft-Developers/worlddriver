@@ -150,7 +150,7 @@ runs out, and a task found abandoned is skipped. The waiter that wins throws
 **Reads hop as well as writes.** There is no family of snapshot helpers that lets another
 thread read the level directly; anything touching live level state goes through
 `onServerThread`. Measured by call site, the classes that hop are `DriverApplication` itself,
-`ActionService`, `ObserveService`, `WorldService`, `RecipeService`, `BodyRoutes`, and `bot/util/BotUtil`.
+`ActionService`, `ObserveService`, `WorldService`, `RecipeService`, `BodyRoutes`, and `game/BotUtil`.
 The classes with no calls are the ones that genuinely never reach the level: `SystemService`,
 `WaitService`, `EventService` and `ApiSupport` — polling, the
 event ring buffer, and pure parse/encode work.
@@ -186,7 +186,7 @@ told, so the cursor is best-effort.
 | `protocol/` | JDK-only JSON codec, shared refusal code and request-size budget |
 | `api/` | the schema types (`schema/`), the method contracts (`methods/`), the `ApiRegistry` with its handler types (`registry/`), what one call carries (`call/`), the game-thread hops (`thread/`), and in `game/` the host hooks (`DriverHost`) and the conversions between game objects and API values; layered as [api-layers.md](api-layers.md) describes |
 | `application/` | `DriverApplication` and concrete world, observe, action, wait and body handlers |
-| `integration/debug/` | The `mc.debug.*` batch and its handlers; recorders/analysis stay in `bot/debug` |
+| `integration/debug/` | The `mc.debug.*` batch and its handlers; recorders/analysis stay in `debug/` |
 | `mcp/` | MCP HTTP server and `McpTools`, the `tools/list` view of the registry |
 | `rpc/` | WebSocket JSON-RPC server, connection-specific `TransportLimits`, event push |
 | `script/` | Rhino: `ScriptManager`, `ScriptEvaluator`, the bridges, `SkillLibrary`, the class filter |

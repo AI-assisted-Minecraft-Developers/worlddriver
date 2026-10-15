@@ -98,15 +98,15 @@ archive stops being evidence.
 
 ## Where to look
 
-- `bot/pathfinder/PathTrace.java` and `PathTraceHolder.java` — the seam and its no-op default.
-- `bot/debug/PathDebugRecorder.java` — sampling and session lifetime.
-- `bot/debug/PathChartRenderer.java` and `PathChartWriter.java` — the pure render and the file.
-- `bot/debug/PathArchive.java`, `PathArchiveRecorder.java`, `NodePhysics.java` — the archive format and the
+- `bot/planning/PathTrace.java` and `PathTraceHolder.java` — the seam and its no-op default.
+- `debug/PathDebugRecorder.java` — sampling and session lifetime.
+- `debug/PathChartRenderer.java` and `PathChartWriter.java` — the pure render and the file.
+- `debug/PathArchive.java`, `PathArchiveRecorder.java`, `NodePhysics.java` — the archive format and the
   physics facts.
-- `bot/debug/ReplayTool.java`, `bot/ReplayInstaller.java` — restoring and re-executing.
-- `bot/debug/DebugTools.java` — the two verbs and their parameters.
+- `integration/debug/ReplayTool.java`, `bot/ReplayInstaller.java` — restoring and re-executing.
+- `api/methods/debug/DebugContracts.java` — the two verbs and their parameters.
 - `path-replay/` — the offline analyser.
-- `bot/BotConfig.java` — the capture flags and their caps.
+- `config/BotConfig.java` — the capture flags and their caps.
 
 What the corpus of archives is used for, and the rule for accepting a change against it, is
 `docs/design/conformance-and-corpus-gating.md`.

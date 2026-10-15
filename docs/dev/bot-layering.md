@@ -145,7 +145,7 @@ a region unreachable and turn a slow path into no path.
 
 ## The `Body` seam
 
-`Walker` and every process drive a `Body` (package `bot/body/`), not a player. A `Body`'s
+`Walker` and every process drive a `Body` (package `game/body/`), not a player. A `Body`'s
 `entity()` is a `LivingEntity`, so everything the walker reads — position, ground contact,
 water, velocity, bounding box, health — and every pose it sets is identical on a client
 `LocalPlayer`, a server `ServerPlayer` and a driven mob. The interface itself carries only
@@ -167,7 +167,7 @@ player and headless on a server tick, and what the test scenes' driven-mob `Body
 
 ### Naming a bot
 
-`bot/body/BodyRegistry` holds the bots the API can address besides the client's own player.
+`bot/BodyRegistry` holds the bots the API can address besides the client's own player.
 Whoever creates a host registers it: `/worlddriver server spawn <name>` registers
 `player:<name>`, the test content registers `npc:<name>`, and a third-party mod registers
 whatever it builds. Transport threads read the registry and the server thread writes it,

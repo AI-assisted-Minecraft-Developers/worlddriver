@@ -127,7 +127,7 @@ it is an architecture decision, not a tidying pass.
 ### A process's `attach()` does not clear the previous run's terminal fields
 
 `goalReached`, `endReason` and `finalDist` are kept deliberately by `reset()` and should be cleared
-by `attach()`; only one file under `bot/process/` clears `goalReached` at all. `mc.bot.status`
+by `attach()`; only one file under `bot/behavior/` clears `goalReached` at all. `mc.bot.status`
 therefore reports the previous run's verdict against a run that is still going. Collect this into a
 single `beginRun()`; it changes an observable surface, so it needs a check.
 

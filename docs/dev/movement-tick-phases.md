@@ -2,7 +2,7 @@
 
 `Walker` decides what the bot does on every tick. That decision was once a single method
 several thousand lines long. It is now a fixed pipeline of phase classes, each in its own
-file under `common/src/main/java/net/magicterra/worlddriver/bot/movement/`, driven from
+file under `common/src/main/java/net/magicterra/worlddriver/bot/control/`, driven from
 `Walker#tickInner`.
 
 Read this before changing a phase, and read [`bot-layering.md`](bot-layering.md) first if
@@ -69,7 +69,7 @@ consumes.
 
 ## The contract is enforced, not merely documented
 
-`common/src/test/java/net/magicterra/worlddriver/bot/movement/WalkerTickDataflowTest`
+`common/src/test/java/net/magicterra/worlddriver/bot/control/WalkerTickDataflowTest`
 re-derives the data flow from source on every `:common:test` run and fails when it stops
 being strictly forward. It reads the phase order out of `Walker#tickInner` rather than
 hardcoding it, so reordering the pipeline re-checks every field against the new order

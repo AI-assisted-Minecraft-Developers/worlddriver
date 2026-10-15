@@ -133,7 +133,7 @@ not the rule.
 The shape that survives is to put the widening inside a client-only class and reach it with
 `invokestatic`, which resolves its owner and not its owner's dependencies; a chain whose tick
 method opens by returning when the client is absent never loads that owner on a server. Verify by
-measurement rather than by reading. For `bot/scheduler/**` the measurement is already written:
+measurement rather than by reading. For `bot/arbitration/**` the measurement is already written:
 `SchedulerClientCallSurfaceTest` parses the compiled constant pool and fails on any call site in
 that package whose descriptor takes `Player`, `LivingEntity` or `Entity`. It carries its own
 positive controls, so a green result means it looked rather than that it found nothing.
@@ -142,7 +142,7 @@ the shape of a call** — folding a duplicated expression into a shared helper, 
 adding a parameter. Those read as tidy-ups, which is the disguise this rule keeps being broken in.
 
 That test guards one package and its scope cannot simply be widened: it asserts the
-wide-parameter set is empty, which is only true in `bot/scheduler/**`. `Walker` is loaded on both
-sides and legitimately makes such calls, so pointing the same assertion at `bot/movement/**` fails
+wide-parameter set is empty, which is only true in `bot/arbitration/**`. `Walker` is loaded on both
+sides and legitimately makes such calls, so pointing the same assertion at `bot/control/**` fails
 a healthy tree. Outside that package, disassemble the class and count the calls taking a `Player`
 parameter by hand.

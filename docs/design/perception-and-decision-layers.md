@@ -85,7 +85,7 @@ only change the conditions the reflexes and the planner operate under, which is 
 `docs/design/route-selection.md` exists to make expressible.
 
 A reflex cannot ask a question it cannot answer from the snapshot, which is why every gate in
-`bot/auto/` is written as a pure function of readings.
+`bot/behavior/reflex/` is written as a pure function of readings.
 
 ## Where to look
 
@@ -93,7 +93,7 @@ A reflex cannot ask a question it cannot answer from the snapshot, which is why 
 - `bot/world/HazardField.java` and `HazardCell.java` — the finite lethal penalty.
 - `bot/world/SurvivalMath.java` and `SurvivalFacts.java` — the pure survival arithmetic.
 - `bot/world/AsciiMapRenderer.java` — the map the caller reads.
-- `bot/scheduler/` — the reflex chains that consume it; see `docs/design/scheduler-semantics.md`.
+- `bot/arbitration/` — the reflex chains that consume it; see `docs/design/scheduler-semantics.md`.
 - `application/ObserveApi.java` and the client scene read — the caller's view.
 
 Two decisions recorded here were later revised, and the revisions live in

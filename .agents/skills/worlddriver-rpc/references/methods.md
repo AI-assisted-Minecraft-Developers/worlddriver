@@ -19,7 +19,7 @@ when those are loaded — one of the reasons this skill exists.
 
 Source of truth: the contracts under `common/.../api/methods/*.java` (each method's params,
 reply and description; `mc.bot.setting`'s is `common/.../bot/SettingsContracts.java`, built from
-`bot/SettingsRegistry.java` — the canonical ordered key list — backed by `bot/BotConfig.java`, the
+`bot/SettingsRegistry.java` — the canonical ordered key list — backed by `config/BotConfig.java`, the
 fields and their ranges), `common/.../application/CoreMethods.java` (which core methods exist),
 and `.../rpc/RpcServer.java` (envelope; binds `127.0.0.1` on port 39801, WS path `/rpc`). A
 build also writes every method's schemas to `methods.json` and a reference to

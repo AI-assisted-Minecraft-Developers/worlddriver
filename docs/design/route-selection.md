@@ -1,7 +1,7 @@
 # Route selection: the model sets conditions, A* picks cells
 
 > This design has been implemented. The constraints, the cost modifiers, the search scope,
-> the preview and the route events all exist under `bot/pathfinder/` and `bot/`, the
+> the preview and the route events all exist under `bot/rules/`, `bot/planning/` and `bot/`, the
 > `route` object is the only route surface on `mc.bot.goto` and `mc.bot.follow`, and the
 > scene families `wd.route*` and `wd.clientRoute*` hold the behaviour.
 
@@ -247,12 +247,12 @@ trims and fast-forwards, so cell-for-cell equality is not a property the design 
 
 ## Where to look
 
-- `bot/pathfinder/SearchScope.java`, `ThreatSnapshot.java`, `SearchAware.java` — the per-search data and how it arrives.
-- `bot/pathfinder/constraints/` — `ForbidRegion`, `Corridor`, `MobCluster`, `SightExposure`, `NoPlace`, and the existing
+- `bot/rules/SearchScope.java`, `ThreatSnapshot.java`, `SearchAware.java` — the per-search data and how it arrives.
+- `bot/rules/constraints/` — `ForbidRegion`, `Corridor`, `MobCluster`, `SightExposure`, `NoPlace`, and the existing
   leash and column constraints whose rejoin rule the new ones extend.
-- `bot/pathfinder/modifiers/PreferBreak.java` — the only-add surcharge.
+- `bot/rules/modifiers/PreferBreak.java` — the only-add surcharge.
 - `bot/RouteParams.java` — the pure parser, shared by `goto` and `follow`.
-- `bot/PreviewSearch.java` and `bot/movement/WalkerPlanAdoption.java` — preview and adoption.
-- `bot/process/RouteEvents.java` — the three events and the debounce.
+- `bot/PreviewSearch.java` and `bot/control/WalkerPlanAdoption.java` — preview and adoption.
+- `bot/behavior/RouteEvents.java` — the three events and the debounce.
 - `bot/SceneOverlays.java` — the sight and mob-density overlays.
 - `mcp/catalog/BotTools.java` — the advertised schema, and the migration note for the removed fields.

@@ -22,7 +22,7 @@ strategy, and it never runs inside a tick.
 
 `ProcessScheduler` arbitrates between them by bid, with a hysteresis margin so two
 near-equal chains do not trade the movement channel every tick. The bands are declared
-in `bot/scheduler/Priorities.java`; read them there rather than from prose, because
+in `bot/arbitration/Priorities.java`; read them there rather than from prose, because
 they are tuned.
 
 ## In place

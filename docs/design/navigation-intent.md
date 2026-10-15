@@ -93,11 +93,11 @@ a deliberate constraint on callers, not an oversight.
 
 ## Where to look
 
-- `bot/process/Intent.java` and `IntentProcess.java` — the value and the process that interprets it.
-- `bot/pathfinder/SearchProfile.java` — the bundle of bias, capability and constraints.
-- `bot/pathfinder/CostModifier.java` and `Constraint.java` — the two channels, and their contracts.
-- `bot/pathfinder/modifiers/` and `bot/pathfinder/constraints/` — the implementations.
-- `bot/pathfinder/PathFinder.java` — where taxes are summed, and the note on ordering.
+- `bot/behavior/Intent.java` and `IntentProcess.java` — the value and the process that interprets it.
+- `bot/planning/SearchProfile.java` — the bundle of bias, capability and constraints.
+- `bot/rules/CostModifier.java` and `Constraint.java` — the two channels, and their contracts.
+- `bot/rules/modifiers/` and `bot/rules/constraints/` — the implementations.
+- `bot/planning/PathFinder.java` — where taxes are summed, and the note on ordering.
 - `bot/RouteParams.java` — the pure parser that turns a caller's route object into a profile.
 - `bot/GotoGoalResolver.java` — goal selection only; everything else is the parser's.
 

@@ -1,7 +1,7 @@
 # One bot layer, three kinds of controlled entity
 
-> This design has been implemented. `Body` and its registry are in
-> `bot/body/`, the two shipped implementations are `ClientPlayerBody` and
+> This design has been implemented. `Body` is in `game/body/` and its registry in
+> `bot/`, the two shipped implementations are `ClientPlayerBody` and
 > `ServerPlayerBody`, the testmod adds `LivingBody` and a driveable piglin, and the
 > `mc.bot.*` verbs that drive a bot accept a `body` parameter.
 
@@ -156,10 +156,10 @@ shim is a failed scene, not a caught null.
 
 ## Where to look
 
-- `bot/body/Body.java` — the interface, and what is mandatory versus optional.
-- `bot/body/BodyRegistry.java` and `BodyHost.java` — naming and the per-bot process slot.
-- `bot/body/ClientPlayerBody.java` — the client implementation.
-- `bot/sim/ServerPlayerBody.java` and the joined-player pump beside it — the server implementation.
+- `game/body/Body.java` — the interface, and what is mandatory versus optional.
+- `bot/BodyRegistry.java` and `BodyHost.java` — naming and the per-bot process slot.
+- `game/body/ClientPlayerBody.java` — the client implementation.
+- `game/body/ServerPlayerBody.java` and the joined-player pump beside it — the server implementation.
 - `application/BodyRoutes.java` and `application/BodyInteractions.java` — how the `body` parameter reaches a process and
   how hand operations are performed for a non-client player.
 - `bot/VerbOrders.java` — the shared parameter parsing.

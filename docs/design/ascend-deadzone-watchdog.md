@@ -115,9 +115,9 @@ byte-identical fallback is lost.
 
 ## Where to look
 
-- `bot/movement/AscendMovement.java` — the episode, the high-water marks, and the clock.
-- `bot/movement/Movement.java`, `MovementStatus.java`, `MovementContext.java` — the seam it plugs into.
-- `bot/movement/WalkerConstants.java` — `REACH_DIST_SQ`, `OVERSHOOT_RESYNC_SQ`, `STEPUP_FREEZE_TICKS` and
+- `bot/control/AscendMovement.java` — the episode, the high-water marks, and the clock.
+- `bot/control/Movement.java`, `MovementStatus.java`, `MovementContext.java` — the seam it plugs into.
+- `bot/control/WalkerConstants.java` — `REACH_DIST_SQ`, `OVERSHOOT_RESYNC_SQ`, `STEPUP_FREEZE_TICKS` and
   the watchdog budget derived from it.
-- `bot/BotConfig.java` — `walkerAscendMovement`, whose javadoc carries the comparison result.
+- `config/BotConfig.java` — `walkerAscendMovement`, whose javadoc carries the comparison result.
 - `docs/dev/movement-tick-phases.md` — the walker decomposition this sits beside.

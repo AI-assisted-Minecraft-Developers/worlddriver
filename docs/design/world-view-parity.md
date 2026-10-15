@@ -9,7 +9,7 @@ that interface read a real level:
 
 | View | Used by | Player |
 |---|---|---|
-| `bot/ClientWorldView` | `BotApiImpl` on a shipping client, and `PlanProbeTool` | the real player, a `LocalPlayer` |
+| `bot/world/ClientWorldView` | `BotApiImpl` on a shipping client, and `PlanProbeTool` | the real player, a `LocalPlayer` |
 | `bot/world/LevelWorldView` | `ServerWorldDriver`, the `wd.*` scenes, the journey harness | a server-side player |
 | `bot/world/ServerWorldView` | `mc.observe.scene` and `WalkerGeometry`'s read-only probes | none |
 
@@ -108,6 +108,6 @@ long list of disagreements that do not exist.
 ## Where to look
 
 `bot/world/CellRules.java` holds every shared rule. The three views are
-`bot/ClientWorldView.java`, `bot/world/LevelWorldView.java` and
+`bot/world/ClientWorldView.java`, `bot/world/LevelWorldView.java` and
 `bot/world/ServerWorldView.java`; the interface they implement is
-`bot/pathfinder/WorldView.java`.
+`bot/world/WorldView.java`.
