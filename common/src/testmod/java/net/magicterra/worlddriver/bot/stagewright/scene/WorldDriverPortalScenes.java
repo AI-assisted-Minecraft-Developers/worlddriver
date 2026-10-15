@@ -2,12 +2,12 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.ArrayList;
 import java.util.List;
-import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
-import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
-import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
+import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.minecraft.core.BlockPos;

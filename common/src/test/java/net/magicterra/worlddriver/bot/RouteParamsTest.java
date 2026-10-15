@@ -15,30 +15,31 @@ import java.util.Map;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.bot.pathfinder.Capability;
-import net.magicterra.worlddriver.bot.pathfinder.Constraint;
-import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.ColumnRadius;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.Corridor;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.ForbidRegion;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.LeashHardRadius;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.MobCluster;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.NoPlace;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.NoWater;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.SightExposure;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.YCeil;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.YFloor;
-import net.magicterra.worlddriver.bot.pathfinder.modifiers.AvoidRegion;
-import net.magicterra.worlddriver.bot.pathfinder.modifiers.ColumnAnchor;
-import net.magicterra.worlddriver.bot.pathfinder.modifiers.LeashAnchor;
-import net.magicterra.worlddriver.bot.pathfinder.modifiers.PreferBreak;
-import net.magicterra.worlddriver.bot.pathfinder.modifiers.PreferYBand;
-import net.magicterra.worlddriver.bot.pathfinder.modifiers.ShorelineHug;
+import net.magicterra.worlddriver.bot.rules.Capability;
+import net.magicterra.worlddriver.bot.rules.Constraint;
+import net.magicterra.worlddriver.bot.rules.CostModifier;
+import net.magicterra.worlddriver.bot.rules.constraints.ColumnRadius;
+import net.magicterra.worlddriver.bot.rules.constraints.Corridor;
+import net.magicterra.worlddriver.bot.rules.constraints.ForbidRegion;
+import net.magicterra.worlddriver.bot.rules.constraints.LeashHardRadius;
+import net.magicterra.worlddriver.bot.rules.constraints.MobCluster;
+import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
+import net.magicterra.worlddriver.bot.rules.constraints.NoPlace;
+import net.magicterra.worlddriver.bot.rules.constraints.NoWater;
+import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
+import net.magicterra.worlddriver.bot.rules.constraints.YCeil;
+import net.magicterra.worlddriver.bot.rules.constraints.YFloor;
+import net.magicterra.worlddriver.bot.rules.modifiers.AvoidRegion;
+import net.magicterra.worlddriver.bot.rules.modifiers.ColumnAnchor;
+import net.magicterra.worlddriver.bot.rules.modifiers.LeashAnchor;
+import net.magicterra.worlddriver.bot.rules.modifiers.PreferBreak;
+import net.magicterra.worlddriver.bot.rules.modifiers.PreferYBand;
+import net.magicterra.worlddriver.bot.rules.modifiers.ShorelineHug;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import net.magicterra.worlddriver.config.BotConfig;
 
 /**
  * {@link RouteParams#parse} is the one place a {@code route} object becomes a search profile, for
@@ -265,7 +266,7 @@ class RouteParamsTest {
 
     @Test
     void regionsNameTheirShapeAndRejectBadOnes() {
-        assertInstanceOf(net.magicterra.worlddriver.bot.pathfinder.Region.Sphere.class,
+        assertInstanceOf(net.magicterra.worlddriver.bot.rules.Region.Sphere.class,
                 only(parse("regions", List.of(Map.of("shape", "sphere", "center", at(0, 0, 0), "radius", 3))).profile().constraints(),
                         ForbidRegion.class).region());
         assertEquals(List.of("/route/regions"), issues(Map.of("regions", Map.of())));

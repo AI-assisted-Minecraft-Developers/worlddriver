@@ -8,18 +8,20 @@ import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.DensityOverlay;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Observer;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.SightOverlay;
-import net.magicterra.worlddriver.bot.pathfinder.Constraint;
-import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
-import net.magicterra.worlddriver.bot.pathfinder.SearchAware;
-import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
-import net.magicterra.worlddriver.bot.pathfinder.SearchScope;
-import net.magicterra.worlddriver.bot.pathfinder.ThreatSnapshot;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.MobCluster;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.SightExposure;
+import net.magicterra.worlddriver.bot.rules.Constraint;
+import net.magicterra.worlddriver.bot.rules.CostModifier;
+import net.magicterra.worlddriver.bot.rules.SearchAware;
+import net.magicterra.worlddriver.bot.planning.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.SearchScope;
+import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
+import net.magicterra.worlddriver.bot.rules.constraints.MobCluster;
+import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
 import net.magicterra.worlddriver.bot.world.HazardCell;
 import net.magicterra.worlddriver.bot.world.HazardField;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.rules.Goal;
 
 /**
  * The {@code sight} and {@code mobDensity} overlays of {@code mc.observe.scene}: per standable

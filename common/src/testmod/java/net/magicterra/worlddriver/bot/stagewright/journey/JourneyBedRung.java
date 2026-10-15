@@ -3,10 +3,10 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 import java.util.List;
 
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.process.CombatProcess;
-import net.magicterra.worlddriver.bot.process.Intent;
-import net.magicterra.worlddriver.bot.process.IntentProcess;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.behavior.CombatProcess;
+import net.magicterra.worlddriver.bot.behavior.Intent;
+import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 
 /**
  * Rung 07 — the bed. Three wool of ONE colour, and the colour is the whole difficulty.

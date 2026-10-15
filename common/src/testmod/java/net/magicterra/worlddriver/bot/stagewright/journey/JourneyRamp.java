@@ -6,12 +6,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
-import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.body.Hands;
-import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.process.Intent;
-import net.magicterra.worlddriver.bot.process.IntentProcess;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
+import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
+import net.magicterra.worlddriver.bot.behavior.Intent;
+import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -189,7 +189,7 @@ final class JourneyRamp {
      *
      * <p>Measured on the real ladder of 2026-08-16, cell six of an {@code east} mould. The column
      * {@code 3,19} verified for {@code wantY=58}; {@code walkToColumn} is a {@code Goal.XZ}, whose
-     * heuristic ignores Y — see {@link net.magicterra.worlddriver.bot.Goal#ignoresY()}, which carries
+     * heuristic ignores Y — see {@link net.magicterra.worlddriver.bot.rules.Goal#ignoresY()}, which carries
      * the other half of this account: the same property that lets A* dive for free is what makes such
      * a goal ARRIVE without an opinion about the row. So it delivered the bot to {@code y=59}
      * ({@code recover6.rise.raisedY = 59/58}); this method then returned on {@code >=} without

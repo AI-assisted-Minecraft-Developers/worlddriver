@@ -21,7 +21,7 @@ import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.KeyAction;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SlotRow;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
-import net.magicterra.worlddriver.bot.util.ItemSnap;
+import net.magicterra.worlddriver.bot.ItemSnap;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;

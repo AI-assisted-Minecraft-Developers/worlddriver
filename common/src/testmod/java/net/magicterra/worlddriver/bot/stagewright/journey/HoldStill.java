@@ -1,9 +1,9 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
-import net.magicterra.worlddriver.bot.BotState;
-import net.magicterra.worlddriver.bot.body.Body;
-import net.magicterra.worlddriver.bot.pathfinder.WorldView;
-import net.magicterra.worlddriver.bot.process.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.BotState;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.bot.behavior.BotProcess;
 
 /**
  * Stand still for N ticks and let physics happen.

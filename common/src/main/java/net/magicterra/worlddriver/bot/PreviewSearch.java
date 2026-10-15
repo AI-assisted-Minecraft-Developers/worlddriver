@@ -20,21 +20,24 @@ import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Segment;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.SegmentRisk;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Scored;
-import net.magicterra.worlddriver.bot.movement.PathSmoothing;
-import net.magicterra.worlddriver.bot.pathfinder.Constraint;
-import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
-import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
-import net.magicterra.worlddriver.bot.pathfinder.ScopeSource;
-import net.magicterra.worlddriver.bot.pathfinder.SearchAware;
-import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
-import net.magicterra.worlddriver.bot.pathfinder.SearchScope;
-import net.magicterra.worlddriver.bot.pathfinder.ThreatSnapshot;
-import net.magicterra.worlddriver.bot.pathfinder.WorldView;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.ForbidRegion;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.MobCluster;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.SightExposure;
-import net.magicterra.worlddriver.bot.pathfinder.modifiers.AvoidRegion;
+import net.magicterra.worlddriver.bot.control.PathSmoothing;
+import net.magicterra.worlddriver.bot.rules.Constraint;
+import net.magicterra.worlddriver.bot.rules.CostModifier;
+import net.magicterra.worlddriver.bot.planning.PathFinder;
+import net.magicterra.worlddriver.bot.planning.ScopeSource;
+import net.magicterra.worlddriver.bot.rules.SearchAware;
+import net.magicterra.worlddriver.bot.planning.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.SearchScope;
+import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
+import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.bot.rules.constraints.ForbidRegion;
+import net.magicterra.worlddriver.bot.rules.constraints.MobCluster;
+import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
+import net.magicterra.worlddriver.bot.rules.modifiers.AvoidRegion;
 import net.minecraft.core.BlockPos;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.behavior.BotState;
+import net.magicterra.worlddriver.bot.rules.Goal;
 
 /**
  * Look before walking: {@code mc.bot.goto} with {@code plan: 'preview'}. A preview is a search that
@@ -334,7 +337,7 @@ public final class PreviewSearch {
     public static final class ProfileRisk implements RiskAt {
         private final List<SightExposure> sight = new ArrayList<>();
         private final List<MobCluster> mobs = new ArrayList<>();
-        private final List<Map.Entry<String, net.magicterra.worlddriver.bot.pathfinder.Region>> regions = new ArrayList<>();
+        private final List<Map.Entry<String, net.magicterra.worlddriver.bot.rules.Region>> regions = new ArrayList<>();
 
         public ProfileRisk(SearchProfile profile) {
             int avoid = 0, forbid = 0;

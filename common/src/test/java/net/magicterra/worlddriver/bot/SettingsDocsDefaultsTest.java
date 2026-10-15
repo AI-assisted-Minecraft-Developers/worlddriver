@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import net.magicterra.worlddriver.config.BotConfig;
 
 /**
  * A {@link SettingsDocs} row that states a default must state the compiled-in one.

@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.application;
 
-import net.magicterra.worlddriver.bot.util.ItemSnap;
-import net.magicterra.worlddriver.bot.util.RegistryIds;
+import net.magicterra.worlddriver.bot.ItemSnap;
+import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.ItemStack;

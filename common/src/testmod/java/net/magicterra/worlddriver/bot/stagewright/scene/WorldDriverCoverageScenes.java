@@ -3,12 +3,12 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.movement.Walker;
-import net.magicterra.worlddriver.bot.movement.WalkerExpectAlarms;
-import net.magicterra.worlddriver.bot.pathfinder.Move;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerExpectAlarms;
+import net.magicterra.worlddriver.bot.rules.Move;
+import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.stagewright.ScenePlan;

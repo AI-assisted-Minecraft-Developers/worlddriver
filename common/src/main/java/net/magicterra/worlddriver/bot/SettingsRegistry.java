@@ -10,6 +10,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RuntimeState;
 
 /**
  * Single source of truth for the {@code mc.bot.setting} key surface — #280 root fix.

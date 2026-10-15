@@ -4,23 +4,23 @@ import java.util.List;
 import java.util.function.BiConsumer;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.BotState;
-import net.magicterra.worlddriver.bot.auto.AntiSuffocateGate;
-import net.magicterra.worlddriver.bot.movement.Walker;
-import net.magicterra.worlddriver.bot.process.BotProcess;
-import net.magicterra.worlddriver.bot.process.BunkerProcess;
-import net.magicterra.worlddriver.bot.process.RunAwayProcess;
-import net.magicterra.worlddriver.bot.scheduler.BunkerChain;
-import net.magicterra.worlddriver.bot.scheduler.CancelRouting;
-import net.magicterra.worlddriver.bot.scheduler.Chain;
-import net.magicterra.worlddriver.bot.scheduler.ChainProcessLifecycle;
-import net.magicterra.worlddriver.bot.scheduler.CombatChain;
-import net.magicterra.worlddriver.bot.scheduler.DuskSecureChain;
-import net.magicterra.worlddriver.bot.scheduler.Priorities;
-import net.magicterra.worlddriver.bot.scheduler.RetreatChain;
-import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
-import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.behavior.BotState;
+import net.magicterra.worlddriver.bot.behavior.reflex.AntiSuffocateGate;
+import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.BunkerProcess;
+import net.magicterra.worlddriver.bot.behavior.RunAwayProcess;
+import net.magicterra.worlddriver.bot.arbitration.BunkerChain;
+import net.magicterra.worlddriver.bot.arbitration.CancelRouting;
+import net.magicterra.worlddriver.bot.arbitration.Chain;
+import net.magicterra.worlddriver.bot.arbitration.ChainProcessLifecycle;
+import net.magicterra.worlddriver.bot.arbitration.CombatChain;
+import net.magicterra.worlddriver.bot.arbitration.DuskSecureChain;
+import net.magicterra.worlddriver.bot.arbitration.Priorities;
+import net.magicterra.worlddriver.bot.arbitration.RetreatChain;
+import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.HazardField;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -126,14 +126,14 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         level.addFreshEntity(skeleton);
         level.addFreshEntity(zombie);
 
-        java.util.function.BiFunction<Double, boolean[], net.magicterra.worlddriver.bot.combat.ThreatScanner.Scan> skel =
-                (dist, flags) -> new net.magicterra.worlddriver.bot.combat.ThreatScanner.Scan(
-                        java.util.List.of(new net.magicterra.worlddriver.bot.combat.ThreatScanner.Threat(
+        java.util.function.BiFunction<Double, boolean[], net.magicterra.worlddriver.bot.world.ThreatScanner.Scan> skel =
+                (dist, flags) -> new net.magicterra.worlddriver.bot.world.ThreatScanner.Scan(
+                        java.util.List.of(new net.magicterra.worlddriver.bot.world.ThreatScanner.Threat(
                                 skeleton, skeleton.getId(), "minecraft:skeleton", dist,
                                 /*canSeeMe*/ flags[0], /*facingMe*/ flags[0], /*charging*/ flags[0],
                                 0.8, 0f, /*attackedMe*/ flags[1])),
                         java.util.List.of());
-        var empty = new net.magicterra.worlddriver.bot.combat.ThreatScanner.Scan(java.util.List.of(), java.util.List.of());
+        var empty = new net.magicterra.worlddriver.bot.world.ThreatScanner.Scan(java.util.List.of(), java.util.List.of());
 
         // (a) THE death-#6 case: low HP, sniped from 14 (attackedMe), LoS-blocked
         // (charging=false because arrows arc over the corner) → MUST enter.
@@ -159,8 +159,8 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         // (g) melee attacker at 14 who hit me once, full HP → MUST enter.
         // gap#68-①: hurt-entry supersedes the gap#65-era expectation — a connected
         // hit within 2×CLEAR_RADIUS latches at ANY hp
-        var meleeScan = new net.magicterra.worlddriver.bot.combat.ThreatScanner.Scan(
-                java.util.List.of(new net.magicterra.worlddriver.bot.combat.ThreatScanner.Threat(
+        var meleeScan = new net.magicterra.worlddriver.bot.world.ThreatScanner.Scan(
+                java.util.List.of(new net.magicterra.worlddriver.bot.world.ThreatScanner.Threat(
                         zombie, zombie.getId(), "minecraft:zombie", 14.0, true, true, false, 0.6, 0f, true)),
                 java.util.List.of());
         if (!RetreatChain.shouldEnter(20f, 10f, meleeScan))
@@ -178,14 +178,14 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         // actually hit me (attackedMe=true) at the given distance; zombieNear = an
         // idle (never-hit-me) zombie at the given distance — used both to prove the
         // dynamic threshold's hostileWithin gate and as the negative control.
-        java.util.function.Function<Double, net.magicterra.worlddriver.bot.combat.ThreatScanner.Scan> meleeHit =
-                dist -> new net.magicterra.worlddriver.bot.combat.ThreatScanner.Scan(
-                        java.util.List.of(new net.magicterra.worlddriver.bot.combat.ThreatScanner.Threat(
+        java.util.function.Function<Double, net.magicterra.worlddriver.bot.world.ThreatScanner.Scan> meleeHit =
+                dist -> new net.magicterra.worlddriver.bot.world.ThreatScanner.Scan(
+                        java.util.List.of(new net.magicterra.worlddriver.bot.world.ThreatScanner.Threat(
                                 zombie, zombie.getId(), "minecraft:zombie", dist, true, true, false, 0.6, 0f, /*attackedMe*/ true)),
                         java.util.List.of());
-        java.util.function.Function<Double, net.magicterra.worlddriver.bot.combat.ThreatScanner.Scan> zombieNear =
-                dist -> new net.magicterra.worlddriver.bot.combat.ThreatScanner.Scan(
-                        java.util.List.of(new net.magicterra.worlddriver.bot.combat.ThreatScanner.Threat(
+        java.util.function.Function<Double, net.magicterra.worlddriver.bot.world.ThreatScanner.Scan> zombieNear =
+                dist -> new net.magicterra.worlddriver.bot.world.ThreatScanner.Scan(
+                        java.util.List.of(new net.magicterra.worlddriver.bot.world.ThreatScanner.Threat(
                                 zombie, zombie.getId(), "minecraft:zombie", dist, true, true, false, 0.6, 0f, /*attackedMe*/ false)),
                         java.util.List.of());
         // A melee hit (attackedMe, not Ranged) must latch the flee; a gate that recognises only
@@ -237,16 +237,16 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         // release-side cooldown of 60t since the last connected hit, wider than
         // the shot interval. visibleSkel/visibleZombie isolate each guard from
         // the pre-existing charging/attackedMe-gated signals.
-        java.util.function.BiFunction<Double, Boolean, net.magicterra.worlddriver.bot.combat.ThreatScanner.Scan> visibleSkel =
-                (dist, canSee) -> new net.magicterra.worlddriver.bot.combat.ThreatScanner.Scan(
-                        java.util.List.of(new net.magicterra.worlddriver.bot.combat.ThreatScanner.Threat(
+        java.util.function.BiFunction<Double, Boolean, net.magicterra.worlddriver.bot.world.ThreatScanner.Scan> visibleSkel =
+                (dist, canSee) -> new net.magicterra.worlddriver.bot.world.ThreatScanner.Scan(
+                        java.util.List.of(new net.magicterra.worlddriver.bot.world.ThreatScanner.Threat(
                                 skeleton, skeleton.getId(), "minecraft:skeleton", dist,
                                 /*canSeeMe*/ canSee, /*facingMe*/ false, /*charging*/ false,
                                 0.8, 0f, /*attackedMe*/ false)),
                         java.util.List.of());
-        java.util.function.Function<Double, net.magicterra.worlddriver.bot.combat.ThreatScanner.Scan> visibleZombie =
-                dist -> new net.magicterra.worlddriver.bot.combat.ThreatScanner.Scan(
-                        java.util.List.of(new net.magicterra.worlddriver.bot.combat.ThreatScanner.Threat(
+        java.util.function.Function<Double, net.magicterra.worlddriver.bot.world.ThreatScanner.Scan> visibleZombie =
+                dist -> new net.magicterra.worlddriver.bot.world.ThreatScanner.Scan(
+                        java.util.List.of(new net.magicterra.worlddriver.bot.world.ThreatScanner.Threat(
                                 zombie, zombie.getId(), "minecraft:zombie", dist,
                                 /*canSeeMe*/ true, /*facingMe*/ false, /*charging*/ false,
                                 0.6, 0f, /*attackedMe*/ false)),
@@ -291,9 +291,9 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         // hurt-entry semantics untouched), and a VISIBLE threat means the pocket
         // is effectively breached — only unseen+unconnected threats are exempt.
         // pocket = zombie at dist with the given canSeeMe/attackedMe flags.
-        java.util.function.BiFunction<Boolean, Boolean, net.magicterra.worlddriver.bot.combat.ThreatScanner.Scan> pocket =
-                (canSee, hitMe) -> new net.magicterra.worlddriver.bot.combat.ThreatScanner.Scan(
-                        java.util.List.of(new net.magicterra.worlddriver.bot.combat.ThreatScanner.Threat(
+        java.util.function.BiFunction<Boolean, Boolean, net.magicterra.worlddriver.bot.world.ThreatScanner.Scan> pocket =
+                (canSee, hitMe) -> new net.magicterra.worlddriver.bot.world.ThreatScanner.Scan(
+                        java.util.List.of(new net.magicterra.worlddriver.bot.world.ThreatScanner.Threat(
                                 zombie, zombie.getId(), "minecraft:zombie", 11.0,
                                 /*canSeeMe*/ canSee, /*facingMe*/ false, /*charging*/ false,
                                 0.6, 0f, /*attackedMe*/ hitMe)),
@@ -680,8 +680,8 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
             @Override public String kind() { return "probe"; }
             @Override public String failure() { return null; }
             @Override public void attach(BotState s) {}
-            @Override public boolean tick(net.magicterra.worlddriver.bot.body.Body a,
-                                          net.magicterra.worlddriver.bot.pathfinder.WorldView w, BotState s) { return false; }
+            @Override public boolean tick(net.magicterra.worlddriver.game.body.Body a,
+                                          net.magicterra.worlddriver.bot.world.WorldView w, BotState s) { return false; }
             @Override public void onCancelled(String reason) { cancelledWith.set(reason); }
         };
         st4.bunker.active = true;
@@ -963,25 +963,25 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
     // AutoTool itself last wrote, honor the external change for a grace period instead
     // of overwriting it. Pure static gate — no Minecraft instance needed.
     static void manualSlotGraceMatrix(BiConsumer<Boolean, String> check) {
-        check.accept(net.magicterra.worlddriver.bot.auto.AutoTool.shouldYield(2, 7, 0),
+        check.accept(net.magicterra.worlddriver.bot.behavior.reflex.AutoTool.shouldYield(2, 7, 0),
                 "selected(2) != lastAuto(7) = external change -> yield");
-        check.accept(!net.magicterra.worlddriver.bot.auto.AutoTool.shouldYield(7, 7, 0),
+        check.accept(!net.magicterra.worlddriver.bot.behavior.reflex.AutoTool.shouldYield(7, 7, 0),
                 "no external change, no grace -> proceed");
-        check.accept(net.magicterra.worlddriver.bot.auto.AutoTool.shouldYield(7, 7, 10),
+        check.accept(net.magicterra.worlddriver.bot.behavior.reflex.AutoTool.shouldYield(7, 7, 10),
                 "grace still counting -> yield");
-        check.accept(!net.magicterra.worlddriver.bot.auto.AutoTool.shouldYield(2, -1, 0),
+        check.accept(!net.magicterra.worlddriver.bot.behavior.reflex.AutoTool.shouldYield(2, -1, 0),
                 "first tick (no lastAuto yet) -> proceed");
         // Arm/decrement/expire sequence (stepGrace): an armed grace of N yields N ticks
         // total, and — regression lock — a zero/negative config must clamp to a
         // single-tick grace that EXPIRES (returns 0), not load 0 and decrement to -1
         // (which skips the ==0 expiry forever and wedges AutoTool in a permanent yield).
-        check.accept(net.magicterra.worlddriver.bot.auto.AutoTool.stepGrace(0, 100) == 99,
+        check.accept(net.magicterra.worlddriver.bot.behavior.reflex.AutoTool.stepGrace(0, 100) == 99,
                 "fresh arm with config 100 -> 99 left after this tick");
-        check.accept(net.magicterra.worlddriver.bot.auto.AutoTool.stepGrace(1, 100) == 0,
+        check.accept(net.magicterra.worlddriver.bot.behavior.reflex.AutoTool.stepGrace(1, 100) == 0,
                 "last armed tick -> 0 = expired, re-arms cleanly");
-        check.accept(net.magicterra.worlddriver.bot.auto.AutoTool.stepGrace(0, 0) == 0,
+        check.accept(net.magicterra.worlddriver.bot.behavior.reflex.AutoTool.stepGrace(0, 0) == 0,
                 "config 0 clamps to single-tick grace that expires (no -1 wedge)");
-        check.accept(net.magicterra.worlddriver.bot.auto.AutoTool.stepGrace(0, -7) == 0,
+        check.accept(net.magicterra.worlddriver.bot.behavior.reflex.AutoTool.stepGrace(0, -7) == 0,
                 "negative config clamps to single-tick grace that expires (no wedge)");
     }
 
@@ -999,13 +999,13 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
     // budget (r=32 -> 65x65=4225 cells/layer, 50_000 cap -> dy in [+4,+8] never
     // scanned at all), so a jungle-canopy log 6 blocks above the bot went
     // invisible even though it sits well inside both limits. The shared fix is
-    // net.magicterra.worlddriver.bot.util.NearestFirstScan.offsetsNearestFirst: every
+    // net.magicterra.worlddriver.game.observe.NearestFirstScan.offsetsNearestFirst: every
     // offset in the box, sorted ascending by squared distance from the origin,
     // so any budget cutoff drops the FARTHEST cells instead of a whole height band.
     static void nearestFirstScanMatrix(BiConsumer<Boolean, String> check) {
         // (a) full coverage: every offset in the box appears exactly once.
         net.minecraft.core.BlockPos[] atR32 =
-                net.magicterra.worlddriver.bot.util.NearestFirstScan.offsetsNearestFirst(32, 8);
+                net.magicterra.worlddriver.game.observe.NearestFirstScan.offsetsNearestFirst(32, 8);
         check.accept(atR32.length == 65 * 65 * 17,
                 "gap#67(a): offset count wrong: " + atR32.length);
 
@@ -1035,7 +1035,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         // (e) goto's call site (GoalResolver.findNearestStandForBlock, radius 64
         // per the brief) gets the same guarantee at the larger radius.
         net.minecraft.core.BlockPos[] atR64 =
-                net.magicterra.worlddriver.bot.util.NearestFirstScan.offsetsNearestFirst(64, 8);
+                net.magicterra.worlddriver.game.observe.NearestFirstScan.offsetsNearestFirst(64, 8);
         int idx64 = indexOfOffset(atR64, 10, 6, 0);
         check.accept(idx64 >= 0 && idx64 < 50_000,
                 "gap#67(e): radius-64 near-but-high cell (10,6,0) must still rank inside a 50k budget, got index " + idx64);

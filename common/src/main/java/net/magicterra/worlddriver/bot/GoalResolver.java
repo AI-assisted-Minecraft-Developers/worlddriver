@@ -4,14 +4,15 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
 
-import static net.magicterra.worlddriver.bot.util.BotUtil.*;
-import net.magicterra.worlddriver.bot.util.BlockMatch;
-import net.magicterra.worlddriver.bot.util.NearestFirstScan;
+import static net.magicterra.worlddriver.game.BotUtil.*;
+import net.magicterra.worlddriver.game.observe.BlockMatch;
+import net.magicterra.worlddriver.game.observe.NearestFirstScan;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import java.util.function.Predicate;
+import net.magicterra.worlddriver.config.BotConfig;
 
 /**
  * Stand positions and direction descriptors resolved against a body and its level. Pure static

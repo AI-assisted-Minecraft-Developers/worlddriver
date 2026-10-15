@@ -91,7 +91,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ConfigPinDisciplineTest {
 
     private static final Path TESTMOD_CLASSES = Path.of("build/classes/java/testmod");
-    private static final String BOTCONFIG = "net/magicterra/worlddriver/bot/BotConfig";
+    private static final String BOTCONFIG = "net/magicterra/worlddriver/config/BotConfig";
     private static final String PIN = "pinnedBaseline";
     private static final String TESTMOD_PKG = "net/magicterra/worlddriver/bot/stagewright";
 

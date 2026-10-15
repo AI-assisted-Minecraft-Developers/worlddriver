@@ -3,15 +3,15 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 import java.util.List;
 import java.util.function.Consumer;
 
-import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.util.RegistryIds;
-import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
-import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.process.Intent;
-import net.magicterra.worlddriver.bot.process.IntentProcess;
-import net.magicterra.worlddriver.bot.process.TowerProcess;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.game.observe.RegistryIds;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.control.WalkerGeometry;
+import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
+import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
+import net.magicterra.worlddriver.bot.behavior.Intent;
+import net.magicterra.worlddriver.bot.behavior.IntentProcess;
+import net.magicterra.worlddriver.bot.behavior.TowerProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -645,7 +645,7 @@ public final class JourneyShaft {
      * <p>The mirror of {@link #descendByMining}, and recursive for the same reason — a course is
      * two await steps and the bot has to actually move between them.
      *
-     * <p>{@link net.magicterra.worlddriver.bot.process.TowerProcess} cannot break, so a bot that
+     * <p>{@link net.magicterra.worlddriver.bot.behavior.TowerProcess} cannot break, so a bot that
      * mined sideways and is standing under its own ceiling would jump into rock forever and report
      * "stuck (no Y gain)". Clearing {@code feet+2} first is what makes the tower legal: that is the
      * cell the head moves into once the feet rise one.

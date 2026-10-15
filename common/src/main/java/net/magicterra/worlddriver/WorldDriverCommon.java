@@ -6,7 +6,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.magicterra.worlddriver.api.game.DriverHost;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.bot.BotConfigFile;
+import net.magicterra.worlddriver.config.BotConfigFile;
 import net.magicterra.worlddriver.mcp.McpServer;
 import net.magicterra.worlddriver.rpc.RpcServer;
 import net.magicterra.worlddriver.script.ScriptManager;
@@ -262,7 +262,7 @@ public final class WorldDriverCommon {
         net.magicterra.worlddriver.api.action.ActionRegistry.GLOBAL.cancelAll(
                 net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason.WORLD_CLOSED);
         // Every addressable bot player wraps an entity of the stopping server.
-        net.magicterra.worlddriver.bot.body.BodyRegistry.clear();
+        net.magicterra.worlddriver.bot.BodyRegistry.clear();
         if (api != null) {
             api.detachServer();
             LOG.info("[{}] driver detached from server (RPC + MCP still up)", MOD_ID);

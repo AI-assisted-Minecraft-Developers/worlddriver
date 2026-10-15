@@ -6,26 +6,26 @@ import java.util.Locale;
 import java.util.Map;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.SettingsContracts;
 import net.magicterra.worlddriver.bot.SettingsRegistry;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.schema.ApiException;
-import net.magicterra.worlddriver.bot.movement.AscendMovement;
-import net.magicterra.worlddriver.bot.movement.MovementContext;
-import net.magicterra.worlddriver.bot.movement.MovementStatus;
-import net.magicterra.worlddriver.bot.movement.Walker;
-import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
-import net.magicterra.worlddriver.bot.pathfinder.Move;
-import net.magicterra.worlddriver.bot.process.EntityFind;
-import net.magicterra.worlddriver.bot.process.EntityLeash;
-import net.magicterra.worlddriver.bot.process.Intent;
-import net.magicterra.worlddriver.bot.process.IntentProcess;
-import net.magicterra.worlddriver.bot.process.MineProcess;
-import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
-import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
+import net.magicterra.worlddriver.bot.control.AscendMovement;
+import net.magicterra.worlddriver.bot.control.MovementContext;
+import net.magicterra.worlddriver.bot.control.MovementStatus;
+import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
+import net.magicterra.worlddriver.bot.rules.Move;
+import net.magicterra.worlddriver.bot.behavior.EntityFind;
+import net.magicterra.worlddriver.bot.behavior.EntityLeash;
+import net.magicterra.worlddriver.bot.behavior.Intent;
+import net.magicterra.worlddriver.bot.behavior.IntentProcess;
+import net.magicterra.worlddriver.bot.behavior.MineProcess;
+import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
@@ -1133,12 +1133,12 @@ public final class WorldDriverScenes implements SceneProvider {
      * armor stand spawns AT the bot's start; the goal is 24 blocks away but the HARD
      * leash (radius 8) prunes every route node farther than 8 blocks from the
      * (stationary) stand, so the pathfinder's best-effort fallback can only reach the
-     * radius edge and the {@link net.magicterra.worlddriver.bot.movement.Walker} holds at
+     * radius edge and the {@link net.magicterra.worlddriver.bot.control.Walker} holds at
      * the edge (never declares ARRIVED on a best-effort partial path) — so the process
      * stays registered/un-finished for the whole 200-tick window. Phase 2: the stand
      * teleports 4 blocks PAST the goal; within the leash's 20-tick re-solve rate limit
      * {@link IntentProcess} notices the anchor moved &gt; 2 blocks, rebuilds the
-     * {@link net.magicterra.worlddriver.bot.pathfinder.SearchProfile} centred on the NEW
+     * {@link net.magicterra.worlddriver.bot.planning.SearchProfile} centred on the NEW
      * anchor and force-repaths — now the true goal is inside the radius, so the bot
      * ARRIVES for real within 600 more ticks. Both assertions (phase1 held + not
      * finished, phase2 reached + finished+unregistered) are the legacy originals,

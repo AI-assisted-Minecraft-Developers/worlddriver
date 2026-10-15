@@ -9,7 +9,7 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.magicterra.worlddriver.bot.util.RegistryIds;
+import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
@@ -243,7 +243,7 @@ public final class JourneyRoute {
      * {@code StructurePlacement.getLocatePos}, which fills Y in from the placement's own offset
      * (zero for a fortress) and not from anything in the world — the same {@code ~} that
      * {@code /locate} prints. A rung that trusted this Y would walk to a coordinate under the
-     * bedrock floor. The walk is therefore an {@link net.magicterra.worlddriver.bot.Goal.XZ}, and
+     * bedrock floor. The walk is therefore an {@link net.magicterra.worlddriver.bot.rules.Goal.XZ}, and
      * the rung re-derives its own Y once it is standing there and the chunks are real.
      *
      * <p><b>Nether coordinates, not overworld ones.</b> This is the one landmark in this class that

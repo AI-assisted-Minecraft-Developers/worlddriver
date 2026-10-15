@@ -1,8 +1,8 @@
 package net.magicterra.worlddriver.neoforge.client;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.client.WorldDriverClientEvents;
-import net.magicterra.worlddriver.client.internal.ClientChat;
+import net.magicterra.worlddriver.WorldDriverClientEvents;
+import net.magicterra.worlddriver.game.ui.ClientChat;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;

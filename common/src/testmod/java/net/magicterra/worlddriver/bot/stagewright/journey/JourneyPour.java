@@ -4,12 +4,12 @@ import java.util.List;
 import java.util.Map;
 
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.process.Intent;
-import net.magicterra.worlddriver.bot.process.IntentProcess;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
+import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
+import net.magicterra.worlddriver.bot.behavior.Intent;
+import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -1160,7 +1160,7 @@ final class JourneyPour {
      * away. Package-private so an isolated arena can fire the production shot at a staged mould
      * instead of hand-rolling a clip beside it.
      */
-    static net.minecraft.world.phys.BlockHitResult fire(net.magicterra.worlddriver.bot.body.Body av,
+    static net.minecraft.world.phys.BlockHitResult fire(net.magicterra.worlddriver.game.body.Body av,
                                                         ServerPlayer body, BlockPos at) {
         av.aimAtBlock(at);
         return JourneyHands.aimedAt(body, JourneyFill.BUCKET_REACH, false);

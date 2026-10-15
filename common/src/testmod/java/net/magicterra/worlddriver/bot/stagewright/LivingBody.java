@@ -2,10 +2,10 @@ package net.magicterra.worlddriver.bot.stagewright;
 
 import java.util.Optional;
 
-import net.magicterra.worlddriver.bot.body.Body;
-import net.magicterra.worlddriver.bot.body.BodyCapabilities;
-import net.magicterra.worlddriver.bot.body.Containers;
-import net.magicterra.worlddriver.bot.body.Hands;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.BodyCapabilities;
+import net.magicterra.worlddriver.game.body.Containers;
+import net.magicterra.worlddriver.game.body.Hands;
 import net.magicterra.worlddriver.testcontent.DrivenMob;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;

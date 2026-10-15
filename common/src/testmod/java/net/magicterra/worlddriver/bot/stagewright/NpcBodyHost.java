@@ -4,13 +4,13 @@ import java.util.Map;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.bot.ActionTickets;
-import net.magicterra.worlddriver.bot.BotState;
-import net.magicterra.worlddriver.bot.body.BodyHost;
-import net.magicterra.worlddriver.bot.movement.Walker;
-import net.magicterra.worlddriver.bot.process.BotProcess;
-import net.magicterra.worlddriver.bot.scheduler.HeldProcess;
-import net.magicterra.worlddriver.bot.sim.BodyDriver;
-import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.behavior.BotState;
+import net.magicterra.worlddriver.bot.BodyHost;
+import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.arbitration.HeldProcess;
+import net.magicterra.worlddriver.bot.BodyDriver;
+import net.magicterra.worlddriver.bot.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -46,7 +46,7 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
 
     @Override public String id() { return id; }
     @Override public String kind() { return KIND; }
-    @Override public net.magicterra.worlddriver.bot.body.Body body() { return body; }
+    @Override public net.magicterra.worlddriver.game.body.Body body() { return body; }
     @Override public LivingEntity entity() { return body.entity(); }
     @Override public BotState botState() { return botState; }
 

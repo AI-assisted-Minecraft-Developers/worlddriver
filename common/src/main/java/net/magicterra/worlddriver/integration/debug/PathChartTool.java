@@ -5,7 +5,10 @@ import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.Chart;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ChartParams;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ChartView;
-import net.magicterra.worlddriver.bot.debug.*;
+import net.magicterra.worlddriver.debug.PathChartRenderer;
+import net.magicterra.worlddriver.debug.PathChartWriter;
+import net.magicterra.worlddriver.debug.PathDebugRecorder;
+import net.magicterra.worlddriver.debug.PathSession;
 
 import java.util.Map;
 import java.util.Optional;

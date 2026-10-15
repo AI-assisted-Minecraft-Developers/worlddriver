@@ -3,8 +3,8 @@ package net.magicterra.worlddriver.bot;
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.api.game.Positions.blockPos;
 import static net.magicterra.worlddriver.api.game.Positions.position;
-import net.magicterra.worlddriver.bot.process.RouteEvents;
-import net.magicterra.worlddriver.bot.util.HandVerbs;
+import net.magicterra.worlddriver.bot.behavior.RouteEvents;
+import net.magicterra.worlddriver.game.body.HandVerbs;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.bot.CombatContracts;
@@ -18,7 +18,7 @@ import net.magicterra.worlddriver.api.methods.test.TestInputContracts;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import java.util.Optional;
-import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.rules.Move;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.client.KeyMapping;
@@ -35,43 +35,50 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import net.magicterra.worlddriver.client.internal.ClientChatLog;
-import net.magicterra.worlddriver.bot.movement.ClientIntents;
-import net.magicterra.worlddriver.bot.movement.Walker;
-import net.magicterra.worlddriver.bot.movement.WalkerPlanAdoption;
-import net.magicterra.worlddriver.bot.pathfinder.SearchScope;
-import net.magicterra.worlddriver.bot.process.*;
-import net.magicterra.worlddriver.bot.scheduler.BunkerChain;
-import net.magicterra.worlddriver.bot.scheduler.CancelRouting;
-import net.magicterra.worlddriver.bot.scheduler.Ticket;
-import net.magicterra.worlddriver.bot.scheduler.Chain;
-import net.magicterra.worlddriver.bot.scheduler.CombatChain;
-import net.magicterra.worlddriver.bot.scheduler.DodgeChain;
-import net.magicterra.worlddriver.bot.scheduler.DrownEscapeChain;
-import net.magicterra.worlddriver.bot.scheduler.DuskSecureChain;
-import net.magicterra.worlddriver.bot.scheduler.PanicChain;
-import net.magicterra.worlddriver.bot.scheduler.ProcessScheduler;
-import net.magicterra.worlddriver.bot.scheduler.RetreatChain;
-import net.magicterra.worlddriver.bot.scheduler.UserTaskChain;
+import net.magicterra.worlddriver.game.ui.ClientChatLog;
+import net.magicterra.worlddriver.game.body.ClientIntents;
+import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerPlanAdoption;
+import net.magicterra.worlddriver.bot.rules.SearchScope;
+import net.magicterra.worlddriver.bot.behavior.*;
+import net.magicterra.worlddriver.bot.arbitration.BunkerChain;
+import net.magicterra.worlddriver.bot.arbitration.CancelRouting;
+import net.magicterra.worlddriver.bot.arbitration.Ticket;
+import net.magicterra.worlddriver.bot.arbitration.Chain;
+import net.magicterra.worlddriver.bot.arbitration.CombatChain;
+import net.magicterra.worlddriver.bot.arbitration.DodgeChain;
+import net.magicterra.worlddriver.bot.arbitration.DrownEscapeChain;
+import net.magicterra.worlddriver.bot.arbitration.DuskSecureChain;
+import net.magicterra.worlddriver.bot.arbitration.PanicChain;
+import net.magicterra.worlddriver.bot.arbitration.ProcessScheduler;
+import net.magicterra.worlddriver.bot.arbitration.RetreatChain;
+import net.magicterra.worlddriver.bot.arbitration.UserTaskChain;
 import static net.magicterra.worlddriver.bot.GoalResolver.*;
-import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
-import static net.magicterra.worlddriver.bot.util.BotInteract.*;
-import static net.magicterra.worlddriver.bot.util.BotUtil.*;
+import static net.magicterra.worlddriver.bot.control.ClutchController.CLUTCH;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.BotUtil.*;
 import java.util.Locale;
-import net.magicterra.worlddriver.bot.auto.AutoEat;
-import net.magicterra.worlddriver.bot.auto.AutoEquip;
-import net.magicterra.worlddriver.bot.auto.AutoShield;
-import net.magicterra.worlddriver.bot.auto.AutoHeal;
-import net.magicterra.worlddriver.bot.auto.AutoTotem;
-import net.magicterra.worlddriver.bot.combat.ThreatScanner;
-import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
-import net.magicterra.worlddriver.bot.auto.AutoTool;
-import net.magicterra.worlddriver.bot.auto.AutoSwim;
-import net.magicterra.worlddriver.bot.auto.AntiSuffocate;
-import net.magicterra.worlddriver.bot.auto.ContactDamageEscape;
-import net.magicterra.worlddriver.bot.auto.AutoRespawn;
+import net.magicterra.worlddriver.bot.behavior.reflex.AutoEat;
+import net.magicterra.worlddriver.bot.behavior.reflex.AutoEquip;
+import net.magicterra.worlddriver.bot.behavior.reflex.AutoShield;
+import net.magicterra.worlddriver.bot.behavior.reflex.AutoHeal;
+import net.magicterra.worlddriver.bot.behavior.reflex.AutoTotem;
+import net.magicterra.worlddriver.bot.world.ThreatScanner;
+import net.magicterra.worlddriver.bot.world.ClientThreatScanner;
+import net.magicterra.worlddriver.bot.behavior.reflex.AutoTool;
+import net.magicterra.worlddriver.bot.behavior.reflex.AutoSwim;
+import net.magicterra.worlddriver.bot.behavior.reflex.AntiSuffocate;
+import net.magicterra.worlddriver.bot.behavior.reflex.ContactDamageEscape;
+import net.magicterra.worlddriver.bot.behavior.reflex.AutoRespawn;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 import java.util.concurrent.ConcurrentHashMap;
+import net.magicterra.worlddriver.bot.behavior.BodyReady;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.behavior.BotState;
+import net.magicterra.worlddriver.bot.world.ClientWorldView;
+import net.magicterra.worlddriver.game.ui.FocusPolicy;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.game.ui.MouseYield;
 
 /**
  * Phase-2 client bot impl. Hosts a single active {@link BotProcess} driven
@@ -142,9 +149,9 @@ public final class BotApiImpl implements BotApi {
     /** Gates the idle {@code releaseKeys()} so it only fires after the bot itself
      *  pressed a movement keybind — never on the steady idle stream that used to
      *  clobber a human player's held WASD/space when no agent was driving. See
-     *  {@link net.magicterra.worlddriver.bot.movement.InputReleaseGate}. */
-    private final net.magicterra.worlddriver.bot.movement.InputReleaseGate releaseGate =
-            new net.magicterra.worlddriver.bot.movement.InputReleaseGate();
+     *  {@link net.magicterra.worlddriver.game.ui.InputReleaseGate}. */
+    private final net.magicterra.worlddriver.game.ui.InputReleaseGate releaseGate =
+            new net.magicterra.worlddriver.game.ui.InputReleaseGate();
     /** Named positions persisted for the lifetime of the bot impl (no disk).
      *  Survives across goto/mine/etc. so a script can label home/farm/base
      *  and revisit by name. ConcurrentHashMap because list/get can race a
@@ -177,7 +184,7 @@ public final class BotApiImpl implements BotApi {
 
     /** The per-search entity snapshot for a preview or a scored line: the player's own level with
      *  the player excluded, the same source {@code WalkerFinders} wires into a walking search. */
-    private static net.magicterra.worlddriver.bot.pathfinder.ScopeSource scopeOf(LocalPlayer player) {
+    private static net.magicterra.worlddriver.bot.planning.ScopeSource scopeOf(LocalPlayer player) {
         return (s, g, prof) -> SearchScope.gather(player.level(), player.getId(), s, g, prof);
     }
 
@@ -418,7 +425,7 @@ public final class BotApiImpl implements BotApi {
                 Optional.ofNullable(scheduler.currentName()), c != null && scheduler.current() != userTask, chains, lastPath,
                 String.valueOf(CLUTCH.phase()),
                 new ControlContracts.CombatTally(state.combatSwings, state.combatWellTimed, state.combatCrits, state.combatKills));
-        return new ControlContracts.BodyStatus(net.magicterra.worlddriver.bot.body.BodyRegistry.SELF, c != null,
+        return new ControlContracts.BodyStatus(net.magicterra.worlddriver.bot.BodyRegistry.SELF, c != null,
                 c == null ? Optional.empty() : Optional.of(c.kind()), StatusView.end(userTask.lastEnd()),
                 StatusView.slots(state), Optional.of(reflexes));
     }
@@ -591,7 +598,7 @@ public final class BotApiImpl implements BotApi {
     /**
      * {@code mc.test.input.heldKeys} — see {@link BotApi#heldKeys()}. Reads
      * {@link KeyMapping#isDown()} on the client thread for exactly what
-     * {@link net.magicterra.worlddriver.bot.util.BotInteract#releaseKeys()} clears, in the same
+     * {@link net.magicterra.worlddriver.game.body.BotInteract#releaseKeys()} clears, in the same
      * order, under the reply names {@code up/down/left/right/jump/sprint/attack/shift}.
      * {@code attack} is the bot's dig latch ({@link ClientIntents#digHeld()}), not a keybind —
      * the bot stopped pressing the attack key on 2026-09-14 — but it keeps its slot so the
@@ -644,7 +651,7 @@ public final class BotApiImpl implements BotApi {
      *
      * <p><b>Not intent ownership</b>, despite how it reads. Six process kinds answer
      * {@code "builder"} (Build/Bridge/Tower/Backfill/BboxFill/Farm) and NONE of them
-     * holds the use intent — they place through {@link net.magicterra.worlddriver.bot.util.BotInteract}
+     * holds the use intent — they place through {@link net.magicterra.worlddriver.game.body.BotInteract}
      * → {@code gameMode.useItemOn} directly. What this suppresses is an ambient's held
      * use firing a SECOND use-action on the tick a builder places, which is
      * why it gates the reflexes instead of handing the intent over. (Its previous name,
@@ -845,7 +852,7 @@ public final class BotApiImpl implements BotApi {
         boolean schedulerDroveThisTick = driving != null && (driving != userTask || userTask.process() != null);
         // The scheduler works on Body instances; this tick chain is the client's, so the
         // controlled player is the local player. Built fresh per tick, like every other ClientPlayerBody (see clientAvatar()).
-        scheduler.tick(new net.magicterra.worlddriver.bot.body.ClientPlayerBody(mc), world, state);
+        scheduler.tick(new net.magicterra.worlddriver.game.body.ClientPlayerBody(mc), world, state);
         // Immediately after the chain has had its turn, so a caller polling on the next server
         // tick sees the ending rather than one tick of stale "still busy".
         settleLeg();
@@ -906,7 +913,7 @@ public final class BotApiImpl implements BotApi {
         // the feet means the front arrives within ~1.5s — walk away NOW. The
         // path brakes prevent walking/falling INTO the flow; this one prevents
         // dying in place while the planner deliberates.
-        if (mc.player != null) net.magicterra.worlddriver.bot.auto.LavaProximityEscape.tick(mc, mc.player);
+        if (mc.player != null) net.magicterra.worlddriver.bot.behavior.reflex.LavaProximityEscape.tick(mc, mc.player);
         // Keep the combat status slot's liveness in sync with the chain, so a status poll reads the
         // fight's end the moment it comes. Counters/goal/lastError persist for post-mortem.
         state.combat.active = combatChain.engaged();
@@ -915,7 +922,7 @@ public final class BotApiImpl implements BotApi {
         // change so no code path can snap the view; a functional exact aim this tick
         // (camera-raycast mine/attack, a leap heading) bypasses it via
         // LookController.requestSnap(). See BotConfig.cameraSlew.
-        net.magicterra.worlddriver.bot.movement.LookController.apply(mc.player);
+        net.magicterra.worlddriver.game.body.LookController.apply(mc.player);
     }
 
     /** Start a foreground user task. The process lifecycle now lives in
@@ -940,7 +947,7 @@ public final class BotApiImpl implements BotApi {
     }
 
     @Override public net.magicterra.worlddriver.api.thread.ServerThreadHop clientHop() {
-        return net.magicterra.worlddriver.bot.util.ClientHop.hop();
+        return net.magicterra.worlddriver.game.ClientHop.hop();
     }
 
     @Override public java.util.concurrent.Executor clientExecutor() { return Minecraft.getInstance(); }
@@ -1053,9 +1060,9 @@ public final class BotApiImpl implements BotApi {
      * follow the player entity" shape the driver has already paid for once, where a view built at construction planned over the old
      * dimension's terrain for every rung after the portal.
      */
-    @Override public net.magicterra.worlddriver.bot.body.Body clientAvatar() {
+    @Override public net.magicterra.worlddriver.game.body.Body clientAvatar() {
         Minecraft mc = Minecraft.getInstance();
-        return mc.player == null ? null : new net.magicterra.worlddriver.bot.body.ClientPlayerBody(mc);
+        return mc.player == null ? null : new net.magicterra.worlddriver.game.body.ClientPlayerBody(mc);
     }
 
     private void cancelCurrent(String reason) {

@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot;
 
-import net.magicterra.worlddriver.bot.util.TimeSnap;
+import net.magicterra.worlddriver.bot.TimeSnap;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -87,7 +87,7 @@ class DayTimeFoldingTest {
     void theScannerCanSeeTheOwnerItExempts() {
         // Without this, deleting TimeSnap's own folding — or renaming the file the exemption
         // names — leaves a test that passes because it is looking at nothing.
-        Path owner = MAIN.resolve("bot/util/" + OWNER);
+        Path owner = MAIN.resolve("bot/" + OWNER);
         assertTrue(Files.exists(owner), "TimeSnap.java is not where this test exempts it: " + owner);
         boolean folds = code(owner).stream().anyMatch(l -> MODULO_DAY.matcher(l).find());
         assertTrue(folds, "TimeSnap no longer folds by 24000, so the exemption above hides nothing "

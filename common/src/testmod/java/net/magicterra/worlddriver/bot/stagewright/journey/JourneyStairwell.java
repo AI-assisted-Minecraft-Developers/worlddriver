@@ -4,12 +4,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.process.Intent;
-import net.magicterra.worlddriver.bot.process.IntentProcess;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
+import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
+import net.magicterra.worlddriver.bot.behavior.Intent;
+import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;

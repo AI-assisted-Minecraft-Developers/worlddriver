@@ -27,8 +27,8 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.world.WorldModel;
-import net.magicterra.worlddriver.client.ClientDriverApi;
-import net.magicterra.worlddriver.client.ClientHooks;
+import net.magicterra.worlddriver.game.ui.ClientDriverApi;
+import net.magicterra.worlddriver.game.ui.ClientHooks;
 import net.minecraft.core.BlockPos;
 
 /**

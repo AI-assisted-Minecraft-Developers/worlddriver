@@ -7,7 +7,7 @@ Usage:
 Steps:
   1. Merge the given .exec files (jacoco CLI).
   2. Emit CSV (+ optional HTML under coverage-out/html) against :common main classes.
-  3. Print a per-class digest for net.magicterra.worlddriver.bot.movement.* sorted by
+  3. Print a per-class digest for net.magicterra.worlddriver.bot.control.* sorted by
      missed branches, and dump uncovered-line detail via the XML report into
      coverage-out/uncovered-movement.txt for gap triage.
 

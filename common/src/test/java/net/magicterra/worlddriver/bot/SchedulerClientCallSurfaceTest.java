@@ -97,7 +97,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code bot/movement/**} would go red on a healthy tree and get switched off, which is the very
  * failure the ALLOWED list above is shaped to avoid. Covering that package needs the other
  * question — the ARGUMENT's type rather than the parameter's — and that needs dataflow this file
- * does not do. Until someone writes it, everything outside {@code bot/scheduler/**} is guarded by
+ * does not do. Until someone writes it, everything outside {@code bot/arbitration/**} is guarded by
  * the dedicated-server gate and by nothing else.
  *
  * <p><b>And a prefilter can hide the exact shape it is hunting.</b> That scan first skipped every
@@ -121,10 +121,10 @@ class SchedulerClientCallSurfaceTest {
 
     /** cwd is the {@code :common} project dir, and {@code test} runs after {@code classes}. */
     private static final Path SCHEDULER_CLASSES =
-            Path.of("build/classes/java/main/net/magicterra/worlddriver/bot/scheduler");
+            Path.of("build/classes/java/main/net/magicterra/worlddriver/bot/arbitration");
 
     /**
-     * Client classes {@code bot/scheduler/**} is allowed to invoke or read fields on.
+     * Client classes {@code bot/arbitration/**} is allowed to invoke or read fields on.
      *
      * <p>The reason is the same for every row and is written once rather than invented five
      * times: each was already being called here before the 2026-08-22 incident and rode a green
@@ -155,7 +155,7 @@ class SchedulerClientCallSurfaceTest {
      *  for the widening scan too: {@code BotInteract#riseBlockedCell} exists precisely to HOST one
      *  ({@code WalkerGeometry.riseBlockers(Player, double)} taking a {@code LocalPlayer}). */
     private static final Path BOT_INTERACT_CLASS =
-            Path.of("build/classes/java/main/net/magicterra/worlddriver/bot/util/BotInteract.class");
+            Path.of("build/classes/java/main/net/magicterra/worlddriver/game/body/BotInteract.class");
 
     /**
      * Player types wide enough that passing a {@code LocalPlayer} into one is the rule-12 widening.
@@ -183,7 +183,7 @@ class SchedulerClientCallSurfaceTest {
             if (!unvetted.isEmpty()) offenders.put(c.getFileName().toString(), unvetted);
         }
         assertTrue(offenders.isEmpty(),
-                "a class in bot/scheduler/** now invokes (or reads a field on) a client class that "
+                "a class in bot/arbitration/** now invokes (or reads a field on) a client class that "
                 + "has never been shown to load on a dedicated server. These chains are CONSTRUCTED "
                 + "there by the wd.*Matrix scenes, and a class that will not load kills the scene at "
                 + "0 ticks with 'invalid dist DEDICATED_SERVER' — no stack into your code, no hint "
@@ -203,7 +203,7 @@ class SchedulerClientCallSurfaceTest {
             if (!wide.isEmpty()) offenders.put(c.getFileName().toString(), wide);
         }
         assertTrue(offenders.isEmpty(),
-                "a class in bot/scheduler/** now calls something that takes a WIDE player type "
+                "a class in bot/arbitration/** now calls something that takes a WIDE player type "
                 + "(Player/LivingEntity/Entity). These chains are constructed on a dedicated "
                 + "server, and if the argument is the client player, the widening makes the verifier "
                 + "load LocalPlayer to prove the subtype relation — a class that does not exist "
@@ -270,7 +270,7 @@ class SchedulerClientCallSurfaceTest {
         Set<String> everything = new TreeSet<>();
         for (Path c : classes) everything.addAll(clientOwners(read(c)));
         assertEquals(new TreeSet<>(ALLOWED.keySet()), everything,
-                "the client-call surface of bot/scheduler/** no longer matches the manifest. An "
+                "the client-call surface of bot/arbitration/** no longer matches the manifest. An "
                 + "extra entry is caught by the first test with a fuller message; a MISSING one "
                 + "means the package stopped calling a class it used to — drop the row, so the "
                 + "allowlist keeps meaning 'measured', not 'accumulated'.");
@@ -306,7 +306,7 @@ class SchedulerClientCallSurfaceTest {
      * <p>Reported by the parameter's declared type, not by the argument's: proving which value
      * reaches which slot needs dataflow, and this file does not do dataflow. What it can say
      * exactly is <b>which wide player types this class's call sites accept at all</b>, and today
-     * that set is EMPTY for {@code bot/scheduler/**} — measured, not assumed. An empty set cannot
+     * that set is EMPTY for {@code bot/arbitration/**} — measured, not assumed. An empty set cannot
      * widen, so an empty set is the invariant worth pinning; the day one appears, someone has to
      * say why the argument is not the client player.
      *

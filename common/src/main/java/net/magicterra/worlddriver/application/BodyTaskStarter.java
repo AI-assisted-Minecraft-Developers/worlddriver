@@ -25,9 +25,9 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.body.BodyHost;
-import net.magicterra.worlddriver.bot.body.BodyRegistry;
-import net.magicterra.worlddriver.bot.process.BotProcess;
+import net.magicterra.worlddriver.bot.BodyHost;
+import net.magicterra.worlddriver.bot.BodyRegistry;
+import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.minecraft.world.entity.LivingEntity;
 
 /**

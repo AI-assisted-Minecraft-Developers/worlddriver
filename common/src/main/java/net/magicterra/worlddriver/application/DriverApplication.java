@@ -11,7 +11,7 @@ import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.thread.ServerThreadGuard;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
-import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.config.BotConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -22,8 +22,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import net.magicterra.worlddriver.client.ClientHooks;
-import net.magicterra.worlddriver.client.ClientDriverApi;
+import net.magicterra.worlddriver.game.ui.ClientHooks;
+import net.magicterra.worlddriver.game.ui.ClientDriverApi;
 
 /* Ring buffer cap keeps memory bounded for long-running servers. Old events
  * roll off; eventsSince(cursor) on an out-of-window cursor returns whatever

@@ -4,22 +4,22 @@ import java.util.EnumSet;
 import java.util.List;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.movement.PathSmoothing;
-import net.magicterra.worlddriver.bot.pathfinder.Capability;
-import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
-import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
-import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
-import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.ColumnRadius;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.LeashHardRadius;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.NoWater;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.YFloor;
-import net.magicterra.worlddriver.bot.pathfinder.modifiers.AvoidRegion;
-import net.magicterra.worlddriver.bot.pathfinder.modifiers.ShorelineHug;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.control.PathSmoothing;
+import net.magicterra.worlddriver.bot.rules.Capability;
+import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
+import net.magicterra.worlddriver.bot.rules.CostModifier;
+import net.magicterra.worlddriver.bot.planning.PathFinder;
+import net.magicterra.worlddriver.bot.planning.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.constraints.ColumnRadius;
+import net.magicterra.worlddriver.bot.rules.constraints.LeashHardRadius;
+import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
+import net.magicterra.worlddriver.bot.rules.constraints.NoWater;
+import net.magicterra.worlddriver.bot.rules.constraints.YFloor;
+import net.magicterra.worlddriver.bot.rules.modifiers.AvoidRegion;
+import net.magicterra.worlddriver.bot.rules.modifiers.ShorelineHug;
+import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
@@ -78,7 +78,7 @@ import net.minecraft.world.level.block.Blocks;
  * </ul>
  *
  * <p><b>All 13 are PLANNER-ONLY.</b> Unlike wave 2 (Terrain), no Bias arena drives a
- * {@link net.magicterra.worlddriver.bot.movement.Walker} or a registered driver — each builds an
+ * {@link net.magicterra.worlddriver.bot.control.Walker} or a registered driver — each builds an
  * immutable {@link LevelWorldView} and runs one or two {@link PathFinder} searches, then
  * asserts on the returned {@code Result}. So there is no executor flakiness, no per-tick
  * stepping, and no {@code SimProbes.grantWaterEffects} (nothing ever moves or takes damage).

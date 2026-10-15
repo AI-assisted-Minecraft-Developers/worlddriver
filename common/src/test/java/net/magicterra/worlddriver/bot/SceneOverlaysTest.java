@@ -10,10 +10,10 @@ import java.util.Optional;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.DensityOverlay;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.SightOverlay;
 
-import net.magicterra.worlddriver.bot.pathfinder.SearchScope;
-import net.magicterra.worlddriver.bot.pathfinder.ThreatSnapshot;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.MobCluster;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.SightExposure;
+import net.magicterra.worlddriver.bot.rules.SearchScope;
+import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
+import net.magicterra.worlddriver.bot.rules.constraints.MobCluster;
+import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;

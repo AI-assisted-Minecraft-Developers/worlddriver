@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.integration.debug;
 
-import net.magicterra.worlddriver.bot.debug.*;
+import net.magicterra.worlddriver.debug.PathArchive;
 
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.WorldDriverCommon;
@@ -16,14 +16,14 @@ import net.magicterra.worlddriver.api.methods.debug.DebugContracts.Replayed;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.magicterra.worlddriver.bot.BotApiImpl;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.rules.Move;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.TagParser;
-import net.magicterra.worlddriver.bot.util.RegistryIds;
+import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import java.nio.file.Files;

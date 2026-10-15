@@ -1,0 +1,64 @@
+package net.magicterra.worlddriver.bot.rules.moves;
+
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.rules.Move;
+import net.magicterra.worlddriver.bot.world.WorldView;
+import net.minecraft.core.BlockPos;
+
+/**
+ * Diagonal step DOWN one block (foot drops to {@code from + (dx, -1, dz)}) —
+ * the diagonal analogue of {@link StepDown}. The Walker walks off the corner
+ * (no jump, since the waypoint is lower) and aims at the waypoint because its
+ * Y differs, so no actuator change is needed. Cost 14 (same as a flat
+ * diagonal — the one-block drop is essentially free), cheaper than the
+ * StepDown+Walk pair (10+10) so A* prefers cutting the descending corner.
+ *
+ * Both cardinal side columns must be clear at the launch band (foot+head) so
+ * the player slides off the corner without wedging on the way down.
+ */
+public final class DiagonalDescend extends Move {
+    public DiagonalDescend(int dx, int dz) { super(dx, -1, dz, 14); }
+
+    /** Taxed like {@link StepDown} for a block the head meets past the landing. */
+    @Override public Edge eval(WorldView w, BlockPos from) {
+        if (!valid(w, from)) return null;
+        return new Edge(apply(from), cost + StepDown.headStrikeTax(w, apply(from), dx, dz),
+                java.util.List.of(), java.util.List.of(), name());
+    }
+
+    public boolean valid(WorldView w, BlockPos from) {
+        BlockPos to = apply(from);
+        // A buoyant bot can't follow a descend INTO submerged water (water at the
+        // destination foot AND head): it floats over the below-node and oscillates
+        // swimUp↔descend instead of sinking. Mirror Fall/FallIntoWater's submerged-
+        // landing gate so A* never routes the unexecutable dive (live z2744 slot
+        // canyon). A descend to the water SURFACE (head air) stays valid.
+        if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) return false;
+        if (!w.canStandAt(to)) return false;
+        // Launch head clearance.
+        if (!w.isPassable(from.offset(0, 1, 0)) || w.isHazard(from.offset(0, 1, 0))) return false;
+        // Destination column at the LAUNCH head height (to + 2). The player drops one
+        // block over the move, so mid-descent it is briefly horizontally over to.xz
+        // while still at the FROM height — its head then sweeps to+(0,2,0), which
+        // canStandAt(to) (foot to, head to+1) never checks. An unchecked leaf /
+        // overhang there hCol-rams the head and the bot grinds it for 25-50 s
+        // (live round71/72 jungle canopy). Rejecting forces the executable
+        // StepDown+Walk instead (drop first, then walk at to's lower head band,
+        // which clears the to+2 obstacle).
+        if (!w.isPassable(to.offset(0, 2, 0)) || w.isHazard(to.offset(0, 2, 0))) return false;
+        // Both corners open at the launch foot+head band.
+        BlockPos sideA = from.offset(dx, 0, 0);
+        BlockPos sideB = from.offset(0, 0, dz);
+        // Both corners over the void → nothing under the crossing. Same rule as Diagonal, applied
+        // to the same family: a diagonal is executed by aiming at the destination centre, so the
+        // hitbox passes over both corner columns whatever the height change. Gating only the flat
+        // Diagonal was the third time in two days an exemption was written narrower than the family
+        // it had to cover; rung 20 kept leaving the world from island rims (-15,60,36 / -16,61,34 /
+        // -18,61,36 / -35,62,-6) after the flat one was closed.
+        if (BotConfig.pathfinderForbidParkourOverTheVoid
+                && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) return false;
+
+        return clearColumn(w, sideA) && clearColumn(w, sideB);
+    }
+    public String name() { return "diagDown"; }
+}

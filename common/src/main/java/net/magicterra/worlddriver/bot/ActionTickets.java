@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason;
-import net.magicterra.worlddriver.bot.scheduler.Ticket;
+import net.magicterra.worlddriver.bot.arbitration.Ticket;
 
 /** The scheduler's {@link Ticket} for an API {@link ActionHandle}: the one place the two meet. */
 public final class ActionTickets {

@@ -13,7 +13,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
 import static net.magicterra.worlddriver.bot.GoalResolver.*;
-import static net.magicterra.worlddriver.bot.util.BotUtil.*;
+import static net.magicterra.worlddriver.game.BotUtil.*;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.rules.Goal;
 
 /**
  * The goal of {@code mc.bot.goto}: a decoded target resolved against the body and the live world, on

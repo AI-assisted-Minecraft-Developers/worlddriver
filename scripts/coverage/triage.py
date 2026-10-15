@@ -13,9 +13,9 @@ import sys
 from collections import defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SRC = os.path.join(ROOT, "common/src/main/java/net/magicterra/worlddriver/bot/movement")
+SRC = os.path.join(ROOT, "common/src/main/java/net/magicterra/worlddriver/bot/control")
 DUMP = os.path.join(ROOT, "coverage-out/uncovered-movement.txt")
-ONLY = re.compile(r"movement/(Walker\w*|Walker)\.java")
+ONLY = re.compile(r"control/(Walker\w*|Walker)\.java")
 
 FLAG = re.compile(r"BotConfig\.(walker\w+|pathfinder\w+|descentCameraDecouple|allowParkour\w*|allowBreak|allowPlace|pathArchive|pathDebug|breakTimeoutTicks)")
 BANNER = re.compile(r"^\s*// ([A-Z][A-Za-z0-9 \-+/#§']{8,60})")

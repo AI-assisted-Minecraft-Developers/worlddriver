@@ -49,12 +49,12 @@ import net.magicterra.worlddriver.api.methods.bot.MoveContracts.RunAwayParams;
 import net.magicterra.worlddriver.api.methods.bot.MoveContracts.SleepParams;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
 import net.magicterra.worlddriver.bot.BotApi;
-import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.GotoOrders;
 import net.magicterra.worlddriver.bot.VerbOrders;
-import net.magicterra.worlddriver.bot.body.BodyRegistry;
-import net.magicterra.worlddriver.bot.process.BboxFillProcess;
+import net.magicterra.worlddriver.bot.BodyRegistry;
+import net.magicterra.worlddriver.bot.behavior.BboxFillProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -184,7 +184,7 @@ final class BotTaskService implements BotTaskApi {
         if (p.schematic() instanceof BuildContracts.Blocks b) {
             for (int i = 0; i < b.palette().size(); i++) requireBlock("/schematic/palette/" + i, b.palette().get(i));
         }
-        net.magicterra.worlddriver.bot.process.Schematic schematic;
+        net.magicterra.worlddriver.bot.behavior.Schematic schematic;
         try {
             schematic = VerbOrders.schematic(p.schematic());
         } catch (RuntimeException e) {

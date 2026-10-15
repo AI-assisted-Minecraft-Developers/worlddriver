@@ -5,10 +5,10 @@ import java.util.List;
 
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
-import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
+import net.magicterra.worlddriver.game.body.JoinedPlayerBodies;
+import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.game.body.ServerPlayerBody;
+import net.magicterra.worlddriver.bot.ServerWorldDriver;
 import net.magicterra.worlddriver.testcontent.DrivenPiglin;
 import net.magicterra.worlddriver.testcontent.NpcContent;
 import net.minecraft.core.BlockPos;

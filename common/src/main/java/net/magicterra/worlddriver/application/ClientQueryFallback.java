@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.api.game.UnloadedAreaException;
 import net.magicterra.worlddriver.api.game.Positions;
-import net.magicterra.worlddriver.bot.util.RegistryIds;
+import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockScan;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChunkRef;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts.BlockRow;
@@ -18,7 +18,7 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import net.magicterra.worlddriver.client.ClientDriverApi;
+import net.magicterra.worlddriver.game.ui.ClientDriverApi;
 import net.minecraft.world.level.ChunkPos;
 
 /**

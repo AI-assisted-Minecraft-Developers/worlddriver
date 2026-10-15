@@ -27,8 +27,8 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.Stopped;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.StatusView;
-import net.magicterra.worlddriver.bot.body.BodyHost;
-import net.magicterra.worlddriver.bot.body.BodyRegistry;
+import net.magicterra.worlddriver.bot.BodyHost;
+import net.magicterra.worlddriver.bot.BodyRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 

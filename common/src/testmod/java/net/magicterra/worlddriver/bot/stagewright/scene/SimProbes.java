@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
-import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.ServerWorldDriver;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;

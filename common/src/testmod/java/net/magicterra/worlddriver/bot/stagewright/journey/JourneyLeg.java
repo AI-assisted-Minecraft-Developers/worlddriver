@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
-import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 
 import java.util.Locale;

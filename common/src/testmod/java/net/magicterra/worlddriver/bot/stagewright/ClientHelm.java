@@ -6,12 +6,12 @@ import java.util.Map;
 
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.BotApi;
-import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.process.BotProcess;
-import net.magicterra.worlddriver.bot.process.Intent;
-import net.magicterra.worlddriver.bot.process.IntentProcess;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.Intent;
+import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;

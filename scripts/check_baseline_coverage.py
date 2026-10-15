@@ -46,7 +46,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BOT_CONFIG = os.path.join(ROOT, "common/src/main/java/net/magicterra/worlddriver/bot/BotConfig.java")
+BOT_CONFIG = os.path.join(ROOT, "common/src/main/java/net/magicterra/worlddriver/config/BotConfig.java")
 SCENE_GLOB = os.path.join(ROOT, "common/src/testmod/**/*.java")
 
 # Baselined fields that NO scene restores to its shipped default. Each one is a code path

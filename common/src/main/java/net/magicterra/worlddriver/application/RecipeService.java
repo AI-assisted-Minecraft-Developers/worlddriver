@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.application;
 
 import net.magicterra.worlddriver.api.registry.ApiMethod;
-import net.magicterra.worlddriver.bot.util.RegistryIds;
+import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
@@ -18,9 +18,9 @@ import net.magicterra.worlddriver.api.methods.recipe.RecipeContracts.LookupParam
 import net.magicterra.worlddriver.api.methods.recipe.RecipeContracts.PlanParams;
 import net.magicterra.worlddriver.api.methods.recipe.RecipeContracts.Recipes;
 import net.magicterra.worlddriver.api.methods.recipe.RecipeContracts.Stack;
-import net.magicterra.worlddriver.bot.process.AcquireResolver;
-import net.magicterra.worlddriver.bot.process.CraftProcess;
-import net.magicterra.worlddriver.bot.process.RecipeResolver;
+import net.magicterra.worlddriver.bot.behavior.AcquireResolver;
+import net.magicterra.worlddriver.bot.behavior.CraftProcess;
+import net.magicterra.worlddriver.bot.behavior.RecipeResolver;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.registries.BuiltInRegistries;

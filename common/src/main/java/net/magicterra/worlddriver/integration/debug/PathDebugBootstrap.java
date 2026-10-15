@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.integration.debug;
 
-import net.magicterra.worlddriver.bot.debug.*;
+import net.magicterra.worlddriver.debug.PathArchiveRecorder;
+import net.magicterra.worlddriver.debug.PathDebugRecorder;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.registry.ApiBatch;
 import net.magicterra.worlddriver.api.registry.ApiHandlers;
@@ -9,8 +10,8 @@ import net.magicterra.worlddriver.api.methods.debug.DebugApi;
 import net.magicterra.worlddriver.api.methods.debug.DebugApiBinding;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.pathfinder.MultiTrace;
-import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
+import net.magicterra.worlddriver.bot.planning.MultiTrace;
+import net.magicterra.worlddriver.bot.planning.PathTraceHolder;
 import java.util.Objects;
 import java.util.concurrent.CompletionStage;
 import org.slf4j.Logger;

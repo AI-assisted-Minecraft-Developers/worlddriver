@@ -10,12 +10,12 @@ import java.util.Optional;
 
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Segment;
-import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
-import net.magicterra.worlddriver.bot.pathfinder.Region;
-import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
-import net.magicterra.worlddriver.bot.pathfinder.ThreatSnapshot;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.ForbidRegion;
-import net.magicterra.worlddriver.bot.pathfinder.modifiers.AvoidRegion;
+import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
+import net.magicterra.worlddriver.bot.rules.Region;
+import net.magicterra.worlddriver.bot.planning.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.ThreatSnapshot;
+import net.magicterra.worlddriver.bot.rules.constraints.ForbidRegion;
+import net.magicterra.worlddriver.bot.rules.modifiers.AvoidRegion;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;

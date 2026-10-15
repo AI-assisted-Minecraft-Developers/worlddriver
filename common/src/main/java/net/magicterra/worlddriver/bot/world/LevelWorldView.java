@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.world;
 
-import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;

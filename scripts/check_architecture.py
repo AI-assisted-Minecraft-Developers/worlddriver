@@ -94,7 +94,8 @@ def main():
                       for p in ('rpc', 'mcp', 'application', 'bot', 'client', 'script', 'integration')]
         elif area in ('rpc', 'mcp'):
             banned = ['net.magicterra.worlddriver.application.']
-        if relative.parts[:2] in [('bot', 'process'), ('bot', 'scheduler'), ('bot', 'movement'), ('bot', 'pathfinder')]:
+        if relative.parts[:2] in [('bot', 'behavior'), ('bot', 'arbitration'), ('bot', 'control'),
+                                  ('bot', 'planning'), ('bot', 'rules')]:
             banned += ['net.magicterra.worlddriver.integration.', 'net.magicterra.worlddriver.mcp.',
                        'net.magicterra.worlddriver.rpc.', 'net.magicterra.worlddriver.api.']
             if re.search(r'WorldDriverCommon\s*\.\s*(registry|host)\s*\(', text):

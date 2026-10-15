@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.mixin;
 
-import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
+import net.magicterra.worlddriver.game.body.JoinedPlayerBodies;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketSendListener;
 import net.minecraft.network.protocol.Packet;

@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.mixin.client;
 
-import net.magicterra.worlddriver.client.internal.FrameClock;
+import net.magicterra.worlddriver.game.ui.FrameClock;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.renderer.GameRenderer;
 import org.spongepowered.asm.mixin.Mixin;

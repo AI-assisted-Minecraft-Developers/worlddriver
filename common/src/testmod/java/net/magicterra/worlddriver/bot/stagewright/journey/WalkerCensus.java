@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
-import net.magicterra.worlddriver.bot.movement.Walker;
+import net.magicterra.worlddriver.bot.control.Walker;
 
 /**
  * The EXECUTOR's side of a rung, as a delta against the rig that owns it — the counterpart to

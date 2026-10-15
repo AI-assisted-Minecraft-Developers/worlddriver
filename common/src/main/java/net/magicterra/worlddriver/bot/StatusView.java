@@ -6,6 +6,7 @@ import java.util.Optional;
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.minecraft.core.BlockPos;
+import net.magicterra.worlddriver.bot.behavior.BotState;
 
 /** {@code mc.bot.status}'s view of a {@link BotState}, the same for this client's player and any other bot. */
 public final class StatusView {

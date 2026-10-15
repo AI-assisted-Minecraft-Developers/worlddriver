@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -18,7 +18,7 @@ import net.minecraft.world.level.block.Blocks;
  * retired in the same commit.
  *
  * <p><b>Both are pure {@link BotConfig} predicate probes — planner/API-only, no world,
- * no avatar, no {@link net.magicterra.worlddriver.bot.movement.Walker} drive.</b> Each builds
+ * no avatar, no {@link net.magicterra.worlddriver.bot.control.Walker} drive.</b> Each builds
  * nothing in the level: it calls {@code BotConfig.isUsableBuildBlock} /
  * {@code isValuablePlacementBlock} / {@code isThrowawaySupportBlock} on a fixed block/item
  * matrix and asserts the classification. So there is no {@code SceneContext.origin()}

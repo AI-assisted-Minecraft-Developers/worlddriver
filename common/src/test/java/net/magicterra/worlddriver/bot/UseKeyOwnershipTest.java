@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>The use intent is the one shared input {@code BotInteract.releaseKeys()}
  * deliberately does NOT clear. The movement keys and the dig latch get a blanket release
  * once per drive burst, gated by
- * {@link net.magicterra.worlddriver.bot.movement.InputReleaseGate} so a human playing
+ * {@link net.magicterra.worlddriver.game.ui.InputReleaseGate} so a human playing
  * without an agent never has their keys clobbered. The use intent cannot join them: the
  * idle release runs AFTER the shield/heal/eat reflexes set it, so clearing it there would
  * undo them every tick.
@@ -97,7 +97,7 @@ class UseKeyOwnershipTest {
         // If the use intent is ever added to releaseKeys(), the arbitration above stops being
         // the mechanism and this test is guarding a rule that no longer exists.
         String interact = read(Path.of(
-                "src/main/java/net/magicterra/worlddriver/bot/util/BotInteract.java"));
+                "src/main/java/net/magicterra/worlddriver/game/body/BotInteract.java"));
         Matcher m = Pattern.compile("(?s)void\\s+releaseKeys\\s*\\(\\s*\\)\\s*\\{(.*?)\\n    \\}")
                 .matcher(strip(interact));
         assertTrue(m.find(), "releaseKeys() not found in BotInteract — this test needs updating");

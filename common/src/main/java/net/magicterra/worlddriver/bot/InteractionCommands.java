@@ -9,10 +9,10 @@ import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
-import net.magicterra.worlddriver.bot.body.ClientPlayerBody;
-import net.magicterra.worlddriver.bot.body.Hands;
-import net.magicterra.worlddriver.bot.util.HandVerbs;
-import net.magicterra.worlddriver.bot.util.RegistryIds;
+import net.magicterra.worlddriver.game.body.ClientPlayerBody;
+import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.HandVerbs;
+import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -28,8 +28,8 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.Optional;
 
-import static net.magicterra.worlddriver.bot.util.BotInteract.*;
-import static net.magicterra.worlddriver.bot.util.BotUtil.*;
+import static net.magicterra.worlddriver.game.body.BotInteract.*;
+import static net.magicterra.worlddriver.game.BotUtil.*;
 
 /**
  * {@code mc.bot.holdItem}, {@code useItem} and {@code attackEntity} on this client's player: what the

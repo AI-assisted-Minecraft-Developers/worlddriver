@@ -1,15 +1,16 @@
 package net.magicterra.worlddriver.bot;
 
-import net.magicterra.worlddriver.bot.debug.PathArchiveRecorder;
+import net.magicterra.worlddriver.debug.PathArchiveRecorder;
 
-import net.magicterra.worlddriver.bot.pathfinder.Move;
-import net.magicterra.worlddriver.bot.process.Intent;
-import net.magicterra.worlddriver.bot.process.IntentProcess;
-import net.magicterra.worlddriver.bot.process.ReplayProcess;
+import net.magicterra.worlddriver.bot.rules.Move;
+import net.magicterra.worlddriver.bot.behavior.Intent;
+import net.magicterra.worlddriver.bot.behavior.IntentProcess;
+import net.magicterra.worlddriver.bot.behavior.ReplayProcess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import java.util.List;
+import net.magicterra.worlddriver.bot.rules.Goal;
 
 /**
  * Installs replay runs for {@code mc.debug.replay}; the impl's public {@code startReplay} /

@@ -9,18 +9,18 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
-import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
-import net.magicterra.worlddriver.bot.process.CombatProcess;
-import net.magicterra.worlddriver.bot.process.CraftProcess;
-import net.magicterra.worlddriver.bot.process.Intent;
-import net.magicterra.worlddriver.bot.process.IntentProcess;
-import net.magicterra.worlddriver.bot.process.MineProcess;
-import net.magicterra.worlddriver.bot.process.SmeltProcess;
-import net.magicterra.worlddriver.bot.process.TowerProcess;
-import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
+import net.magicterra.worlddriver.bot.rules.CostModifier;
+import net.magicterra.worlddriver.bot.behavior.CombatProcess;
+import net.magicterra.worlddriver.bot.behavior.CraftProcess;
+import net.magicterra.worlddriver.bot.behavior.Intent;
+import net.magicterra.worlddriver.bot.behavior.IntentProcess;
+import net.magicterra.worlddriver.bot.behavior.MineProcess;
+import net.magicterra.worlddriver.bot.behavior.SmeltProcess;
+import net.magicterra.worlddriver.bot.behavior.TowerProcess;
+import net.magicterra.worlddriver.bot.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -772,7 +772,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      */
     static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
                                      int budget, int left, List<CostModifier> bias,
-                                     List<net.magicterra.worlddriver.bot.pathfinder.Constraint> hard,
+                                     List<net.magicterra.worlddriver.bot.rules.Constraint> hard,
                                      Runnable onArrived, Runnable onStuck) {
         BlockPos before = rig.player().blockPosition();
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(x, z, tolerance), bias,

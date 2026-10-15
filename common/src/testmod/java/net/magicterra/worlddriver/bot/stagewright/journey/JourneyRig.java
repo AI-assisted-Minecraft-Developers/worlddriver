@@ -10,20 +10,20 @@ import java.util.function.BooleanSupplier;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotApi;
-import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.body.Body;
-import net.magicterra.worlddriver.bot.body.Hands;
-import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.process.BotProcess;
-import net.magicterra.worlddriver.bot.process.Intent;
-import net.magicterra.worlddriver.bot.process.IntentProcess;
-import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
-import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
+import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
+import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.Intent;
+import net.magicterra.worlddriver.bot.behavior.IntentProcess;
+import net.magicterra.worlddriver.game.body.JoinedPlayerBodies;
+import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.game.body.ServerPlayerBody;
+import net.magicterra.worlddriver.bot.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -1424,9 +1424,9 @@ public final class JourneyRig {
                 + " @ " + fp.level().dimension().location()
                 + "; process running at exit=" + (drivingWhenLost == null ? "not recorded" : drivingWhenLost)
                 + "; walker activity on the last supported tick (⚠️ updated only on walker ticks, may be from another task)="
-                + net.magicterra.worlddriver.bot.movement.Walker.lastSupportedTrace
+                + net.magicterra.worlddriver.bot.control.Walker.lastSupportedTrace
                 + "; walker activity on the tick of departure="
-                + net.magicterra.worlddriver.bot.movement.Walker.lastTickTrace
+                + net.magicterra.worlddriver.bot.control.Walker.lastTickTrace
                 + "; last on the ground=" + (lastGrounded == null ? "never stood firmly during this task"
                         : lastGrounded.getX() + "," + lastGrounded.getY() + "," + lastGrounded.getZ()
                           + " (" + sinceGrounded + " ticks earlier — that cell is the one to inspect)")
@@ -1768,14 +1768,14 @@ public final class JourneyRig {
     private String strideGuardLine() {
         long sum = 0;
         StringBuilder sb = new StringBuilder();
-        String[] names = net.magicterra.worlddriver.bot.movement.Walker.STRIDE_SKIP_REASONS;
+        String[] names = net.magicterra.worlddriver.bot.control.Walker.STRIDE_SKIP_REASONS;
         for (int i = 0; i < names.length; i++) {
-            long v = net.magicterra.worlddriver.bot.movement.Walker.strideGuardSkips.get(i);
+            long v = net.magicterra.worlddriver.bot.control.Walker.strideGuardSkips.get(i);
             sum += v;
             sb.append(i == 0 ? "" : ", ").append(names[i]).append('=').append(v);
         }
         return "stride guard fired "
-                + net.magicterra.worlddriver.bot.movement.Walker.strideGuardFires
+                + net.magicterra.worlddriver.bot.control.Walker.strideGuardFires
                 + " times over the run; did not fire for " + sum + " ticks"
                 + (sum == 0 ? " (total 0 — the guard was never called on this run, so the problem is not inside"
                               + " the guard; check first whether the walker ticked)" : ", by reason: " + sb);
@@ -1798,9 +1798,9 @@ public final class JourneyRig {
     private final long[] futileAtStart = futileSnapshot();
 
     private static long[] futileSnapshot() {
-        long[] v = new long[net.magicterra.worlddriver.bot.movement.Walker.FUTILE_GATE_BUCKETS.length];
+        long[] v = new long[net.magicterra.worlddriver.bot.control.Walker.FUTILE_GATE_BUCKETS.length];
         for (int i = 0; i < v.length; i++)
-            v[i] = net.magicterra.worlddriver.bot.movement.Walker.futileGateBuckets.get(i);
+            v[i] = net.magicterra.worlddriver.bot.control.Walker.futileGateBuckets.get(i);
         return v;
     }
 
@@ -1900,9 +1900,9 @@ public final class JourneyRig {
     private String futileGateLine() {
         long sum = 0;
         StringBuilder sb = new StringBuilder();
-        String[] names = net.magicterra.worlddriver.bot.movement.Walker.FUTILE_GATE_BUCKETS;
+        String[] names = net.magicterra.worlddriver.bot.control.Walker.FUTILE_GATE_BUCKETS;
         for (int i = 0; i < names.length; i++) {
-            long v = net.magicterra.worlddriver.bot.movement.Walker.futileGateBuckets.get(i) - futileAtStart[i];
+            long v = net.magicterra.worlddriver.bot.control.Walker.futileGateBuckets.get(i) - futileAtStart[i];
             sum += v;
             sb.append(i == 0 ? "" : ", ").append(names[i]).append('=').append(v);
         }
@@ -2236,7 +2236,7 @@ public final class JourneyRig {
      * that needed it could not reach it.
      */
     public static net.minecraft.world.item.Item item(String itemId) {
-        return net.magicterra.worlddriver.bot.util.RegistryIds.lookup(net.minecraft.core.registries.BuiltInRegistries.ITEM, itemId)
+        return net.magicterra.worlddriver.game.observe.RegistryIds.lookup(net.minecraft.core.registries.BuiltInRegistries.ITEM, itemId)
                 .orElseThrow(() -> new IllegalArgumentException("no item " + itemId));
     }
 
@@ -2574,7 +2574,7 @@ public final class JourneyRig {
      * ladder out of wood.
      */
     public BlockPos nearestBlock(String blockId, int radius, int yRadius) {
-        var wanted = net.magicterra.worlddriver.bot.util.RegistryIds.lookup(net.minecraft.core.registries.BuiltInRegistries.BLOCK, blockId)
+        var wanted = net.magicterra.worlddriver.game.observe.RegistryIds.lookup(net.minecraft.core.registries.BuiltInRegistries.BLOCK, blockId)
                 .orElseThrow(() -> new IllegalArgumentException("no block " + blockId));
         BlockPos centre = player().blockPosition();
         ServerLevel lvl = (ServerLevel) player().level();
@@ -2726,7 +2726,7 @@ public final class JourneyRig {
      * colour, so a haul of white + brown + black is worth exactly nothing — the same shape as the
      * plank-variant trap the craft resolver taught this ladder once already. Which sheep to kill is
      * therefore a decision that has to be made BEFORE the kill, and that is also why the entity id
-     * comes back: {@link net.magicterra.worlddriver.bot.process.CombatProcess} accepts one, so the
+     * comes back: {@link net.magicterra.worlddriver.bot.behavior.CombatProcess} accepts one, so the
      * rung can name the individual instead of naming the species and hoping the nearest match is
      * the colour it needed.
      *

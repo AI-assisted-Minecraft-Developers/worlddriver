@@ -6,12 +6,12 @@ import java.util.Map;
 import java.util.Set;
 
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.process.Intent;
-import net.magicterra.worlddriver.bot.process.IntentProcess;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
+import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
+import net.magicterra.worlddriver.bot.behavior.Intent;
+import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -1299,7 +1299,7 @@ public final class JourneyPortalRung {
      *
      * <p><b>It no longer prints {@code mine.lastError} or {@code mine.endReason}, and that is a
      * correction rather than a trim.</b> Those two live in {@code botState().mine}, which only a
-     * {@link net.magicterra.worlddriver.bot.process.MineProcess} ever writes — and this dig is not
+     * {@link net.magicterra.worlddriver.bot.behavior.MineProcess} ever writes — and this dig is not
      * one. {@code ServerWorldDriver.mine(BlockPos)} sets {@code mineTarget} and a walker goal and
      * explicitly clears {@code process}, so what the line reported was the LAST MineProcess to have
      * run, from somewhere else entirely. On the ladder run of 2026-08-12 it printed

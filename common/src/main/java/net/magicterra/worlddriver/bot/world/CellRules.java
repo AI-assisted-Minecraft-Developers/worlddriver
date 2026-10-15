@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.world;
 
-import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.process.MineProcess;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.behavior.MineProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;

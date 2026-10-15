@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import net.magicterra.worlddriver.bot.behavior.BotState;
 
 /**
  * {@link BotState#processSlots()} is written out by hand, and a slot claim only sees the slots it

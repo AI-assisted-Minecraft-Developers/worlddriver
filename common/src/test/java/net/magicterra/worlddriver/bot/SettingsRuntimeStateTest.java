@@ -14,6 +14,8 @@ import net.magicterra.worlddriver.api.schema.ApiIssue;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RuntimeState;
 
 /**
  * Some {@link BotConfig} fields are state the bot rewrites every tick, not settings. Accepting a

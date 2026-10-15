@@ -10,7 +10,8 @@ import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
 import net.magicterra.worlddriver.bot.SettingsContracts.AvoidPoint;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.magicterra.worlddriver.bot.util.RegistryIds;
+import net.magicterra.worlddriver.game.observe.RegistryIds;
+import net.magicterra.worlddriver.config.BotConfig;
 
 /**
  * Reads and writes the {@code mc.bot.setting} keys in {@link BotConfig}. Types and ranges are the

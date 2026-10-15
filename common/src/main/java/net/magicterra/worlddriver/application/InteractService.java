@@ -19,10 +19,10 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Used;
 import net.magicterra.worlddriver.bot.BotApi;
-import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.body.BodyRegistry;
-import net.magicterra.worlddriver.bot.process.LookProcess;
+import net.magicterra.worlddriver.bot.BodyRegistry;
+import net.magicterra.worlddriver.bot.behavior.LookProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 

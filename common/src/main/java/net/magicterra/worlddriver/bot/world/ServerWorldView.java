@@ -6,7 +6,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Server-side {@link net.magicterra.worlddriver.bot.pathfinder.WorldView} over a {@link ServerLevel}.
+ * Server-side {@link net.magicterra.worlddriver.bot.world.WorldView} over a {@link ServerLevel}.
  * Reads block states directly from the server's chunk storage. Used by {@code mc.observe.scene}
  * (and any other server-only analysis that needs a WorldView without a client).
  *

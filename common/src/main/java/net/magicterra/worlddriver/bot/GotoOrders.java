@@ -15,15 +15,16 @@ import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Trip;
 import net.magicterra.worlddriver.api.methods.bot.MoveContracts;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
-import net.magicterra.worlddriver.bot.body.BodyRegistry;
-import net.magicterra.worlddriver.bot.process.BotProcess;
-import net.magicterra.worlddriver.bot.process.RouteEvents;
-import net.magicterra.worlddriver.bot.process.Intent;
-import net.magicterra.worlddriver.bot.process.IntentProcess;
+import net.magicterra.worlddriver.bot.BodyRegistry;
+import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.RouteEvents;
+import net.magicterra.worlddriver.bot.behavior.Intent;
+import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.magicterra.worlddriver.bot.rules.Goal;
 
 /**
  * What a goto starts on a body: the walk under the route, or the flight a {@code fly} route asks for.

@@ -5,8 +5,8 @@ import java.util.List;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
+import net.magicterra.worlddriver.game.body.ServerPlayerBody;
+import net.magicterra.worlddriver.bot.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -790,10 +790,10 @@ public final class JourneyLandingScenes implements SceneProvider {
      */
     private static BlockPos stageLipArena(SceneContext ctx) {
         ServerLevel level = ctx.level();
-        boolean debugWas = net.magicterra.worlddriver.bot.BotConfig.walkerDebug;
-        net.magicterra.worlddriver.bot.BotConfig.walkerDebug = true;
+        boolean debugWas = net.magicterra.worlddriver.config.BotConfig.walkerDebug;
+        net.magicterra.worlddriver.config.BotConfig.walkerDebug = true;
         ctx.cleanup(() -> {
-            net.magicterra.worlddriver.bot.BotConfig.walkerDebug = debugWas;
+            net.magicterra.worlddriver.config.BotConfig.walkerDebug = debugWas;
             JourneyStairs.forget();
             JourneyStairwell.stairTop = null;
             JourneyStairwell.stairBottom = null;
@@ -983,13 +983,13 @@ public final class JourneyLandingScenes implements SceneProvider {
         // A counter is the honest instrument here: `walkerDebug` is behind a flag no gate turns on,
         // so its step-trace rows prove nothing about a run that did not set it, while a counter delta is a
         // state change that happened or did not.
-        long holdsBefore = net.magicterra.worlddriver.bot.movement.Walker.descentHolds;
+        long holdsBefore = net.magicterra.worlddriver.bot.control.Walker.descentHolds;
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
         JourneyStairwell.finishTheFlight(rig, "lip", ends, () -> {
             BlockPos got = fp.blockPosition();
             Object missed = rig.evidenceOf("lip.flightLastStepMissed");
             Object end = rig.evidenceOf("lip.flightLastStepEnd");
-            ctx.record("subject.descentHolds", (net.magicterra.worlddriver.bot.movement.Walker.descentHolds
+            ctx.record("subject.descentHolds", (net.magicterra.worlddriver.bot.control.Walker.descentHolds
                     - holdsBefore) + " (times the last-node hold branch fired; 0 = the guard is inert for this"
                     + " failure family, non-zero = it fired and the bot still did not descend; these are two"
                     + " entirely different paths)");

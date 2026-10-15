@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot;
 import java.util.List;
 import java.util.Map;
 import net.magicterra.worlddriver.api.methods.test.TestInputContracts;
-import net.magicterra.worlddriver.bot.process.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 
 /**
@@ -204,7 +204,7 @@ public interface BotApi {
     Map<String, Object> userTaskLeg();
 
     /**
-     * The {@link net.magicterra.worlddriver.bot.body.Body} over this client's own
+     * The {@link net.magicterra.worlddriver.game.body.Body} over this client's own
      * {@code LocalPlayer} — the single-shot actuator face of the same seam {@link #runProcess}
      * gives the per-tick one.
      *
@@ -264,7 +264,7 @@ public interface BotApi {
      * sitting on a data race, and green would not mean correct. Any scene judging this path must
      * record the calling thread alongside its readings, or it cannot tell the two apart.
      */
-    net.magicterra.worlddriver.bot.body.Body clientAvatar();
+    net.magicterra.worlddriver.game.body.Body clientAvatar();
 
     /**
      * The standard refusal when the bot cannot take an order right now — no player, a world still

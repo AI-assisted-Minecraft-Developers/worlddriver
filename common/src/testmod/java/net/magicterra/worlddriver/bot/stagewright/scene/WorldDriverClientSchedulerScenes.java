@@ -14,8 +14,8 @@ import net.magicterra.worlddriver.api.methods.control.ControlContracts.CancelPar
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.ProcessEnd;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.StatusParams;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Status;
-import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.process.SleepProcess;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.bot.behavior.SleepProcess;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
 import net.minecraft.core.BlockPos;

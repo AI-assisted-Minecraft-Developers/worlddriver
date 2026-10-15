@@ -6,7 +6,7 @@ import java.util.UUID;
 import com.mojang.authlib.GameProfile;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.bot.combat.ThreatScanner;
+import net.magicterra.worlddriver.bot.world.ThreatScanner;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;

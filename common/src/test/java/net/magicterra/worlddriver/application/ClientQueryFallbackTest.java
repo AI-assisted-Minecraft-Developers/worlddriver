@@ -26,7 +26,7 @@ import net.magicterra.worlddriver.api.methods.query.QueryContracts.EntityRow;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts.EntityRows;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Point;
-import net.magicterra.worlddriver.client.ClientDriverApi;
+import net.magicterra.worlddriver.game.ui.ClientDriverApi;
 import net.minecraft.world.level.ChunkPos;
 import org.junit.jupiter.api.Test;
 

@@ -151,7 +151,7 @@ class SettingsConsumerTest {
     }
 
     private static String botConfigBodyWithoutDeclarations() {
-        Path cfg = Path.of("src/main/java/net/magicterra/worlddriver/bot/BotConfig.java");
+        Path cfg = Path.of("src/main/java/net/magicterra/worlddriver/config/BotConfig.java");
         String src = strip(read(cfg));
         return src.replaceAll("(?m)^\\s*public\\s+static\\s+volatile\\s+\\w+\\s+\\w+\\s*=[^;]*;", "");
     }

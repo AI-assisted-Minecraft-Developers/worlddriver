@@ -1,11 +1,11 @@
 package net.magicterra.worlddriver.bot;
 
 import net.magicterra.worlddriver.api.schema.JsonValue;
-import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
-import net.magicterra.worlddriver.bot.combat.ThreatScanner;
-import net.magicterra.worlddriver.bot.util.TimeSnap;
+import net.magicterra.worlddriver.bot.world.ClientThreatScanner;
+import net.magicterra.worlddriver.bot.world.ThreatScanner;
+import net.magicterra.worlddriver.bot.TimeSnap;
 import net.magicterra.worlddriver.bot.world.WorldModel;
-import net.magicterra.worlddriver.client.internal.ClientChatLog;
+import net.magicterra.worlddriver.game.ui.ClientChatLog;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementProgress;
 import net.minecraft.client.Minecraft;
@@ -109,7 +109,7 @@ final class ClientEventDetector {
         boolean onDeath = mc.screen instanceof net.minecraft.client.gui.screens.DeathScreen;
         if (onDeath && !evtDeathScreenSeen) {
             net.magicterra.worlddriver.api.game.DriverHost api = net.magicterra.worlddriver.WorldDriverCommon.host();
-            String cause = net.magicterra.worlddriver.client.internal.ScreenIntrospection
+            String cause = net.magicterra.worlddriver.game.ui.ScreenIntrospection
                     .readDeathCause((net.minecraft.client.gui.screens.DeathScreen) mc.screen);
             if (api != null) {
                 net.minecraft.core.BlockPos at = mc.player != null
