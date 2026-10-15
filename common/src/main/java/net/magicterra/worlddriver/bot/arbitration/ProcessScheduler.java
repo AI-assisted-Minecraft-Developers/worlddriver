@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.arbitration;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.config.Mod;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.Body;
@@ -62,7 +62,7 @@ public final class ProcessScheduler {
     public void bail(Chain chain, String reason, int cooldownTicks) {
         int n = Math.max(0, cooldownTicks);
         held.put(chain, new Hold(reason, ticks + n));
-        WorldDriverCommon.LOG.info("[scheduler] chain {} bailed ({}), out of the bid for {} ticks",
+        Mod.LOG.info("[scheduler] chain {} bailed ({}), out of the bid for {} ticks",
                 chain.name(), reason, n);
     }
 
@@ -136,7 +136,7 @@ public final class ProcessScheduler {
             // bot is THE thing post-mortems need (iron ep-018/019: a user smelt
             // froze for minutes with zero telemetry naming the chain that held
             // the channel). Cheap: only on transitions, never per tick.
-            WorldDriverCommon.LOG.info(
+            Mod.LOG.info(
                     "[scheduler] chain {} -> {} (bids: {})",
                     current == null ? "idle" : current.name(),
                     best == null ? "idle" : best.name(), prios);

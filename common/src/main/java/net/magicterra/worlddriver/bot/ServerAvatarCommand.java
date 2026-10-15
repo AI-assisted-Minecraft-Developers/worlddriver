@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.config.Mod;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.BodyRegistry;
 import net.minecraft.commands.CommandSourceStack;
@@ -37,12 +37,12 @@ public final class ServerAvatarCommand {
 
     /**
      * Registers {@code /worlddriver server spawn|goto|mine|status|clear}. The {@code worlddriver}
-     * root is also registered by {@link WorldDriverCommon#registerCommands}; Brigadier merges a
+     * root is also registered by {@code WorldDriverCommon.registerCommands}; Brigadier merges a
      * second literal of the same name into the first, so only the {@code server} subtree is new
      * here, and the permission gate sits on it rather than on the shared root.
      */
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register(Commands.literal(WorldDriverCommon.MOD_ID)
+        dispatcher.register(Commands.literal(Mod.ID)
                 .then(Commands.literal("server")
                         .requires(s -> s.hasPermission(2))
                         .then(Commands.literal("spawn").executes(ctx -> spawn(ctx, null))

@@ -8,7 +8,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.level.block.state.BlockState;
 
-import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.game.body.BotInteract.aimAtBlockSnap;
 import static net.magicterra.worlddriver.game.body.BotInteract.continueDestroy;
 import static net.magicterra.worlddriver.game.body.BotInteract.selectBestToolFor;

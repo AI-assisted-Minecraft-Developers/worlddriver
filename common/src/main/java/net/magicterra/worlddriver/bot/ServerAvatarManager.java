@@ -45,11 +45,11 @@ public final class ServerAvatarManager {
                 d.tick();
                 if (d.finished()) ACTIVE.remove(d);
             } catch (Throwable t) {
-                net.magicterra.worlddriver.WorldDriverCommon.LOG.error("[ServerAvatarManager] driver crashed, removing", t);
+                net.magicterra.worlddriver.config.Mod.LOG.error("[ServerAvatarManager] driver crashed, removing", t);
                 ACTIVE.remove(d);   // a crashed driver must not wedge the server tick
                 try { d.crashed(t); }
                 catch (Throwable again) {
-                    net.magicterra.worlddriver.WorldDriverCommon.LOG.error("[ServerAvatarManager] ending the crashed driver's task failed", again);
+                    net.magicterra.worlddriver.config.Mod.LOG.error("[ServerAvatarManager] ending the crashed driver's task failed", again);
                 }
             }
         }

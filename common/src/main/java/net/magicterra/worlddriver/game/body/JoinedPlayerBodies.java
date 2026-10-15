@@ -9,7 +9,7 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ReferenceCountUtil;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.config.Mod;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.Connection;
@@ -112,7 +112,7 @@ public final class JoinedPlayerBodies {
                 // list, and going straight to PlayerList would re-enter it from the outside.
                 body.discard();
             } catch (RuntimeException e) {
-                WorldDriverCommon.LOG.warn("[realbody] could not remove {} on unload: {}",
+                Mod.LOG.warn("[realbody] could not remove {} on unload: {}",
                         body.getGameProfile().getName(), e.toString());
             }
         }
@@ -155,14 +155,14 @@ public final class JoinedPlayerBodies {
             // The join path runs a lot of code that assumes a socket. Log the frame that wanted
             // one — the harness only surfaces an exception's message, and "channel is null" names
             // netty rather than the caller that reached for it.
-            WorldDriverCommon.LOG.error("[realbody] placeNewPlayer failed for {}", profile.getName(), e);
+            Mod.LOG.error("[realbody] placeNewPlayer failed for {}", profile.getName(), e);
             throw e;
         }
         // `players=` is half of a matched pair — see JoinedBody.remove() for the other half and for
         // why the vanilla log cannot answer this question. Stamping the list size on both edges is
         // what makes residue readable at every moment of a run rather than only where a scene
         // happened to ask: peak = max over the joins, leak = the last value at shutdown.
-        WorldDriverCommon.LOG.info("[realbody] {} joined {} at {} (players={})", profile.getName(),
+        Mod.LOG.info("[realbody] {} joined {} at {} (players={})", profile.getName(),
                 level.dimension().location(), body.blockPosition(),
                 level.getServer().getPlayerList().getPlayerCount());
         return body;
@@ -223,12 +223,12 @@ public final class JoinedPlayerBodies {
                 leaving = true;
                 try {
                     getServer().getPlayerList().remove(this);
-                    WorldDriverCommon.LOG.info("[realbody] {} left {} (players={})",
+                    Mod.LOG.info("[realbody] {} left {} (players={})",
                             getGameProfile().getName(), level().dimension().location(),
                             getServer().getPlayerList().getPlayerCount());
                     return;
                 } catch (RuntimeException e) {
-                    WorldDriverCommon.LOG.warn("[realbody] {} could not leave the player list: {}",
+                    Mod.LOG.warn("[realbody] {} could not leave the player list: {}",
                             getGameProfile().getName(), e.toString());
                 }
             }

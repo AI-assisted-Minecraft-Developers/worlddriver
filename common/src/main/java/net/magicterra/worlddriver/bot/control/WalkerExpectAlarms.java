@@ -10,7 +10,7 @@ import net.minecraft.world.entity.LivingEntity;
 import java.util.List;
 import java.util.Locale;
 
-import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.bot.control.WalkerGeometry.angleDiff;
 
 /** Expectation alarms (walkerExpectAlarm): compare the world's actual response against

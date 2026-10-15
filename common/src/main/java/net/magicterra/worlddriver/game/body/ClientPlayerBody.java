@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.game.body;
 import java.util.Optional;
 import java.util.function.Predicate;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.config.Mod;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -118,7 +118,7 @@ public final class ClientPlayerBody implements Body, Hands, Containers {
         // above happens only when `ok`, so an armless dig and a dig that never lands are THE SAME EVENT, and `ok=` is the
         // column that says so. A row per second during a dig is cheaper than another run.
         if (p.tickCount % 20 == 0)
-            WorldDriverCommon.LOG.info(
+            Mod.LOG.info(
                     "[dig] cell={} ok={} progress {}->{} isDestroying={} windowActive={} grabbed={} digHeld={} screen={}",
                     cell.toShortString(), ok, before, mc.gameMode.destroyProgress,
                     mc.gameMode.isDestroying(), mc.isWindowActive(),

@@ -15,7 +15,7 @@ import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
 import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
 import net.magicterra.worlddriver.game.body.LookController;

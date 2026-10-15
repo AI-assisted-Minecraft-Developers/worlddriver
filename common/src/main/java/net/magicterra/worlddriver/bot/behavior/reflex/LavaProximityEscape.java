@@ -12,7 +12,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.Vec3;
 
-import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.config.Mod.LOG;
 
 /**
  * Lava-front escape reflex (devil-bench iron ep-014/#27, ep-025/#29, ep-026/#30

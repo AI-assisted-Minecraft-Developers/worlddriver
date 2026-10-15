@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.game.body;
 import java.util.Optional;
 import java.util.function.Predicate;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.config.Mod;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket;
@@ -522,7 +522,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
         if (soleBefore <= 0.0) return;
         if (BodyGeometry.soleOnSolid(solid, fp) > 0.0) return;
         loggedDugOwnFloor = true;
-        WorldDriverCommon.LOG.info("[avatar] dug out its own footing: t={} target={} soleOnSolid {}→0.0000 y={} foot={}",
+        Mod.LOG.info("[avatar] dug out its own footing: t={} target={} soleOnSolid {}→0.0000 y={} foot={}",
                 fp.level().getGameTime(), target.toShortString(),
                 String.format(java.util.Locale.ROOT, "%.4f", soleBefore),
                 String.format(java.util.Locale.ROOT, "%.4f", fp.getY()),

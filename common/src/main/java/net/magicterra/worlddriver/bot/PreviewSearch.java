@@ -10,7 +10,7 @@ import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.config.Mod;
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
@@ -181,7 +181,7 @@ public final class PreviewSearch {
         try {
             done = cur.search.advance(BotConfig.pathfinderPreviewSliceMs);
         } catch (RuntimeException e) {
-            WorldDriverCommon.LOG.warn("[preview] {} failed: {}", cur.id, e.toString());
+            Mod.LOG.warn("[preview] {} failed: {}", cur.id, e.toString());
             finish(cur, "preview failed: " + e.getMessage());
             return;
         }
@@ -247,7 +247,7 @@ public final class PreviewSearch {
         }
         if (preview != null) cur.action.succeed(preview);
         else cur.action.fail(error);
-        WorldDriverCommon.LOG.info("[preview] {} {} in {} ms ({} queued behind)", cur.id,
+        Mod.LOG.info("[preview] {} {} in {} ms ({} queued behind)", cur.id,
                 preview == null ? "failed" : preview.reached() ? "reached" : "bestEffort",
                 System.currentTimeMillis() - cur.submittedMs, queue.size());
     }

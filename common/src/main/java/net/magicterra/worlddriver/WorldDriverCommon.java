@@ -7,6 +7,7 @@ import com.mojang.brigadier.context.CommandContext;
 import net.magicterra.worlddriver.api.game.DriverHost;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.config.BotConfigFile;
+import net.magicterra.worlddriver.config.Mod;
 import net.magicterra.worlddriver.mcp.McpServer;
 import net.magicterra.worlddriver.rpc.RpcServer;
 import net.magicterra.worlddriver.script.ScriptManager;
@@ -18,7 +19,6 @@ import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -33,8 +33,8 @@ import java.util.ServiceLoader;
  * delegates here so the same logic ships on both loaders.
  */
 public final class WorldDriverCommon {
-    public static final String MOD_ID = "worlddriver";
-    public static final Logger LOG = LoggerFactory.getLogger("WorldDriver");
+    public static final String MOD_ID = Mod.ID;
+    public static final Logger LOG = Mod.LOG;
 
     private static volatile DriverApplication api;
     private static RpcServer rpcServer;

@@ -16,7 +16,7 @@ import static net.magicterra.worlddriver.bot.control.PathSmoothing.*;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Locale;
-import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
 import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
 // Not in WalkerGeometry: that class is pure functions of their arguments and reads no BotConfig.

@@ -24,7 +24,7 @@ import net.minecraft.world.level.block.Blocks;
 import java.util.List;
 import java.util.Map;
 
-import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.game.body.BotUtil.faceTowardEye;
 import static net.magicterra.worlddriver.game.observe.RegistryIds.itemId;
 import static net.magicterra.worlddriver.game.observe.RegistryIds.path;

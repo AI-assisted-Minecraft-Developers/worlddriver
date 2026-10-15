@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.planning;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.minecraft.core.BlockPos;
 
-import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.config.Mod.LOG;
 
 import java.util.ArrayList;
 import java.util.Collections;

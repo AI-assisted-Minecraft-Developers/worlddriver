@@ -15,7 +15,7 @@ import net.minecraft.world.phys.AABB;
 
 import java.util.Locale;
 
-import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.game.body.BotUtil.yawFor;
 
 /**

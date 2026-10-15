@@ -7,7 +7,7 @@ import net.magicterra.worlddriver.game.body.AvatarInput;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 
-import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.config.Mod.LOG;
 
 /**
  * Baritone-style autoSwim drowning backstop + active shore-seek.

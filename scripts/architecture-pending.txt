@@ -1,74 +1,31 @@
 # Layer violations below the api still to be fixed; see scripts/check_architecture.py.
-bot/BotApiImpl.java	(root) WorldDriverCommon
 bot/BotApiImpl.java	net.minecraft.client
 bot/ClientEventDetector.java	(root) WorldDriverCommon
 bot/ClientEventDetector.java	net.minecraft.client
 bot/InteractionCommands.java	net.minecraft.client
-bot/PreviewSearch.java	(root) WorldDriverCommon
 bot/ReplayInstaller.java	net.minecraft.client
-bot/ServerAvatarCommand.java	(root) WorldDriverCommon
-bot/ServerAvatarManager.java	(root) WorldDriverCommon
 bot/arbitration/BunkerChain.java	net.minecraft.client
 bot/arbitration/Chain.java	net.minecraft.client
 bot/arbitration/CombatChain.java	net.minecraft.client
 bot/arbitration/DodgeChain.java	net.minecraft.client
-bot/arbitration/DrownEscapeChain.java	(root) WorldDriverCommon
 bot/arbitration/DrownEscapeChain.java	net.minecraft.client
 bot/arbitration/DuskSecureChain.java	net.minecraft.client
 bot/arbitration/PanicChain.java	net.minecraft.client
-bot/arbitration/ProcessScheduler.java	(root) WorldDriverCommon
-bot/arbitration/RetreatChain.java	(root) WorldDriverCommon
 bot/arbitration/RetreatChain.java	net.minecraft.client
 bot/behavior/BodyReady.java	net.minecraft.client
-bot/behavior/BunkerProcess.java	(root) WorldDriverCommon
-bot/behavior/CraftProcess.java	(root) WorldDriverCommon
-bot/behavior/DescendProcess.java	(root) WorldDriverCommon
-bot/behavior/ElytraProcess.java	(root) WorldDriverCommon
-bot/behavior/EscapeProcess.java	(root) WorldDriverCommon
-bot/behavior/LookProcess.java	(root) WorldDriverCommon
-bot/behavior/MineProcess.java	(root) WorldDriverCommon
-bot/behavior/PlaceNearby.java	(root) WorldDriverCommon
-bot/behavior/SmeltProcess.java	(root) WorldDriverCommon
-bot/behavior/reflex/AntiSuffocate.java	(root) WorldDriverCommon
 bot/behavior/reflex/AntiSuffocate.java	net.minecraft.client
 bot/behavior/reflex/AutoEat.java	net.minecraft.client
 bot/behavior/reflex/AutoEquip.java	net.minecraft.client
 bot/behavior/reflex/AutoHeal.java	net.minecraft.client
 bot/behavior/reflex/AutoRespawn.java	net.minecraft.client
 bot/behavior/reflex/AutoShield.java	net.minecraft.client
-bot/behavior/reflex/AutoSwim.java	(root) WorldDriverCommon
 bot/behavior/reflex/AutoSwim.java	net.minecraft.client
 bot/behavior/reflex/AutoTool.java	net.minecraft.client
 bot/behavior/reflex/AutoTotem.java	net.minecraft.client
-bot/behavior/reflex/ContactDamageEscape.java	(root) WorldDriverCommon
 bot/behavior/reflex/ContactDamageEscape.java	net.minecraft.client
-bot/behavior/reflex/LavaProximityEscape.java	(root) WorldDriverCommon
 bot/behavior/reflex/LavaProximityEscape.java	net.minecraft.client
-bot/control/ClutchController.java	(root) WorldDriverCommon
 bot/control/ClutchController.java	net.minecraft.client
-bot/control/PathSmoothing.java	(root) WorldDriverCommon
-bot/control/Walker.java	(root) WorldDriverCommon
-bot/control/WalkerExpectAlarms.java	(root) WorldDriverCommon
 bot/control/WalkerExpectAlarms.java	net.minecraft.client
-bot/control/WalkerTickAim.java	(root) WorldDriverCommon
-bot/control/WalkerTickClimb.java	(root) WorldDriverCommon
-bot/control/WalkerTickDrive.java	(root) WorldDriverCommon
-bot/control/WalkerTickEdgeGuards.java	(root) WorldDriverCommon
-bot/control/WalkerTickPrelude.java	(root) WorldDriverCommon
-bot/control/WalkerTickProgress.java	(root) WorldDriverCommon
-bot/control/WalkerTickRepath.java	(root) WorldDriverCommon
-bot/control/WalkerTickSearch.java	(root) WorldDriverCommon
-bot/control/WalkerTickStallDetect.java	(root) WorldDriverCommon
-bot/planning/CoarseGoalField.java	(root) WorldDriverCommon
-bot/planning/PathFinder.java	(root) WorldDriverCommon
-bot/rules/modifiers/RiskCostTable.java	(root) WorldDriverCommon
 bot/world/ClientThreatScanner.java	net.minecraft.client
 bot/world/ClientWorldView.java	net.minecraft.client
 bot/world/WorldModel.java	net.minecraft.client
-config/BotConfig.java	(root) WorldDriverCommon
-config/BotConfigFile.java	(root) WorldDriverCommon
-game/body/BotInteract.java	(root) WorldDriverCommon
-game/body/ClientPlayerBody.java	(root) WorldDriverCommon
-game/body/JoinedPlayerBodies.java	(root) WorldDriverCommon
-game/body/ServerPlayerBody.java	(root) WorldDriverCommon
-game/ui/FocusPolicy.java	(root) WorldDriverCommon

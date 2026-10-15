@@ -57,7 +57,7 @@ public final class FocusPolicy {
         startupApplied = true;
         if ("false".equalsIgnoreCase(System.getProperty("worlddriver.pauseOnLostFocus"))) {
             mc.options.pauseOnLostFocus = false;
-            net.magicterra.worlddriver.WorldDriverCommon.LOG.info(
+            net.magicterra.worlddriver.config.Mod.LOG.info(
                     "[worlddriver] pauseOnLostFocus forced off (-Dworlddriver.pauseOnLostFocus=false)");
         }
     }

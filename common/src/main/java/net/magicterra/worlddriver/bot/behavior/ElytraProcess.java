@@ -23,7 +23,7 @@ import java.util.List;
 
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Locale;
-import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.config.Mod.LOG;
 import net.minecraft.world.effect.MobEffects;
 import net.magicterra.worlddriver.bot.planning.ElytraPathfinder;
 

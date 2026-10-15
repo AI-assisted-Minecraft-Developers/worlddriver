@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.planning;
 
-import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.config.Mod.LOG;
 
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;

@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot;
 
-import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.api.game.Positions.blockPos;
 import static net.magicterra.worlddriver.api.game.Positions.position;
 import net.magicterra.worlddriver.bot.behavior.RouteEvents;
