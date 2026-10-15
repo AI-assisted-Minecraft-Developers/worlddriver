@@ -238,7 +238,7 @@ moved text without decomposing the method — which is why the method budget exi
 
 | Package | What it is |
 |---|---|
-| `body/` | `Body`, `Equipment`, `Attack`, `BlockInteraction`, `Bag`, `Menus`, `BodyRegistry`, `ClientPlayerBody` |
+| `body/` | `Body`, `Equipment`, `Attack`, `BlockInteraction`, `Bag`, `Menus`, `Locomotion`, `BodyRegistry`, `ClientPlayerBody` |
 | `movement/` | `Walker`, the `WalkerTick*` phases, the look and input controllers, the clutch |
 | `pathfinder/` | A*, the move catalog, constraints, cost modifiers |
 | `process/` | One class per verb behaviour |

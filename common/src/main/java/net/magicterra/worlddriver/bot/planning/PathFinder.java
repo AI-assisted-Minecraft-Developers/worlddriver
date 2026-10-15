@@ -24,6 +24,7 @@ import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
 import net.magicterra.worlddriver.bot.rules.Move;
+import net.magicterra.worlddriver.bot.rules.MoveCatalog;
 import net.magicterra.worlddriver.bot.rules.SearchAware;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -505,11 +506,12 @@ public final class PathFinder {
             this.pruneCounts = new int[this.constraints.size()];
             world.beginSearch();       // snapshot per-search state (bucket, dig, hazards)
             // Prune the move catalog to this search's relevant subset (after
-            // beginSearch so bucket/flag snapshots are live). One pass over ALL.
+            // beginSearch so bucket/flag snapshots are live). One pass over the body's catalog.
             // suppressPlace additionally drops every block-placing move so an
             // out-of-blocks re-plan digs/routes around instead of bridging.
-            List<Move> active = new ArrayList<>(Move.ALL.size());
-            for (Move m : Move.ALL) {
+            List<Move> catalog = MoveCatalog.forModes(world.moveModes());
+            List<Move> active = new ArrayList<>(catalog.size());
+            for (Move m : catalog) {
                 if (!m.availableInSearch(world)) continue;
                 if (suppressPlace && m.placesBlock()) continue;
                 if (!capability.allows(m.requiredCapability())) continue;   // A2a: per-intent move-type gate

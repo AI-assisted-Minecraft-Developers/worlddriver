@@ -20,7 +20,7 @@ import net.minecraft.world.entity.player.Player;
  * (hold, use what is held), {@link #attack()} (swing), {@link #blockInteraction()} (place, break,
  * use a block), {@link #bag()} (what is carried) and {@link #menus()}. A process asks for the ones
  * it needs at the top of its tick and refuses the order with {@code no_hands} when one is absent; a
- * caller that never asks cannot compile a call to it.
+ * caller that never asks cannot compile a call to it. How the entity moves is {@link #locomotion()}.
  * {@link #asPlayer()} is the raw {@link Player} view for the few readers of a player's
  * own state (food, abilities, the attack cooldown) and is null for an entity that is not one.
  *
@@ -55,6 +55,9 @@ public interface Body {
 
     /** The entity's menus, or empty for one that has none. */
     default Optional<Menus> menus() { return Optional.empty(); }
+
+    /** How the entity moves, read from it now. */
+    default Locomotion locomotion() { return Locomotion.of(entity()); }
 
     // --- movement impulse (the player's OWN input, not shared keybinds) ---
     /**

@@ -1,5 +1,8 @@
 package net.magicterra.worlddriver.bot.world;
 
+import java.util.Set;
+
+import net.magicterra.worlddriver.game.body.Locomotion;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import net.magicterra.worlddriver.config.WorldConfig;
@@ -253,6 +256,10 @@ public interface WorldView {
      * instead of bobbing against it. Default 1 = the on-foot-player assumption.
      */
     default int maxJumpUpBlocks() { return 1; }
+
+    /** The controlled entity's ways of moving, which pick the move catalogs a search merges.
+     *  Default an on-foot player's: walking and swimming. */
+    default Set<Locomotion.Mode> moveModes() { return Locomotion.WALK_AND_SWIM; }
 
     /**
      * Horizontal flow (current) of the fluid at {@code pos}, as a velocity vector

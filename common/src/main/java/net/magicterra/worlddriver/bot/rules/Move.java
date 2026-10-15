@@ -6,6 +6,7 @@ import net.magicterra.worlddriver.bot.rules.moves.*;
 import java.util.ArrayList;
 import java.util.List;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Locomotion;
 
 /**
  * A single A* edge: a transition from one foot-position to a neighboring one,
@@ -87,6 +88,10 @@ public abstract class Move {
      * why an UNPLANNED surface dive stays forbidden.
      */
     public Capability optInCapability() { return Capability.NONE; }
+
+    /** Which {@link MoveCatalog} this move belongs to: the way of moving it starts in. Default walking;
+     *  the moves that start in water answer swimming. */
+    public Locomotion.Mode mode() { return Locomotion.Mode.WALK; }
 
     /**
      * Resolve this move from {@code from} into a concrete A* edge, or

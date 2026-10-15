@@ -33,7 +33,9 @@ eating and elytra all route through the player's own menu and game-mode machiner
 `LivingEntity` equivalent. That is not a simplification, it is the shape of vanilla, and expressing
 it as optional capabilities is what lets a process refuse work cleanly instead of failing at a cast.
 They were two groups, `Hands` and `Containers`, until the layering rework split them so that a mob
-which can hold or swing but not dig can say so.
+which can hold or swing but not dig can say so. How the entity moves — size, step and jump height,
+speeds, and which of walking, swimming and flying it has — is `Locomotion`, read off its attributes;
+the pathfinder merges the move catalog of each mode it has.
 
 A process that needs hands checks for them when it attaches and refuses with a single named reason
 if they are absent. Processes that only need to move — following, exploring, running away, and the

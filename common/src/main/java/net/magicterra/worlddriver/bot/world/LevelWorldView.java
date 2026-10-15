@@ -1,6 +1,9 @@
 package net.magicterra.worlddriver.bot.world;
 
+import java.util.Set;
+
 import net.magicterra.worlddriver.config.WorldConfig;
+import net.magicterra.worlddriver.game.body.Locomotion;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
@@ -178,4 +181,6 @@ public final class LevelWorldView implements StateWorldView {
     @Override public int maxStepUpBlocks() { return (int) Math.floor(body.maxUpStep()); }
 
     @Override public int maxJumpUpBlocks() { return 1; }
+
+    @Override public Set<Locomotion.Mode> moveModes() { return Locomotion.of(body).modes(); }
 }

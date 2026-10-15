@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.rules.moves;
 
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Locomotion;
 import net.minecraft.core.BlockPos;
 
 /** Swim straight up in water. */
@@ -25,4 +26,6 @@ public final class SwimUp extends Move {
         return Move.hasPlaceSupport(w, to);
     }
     public String name() { return "swimUp"; }
+
+    @Override public Locomotion.Mode mode() { return Locomotion.Mode.SWIM; }
 }

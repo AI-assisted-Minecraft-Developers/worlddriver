@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.rules.moves;
 import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Locomotion;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -46,4 +47,6 @@ public final class SurfaceDive extends Move {
     }
     public Capability optInCapability() { return Capability.DIVE; }
     public String name() { return "swimDownSurface"; }
+
+    @Override public Locomotion.Mode mode() { return Locomotion.Mode.SWIM; }
 }

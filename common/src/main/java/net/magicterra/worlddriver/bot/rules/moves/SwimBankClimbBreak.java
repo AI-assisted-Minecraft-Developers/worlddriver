@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.rules.moves;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Locomotion;
 import net.minecraft.core.BlockPos;
 
 import java.util.ArrayList;
@@ -71,4 +72,6 @@ public final class SwimBankClimbBreak extends Move {
     /** Shares the {@code swimAshore} prefix so the Walker's water-escape break
      *  actuator (press-into-bank + jump-to-mount) drives this with no new branch. */
     public String name() { return "swimAshoreClimb"; }
+
+    @Override public Locomotion.Mode mode() { return Locomotion.Mode.SWIM; }
 }
