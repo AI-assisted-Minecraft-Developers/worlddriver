@@ -13,6 +13,7 @@ import net.magicterra.worlddriver.bot.world.ClientWorldView;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
+import net.magicterra.worlddriver.game.ui.ClientWorld;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -189,9 +190,10 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
     }
 
     /** The client's own level and player, the ones the shipped client bot plans over. Built here,
-     *  behind the adopt() skip, so a dedicated server never reaches the client class. */
+     *  behind the adopt() skip, so a dedicated server never reaches the client class; through
+     *  {@link ClientWorld}'s method references, because a lambda returning the client's player as
+     *  a {@code Player} would make this whole class unloadable there. */
     private static WorldView clientView() {
-        return new ClientWorldView(() -> net.minecraft.client.Minecraft.getInstance().level,
-                () -> net.minecraft.client.Minecraft.getInstance().player);
+        return new ClientWorldView(ClientWorld::level, ClientWorld::player);
     }
 }

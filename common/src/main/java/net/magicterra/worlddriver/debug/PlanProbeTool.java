@@ -54,7 +54,9 @@ final class PlanProbeTool {
         }
         BlockPos start = p.from().map(Positions::blockPos).orElse(mc.player.blockPosition());
         Goal goal = new Goal.XZ(p.goal().x(), p.goal().z());
-        ClientWorldView world = new ClientWorldView(() -> Minecraft.getInstance().level, () -> Minecraft.getInstance().player);
+        ClientWorldView world = new ClientWorldView(
+                net.magicterra.worlddriver.game.ui.ClientWorld::level,
+                net.magicterra.worlddriver.game.ui.ClientWorld::player);
         if (!p.chain()) {
             long t0 = System.nanoTime();
             PathFinder.Result r = new PathFinder(world).withOwner("debug.plan").findPath(start, goal);
