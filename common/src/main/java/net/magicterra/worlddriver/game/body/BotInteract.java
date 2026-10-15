@@ -214,7 +214,7 @@ public final class BotInteract {
     }
 
     /** The idle release: the seven movement keybinds and the bot's dig latch. The use latch is
-     *  deliberately not here — the shield/heal/eat arbitration in {@code BotApiImpl.clientTick}
+     *  deliberately not here — the shield/heal/eat arbitration in {@code BotBrain.act}
      *  sets it BEFORE this runs on an idle tick, so clearing it here would undo them every tick. */
     public static void releaseKeys() {
         Minecraft mc = Minecraft.getInstance();

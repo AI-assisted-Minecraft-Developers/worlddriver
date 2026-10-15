@@ -116,9 +116,9 @@ public final class MineProcess implements BotProcess {
      * the waiver set for the rest of the session — every subsequent journey silently priced at 1.0,
      * which is the regression the tax was added to fix.
      *
-     * <p><b>Where this call actually happens</b>, because grepping {@code BotApiImpl} for
-     * {@code onCancelled} returns nothing and reads as "it never gets called": the client funnel is
-     * {@code cancelAllProcesses → cancelCurrent → UserTaskChain.cancel}, and the call is on
+     * <p><b>Where this call actually happens</b>, because grepping {@code BotBrain} for
+     * {@code onCancelled} returns nothing and reads as "it never gets called": the funnel is
+     * {@code BotBrain.onDeath / cancel → UserTaskChain.cancel}, and the call is on
      * {@code UserTaskChain:47}. Starting a new order funnels there too — {@code setProcess} cancels
      * the outgoing process with {@code "superseded"} before attaching the new one. The server rig's
      * two entry points ({@code PlayerBot.runProcess} / {@code mine}) did NOT, and were given

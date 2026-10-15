@@ -132,6 +132,9 @@ public interface Body {
         releaseInputs();
         blockInteraction().ifPresent(b -> b.breakHold(false));
     }
+    /** The cells this body's own digs broke since the last call, oldest first; taking them empties
+     *  the record. Feeds the backfill queue, which puts back only what the bot broke. */
+    default java.util.List<BlockPos> takeOwnBreaks() { return java.util.List.of(); }
 
     // --- look ---
     /** Snap the look (yaw+pitch) onto the block at {@code cell}. */

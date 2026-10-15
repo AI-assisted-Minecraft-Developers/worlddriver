@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * undo them every tick.
  *
  * <p>What replaces the blanket release is a hand-rolled protocol in
- * {@code BotApiImpl.clientTick} — shield &gt; heal &gt; eat, one holder per tick, the
+ * {@code BotBrain.act} — shield &gt; heal &gt; eat, one holder per tick, the
  * losers call their own {@code release}. Nothing in the type system enforces
  * membership. A fifth acquirer that skips the protocol fails in one of two silent
  * ways: an arbitration winner clobbers it mid-action, or — worse — it leaks and the
@@ -88,7 +88,7 @@ class UseKeyOwnershipTest {
         assertEquals(new TreeSet<>(ALLOWED_ACQUIRERS.keySet()), new TreeSet<>(acquirers.keySet()),
                 "the set of files that HOLD the use intent changed. The intent is excluded from "
                 + "releaseKeys() on purpose, so a new acquirer must join the shield>heal>eat "
-                + "arbitration in BotApiImpl.clientTick or release on every exit path — "
+                + "arbitration in BotBrain.act or release on every exit path — "
                 + "otherwise the bot can walk around with right-click held. Add it here with a "
                 + "note on how it releases. Known acquirers: " + ALLOWED_ACQUIRERS
                 + "; releases seen (always fine): " + releasers.keySet());
@@ -113,7 +113,7 @@ class UseKeyOwnershipTest {
                 "releaseKeys() now clears the use intent. That is a real design change — the idle "
                 + "release runs after the shield/heal/eat reflexes set it, so it would "
                 + "undo them every tick. If it is intended, this test and the arbitration in "
-                + "BotApiImpl.clientTick both need to go.");
+                + "BotBrain.act both need to go.");
     }
 
     // ---------------------------------------------------------------- helpers

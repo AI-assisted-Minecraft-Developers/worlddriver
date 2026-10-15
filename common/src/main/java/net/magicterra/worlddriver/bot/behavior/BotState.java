@@ -100,7 +100,7 @@ public final class BotState {
      * first, then the station work, then the reflex-owned slots.
      *
      * <p>Deliberately covers ALL slots — unlike the screen-watchdog's hand-listed subset
-     * in {@code BotApiImpl}, which excludes craft/smelt because those legitimately hold a
+     * in {@code BotBrain#movementWantsInput}, which excludes craft/smelt because those legitimately hold a
      * station screen. This one answers "is the bot driving the player at all?", so a
      * crafting bot counts. Slot fields are volatile; no lock needed for this read.
      */

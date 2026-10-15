@@ -83,7 +83,7 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
 public final class DrownEscapeChain implements Chain {
 
     /** Chain name — also the {@code mc.bot.cancel{process:...}} key and the
-     *  {@code BotApiImpl} guard that keeps {@code AutoSwim.tick}'s shore-steer
+     *  {@code BotBrain} guard that keeps {@code AutoSwim.tick}'s shore-steer
      *  off the channel while this chain floats (pure-vertical contract). */
     public static final String NAME = "drownEscape";
 

@@ -8,8 +8,8 @@ import java.util.List;
  * Decides WHAT a named cancel hits — the user-task slot, a chain's internal
  * episode by NAME, a chain-HELD process by KIND — and shapes the honest result.
  * Server-safe and side-effect free so the routing semantics are matrix-testable
- * on the dedicated GameTest server; {@code BotApiImpl.cancel} executes the plan
- * (cancelCurrent / {@link Chain#cancelEpisode}) on the client thread.
+ * on the dedicated GameTest server; {@code BotBrain.cancel} executes the plan
+ * (the user task's cancel / {@link Chain#cancelEpisode}) on the bot's tick thread.
  */
 public final class CancelRouting {
 

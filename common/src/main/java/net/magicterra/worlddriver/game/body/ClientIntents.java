@@ -37,7 +37,7 @@ import net.minecraft.core.BlockPos;
  *       {@code isDown() || useHeld()}. Everything downstream (the 4-tick right-click delay,
  *       {@code startUseItem}'s entity/block/air cascade, bow release on the falling edge) is
  *       vanilla's own code, unchanged; which is why the shield/heal/eat arbitration in
- *       {@code BotApiImpl.clientTick} and {@code CombatChain#releaseUseKey} keep their shape.</li>
+ *       {@code BotBrain.act} and {@code CombatChain#releaseUseKey} keep their shape.</li>
  * </ul>
  *
  * <p>{@link #holdDig} is bookkeeping only: it is what {@code Body.breakHeld()} answers and

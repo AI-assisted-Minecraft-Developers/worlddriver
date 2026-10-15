@@ -892,7 +892,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
                         + "BunkerChain — got " + plan.episodeTargets());
         check.accept(List.of("duskSecure/bunker-process").equals(plan.labels()),
                 "incident: label must say what is actually cancelled — got " + plan.labels());
-        // Execute the plan the way BotApiImpl does (server-safe state half of
+        // Execute the plan the way BotBrain does (server-safe state half of
         // cancelEpisode) and assert the process REALLY cancels + the slot resets.
         dusk.cancelEpisodeState("user-cancel");
         check.accept(dusk.heldProcessForTest() == null, "incident: held process really dropped");
