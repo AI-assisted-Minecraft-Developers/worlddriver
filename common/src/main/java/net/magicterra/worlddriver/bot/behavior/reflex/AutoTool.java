@@ -1,14 +1,15 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
 import net.magicterra.worlddriver.config.BehaviorConfig;
-import net.magicterra.worlddriver.game.body.BotInteract;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.BlockHitResult;
 
 /**
  * Baritone autoTool — when the crosshair points at a breakable block, swap the
@@ -16,16 +17,15 @@ import net.minecraft.world.phys.BlockHitResult;
  * (preferring correct-tool-for-drops). Skipped while any process or chain drives the
  * bot (they manage the hotbar themselves; the host gates the call on {@link #mayRun}). Extracted from
  * {@code BotApiImpl}; minimal cross-tick state for the manual-selection grace
- * (gap#68-⑪) — otherwise stateless.
+ * (gap#68-⑪), one instance per bot.
  */
 public final class AutoTool {
-    private AutoTool() {}
 
     /** Last slot THIS class wrote (-1 = none yet). If inv.selected differs, an external
      *  actor (setHotbarSlot RPC / human scroll) changed it — honor that for a grace
      *  period instead of clobbering it next tick (gap#68-⑪). */
-    private static int lastAutoSelected = -1;
-    private static int graceLeft;
+    private int lastAutoSelected = -1;
+    private int graceLeft;
 
     /** Whether the host may run the picker this tick: no user task, and no chain held the channel
      *  last tick. The user slot alone is not enough — the bunker reflex picks its own tool and seal
@@ -51,19 +51,23 @@ public final class AutoTool {
         return graceLeft - 1;
     }
 
-    public static void tick(Minecraft mc, LocalPlayer p) {
+    public void tick(Body body) {
+        Player p = body.asPlayer();
+        Equipment hands = body.equipment().orElse(null);
+        if (p == null || hands == null) return;
         Inventory inv = p.getInventory();
         if (shouldYield(inv.selected, lastAutoSelected, graceLeft)) {
             graceLeft = stepGrace(graceLeft, BehaviorConfig.manualSlotGraceTicks);
             if (graceLeft == 0) lastAutoSelected = -1;   // grace expired: re-arm cleanly
             return;
         }
-        if (!(mc.hitResult instanceof BlockHitResult br)) return;
-        if (mc.level == null) return;
-        BlockState bs = mc.level.getBlockState(br.getBlockPos());
+        BlockPos aimed = body.lookingAtBlock();
+        if (aimed == null) return;
+        Level level = p.level();
+        BlockState bs = level.getBlockState(aimed);
         if (bs.isAir() || !bs.getFluidState().isEmpty()) return;
         // Skip if block is unbreakable in this gamemode (saves a hotbar scan).
-        if (bs.getDestroySpeed(mc.level, br.getBlockPos()) < 0) return;
+        if (bs.getDestroySpeed(level, aimed) < 0) return;
         ItemStack held = inv.getSelected();
         int bestSlot = inv.selected;
         float bestSpeed = held.getDestroySpeed(bs);
@@ -83,7 +87,7 @@ public final class AutoTool {
             }
         }
         if (bestSlot != inv.selected) {
-            BotInteract.selectHotbar(p, bestSlot);
+            hands.setSelectedSlot(bestSlot);
             lastAutoSelected = bestSlot;
         } else {
             lastAutoSelected = inv.selected;

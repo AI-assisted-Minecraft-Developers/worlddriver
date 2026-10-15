@@ -1,12 +1,13 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
-import static net.magicterra.worlddriver.game.body.BotInteract.selectHotbar;
 import static net.magicterra.worlddriver.game.observe.RegistryIds.itemId;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.magicterra.worlddriver.game.body.Menus;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.item.AxeItem;
@@ -56,21 +57,26 @@ public final class AutoEquip {
                          List<String> lowDurability, List<String> missing) {}
 
     /** T0 reflex: ensure best gear, discard the report. */
-    public static void tick(Minecraft mc, LocalPlayer p, double durabilityThreshold) {
-        if (mc.screen != null || mc.gameMode == null) return;
-        equipBest(mc, p, true, durabilityThreshold);
+    public static void tick(Body body, double durabilityThreshold) {
+        if (body.menus().map(Menus::menuOpen).orElse(true)) return;
+        equipBest(body, true, durabilityThreshold);
     }
 
     /** Equip the best armor in every armor slot (and, if {@code weaponToo}, the best
-     *  main-hand weapon), reporting the resulting loadout. */
-    public static Result equipBest(Minecraft mc, LocalPlayer p, boolean weaponToo, double durabilityThreshold) {
+     *  main-hand weapon), reporting the resulting loadout. A body with no hands or menus
+     *  reports an empty loadout. */
+    public static Result equipBest(Body body, boolean weaponToo, double durabilityThreshold) {
         List<String> equipped = new ArrayList<>();
         List<String> lowDurability = new ArrayList<>();
         List<String> missing = new ArrayList<>();
+        Player p = body.asPlayer();
+        Equipment hands = body.equipment().orElse(null);
+        Menus menus = body.menus().orElse(null);
+        if (p == null || hands == null || menus == null) return new Result(equipped, Map.of(), lowDurability, missing);
         // A leftover open container (e.g. a furnace from a prior smelt) makes the
         // server ignore our inventory-menu clicks (container-id mismatch), so close
         // it first and operate on the plain inventory menu.
-        net.magicterra.worlddriver.game.body.BotInteract.closeContainer(mc);
+        menus.closeContainer();
         Map<String, Object> loadout = new LinkedHashMap<>();
         AbstractContainerMenu menu = p.inventoryMenu;
 
@@ -88,7 +94,7 @@ public final class AutoEquip {
             if (bestInv >= 0) {
                 ItemStack neu = menu.getSlot(bestInv).getItem();
                 equipped.add(itemId(neu));
-                swapIntoArmor(mc, p, menu, bestInv, armorMenuSlot);
+                swapIntoArmor(menus, menu, bestInv, armorMenuSlot);
             }
             ItemStack now = menu.getSlot(armorMenuSlot).getItem();
             loadout.put(ARMOR_SLOT_NAME[a], now.isEmpty() ? null : itemId(now));
@@ -110,9 +116,9 @@ public final class AutoEquip {
                 ItemStack neu = menu.getSlot(bestSlot).getItem();
                 equipped.add(itemId(neu));
                 if (bestSlot >= 36) {                       // already in the hotbar → just select it
-                    selectHotbar(p, bestSlot - 36);
+                    hands.setSelectedSlot(bestSlot - 36);
                 } else {                                    // in main inventory → swap to the held slot
-                    mc.gameMode.handleInventoryMouseClick(menu.containerId, bestSlot, inv.selected, ClickType.SWAP, p);
+                    menus.containerClick(menu.containerId, bestSlot, inv.selected, ClickType.SWAP);
                 }
             }
             ItemStack mainNow = p.getMainHandItem();
@@ -133,17 +139,16 @@ public final class AutoEquip {
      *  the matching armor slot (no intermediate cursor state, so nothing can desync
      *  under load — the same reliable headless path CraftProcess uses). Only an
      *  occupied slot (upgrading worn armor) needs the pick-up/place/return dance. */
-    private static void swapIntoArmor(Minecraft mc, LocalPlayer p, AbstractContainerMenu menu,
-                                      int invSlot, int armorMenuSlot) {
+    private static void swapIntoArmor(Menus menus, AbstractContainerMenu menu, int invSlot, int armorMenuSlot) {
         int id = menu.containerId;
         if (menu.getSlot(armorMenuSlot).getItem().isEmpty()) {
-            mc.gameMode.handleInventoryMouseClick(id, invSlot, 0, ClickType.QUICK_MOVE, p);
+            menus.containerClick(id, invSlot, 0, ClickType.QUICK_MOVE);
             return;
         }
-        mc.gameMode.handleInventoryMouseClick(id, invSlot, 0, ClickType.PICKUP, p);       // cursor <- new
-        mc.gameMode.handleInventoryMouseClick(id, armorMenuSlot, 0, ClickType.PICKUP, p); // armor <- new, cursor <- old
+        menus.containerClick(id, invSlot, 0, ClickType.PICKUP);       // cursor <- new
+        menus.containerClick(id, armorMenuSlot, 0, ClickType.PICKUP); // armor <- new, cursor <- old
         if (!menu.getCarried().isEmpty()) {
-            mc.gameMode.handleInventoryMouseClick(id, invSlot, 0, ClickType.PICKUP, p);    // old -> emptied slot
+            menus.containerClick(id, invSlot, 0, ClickType.PICKUP);    // old -> emptied slot
         }
     }
 
@@ -151,7 +156,7 @@ public final class AutoEquip {
 
     /** Score this stack as armor for {@code slot}; -1 if it isn't armor for it.
      *  Material tier dominates (×10), enchantments break ties. */
-    private static double armorScore(LocalPlayer p, EquipmentSlot slot, ItemStack stack) {
+    private static double armorScore(Player p, EquipmentSlot slot, ItemStack stack) {
         if (stack.isEmpty()) return -1;
         if (p.getEquipmentSlotForItem(stack) != slot) return -1;
         return tier(stack) * 10.0 + enchantPoints(stack);

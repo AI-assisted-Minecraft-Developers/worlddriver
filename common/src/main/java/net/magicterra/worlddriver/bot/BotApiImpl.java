@@ -175,6 +175,7 @@ public final class BotApiImpl implements BotApi {
     private final AutoShield autoShield = new AutoShield();
     private final AutoHeal autoHeal = new AutoHeal();
     private final AutoTotem autoTotem = new AutoTotem();
+    private final AutoTool autoTool = new AutoTool();
 
     /** Records cells the bot's own digs broke while {@link BotConfig#autoBackfill}
      *  is on. BackfillProcess consumes from this when no main process is
@@ -335,8 +336,8 @@ public final class BotApiImpl implements BotApi {
     @Override
     public ImmediateResponse equip(InteractContracts.EquipParams params) {
         boolean armorOnly = params.armorOnly() || params.profile() == InteractContracts.Profile.ARMOR;
-        LocalPlayer player = Minecraft.getInstance().player;
-        AutoEquip.Result r = AutoEquip.equipBest(Minecraft.getInstance(), player, !armorOnly, BotConfig.equipDurabilityThreshold);
+        AutoEquip.Result r = AutoEquip.equipBest(new ClientPlayerBody(Minecraft.getInstance()), !armorOnly,
+                BotConfig.equipDurabilityThreshold);
         return new Responses.Equipped(armorOnly ? InteractContracts.Profile.ARMOR : params.profile(), r.equipped(),
                 new InteractContracts.Loadout(slot(r, "head"), slot(r, "chest"), slot(r, "legs"), slot(r, "feet"), slot(r, "mainHand")),
                 r.lowDurability(),
@@ -818,7 +819,7 @@ public final class BotApiImpl implements BotApi {
         // so it doesn't reshuffle the inventory during peaceful crafting/building;
         // idempotent (worn gear outscores the inventory) so it settles after a tick.
         if (BotConfig.autoEquip && combatChain.engaged()) {
-            AutoEquip.tick(mc, mc.player, BotConfig.equipDurabilityThreshold);
+            AutoEquip.tick(body, BotConfig.equipDurabilityThreshold);
         }
         // autoSwim is applied AFTER the chain scheduler's idle releaseKeys()
         // below — see the note there. (Running it here was a no-op for an idle
@@ -830,7 +831,7 @@ public final class BotApiImpl implements BotApi {
         // to best tool when the player is manually mining" (or scripted-attack via
         // input.click), the same scope as Baritone's autoTool.
         if (BotConfig.autoTool && AutoTool.mayRun(c, scheduler.current() != null)) {
-            AutoTool.tick(mc, mc.player);
+            autoTool.tick(body);
         }
         // autoBackfill puts back only what the bot broke — every process's digs, taken here
         // whoever drove them — never the natural air it walked through.

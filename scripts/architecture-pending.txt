@@ -14,10 +14,8 @@ bot/arbitration/PanicChain.java	net.minecraft.client
 bot/arbitration/RetreatChain.java	net.minecraft.client
 bot/behavior/Readiness.java	net.minecraft.client
 bot/behavior/reflex/AntiSuffocate.java	net.minecraft.client
-bot/behavior/reflex/AutoEquip.java	net.minecraft.client
 bot/behavior/reflex/AutoRespawn.java	net.minecraft.client
 bot/behavior/reflex/AutoSwim.java	net.minecraft.client
-bot/behavior/reflex/AutoTool.java	net.minecraft.client
 bot/behavior/reflex/ContactDamageEscape.java	net.minecraft.client
 bot/behavior/reflex/LavaProximityEscape.java	net.minecraft.client
 bot/control/ClutchController.java	net.minecraft.client
