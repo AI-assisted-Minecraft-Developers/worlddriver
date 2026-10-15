@@ -9,7 +9,10 @@ import net.magicterra.worlddriver.api.methods.shared.Responses;
 import dev.architectury.event.events.client.ClientTickEvent;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.game.DriverHost;
+import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.schema.JsonValue;
+import net.magicterra.worlddriver.api.thread.GameThreads;
+import net.magicterra.worlddriver.debug.PathDebugBootstrap;
 import net.magicterra.worlddriver.bot.BotApiImpl;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.game.ui.FocusPolicy;
@@ -40,6 +43,20 @@ public final class WorldDriverClientEvents {
     /** Registers the client API and the bot. Render thread only. */
     public static void install() {
         ClientHooks.register(new ClientDriverApiImpl());
+        // Only a client gets here, so naming the client class never loads it on a server.
+        GameThreads.installClient(() -> net.minecraft.client.Minecraft.getInstance().isSameThread());
+        // Boot both RPC and MCP at client init so mc.client.* (and the script
+        // evaluator) are reachable from TitleScreen / Pause — before any world
+        // exists. Both ensure*Up() calls are idempotent so onServerStarting
+        // can call them again without conflict.
+        WorldDriverCommon.ensureRpcUp();
+        WorldDriverCommon.ensureMcpUp();
+        // Optional, strippable: wire the path-debug recorder + mc.debug.pathChart now that
+        // the registry exists. Removing the debug package + this line fully strips the feature.
+        // ensureRpcUp logs and swallows a failed boot, leaving no registry to register on.
+        ApiRegistry registry = WorldDriverCommon.registry();
+        if (registry != null) PathDebugBootstrap.init(registry);
+        else WorldDriverCommon.LOG.warn("[{}] driver not ready; mc.debug.* not registered", WorldDriverCommon.MOD_ID);
         // Looked up per event: a driver that failed to boot leaves api() null, and the bot still
         // drives without one, as it always has; only its events have nowhere to go.
         BotApiImpl b = new BotApiImpl((type, pos, data) -> {

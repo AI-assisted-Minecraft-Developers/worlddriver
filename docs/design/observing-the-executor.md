@@ -103,7 +103,7 @@ archive stops being evidence.
 - `debug/PathChartRenderer.java` and `PathChartWriter.java` — the pure render and the file.
 - `debug/PathArchive.java`, `PathArchiveRecorder.java`, `NodePhysics.java` — the archive format and the
   physics facts.
-- `integration/debug/ReplayTool.java`, `bot/ReplayInstaller.java` — restoring and re-executing.
+- `debug/ReplayTool.java`, `bot/ReplayInstaller.java` — restoring and re-executing.
 - `api/methods/debug/DebugContracts.java` — the two verbs and their parameters.
 - `path-replay/` — the offline analyser.
 - `config/BotConfig.java` — the capture flags and their caps.

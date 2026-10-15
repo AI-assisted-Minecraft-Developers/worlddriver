@@ -94,7 +94,10 @@ def stack_allows(src, dst):
         return False
     if dst == 'debug':
         # Debug tooling plugs in at the facade and the wiring; nothing it records may depend on it.
-        return src in ('(root)', 'bot', 'integration')
+        return src in ('(root)', 'bot', 'mixin')
+    if src in ('(root)', 'mixin'):
+        # The loader wiring and the hooks into vanilla reach whichever layer they hook up.
+        return True
     if src in BOT_ORDER:
         if dst in BOT_ORDER:
             return BOT_ORDER.index(dst) > BOT_ORDER.index(src)
@@ -158,13 +161,13 @@ def main():
             text = text.replace('net.magicterra.worlddriver.protocol.', '')
         elif area == 'api':
             banned = ['net.magicterra.worlddriver.' + p + '.'
-                      for p in ('rpc', 'mcp', 'application', 'bot', 'client', 'script', 'integration')]
+                      for p in ('rpc', 'mcp', 'application', 'bot', 'game', 'config', 'debug', 'script')]
         elif area in ('rpc', 'mcp'):
             banned = ['net.magicterra.worlddriver.application.']
         if relative.parts[:2] in [('bot', 'behavior'), ('bot', 'arbitration'), ('bot', 'control'),
                                   ('bot', 'planning'), ('bot', 'rules')]:
-            banned += ['net.magicterra.worlddriver.integration.', 'net.magicterra.worlddriver.mcp.',
-                       'net.magicterra.worlddriver.rpc.', 'net.magicterra.worlddriver.api.']
+            banned += ['net.magicterra.worlddriver.mcp.', 'net.magicterra.worlddriver.rpc.',
+                       'net.magicterra.worlddriver.api.']
             if re.search(r'WorldDriverCommon\s*\.\s*(registry|host)\s*\(', text):
                 errors.append(f'{relative}: global driver API lookup in core behaviour')
         banned += ['net.magicterra.stagewright.']

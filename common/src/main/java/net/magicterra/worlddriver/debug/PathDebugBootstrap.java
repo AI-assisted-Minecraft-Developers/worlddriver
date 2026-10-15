@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.integration.debug;
+package net.magicterra.worlddriver.debug;
 
 import net.magicterra.worlddriver.debug.PathArchiveRecorder;
 import net.magicterra.worlddriver.debug.PathDebugRecorder;
@@ -21,8 +21,8 @@ import org.slf4j.LoggerFactory;
  * One-time wiring for the path-debug subsystem: installs the recorder as the active
  * {@link PathTraceHolder#SINK} and publishes {@code mc.debug.*} as a batch of their own.
  *
- * Release strip: delete the {@code bot.debug} package and the single call to this method
- * in {@code ClientHooks.register}. Core compiles unchanged.
+ * Release strip: delete the {@code debug} package and the single call to this method
+ * in {@code WorldDriverClientEvents.install}. Core compiles unchanged.
  */
 public final class PathDebugBootstrap {
     private static final Logger LOG = LoggerFactory.getLogger("agent-pathdebug");

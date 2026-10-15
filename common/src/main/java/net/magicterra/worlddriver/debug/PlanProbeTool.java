@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.integration.debug;
+package net.magicterra.worlddriver.debug;
 
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.schema.ApiError;

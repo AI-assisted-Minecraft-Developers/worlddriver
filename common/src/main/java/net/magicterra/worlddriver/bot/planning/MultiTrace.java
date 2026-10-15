@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.bot.rules.Move;
 
 /**
  * Fan-out {@link PathTrace} that forwards every callback to multiple sinks in
- * order. Lets {@link net.magicterra.worlddriver.integration.debug.PathDebugBootstrap} install
+ * order. Lets {@link net.magicterra.worlddriver.debug.PathDebugBootstrap} install
  * both {@link net.magicterra.worlddriver.debug.PathDebugRecorder} and
  * {@link net.magicterra.worlddriver.debug.PathArchiveRecorder} behind a single
  * {@link PathTraceHolder#SINK}.

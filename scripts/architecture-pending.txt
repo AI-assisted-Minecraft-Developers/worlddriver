@@ -117,10 +117,6 @@ game/ui/ClientDriverApiImpl.java	api ObserveContracts
 game/ui/ClientDriverApiImpl.java	api QueryContracts
 game/ui/ClientDriverApiImpl.java	api ScreenContracts
 game/ui/ClientDriverApiImpl.java	api ServerThreadHop
-game/ui/ClientHooks.java	(root) WorldDriverCommon
-game/ui/ClientHooks.java	api ApiRegistry
-game/ui/ClientHooks.java	api GameThreads
-game/ui/ClientHooks.java	integration PathDebugBootstrap
 game/ui/ClientInput.java	api ApiException
 game/ui/ClientInput.java	api ApiIssue
 game/ui/ClientInput.java	api ClientContracts
@@ -132,13 +128,3 @@ game/ui/ScreenContext.java	api ApiError
 game/ui/ScreenContext.java	api ApiException
 game/ui/ScreenIntrospection.java	api ScreenContracts
 game/ui/Screenshots.java	api ClientContracts
-integration/debug/PathDebugBootstrap.java	bot/planning MultiTrace
-integration/debug/PathDebugBootstrap.java	bot/planning PathTraceHolder
-integration/debug/PlanProbeTool.java	bot/control PathSmoothing
-integration/debug/PlanProbeTool.java	bot/planning PathFinder
-integration/debug/PlanProbeTool.java	bot/rules Goal
-integration/debug/PlanProbeTool.java	bot/rules Move
-integration/debug/PlanProbeTool.java	bot/world ClientWorldView
-integration/debug/ReplayTool.java	bot/rules Goal
-integration/debug/ReplayTool.java	bot/rules Move
-mixin/client/MinecraftMixin.java	bot/control FrameSearchPump
