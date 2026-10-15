@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.arbitration;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
@@ -21,8 +21,8 @@ import static net.magicterra.worlddriver.game.body.BotInteract.releaseKeys;
 import static net.magicterra.worlddriver.game.body.BotUtil.blockPosOf;
 
 /**
- * Survival reflex (ROADMAP Phase B): when {@link BotConfig#autoRetreat} is on and
- * health falls to {@link BotConfig#retreatHpThreshold}, take the movement channel
+ * Survival reflex (ROADMAP Phase B): when {@link ArbitrationConfig#autoRetreat} is on and
+ * health falls to {@link ArbitrationConfig#retreatHpThreshold}, take the movement channel
  * from the user task and flee via {@link RunAwayProcess}. Priority ramps as HP
  * falls further below the threshold, so a near-death bot outbids more things. When
  * HP recovers the priority drops to 0, the scheduler hands the channel back, and
@@ -119,13 +119,13 @@ public final class RetreatChain implements Chain {
 
     @Override public float priority(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
-        if (!BotConfig.autoRetreat || mc.player == null) {
+        if (!ArbitrationConfig.autoRetreat || mc.player == null) {
             // gap#72-④: an in-flight flee killed by the toggle is a transition too.
             if (retreating) LOG.info("[retreat] release reason=disabled");
             return idle();
         }
         float hp = mc.player.getHealth();
-        float thr = BotConfig.retreatHpThreshold;
+        float thr = ArbitrationConfig.retreatHpThreshold;
         ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
         long now = mc.player.level().getGameTime();
         // final-review L1: stamp on the RISING EDGE only (false→true), not on every

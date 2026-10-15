@@ -58,7 +58,7 @@ links to; read that page before arguing with the rule.
     dedicated server loads.** Check: `./gradlew :common:test` (`SchedulerClientCallSurfaceTest`)
     and both dedicated-server gate tasks, before landing any change that alters the shape of a
     call. Why: `docs/dev/loader-glue.md`.
-13. **A scene that writes `BotConfig` must hold a pin**:
+13. **A scene that writes a setting (any `config/*Config` class) must hold a pin**:
     `var pin = BotConfig.pinnedBaseline(); ctx.cleanup(pin::close);` at the top of the body.
     Check: `./gradlew :common:test` (`ConfigPinDisciplineTest`). Why: `docs/dev/testing.md`.
 

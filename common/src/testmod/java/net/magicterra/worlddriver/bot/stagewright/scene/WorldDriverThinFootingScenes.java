@@ -7,6 +7,10 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerGeometry;
@@ -159,9 +163,9 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowPlace = true;                 // the remedy IS a placement
-        BotConfig.allowBreak = false;                // digging out is not the subject
-        BotConfig.walkerDebug = true;
+        WorldConfig.allowPlace = true;                 // the remedy IS a placement
+        WorldConfig.allowBreak = false;                // digging out is not the subject
+        GameConfig.walkerDebug = true;
 
         // Nudge outward until the sole reads under the guard's own threshold rather than computing
         // an offset: the guard's predicate is the authority on what "barely on" means, and a rig
@@ -208,7 +212,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         // The guard's log line is unconditional, so zero lines proves it never got past one of these
         // — and "never entered" is a different defect from "entered and declined".
         BlockPos footCell = BlockPos.containing(fp.getX(), fp.getY() + 0.05, fp.getZ());
-        ctx.record("guardClauses", "lethalEdgeBrake=" + BotConfig.lethalEdgeBrake
+        ctx.record("guardClauses", "lethalEdgeBrake=" + ControlConfig.lethalEdgeBrake
                 + " inWater=" + fp.isInWater()
                 + " sole=" + String.format(Locale.ROOT, "%.4f", sole)
                 + " foot=" + footCell.getX() + "," + footCell.getY() + "," + footCell.getZ()
@@ -232,7 +236,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         for (; t < 400 && s == Walker.Step.WALKING; t++) {
             double sn = WalkerGeometry.soleOnSolid(w, fp);
             BlockPos fc = BlockPos.containing(fp.getX(), fp.getY() + 0.05, fp.getZ());
-            if (BotConfig.lethalEdgeBrake && !fp.isInWater() && sn > 0.0
+            if (ControlConfig.lethalEdgeBrake && !fp.isInWater() && sn > 0.0
                     && sn < Walker.footingMin() && WalkerGeometry.lethalDropAdjacent(w, fp, fc))
                 fireable++;
             if (t < 8) soles.append(String.format(Locale.ROOT, " t%d=%.3f", t, sn));
@@ -340,9 +344,9 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowPlace = true;
-        BotConfig.allowBreak = false;   // there is nothing to dig through; bridging is the only answer
-        BotConfig.walkerDebug = true;
+        WorldConfig.allowPlace = true;
+        WorldConfig.allowBreak = false;   // there is nothing to dig through; bridging is the only answer
+        GameConfig.walkerDebug = true;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -483,9 +487,9 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowPlace = true;      // bridging onward is a legitimate answer, and the best one
-        BotConfig.allowBreak = false;
-        BotConfig.walkerDebug = true;
+        WorldConfig.allowPlace = true;      // bridging onward is a legitimate answer, and the best one
+        WorldConfig.allowBreak = false;
+        GameConfig.walkerDebug = true;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
@@ -810,10 +814,10 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
     private static void shoreArm(SceneContext ctx, boolean lava) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowPlace = false;      // the subject is the PIN; paving the bay is another answer
-        BotConfig.allowBreak = false;
-        BotConfig.walkerDebug = true;
-        BotConfig.lethalEdgeBrake = false; // see the class note: this is the isolation, not a shortcut
+        WorldConfig.allowPlace = false;      // the subject is the PIN; paving the bay is another answer
+        WorldConfig.allowBreak = false;
+        GameConfig.walkerDebug = true;
+        ControlConfig.lethalEdgeBrake = false; // see the class note: this is the isolation, not a shortcut
         ctx.cleanup(() -> clearShore(ctx));
 
         stageShore(ctx, lava);
@@ -872,7 +876,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
     private static String scanRow(SceneContext ctx, boolean lava) {
         ServerLevel level = ctx.level();
         BlockPos stride = ctx.rel(0, SHELF + 1, SHELF_CELLS);
-        int depth = Math.max(BotConfig.pathfinderMaxDryFall + 1, 23);   // ceil(20 HP) + 3
+        int depth = Math.max(RulesConfig.pathfinderMaxDryFall + 1, 23);   // ceil(20 HP) + 3
         int hazardAt = -1, floorAt = -1;
         for (int i = 1; i <= depth && floorAt < 0; i++) {
             BlockPos c = stride.below(i);
@@ -899,7 +903,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      */
     private static Shore drive(SceneContext ctx, String arm, boolean strideGuard) {
         ServerLevel level = ctx.level();
-        BotConfig.walkerStrideFloorGuard = strideGuard;
+        ControlConfig.walkerStrideFloorGuard = strideGuard;
 
         double startZ = ctx.origin().getZ() + 1.5;
         int standY = ctx.rel(0, SHELF + 1, 0).getY();
@@ -1123,10 +1127,10 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
     private static void rimArm(SceneContext ctx, boolean lava) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowPlace = false;      // the subject is the PIN; paving the trench is another answer
-        BotConfig.allowBreak = false;
-        BotConfig.walkerDebug = true;
-        BotConfig.lethalEdgeBrake = false; // see the class note: this is the isolation, not a shortcut
+        WorldConfig.allowPlace = false;      // the subject is the PIN; paving the trench is another answer
+        WorldConfig.allowBreak = false;
+        GameConfig.walkerDebug = true;
+        ControlConfig.lethalEdgeBrake = false; // see the class note: this is the isolation, not a shortcut
         ctx.cleanup(() -> clearRim(ctx));
 
         stageRim(ctx, lava);
@@ -1215,7 +1219,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
     private static String rimScanRow(SceneContext ctx, boolean lava) {
         ServerLevel level = ctx.level();
         BlockPos stride = ctx.rel(RIM_EDGE - 1, RIM_DECK + 1, 6);
-        int depth = Math.max(BotConfig.pathfinderMaxDryFall + 1, 23);   // ceil(20 HP) + 3
+        int depth = Math.max(RulesConfig.pathfinderMaxDryFall + 1, 23);   // ceil(20 HP) + 3
         int hazardAt = -1, floorAt = -1;
         for (int i = 1; i <= depth && floorAt < 0; i++) {
             BlockPos c = stride.below(i);
@@ -1246,7 +1250,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      */
     private static Rim rimDrive(SceneContext ctx, String arm, boolean strideGuard) {
         ServerLevel level = ctx.level();
-        BotConfig.walkerStrideFloorGuard = strideGuard;
+        ControlConfig.walkerStrideFloorGuard = strideGuard;
 
         double startX = ctx.origin().getX() + 1.5, startZ = ctx.origin().getZ() + 0.5;
         int standY = ctx.rel(0, RIM_DECK + 1, 0).getY();

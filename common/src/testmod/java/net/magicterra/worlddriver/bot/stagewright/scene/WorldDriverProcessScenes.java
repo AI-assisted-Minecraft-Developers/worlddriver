@@ -5,6 +5,10 @@ import java.util.List;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
@@ -332,9 +336,9 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx, floorY + 2, cz + 9);   // foot on the ledge
 
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.gotoGoal(new Goal.Block(goal));
@@ -383,11 +387,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BlockPos target = new BlockPos(cx + 3, floorY + 1, cz);   // a block on the floor, away from the bot
         level.setBlockAndUpdate(target, Blocks.STONE.defaultBlockState());
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx - 3 + 0.5, floorY + 1, cz + 0.5);
         driver.mine(target);
@@ -431,9 +435,9 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx, floorY + 1, cz + 9);
 
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.runProcess(new IntentProcess(new Intent(new Goal.Block(goal))));   // the REAL client process, server-side
@@ -481,9 +485,9 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BlockPos from = new BlockPos(cx, floorY + 1, cz);
         final int minDist = 6;
 
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.runProcess(new RunAwayProcess(from, minDist));
@@ -538,11 +542,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         };
         for (BlockPos t : targets) level.setBlockAndUpdate(t, Blocks.STONE.defaultBlockState());
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         // Hold a pickaxe: stone requiresCorrectToolForDrops, and the tool gate (gap#2)
@@ -657,11 +661,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
                             Blocks.STONE.defaultBlockState());
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = false;    // placing would let it pillar back up and muddy the reading
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = 20;
-        BotConfig.pathfinderMaxMs = 2000;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;    // placing would let it pillar back up and muddy the reading
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = 20;
+        PlanningConfig.pathfinderMaxMs = 2000;
 
         ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
@@ -762,9 +766,9 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         for (BlockPos at : List.of(sealed, far, adjacent))
             level.setBlockAndUpdate(at, Blocks.IRON_ORE.defaultBlockState());
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = false;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = false;
 
         ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
@@ -843,11 +847,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         for (int dy = -4; dy <= 0; dy++)
             level.setBlockAndUpdate(new BlockPos(cx, floorY + dy, cz), Blocks.AIR.defaultBlockState());
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;      // pillaring is the point; forbidding it would be circular
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = 20;
-        BotConfig.pathfinderMaxMs = 2000;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;      // pillaring is the point; forbidding it would be circular
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = 20;
+        PlanningConfig.pathfinderMaxMs = 2000;
 
         final int pitFloorY = floorY - 4;
         ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, pitFloorY, cz + 0.5);
@@ -932,11 +936,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         for (int dy = -9; dy <= -8; dy++)
             level.setBlockAndUpdate(new BlockPos(cx + 1, floorY + dy, cz), Blocks.AIR.defaultBlockState());
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = 20;
-        BotConfig.pathfinderMaxMs = 2000;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = 20;
+        PlanningConfig.pathfinderMaxMs = 2000;
 
         final int shaftFloorY = floorY - 9;
         ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 1.5, shaftFloorY, cz + 0.5);
@@ -1050,11 +1054,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         // Unarmed: nothing to dig or pave with, so the only answer the walker can give is about
         // the pit. Armed: exactly what MineProcess.COLLECT runs under, dirt in hand included.
-        BotConfig.allowBreak = armed;
-        BotConfig.allowPlace = armed;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = 20;
-        BotConfig.pathfinderMaxMs = 2000;
+        WorldConfig.allowBreak = armed;
+        WorldConfig.allowPlace = armed;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = 20;
+        PlanningConfig.pathfinderMaxMs = 2000;
 
         ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
@@ -1137,13 +1141,13 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         level.setBlockAndUpdate(oreB, Blocks.IRON_ORE.defaultBlockState());
         level.setBlockAndUpdate(oreC, Blocks.IRON_ORE.defaultBlockState());
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;      // the hazard: placing is what makes the hand hold dirt
-        BotConfig.walkerDebug = false;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;      // the hazard: placing is what makes the hand hold dirt
+        GameConfig.walkerDebug = false;
         // Real ticks — a pathfinder slice that blocks the server thread would stall the suite,
         // so these stay the generous-but-bounded values the journey rig uses, not MAX_VALUE/2.
-        BotConfig.pathfinderSliceMs = 20;
-        BotConfig.pathfinderMaxMs = 2000;
+        ControlConfig.pathfinderSliceMs = 20;
+        PlanningConfig.pathfinderMaxMs = 2000;
 
         ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
@@ -1249,11 +1253,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         };
         for (BlockPos t : targets) level.setBlockAndUpdate(t, Blocks.STONE.defaultBlockState());
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         // NO pickaxe — empty-handed, matching the campaign soft-lock (broken pickaxe, no craft path).
@@ -1329,11 +1333,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         level.setBlockAndUpdate(plugHead, Blocks.DEEPSLATE.defaultBlockState());
         BlockPos goal = new BlockPos(cx, floorY + 1, cz + 4);
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         ServerPlayerBody.faithfulBreak = true;         // REAL destroy-progress: bare-hand deepslate ~650t (else instant destroyBlock masks the timing)
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
@@ -1420,12 +1424,12 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         };
         BlockPos standCell = new BlockPos(cx, floorY + 1, cz + standDz);
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = false;
-        BotConfig.walkerWallDigFallback = true;          // match the live default that produced day6
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = false;
+        ControlConfig.walkerWallDigFallback = true;          // match the live default that produced day6
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         final int BUDGET = 1600;                          // > walkerTotalTickBudget(1200); wallDig fires within ~40t of engaging
         buildShell.run();
         var stand = new ArmorStand(level, cx + 0.5, floorY + 1, cz + standDz + 0.5);   // BEYOND the plug
@@ -1521,11 +1525,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         es.add(new Schematic.Entry(3, 1, 0, "minecraft:cobblestone"));
         Schematic schem = new Schematic(4, 2, 1, es);
 
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().items.set(0, new ItemStack(Blocks.COBBLESTONE, 64));
@@ -1621,9 +1625,9 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         level.addFreshEntity(stand);
         ctx.cleanup(() -> stand.discard());
 
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         // ENTITY-VISIBILITY WAIT (wave-5) replacing the legacy `for(3) level.tick(()->true)` index
         // loop: a freshly-added entity isn't in the queryable section index until the level indexes
@@ -1687,9 +1691,9 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         level.addFreshEntity(stand);
         ctx.cleanup(stand::discard);
 
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class, entityBox(cx, floorY, cz)).isEmpty())
                 .within(100).then(() -> {
@@ -1750,9 +1754,9 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         // No night pin here any more: StageWright freezes every scene at midnight and says so in the
         // run's results header, so the zombie cannot sun-burn to a false fire-kill.
 
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         // ENTITY-VISIBILITY WAIT (wave-5) replacing the legacy `for(3) level.tick(()->true)` index
         // loop: poll (bounded) until the fresh zombie is queryable, then run the fight VERBATIM.
@@ -1795,7 +1799,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
     // ==================================================================================
     // wd.serverCombatCollectDrops — after the kill, the combat loop must SWEEP the drops
-    // near the kill spot before terminating (BotConfig.combatCollectDrops; live 01:32
+    // near the kill spot before terminating (BehaviorConfig.combatCollectDrops; live 01:32
     // 2026-07-21: six hunt kills banked one porkchop — melee kites away from the corpse
     // and the old loop ended wherever it stood).
     // ==================================================================================
@@ -1842,9 +1846,9 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ctx.cleanup(() -> drop.discard());
         // Night comes from StageWright's suite-wide world pin, not from here.
 
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ctx.await(() -> !level.getEntitiesOfClass(Zombie.class, entityBox(cx, floorY, cz)).isEmpty()
                         && !level.getEntitiesOfClass(ItemEntity.class, entityBox(cx, floorY, cz)).isEmpty())
@@ -1920,7 +1924,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos track = new BlockPos(cx + 5, floorY + 1, cz);
 
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.runProcess(new LookProcess(track, 0f, 0f));
@@ -1974,11 +1978,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             level.setBlockAndUpdate(new BlockPos(x, floorY + 4, cz), Blocks.STONE.defaultBlockState());
         level.setBlockAndUpdate(logPos, Blocks.OAK_LOG.defaultBlockState());
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         // Phase 1 — radius=16 (regression: already worked before the fix, must still work after it).
         ServerWorldDriver driver16 = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
@@ -2022,7 +2026,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
 
         // Arm A: live death-#24 shape — sneak-overhang start (center 1.05 east of the pillar cell
         // origin => floor(center) is already the void column) + yaw 90° off. Arm B: centered start.
@@ -2168,8 +2172,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         if (waiverLeakedIn(ctx, "mineLogWaiverEngages")) return;
 
         BlockPos logPos = stageOneLog(ctx, level, cx, cz, floorY);
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = false;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().items.set(0, new ItemStack(Items.WOODEN_AXE));
@@ -2220,8 +2224,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BlockPos logPos = stageOneLog(ctx, level, cx, cz, floorY);
         BlockPos stonePos = new BlockPos(cx + 3, floorY + 1, cz);
         level.setBlockAndUpdate(stonePos, Blocks.STONE.defaultBlockState());
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = false;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
@@ -2263,8 +2267,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         if (waiverLeakedIn(ctx, "mineLogWaiverReleasedOnSupersede")) return;
 
         stageOneLog(ctx, level, cx, cz, floorY);
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = false;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().items.set(0, new ItemStack(Items.WOODEN_AXE));

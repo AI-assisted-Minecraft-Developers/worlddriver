@@ -7,6 +7,11 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ArbitrationConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
@@ -148,7 +153,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
      *  thing it measures would report the measurement as a failure. */
     private static final int LID_BUDGET = 600;
 
-    /** Air held under {@link BotConfig#drownEscapeAirThreshold} for the whole lid arm, so the latch
+    /** Air held under {@link ControlConfig#drownEscapeAirThreshold} for the whole lid arm, so the latch
      *  stays engaged without the bot ever drowning. The other arms can let air fall because they
      *  finish in tens of ticks; this one runs for hundreds, and killing the human's client to
      *  measure a dig time is not a trade this suite makes. It also means the tick count this arm
@@ -261,10 +266,10 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.autoDrownEscape = true;
-        BotConfig.autoFloatWhenDrowning = true;
-        BotConfig.walkerDebug = true;
-        BotConfig.allowBreak = true;                     // without this the lid arm is a no-op
+        ArbitrationConfig.autoDrownEscape = true;
+        BehaviorConfig.autoFloatWhenDrowning = true;
+        GameConfig.walkerDebug = true;
+        WorldConfig.allowBreak = true;                     // without this the lid arm is a no-op
 
         final double homeX = body.getX(), homeY = body.getY(), homeZ = body.getZ();
         final int homeAir = body.getAirSupply();
@@ -416,10 +421,10 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         // ---- config, restored by the pin ----------------------------------------------
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.autoDrownEscape = armed;
-        BotConfig.autoFloatWhenDrowning = armed;
-        BotConfig.walkerDebug = true;            // the arm's per-tick row is gated on it
-        BotConfig.allowBreak = true;             // so a lid the scan DOES see would be broken
+        ArbitrationConfig.autoDrownEscape = armed;
+        BehaviorConfig.autoFloatWhenDrowning = armed;
+        GameConfig.walkerDebug = true;            // the arm's per-tick row is gated on it
+        WorldConfig.allowBreak = true;             // so a lid the scan DOES see would be broken
 
         // ---- the player, restored on the way out --------------------------------------
         final double homeX = body.getX(), homeY = body.getY(), homeZ = body.getZ();

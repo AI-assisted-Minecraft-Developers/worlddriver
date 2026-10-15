@@ -299,10 +299,10 @@ public final class SettingsRegistry {
             if (h.field() != null && !h.field().equals(h.key())) ALIAS_OF_FIELD.put(h.field(), h.key());
             if (h.read() == Read.CONFIG_FIELD) {
                 try {
-                    CONFIG_FIELDS.put(h.field(), BotConfig.class.getField(h.field()));
+                    CONFIG_FIELDS.put(h.field(), BotConfig.field(h.field()));
                 } catch (NoSuchFieldException e) {
                     throw new IllegalStateException(
-                        "SettingsRegistry: no BotConfig field '" + h.field() + "' for key '" + h.key() + "'", e);
+                        "SettingsRegistry: no config field '" + h.field() + "' for key '" + h.key() + "'", e);
                 }
             }
             SCHEMA_PROPS.put(h.key(), handType(h));
@@ -334,13 +334,13 @@ public final class SettingsRegistry {
     }
 
     /**
-     * Public static volatile PRIMITIVE {@link BotConfig} fields in {@code Class.getFields()} order,
+     * Public static volatile PRIMITIVE config fields in {@link BotConfig#publicFields()} order,
      * less the {@link RuntimeState} ones. The ONE enumerator of the reflective keys, so a new flag
      * is readable, writable and in the contract at once, or not at all.
      */
     static List<Field> reflectivePrimitiveFields() {
         List<Field> out = new ArrayList<>();
-        for (Field f : BotConfig.class.getFields()) {
+        for (Field f : BotConfig.publicFields()) {
             int mods = f.getModifiers();
             if (!Modifier.isStatic(mods) || !Modifier.isVolatile(mods)) continue;
             if (!f.getType().isPrimitive()) continue;

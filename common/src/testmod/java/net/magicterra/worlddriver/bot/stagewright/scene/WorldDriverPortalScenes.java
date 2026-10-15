@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.ArrayList;
 import java.util.List;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
 import net.magicterra.worlddriver.bot.ServerWorldDriver;
@@ -138,8 +139,8 @@ public final class WorldDriverPortalScenes {
         BlockPos wall = new BlockPos(cx - 2, floorY + 1, cz);
         level.setBlockAndUpdate(wall, Blocks.STONE.defaultBlockState());
 
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = true;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = true;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         var fp = driver.fakePlayer();

@@ -319,7 +319,7 @@ sections only, so the scene fails as an empty entity query somewhere far from th
 such helper that exists takes its own region ticket. If you add another, it needs one too, and
 the check will not tell you.
 
-### A scene that writes `BotConfig` must hold a pin
+### A scene that writes a setting must hold a pin
 
 Nothing resets the configuration between scenes — the baseline is applied once at server start —
 so whatever a scene leaves changed is what the next scene starts with, and scene order then
@@ -332,7 +332,7 @@ ctx.cleanup(pin::close);
 ```
 
 `ConfigPinDisciplineTest` reads the compiled testmod bytecode and names any method that writes a
-`BotConfig` static without a `pinnedBaseline()` on every path into it, counting a pin taken by a
+static of any `config/*Config` class without a `pinnedBaseline()` on every path into it, counting a pin taken by a
 helper it calls. Run `./gradlew :common:test` before landing a scene that touches configuration.
 
 Restoring by hand is legal, but only on a path a failure also takes — a `try`/`finally`, or

@@ -6,7 +6,9 @@ import java.util.Locale;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.minecraft.core.BlockPos;
@@ -181,17 +183,17 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         helm.hold(new ItemStack(Items.DIRT, 30));
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = true;
-        BotConfig.walkerFootholdBeforeBankDig = true;
-        BotConfig.walkerClimbIntentFromSurface = true;
-        BotConfig.walkerPillarTopsOutAtFlushExit = true;
-        BotConfig.walkerHoldLastNodeUntilStanding = true;
-        BotConfig.walkerShallowWaterSideFoothold = true;
-        BotConfig.walkerClimbOutResyncsAim = true;
-        BotConfig.walkerOrbitBreaksAimLag = true;
-        BotConfig.walkerSurfaceSprintSwim = true;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = true;
+        ControlConfig.walkerFootholdBeforeBankDig = true;
+        ControlConfig.walkerClimbIntentFromSurface = true;
+        ControlConfig.walkerPillarTopsOutAtFlushExit = true;
+        ControlConfig.walkerHoldLastNodeUntilStanding = true;
+        ControlConfig.walkerShallowWaterSideFoothold = true;
+        ControlConfig.walkerClimbOutResyncsAim = true;
+        ControlConfig.walkerOrbitBreaksAimLag = true;
+        ControlConfig.walkerSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
 
         // The source needs ~5 ticks per cell to reach the far end; wait for the current to exist.
@@ -260,17 +262,17 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         helm.hold(new ItemStack(Items.DIRT, 16));
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = true;
-        BotConfig.walkerFootholdBeforeBankDig = true;
-        BotConfig.walkerClimbIntentFromSurface = true;
-        BotConfig.walkerPillarTopsOutAtFlushExit = true;
-        BotConfig.walkerHoldLastNodeUntilStanding = true;
-        BotConfig.walkerShallowWaterSideFoothold = true;
-        BotConfig.walkerClimbOutResyncsAim = true;
-        BotConfig.walkerOrbitBreaksAimLag = true;
-        BotConfig.walkerSurfaceSprintSwim = true;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = true;
+        ControlConfig.walkerFootholdBeforeBankDig = true;
+        ControlConfig.walkerClimbIntentFromSurface = true;
+        ControlConfig.walkerPillarTopsOutAtFlushExit = true;
+        ControlConfig.walkerHoldLastNodeUntilStanding = true;
+        ControlConfig.walkerShallowWaterSideFoothold = true;
+        ControlConfig.walkerClimbOutResyncsAim = true;
+        ControlConfig.walkerOrbitBreaksAimLag = true;
+        ControlConfig.walkerSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
 
         helm.sync(SYNC_TICKS, () -> {
@@ -344,19 +346,19 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         if (hand.length > 0) helm.hold(hand);
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = true;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = true;
         // Shipped default, restored over the pinned baseline: the place arm is the scene that
         // exercises it, and the budget above is what would notice it going missing.
-        BotConfig.walkerFootholdBeforeBankDig = true;
-        BotConfig.walkerClimbIntentFromSurface = true;
-        BotConfig.walkerPillarTopsOutAtFlushExit = true;
-        BotConfig.walkerHoldLastNodeUntilStanding = true;
-        BotConfig.walkerShallowWaterSideFoothold = true;
-        BotConfig.walkerClimbOutResyncsAim = true;
-        BotConfig.walkerOrbitBreaksAimLag = true;
-        BotConfig.walkerSurfaceSprintSwim = true;
+        ControlConfig.walkerFootholdBeforeBankDig = true;
+        ControlConfig.walkerClimbIntentFromSurface = true;
+        ControlConfig.walkerPillarTopsOutAtFlushExit = true;
+        ControlConfig.walkerHoldLastNodeUntilStanding = true;
+        ControlConfig.walkerShallowWaterSideFoothold = true;
+        ControlConfig.walkerClimbOutResyncsAim = true;
+        ControlConfig.walkerOrbitBreaksAimLag = true;
+        ControlConfig.walkerSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
 
         helm.sync(SYNC_TICKS, () -> {

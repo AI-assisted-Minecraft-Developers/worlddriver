@@ -8,6 +8,10 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
@@ -191,9 +195,9 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      *  a second way up, and a scene about placing blocks that accepts a staircase is measuring
      *  something else. */
     private static void towerConfig() {
-        BotConfig.allowPlace = true;
-        BotConfig.allowBreak = false;
-        BotConfig.walkerDebug = false;
+        WorldConfig.allowPlace = true;
+        WorldConfig.allowBreak = false;
+        GameConfig.walkerDebug = false;
     }
 
     private static void clearBox(ServerLevel level, int cx, int cz, int y0,
@@ -493,8 +497,8 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         towerConfig();
         // The only arm that plans. Real slices over real server ticks — a synchronous A* inside one
         // server tick is the shape that has wedged this suite before.
-        BotConfig.pathfinderSliceMs = 20;
-        BotConfig.pathfinderMaxMs = 2000;
+        ControlConfig.pathfinderSliceMs = 20;
+        PlanningConfig.pathfinderMaxMs = 2000;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
 

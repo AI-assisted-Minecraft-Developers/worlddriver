@@ -2,7 +2,8 @@ package net.magicterra.worlddriver.bot.planning;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.minecraft.core.BlockPos;
 
@@ -47,7 +48,7 @@ import net.magicterra.worlddriver.bot.world.WorldView;
  *
  * <h2>Phase</h2>
  * Phase 0 is a one-shot backward Dijkstra rebuilt per search (behind the
- * default-off {@code BotConfig.pathfinderGoalField} knob) to validate the
+ * default-off {@code PlanningConfig.pathfinderGoalField} knob) to validate the
  * premise cheaply. The graph/walkability is separated from the propagation so
  * the Dijkstra can later be replaced by incremental D*-lite repair (Phase 1)
  * without touching the consumer.
@@ -91,16 +92,16 @@ public final class CoarseGoalField {
      * the caller simply keeps the Euclidean heuristic.
      */
     public static CoarseGoalField build(WorldView w, Goal goal, BlockPos start) {
-        int s = Math.max(1, BotConfig.goalFieldCellSize);
-        int hr = Math.max(1, BotConfig.goalFieldRadius / s);
-        int vr = Math.max(1, BotConfig.goalFieldVerticalRadius / s);
+        int s = Math.max(1, PlanningConfig.goalFieldCellSize);
+        int hr = Math.max(1, PlanningConfig.goalFieldRadius / s);
+        int vr = Math.max(1, PlanningConfig.goalFieldVerticalRadius / s);
         int baseX = (start.getX() - hr * s);
         int baseY = (start.getY() - vr * s);
         int baseZ = (start.getZ() - hr * s);
         CoarseGoalField f = new CoarseGoalField(s, hr, vr, baseX, baseY, baseZ);
         f.probeWalkability(w);
         boolean ok = f.propagate(goal);
-        if (BotConfig.walkerDebug) {
+        if (GameConfig.walkerDebug) {
             int total = f.dim * f.dimY * f.dim;
             double atStart = ok ? f.costToGoal(start) : UNKNOWN;
             LOG.info("[goalfield] cells={} open={} seeded={} start_h_field={} start_h_euclid={}",

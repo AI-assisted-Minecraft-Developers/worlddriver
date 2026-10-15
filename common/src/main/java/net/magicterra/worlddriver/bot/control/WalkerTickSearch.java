@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.control;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
@@ -45,7 +46,7 @@ final class WalkerTickSearch {
     private static boolean futileGateExcluded(PathFinder.Result res, Body a, Walker wk,
                                               WorldView world, BlockPos foot) {
         int bucket = -1;
-        if (BotConfig.walkerFutileSearchCap <= 0) bucket = 0;
+        if (ControlConfig.walkerFutileSearchCap <= 0) bucket = 0;
         else if (res.goalReached()) bucket = 1;
         else if (wk.hands.breakHeld()) bucket = 2;
         else if (wk.waterClimb.digging) bucket = 3;
@@ -101,7 +102,7 @@ final class WalkerTickSearch {
             wk.searchGov.futileFoot = foot;
             wk.searchGov.futileGoal = wk.goal;
             wk.searchGov.futileLatchFoot = null;
-        } else if (++wk.searchGov.futileSearches >= BotConfig.walkerFutileSearchCap) {
+        } else if (++wk.searchGov.futileSearches >= ControlConfig.walkerFutileSearchCap) {
             wk.lastError = "no route progress after " + wk.searchGov.futileSearches
                     + " consecutive searches — goal unreachable from here (best dist="
                     + Math.round(wk.goalSpin.bestDistToGoal) + ")";
@@ -144,11 +145,11 @@ final class WalkerTickSearch {
             // ~4 s at its segment end (live 2026-09-28, 1385,75,-511).
             boolean idleNoPath = wk.path == null || wk.step >= wk.path.size() - SEGMENT_END_SLICE_NODES || !wk.seg.searchFromEnd;
             FrameSearchPump.offer(wk);
-            long want = idleNoPath ? Math.max(BotConfig.pathfinderSliceMs, BotConfig.pathfinderIdleSliceMs)
-                    : BotConfig.pathfinderSliceMs;
+            long want = idleNoPath ? Math.max(ControlConfig.pathfinderSliceMs, ControlConfig.pathfinderIdleSliceMs)
+                    : ControlConfig.pathfinderSliceMs;
             long slice = Math.max(1, want - FrameSearchPump.takeSpentMs());   // less what frames spent: see FrameSearchPump
             searchDone = wk.seg.activeSearch.advance(slice);
-            if (BotConfig.walkerDebug && !searchDone)
+            if (GameConfig.walkerDebug && !searchDone)
                 LOG.info(
                         "[walker] search slice {}ms expanded={} (still running)",
                         (System.nanoTime() - sb) / 1_000_000, wk.seg.activeSearch.expanded());
@@ -167,7 +168,7 @@ final class WalkerTickSearch {
                 LOG.info("[walker] search dropped route.sight: ray budget spent, rerun without it (owner={})", wk.owner);
             PathTraceHolder.SINK.onSearchResult(res.path(), res.edges(), res.goalReached(),
                     res.expanded(), res.ms(), res.finalCost());
-            if (BotConfig.walkerDebug)
+            if (GameConfig.walkerDebug)
                 LOG.info(
                         "[walker] repath from {} → goalReached={} pathLen={} expanded={} ms={}",
                         wasFromEnd ? wk.seg.commitEnd : foot, res.goalReached(), res.path().size(), res.expanded(), res.ms());
@@ -184,13 +185,13 @@ final class WalkerTickSearch {
             // cleanly at the farthest reachable point. A genuine detour keeps at least
             // one node that beats commitEnd's estimate, so it is never discarded; water
             // is exempt (afloat churn is owned by the anti-spin governor).
-            if (BotConfig.walkerFromEndNoProgressDiscard
+            if (ControlConfig.walkerFromEndNoProgressDiscard
                     && wasFromEnd && res.hasPath() && wk.seg.commitEnd != null && !world.isWater(foot)) {
                 double endEst = wk.goal.estimate(wk.seg.commitEnd);
                 double bestEst = Double.MAX_VALUE;
                 for (BlockPos n : res.path()) bestEst = Math.min(bestEst, wk.goal.estimate(n));
                 if (bestEst >= endEst - 0.5) {
-                    if (BotConfig.walkerDebug)
+                    if (GameConfig.walkerDebug)
                         LOG.info("[walker] from-end continuation makes no progress past {},{},{} (best {} vs end {}) → discard as no-onward-route",
                                 wk.seg.commitEnd.getX(), wk.seg.commitEnd.getY(), wk.seg.commitEnd.getZ(),
                                 String.format(Locale.ROOT, "%.1f", bestEst), String.format(Locale.ROOT, "%.1f", endEst));
@@ -253,11 +254,11 @@ final class WalkerTickSearch {
                         wk.goalSpin.churnResets++;
                         wk.goalSpin.bestGoalDist = d;
                         wk.goalSpin.repathsNoProgress = 0;
-                        if (BotConfig.walkerDebug)
+                        if (GameConfig.walkerDebug)
                             LOG.info("[walker] anti-spin: stalled in water (d={}) → re-baseline {}/{}",
                                     String.format(Locale.ROOT, "%.0f", d), wk.goalSpin.churnResets, CHURN_MAX_RESETS);
                     } else {
-                        if (BotConfig.walkerDebug)
+                        if (GameConfig.walkerDebug)
                             LOG.info("[walker] anti-spin: {} water repaths w/o progress after {} re-baselines (d={}) → end best-effort",
                                     wk.goalSpin.repathsNoProgress, wk.goalSpin.churnResets, String.format(Locale.ROOT, "%.0f", d));
                         Walker.avatarForward(a, false);
@@ -275,7 +276,7 @@ final class WalkerTickSearch {
                 if (!wk.replayMode && !wk.seg.searchSuppressedPlace) {
                     int placesNeeded = countPlaceEdges(res.edges());
                     if (placesNeeded > world.placeableBlockCount()) {
-                        if (BotConfig.walkerDebug)
+                        if (GameConfig.walkerDebug)
                             LOG.info("[walker] path needs {} placed blocks, have {} → re-search place-off (dig/around)",
                                     placesNeeded, world.placeableBlockCount());
                         wk.seg.activeSearch = wk.newPathFinder(world).newSearch(foot, wk.goal, true);
@@ -301,8 +302,8 @@ final class WalkerTickSearch {
                     double cax = curAhead.getX() + 0.5 - p.getX(), caz = curAhead.getZ() + 0.5 - p.getZ();
                     double nax = newAhead.getX() + 0.5 - p.getX(), naz = newAhead.getZ() + 0.5 - p.getZ();
                     uTurnLeg = (cax * nax + caz * naz) < 0;
-                    keepCurrent = BotConfig.walkerRouteHysteresis && uTurnLeg && wk.stepProg.noStepProgressTicks < 20;
-                    if (keepCurrent && BotConfig.walkerDebug)
+                    keepCurrent = ControlConfig.walkerRouteHysteresis && uTurnLeg && wk.stepProg.noStepProgressTicks < 20;
+                    if (keepCurrent && GameConfig.walkerDebug)
                         LOG.info("[walker] route-hysteresis: KEEP current path (new route U-turns behind a healthy walk, noStepProg={})",
                                 wk.stepProg.noStepProgressTicks);
                 }
@@ -314,15 +315,15 @@ final class WalkerTickSearch {
                 // 200t grinding the re-chosen riser). While a committed bank dig's break is
                 // actually held, keep the current path; the futile-dig release still abandons
                 // a hopeless dig, which drops the hold and lets the next repath adopt normally.
-                if (!keepCurrent && BotConfig.walkerDigCommitHoldRepath
+                if (!keepCurrent && ControlConfig.walkerDigCommitHoldRepath
                         && wk.waterClimb.digRiser != null && wk.hands.breakHeld()) {
                     keepCurrent = true;
-                    if (BotConfig.walkerDebug)
+                    if (GameConfig.walkerDebug)
                         LOG.info("[walker] dig-commit-hold: KEEP current path (committed bank dig at {},{},{} in progress)",
                                 wk.waterClimb.digRiser.getX(), wk.waterClimb.digRiser.getY(), wk.waterClimb.digRiser.getZ());
                 }
                 if (!keepCurrent) {
-                    if (BotConfig.walkerExpectAlarm && uTurnLeg) {
+                    if (ControlConfig.walkerExpectAlarm && uTurnLeg) {
                         wk.exAlarms.noteRepathFlip(wk.escal.tick, foot);
                     }
                     wk.adoptPath(res, world, foot);
@@ -353,7 +354,7 @@ final class WalkerTickSearch {
                 // whole goto. Bounded so a genuinely walled-in bot still fails.
                 if (world.hasStuckPenalties() && wk.searchGov.noPathWaitTicks < NO_PATH_WAIT_CAP) {
                     wk.searchGov.noPathWaitTicks++;
-                    if (BotConfig.walkerDebug && wk.searchGov.noPathWaitTicks % 100 == 1)
+                    if (GameConfig.walkerDebug && wk.searchGov.noPathWaitTicks % 100 == 1)
                         LOG.info("[walker] no path but stuck-penalties still live → waiting out decay ({}/{})",
                                 wk.searchGov.noPathWaitTicks, NO_PATH_WAIT_CAP);
                     Walker.avatarForward(a, false);

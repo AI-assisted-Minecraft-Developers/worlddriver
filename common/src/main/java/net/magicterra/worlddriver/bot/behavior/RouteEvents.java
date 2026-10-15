@@ -7,7 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.RiskAt;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
@@ -23,7 +24,7 @@ import net.minecraft.core.BlockPos;
  * replan). Every event needs its condition in the {@code route}: no declared hard constraint, no
  * {@code route.blocked}; no {@code route.sight}, no {@code route.exposed}; a plain goto without
  * conditions raises nothing, as before. Debounced: one event per (type, culprit) within
- * {@link BotConfig#routeEventCooldownTicks}.
+ * {@link BehaviorConfig#routeEventCooldownTicks}.
  *
  * <p>Pure on purpose: the process hands in the result, the goal, a {@link RiskAt}
  * over its profile, and a supplier of the tax totals; the emitter is a seam so a test reads the
@@ -88,7 +89,7 @@ public final class RouteEvents {
         if (res.goalReached() || declared.isEmpty()) return;
         String reason = res.blockedBy(declared);
         if (reason == null) {
-            boolean budget = res.expanded() >= BotConfig.pathfinderMaxNodes || res.ms() >= BotConfig.pathfinderMaxMs;
+            boolean budget = res.expanded() >= PlanningConfig.pathfinderMaxNodes || res.ms() >= PlanningConfig.pathfinderMaxMs;
             reason = budget ? BUDGET : TERRAIN;
         }
         if (!fire("route.blocked", reason)) return;
@@ -110,7 +111,7 @@ public final class RouteEvents {
         double straight = target != null ? Math.sqrt(first.distSqr(target)) : goal.estimate(first) / 10.0;
         straight = Math.max(1.0, straight);
         double ratio = length(res.path()) / straight;
-        if (ratio <= BotConfig.detourAlarmRatio) return;
+        if (ratio <= BehaviorConfig.detourAlarmRatio) return;
         if (!fire("route.detour", "")) return;
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("ratio", Math.round(ratio * 100) / 100.0);
@@ -174,7 +175,7 @@ public final class RouteEvents {
     private boolean fire(String type, String culprit) {
         String key = type + "|" + culprit;
         Integer last = lastFired.get(key);
-        if (last != null && tick - last < BotConfig.routeEventCooldownTicks) return false;
+        if (last != null && tick - last < BehaviorConfig.routeEventCooldownTicks) return false;
         lastFired.put(key, tick);
         return true;
     }

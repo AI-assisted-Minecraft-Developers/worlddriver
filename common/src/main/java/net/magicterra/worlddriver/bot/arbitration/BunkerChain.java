@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.arbitration;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ArbitrationConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
@@ -21,10 +22,10 @@ import static net.magicterra.worlddriver.game.body.BotInteract.walkerPlace;
 
 /**
  * Emergency "dig three, fill one" bunker reflex. When the bot is CORNERED — HP at/below
- * {@link BotConfig#bunkerHpThreshold} and at least {@link BotConfig#bunkerMinHostiles}
- * hostiles within {@link BotConfig#bunkerTriggerRadius}, the situation where
+ * {@link ArbitrationConfig#bunkerHpThreshold} and at least {@link ArbitrationConfig#bunkerMinHostiles}
+ * hostiles within {@link ArbitrationConfig#bunkerTriggerRadius}, the situation where
  * fleeing just runs into more mobs — it digs straight down
- * {@link BotConfig#bunkerDepth} blocks and seals the roof with one of the blocks
+ * {@link ArbitrationConfig#bunkerDepth} blocks and seals the roof with one of the blocks
  * it just dug, leaving a 1×1 pocket no mob can reach. The canonical no-gear
  * survival answer to a swarm; it needs no pre-existing items because digging
  * supplies the seal block (works on dirt/sand/gravel — hand-mined blocks that
@@ -38,7 +39,7 @@ import static net.magicterra.worlddriver.game.body.BotInteract.walkerPlace;
  * point it releases the channel so the user/other chains can dig back out. A site it
  * cannot dig (water, a hazard, an unbreakable floor) is given up with a scheduler bail,
  * so the chains below it get control of the bot for {@link #BAIL_COOLDOWN_TICKS}.
- * Gated on {@link BotConfig#autoBunker} (off by default — it modifies the world).
+ * Gated on {@link ArbitrationConfig#autoBunker} (off by default — it modifies the world).
  */
 public final class BunkerChain implements Chain {
 
@@ -55,7 +56,7 @@ public final class BunkerChain implements Chain {
 
     @Override public float priority(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
-        if (!BotConfig.autoBunker || mc.player == null) return 0f;
+        if (!ArbitrationConfig.autoBunker || mc.player == null) return 0f;
         int near = surroundCount(mc);
         // Self-heal on displacement/respawn even when NOT winning the bid: the old check
         // lived in tick(), which only runs while this chain holds the channel — a stale
@@ -65,7 +66,7 @@ public final class BunkerChain implements Chain {
             if (a.displacedFrom(f.getX(), f.getY(), f.getZ())) a.reset();
         }
         if (a.sealed) {
-            if (near < BotConfig.bunkerMinHostiles) { a.reset(); return 0f; }
+            if (near < ArbitrationConfig.bunkerMinHostiles) { a.reset(); return 0f; }
             return Priorities.BUNKER;                 // hold the pocket while still besieged
         }
         if (a.active()) return Priorities.BUNKER;     // mid-dig: finish what we started
@@ -74,8 +75,8 @@ public final class BunkerChain implements Chain {
         // needs to hold, so it never took the channel (observed live: bot beaten
         // to death with bunker priority stuck at 0). The tick() handles a
         // non-grounded start gracefully (waits to settle before digging).
-        boolean cornered = mc.player.getHealth() <= BotConfig.bunkerHpThreshold
-                && near >= BotConfig.bunkerMinHostiles;
+        boolean cornered = mc.player.getHealth() <= ArbitrationConfig.bunkerHpThreshold
+                && near >= ArbitrationConfig.bunkerMinHostiles;
         // death#26 (07-20 live): a ranged attacker (skeleton) pins a low-HP bot in
         // the OPEN — controlled-live proof: a 6-HP naked bot fled continuously for
         // 41s yet the skeleton held bow range (skelDist ~13, never the >18 needed to
@@ -88,7 +89,7 @@ public final class BunkerChain implements Chain {
         // the sealed latch and re-trigger a deeper dig every tick attackedMe holds).
         boolean sealed = BunkerProcess.enclosed(w, mc.player.blockPosition());
         boolean rangedPinned = shouldRangedBunker(mc.player.getHealth(),
-                BotConfig.retreatHpThreshold, ClientThreatScanner.current(mc), sealed);
+                ArbitrationConfig.retreatHpThreshold, ClientThreatScanner.current(mc), sealed);
         return (cornered || rangedPinned) ? Priorities.BUNKER : 0f;
     }
 
@@ -97,10 +98,10 @@ public final class BunkerChain implements Chain {
      *  to reproduce "shot from range at low HP" — the skeleton either closes to melee
      *  and can't shoot, or holds range and whittles). Fire a bunker (break line-of-
      *  sight by sealing a roof) when a low-HP bot is actually being SHOT by a ranged
-     *  mob, even though HP is above the swarm {@link BotConfig#bunkerHpThreshold} and
-     *  the shooter sits outside {@link BotConfig#bunkerTriggerRadius}. {@code !sealed}
+     *  mob, even though HP is above the swarm {@link ArbitrationConfig#bunkerHpThreshold} and
+     *  the shooter sits outside {@link ArbitrationConfig#bunkerTriggerRadius}. {@code !sealed}
      *  stops the gap#29 re-dig ratchet once the pocket is capped.
-     *  @param hp current health; @param retreatThr {@link BotConfig#retreatHpThreshold}
+     *  @param hp current health; @param retreatThr {@link ArbitrationConfig#retreatHpThreshold}
      *  @param sealed block-level enclosure ground truth ({@link BunkerProcess#enclosed}). */
     public static boolean shouldRangedBunker(float hp, float retreatThr, ThreatScanner.Scan scan,
                                              boolean sealed) {
@@ -132,7 +133,7 @@ public final class BunkerChain implements Chain {
         int depth = a.depth(foot.getY());
         a.noteDepth(depth);                           // descended a level → reset per-block watchdog
 
-        if (depth < BotConfig.bunkerDepth) {
+        if (depth < ArbitrationConfig.bunkerDepth) {
             // --- dig straight down ---
             BlockPos below = foot.below();
             // Don't open a shaft into water/lava/another hazard, and don't bunker
@@ -152,7 +153,7 @@ public final class BunkerChain implements Chain {
             // the gate's matrix scenes. See BotInteract#continueDestroy — the drive is what breaks
             // the block, and it also makes vanilla's attack pass stand aside (ClientIntents).
             continueDestroy(mc, p, below);
-            if (++a.digTicks > BotConfig.breakTimeoutTicks) giveUp("unbreakable");   // bedrock and the like
+            if (++a.digTicks > ControlConfig.breakTimeoutTicks) giveUp("unbreakable");   // bedrock and the like
             return;
         }
 
@@ -231,7 +232,7 @@ public final class BunkerChain implements Chain {
         ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
         int n = 0;
         for (ThreatScanner.Threat t : scan.threats()) {
-            if (t.distance() <= BotConfig.bunkerTriggerRadius) n++;
+            if (t.distance() <= ArbitrationConfig.bunkerTriggerRadius) n++;
         }
         return n;
     }

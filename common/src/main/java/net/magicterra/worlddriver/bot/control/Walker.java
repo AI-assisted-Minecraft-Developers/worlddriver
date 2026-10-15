@@ -1,6 +1,10 @@
 package net.magicterra.worlddriver.bot.control;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Hands;
@@ -95,11 +99,11 @@ public final class Walker {
     boolean profileForbidsBreak = false;
 
     /** Optional per-Walker deep-search budget (nodes, ms); -1 = the global
-     *  {@link BotConfig#pathfinderMaxNodes}/{@link BotConfig#pathfinderMaxMs}.
+     *  {@link PlanningConfig#pathfinderMaxNodes}/{@link PlanningConfig#pathfinderMaxMs}.
      *  For owners whose goals are always NEAR (mine's approach stands sit within
      *  its ≤64-block scan): an ore stand embedded in a wall is proven unreachable
      *  after a few thousand expansions, and grinding the full 50k/2s budget per
-     *  candidate is pure waste — sliced at {@link BotConfig#pathfinderIdleSliceMs}
+     *  candidate is pure waste — sliced at {@link ControlConfig#pathfinderIdleSliceMs}
      *  it also chops the client to ~25 fps for seconds right after each block
      *  break (a visible hitch after every mined block). The real gate for hopeless stands is the
      *  mine process's 100t no-approach blacklist; a small budget just reaches it
@@ -134,7 +138,7 @@ public final class Walker {
 
     /** True when the executor MAY mutate the world to recover (the discretionary dig FALLBACKS:
      *  wallDig, the swim/bank climb-out riser, the lily-pad ram). Honors BOTH the global
-     *  {@link BotConfig#allowBreak} master switch AND the per-intent {@link NoBreak} constraint
+     *  {@link WorldConfig#allowBreak} master switch AND the per-intent {@link NoBreak} constraint
      *  (a per-goto {@code forbidDig}): an executor recovery must never exceed the world-mutation
      *  authority the planner was given. Before this, the fallbacks checked only the global switch,
      *  so a {@code forbidDig} bot pinned against terrain still tunnelled (survival day6: a leashed
@@ -144,7 +148,7 @@ public final class Walker {
      *  anti-suffocation dig (pillarRecover) is DELIBERATELY exempt and stays on {@code allowBreak}
      *  only: suffocation is death, {@code forbidDig} is a navigation preference — safety wins. */
     boolean mayBreak() {
-        return BotConfig.allowBreak && !profileForbidsBreak;
+        return WorldConfig.allowBreak && !profileForbidsBreak;
     }
     /** Ticks the pointer has been HELD on a final node that is the goal while the foot is not yet
      *  in it (walkerHoldLastNodeUntilStanding); keyed to the path and step it counts for. */
@@ -426,7 +430,7 @@ public final class Walker {
      *  per-walker tick counter (incremented by WalkerTickPrelude, NEVER reset — the
      *  sticky timer compares against it); armed by the churn window (WalkerTickStallDetect)
      *  and the proactive pinch check ({@link #maybeArmPinchEscalation}); read each tick by
-     *  WalkerTickPrelude to publish BotConfig.pathfinderBoxedEscalate. Both journey resets
+     *  WalkerTickPrelude to publish PlanningConfig.pathfinderBoxedEscalate. Both journey resets
      *  {@link EscalationClock#disarm()} so the escalation never leaks into the next goto. */
     final EscalationClock escal = new EscalationClock();
     static final class EscalationClock {
@@ -819,7 +823,7 @@ public final class Walker {
         this.searchGov.reset();
         this.churn.resetForNewGoal();
         this.escal.disarm();
-        BotConfig.pathfinderBoxedEscalate = false;          // never leak the steep-barrier escalation into the next goto
+        PlanningConfig.pathfinderBoxedEscalate = false;          // never leak the steep-barrier escalation into the next goto
         this.stepProg.restartWindows();
         this.aimSmooth.reset();
         this.unstuck.resetForNewGoal();
@@ -848,7 +852,7 @@ public final class Walker {
         if (world.canStandAt(t)) return;                 // already fine — leave it
         // A dive goal sits under the surface on purpose. Under the surface-node model that cell is
         // not standable, and snapping it up would walk the diver to the wrong place.
-        if (BotConfig.pathfinderSurfaceWaterNodes && world.isWater(t)
+        if (WorldConfig.pathfinderSurfaceWaterNodes && world.isWater(t)
                 && profile.capability().allowsOptIn(net.magicterra.worlddriver.bot.rules.Capability.DIVE)) return;
         // walkerPillarReachGoalNoSnap: don't snap an elevated AIR goal DOWN when it's reachable
         // by PILLARING up. canStandAt(t) here fails only because t's floor is air — but pillaring
@@ -858,7 +862,7 @@ public final class Walker {
         // last block, so an uphill goal in the air is never reached). Skip the snap so A* keeps the real goal and finds the
         // pillarUp path. Guard against a truly FLOATING void goal (no base to pillar from): require
         // the goal cell + head to be passable AND a solid base within a few blocks below.
-        if (BotConfig.walkerPillarReachGoalNoSnap && BotConfig.allowPlace
+        if (ControlConfig.walkerPillarReachGoalNoSnap && WorldConfig.allowPlace
                 && !world.isSolid(t) && !world.isSolid(t.above())) {
             boolean baseBelow = false;
             for (int d = 1; d <= 5; d++)
@@ -882,7 +886,7 @@ public final class Walker {
                     }
                 }
         if (best != null && !best.equals(t)) {
-            if (BotConfig.walkerDebug)
+            if (GameConfig.walkerDebug)
                 LOG.info("[walker] goal snap: unstandable target {} → nearest standable {} (d={})",
                         t, best, String.format(Locale.ROOT, "%.1f", Math.sqrt(bestToTarget)));
             this.goal = new Goal.Block(best);
@@ -919,7 +923,7 @@ public final class Walker {
         this.pillarRecover.reset();
         this.descending = false;
         this.escal.disarm();
-        BotConfig.pathfinderBoxedEscalate = false;          // never leak the steep-barrier escalation across a forced repath
+        PlanningConfig.pathfinderBoxedEscalate = false;          // never leak the steep-barrier escalation across a forced repath
     }
 
     /** Replay a fixed archived plan. Caller has already teleported the bot to the plan
@@ -1372,7 +1376,7 @@ public final class Walker {
      * {@code cap reached} line — and, as there, the gate is an ORDINAL and never the clock:
      * {@code wd.buriedOre} pumps its whole body inside ONE server tick, so a game-time latch would
      * print the first line and go blind for the rest of the run. NOT gated on
-     * {@code BotConfig.walkerDebug}, which that scene switches off.
+     * {@code GameConfig.walkerDebug}, which that scene switches off.
      */
     void noteStepAdvance(WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx,
                          String cause, double cur2, double nd2, boolean overshot) {
@@ -1603,7 +1607,7 @@ public final class Walker {
      * switch the drive's gate answers to.
      */
     boolean footingGuard(Body a, WorldView world) {
-        if (!BotConfig.lethalEdgeBrake) return false;
+        if (!ControlConfig.lethalEdgeBrake) return false;
         LivingEntity p = a.entity();
         if (p == null || p.isInWater()) return false;
         // NOT p.onGround(): that flag is verticalCollisionBelow, i.e. a report on the last move(),
@@ -1730,7 +1734,7 @@ public final class Walker {
      * continuing and falling forever.
      */
     private void widenFooting(Body a, WorldView world, LivingEntity p, BlockPos foot) {
-        if (!BotConfig.allowPlace || hands.breakHeld() || !hands.holdPlaceable()) return;
+        if (!WorldConfig.allowPlace || hands.breakHeld() || !hands.holdPlaceable()) return;
         var box = p.getBoundingBox();
         for (int cx = (int) Math.floor(box.minX); cx <= (int) Math.floor(box.maxX); cx++) {
             for (int cz = (int) Math.floor(box.minZ); cz <= (int) Math.floor(box.maxZ); cz++) {
@@ -1813,7 +1817,7 @@ public final class Walker {
         if (!(precond && stuckTicks > 10 && stuckTicks < 18)) return false;
         BlockPos lethal = WalkerGeometry.nearestLethalHopCell(world, p, foot, WIGGLE_SCAN_MAX);
         int ring = WalkerGeometry.ringOf(foot, lethal);
-        boolean gated = BotConfig.walkerRecoveryHopFloorGate && WalkerGeometry.hopSuppressed(world, p, foot, driveYaw);
+        boolean gated = ControlConfig.walkerRecoveryHopFloorGate && WalkerGeometry.hopSuppressed(world, p, foot, driveYaw);
         if (!gated && call - wiggleLastCall > 1) tallies.recoveryHops++;   // one per window entry, not per tick
         if (wiggleEvents < WIGGLE_EVENTS && call - wiggleLastCall > 1) {
             wiggleEvents++;
@@ -1822,7 +1826,7 @@ public final class Walker {
                     p.level().getGameTime(), stuckTicks, foot.toShortString(),
                     String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
                     WalkerGeometry.HOP_RANGE, ring < 0 ? ">" + WIGGLE_SCAN_MAX : String.valueOf(ring),
-                    BotConfig.walkerRecoveryHopFloorGate, !gated,
+                    ControlConfig.walkerRecoveryHopFloorGate, !gated,
                     WalkerGeometry.hopBearingRow(p, foot, lethal),
                     WalkerGeometry.hopLandingRow(world, p, foot, driveYaw));
         } else if (wiggleEvents >= WIGGLE_EVENTS && !wiggleCapped && call - wiggleLastCall > 1) {
@@ -1930,7 +1934,7 @@ public final class Walker {
      * instead of being discarded: the pinned ticks were evidence against the plan they accrued
      * against, and a plan that has not been walked yet has not earned them.
      *
-     * <p>Keeping a plan is not unbounded — {@link BotConfig#walkerTotalTickBudget} and the caller's
+     * <p>Keeping a plan is not unbounded — {@link ControlConfig#walkerTotalTickBudget} and the caller's
      * own tick cap still convert a slow-but-progressing route into an actionable FAILED. That is
      * deliberately the only backstop: a second threshold here ("enough progress") would be a free
      * parameter with no measurement behind it.
@@ -2240,7 +2244,7 @@ public final class Walker {
     /** Stride floor-guard (gap #53, the 2026-07-12 survival death; #51's stair-side void is
      *  the same invariant): while GROUNDED and dry, project the bot's actual horizontal
      *  VELOCITY ~4 ticks ahead; if that cell is passable with NO floor within
-     *  {@link BotConfig#pathfinderMaxDryFall}+1 below — a drop the planner can never have
+     *  {@link RulesConfig#pathfinderMaxDryFall}+1 below — a drop the planner can never have
      *  routed (Fall.valid caps at maxDryFall), so the exposure is always UNPLANNED — pin the
      *  bot with vanilla sneak (maybeBackOffFromEdge stops it at the edge), cancel any pending
      *  jump, and when a placeable is at hand + allowPlace, plug the mouth so the crossing
@@ -2268,7 +2272,7 @@ public final class Walker {
      * plug on the strength of this paragraph; it is a measurement, not a verdict.
      */
     boolean strideFloorGuard(Body a, WorldView world) {
-        if (!BotConfig.walkerStrideFloorGuard || guardParkourTick) return skipStride(0);
+        if (!ControlConfig.walkerStrideFloorGuard || guardParkourTick) return skipStride(0);
         LivingEntity p = a.entity();
         // soleOnSolid, NOT p.onGround(). `onGround` is `verticalCollisionBelow` — it describes the
         // last move() and is wrong in BOTH directions: a bot can be flush on stone while it reads
@@ -2311,7 +2315,7 @@ public final class Walker {
         // pinning them (first cut used maxDryFall+1=5) perturbed legitimate steep descents into
         // NEW failures (descentYaw chord-cuts are 5-6 block hops). The planner-unplannable
         // floor (maxDryFall+1) is kept as the minimum so a dying bot never out-shrinks it.
-        int lethalDepth = Math.max(BotConfig.pathfinderMaxDryFall + 1, (int) Math.ceil(p.getHealth()) + 3);
+        int lethalDepth = Math.max(RulesConfig.pathfinderMaxDryFall + 1, (int) Math.ceil(p.getHealth()) + 3);
         for (int i = 1; i <= lethalDepth; i++) {
             BlockPos below = strideCell.below(i);
             // A HAZARD anywhere in the column is lethal at whatever depth it sits at, and the test
@@ -2381,7 +2385,7 @@ public final class Walker {
         // this: over an ordinary drop a graze costs health the bot walks off, and killing momentum
         // on every ledge would make ridge walking crawl.
         if (bottomless) p.setDeltaMovement(0.0, dm.y, 0.0);
-        boolean canPlug = BotConfig.allowPlace && !hands.breakHeld()
+        boolean canPlug = WorldConfig.allowPlace && !hands.breakHeld()
                 && (bottomless || constructionPlan || guardPlugFires >= GUARD_PLUG_ARM_FIRES);
         boolean held = canPlug && hands.holdPlaceable();
         if (held) hands.place(world::isSolid, strideCell.below());
@@ -2461,7 +2465,7 @@ public final class Walker {
      *  so a genuine box-in still terminates. Holds (keys released) and returns
      *  WALKING while retrying; ARRIVED when out of retries or the feature is off. */
     Step frontierHoldOrArrive(Body a, WorldView world, LivingEntity p) {
-        if (!replayMode && BotConfig.pathfinderFrontierCommit && seg.commitEnd != null
+        if (!replayMode && PlanningConfig.pathfinderFrontierCommit && seg.commitEnd != null
                 && seg.frontierWaitTicks < FRONTIER_WAIT_CAP) {
             seg.frontierWaitTicks++;
             if (seg.activeSearch == null) {
@@ -2483,15 +2487,15 @@ public final class Walker {
      *  raises the depth penalty and routes AROUND the obstacle — instead of waiting for the
      *  executor to churn ~20 s until the reactive churn-window fires. Re-arms (extends) on
      *  each struggling commit while the pinch persists; logs only on the transition. Gated
-     *  to {@link BotConfig#pathfinderProgressive} (default OFF → behaviour unchanged). */
+     *  to {@link ControlConfig#pathfinderProgressive} (default OFF → behaviour unchanged). */
     void maybeArmPinchEscalation(BlockPos foot, PathFinder.Result res) {
-        if (!BotConfig.pathfinderProgressive) return;
+        if (!ControlConfig.pathfinderProgressive) return;
         if (res.goalReached() || seg.commitEnd == null) return;      // healthy full route → no escalation
         double progress = goal.estimate(foot) - goal.estimate(seg.commitEnd);
         if (progress >= PINCH_MIN_PROGRESS) return;              // real headway → not a pinch
         boolean wasArmed = escal.armed();
         escal.arm(BOXED_ESCALATE_STICKY_TICKS);
-        if (BotConfig.walkerDebug && !wasArmed)
+        if (GameConfig.walkerDebug && !wasArmed)
             LOG.info("[walker] proactive pinch escalation ARMED: best-effort commit gained only {} blocks toward goal → deepen next search",
                     String.format("%.1f", progress));
     }
@@ -2508,7 +2512,7 @@ public final class Walker {
      *  would jitter, so those back off for {@link #QUICK_RETRY_TICKS}.
      *  @return true if a stub segment was adopted (path != null, step = 1). */
     boolean tryQuickStart(WorldView world, BlockPos foot, Goal goal) {
-        if (BotConfig.pathfinderQuickNodes <= 0) return false;
+        if (ControlConfig.pathfinderQuickNodes <= 0) return false;
         if (searchGov.quickCooldown > 0) { searchGov.quickCooldown--; return false; }
         PathFinder.Search q = WalkerFinders.quick(this, world, QUICK_MAX_MS).newSearch(foot, goal);
         while (!q.advance(QUICK_MAX_MS)) { /* bounded by the node cap / QUICK_MAX_MS */ }
@@ -2520,7 +2524,7 @@ public final class Walker {
             searchGov.quickCooldown = QUICK_RETRY_TICKS;
             return false;
         }
-        if (BotConfig.walkerDebug)
+        if (GameConfig.walkerDebug)
             LOG.info("[walker] quick-start stub adopted: len={} expanded={} ms={} (big search still running)",
                     res.path().size(), res.expanded(), res.ms());
         adoptPath(res, world, null);    // stub starts at the foot — no fast-forward needed
@@ -2575,7 +2579,7 @@ public final class Walker {
             curEst = bestEst;
         }
         if (path.size() <= BEELINE_MIN_STEPS) return false;   // too short to be worth a stub
-        if (BotConfig.walkerDebug)
+        if (GameConfig.walkerDebug)
             LOG.info("[walker] open-water bee-line stub adopted: len={} toward goal (big search still running)",
                     path.size());
         adoptPath(new PathFinder.Result(path, edges, false, 0, 0L, 0.0), world, null);
@@ -2594,10 +2598,10 @@ public final class Walker {
      *  there and the real path replaces the stub the instant it lands; the stub only ever
      *  drives the bot over flat ground it could walk anyway. Same-Y only (like the water
      *  bee-line) so it never steps off a ledge or rams a riser — slopes hand back to A*.
-     *  Gated to {@link BotConfig#pathfinderProgressive} + dry land under the feet (water
+     *  Gated to {@link ControlConfig#pathfinderProgressive} + dry land under the feet (water
      *  is {@link #tryWaterBeeline}'s job). @return true if a land run was adopted. */
     boolean tryLandBeeline(WorldView world, BlockPos foot, Goal goal) {
-        if (!BotConfig.pathfinderProgressive) return false;
+        if (!ControlConfig.pathfinderProgressive) return false;
         if (world.isWater(foot)) return false;          // water is tryWaterBeeline's job
         List<BlockPos> path = new ArrayList<>();
         List<Move.Edge> edges = new ArrayList<>();
@@ -2623,7 +2627,7 @@ public final class Walker {
             curEst = bestEst;
         }
         if (path.size() <= BEELINE_MIN_STEPS) return false;   // too short to be worth a stub
-        if (BotConfig.walkerDebug)
+        if (GameConfig.walkerDebug)
             LOG.info("[walker] land coarse-direction stub adopted: len={} toward goal (big search still running)",
                     path.size());
         adoptPath(new PathFinder.Result(path, edges, false, 0, 0L, 0.0), world, null);
@@ -2641,7 +2645,7 @@ public final class Walker {
      *  Ridge retreat: see {@link PathSmoothing#sunkTailCut}. */
     private void trimCommitTail(WorldView world) {
         int cut = -1;
-        if (BotConfig.walkerCommitTailPlatform && path.size() > 4) {
+        if (ControlConfig.walkerCommitTailPlatform && path.size() > 4) {
             for (int k = path.size() - 1; k >= Math.max(2, path.size() - 8) && cut < 0; k--) {
                 BlockPos n = path.get(k);
                 int flat = 0;
@@ -2650,10 +2654,10 @@ public final class Walker {
                 if (flat >= 2) cut = k;
             }
         }
-        int peak = BotConfig.walkerCommitTailPeak ? PathSmoothing.sunkTailCut(path) : -1;
+        int peak = ControlConfig.walkerCommitTailPeak ? PathSmoothing.sunkTailCut(path) : -1;
         if (peak > 0 && (cut < 0 || peak < cut)) cut = peak;
         if (cut <= 0 || cut >= path.size() - 1) return;
-        if (BotConfig.walkerDebug)
+        if (GameConfig.walkerDebug)
             LOG.info("[walker] commit-tail retreat: {} -> {} ({} {},{},{})", path.size() - 1, cut,
                     cut == peak ? "ridge" : "platform", path.get(cut).getX(), path.get(cut).getY(), path.get(cut).getZ());
         path = List.copyOf(path.subList(0, cut + 1));
@@ -2729,7 +2733,7 @@ public final class Walker {
             // The exemption suppresses BOTH reject conditions (the d2 distance gate AND the |Δy| jump gate):
             // for an open-water bee-line the Y difference is a buoyant swim-UP to the surface node, not a dry
             // jump/fall, so the maxJumpUp gate (which exists to bar impossible dry climbs) must not veto it.
-            boolean openWaterBeeline = BotConfig.walkerDeepWaterFloatBeeline
+            boolean openWaterBeeline = ControlConfig.walkerDeepWaterFloatBeeline
                     && world.isWater(foot)
                     && Math.abs(raw.get(anchor).getY() - foot.getY()) <= 4
                     && losWalkable(world, foot, raw.get(anchor))
@@ -2737,13 +2741,13 @@ public final class Walker {
             if (!openWaterBeeline
                     && (anchorD > rejectGate
                         || Math.abs(raw.get(anchor).getY() - foot.getY()) > world.maxJumpUpBlocks() + 2)) {
-                if (BotConfig.walkerDebug)
+                if (GameConfig.walkerDebug)
                     LOG.info("[walker] reject mis-anchored segment: nearest prefix node {},{},{} (d2={}) vs foot {},{},{}",
                             raw.get(anchor).getX(), raw.get(anchor).getY(), raw.get(anchor).getZ(),
                             (int) anchorD, foot.getX(), foot.getY(), foot.getZ());
                 return false;
             }
-            if (openWaterBeeline && anchorD > rejectGate && BotConfig.walkerDebug)
+            if (openWaterBeeline && anchorD > rejectGate && GameConfig.walkerDebug)
                 LOG.info("[walker] accept open-water bee-line segment: far node {},{},{} (d2={}) reachable by clear-LOS swim from foot {},{},{}",
                         raw.get(anchor).getX(), raw.get(anchor).getY(), raw.get(anchor).getZ(),
                         (int) anchorD, foot.getX(), foot.getY(), foot.getZ());
@@ -2770,7 +2774,7 @@ public final class Walker {
                 && goal.estimate(path.get(path.size() - 1)) > goal.estimate(path.get(0))) {
             world.penalizeStuckNode(path.get(0));
             world.penalizeStuckNode(path.get(0).above());
-            if (BotConfig.walkerDebug)
+            if (GameConfig.walkerDebug)
                 LOG.info("[walker] escape segment adopted → penalize dead pocket at {}", path.get(0));
         }
         // Fast-forward past a prefix the bot has already covered. A quick-start
@@ -2845,7 +2849,7 @@ public final class Walker {
         stepProg.bestStepDist = Double.POSITIVE_INFINITY;
         stepProg.stuckStepHigh = step - 1;   // new path, new index semantics: one fresh window on the first tick, then high-water applies
         actionTicks = 0;
-        if (BotConfig.walkerDebug) {
+        if (GameConfig.walkerDebug) {
             StringBuilder sbp = new StringBuilder();
             for (int i = 0; i < path.size(); i++) {
                 Move.Edge e = i < edges.size() ? edges.get(i) : null;
@@ -2861,7 +2865,7 @@ public final class Walker {
     void sampleTick(LivingEntity p) {
         // Cheap gate: skip the per-tick WalkerSample allocation entirely unless capture is on.
         // Keeps the hot path free in normal play and in a stripped (NOOP) release build.
-        if (!BotConfig.pathDebug && !BotConfig.pathArchive) return;
+        if (!ControlConfig.pathDebug && !ControlConfig.pathArchive) return;
         // Expose the bot's level to PathArchiveRecorder (and other PathTrace sinks) without
         // referencing the client-only Minecraft class.  Set here — before onSearchResult or
         // onSearchBegin can fire within the same tick (both sites are below line 451) — so
@@ -2926,7 +2930,7 @@ public final class Walker {
         if (reset || inW) { arc.progBaseS = arc.proj.s; arc.progWindowTicks = 0; arc.progStall = false; }
         else if (++arc.progWindowTicks >= ARC_PROG_WINDOW) {
             arc.progStall = !arc.proj.barrierHit && (arc.proj.s - arc.progBaseS) < ARC_PROG_MIN;
-            if (arc.progStall && BotConfig.walkerDebug)
+            if (arc.progStall && GameConfig.walkerDebug)
                 LOG.info("[walker] arc-progress-wedge: net s={} < {} over {} ticks at step={} node={} → fellOffPath",
                         String.format("%.2f", arc.proj.s - arc.progBaseS), ARC_PROG_MIN, ARC_PROG_WINDOW, step,
                         (step < path.size() ? path.get(step) : null));
@@ -2936,7 +2940,7 @@ public final class Walker {
         arc.shadowPath = path;
         arc.shadowS = arc.proj.s;
         float dYaw = angleDiff(arc.proj.tangentYaw, liveYaw);    // the camera-vs-tangent gap
-        if (BotConfig.walkerDebug)
+        if (GameConfig.walkerDebug)
             LOG.info("[walker] arc-shadow step={} projSeg={} segFrac={} s={} ds={} perp={} tanYaw={} liveYaw={} dYaw={} monoViol={} inW={}",
                     step, arc.proj.segIdx, String.format("%.2f", arc.proj.segFrac), String.format("%.2f", arc.proj.s),
                     String.format("%.2f", ds), String.format("%.2f", arc.proj.perp),
@@ -2957,7 +2961,7 @@ public final class Walker {
         // Sustained wall collision → the far carrot is steering the bot at a gap only
         // the LOS ray fits (jungle trunks). Collapse pursuit to the immediate node —
         // the A* chain is walkable at player width by construction (walkerCarrotHColShrink).
-        if (BotConfig.walkerCarrotHColShrink && churn.hColRamTicks >= 8) remaining = 0.01;
+        if (ControlConfig.walkerCarrotHColShrink && churn.hColRamTicks >= 8) remaining = 0.01;
         // No LOS even to the current node falls back to that node, not to the bot itself: a zero aim
         // vector holds the stale yaw, and a bot that walked off a pulled diagonal kept ramming the
         // corner it had drifted onto (live 2026-09-28, 1389.57,66,-478.70: 38 ticks, bearing to wp -131, yaw -178).
@@ -2967,7 +2971,7 @@ public final class Walker {
             BlockPos node = path.get(i);
             double nx = node.getX() + 0.5, nz = node.getZ() + 0.5;
             if (hasPendingEdge(world, edgeAt(i))) return new double[]{nx, nz}; // face the action cell
-            boolean losOk = BotConfig.walkerCarrotBodyLos
+            boolean losOk = ControlConfig.walkerCarrotBodyLos
                     ? PathSmoothing.losWalkableBody(world, foot, node)
                     : losWalkable(world, foot, node);
             if (!losOk) break;                                                 // don't aim past a wall
@@ -2985,7 +2989,7 @@ public final class Walker {
             // The LOS test ramps y from foot to node, so it passes a straight line up a stair flight that
             // takes one jump per riser: live 1543,64,-151 aimed 45° off a three-stepUp flight and fell
             // into the pit beside it (1541,62,-154), then pillared out (5 s).
-            if (BotConfig.walkerCarrotStopAtRise && node.getY() > foot.getY()) return new double[]{nx, nz};
+            if (ControlConfig.walkerCarrotStopAtRise && node.getY() > foot.getY()) return new double[]{nx, nz};
             remaining -= seg;
             cx = nx; cz = nz; tx = nx; tz = nz;
         }

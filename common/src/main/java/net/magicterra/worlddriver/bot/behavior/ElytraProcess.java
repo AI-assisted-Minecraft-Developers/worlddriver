@@ -4,7 +4,7 @@ import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Hands;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.ElytraPhysics;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -176,7 +176,7 @@ public final class ElytraProcess implements BotProcess {
             Vec3 pred = ElytraPhysics.glideStep(prevVel, ElytraPhysics.lookVec(prevYaw, prevPitch), prevPitch, prevGravity);
             double err = pred.subtract(curVel).length();
             sumErr += err; samples++; if (err > maxErr) maxErr = err;
-            if (BotConfig.elytraDebug)
+            if (BehaviorConfig.elytraDebug)
                 LOG.info(
                         "[elytra] t={} pred=({},{},{}) obs=({},{},{}) err={} |v|={}",
                         ticks, f(pred.x), f(pred.y), f(pred.z), f(curVel.x), f(curVel.y), f(curVel.z),
@@ -199,7 +199,7 @@ public final class ElytraProcess implements BotProcess {
                     && chest.getDamageValue() >= chest.getMaxDamage() - DURABILITY_MARGIN) {
                 aborting = true; landing = true; landMinDist = Double.POSITIVE_INFINITY;
                 st.elytra.lastError = "elytra durability low — gliding down";
-                if (BotConfig.elytraDebug)
+                if (BehaviorConfig.elytraDebug)
                     LOG.info(
                             "[elytra] durability {}/{} ≤ margin — aborting to glide-down",
                             chest.getDamageValue(), chest.getMaxDamage());
@@ -211,7 +211,7 @@ public final class ElytraProcess implements BotProcess {
             if (!aborting && !landing && sinceImprove > STUCK_TICKS) {
                 aborting = true; landing = true; landMinDist = Double.POSITIVE_INFINITY;
                 st.elytra.lastError = "no progress (stalled / out of boost) — gliding down";
-                if (BotConfig.elytraDebug)
+                if (BehaviorConfig.elytraDebug)
                     LOG.info("[elytra] stalled — aborting to glide-down");
             }
             if (landing) {
@@ -239,7 +239,7 @@ public final class ElytraProcess implements BotProcess {
                 double aboveGround = gPl == Integer.MIN_VALUE ? 999.0 : pos.y - (gPl + 1);
                 double hSpeed = Math.hypot(curVel.x, curVel.z);
                 st.elytra.pathLen = (int) Math.round(goalDist);
-                if (BotConfig.elytraDebug)
+                if (BehaviorConfig.elytraDebug)
                     LOG.info(
                             "[elytra] {} t={} pos=({},{},{}) landDist={} aboveGround={} pitch={} hSpeed={} hcol={}",
                             aborting ? "abort-glide" : "landing", ticks,
@@ -262,7 +262,7 @@ public final class ElytraProcess implements BotProcess {
                     waypoints = ElytraPathfinder.plan(w, pos, planGoal);
                     wpIndex = 0;
                     sinceReplan = 0;
-                    if (BotConfig.elytraDebug)
+                    if (BehaviorConfig.elytraDebug)
                         LOG.info(
                                 "[elytra] planned {} waypoint(s) to ({},{},{}){}",
                                 waypoints.size(), f(planGoal.x), f(planGoal.y), f(planGoal.z),
@@ -279,7 +279,7 @@ public final class ElytraProcess implements BotProcess {
                 // Enter the flare once lined up on the final goal and close.
                 if (onFinal && goalH < LANDING_APPROACH) {
                     landing = true; landMinDist = goalDist;
-                    if (BotConfig.elytraDebug)
+                    if (BehaviorConfig.elytraDebug)
                         LOG.info(
                                 "[elytra] flare: final approach, goalH={}", f(goalH));
                 }
@@ -307,7 +307,7 @@ public final class ElytraProcess implements BotProcess {
                 }
                 st.elytra.pathLen = (int) Math.round(goalDist);
                 st.elytra.pathStep = wpIndex;
-                if (BotConfig.elytraDebug)
+                if (BehaviorConfig.elytraDebug)
                     LOG.info(
                             "[elytra] reactive t={} pos=({},{},{}) wp{}/{}=({},{},{}) goalDist={} yawTgt={} yaw={} dYaw={} pitch={} fire={} boostOk={} knownFwd={} front={} |v|={} hp={} hcol={}",
                             ticks, f(pos.x), f(pos.y), f(pos.z), wpIndex, waypoints.size() - 1,
@@ -350,7 +350,7 @@ public final class ElytraProcess implements BotProcess {
             if (target != null) {
                 double dx = (target.getX() + 0.5) - p.getX(), dz = (target.getZ() + 0.5) - p.getZ();
                 if (Math.sqrt(dx * dx + dz * dz) <= stopXZDist) {
-                    if (BotConfig.elytraDebug) logSummary();
+                    if (BehaviorConfig.elytraDebug) logSummary();
                     a.releaseInputs(); st.elytra.reset(); return true;
                 }
             }
@@ -375,7 +375,7 @@ public final class ElytraProcess implements BotProcess {
     private boolean outOfBudget(Body a, BotState st) {
         // A glide with no target has nothing to arrive at; its budget is the flight it was asked for.
         if (target != null) st.elytra.lastError = "flight budget exhausted (" + maxTicks + " ticks, never arrived)";
-        if (BotConfig.elytraDebug) logSummary();
+        if (BehaviorConfig.elytraDebug) logSummary();
         a.releaseInputs();
         st.elytra.reset();
         return true;
@@ -391,7 +391,7 @@ public final class ElytraProcess implements BotProcess {
      * clientTick's CLUTCH.armReactive picks it up.
      */
     private boolean wingClosed(Body a, LivingEntity p, BotState st) {
-        if (BotConfig.elytraDebug) {
+        if (BehaviorConfig.elytraDebug) {
             logSummary();
             if (!p.onGround())
                 LOG.info(

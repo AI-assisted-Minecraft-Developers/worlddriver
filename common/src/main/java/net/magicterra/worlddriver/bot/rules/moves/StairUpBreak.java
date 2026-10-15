@@ -6,7 +6,7 @@ import net.minecraft.core.BlockPos;
 
 import java.util.ArrayList;
 import java.util.List;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 
 /**
  * Climb +1 cardinally on DRY land by mining whatever obstructs the step — the
@@ -23,7 +23,7 @@ import net.magicterra.worlddriver.config.BotConfig;
  * bot was trapped. StairUpBreak digs stairs out of the surrounding terrain
  * regardless of drops.
  *
- * <p>Gated on {@link BotConfig#allowBreak} (like {@link TraverseBreak}) and must
+ * <p>Gated on {@link WorldConfig#allowBreak} (like {@link TraverseBreak}) and must
  * break at least one cell — otherwise a plain {@link StepUp} is cheaper and A*
  * uses that, so dry walkable routes are untouched. Cost = step + Σ break time,
  * so A* only stairs-up when there's no cheaper exit (exactly the pit case).
@@ -36,7 +36,7 @@ public final class StairUpBreak extends Move {
     @Override public boolean valid(WorldView w, BlockPos from) { return eval(w, from) != null; }
 
     @Override public Edge eval(WorldView w, BlockPos from) {
-        if (!BotConfig.allowBreak) return null;
+        if (!WorldConfig.allowBreak) return null;
         // A buoyant bot floating in deep water has no floor to push off, so it
         // CANNOT jump-step-up to break a +1 riser — exactly {@link StepUp}'s
         // {@link WorldView#isFloatingWater} bar. Without this guard A* freely

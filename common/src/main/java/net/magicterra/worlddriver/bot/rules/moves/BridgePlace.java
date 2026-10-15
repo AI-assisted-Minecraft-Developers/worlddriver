@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.rules.moves;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -59,10 +59,10 @@ public final class BridgePlace extends Move {
         if (!w.isPassable(to) || w.isHazard(to)) return null;
         BlockPos head = to.offset(0, 1, 0);
         if (!w.isPassable(head) || w.isHazard(head)) return null;
-        // Aerial bridging is a costly last resort — see BotConfig.pathfinderBridgeCost.
+        // Aerial bridging is a costly last resort — see RulesConfig.pathfinderBridgeCost.
         // (The base `cost`/PLACE_COST split is superseded by the single tunable so it
         // can be A/B-tuned live without a rebuild.)
-        return new Edge(to, BotConfig.pathfinderBridgeCost, List.of(), List.of(floor), name());
+        return new Edge(to, RulesConfig.pathfinderBridgeCost, List.of(), List.of(floor), name());
     }
     public String name() { return "bridgePlace"; }
     @Override public boolean placesBlock() { return true; }

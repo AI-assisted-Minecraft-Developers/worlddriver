@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.client.Minecraft;
 import net.magicterra.worlddriver.game.body.AvatarInput;
@@ -98,7 +100,7 @@ public final class AutoSwim {
      *  passive". That theory was wrong: a bot tp'd into a ~29-block-deep river with no
      *  task sank to the bottom and drowned air 16→0 in ~40 s while this method logged the
      *  WARN the entire time and did nothing. <b>Controller ruling</b> (see also {@link
-     *  BotConfig#autoFloatWhenDrowning}, {@link DrowningFloatGate}, and the class doc
+     *  BehaviorConfig#autoFloatWhenDrowning}, {@link DrowningFloatGate}, and the class doc
      *  above): the idle-passive contract was always about forbidding UNCOMMANDED
      *  HORIZONTAL movement/beaching, never about letting the bot drown — P1 already drew
      *  this exact line for combat (hurt-entry retreat fires while idle, gap#68). A PURE
@@ -106,7 +108,7 @@ public final class AutoSwim {
      *  keyRight}/yaw, never the shore-steer above — is the same class of survival reflex,
      *  in-bounds for idle. So this now DRIVES {@code keyJump} once air is critical,
      *  gated by {@link DrowningFloatGate#shouldFloat} (pure, matrix-tested) and {@link
-     *  BotConfig#autoFloatWhenDrowning} — independent of {@link BotConfig#autoSwim} on
+     *  BehaviorConfig#autoFloatWhenDrowning} — independent of {@link BotConfig#autoSwim} on
      *  purpose, since it's a bare reflex (the {@code AntiSuffocate} pattern), not the
      *  autoSwim movement/beach feature.
      *
@@ -119,16 +121,16 @@ public final class AutoSwim {
             return false;
         }
         boolean floating = DrowningFloatGate.shouldFloat(p.isUnderWater(), p.getAirSupply(),
-                BotConfig.drownFloatAirThreshold, BotConfig.autoFloatWhenDrowning);
+                BehaviorConfig.drownFloatAirThreshold, BehaviorConfig.autoFloatWhenDrowning);
         if (floating) {
             in(mc, p).commandJump(true);
             floatHeld = true;
-            if (BotConfig.walkerDebug && (DBG++ % 20 == 0))
+            if (GameConfig.walkerDebug && (DBG++ % 20 == 0))
                 // blockPosition(), not (int) casts — those truncate toward zero, so at x=-9.3 the
                 // row named -9 while the bot was in -10. See LavaProximityEscape's note: the same
                 // pattern there turned "standing on a lava source" into "adjacent to one".
                 LOG.info("[drowningFloat] idle + underwater + air={} <= threshold {} → holding jump to surface at {}",
-                        p.getAirSupply(), BotConfig.drownFloatAirThreshold, p.blockPosition().toShortString());
+                        p.getAirSupply(), BehaviorConfig.drownFloatAirThreshold, p.blockPosition().toShortString());
         } else if (floatHeld) {
             in(mc, p).commandJump(false);
             floatHeld = false;
@@ -166,13 +168,13 @@ public final class AutoSwim {
         // WalkerTickClimb), so yielding down to the escape floor is safe: below
         // threshold+reserve the backstop resumes, and DrownEscapeChain (bid 500,
         // air<=drownEscapeAirThreshold) remains the untouched hard survival floor.
-        if (BotConfig.walkerDigActive
-                && p.getAirSupply() > BotConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE) return;
+        if (ControlConfig.walkerDigActive
+                && p.getAirSupply() > ControlConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE) return;
         // Same yield for the Walker's surface sprint-swim cruise: it puts the eyes under on purpose
         // (the prone pose starts only from there) and breathes on its own above this floor; the
         // held jump and the sprint cancel here would undo the pose every stroke.
-        if (BotConfig.walkerCruiseActive
-                && p.getAirSupply() > BotConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE) return;
+        if (ControlConfig.walkerCruiseActive
+                && p.getAirSupply() > ControlConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE) return;
         boolean inWater = p.isInWater();
         if (inWater && p.isUnderWater()) {
             in(mc, p).commandJump(true);
@@ -211,13 +213,13 @@ public final class AutoSwim {
             // gap#80: a held sneak SINKS the bot (DrownEscapeChain.tick's own comment) — a
             // concurrently-latched sneak from a prior process would defeat this straight-up climb.
             ai.commandSneak(false);
-            if (BotConfig.walkerDebug && (DBG++ % 8 == 0))
+            if (GameConfig.walkerDebug && (DBG++ % 8 == 0))
                 LOG.info("[autoSwim] deep-ascent straight-up pos={},{},{} air={}",
                         bx, by, bz, p.getAirSupply());
             return;
         }
         int[] dir = nearestShore(world, bx, by, bz);
-        if (BotConfig.walkerDebug && (DBG++ % 8 == 0)) {
+        if (GameConfig.walkerDebug && (DBG++ % 8 == 0)) {
             LOG.info("[autoSwim] pos={},{},{} under={} onGround={} idle={} shoreDir={}",
                     bx, by, bz, p.isUnderWater(), p.onGround(), idle,
                     dir == null ? "null" : (dir[0] + "," + dir[1]));

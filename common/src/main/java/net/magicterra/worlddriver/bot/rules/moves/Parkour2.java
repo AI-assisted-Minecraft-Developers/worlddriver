@@ -3,7 +3,8 @@ package net.magicterra.worlddriver.bot.rules.moves;
 import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -20,13 +21,13 @@ public final class Parkour2 extends Move {
     public boolean valid(WorldView w, BlockPos from) {
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
         // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
-        if (BotConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
+        if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
         if (!Move.hasRunway(w, from)) return false;
         BlockPos to = apply(from);
         // Never leap a bottomless gap while a bridge is affordable: see Move.overTheVoid for why
         // this is a rule and not a price. When placement is off there is nothing better to do, so
         // the leap stays available rather than leaving the bot with no move at all.
-        if (BotConfig.pathfinderForbidParkourOverTheVoid && BotConfig.allowPlace
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace
                 && Move.overTheVoid(w, from, to)) return false;
         if (!w.canStandAt(to)) return false;
         // Buoyancy: forbid a parkour that LANDS in submerged water (water at the
@@ -41,7 +42,7 @@ public final class Parkour2 extends Move {
         // below the feet, head air): the submerged gate above misses it, but the buoyant
         // bot floats there and can't climb back out (#47 -870 dead-end-pocket dive). A
         // shallow 1-deep splash (floor below → not floating-water) stays valid.
-        if (BotConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
+        if (RulesConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
         // Launch clearance — need air at head+1 to jump.
         if (!w.isPassable(from.offset(0, 2, 0))) return false;
         // Middle column: foot + head must be passable (or water — Baritone

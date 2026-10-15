@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot.control;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.ClientPlayerBody;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -131,11 +133,11 @@ public final class ClutchController {
         for (int y = (int) Math.floor(p.getY()); y >= floor.getY() + 1; y--)
             if (world.isWater(new BlockPos(cx, y, cz))) return;   // water already breaks it
         String why = null;
-        if (!BotConfig.allowWaterBucketFall) why = "allowWaterBucketFall=false";
+        if (!WorldConfig.allowWaterBucketFall) why = "allowWaterBucketFall=false";
         else if (hotbarSlotOf(p, Items.WATER_BUCKET) < 0) why = "water_bucket not in hotbar";
         else if (!world.isMlgFloor(floor) || world.isHazard(floor)) why = "landing floor not MLG-able (hazard/non-solid)";
         if (why != null) {
-            if (BotConfig.walkerExpectAlarm && noArmThrottle == 0) {
+            if (ControlConfig.walkerExpectAlarm && noArmThrottle == 0) {
                 LOG.warn("[expect] CLUTCH-noArm: dangerous fall (remaining={} floor={},{},{}) but clutch cannot arm — {}",
                         String.format(Locale.ROOT, "%.1f", remaining),
                         floor.getX(), floor.getY(), floor.getZ(), why);
@@ -146,7 +148,7 @@ public final class ClutchController {
         armed = true;
         landingX = cx;
         landingZ = cz;
-        if (BotConfig.walkerDebug)
+        if (GameConfig.walkerDebug)
             LOG.info(
                     "[clutch] emergency water-clutch armed: remaining={} y={} floor={},{},{}",
                     String.format(Locale.ROOT, "%.1f", remaining),
@@ -195,7 +197,7 @@ public final class ClutchController {
                     p.setXRot(89.9f);                      // straight down → POV ray hits the floor
                     InteractionResult pr = mc.gameMode.useItem(p, InteractionHand.MAIN_HAND);
                     if (pr.consumesAction()) p.swing(InteractionHand.MAIN_HAND);
-                    if (BotConfig.walkerDebug)
+                    if (GameConfig.walkerDebug)
                         LOG.info(
                                 "[clutch] mlg-place cell={},{},{} aboveFloor={} y={} r={}",
                                 cell.getX(), cell.getY(), cell.getZ(),
@@ -215,7 +217,7 @@ public final class ClutchController {
                 aimAtBlockSnap(p, feet);
                 InteractionResult sr = mc.gameMode.useItem(p, InteractionHand.MAIN_HAND);
                 if (sr.consumesAction()) p.swing(InteractionHand.MAIN_HAND);
-                if (BotConfig.walkerDebug)
+                if (GameConfig.walkerDebug)
                     LOG.info(
                             "[clutch] mlg-scoop feet={},{},{} t={}", feet.getX(), feet.getY(), feet.getZ(), scoopTicks);
                 return true;
@@ -236,7 +238,7 @@ public final class ClutchController {
      *  scoop budget not yet exhausted. Checks the feet cell (where the bot
      *  actually landed), so horizontal drift can't strand the placed source. */
     private boolean scoopPending(WorldView w, LocalPlayer p) {
-        if (!BotConfig.waterBucketScoop || !p.onGround() || scoopTicks >= MLG_SCOOP_MAX) return false;
+        if (!ControlConfig.waterBucketScoop || !p.onGround() || scoopTicks >= MLG_SCOOP_MAX) return false;
         // Three doubles, not `p`: widening a LocalPlayer into blockPosOf(Entity) makes the
         // verifier load that class.
         BlockPos feet = blockPosOf(p.getX(), p.getY(), p.getZ());

@@ -4,7 +4,8 @@ import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 
 /**
  * Parkour ASCEND -- Baritone {@code MovementParkour} with a +1 landing: a
@@ -17,7 +18,7 @@ import net.magicterra.worlddriver.config.BotConfig;
  * level in the gap, or a cheaper Walk/StepUp chain would win. Distance-2 is
  * a reliable vanilla leap; distance-3 (clearing 3 while rising 1) is at the
  * physics edge, so it is gated behind
- * {@link net.magicterra.worlddriver.config.BotConfig#allowParkour4} like the other
+ * {@link net.magicterra.worlddriver.config.RulesConfig#allowParkour4} like the other
  * marginal long leaps. Cost = flat-parkour + 5 (jump-up overhead, as in
  * {@link StepUp}). The {@code parkourAscend} name starts with "parkour" so
  * the Walker's existing parkour actuator (jump+sprint, yaw-snapped, aimed
@@ -29,20 +30,20 @@ public final class ParkourAscend extends Move {
         super(dx * dist, 1, dz * dist, (dist == 2 ? 22 : 32) + 5);
         this.dist = dist;
     }
-    @Override public boolean availableInSearch(WorldView w) { return dist < 3 || BotConfig.allowParkour4; }
+    @Override public boolean availableInSearch(WorldView w) { return dist < 3 || RulesConfig.allowParkour4; }
     public boolean valid(WorldView w, BlockPos from) {
-        if (dist >= 3 && !BotConfig.allowParkour4) return false;
+        if (dist >= 3 && !RulesConfig.allowParkour4) return false;
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off) —
         // the dominant live #47 J2 stall (parkourAscend2-from-water, totStuck 409). Mirrors StepUp/DiagUp/
         // PillarUp; complements pathfinderForbidParkourIntoDeepWater (landing side). See BotConfig doc.
-        if (BotConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
+        if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
         if (!Move.hasRunway(w, from)) return false;
         BlockPos to = apply(from);                 // (sx*dist, +1, sz*dist)
         // The void rule covers the WHOLE leap family, not the three members it was first written
         // against. An exemption narrower than the family it must cover is how this class of bug
         // leaks back: rung 20 kept leaving the world from cells the first three gates never saw.
         // See Move.overTheVoid — a rule and not a price, and only while a bridge is affordable.
-        if (BotConfig.pathfinderForbidParkourOverTheVoid && BotConfig.allowPlace
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace
                 && Move.overTheVoid(w, from, to)) return false;
         if (!w.canStandAt(to)) return false;
         // Buoyancy: no parkour LANDING in submerged water — the bot sinks/stalls there
@@ -51,7 +52,7 @@ public final class ParkourAscend extends Move {
         // ...and (opt-in) refuse a leap onto a DEEP pocket SURFACE (≥2 water below, head
         // air): buoyant bot floats there and can't climb out (#47 dead-end-pocket dive).
         // A rising leap rarely lands on a pocket surface, but mirror the family for parity.
-        if (BotConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
+        if (RulesConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
         // Launch jump clearance (head+1 at the lip).
         if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) return false;
         int sx = Integer.signum(dx), sz = Integer.signum(dz);
@@ -61,7 +62,7 @@ public final class ParkourAscend extends Move {
         // (live #47 J2 -682,69,310: no runway behind the lip, 49/82/14 fall-back ticks, totStuck 579). Require
         // the cell directly BEHIND the launch (opposite the leap, same Y) to be standable — a flat run-up; a
         // thin-lip crest (staircase drops away behind) is forbidden so A* substitutes a makeable stepUp climb.
-        if (BotConfig.pathfinderParkourAscendNeedRunway && !w.canStandAt(from.offset(-sx, 0, -sz))) return false;
+        if (RulesConfig.pathfinderParkourAscendNeedRunway && !w.canStandAt(from.offset(-sx, 0, -sz))) return false;
         for (int i = 1; i < dist; i++) {
             // 3-tall clear corridor: the player rises from y to y+1 across the
             // gap, so foot/head/head+1 must all be open.
@@ -78,7 +79,7 @@ public final class ParkourAscend extends Move {
             // route-variance stall the executor layer structurally can't A/B-recover). A buoyant bot should
             // SWIM a water crossing, not sprint-jump it, so forbid the leap and let A* route around / swim.
             // Mirrors the forbid-parkour-from/into-water family (takeoff / landing); this guards the GAP DROP.
-            if (BotConfig.pathfinderForbidParkourOverWaterGap) {
+            if (RulesConfig.pathfinderForbidParkourOverWaterGap) {
                 BlockPos drop = from.offset(sx * i, -1, sz * i);
                 if (w.isWater(drop) && w.isWater(drop.offset(0, -1, 0))) return false;
             }

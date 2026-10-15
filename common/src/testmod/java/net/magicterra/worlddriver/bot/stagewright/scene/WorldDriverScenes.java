@@ -7,6 +7,11 @@ import java.util.Map;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.SettingsContracts;
 import net.magicterra.worlddriver.bot.SettingsRegistry;
@@ -332,9 +337,9 @@ public final class WorldDriverScenes implements SceneProvider {
         // pin FIRST → closes LAST (after the avatar discard); then the SAME keys legacy set.
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false; BotConfig.allowPlace = false;
-        BotConfig.walkerAscendMovement = false;             // OFF arm → machine must be inert
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2; BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = false; WorldConfig.allowPlace = false;
+        ControlConfig.walkerAscendMovement = false;             // OFF arm → machine must be inert
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2; PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -458,11 +463,11 @@ public final class WorldDriverScenes implements SceneProvider {
         // pin FIRST → closes LAST (after the avatar discard); then the SAME keys legacy set.
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, baseY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -605,9 +610,9 @@ public final class WorldDriverScenes implements SceneProvider {
         // signature was exactly such leaks landing on byte-identical-but-different baselines).
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -702,7 +707,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * pillar top has no run-up, so the executor launches into the void and free-falls
      * ~20 blocks straight down its own hollow column — a fall {@code strideFloorGuard}
      * structurally cannot arrest (an airborne player has no adjacent face to place a
-     * floor against). <b>Fix:</b> {@link BotConfig#pathfinderParkourAscendNeedRunway}
+     * floor against). <b>Fix:</b> {@link RulesConfig#pathfinderParkourAscendNeedRunway}
      * flipped default ON — {@code ParkourAscend.valid} now requires the cell BEHIND the
      * launch to be {@code canStandAt} (a real run-up), so A* rejects the runway-less
      * leap and substitutes a straight-up pillar that tops out clean. Dogfood A/B
@@ -734,11 +739,11 @@ public final class WorldDriverScenes implements SceneProvider {
         // pin FIRST → closes LAST (after the avatar discard); then the SAME keys legacy set.
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = true;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = true;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, baseY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -772,9 +777,9 @@ public final class WorldDriverScenes implements SceneProvider {
         //   rung before the player lands on it; inherent to EVERY pillar rung, not a shaft
         //   fall) — comfortably under the bound (margin ~3.75). A real backslide down the
         //   hollow column (the gap #53 death) is >=20 and blows the bound loudly.
-        if (worstBackslide > BotConfig.pathfinderMaxDryFall + 1)
+        if (worstBackslide > RulesConfig.pathfinderMaxDryFall + 1)
             ctx.fail("selfShaftDigUp: dig-up FELL back down its own shaft: worstBackslide="
-                    + worstBackslide + " (> maxDryFall+1=" + (BotConfig.pathfinderMaxDryFall + 1)
+                    + worstBackslide + " (> maxDryFall+1=" + (RulesConfig.pathfinderMaxDryFall + 1)
                     + ") — the gap #53 death, reproduced");
         if (fp.getY() < targetY - 1.5)
             ctx.fail("selfShaftDigUp: did not reach the level: pos=(" + fp.getX() + ","
@@ -817,7 +822,7 @@ public final class WorldDriverScenes implements SceneProvider {
         // SAME single key the legacy body flipped (walkerDebug).
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
 
         // clearBox(cx, floorY+1, cz, 6, 6) inlined (the legacy helper is private to
         // AgentGameTestServer): 13×13 air box, height 6.
@@ -996,11 +1001,11 @@ public final class WorldDriverScenes implements SceneProvider {
         // SAME keys the legacy body flipped.
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         // createIsolated (NOT create) — a sanctioned deviation, the driver's own FakePlayer.
         ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
@@ -1261,9 +1266,9 @@ public final class WorldDriverScenes implements SceneProvider {
         // then the SAME keys the legacy body flipped.
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         EntityLeash leash = new EntityLeash("minecraft:armor_stand", leashRadius, 0, true);
         // Near(1), not Block: guiding semantics are "reach the destination AREA" — exact-cell
@@ -1528,9 +1533,9 @@ public final class WorldDriverScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         EntityLeash leash = new EntityLeash("minecraft:armor_stand", leashRadius, 0, true);
         Intent intent = new Intent(new Goal.Near(goal, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);

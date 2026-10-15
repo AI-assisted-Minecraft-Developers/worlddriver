@@ -9,7 +9,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -30,7 +30,7 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  *
  * <p>Contract (the "learned components get no veto" rule): PURE ADDITIVE
  * g-side tax on a niche move subset — never a prune, never a capability
- * change, inert unless {@link BotConfig#riskBias} is ON. A non-negative
+ * change, inert unless {@link RulesConfig#riskBias} is ON. A non-negative
  * g-tax keeps the untaxed heuristic an underestimate, so A* admissibility
  * is unchanged (same argument as the legacy water taxes).
  *
@@ -130,7 +130,7 @@ public final class RiskCostTable {
     /** The edge tax. Zero-cost early exits: flag off (one volatile read) or a
      *  move family the table does not price (one map probe). */
     public static double tax(BlockPos from, Move.Edge edge, WorldView w) {
-        if (!BotConfig.riskBias) return 0;
+        if (!RulesConfig.riskBias) return 0;
         ensureLoaded();
         Integer mid = moveIds.get(edge.move);
         if (mid == null) return 0;
@@ -159,7 +159,7 @@ public final class RiskCostTable {
         int slot = ((((medFoot * 4 + Math.min(riser, 3)) * 4 + headroom) * 7
                 + Math.min(fall, 6)) * 2 + water);
         int risk = planes[mid * SLOTS + slot] & 0xFF;
-        return risk * BotConfig.riskBiasScale / 100.0;
+        return risk * RulesConfig.riskBiasScale / 100.0;
     }
 
     private static int medium(WorldView w, BlockPos p) {

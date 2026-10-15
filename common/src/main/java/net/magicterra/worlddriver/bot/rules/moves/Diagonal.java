@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.rules.moves;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -43,7 +43,7 @@ public final class Diagonal extends Move {
         // of them are open void. Rung 20 kept ending with the bot falling out of the world from cells like -15,60,36:
         // flat ground, no leap involved, a diagonal off the edge. One cornered floor is enough,
         // because the bot then always has something under some part of it during the crossing.
-        if (BotConfig.pathfinderForbidParkourOverTheVoid
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid
                 && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) return false;
         return clearColumn(w, sideA) && clearColumn(w, sideB);
     }

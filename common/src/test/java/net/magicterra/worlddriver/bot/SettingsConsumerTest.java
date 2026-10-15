@@ -40,18 +40,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * failure here (a real setting flagged dead) is much higher than the cost of missing
  * a setting whose only reader is itself dead code.
  *
- * <p>BotConfig's own body counts as a consumer once its declaration lines are removed,
- * so a setting read by an accessor ({@code pathfinderDepthPenalty} via
+ * <p>The config classes' own bodies count as a consumer once their declaration lines are
+ * removed, so a setting read by an accessor ({@code pathfinderDepthPenalty} via
  * {@code pfDepthPenalty()}) passes. The tradeoff is knowingly accepted: an unused
  * accessor would mask a dead setting. No setting relies on that path today — all of
  * them are also read directly — so nothing is currently hiding behind it.
  */
 class SettingsConsumerTest {
 
-    /** Files that only move settings around: registering, documenting, applying, reporting. */
+    /** Files that only move settings around: registering, documenting, applying, reporting. The config
+     *  classes that declare them are plumbing as well; see {@link #CONFIG}. */
     private static final Set<String> PLUMBING = Set.of(
-            "BotConfig.java", "SettingsRegistry.java", "SettingsDocs.java",
+            "SettingsRegistry.java", "SettingsDocs.java",
             "SettingsCommand.java", "SettingsContracts.java", "SettingsService.java");
+
+    /** Where the settings are declared, one {@code *Config} class per layer. */
+    private static final Path CONFIG = Path.of("src/main/java/net/magicterra/worlddriver/config");
 
     private static final List<String> SOURCE_ROOTS = List.of(
             "src/main/java", "src/testmod/java",
@@ -61,7 +65,7 @@ class SettingsConsumerTest {
     private static final List<String> POSITIVE_CONTROLS = List.of(
             "walkerArcLengthAdvance",    // WalkerTickProgress, arc-length step advance
             "walkerAscendMovement",      // WalkerTickDrive, task#82 ascent machine
-            "pathfinderDepthPenalty",    // PathFinder, via BotConfig#pfDepthPenalty
+            "pathfinderDepthPenalty",    // PathFinder, via PlanningConfig#pfDepthPenalty
             "walkerDebug");
 
     @Test
@@ -129,7 +133,7 @@ class SettingsConsumerTest {
                     "source root moved: " + dir.toAbsolutePath() + " (cwd " + Path.of(".").toAbsolutePath() + ")");
             try (Stream<Path> files = Files.walk(dir)) {
                 for (Path p : files.filter(f -> f.toString().endsWith(".java")).toList()) {
-                    if (PLUMBING.contains(p.getFileName().toString())) continue;
+                    if (PLUMBING.contains(p.getFileName().toString()) || isConfig(p)) continue;
                     sb.append(strip(Files.readString(p))).append('\n');
                 }
             } catch (IOException e) {
@@ -145,13 +149,23 @@ class SettingsConsumerTest {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        // BotConfig minus its declarations, so an accessor counts as a reader.
-        sb.append(botConfigBodyWithoutDeclarations());
+        // The config classes minus their declarations, so an accessor counts as a reader.
+        try (Stream<Path> files = Files.list(CONFIG)) {
+            for (Path p : files.filter(SettingsConsumerTest::isConfig).sorted().toList()) {
+                sb.append(bodyWithoutDeclarations(p)).append('\n');
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         return sb.toString();
     }
 
-    private static String botConfigBodyWithoutDeclarations() {
-        Path cfg = Path.of("src/main/java/net/magicterra/worlddriver/config/BotConfig.java");
+    private static boolean isConfig(Path p) {
+        return p.toAbsolutePath().normalize().getParent().equals(CONFIG.toAbsolutePath().normalize())
+                && p.getFileName().toString().endsWith("Config.java");
+    }
+
+    private static String bodyWithoutDeclarations(Path cfg) {
         String src = strip(read(cfg));
         return src.replaceAll("(?m)^\\s*public\\s+static\\s+volatile\\s+\\w+\\s+\\w+\\s*=[^;]*;", "");
     }

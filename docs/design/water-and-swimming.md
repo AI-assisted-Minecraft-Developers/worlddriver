@@ -25,7 +25,7 @@ open column of water where the bot could only bob.
 
 ## What was decided
 
-`BotConfig.pathfinderSurfaceWaterNodes` (on by default) replaces the premise rather than
+`WorldConfig.pathfinderSurfaceWaterNodes` (on by default) replaces the premise rather than
 patching it.
 
 **Lateral nodes exist only at the surface.** `canStandAt` returns false for a cell whose
@@ -97,7 +97,7 @@ height of 0.4; `Player.travel` steers vertical velocity towards the look directi
 cell at eye level is still water; swimming in liquid adds 0.04 upward per tick; and a
 sprinting swimmer has no gravity and a drag of 0.9 rather than 0.8.
 
-`WalkerTickDrive.surfaceCruise` (`BotConfig.walkerSurfaceSprintSwim`, on by default) is the
+`WalkerTickDrive.surfaceCruise` (`ControlConfig.walkerSurfaceSprintSwim`, on by default) is the
 state machine that gets into that pose and stays there.
 
 It **enters** when the current node is a surface cell at least one cell away horizontally,
@@ -202,8 +202,8 @@ bot passes its goal. An earlier version cleared on that, and a 929-tick orbit in
   `bot/control/WalkerConstants.java`.
 - `bot/control/WalkerTickClimb.java` — `pillarTakeoverTick`, the executor half of the exit.
 - `bot/control/WalkerTickAim.java` — the orbit break.
-- `config/BotConfig.java` — `pathfinderSurfaceWaterNodes`, `walkerSurfaceSprintSwim`,
-  `pathfinderDeepWaterPriced`, `waterDangerPenalty`, `walkerOrbitBreaksAimLag`.
+- `config/WorldConfig.java` — `pathfinderSurfaceWaterNodes`, `pathfinderDeepWaterPriced`, `waterDangerPenalty`;
+  `config/ControlConfig.java` — `walkerSurfaceSprintSwim`, `walkerOrbitBreaksAimLag`.
 
 The scenes that hold this behaviour are the `wd.client*` water family; `wd.clientOpenWaterCross`
 is the cruise, and the bank climb-out scenes are the exit edge. They run only on a topology with

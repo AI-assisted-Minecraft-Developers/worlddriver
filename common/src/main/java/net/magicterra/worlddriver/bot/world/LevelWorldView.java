@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.world;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
@@ -41,7 +41,7 @@ public final class LevelWorldView implements StateWorldView {
     /** Set per search by PathFinder: a DIVE search keeps submerged cells as nodes. */
     private volatile boolean diveSearch;
     @Override public void diveSearch(boolean on) { diveSearch = on; }
-    @Override public boolean surfaceWaterNodes() { return BotConfig.pathfinderSurfaceWaterNodes && !diveSearch; }
+    @Override public boolean surfaceWaterNodes() { return WorldConfig.pathfinderSurfaceWaterNodes && !diveSearch; }
 
     /** The level this view reads. Exposed so a holder can notice the bot has left it — a view
      *  outlives a dimension change silently otherwise, and then plans over the wrong terrain. */
@@ -84,14 +84,14 @@ public final class LevelWorldView implements StateWorldView {
     @Override public double breakCost(BlockPos p) {
         // An entity that is not a player cannot break anything; a view built over no entity at all
         // keeps the bare-hand price it always had.
-        if (!BotConfig.allowBreak || (controller == null && body != null)) return Double.POSITIVE_INFINITY;
+        if (!WorldConfig.allowBreak || (controller == null && body != null)) return Double.POSITIVE_INFINITY;
         return CellRules.breakCost(level, p, blockState(p), controller, dig);
     }
 
     /**
      * <b>The one member of this family that drops its own flag.</b> {@code ClientWorldView.canPlace}
-     * is {@code BotConfig.allowPlace && hasPlaceableBlock()}; {@link #canParkourPlace} further down
-     * this file is {@code BotConfig.allowParkourPlace && placeableBlockCount() > 0}; the interface
+     * is {@code WorldConfig.allowPlace && hasPlaceableBlock()}; {@link #canParkourPlace} further down
+     * this file is {@code WorldConfig.allowParkourPlace && placeableBlockCount() > 0}; the interface
      * defaults for {@code canPlace} and {@code canWaterBucketFall} are both {@code false}, so a
      * headless view plans nothing it cannot do. This override alone answers on inventory contents
      * and nothing else.
@@ -100,7 +100,7 @@ public final class LevelWorldView implements StateWorldView {
      * {@code allowPlace = false}, and the two consumers of this method — {@code PillarUp.eval} and
      * {@code BridgePlace.eval}, a repo-wide grep finds no third — go on emitting those edges for a
      * server-side player that holds build blocks. Every place actuator on the far side is gated
-     * {@code BotConfig.allowPlace && …} ({@code WalkerTickDrive}, {@code WalkerTickStallDetect}
+     * {@code WorldConfig.allowPlace && …} ({@code WalkerTickDrive}, {@code WalkerTickStallDetect}
      * twice, {@code Walker}'s well-plug), so the walker then declines an edge A* put in the path.
      * Planner LOOSER than executor is the direction that yields a route the bot cannot walk,
      * rather than one it merely never finds.
@@ -108,7 +108,7 @@ public final class LevelWorldView implements StateWorldView {
      * <p><b>The same flag family, three different couplings — that is the finding, not this one
      * method.</b> {@link #canParkourPlace} reads its flag live. {@code canWaterBucketFall} is not
      * overridden here at all, so this planner takes the interface default {@code false} and never
-     * plans an MLG fall, while {@code BotConfig.allowWaterBucketFall} defaults ON and the clutch
+     * plans an MLG fall, while {@code WorldConfig.allowWaterBucketFall} defaults ON and the clutch
      * actuator gates on that live volatile — planner STRICTER than actuator, which costs a route
      * that was available and is therefore the safe direction. And {@code ClientWorldView} folds the
      * same flag into {@code bucketFallReady} once per {@code beginSearch}, so a mid-search flip
@@ -173,7 +173,7 @@ public final class LevelWorldView implements StateWorldView {
         return n;
     }
 
-    @Override public boolean canParkourPlace() { return BotConfig.allowParkourPlace && placeableBlockCount() > 0; }
+    @Override public boolean canParkourPlace() { return WorldConfig.allowParkourPlace && placeableBlockCount() > 0; }
 
     @Override public int maxStepUpBlocks() { return (int) Math.floor(body.maxUpStep()); }
 

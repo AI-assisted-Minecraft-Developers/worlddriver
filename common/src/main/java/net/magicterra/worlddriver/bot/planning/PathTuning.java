@@ -2,14 +2,14 @@ package net.magicterra.worlddriver.bot.planning;
 
 import java.util.function.BooleanSupplier;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
 
 /**
  * Where one {@link PathFinder} gets its three planner tunables — <b>read live, owned per bot</b>.
  *
  * <p>These used to be read straight off {@code BotConfig} inside the search loop, through
  * {@code pfHorizonBlocks() / pfSoftCommitNodes() / pfDepthPenalty()}. Those getters consult
- * {@code BotConfig.pathfinderBoxedEscalate}, which is per-bot, per-tick state that
+ * {@code PlanningConfig.pathfinderBoxedEscalate}, which is per-bot, per-tick state that
  * {@code WalkerTickPrelude} writes on every walker tick — into a process-global. One JVM with two
  * bots in it therefore had them editing each other's planner, and that is not hypothetical: on the
  * integrated topology a client Walker churning on an unreachable goal held the flag true, so a
@@ -46,9 +46,9 @@ public interface PathTuning {
      * hand in {@link #fixed}.
      */
     PathTuning GLOBAL = new PathTuning() {
-        @Override public int horizonBlocks()    { return BotConfig.pfHorizonBlocks(); }
-        @Override public int softCommitNodes()  { return BotConfig.pfSoftCommitNodes(); }
-        @Override public double depthPenalty()  { return BotConfig.pfDepthPenalty(); }
+        @Override public int horizonBlocks()    { return PlanningConfig.pfHorizonBlocks(); }
+        @Override public int softCommitNodes()  { return PlanningConfig.pfSoftCommitNodes(); }
+        @Override public double depthPenalty()  { return PlanningConfig.pfDepthPenalty(); }
         @Override public String toString()      { return "global"; }
     };
 
@@ -60,17 +60,17 @@ public interface PathTuning {
     static PathTuning escalatedWhen(BooleanSupplier armed) {
         return new PathTuning() {
             @Override public int horizonBlocks() {
-                return armed.getAsBoolean() ? 0 : BotConfig.pathfinderHorizonBlocks;
+                return armed.getAsBoolean() ? 0 : PlanningConfig.pathfinderHorizonBlocks;
             }
             @Override public int softCommitNodes() {
                 return armed.getAsBoolean()
-                        ? Math.max(BotConfig.pathfinderSoftCommitNodes, 35_000)
-                        : BotConfig.pathfinderSoftCommitNodes;
+                        ? Math.max(PlanningConfig.pathfinderSoftCommitNodes, 35_000)
+                        : PlanningConfig.pathfinderSoftCommitNodes;
             }
             @Override public double depthPenalty() {
                 return armed.getAsBoolean()
-                        ? Math.max(BotConfig.pathfinderDepthPenalty, 25)
-                        : BotConfig.pathfinderDepthPenalty;
+                        ? Math.max(PlanningConfig.pathfinderDepthPenalty, 25)
+                        : PlanningConfig.pathfinderDepthPenalty;
             }
             @Override public String toString() {
                 return "bot(escalated=" + armed.getAsBoolean() + ")";

@@ -4,6 +4,8 @@ import java.util.List;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
@@ -316,11 +318,11 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         BotConfig.applyCompiledDefaults();
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
         // Default-OFF, but the sealed-goal scenes need it to end at the farthest reachable point
         // instead of ping-ponging the deck; see its BotConfig javadoc for why it is not shipped.
-        BotConfig.walkerFromEndNoProgressDiscard = true;
+        ControlConfig.walkerFromEndNoProgressDiscard = true;
     }
 
     // ---------------------------------------------------------------- scenes ----
@@ -464,7 +466,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
      *  reach the barrier and hold there instead of ping-ponging at the start pad. */
     private static void bridgeHeadBlockStopShipped(SceneContext ctx) {
         liveStack(ctx);
-        BotConfig.walkerFromEndNoProgressDiscard = false;
+        ControlConfig.walkerFromEndNoProgressDiscard = false;
         headBlockStop(ctx, "bridgeHeadBlockStopShipped");
     }
 
@@ -525,7 +527,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
      *  mc.debug.replay{replay-0013} (the bot must be idle — the replay teleports it). */
     private static void bridgeDescendPlaceLip(SceneContext ctx) {
         liveStack(ctx);
-        BotConfig.allowPlace = true;
+        WorldConfig.allowPlace = true;
         // Live shape (replay-0013): the lip is MOUNTED BY A STEP-UP right before the
         // descending place — the wedge fired while the bot was still climbing onto
         // the lip (the actuator freeze mid-step-up dropped it back down the stair,
@@ -607,7 +609,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
      *  actually happened (dirt consumed or a placed block present). */
     private static void bridgeFootholdPlace(SceneContext ctx) {
         liveStack(ctx);
-        BotConfig.allowPlace = true;
+        WorldConfig.allowPlace = true;
         BlockPos goal = footholdRig(ctx);
         ServerPlayerBody av = spawn(ctx, -2, DECK + 1, 0);
         av.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 16));
@@ -624,7 +626,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
     /** Ascending step that needs a foothold (no material): same rig, empty bag → no route; hold at the face. */
     private static void bridgeFootholdStarve(SceneContext ctx) {
         liveStack(ctx);
-        BotConfig.allowPlace = true;
+        WorldConfig.allowPlace = true;
         BlockPos goal = footholdRig(ctx);
         Run r = drive(ctx, spawn(ctx, -2, DECK + 1, 0), 1500, goal, DECK + 1);
         assertHeldAtBarrier(ctx, "bridgeFootholdStarve", r, goal, 12, DECK + 1);
@@ -648,7 +650,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
      *  cost, so the bag stays untouched. */
     private static void bridgeStepTwoBypassNoPlace(SceneContext ctx) {
         liveStack(ctx);
-        BotConfig.allowPlace = true;
+        WorldConfig.allowPlace = true;
         BlockPos goal = footholdRig(ctx);
         // Branch: leave around x=8, climb +1 at x=11 and +1 at x=13 along z=5, rejoin the
         // high deck around x=14. Branch parallels the mainline at z=5 — OUTSIDE the
@@ -684,7 +686,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
      *  instant on this topology (class doc); the coverage is the dig-through routing. */
     private static void bridgeBreakThrough(SceneContext ctx) {
         liveStack(ctx);
-        BotConfig.allowBreak = true;
+        WorldConfig.allowBreak = true;
         BlockPos goal = frame(ctx, 24);
         for (String leg : new String[] {"bareHand", "pickaxe"}) {
             ctx.setBlock(12, DECK + 1, 0, Blocks.STONE);
@@ -702,7 +704,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
      *  iron pickaxe in hand → the planner should dig through; assert the wall fell. */
     private static void bridgeDigShortcut(SceneContext ctx) {
         liveStack(ctx);
-        BotConfig.allowBreak = true;
+        WorldConfig.allowBreak = true;
         BlockPos goal = frame(ctx, 24);
         ctx.setBlock(12, DECK + 1, 0, Blocks.STONE);
         ctx.setBlock(12, DECK + 2, 0, Blocks.STONE);
@@ -724,7 +726,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
      *  cost) vs a SHORT |dz|=3 detour (~10 extra walks) → detour must win; wall intact. */
     private static void bridgeDetourCheap(SceneContext ctx) {
         liveStack(ctx);
-        BotConfig.allowBreak = true;
+        WorldConfig.allowBreak = true;
         BlockPos goal = frame(ctx, 24);
         ctx.setBlock(12, DECK + 1, 0, Blocks.STONE);
         ctx.setBlock(12, DECK + 2, 0, Blocks.STONE);

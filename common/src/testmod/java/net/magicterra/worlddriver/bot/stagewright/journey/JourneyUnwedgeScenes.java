@@ -8,6 +8,8 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.TowerProcess;
 import net.magicterra.worlddriver.bot.ServerAvatarManager;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
@@ -231,9 +233,9 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
     private static void config(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowPlace = true;
-        BotConfig.allowBreak = false;
-        BotConfig.walkerDebug = false;
+        WorldConfig.allowPlace = true;
+        WorldConfig.allowBreak = false;
+        GameConfig.walkerDebug = false;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
         // The flight is a static of the ladder's own code. A gate scene that left one behind would

@@ -35,7 +35,7 @@ import net.magicterra.worlddriver.config.BotConfig;
  * Nothing tied the prose to the initialiser, so the flip moved one and not the other.
  *
  * <p><b>Why the default comes from {@code COMPILED_DEFAULTS} and not from the live fields:</b>
- * these tests share a JVM, so sampling {@code BotConfig.allowBreak} would measure whatever the
+ * these tests share a JVM, so sampling {@code WorldConfig.allowBreak} would measure whatever the
  * last test left set. {@code COMPILED_DEFAULTS} is captured in a static block at the end of
  * BotConfig, before any {@code load()} — the same source {@link GameTestBaselineManifestTest}
  * reads, for the same reason. It also stores the SERIALIZED value, so a field initialised from

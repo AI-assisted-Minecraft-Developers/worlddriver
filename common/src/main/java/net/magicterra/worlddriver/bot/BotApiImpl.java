@@ -83,6 +83,8 @@ import net.magicterra.worlddriver.bot.world.WorldModel;
 import java.util.concurrent.ConcurrentHashMap;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.world.ClientWorldView;
 import net.magicterra.worlddriver.game.ui.FocusPolicy;
@@ -849,9 +851,9 @@ public final class BotApiImpl implements BotApi {
         // Reset the flee-context flag first: RunAwayProcess.tick (driven below by
         // the scheduler) re-sets it true right before its A* search, so fleeSearch
         // snapshots true only for an active flee and is never stuck-true.
-        BotConfig.fleeActive = false;
-        BotConfig.walkerDigActive = false;   // same per-tick reset contract as fleeActive: the Walker re-sets it below while holding a dig
-        BotConfig.walkerCruiseActive = false;   // likewise: the Walker re-sets it below while its surface cruise holds the eyes under
+        WorldConfig.fleeActive = false;
+        ControlConfig.walkerDigActive = false;   // same per-tick reset contract as fleeActive: the Walker re-sets it below while holding a dig
+        ControlConfig.walkerCruiseActive = false;   // likewise: the Walker re-sets it below while its surface cruise holds the eyes under
         // Capture BEFORE the tick: a chain that runs this tick presses movement
         // keys even if it finishes mid-tick (current() then nulls) — its trailing
         // presses still need the one-shot cleanup below. A user chain holding nothing
@@ -881,7 +883,7 @@ public final class BotApiImpl implements BotApi {
         // the release branch (surface transition) stays idle-gated so we never
         // clobber a land jump the Walker set.
         // Idle drowning reflex runs regardless of the autoSwim flag — gated by its own
-        // independent BotConfig.autoFloatWhenDrowning (gap#70, live death #18: a bot with
+        // independent BehaviorConfig.autoFloatWhenDrowning (gap#70, live death #18: a bot with
         // no task sank and drowned with zero self-rescue; this used to be alarm-only and
         // is now an unconditional PURE-VERTICAL float, never movement — see AutoSwim
         // .drowningSentinel's doc for the controller's idle-passivity ruling). Mark the
@@ -930,7 +932,7 @@ public final class BotApiImpl implements BotApi {
         // has written the player's rotation. Rate-limits this tick's net yaw/pitch
         // change so no code path can snap the view; a functional exact aim this tick
         // (camera-raycast mine/attack, a leap heading) bypasses it via
-        // LookController.requestSnap(). See BotConfig.cameraSlew.
+        // LookController.requestSnap(). See GameConfig.cameraSlew.
         net.magicterra.worlddriver.game.body.LookController.apply(mc.player);
     }
 

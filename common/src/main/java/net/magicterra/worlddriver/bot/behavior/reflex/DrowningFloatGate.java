@@ -11,7 +11,7 @@ package net.magicterra.worlddriver.bot.behavior.reflex;
  * dependency-free lets it run in a {@code @GameTest} matrix with no client.
  *
  * <p><b>Controller ruling on "driver idle must be passive"</b> (see also
- * {@code BotConfig#autoFloatWhenDrowning}, {@code AutoSwim#tick}): that
+ * {@code BehaviorConfig#autoFloatWhenDrowning}, {@code AutoSwim#tick}): that
  * contract forbids UNCOMMANDED horizontal movement/beaching, never a bare
  * survival reflex. A bot with no task that sinks to the riverbed and
  * suffocates is not "idle behaving correctly" — it is an unhandled death.
@@ -26,8 +26,8 @@ public final class DrowningFloatGate {
     /**
      * @param underwater {@code LocalPlayer#isUnderWater()} — head submerged.
      * @param air        {@code LocalPlayer#getAirSupply()} this tick.
-     * @param airThreshold {@code BotConfig#drownFloatAirThreshold}.
-     * @param enabled    {@code BotConfig#autoFloatWhenDrowning}.
+     * @param airThreshold {@code BehaviorConfig#drownFloatAirThreshold}.
+     * @param enabled    {@code BehaviorConfig#autoFloatWhenDrowning}.
      * @return true iff the reflex should hold jump this tick.
      */
     public static boolean shouldFloat(boolean underwater, int air, int airThreshold, boolean enabled) {

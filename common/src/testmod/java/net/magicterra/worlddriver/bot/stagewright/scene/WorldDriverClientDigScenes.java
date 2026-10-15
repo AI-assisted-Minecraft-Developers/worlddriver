@@ -8,6 +8,10 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
@@ -61,10 +65,10 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         // Cobblestone from the start: this scene is about which cells get filled, not about pickup.
         helm.hold(new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.COBBLESTONE, 64));
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = false;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;
         BotConfig.autoBackfill = true;
-        BotConfig.autoBackfillBlock = "minecraft:cobblestone";
+        BehaviorConfig.autoBackfillBlock = "minecraft:cobblestone";
         helm.sync(30, () -> {
             ctx.record("start.afterSync", helm.where());
             helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, null, () -> {
@@ -128,13 +132,13 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
                 new ItemStack(Items.WOODEN_HOE), new ItemStack(Items.TORCH, 32), new ItemStack(Items.BREAD, 12));
         for (int slot = 9; slot < 33; slot++)
             helm.player().getInventory().items.set(slot, new ItemStack((slot % 2 == 0) ? Items.OAK_LOG : Items.DIRT, 64));
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = true;
-        BotConfig.walkerFinalNodeDirectAim = true;
-        BotConfig.walkerHoldLastNodeUntilStanding = true;
-        BotConfig.walkerOrbitBreaksAimLag = true;
-        BotConfig.walkerSurfaceSprintSwim = true;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = true;
+        ControlConfig.walkerFinalNodeDirectAim = true;
+        ControlConfig.walkerHoldLastNodeUntilStanding = true;
+        ControlConfig.walkerOrbitBreaksAimLag = true;
+        ControlConfig.walkerSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
         Walker.lastStats = null;
         helm.sync(30, () -> {

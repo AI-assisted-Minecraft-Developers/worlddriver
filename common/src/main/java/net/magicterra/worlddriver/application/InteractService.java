@@ -19,7 +19,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Used;
 import net.magicterra.worlddriver.bot.BotApi;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.BodyRegistry;
 import net.magicterra.worlddriver.bot.VerbOrders;
@@ -54,7 +54,7 @@ final class InteractService implements InteractApi {
 
     @Override
     public CompletionStage<ActionResponse<Looked>> lookAt(LookParams p, CallContext ctx) {
-        if (BotConfig.smoothLook) {
+        if (GameConfig.smoothLook) {
             return actions.start(p.body(), p.awaitMs(), ctx, body -> {
                 float[] aim = BodyInteractions.aim(body, p);
                 BlockPos track = p.pos().map(Positions::blockPos).orElse(null);

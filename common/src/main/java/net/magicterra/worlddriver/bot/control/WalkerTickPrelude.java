@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot.control;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.rules.Move;
@@ -72,11 +74,11 @@ final class WalkerTickPrelude {
      * it has today, which is a regression dressed as a fix.
      */
     private static void expireDigClaim(Walker wk, Body a, WorldView world, LivingEntity p) {
-        if (!BotConfig.walkerDigAimPriority || wk.stickyDig.pos == null) return;
+        if (!ControlConfig.walkerDigAimPriority || wk.stickyDig.pos == null) return;
         float prog = wk.hands.destroyProgress();
         boolean spent;
         if (prog < 0) {
-            spent = ++wk.stickyDig.ticks > Math.min(BotConfig.breakTimeoutTicks, 300);
+            spent = ++wk.stickyDig.ticks > Math.min(ControlConfig.breakTimeoutTicks, 300);
         } else {
             if (prog > wk.stickyDig.lastProgress + 1e-4f) {
                 wk.stickyDig.lastProgress = prog;
@@ -100,7 +102,7 @@ final class WalkerTickPrelude {
         // MineProcess.findReachStand scans dy to −5 to create).
         if (!world.isSolid(wk.stickyDig.pos) || spent
                 || !eyeWithin(p, wk.stickyDig.pos, blockReachToCentre(p))) {
-            if (BotConfig.walkerDebug)
+            if (GameConfig.walkerDebug)
                 LOG.info("[walker] dig-aim RELEASE {} solid={} ticks={} stall={} prog={}",
                         wk.stickyDig.pos, world.isSolid(wk.stickyDig.pos), wk.stickyDig.ticks,
                         wk.stickyDig.stallTicks, String.format("%.2f", wk.stickyDig.lastProgress));
@@ -138,16 +140,16 @@ final class WalkerTickPrelude {
         // re-committing a cheap shallow/cave segment. Off (back to configured defaults)
         // once the timer lapses, so easy-terrain searches are never slowed.
         wk.escal.tick++;
-        boolean wasEscalating = BotConfig.pathfinderBoxedEscalate;
+        boolean wasEscalating = PlanningConfig.pathfinderBoxedEscalate;
         boolean escalating = wk.escal.armed();
-        BotConfig.pathfinderBoxedEscalate = escalating;
-        if (escalating && !wasEscalating && BotConfig.walkerDebug)
+        PlanningConfig.pathfinderBoxedEscalate = escalating;
+        if (escalating && !wasEscalating && GameConfig.walkerDebug)
             LOG.info("[walker] steep-barrier escalation ARMED (boxed churn) → horizon=0 depthPenalty>=25 softCommit>=35000 for {} ticks",
                     wk.escal.untilTick - wk.escal.tick);
 
         // Expectation alarms read LAST tick's pressed state vs THIS tick's world response —
         // run before the per-tick input baseline below clears anything.
-        if (BotConfig.walkerExpectAlarm) wk.exAlarms.tick(wk.hands, a, world, p, wk.path, wk.step, wk.stepProg.noStepProgressTicks);
+        if (ControlConfig.walkerExpectAlarm) wk.exAlarms.tick(wk.hands, a, world, p, wk.path, wk.step, wk.stepProg.noStepProgressTicks);
 
         // Per-tick baseline for the jump/sneak channel: default to "not jumping / not
         // sneaking" so any path that returns without setting them can't leak a stale
@@ -166,7 +168,7 @@ final class WalkerTickPrelude {
         if (flyer != null && flyer.getAbilities().flying) {
             flyer.getAbilities().flying = false;
             flyer.onUpdateAbilities();
-            if (!wk.descending && BotConfig.walkerDebug)
+            if (!wk.descending && GameConfig.walkerDebug)
                 LOG.info(
                         "[walker] creative flight detected → disabling, will descend (y={})", p.getY());
             wk.descending = true;
@@ -181,13 +183,13 @@ final class WalkerTickPrelude {
                 Walker.avatarForward(a, false);
                 wk.avatarJump(a, false);
                 p.setSprinting(false);
-                if (BotConfig.walkerDebug)
+                if (GameConfig.walkerDebug)
                     LOG.info(
                             "[walker] descending… y={} onGround={}", p.getY(), p.onGround());
                 return Walker.Step.WALKING;
             }
             wk.descending = false;
-            if (BotConfig.walkerDebug)
+            if (GameConfig.walkerDebug)
                 LOG.info(
                         "[walker] landed at y={} → resume ground pathing", p.getY());
         }
@@ -219,7 +221,7 @@ final class WalkerTickPrelude {
         // start: the lift is capped at two cells, so a diver's route is still planned from where
         // the diver is.
         BlockPos searchFoot = foot;
-        if (BotConfig.walkerBuoyantSearchFromSurface && p.isInWater() && !p.onGround()) {
+        if (ControlConfig.walkerBuoyantSearchFromSurface && p.isInWater() && !p.onGround()) {
             int sy = foot.getY();
             while (world.isWater(new BlockPos(foot.getX(), sy, foot.getZ()))) sy++;
             // sy = first non-water cell above the column; the top water cell (sy-1) is where the bot
@@ -231,7 +233,7 @@ final class WalkerTickPrelude {
         // A search fired at a jump's apex starts one cell above the floor, and a plan opening with a
         // pillarUp from there places into the cell the body already fills: live 1446,79,-553 jumped
         // 4 s without placing once. The cell below is where the jump lands.
-        if (BotConfig.walkerSearchFromLanding && !p.onGround() && !p.isInWater() && !p.onClimbable()
+        if (ControlConfig.walkerSearchFromLanding && !p.onGround() && !p.isInWater() && !p.onClimbable()
                 && !world.canStandAt(foot) && world.canStandAt(foot.below()))
             searchFoot = foot.below();
         wk.sampleTick(p);
@@ -278,7 +280,7 @@ final class WalkerTickPrelude {
         }
 
         expireDigClaim(wk, a, world, p);
-        if (BotConfig.walkerStickyDig && !BotConfig.walkerDigAimPriority && wk.stickyDig.pos != null) {
+        if (ControlConfig.walkerStickyDig && !ControlConfig.walkerDigAimPriority && wk.stickyDig.pos != null) {
             // Tightened after C31-J1 (-325,64,-47): the 25 (5-block) drift radius held the
             // latch on a cell 5 below the bot — OUTSIDE mining reach (~4.5) — so the latch
             // owned every tick swinging at an unreachable block until the full break
@@ -320,13 +322,13 @@ final class WalkerTickPrelude {
                     || wk.stickyDig.stallTicks > STICKY_DIG_STALL_TICKS
                     || ++wk.stickyDig.ticks > STICKY_DIG_ABS_CAP_TICKS
                     || !eyeWithin(p, wk.stickyDig.pos, blockReachToCentre(p))) {
-                if (BotConfig.walkerDebug)
+                if (GameConfig.walkerDebug)
                     LOG.info("[walker] sticky-dig RELEASE {} solid={} ticks={} stall={} prog={}",
                             wk.stickyDig.pos, world.isSolid(wk.stickyDig.pos), wk.stickyDig.ticks,
                             wk.stickyDig.stallTicks, String.format("%.2f", wk.stickyDig.lastProgress));
                 wk.stickyDig.engage(null);
             } else {
-                BotConfig.walkerDigActive = true;   // dig-priority: AutoSwim's backstop yields while this hold is live and air is healthy
+                ControlConfig.walkerDigActive = true;   // dig-priority: AutoSwim's backstop yields while this hold is live and air is healthy
                 wk.hands.selectTool(wk.stickyDig.pos);
                 a.aimAtBlock(wk.stickyDig.pos);
                 // The drive advances the exact cell regardless of where the crosshair is — while

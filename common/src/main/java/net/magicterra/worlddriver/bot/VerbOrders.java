@@ -61,7 +61,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ElytraItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 
 /**
@@ -99,7 +99,7 @@ public final class VerbOrders {
 
     public static Order<BuildContracts.Bunkered> bunker(BunkerParams p, LivingEntity self) {
         if (!hasHands(self)) return handless("bunker", self);
-        int depth = p.depth().orElse(Math.max(1, Math.min(5, BotConfig.bunkerDepth)));
+        int depth = p.depth().orElse(Math.max(1, Math.min(5, ArbitrationConfig.bunkerDepth)));
         BunkerProcess b = new BunkerProcess(depth);
         return new Start<>(b, () -> new BuildContracts.Bunkered(depth, b.sealed()));
     }

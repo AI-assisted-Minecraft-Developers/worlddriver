@@ -11,7 +11,8 @@ import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.minecraft.core.BlockPos;
@@ -110,10 +111,10 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         BlockPos start = ctx.rel(0, GROUND + 1, 0);
         BlockPos goal = ctx.rel(12, GROUND + 1, 0);
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
-        BotConfig.walkerDebug = true;
+        GameConfig.walkerDebug = true;
         // The baseline spends the goal node from 0.67 away, which ends the walk a cell short and fails
         // the action before its result can say whether the plan was adopted.
-        BotConfig.walkerHoldLastNodeUntilStanding = true;
+        ControlConfig.walkerHoldLastNodeUntilStanding = true;
         helm.sync(30, () -> goTo(ctx, "preview.reply", goal, Map.of("plan", "preview", "route", Map.of("risk", "normal")), planned -> {
             ctx.check(!action(planned).isEmpty()).as("A: the preview is accepted as an action: " + planned).isTrue();
             awaitEnd(ctx, actionId(planned), 200, t -> { }, preview -> {

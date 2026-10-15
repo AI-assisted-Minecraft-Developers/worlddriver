@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.game.body.BotInteract;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.minecraft.client.Minecraft;
@@ -54,7 +54,7 @@ public final class AutoTool {
     public static void tick(Minecraft mc, LocalPlayer p) {
         Inventory inv = p.getInventory();
         if (shouldYield(inv.selected, lastAutoSelected, graceLeft)) {
-            graceLeft = stepGrace(graceLeft, BotConfig.manualSlotGraceTicks);
+            graceLeft = stepGrace(graceLeft, BehaviorConfig.manualSlotGraceTicks);
             if (graceLeft == 0) lastAutoSelected = -1;   // grace expired: re-arm cleanly
             return;
         }

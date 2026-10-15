@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.control;
 
 import net.minecraft.core.BlockPos;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 
@@ -76,7 +76,7 @@ public final class PathProjection {
         // are a block apart but not on a string-pulled leg: R1 1426,64,-399 → 1411,64,-414 → 1411,64,-416
         // projected 15.7 off onto the 2-block stub past the node, and the pursuit cut the corner at the stub's
         // end, 0.30 off the birch at 1418,64,-409 the leg itself clears by 0.71. Barriers still start at step.
-        int from = BotConfig.walkerProjectCurrentLeg && step > 0 && step < n ? step - 1 : step;
+        int from = ControlConfig.walkerProjectCurrentLeg && step > 0 && step < n ? step - 1 : step;
         for (int i = from; i < scanEnd; i++) {
             BlockPos a = path.get(i), b = path.get(i + 1);
             aboveReach |= i > step && a.getY() - footY >= 2;   // the step's own segment always projects

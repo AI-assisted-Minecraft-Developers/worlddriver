@@ -13,6 +13,8 @@ import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.application.PlayerSnapshots;
 import net.magicterra.worlddriver.application.RecipeService;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.behavior.CraftProcess;
 import net.magicterra.worlddriver.game.observe.RecipeResolver;
 import net.magicterra.worlddriver.bot.behavior.SmeltProcess;
@@ -150,7 +152,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
 
@@ -317,8 +319,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
-        BotConfig.craftReclaimTable = true;
+        GameConfig.walkerDebug = false;
+        BehaviorConfig.craftReclaimTable = true;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
 
@@ -403,7 +405,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> scrub(level, cx, cz, floorY, 3, 4));
@@ -487,7 +489,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> scrub(level, cx, cz, floorY, 3, 4));
@@ -568,7 +570,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
 
@@ -617,8 +619,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
-        BotConfig.craftReclaimTable = false;
+        GameConfig.walkerDebug = false;
+        BehaviorConfig.craftReclaimTable = false;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
         // Legacy scrubbed [-3,3] × dy[0,4] on exit; the two-layer floor reaches [-2,2], so this covers it.
@@ -670,7 +672,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
@@ -842,7 +844,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
 
@@ -926,7 +928,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
 
@@ -986,7 +988,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
 

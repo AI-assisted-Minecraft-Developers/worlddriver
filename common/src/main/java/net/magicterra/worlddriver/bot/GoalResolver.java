@@ -12,7 +12,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import java.util.function.Predicate;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
 
 /**
  * Stand positions and direction descriptors resolved against a body and its level. Pure static
@@ -29,7 +29,7 @@ public final class GoalResolver {
     private GoalResolver() {}
 
 /** Scan the player's level for the nearest matching block id within `radius`
- *  (XZ Chebyshev, Y by BotConfig.mineSearchVerticalRadius) that has a
+ *  (XZ Chebyshev, Y by BehaviorConfig.mineSearchVerticalRadius) that has a
  *  standable adjacent, and return the stand position so the goto walker can
  *  target it.
  *
@@ -55,7 +55,7 @@ public static BlockPos findNearestStandForBlock(Entity self, String blockId, int
     Level lvl = self.level();
     if (lvl == null) return null;
     BlockPos foot = blockPosOf(self.getX(), self.getY(), self.getZ());
-    int vr = BotConfig.mineSearchVerticalRadius;
+    int vr = BehaviorConfig.mineSearchVerticalRadius;
     // Supports exact ids and '#tag' selectors (e.g. #minecraft:logs → any tree).
     Predicate<BlockState> match = BlockMatch.of(blockId);
     // gap#67-⑤: nearest-first order (shared with MineProcess.scanForTarget) so

@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.world;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.observe.TimeSnap;
 import net.minecraft.client.Minecraft;
@@ -30,10 +30,10 @@ public final class WorldModel {
         tick++;
         BlockPos foot = p.blockPosition();
         int survivable = SurvivalMath.survivableFall(p.getHealth());
-        int radius = BotConfig.hazardGridRadius;
-        int decimate = Math.max(1, BotConfig.hazardGridDecimateTicks);
+        int radius = WorldConfig.hazardGridRadius;
+        int decimate = Math.max(1, WorldConfig.hazardGridDecimateTicks);
         if (hazard == null || tick % decimate == 0 || !foot.equals(hazard.center)) {
-            hazard = HazardField.compute(w, foot, radius, survivable, BotConfig.deepWaterMax);
+            hazard = HazardField.compute(w, foot, radius, survivable, WorldConfig.deepWaterMax);
         }
         boolean cornered = SurvivalFacts.cornered(hazard);
         int lethal = SurvivalFacts.lethalCount(hazard);

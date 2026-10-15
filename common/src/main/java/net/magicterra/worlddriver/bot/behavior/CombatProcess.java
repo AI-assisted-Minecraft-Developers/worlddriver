@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.behavior;
 
 import static net.magicterra.worlddriver.game.observe.RegistryIds.typeId;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
@@ -51,8 +51,8 @@ import net.minecraft.world.phys.Vec3;
  *       (facing + line-of-sight, close); done when nothing is pressing.</li>
  * </ul>
  *
- * <p>Melee closes to {@link BotConfig#combatReach} (pathing via {@link Walker}) and
- * pre-jumps to crit; ranged (bow/crossbow in hand) keeps {@link BotConfig#kiteDistance},
+ * <p>Melee closes to {@link BehaviorConfig#combatReach} (pathing via {@link Walker}) and
+ * pre-jumps to crit; ranged (bow/crossbow in hand) keeps {@link BehaviorConfig#kiteDistance},
  * drawing and releasing at full charge.
  */
 public final class CombatProcess implements BotProcess {
@@ -135,7 +135,7 @@ public final class CombatProcess implements BotProcess {
             // clear, so the walk-back is safe; DEFEND stays snappy — it exists to
             // get back to the suspended task, not to loot.
             if (mode != Mode.DEFEND && lastTargetPos != null
-                    && BotConfig.combatCollectDrops
+                    && BehaviorConfig.combatCollectDrops
                     && !collectSweep(a, p, w, st)) {
                 return false;
             }
@@ -262,7 +262,7 @@ public final class CombatProcess implements BotProcess {
     // === melee ===============================================================
 
     private void meleeTick(Body a, Player p, WorldView w, Entity target, double dist, BotState st) {
-        if (dist > BotConfig.combatReach + 0.4) {
+        if (dist > BehaviorConfig.combatReach + 0.4) {
             approach(a, w, target);
             return;
         }
@@ -274,7 +274,7 @@ public final class CombatProcess implements BotProcess {
 
         float scale = p.getAttackStrengthScale(0.5f);
         // Pre-jump so we're descending when the cooldown completes (vanilla crit rule).
-        a.commandJump(BotConfig.combatCrit && p.onGround() && scale >= 0.85f && scale < 1.0f);
+        a.commandJump(BehaviorConfig.combatCrit && p.onGround() && scale >= 0.85f && scale < 1.0f);
         if (scale >= 1.0f) {
             hands.attackEntity(target);
             p.swing(InteractionHand.MAIN_HAND);
@@ -288,7 +288,7 @@ public final class CombatProcess implements BotProcess {
     private void approach(Body a, WorldView w, Entity target) {
         approaching = true;
         BlockPos tb = target.blockPosition();
-        int radius = Math.max(1, (int) Math.floor(BotConfig.combatReach));
+        int radius = Math.max(1, (int) Math.floor(BehaviorConfig.combatReach));
         // A DIFFERENT ENTITY IS A DIFFERENT PURSUIT, and this is the only place that knows it —
         // the walker sees cells, not quarries. Getting this wrong is worse than the bug below it:
         // a futile latch earned chasing an unreachable blaze would ride retargetGoal into the walk
@@ -322,7 +322,7 @@ public final class CombatProcess implements BotProcess {
     private int closeHostiles(Player p) {
         int n = 0;
         for (ThreatScanner.Threat t : scanFor(p).threats()) {
-            if (t.distance() <= BotConfig.combatReach + 2.0) n++;
+            if (t.distance() <= BehaviorConfig.combatReach + 2.0) n++;
         }
         return n;
     }
@@ -335,9 +335,9 @@ public final class CombatProcess implements BotProcess {
         p.setSprinting(false);
         // Keep the kite band: back up if too close, advance if too far, else hold.
         float fwd = 0f;
-        if (dist < BotConfig.kiteDistance - 1.0) {
+        if (dist < BehaviorConfig.kiteDistance - 1.0) {
             fwd = -1f;                                  // step back, keep facing the target
-        } else if (dist > BotConfig.kiteDistance + 2.0) {
+        } else if (dist > BehaviorConfig.kiteDistance + 2.0) {
             fwd = 1f;
         }
         a.commandForward(fwd);

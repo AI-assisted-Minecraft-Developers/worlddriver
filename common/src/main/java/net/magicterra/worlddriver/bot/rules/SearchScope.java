@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.rules;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -69,7 +69,7 @@ public final class SearchScope {
     public Goal goal() { return goal; }
     public ThreatSnapshot threats() { return threats; }
     public LineOfSight los() { return los; }
-    /** True when the scan box was cut down to {@link BotConfig#snapshotBoxMax} on some axis, so
+    /** True when the scan box was cut down to {@link RulesConfig#snapshotBoxMax} on some axis, so
      *  entities in the cut-off part are not in the snapshot. */
     public boolean truncated() { return truncated; }
 
@@ -90,7 +90,7 @@ public final class SearchScope {
     /**
      * Snapshots the entities around a search. The scan box is the box spanned by {@code start}
      * and the goal's target (the start alone for a goal with no target cell), inflated by the
-     * profile's largest scan radius, then capped per axis at {@link BotConfig#snapshotBoxMax}
+     * profile's largest scan radius, then capped per axis at {@link RulesConfig#snapshotBoxMax}
      * keeping the end nearest the start. Every living entity in it except {@code selfId} goes
      * into the snapshot; the components filter by kind themselves.
      *
@@ -111,7 +111,7 @@ public final class SearchScope {
         double[] hi = { Math.max(x0, x1) + radius + 1, Math.max(y0, y1) + radius + 1, Math.max(z0, z1) + radius + 1 };
         double[] from = { x0, y0, z0 };
         boolean truncated = false;
-        int max = Math.max(16, BotConfig.snapshotBoxMax);
+        int max = Math.max(16, RulesConfig.snapshotBoxMax);
         for (int a = 0; a < 3; a++) {
             if (hi[a] - lo[a] <= max) continue;
             truncated = true;

@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.world;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
@@ -57,7 +57,7 @@ public final class CellRules {
      *  lily pad, a closed bottom trapdoor). */
     public static boolean isPassable(BlockGetter lvl, BlockPos p, BlockState s) {
         if (!s.blocksMotion() || s.getFluidState().is(FluidTags.WATER)) return true;
-        if (!BotConfig.collisionAwarePathing) return false;
+        if (!WorldConfig.collisionAwarePathing) return false;
         VoxelShape shape = s.getCollisionShape(lvl, p);
         if (shape.isEmpty()) return true;
         // The full cube answers without a shape join. Inside rock every cell is one, and the join
@@ -78,7 +78,7 @@ public final class CellRules {
      */
     public static boolean canStandOn(BlockGetter lvl, BlockPos p, BlockState s) {
         if (!s.blocksMotion()) return false;
-        if (!BotConfig.collisionAwarePathing) return true;
+        if (!WorldConfig.collisionAwarePathing) return true;
         VoxelShape shape = s.getCollisionShape(lvl, p);
         if (shape.isEmpty()) return false;
         if (shape == Shapes.block()) return true;   // see isPassable: the full cube skips the join
@@ -96,7 +96,7 @@ public final class CellRules {
     }
 
     private static boolean isThinFloorDecoration(VoxelShape shape) {
-        double thin = BotConfig.pathfinderThinObstacleHeight;
+        double thin = WorldConfig.pathfinderThinObstacleHeight;
         return thin > 0 && shape.min(Direction.Axis.Y) <= 0.001 && shape.max(Direction.Axis.Y) <= thin;
     }
 
@@ -187,8 +187,8 @@ public final class CellRules {
         int ticks = Math.max(1, (int) Math.ceil(1.0 / damage));
         double cost = COST_PER_TICK * ticks;
         if (!bestCorrect) cost *= WRONG_TOOL_TAX;
-        if (BotConfig.pathfinderLogBreakTax != 1.0 && s.is(BlockTags.LOGS) && !LogWaiver.active())
-            cost *= BotConfig.pathfinderLogBreakTax;
-        return cost * BotConfig.pathfinderBreakCostMultiplier;
+        if (WorldConfig.pathfinderLogBreakTax != 1.0 && s.is(BlockTags.LOGS) && !LogWaiver.active())
+            cost *= WorldConfig.pathfinderLogBreakTax;
+        return cost * WorldConfig.pathfinderBreakCostMultiplier;
     }
 }

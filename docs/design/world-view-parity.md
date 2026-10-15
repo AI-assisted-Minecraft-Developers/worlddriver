@@ -39,10 +39,10 @@ have planned.
 
 All three views delegate to one class, `bot/world/CellRules`, so each rule is written once.
 
-**`isPassable`** accepts air and water. With `BotConfig.collisionAwarePathing` on it also
+**`isPassable`** accepts air and water. With `WorldConfig.collisionAwarePathing` on it also
 accepts two more cases: a collision shape that misses the 0.6-wide column of the player's hitbox entirely
 (cocoa pods, single-axis glass panes, the bulge on a wall), and a shape that hugs the floor
-and is no taller than `BotConfig.pathfinderThinObstacleHeight` (pressure plates, carpets,
+and is no taller than `WorldConfig.pathfinderThinObstacleHeight` (pressure plates, carpets,
 lily pads, a closed bottom trapdoor).
 
 **`canStandOn`** requires the block to stop motion with a non-empty collision shape, to have

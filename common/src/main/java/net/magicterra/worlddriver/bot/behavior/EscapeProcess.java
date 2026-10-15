@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
@@ -42,7 +44,7 @@ import static net.magicterra.worlddriver.game.body.BotUtil.yawFor;
  * is reported through {@link BotState#escape} so the agent can read the outcome
  * (the old slot-less version ended silently, indistinguishable from success).
  *
- * <p>Needs {@link BotConfig#allowBreak} (every step mines), and a wall with a
+ * <p>Needs {@link WorldConfig#allowBreak} (every step mines), and a wall with a
  * solid non-falling tread to stand on; bails if no carvable direction exists or
  * a step stalls past the timeout. Drives through the {@link Body} seam (break /
  * place / tool / forward / jump on the player's own input), so it runs over a
@@ -72,7 +74,7 @@ public final class EscapeProcess implements BotProcess {
 
     public EscapeProcess(int targetY) { this.targetY = targetY; }
 
-    private static void dbg(String m, Object... a) { if (BotConfig.walkerDebug) LOG.info("[escape] " + m, a); }
+    private static void dbg(String m, Object... a) { if (GameConfig.walkerDebug) LOG.info("[escape] " + m, a); }
 
     @Override public String kind() { return "escape"; }
 
@@ -107,7 +109,7 @@ public final class EscapeProcess implements BotProcess {
         if (p == null) return done(a, st, "no player");
         hands = a.hands().orElse(null);
         if (hands == null) return done(a, st, BodyReady.Reason.NO_HANDS);
-        if (!BotConfig.allowBreak) return done(a, st, "allowBreak is off — escape mines every step");
+        if (!WorldConfig.allowBreak) return done(a, st, "allowBreak is off — escape mines every step");
         BlockPos foot = p.blockPosition();
         st.escape.pathStep = steps;
         st.escape.target = foot;
@@ -255,7 +257,7 @@ public final class EscapeProcess implements BotProcess {
         a.aimAtBlock(target);
         hands.breakHold(true);
         hands.continueDestroy(target);
-        if (++actTicks > BotConfig.breakTimeoutTicks * 3) {   // walls (bare-hand sandstone) are slow
+        if (++actTicks > ControlConfig.breakTimeoutTicks * 3) {   // walls (bare-hand sandstone) are slow
             return done(a, st, "carve timeout at " + target.toShortString()
                     + " (solid=" + w.isSolid(target) + ")");
         }
@@ -321,7 +323,7 @@ public final class EscapeProcess implements BotProcess {
         a.aimAtBlock(target);
         hands.breakHold(true);
         hands.continueDestroy(target);
-        if (++actTicks > BotConfig.breakTimeoutTicks * 3) {
+        if (++actTicks > ControlConfig.breakTimeoutTicks * 3) {
             return done(a, st, "ceiling-break timeout at " + target.toShortString());
         }
         return false;

@@ -93,6 +93,11 @@ class ConfigPinDisciplineTest {
     private static final Path TESTMOD_CLASSES = Path.of("build/classes/java/testmod");
     private static final String BOTCONFIG = "net/magicterra/worlddriver/config/BotConfig";
     private static final String PIN = "pinnedBaseline";
+
+    /** A write to any of the per-layer config classes is a config write; the pin is BotConfig's alone. */
+    private static boolean isConfig(String owner) {
+        return owner.startsWith("net/magicterra/worlddriver/config/") && owner.endsWith("Config");
+    }
     private static final String TESTMOD_PKG = "net/magicterra/worlddriver/bot/stagewright";
 
     /**
@@ -424,7 +429,7 @@ class ConfigPinDisciplineTest {
                         if (resolvable) {
                             String ro = refOwner(idx);
                             String rn = refName(idx);
-                            if (op == 0xb3 && BOTCONFIG.equals(ro)) {
+                            if (op == 0xb3 && isConfig(ro)) {
                                 writes.computeIfAbsent(key, k -> new TreeSet<>()).add(rn);
                             } else if (op == 0xb8 && BOTCONFIG.equals(ro) && PIN.equals(rn)) {
                                 pins.add(key);

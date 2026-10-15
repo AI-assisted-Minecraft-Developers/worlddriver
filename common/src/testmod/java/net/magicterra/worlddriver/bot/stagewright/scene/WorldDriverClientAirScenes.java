@@ -6,7 +6,9 @@ import java.util.Locale;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.minecraft.core.BlockPos;
@@ -48,13 +50,13 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
         ctx.record("test setup", "chasm at x in [2,3], 6 deep; start " + start.toShortString() + ", goal "
                 + goal.toShortString() + ", empty hands");
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = true;
-        BotConfig.walkerFinalNodeDirectAim = true;
-        BotConfig.walkerHoldLastNodeUntilStanding = true;
-        BotConfig.walkerOrbitBreaksAimLag = true;
-        BotConfig.walkerSurfaceSprintSwim = true;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = true;
+        ControlConfig.walkerFinalNodeDirectAim = true;
+        ControlConfig.walkerHoldLastNodeUntilStanding = true;
+        ControlConfig.walkerOrbitBreaksAimLag = true;
+        ControlConfig.walkerSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
         helm.sync(30, () -> {
             ctx.record("start after sync", helm.where());
@@ -98,13 +100,13 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
                 + goal.toShortString() + ", 30 dirt in hand");
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         helm.hold(new ItemStack(Items.DIRT, 30));
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = true;
-        BotConfig.walkerFinalNodeDirectAim = true;
-        BotConfig.walkerHoldLastNodeUntilStanding = true;
-        BotConfig.walkerOrbitBreaksAimLag = true;
-        BotConfig.walkerSurfaceSprintSwim = true;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = true;
+        ControlConfig.walkerFinalNodeDirectAim = true;
+        ControlConfig.walkerHoldLastNodeUntilStanding = true;
+        ControlConfig.walkerOrbitBreaksAimLag = true;
+        ControlConfig.walkerSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
         helm.sync(30, () -> {
             ctx.record("start after sync", helm.where());
@@ -176,15 +178,15 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
                 + start.toShortString() + " (" + DROP + " blocks in the air), goal " + goal.toShortString());
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = true;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = true;
         // Shipped default, restored over the pinned baseline: the stone landing is the scene that
         // measured the diagonal overshoot of the last node, and its budget is what notices it.
-        BotConfig.walkerFinalNodeDirectAim = true;
-        BotConfig.walkerHoldLastNodeUntilStanding = true;
-        BotConfig.walkerOrbitBreaksAimLag = true;
-        BotConfig.walkerSurfaceSprintSwim = true;
+        ControlConfig.walkerFinalNodeDirectAim = true;
+        ControlConfig.walkerHoldLastNodeUntilStanding = true;
+        ControlConfig.walkerOrbitBreaksAimLag = true;
+        ControlConfig.walkerSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
 
         // Two ticks, not the usual thirty: the player is falling, and the point is to order the walk

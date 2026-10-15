@@ -48,9 +48,9 @@ class SettingsRuntimeStateTest {
     @Test
     void theAnnotationDecidesAndNothingElse() throws NoSuchFieldException {
         for (String key : RUNTIME) {
-            assertTrue(BotConfig.class.getField(key).isAnnotationPresent(RuntimeState.class), key);
+            assertTrue(BotConfig.field(key).isAnnotationPresent(RuntimeState.class), key);
         }
-        for (Field f : BotConfig.class.getFields()) {
+        for (Field f : BotConfig.publicFields()) {
             if (f.isAnnotationPresent(RuntimeState.class)) {
                 assertFalse(SettingsRegistry.isKnown(f.getName()), f.getName());
             }

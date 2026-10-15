@@ -106,7 +106,7 @@ archive stops being evidence.
 - `debug/ReplayTool.java`, `bot/ReplayInstaller.java` — restoring and re-executing.
 - `api/methods/debug/DebugContracts.java` — the two verbs and their parameters.
 - `path-replay/` — the offline analyser.
-- `config/BotConfig.java` — the capture flags and their caps.
+- `config/ControlConfig.java` — the capture flags; `config/BotConfig.java` — their caps.
 
 What the corpus of archives is used for, and the rule for accepting a change against it, is
 `docs/design/conformance-and-corpus-gating.md`.

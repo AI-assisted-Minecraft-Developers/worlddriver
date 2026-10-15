@@ -396,7 +396,7 @@ public final class FixtureRunner {
                     if (!f.config().isEmpty()) {
                         Map<String, Object> now = new LinkedHashMap<>();
                         for (String k : f.config().keySet()) {
-                            try { now.put(k, BotConfig.class.getField(k).get(null)); }
+                            try { now.put(k, BotConfig.field(k).get(null)); }
                             catch (ReflectiveOperationException | RuntimeException e) { now.put(k, "unreadable"); }
                         }
                         ctx.record(tag + ".config", String.valueOf(now));
@@ -603,11 +603,11 @@ public final class FixtureRunner {
 
         // ---- staging helpers
 
-        /** {@code config} keys are {@link BotConfig} field names; the pin restores them all. */
+        /** {@code config} keys are config field names ({@link BotConfig#field}); the pin restores them all. */
         private static void applyConfig(Map<String, Object> config) {
             for (var e : config.entrySet()) {
                 try {
-                    var field = BotConfig.class.getField(e.getKey());
+                    var field = BotConfig.field(e.getKey());
                     Object v = e.getValue();
                     Class<?> t = field.getType();
                     if (t == boolean.class) field.setBoolean(null, Boolean.TRUE.equals(v) || "true".equals(String.valueOf(v)));

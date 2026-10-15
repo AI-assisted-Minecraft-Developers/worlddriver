@@ -12,7 +12,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.PriorityQueue;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
 import java.util.Arrays;
 import java.util.IdentityHashMap;
@@ -74,7 +75,7 @@ public final class PathFinder {
     /** Minimum heuristic reduction (cost units ≈ 5 blocks toward the goal) a
      *  loaded-chunk frontier node must offer over the start before a frontier
      *  segment is committed — so a sideways/backward chunk edge never pulls the
-     *  bot off course (see {@link BotConfig#pathfinderFrontierCommit}). */
+     *  bot off course (see {@link PlanningConfig#pathfinderFrontierCommit}). */
     private static final double MIN_FRONTIER_GAIN = 50;
 
     /** Min height (blocks) a vertical-escape segment must climb above the start to
@@ -252,16 +253,16 @@ public final class PathFinder {
      *  so {@code mc.bot.setting{pathfinder.maxNodes:...}} can resize the budget
      *  without restarting the JVM. */
     public PathFinder(WorldView world) {
-        this(world, BotConfig.pathfinderMaxNodes, BotConfig.pathfinderMaxMs, SearchProfile.NONE);
+        this(world, PlanningConfig.pathfinderMaxNodes, PlanningConfig.pathfinderMaxMs, SearchProfile.NONE);
     }
     public PathFinder(WorldView world, SearchProfile profile) {
-        this(world, BotConfig.pathfinderMaxNodes, BotConfig.pathfinderMaxMs, profile);
+        this(world, PlanningConfig.pathfinderMaxNodes, PlanningConfig.pathfinderMaxMs, profile);
     }
     /** Back-compat: bias-only convenience ctor for callers that just want a cost
      *  bias without a full profile (e.g. the {@code wd.*} Bias scenes in
      *  {@code WorldDriverBiasScenes}). */
     public PathFinder(WorldView world, List<CostModifier> bias) {
-        this(world, BotConfig.pathfinderMaxNodes, BotConfig.pathfinderMaxMs,
+        this(world, PlanningConfig.pathfinderMaxNodes, PlanningConfig.pathfinderMaxMs,
                 new SearchProfile(bias, CapabilityProfile.ALL, List.of()));
     }
     public PathFinder(WorldView world, int maxNodes, long maxMs) {
@@ -382,7 +383,7 @@ public final class PathFinder {
         private final Node[] bestSoFar = new Node[COEFFICIENTS.length];
         /** Reachable node nearest the goal (min raw h) that borders an unloaded
          *  chunk — the goal-ward edge of known terrain. Drives segmented planning
-         *  to the loaded-chunk frontier (see {@link BotConfig#pathfinderFrontierCommit}). */
+         *  to the loaded-chunk frontier (see {@link PlanningConfig#pathfinderFrontierCommit}). */
         private Node bestFrontier;
         private double bestFrontierH = Double.POSITIVE_INFINITY;
         // Water-escape best-effort: when the search STARTS in water, track the
@@ -518,7 +519,7 @@ public final class PathFinder {
             this.activeMoves = active.toArray(new Move[0]);
             // Build the obstacle-aware heuristic field once per search (before any
             // node is created so the start node gets the field estimate too).
-            this.goalField = BotConfig.pathfinderGoalField
+            this.goalField = PlanningConfig.pathfinderGoalField
                     ? CoarseGoalField.build(world, goal, start) : null;
             this.startNode = new Node(start, null, null, 0, heuristic(start));
             nodes.put(start, startNode);
@@ -555,7 +556,7 @@ public final class PathFinder {
             tax("padOverWater", (f, t, e, g, w) -> padOverWaterTax(t));
             // task#97c learned stuck-risk tax — appended LAST so the legacy tax
             // sum order (FP-sensitive) is untouched; contributes exactly 0.0
-            // when BotConfig.riskBias is OFF or the move isn't table-listed.
+            // when RulesConfig.riskBias is OFF or the move isn't table-listed.
             tax("riskTable", (f, t, e, g, w)
                     -> net.magicterra.worlddriver.bot.rules.modifiers.RiskCostTable.tax(f, e, w));
             tax("climbOut", (f, t, e, g, w) -> climbOutTax(f, t));
@@ -586,7 +587,7 @@ public final class PathFinder {
             // DIVE opt-in actually reached THIS search, whether the SurfaceDive move
             // survived the filter, and whether it (and SwimDown) yields an edge from
             // the start cell — the live rc-a5c/e/g mystery was invisible without this.
-            if (BotConfig.walkerDebug) {
+            if (GameConfig.walkerDebug) {
                 Move surfDive = null, swimDown = null;
                 for (Move m : activeMoves) {
                     if ("swimDownSurface".equals(m.name())) surfDive = m;
@@ -647,7 +648,7 @@ public final class PathFinder {
                     owner, r.goalReached(), r.path().isEmpty() ? -1 : r.path().size() - 1,
                     r.path().isEmpty() ? "none" : r.path().get(r.path().size() - 1).toShortString(),
                     r.expanded(), r.ms());
-            if ((TAX_LOG || BotConfig.walkerDebug) && !r.path().isEmpty()) {
+            if ((TAX_LOG || GameConfig.walkerDebug) && !r.path().isEmpty()) {
                 LOG.info("[pathfinder] tax-breakdown owner={} reached={} steps={} finalCost={} onPath[{}] duringSearch[{}]",
                         owner, r.goalReached(), r.path().size() - 1,
                         String.format(Locale.ROOT, "%.1f", r.finalCost()),
@@ -711,7 +712,7 @@ public final class PathFinder {
             // as free progress and the search dives into a dead-end low valley. Charge
             // descent below this search's start (asymmetric — climbing stays free).
             if (tuning.depthPenalty() > 0) {
-                int below = start.getY() - BotConfig.pathfinderDepthSlack - p.getY();
+                int below = start.getY() - PlanningConfig.pathfinderDepthSlack - p.getY();
                 if (below > 0) h += tuning.depthPenalty() * below;
             }
             return h;
@@ -816,7 +817,7 @@ public final class PathFinder {
          *  so normal terrain pathing is byte-for-byte unchanged. Only the portion of
          *  the step below the slack threshold is charged, and only when going down. */
         private double descendTax(BlockPos from, BlockPos to, Move.Edge edge) {
-            double per = BotConfig.pathfinderDescendCost;
+            double per = PlanningConfig.pathfinderDescendCost;
             if (per <= 0 || to.getY() >= from.getY()) return 0;        // off, or not descending
             // ONLY for Y-agnostic (XZ) goals: those let descent read as free progress
             // (the root cause). A goal that knows its target Y (pos/block — a seabed
@@ -842,7 +843,7 @@ public final class PathFinder {
             // dive go untaxed, the floating bot could never follow the path down, and
             // every wedge-repath recommitted the same dive → permanent pin). A DRY
             // start keeps the slack so a normal downhill into a stream stays free.
-            int slack = world.isWater(start) ? 0 : BotConfig.pathfinderDepthSlack;
+            int slack = world.isWater(start) ? 0 : PlanningConfig.pathfinderDepthSlack;
             int threshold = start.getY() - slack;
             int hiY = Math.min(from.getY(), threshold);
             int loY = Math.min(to.getY(), threshold);
@@ -860,7 +861,7 @@ public final class PathFinder {
          *  in-water cave it routes UP to dry y84 land). A shorter / sole water crossing
          *  is still taken; Y-aware pos/block goals are exempt exactly like descendTax. */
         private double waterCellTax(BlockPos to) {
-            double tax = BotConfig.pathfinderWaterCellCost;
+            double tax = PlanningConfig.pathfinderWaterCellCost;
             if (tax <= 0 || !goal.ignoresY() || !world.isWater(to)) return 0;
             // A SUBMERGED cell (water directly above → a surface bot must dive under to
             // thread it) costs extra, so A* keeps the route ON THE SURFACE instead of
@@ -880,32 +881,32 @@ public final class PathFinder {
             // unchanged.
             boolean submerged = world.isWater(to.offset(0, 1, 0));
             boolean cappedChamber = !submerged && world.isSolid(to.offset(0, 2, 0));
-            double overheadExtra = (BotConfig.pathfinderSubmergedWaterCost > 0
+            double overheadExtra = (PlanningConfig.pathfinderSubmergedWaterCost > 0
                     && (submerged || cappedChamber))
-                    ? BotConfig.pathfinderSubmergedWaterCost : 0;
+                    ? PlanningConfig.pathfinderSubmergedWaterCost : 0;
             return tax + overheadExtra;
         }
 
         /** Per-cell tax for a move that stands ON a leaf canopy or pushes the head INTO leaves
-         *  (see BotConfig.pathfinderLeafCellCost). Leaves read as standable ground, so A* climbs the
+         *  (see PlanningConfig.pathfinderLeafCellCost). Leaves read as standable ground, so A* climbs the
          *  bot onto a tree canopy where it bobs/rams the dense head-height leaves; this softly prices
          *  canopy cells so a ground route around/under the tree wins. A sole canopy route is still
          *  taken. Y-agnostic and goal-type-neutral — leaves jank a buoy-free climb regardless. */
         private double leafCellTax(BlockPos to) {
-            double tax = BotConfig.pathfinderLeafCellCost;
+            double tax = PlanningConfig.pathfinderLeafCellCost;
             if (tax <= 0) return 0;
             return (world.isLeaves(to.below()) || world.isLeaves(to.above())) ? tax : 0;
         }
 
         /** Per-cell tax on a SURFACE-WATER cell whose cell-above is a thin breakable obstruction —
-         *  canonically a lily pad (see BotConfig.pathfinderLilyPadCellCost). The planner treats the pad's
+         *  canonically a lily pad (see PlanningConfig.pathfinderLilyPadCellCost). The planner treats the pad's
          *  thin shape as passable, but a slowed surface swimmer rams the pad's head-height collision box
          *  (hCol, hSpd→0) and the break-actuator can't reliably punch the overhead pad → a multi-second
          *  bob-freeze. This softly prices pad-over-water cells so A* threads the adjacent clear water and
          *  swims around the pad. Gated like waterCellTax (XZ/swim goal + real water cell) so dry-land
          *  grass overhead is never taxed; a pad implies water below, so the water gate is exact. */
         private double padCellTax(BlockPos to) {
-            double tax = BotConfig.pathfinderLilyPadCellCost;
+            double tax = PlanningConfig.pathfinderLilyPadCellCost;
             if (tax <= 0 || !goal.ignoresY() || !world.isWater(to)) return 0;
             return world.isBreakableObstruction(to.above()) ? tax : 0;
         }
@@ -913,7 +914,7 @@ public final class PathFinder {
         /** Per-cell tax on a SURFACE-WATER traversal cell whose two cells above ({@code foot+1} and
          *  {@code foot+2}, where the floating bot's hitbox sits) carry a hanging-VINE
          *  or LEAF obstruction over the water — a tree-canopy (oak_leaves + draped vines, often with lily
-         *  pads) growing IN/over a lake/river (see BotConfig.pathfinderVineOverWaterTax). The planner
+         *  pads) growing IN/over a lake/river (see PlanningConfig.pathfinderVineOverWaterTax). The planner
          *  reads the foot cell as ordinary surface water and threads a horizontal crossing node STRAIGHT
          *  THROUGH it, because none of the sibling taxes price this geometry: {@link #waterCellTax} /
          *  {@link #submergedTax} inspect only the water cell + its directly above/below (the vine at
@@ -936,8 +937,8 @@ public final class PathFinder {
          *  move cost). Inert when the flag is OFF (byte-identical no-op) and on the headless/grid views
          *  (no leaves/climbable over water). */
         private double vineOverWaterTax(BlockPos to) {
-            double tax = BotConfig.pathfinderLeafCellCost;
-            if (!BotConfig.pathfinderVineOverWaterTax || tax <= 0 || !world.isWater(to)) return 0;
+            double tax = PlanningConfig.pathfinderLeafCellCost;
+            if (!PlanningConfig.pathfinderVineOverWaterTax || tax <= 0 || !world.isWater(to)) return 0;
             BlockPos head = to.above();          // foot+1 — the bot's own cell a hanging vine drapes into
             BlockPos over = to.offset(0, 2, 0);  // foot+2 — the head cell / low leaf canopy
             boolean obstructed = world.isLeaves(head) || world.isClimbable(head)
@@ -947,7 +948,7 @@ public final class PathFinder {
 
         /** Per-cell tax on a SURFACE-WATER traversal cell whose FOOT+1 cell holds a thin breakable
          *  obstruction — canonically a SINGLE SPARSE lily pad over deep OPEN water (see
-         *  BotConfig.pathfinderPadOverWaterTax). This is the goal-type-NEUTRAL sibling of {@link #padCellTax}:
+         *  PlanningConfig.pathfinderPadOverWaterTax). This is the goal-type-NEUTRAL sibling of {@link #padCellTax}:
          *  that method prices the identical pad geometry but is gated to XZ goals ({@code goal.ignoresY()},
          *  mirroring {@link #waterCellTax}'s triple-gate — the dense-pool A/B that validated it crossed on a
          *  bare-column XZ swim goal). A real {@code mc.bot.goto x,y,z} is a Y-AWARE goal ({@code Goal.Block}/
@@ -967,10 +968,10 @@ public final class PathFinder {
          *  the break-actuator stays the fallback) — nothing becomes unreachable, so no stranding. Inert when
          *  the flag is OFF (byte-identical no-op) and on the headless/grid views (no pads over water). */
         private double padOverWaterTax(BlockPos to) {
-            double tax = BotConfig.pathfinderLilyPadCellCost;
-            if (!BotConfig.pathfinderPadOverWaterTax || tax <= 0 || !world.isWater(to)) return 0;
+            double tax = PlanningConfig.pathfinderLilyPadCellCost;
+            if (!PlanningConfig.pathfinderPadOverWaterTax || tax <= 0 || !world.isWater(to)) return 0;
             if (!isPadOverWater(to)) return 0;
-            // CLUSTER surcharge (BotConfig.pathfinderPadClusterTax). The flat per-pad tax above tips A*
+            // CLUSTER surcharge (PlanningConfig.pathfinderPadClusterTax). The flat per-pad tax above tips A*
             // around a LONE pad: a 1-block side-deflection (Diagonal +4 in, +4 out = +8) is cheaper than
             // the +20 dig, so the cheapest plan swims around it. But for an ADJACENT pad PAIR / cluster
             // the cheapest CLEAR lane sits ≥2 cells off the crossing line — the natural 1-cell deflection
@@ -984,13 +985,13 @@ public final class PathFinder {
             // forbid: a fully pad-covered field with no clear lane has the same scaled tax on EVERY cell,
             // so A* still threads the shortest line through (no stranding — the break-actuator stays the
             // fallback). Inert when the cluster flag is OFF (the flat tax above is unchanged).
-            if (BotConfig.pathfinderPadClusterTax) {
+            if (PlanningConfig.pathfinderPadClusterTax) {
                 int adj = 0;
                 if (isPadOverWater(to.offset( 1, 0, 0))) adj++;
                 if (isPadOverWater(to.offset(-1, 0, 0))) adj++;
                 if (isPadOverWater(to.offset( 0, 0, 1))) adj++;
                 if (isPadOverWater(to.offset( 0, 0, -1))) adj++;
-                if (adj > 0) tax += adj * BotConfig.pathfinderLilyPadCellCost;
+                if (adj > 0) tax += adj * PlanningConfig.pathfinderLilyPadCellCost;
             }
             return tax;
         }
@@ -1019,7 +1020,7 @@ public final class PathFinder {
          *  14s→37s). So land-goal water exits are governed by submergedTax (stay on the
          *  surface), not by taxing the exit. */
         private double climbOutTax(BlockPos from, BlockPos to) {
-            double per = BotConfig.pathfinderWaterClimbOutCost;
+            double per = PlanningConfig.pathfinderWaterClimbOutCost;
             if (per <= 0 || !goal.ignoresY()) return 0;
             if (!world.isWater(from) || world.isWater(to)) return 0;   // only water → dry
             int rise = to.getY() - from.getY();
@@ -1036,8 +1037,8 @@ public final class PathFinder {
             // TALL exits and misses these low FLOATING ones, so price them up here so A* tips onto
             // a GROUNDED/shallow exit (solid floor under the foot → fast flush stepUp/walk) where
             // the shoreline offers one. isFloatingWater = water at foot AND foot.below().
-            if (BotConfig.pathfinderFloatingClimbOutMult > 0 && world.isFloatingWater(from))
-                tax += per * rise * BotConfig.pathfinderFloatingClimbOutMult;
+            if (PlanningConfig.pathfinderFloatingClimbOutMult > 0 && world.isFloatingWater(from))
+                tax += per * rise * PlanningConfig.pathfinderFloatingClimbOutMult;
             // Steep surcharge ABOVE a buoyant bot's smooth-mount reach (~+3). A tall exit
             // (+4..) can't be swim-jumped or sand-pillared from deep water (the column sinks
             // the falling block); it forces the bob-stuttery toolless bank-DIG — 25× underwater
@@ -1064,13 +1065,13 @@ public final class PathFinder {
          *  the pillar/dig climb-out arenas, which start submerged and ascend — is untouched.
          *  Scoped to land-target Y-aware goals: XZ goals already price submerged cells via
          *  {@link #waterCellTax}; a deliberate dive to an UNDERWATER target ({@link #diveGoal})
-         *  is exempt. Reuses {@link BotConfig#pathfinderSubmergedWaterCost}.
-         *  <p>{@link BotConfig#pathfinderFloatingSurfaceCross} (default OFF) extends this to also price
+         *  is exempt. Reuses {@link PlanningConfig#pathfinderSubmergedWaterCost}.
+         *  <p>{@link PlanningConfig#pathfinderFloatingSurfaceCross} (default OFF) extends this to also price
          *  a HORIZONTAL/rising entry into a deep FLOATING-submerged cell for a Y-aware goal — the case
          *  where a bot ENTERS deep water already submerged and the descent clause never fires, so A*
          *  threads the whole crossing one below the surface (the live #47 deep-water bob-jam). */
         private double submergedTax(BlockPos from, BlockPos to) {
-            double tax = BotConfig.pathfinderSubmergedWaterCost;
+            double tax = PlanningConfig.pathfinderSubmergedWaterCost;
             // Applies to XZ goals TOO (not just Y-aware land goals): waterCellTax's flat per-cell
             // entry tax doesn't specifically price the DESCENT, so over a short underwater slope A*
             // still walked the buoyant bot DOWN to a submerged riverbed node (live 2026-06-23: a
@@ -1082,7 +1083,7 @@ public final class PathFinder {
             // DESCENT into a submerged cell (the original case): keeps the surface crossing on top.
             if (to.getY() < from.getY() && world.isWater(to.offset(0, 1, 0))) return tax;
             // HORIZONTAL / rising entry into a DEEP floating-submerged cell, for Y-AWARE goals only
-            // ({@link BotConfig#pathfinderFloatingSurfaceCross}). Once a buoyant bot enters deep water
+            // ({@link PlanningConfig#pathfinderFloatingSurfaceCross}). Once a buoyant bot enters deep water
             // already submerged, the rest of the crossing is horizontal (never a fresh descent), so the
             // descent clause above never fires and A* threads the whole crossing one cell below the
             // surface — where the floating bot cannot follow (it bobs at the surface above the y-1
@@ -1093,7 +1094,7 @@ public final class PathFinder {
             // pay this via waterCellTax's submerged overhead, so taxing here would double-charge. A tax,
             // not a forbid: a roofed submerged tunnel with no surface route is still threaded (it stays
             // the cheapest available path). Inert when the flag is OFF (byte-identical no-op).
-            if (BotConfig.pathfinderFloatingSurfaceCross && !goal.ignoresY()
+            if (PlanningConfig.pathfinderFloatingSurfaceCross && !goal.ignoresY()
                     && world.isFloatingWater(to) && world.isWater(to.offset(0, 1, 0))) return tax;
             return 0;
         }
@@ -1130,7 +1131,7 @@ public final class PathFinder {
             //
             // Gated on the yield being DISABLED, because that is exactly the population the crash
             // lives in and it is a pre-hoc test, not a guess about how long this call will take:
-            // scenes set BotConfig.pathfinderSliceMs to Long.MAX_VALUE/2 so a search is never
+            // scenes set ControlConfig.pathfinderSliceMs to Long.MAX_VALUE/2 so a search is never
             // truncated mid-measurement, sliceLimit collapses to Long.MAX_VALUE, and the pause at
             // the top of the loop below can then never fire. Production (6 ms) keeps its yield and
             // logs nothing here. With the yield off a search runs to completion inside ONE call,
@@ -1231,8 +1232,8 @@ public final class PathFinder {
                     // Loaded-chunk frontier: a reachable node bordering an unloaded
                     // chunk is the edge of known terrain. Track the one nearest the
                     // goal (min raw h) so a horizon-truncated search can commit toward
-                    // it (segmented planning, BotConfig.pathfinderFrontierCommit).
-                    if (BotConfig.pathfinderFrontierCommit && !startInWater
+                    // it (segmented planning, PlanningConfig.pathfinderFrontierCommit).
+                    if (PlanningConfig.pathfinderFrontierCommit && !startInWater
                             && cur.h < bestFrontierH && bordersUnknown(cur.pos)) {
                         bestFrontierH = cur.h;
                         bestFrontier = cur;
@@ -1251,7 +1252,7 @@ public final class PathFinder {
                             return true;
                         }
                     }
-                    // Receding-horizon early-stop (BotConfig.pathfinderHorizonBlocks):
+                    // Receding-horizon early-stop (PlanningConfig.pathfinderHorizonBlocks):
                     // generalises the loaded-chunk frontier commit above to ANY terrain.
                     // The frontier branch only fires at an UNLOADED-chunk edge, so a far
                     // goal in fully-loaded terrain grinds the whole node budget for a tiny
@@ -1379,7 +1380,7 @@ public final class PathFinder {
                                 spentMs, owner, expanded, maxNodes, maxMs, goal, start.toShortString());
                         break;
                     }
-                    // Soft commit (BotConfig.pathfinderSoftCommitNodes): the horizon
+                    // Soft commit (PlanningConfig.pathfinderSoftCommitNodes): the horizon
                     // early-stop above only fires on real forward progress; when the bot is
                     // BOXED at an obstacle no such node appears and the search would grind the
                     // whole hard maxNodes budget (~3.4 s) for a short best-effort segment — a
@@ -1456,7 +1457,7 @@ public final class PathFinder {
                             existing.parent = cur;
                             existing.edge = edge;
                             existing.g = ng;
-                            existing.f = ng + BotConfig.pathfinderHeuristicWeight * existing.h;
+                            existing.f = ng + PlanningConfig.pathfinderHeuristicWeight * existing.h;
                             existing.closed = false;
                             open.add(existing);
                         }
@@ -1473,7 +1474,7 @@ public final class PathFinder {
                 }
                 // open empty / node budget / time budget → commit best-effort segment
                 Node segment = chooseSegment();
-                if (BotConfig.walkerDebug) {
+                if (GameConfig.walkerDebug) {
                     LOG.info("[pathfinder] STOP cause={} expanded={} ms={} segment={} segG={} bestAshore={} bestAshoreG={} bestClimbY={} openLeft={}",
                             stopCause, expanded, totalMs(sliceStart), segmentReason,
                             segment == null ? -1 : segment.g,
@@ -1639,7 +1640,7 @@ public final class PathFinder {
                 return bestAshore;
             }
 
-            if (BotConfig.pathfinderFrontierCommit && bestFrontier != null
+            if (PlanningConfig.pathfinderFrontierCommit && bestFrontier != null
                     && bestFrontier.h < startNode.h - MIN_FRONTIER_GAIN
                     && bestFrontier.pos.distSqr(start) > MIN_DIST_PATH * MIN_DIST_PATH) {
                 segmentReason = "frontier-forward";
@@ -1662,7 +1663,7 @@ public final class PathFinder {
             // the committed edge the known point nearest the goal — the tangent, not a detour
             // away. INERT wherever every chunk is loaded (GameTest/arena): no node borders
             // unknown terrain, so bestFrontier stays null and this branch never fires.
-            if (BotConfig.pathfinderFrontierCommit && bestFrontier != null
+            if (PlanningConfig.pathfinderFrontierCommit && bestFrontier != null
                     && bestFrontier.pos.distSqr(start) > MIN_DIST_PATH * MIN_DIST_PATH
                     && bestFrontier.h < startNode.h + MIN_FRONTIER_GAIN) {
                 segmentReason = "frontier-walled";
@@ -1716,7 +1717,7 @@ public final class PathFinder {
          *  branches of {@link #chooseSegment} (ashore climb-out in water; else a bestSoFar
          *  node past MIN_DIST_PATH, or a vertical-escape climb above the start) without
          *  building the path. Drives the soft-commit early-stop
-         *  ({@link BotConfig#pathfinderSoftCommitNodes}). */
+         *  ({@link PlanningConfig#pathfinderSoftCommitNodes}). */
         private boolean hasCommittableSegment() {
             // Water start mirrors chooseSegment's tiering: a cheap (dig-free)
             // ashore or a surfacing climb may early-stop; an expensive dig-ashore
@@ -1749,7 +1750,7 @@ public final class PathFinder {
             // chunks, so grinding the hard budget can't find it (~3.4 s freeze for nothing).
             // Mirrors chooseSegment's walled-frontier branch so the soft early-stop fires on
             // it and the bot wall-follows at speed. Inert when fully loaded (bestFrontier null).
-            if (BotConfig.pathfinderFrontierCommit && bestFrontier != null
+            if (PlanningConfig.pathfinderFrontierCommit && bestFrontier != null
                     && bestFrontier.pos.distSqr(start) > minSq
                     && bestFrontier.h < startNode.h + MIN_FRONTIER_GAIN) return true;
             for (Node n : bestSoFar) {
@@ -1910,8 +1911,8 @@ public final class PathFinder {
             this.g = g;
             this.h = h;            // raw (admissible) heuristic — best-effort selection reads this
             // Weighted A*: ordering key inflates h by W so the frontier drives harder
-            // toward the goal within the time budget (see BotConfig.pathfinderHeuristicWeight).
-            this.f = g + BotConfig.pathfinderHeuristicWeight * h;
+            // toward the goal within the time budget (see PlanningConfig.pathfinderHeuristicWeight).
+            this.f = g + PlanningConfig.pathfinderHeuristicWeight * h;
         }
     }
 }

@@ -12,6 +12,8 @@ import net.magicterra.worlddriver.bot.SettingsContracts.AvoidPoint;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 
 /**
  * Reads and writes the {@code mc.bot.setting} keys in {@link BotConfig}. Types and ranges are the
@@ -35,12 +37,12 @@ public final class SettingsCommand {
     public static Object read(BotApi bot, String key) {
         return switch (SettingsRegistry.readOf(key)) {
             case BOT_PAUSED -> bot != null && bot.paused();
-            case HAZARD_LIST -> List.copyOf(BotConfig.extraHazardBlocks);
-            case WHITELIST_LIST -> List.copyOf(BotConfig.buildBlockWhitelist);
+            case HAZARD_LIST -> List.copyOf(GameConfig.extraHazardBlocks);
+            case WHITELIST_LIST -> List.copyOf(GameConfig.buildBlockWhitelist);
             case MUTED_LIST -> List.copyOf(BotConfig.mutedEvents);
             case AVOID_POINTS -> {
                 List<AvoidPoint> out = new ArrayList<>();
-                for (double[] z : BotConfig.avoidZones) {
+                for (double[] z : WorldConfig.avoidZones) {
                     if (z.length >= 4) out.add(new AvoidPoint(z[0], z[1], z[2], z[3]));
                 }
                 yield out;
@@ -103,8 +105,8 @@ public final class SettingsCommand {
         for (Entry u : updates) {
             Object v = u.value();
             switch (SettingsRegistry.readOf(u.key())) {
-                case HAZARD_LIST -> BotConfig.extraHazardBlocks = Set.copyOf((List<String>) v);
-                case WHITELIST_LIST -> BotConfig.buildBlockWhitelist = Set.copyOf((List<String>) v);
+                case HAZARD_LIST -> GameConfig.extraHazardBlocks = Set.copyOf((List<String>) v);
+                case WHITELIST_LIST -> GameConfig.buildBlockWhitelist = Set.copyOf((List<String>) v);
                 case MUTED_LIST -> BotConfig.mutedEvents = Set.copyOf(new LinkedHashSet<>((List<String>) v));
                 case AVOID_POINTS -> {
                     List<AvoidPoint> points = (List<AvoidPoint>) v;
@@ -113,7 +115,7 @@ public final class SettingsCommand {
                         AvoidPoint p = points.get(i);
                         zones[i] = new double[]{ p.x(), p.y(), p.z(), p.radius() };
                     }
-                    BotConfig.avoidZones = zones;
+                    WorldConfig.avoidZones = zones;
                 }
                 case CONFIG_FIELD -> writeField(u.key(), v);
                 case BOT_PAUSED -> throw new IllegalArgumentException("paused is a control, applied through the bot");

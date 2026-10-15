@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
@@ -57,7 +57,7 @@ public final class RunAwayProcess implements BotProcess {
         // and boosts water/ledge danger (no diving into water / off a cliff while
         // running). Covers both the RetreatChain reflex and user mc.bot.runAway —
         // both drive this process. Reset to false each clientTick (BotApiImpl).
-        BotConfig.fleeActive = true;
+        WorldConfig.fleeActive = true;
         BotState.ProcessSlot s = slot(st);
         Walker.Step step = walker.tick(a, w);
         s.pathLen = walker.pathLen();

@@ -240,15 +240,15 @@ class GameTestBaselineManifestTest {
     /**
      * The two enumerators must agree about which fields exist.
      *
-     * <p>They reach BotConfig by different reflection: {@code reflectivePrimitiveFields()} uses
+     * <p>They reach the config classes by different reflection: {@code reflectivePrimitiveFields()} uses
      * {@code getFields()}, which walks the superclass chain, while {@code COMPILED_DEFAULTS} is
      * built from {@code persistableFields()} → {@code getDeclaredFields()}, which does not. Both
-     * javadocs call themselves "the ONE enumeration"; each is, within itself. Today the difference
-     * is invisible because every field is declared in BotConfig itself.
+     * javadocs call themselves "the ONE enumeration"; each is, within itself. Both walk
+     * {@code BotConfig.CLASSES}, the one class per layer the settings were split into, and every
+     * field is declared in one of those classes itself, so the difference is invisible.
      *
-     * <p>It stops being invisible the day BotConfig is split. The file sits at 2993 of the 3000-line
-     * budget, so a split is coming, and the natural shape — {@code BotConfig extends …} — is the one
-     * that breaks silently: a moved field stays visible to the settings schema and snapshot (agents
+     * <p>It would stop being invisible if a config class came to extend another: a field moved to the
+     * parent stays visible to the settings schema and snapshot (agents
      * see it, so nothing looks wrong) but drops out of save/load and out of
      * {@code snapshotAll}/{@code restoreAll}, which is precisely the leak snapshotAll's javadoc
      * exists to prevent — {@code applyGameTestBaseline()}'s OFF values would escape into the live
@@ -274,7 +274,7 @@ class GameTestBaselineManifestTest {
                 + "the universe above and could ship ON without ever being classified. Either it "
                 + "is genuine per-tick runtime state (annotate it @RuntimeState, which takes it "
                 + "off the surface and out of persistence), or it is configuration and should be persistable, or "
-                + "it was moved out of BotConfig's own declaration — see this test's javadoc: "
+                + "it was moved out of its config class's own declaration — see this test's javadoc: "
                 + "getFields() follows a superclass, getDeclaredFields() does not, so a split that "
                 + "moves fields to a parent keeps them in the settings schema while dropping them "
                 + "from persistence and from snapshotAll/restoreAll.");

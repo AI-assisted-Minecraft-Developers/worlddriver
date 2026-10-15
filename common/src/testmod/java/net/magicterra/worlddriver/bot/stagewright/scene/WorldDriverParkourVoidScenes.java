@@ -5,6 +5,11 @@ import java.util.Locale;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.rules.Move;
@@ -293,12 +298,12 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowPlace = true;               // bridging is a legitimate way across
-        BotConfig.allowBreak = false;              // digging around it is not
-        BotConfig.allowParkour4 = false;           // the gap is a parkour3; 4-cell leaps stay off
-        BotConfig.walkerDebug = true;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowPlace = true;               // bridging is a legitimate way across
+        WorldConfig.allowBreak = false;              // digging around it is not
+        RulesConfig.allowParkour4 = false;           // the gap is a parkour3; 4-cell leaps stay off
+        GameConfig.walkerDebug = true;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + spawnDx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -441,10 +446,10 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;
-        BotConfig.allowParkour4 = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = false;
+        RulesConfig.allowParkour4 = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         clearAndCatch(level, cx, cz, padY, 6);
         buildPadGapDeck(level, cx, cz + shortDz, padY, 1, 0);

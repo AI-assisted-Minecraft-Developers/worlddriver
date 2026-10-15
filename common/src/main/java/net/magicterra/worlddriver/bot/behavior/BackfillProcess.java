@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
@@ -77,14 +77,14 @@ public final class BackfillProcess implements BotProcess {
 
         switch (phase) {
             case NEXT -> {
-                BlockPos pick = pickCandidate(tracker, playerFoot, BotConfig.autoBackfillRadius, failed, cells(lvl));
+                BlockPos pick = pickCandidate(tracker, playerFoot, BehaviorConfig.autoBackfillRadius, failed, cells(lvl));
                 if (pick == null) {
                     st.builder.lastError = "backfill done";
                     st.builder.reset();
                     if (!failed.isEmpty()) failure = "incomplete: " + failed.size() + " cells could not be filled";
                     return true;
                 }
-                String blockId = BotConfig.autoBackfillBlock;
+                String blockId = BehaviorConfig.autoBackfillBlock;
                 if (!HeldItem.holdById(hands, blockId)) {
                     failed.add(pick);
                     return false;
@@ -142,7 +142,7 @@ public final class BackfillProcess implements BotProcess {
                 placeTicks++;
                 BlockState now = lvl.getBlockState(currentBlock);
                 String nowId = BuiltInRegistries.BLOCK.getKey(now.getBlock()).toString();
-                if (nowId.equals(BotConfig.autoBackfillBlock)) {
+                if (nowId.equals(BehaviorConfig.autoBackfillBlock)) {
                     tracker.remove(currentBlock);
                     currentBlock = null;
                     phase = Phase.NEXT;
@@ -179,7 +179,7 @@ public final class BackfillProcess implements BotProcess {
      *  size: a bot idles in the cells it just dug, and the foot and head cells are the two the scan
      *  always skips, as it does cells out of radius — a process started on size ends at once. */
     public static boolean autoStartWanted(BackfillTracker tracker, BlockPos playerFoot, Level lvl) {
-        return autoStartWanted(tracker, playerFoot, BotConfig.autoBackfillRadius, cells(lvl));
+        return autoStartWanted(tracker, playerFoot, BehaviorConfig.autoBackfillRadius, cells(lvl));
     }
 
     static boolean autoStartWanted(BackfillTracker tracker, BlockPos playerFoot, int radius, Cells cells) {

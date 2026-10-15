@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.control;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Hands;
 import net.magicterra.worlddriver.bot.rules.Move;
@@ -38,7 +38,7 @@ final class WalkerDig {
      */
     static BlockPos avatarDig(Walker wk, Body a, BlockPos cell, boolean selectTool) {
         BlockPos target = cell;
-        if (wk != null && cell != null && (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority)) {
+        if (wk != null && cell != null && (ControlConfig.walkerStickyDig || ControlConfig.walkerDigAimPriority)) {
             wk.stickyDig.engage(cell);
             if (wk.stickyDig.pos != null) target = wk.stickyDig.pos;
         }
@@ -72,7 +72,7 @@ final class WalkerDig {
      * not the burned delay.
      */
     static void preDigNextBreak(Walker wk, Body a, WorldView world) {
-        if (!BotConfig.walkerPreDigNextBreak || wk.path == null || wk.stickyDig.pos != null) return;
+        if (!ControlConfig.walkerPreDigNextBreak || wk.path == null || wk.stickyDig.pos != null) return;
         LivingEntity p = a.entity();
         if (p == null || p.onGround() || p.isInWater() || wk.hands.destroyProgress() < 0) return;
         if (wk.step + 1 >= wk.path.size()) return;

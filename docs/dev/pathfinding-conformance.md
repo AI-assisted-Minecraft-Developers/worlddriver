@@ -93,7 +93,8 @@ does that and is less error-prone.
 
 Two steps are mandatory and one is optional.
 
-1. **Declare it** in `BotConfig.java`, as a `public static volatile boolean` defaulting to
+1. **Declare it** in the config class of the lowest layer that reads it (`ControlConfig.java` for
+   a walker flag), as a `public static volatile boolean` defaulting to
    false. That is the whole registration. `SettingsRegistry.reflectivePrimitiveFields()`
    collects it, and that one method feeds the key set, the snapshot read path and the
    generated MCP schema, so the setter, the snapshot and the schema follow automatically

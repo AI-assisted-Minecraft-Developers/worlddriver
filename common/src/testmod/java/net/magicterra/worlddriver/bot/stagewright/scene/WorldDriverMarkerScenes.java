@@ -6,6 +6,7 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
@@ -84,8 +85,8 @@ public final class WorldDriverMarkerScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
 
         BlockPos goal = new BlockPos(cx + 5, standY, cz);
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 1 + 0.5, standY, cz + 0.5);

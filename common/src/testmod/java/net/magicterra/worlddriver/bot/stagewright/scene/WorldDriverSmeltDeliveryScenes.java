@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.behavior.SmeltProcess;
 import net.magicterra.worlddriver.bot.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.ServerAvatarManager;
@@ -74,7 +75,7 @@ public final class WorldDriverSmeltDeliveryScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
         // Empty the furnace BEFORE the block goes, or AbstractFurnaceBlock.onRemove drops its

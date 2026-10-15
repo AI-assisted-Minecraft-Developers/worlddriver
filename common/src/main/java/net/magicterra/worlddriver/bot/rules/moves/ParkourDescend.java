@@ -4,7 +4,8 @@ import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 
 /**
  * Parkour DESCEND -- Baritone {@code MovementParkour} with a lower landing: a
@@ -19,7 +20,7 @@ import net.magicterra.worlddriver.config.BotConfig;
  * descending arc clips, with no stand-able floor at launch level (else a
  * cheaper Walk/StepDown chain wins); the column above the landing must be
  * clear for the bot to fall through. Distance-2 is always in the catalog;
- * distance-3 shares the {@link net.magicterra.worlddriver.config.BotConfig#allowParkour4}
+ * distance-3 shares the {@link net.magicterra.worlddriver.config.RulesConfig#allowParkour4}
  * gate like the other long leaps. Cost = flat-parkour + 4/drop (falling is
  * cheap, as in {@link Fall}). The {@code parkourDescend} name starts with
  * "parkour" so the Walker's existing parkour actuator drives it unchanged.
@@ -32,7 +33,7 @@ public final class ParkourDescend extends Move {
         this.drop = drop;
     }
     @Override public boolean availableInSearch(WorldView w) {
-        return !(dist >= 3 || drop >= 2) || BotConfig.allowParkour4;
+        return !(dist >= 3 || drop >= 2) || RulesConfig.allowParkour4;
     }
     public boolean valid(WorldView w, BlockPos from) {
         // Only the shallow drop-1 descend lands reliably on a 1-wide block:
@@ -41,17 +42,17 @@ public final class ParkourDescend extends Move {
         // landing-brake cannot recover a bot still well above the pad), so those
         // ride the allowParkour4 "marginal physics" tier -- same contract as the
         // dist-3 ascend, which also needs a boost to land.
-        if ((dist >= 3 || drop >= 2) && !BotConfig.allowParkour4) return false;
+        if ((dist >= 3 || drop >= 2) && !RulesConfig.allowParkour4) return false;
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
         // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
-        if (BotConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
+        if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
         if (!Move.hasRunway(w, from)) return false;
         BlockPos to = apply(from);                 // (sx*dist, -drop, sz*dist)
         // The void rule covers the WHOLE leap family, not the three members it was first written
         // against. An exemption narrower than the family it must cover is how this class of bug
         // leaks back: rung 20 kept leaving the world from cells the first three gates never saw.
         // See Move.overTheVoid — a rule and not a price, and only while a bridge is affordable.
-        if (BotConfig.pathfinderForbidParkourOverTheVoid && BotConfig.allowPlace
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace
                 && Move.overTheVoid(w, from, to)) return false;
         if (!w.canStandAt(to)) return false;
         // Buoyancy: no parkour LANDING in submerged water — the bot sinks/stalls there
@@ -64,7 +65,7 @@ public final class ParkourDescend extends Move {
         // off floating water → ~25× underwater bank-dig / long shore-swim, the dive a
         // probe shows A* immediately reverses). Opt-in; a shallow 1-deep splash (floor
         // below) and a leap onto a dry far bank are unaffected.
-        if (BotConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
+        if (RulesConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
         // Launch jump clearance (head+1 at the lip).
         if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) return false;
         int sx = Integer.signum(dx), sz = Integer.signum(dz);

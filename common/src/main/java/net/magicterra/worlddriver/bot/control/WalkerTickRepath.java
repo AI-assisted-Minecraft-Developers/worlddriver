@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.control;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -49,13 +50,13 @@ final class WalkerTickRepath {
         // current or next edge is a bridgePlace, hold the ROUTINE repath; safety repaths
         // (stuck/wedged/off-path) stay live.
         boolean bridgingNow = false;
-        if (BotConfig.walkerBridgeHoldRepath) {
+        if (ControlConfig.walkerBridgeHoldRepath) {
             Move.Edge cbE = wk.edgeAt(wk.step), nbE = wk.edgeAt(wk.step + 1);
             bridgingNow = (cbE != null && "bridgePlace".equals(cbE.move))
                     || (nbE != null && "bridgePlace".equals(nbE.move));
         }
         boolean fullPeriodic = !wk.seg.pathBestEffort && wk.path != null && !bridgingNow
-                && wk.ticksSinceRepath > BotConfig.walkerRepathEveryTicks;
+                && wk.ticksSinceRepath > ControlConfig.walkerRepathEveryTicks;
         // ANTI-STUCK (forced displacement, Baritone-UnstuckChain-style): a
         // re-search from the SAME foot is deterministic — when the blocker is
         // a gap the executor can't thread but the planner prices passable
@@ -117,7 +118,7 @@ final class WalkerTickRepath {
                                 ? (float) Math.toDegrees(Math.atan2(-bdx, bdz))
                                 : p.getYRot() + 150f;
                         wk.unstuck.dropWedgeAnchor();   // displaced → next wedge re-anchors fresh
-                        if (BotConfig.walkerDebug)
+                        if (GameConfig.walkerDebug)
                             LOG.info("[walker] anti-stuck: repeated safety repaths at {} → forced displacement burst", foot);
                     }
                 }
@@ -237,14 +238,14 @@ final class WalkerTickRepath {
      * keeps end + horizon inside what the body has loaded.
      */
     private static boolean continuationInLoadedReach(Walker wk, LivingEntity p) {
-        int lead = BotConfig.walkerContinuationMaxLead;
+        int lead = ControlConfig.walkerContinuationMaxLead;
         if (lead <= 0) return true;
         double dx = wk.seg.commitEnd.getX() + 0.5 - p.getX(), dz = wk.seg.commitEnd.getZ() + 0.5 - p.getZ();
         return dx * dx + dz * dz <= (double) lead * lead;
     }
 
     private static boolean burstHopAllowed(Walker wk, WorldView world, LivingEntity p, BlockPos foot) {
-        boolean allowed = !(BotConfig.walkerRecoveryHopFloorGate
+        boolean allowed = !(ControlConfig.walkerRecoveryHopFloorGate
                 && hopSuppressed(world, p, foot, wk.unstuck.burstYaw));
         if (wk.unstuck.burstTicks % 8 == 0) {
             // The RETIRED gate's verdict, printed beside the live one: ring ≥ 0 means the old
@@ -285,7 +286,7 @@ final class WalkerTickRepath {
      *  same from outside (client lane 2026-09-06: an adopted lane re-searched on its first tick). */
     private static void kickoff(Walker wk, LivingEntity p, WorldView world, BlockPos foot, boolean wedged,
                                 boolean fellOffPath, boolean offPath, boolean fellBelowRoute, boolean periodic) {
-        if (BotConfig.walkerDebug)
+        if (GameConfig.walkerDebug)
             LOG.info("[walker] foot-search kickoff: pathNull={} stuck={} wedged={} offPath={} fellOff={} belowRoute={} periodic={} step={}/{}",
                     wk.path == null, wk.stuckTicks > STUCK_TICKS, wedged, offPath, fellOffPath, fellBelowRoute,
                     periodic, wk.step, wk.path == null ? 0 : wk.path.size());

@@ -5,7 +5,8 @@ import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 
 import java.util.List;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 
 /**
  * Pillar up one block — Baritone's {@code MovementPillar}: place a block at
@@ -23,7 +24,7 @@ import net.magicterra.worlddriver.config.BotConfig;
  *   <li>{@code ClientWorldView.hasPlaceableBlock} reads hotbar slots 0..8 and applies
  *       {@code BuildBlocks.isUsableBuildBlock}, which EXCLUDES falling blocks;</li>
  *   <li>{@code LevelWorldView.placeableBlockCount} reads the whole inventory 0..35 with the same
- *       exclusion, and drops {@code BotConfig.allowPlace} altogether — see the note on it;</li>
+ *       exclusion, and drops {@code WorldConfig.allowPlace} altogether — see the note on it;</li>
  *   <li>the client executor — {@code ClientPlayerBody#holdPillarBlock} →
  *       {@code BotInteract.ensureHoldingPillarBlock} — applies {@code isUsablePillarBlock}, which
  *       ACCEPTS supported falling blocks, and ends in {@code swapFromMainInv}, so in survival it
@@ -83,7 +84,7 @@ public final class PillarUp extends Move {
         // Own-column ceiling: the cell the rising head climbs into. Must be open
         // or breakable (then mined first so there's room to rise).
         if (w.isSolid(ceiling)) {
-            if (!BotConfig.allowBreak) return null;
+            if (!WorldConfig.allowBreak) return null;
             double c = w.breakCost(ceiling, from);
             if (Double.isInfinite(c)) return null;
             toBreak.add(ceiling);
@@ -103,7 +104,7 @@ public final class PillarUp extends Move {
         // breaking the whole world to insure against drift would explode the
         // search. Gated on allowBreak (demo-safe movement breaks nothing) and
         // unreachable in headless GameTest (canPlace=false short-circuits above).
-        if (BotConfig.allowBreak) {
+        if (WorldConfig.allowBreak) {
             BlockPos[] sides = {
                 ceiling.offset(1, 0, 0), ceiling.offset(-1, 0, 0),
                 ceiling.offset(0, 0, 1), ceiling.offset(0, 0, -1),
@@ -130,14 +131,14 @@ public final class PillarUp extends Move {
     /** Base rung price for the bag {@code w} plans with. The bag is read only when the price slides, which it
      *  does not by default: each pillarUp eval is one A* expansion, and the count walks the inventory. */
     static double rungCost(WorldView w) {
-        return BotConfig.pathfinderPillarCost == BotConfig.pathfinderPillarCostStocked
-                ? BotConfig.pathfinderPillarCost : rungCost(w.placeableBlockCount());
+        return RulesConfig.pathfinderPillarCost == RulesConfig.pathfinderPillarCostStocked
+                ? RulesConfig.pathfinderPillarCost : rungCost(w.placeableBlockCount());
     }
 
     /** Base rung price for a bag holding {@code stock} placeable blocks. */
     static double rungCost(int stock) {
-        double scarce = BotConfig.pathfinderPillarCost, stocked = BotConfig.pathfinderPillarCostStocked;
-        double f = Math.min(1.0, Math.max(0, stock) / (double) Math.max(1, BotConfig.pathfinderPillarStockBlocks));
+        double scarce = RulesConfig.pathfinderPillarCost, stocked = RulesConfig.pathfinderPillarCostStocked;
+        double f = Math.min(1.0, Math.max(0, stock) / (double) Math.max(1, RulesConfig.pathfinderPillarStockBlocks));
         return scarce + (stocked - scarce) * f;
     }
 

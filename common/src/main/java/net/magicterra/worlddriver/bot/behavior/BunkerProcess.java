@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
@@ -104,7 +105,7 @@ public final class BunkerProcess implements BotProcess {
     }
 
     private static void dbg(String msg, Object... a) {
-        if (BotConfig.walkerDebug) LOG.info("[bunker] " + msg, a);
+        if (GameConfig.walkerDebug) LOG.info("[bunker] " + msg, a);
     }
 
     @Override public String kind() { return "bunker"; }
@@ -266,7 +267,7 @@ public final class BunkerProcess implements BotProcess {
         hands.breakHold(true);
         hands.continueDestroy(below);
         acted = true;
-        if (++digTicks > BotConfig.breakTimeoutTicks) {
+        if (++digTicks > ControlConfig.breakTimeoutTicks) {
             hands.breakHold(false); a.releaseInputs();
             return finish(st, w, a, "dig-timeout", "break timeout (unbreakable below?)");
         }
@@ -318,7 +319,7 @@ public final class BunkerProcess implements BotProcess {
         hands.breakHold(true);
         hands.continueDestroy(target);
         acted = true;
-        if (++actTicks > BotConfig.breakTimeoutTicks * 2) {
+        if (++actTicks > ControlConfig.breakTimeoutTicks * 2) {
             hands.breakHold(false); a.releaseInputs();
             return finish(st, w, a, "act-timeout", "seal/carve timeout");
         }
@@ -385,7 +386,7 @@ public final class BunkerProcess implements BotProcess {
             p.setYRot(yawFor(nicheDir));
             a.commandForward(1f);
             dbg("PLUG player overlaps target={} pos=({},{}) → shuffle deeper", target, fmt(p.getX()), fmt(p.getZ()));
-            if (++actTicks > BotConfig.breakTimeoutTicks * 2) {
+            if (++actTicks > ControlConfig.breakTimeoutTicks * 2) {
                 dbg("PLUG give up (still overlapping) → DONE UNSEALED");
                 phase = Phase.DONE; a.releaseInputs();
                 return finish(st, w, a, phase.name(), null);
@@ -397,7 +398,7 @@ public final class BunkerProcess implements BotProcess {
         hands.place(w::isSolid, target);
         acted = true;
         dbg("PLUG place target={} solidNow={} t={}", target, w.isSolid(target), actTicks);
-        if (++plugTicks > BotConfig.breakTimeoutTicks) {
+        if (++plugTicks > ControlConfig.breakTimeoutTicks) {
             dbg("PLUG TIMEOUT target={} solid={} → DONE", target, w.isSolid(target));
             phase = Phase.DONE; a.releaseInputs();
             return finish(st, w, a, phase.name(), null);

@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.debug;
 
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
@@ -15,7 +16,7 @@ import java.util.List;
 
 /**
  * The live {@link PathTrace} implementation. Accumulates one goto session, reset whenever a
- * new goal appears. Gated by {@link BotConfig#pathDebug}: when off, every callback returns
+ * new goal appears. Gated by {@link ControlConfig#pathDebug}: when off, every callback returns
  * immediately. Snapshot is copy-on-read so the renderer never tears.
  *
  * Session boundary = a change of goal (compared by {@code toString()}); long gotos repath
@@ -42,7 +43,7 @@ public final class PathDebugRecorder implements PathTrace {
 
     @Override
     public void onSearchBegin(BlockPos searchStart, Goal goal) {
-        if (!BotConfig.pathDebug) return;
+        if (!ControlConfig.pathDebug) return;
         synchronized (lock) {
             String key = String.valueOf(goal);
             if (!key.equals(goalKey)) {                 // new goto → reset session
@@ -63,7 +64,7 @@ public final class PathDebugRecorder implements PathTrace {
 
     @Override
     public void onNodeExpanded(BlockPos pos, double g) {
-        if (!BotConfig.pathDebug) return;
+        if (!ControlConfig.pathDebug) return;
         synchronized (lock) {
             expandedSinceBegin++;
             int cap = Math.max(100, BotConfig.pathDebugMaxNodes);
@@ -81,7 +82,7 @@ public final class PathDebugRecorder implements PathTrace {
     @Override
     public void onSearchResult(List<BlockPos> path, List<Move.Edge> edges, boolean goalReached,
                                int expanded, long ms, double finalCost) {
-        if (!BotConfig.pathDebug) return;
+        if (!ControlConfig.pathDebug) return;
         synchronized (lock) {
             // edges carries a null sentinel for the start node (no entering edge);
             // List.copyOf rejects nulls (NPE), so use a null-tolerant ArrayList copy.
@@ -92,7 +93,7 @@ public final class PathDebugRecorder implements PathTrace {
 
     @Override
     public void onWalkerTick(WalkerSample sample) {
-        if (!BotConfig.pathDebug) return;
+        if (!ControlConfig.pathDebug) return;
         synchronized (lock) {
             int cap = Math.max(100, BotConfig.pathDebugMaxSamples);
             trajectory.addLast(sample);
@@ -102,7 +103,7 @@ public final class PathDebugRecorder implements PathTrace {
 
     @Override
     public void onTerminal(Outcome o, String r) {
-        if (!BotConfig.pathDebug) return;
+        if (!ControlConfig.pathDebug) return;
         boolean dump;
         PathSession snap;
         synchronized (lock) {

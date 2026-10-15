@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.game.body;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import org.slf4j.Logger;
@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
  * actuator (Walker, AutoSwim, the bunker/build/farm processes, the reflexes, …)
  * writes the player's rotation as usual; {@link #apply} runs ONCE per client tick
  * <em>after</em> all of them and clamps this tick's net yaw/pitch change to
- * {@link BotConfig#cameraSlewDegPerTick} / {@link BotConfig#cameraPitchSlewDegPerTick}.
+ * {@link GameConfig#cameraSlewDegPerTick} / {@link GameConfig#cameraPitchSlewDegPerTick}.
  * Because it's a single post-write clamp, no code path — present or future — can
  * teleport the camera; the worst any snap-style write can do is start a smooth
  * multi-tick pan.
@@ -25,7 +25,7 @@ import org.slf4j.LoggerFactory;
  * {@code clientUseItemOn}, the pillar look-down, swim heading, follow/look) all go
  * through the clamp and stay silky.
  *
- * <p>Disabled by {@link BotConfig#cameraSlew} = false (restores the old snap
+ * <p>Disabled by {@link GameConfig#cameraSlew} = false (restores the old snap
  * behaviour). Inert in headless GameTest, which has no client tick / LocalPlayer.
  */
 public final class LookController {
@@ -83,11 +83,11 @@ public final class LookController {
     public static void apply(LivingEntity p) {
         if (p == null) { havePrev = false; snapThisTick = false; return; }
         float yaw = p.getYRot(), pitch = p.getXRot();
-        boolean snap = snapThisTick || !BotConfig.cameraSlew || !havePrev;
+        boolean snap = snapThisTick || !GameConfig.cameraSlew || !havePrev;
         snapThisTick = false;
         // GROUND TRUTH of the RENDERED camera: a snap that jumps the view >=30° this tick is
         // exactly what the video sees (and what walk-keys, captured pre-apply, cannot show).
-        if (BotConfig.walkerDebug && havePrev) {
+        if (GameConfig.walkerDebug && havePrev) {
             float rd = Math.abs(Mth.degreesDifference(prevYaw, yaw));
             if (rd >= 30f)
                 LOG.info("[lookctrl] RENDER {} dyaw={} {}->{}",
@@ -111,9 +111,9 @@ public final class LookController {
             rendered = yaw;
         } else {
             // Shortest arc, at most the slew per tick: MC yaw is unwrapped.
-            float ny = Mth.approachDegrees(prevYaw, yaw, BotConfig.cameraSlewDegPerTick);
+            float ny = Mth.approachDegrees(prevYaw, yaw, GameConfig.cameraSlewDegPerTick);
             float dp = pitch - prevPitch;
-            float maxP = BotConfig.cameraPitchSlewDegPerTick;
+            float maxP = GameConfig.cameraPitchSlewDegPerTick;
             if (dp > maxP) dp = maxP; else if (dp < -maxP) dp = -maxP;
             float np = clamp(prevPitch + dp, -90f, 90f);
             p.setYRot(ny); p.yHeadRot = ny; p.yBodyRot = ny; p.setXRot(np);
@@ -122,7 +122,7 @@ public final class LookController {
         }
         // WINDING: accumulate the rendered camera's net rotation. A smooth multi-turn spin (no
         // single snap) still reads as spinning — this is what per-tick snap-counting missed.
-        if (BotConfig.walkerDebug) {
+        if (GameConfig.walkerDebug) {
             if (windHavePrev) {
                 float d = Mth.degreesDifference(windPrev, rendered);
                 windCumAbs += Math.abs(d); windUnwrapped += d;

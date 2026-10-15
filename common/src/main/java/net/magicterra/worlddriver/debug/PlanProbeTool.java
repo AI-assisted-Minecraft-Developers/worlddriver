@@ -12,7 +12,7 @@ import net.magicterra.worlddriver.api.methods.debug.DebugContracts.PlanParams;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.PlanReply;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.Segment;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.SinglePlan;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.bot.world.ClientWorldView;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.PathSmoothing;
@@ -77,7 +77,7 @@ final class PlanProbeTool {
             PathFinder.Result r = new PathFinder(world).withOwner("debug.plan").findPath(from, goal);
             totalExpanded += r.expanded();
             List<BlockPos> path = r.path();
-            int cut = BotConfig.walkerCommitTailPeak && !r.goalReached() ? PathSmoothing.sunkTailCut(path) : -1;
+            int cut = ControlConfig.walkerCommitTailPeak && !r.goalReached() ? PathSmoothing.sunkTailCut(path) : -1;
             BlockPos end = path.isEmpty() ? from : path.get(cut > 0 ? cut : path.size() - 1);
             double hFrom = goal.estimate(from), hEnd = goal.estimate(end);
             if (hEnd > hFrom + 1e-6) backwardSegs++;

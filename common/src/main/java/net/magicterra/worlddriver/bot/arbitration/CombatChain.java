@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.arbitration;
 
 import java.util.function.Consumer;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
@@ -24,8 +24,8 @@ import static net.magicterra.worlddriver.game.body.BotInteract.releaseKeys;
  *       the chain bids 60 until the {@link CombatProcess} reports the fight done
  *       (target dead / area clear), then clears its intent and hands the channel
  *       back to the suspended user task.</li>
- *   <li><b>Auto</b> — with {@link BotConfig#autoFight} on, the chain bids 60 whenever
- *       a hostile scores at or above {@link BotConfig#autoFightThreatThreshold}, runs
+ *   <li><b>Auto</b> — with {@link ArbitrationConfig#autoFight} on, the chain bids 60 whenever
+ *       a hostile scores at or above {@link ArbitrationConfig#autoFightThreatThreshold}, runs
  *       an ENGAGE clear, and drops to 0 when the area is quiet.</li>
  * </ul>
  *
@@ -175,18 +175,18 @@ public final class CombatChain implements Chain {
         if (mc.player == null) return 0f;
         float hp = mc.player.getHealth();
         if (intentMode != null) {
-            if (frailBlocked(hp, BotConfig.combatFrailThreshold, intentForce)) {
+            if (frailBlocked(hp, ArbitrationConfig.combatFrailThreshold, intentForce)) {
                 // Explicit kill order on fragile HP: refuse loudly instead of dying quietly.
                 String why = "frail-abort: health " + hp + " is at or below combatFrailThreshold "
-                        + BotConfig.combatFrailThreshold + "; pass force: true to fight anyway";
+                        + ArbitrationConfig.combatFrailThreshold + "; pass force: true to fight anyway";
                 standDown(h -> h.fail(why));
                 state.combat.lastError = "frail-abort hp=" + hp;
                 return 0f;
             }
             return Priorities.COMBAT;
         }
-        if (BotConfig.autoFight && autoSuppressTicks == 0) {
-            if (frailBlocked(hp, BotConfig.combatFrailThreshold, false)) {
+        if (ArbitrationConfig.autoFight && autoSuppressTicks == 0) {
+            if (frailBlocked(hp, ArbitrationConfig.combatFrailThreshold, false)) {
                 // Auto-fight turned frail mid-swing: stand down LOUDLY; Retreat (>=100)
                 // naturally takes over. This must live here in bid(), NOT in tick() —
                 // once this bid returns 0 the scheduler interrupts the chain and never
@@ -200,7 +200,7 @@ public final class CombatChain implements Chain {
                 return 0f;
             }
             ThreatScanner.Threat top = ClientThreatScanner.current(mc).top();
-            if (top != null && top.score() >= BotConfig.autoFightThreatThreshold) return Priorities.COMBAT;
+            if (top != null && top.score() >= ArbitrationConfig.autoFightThreatThreshold) return Priorities.COMBAT;
         }
         return 0f;
     }

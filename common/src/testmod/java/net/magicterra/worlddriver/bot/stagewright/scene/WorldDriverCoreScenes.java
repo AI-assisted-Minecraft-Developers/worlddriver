@@ -30,6 +30,10 @@ import net.magicterra.worlddriver.api.methods.system.SystemApi;
 import net.magicterra.worlddriver.bot.SettingsApi;
 import net.magicterra.worlddriver.bot.SettingsContracts;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.BotLevelHolder;
@@ -386,7 +390,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     /** Ported from {@code AgentGameTest#horizonArena}: deterministic gate for the receding-horizon
-     *  early-stop ({@link BotConfig#pathfinderHorizonBlocks}) + soft-commit early-stop that fix the
+     *  early-stop ({@link PlanningConfig#pathfinderHorizonBlocks}) + soft-commit early-stop that fix the
      *  long-haul freeze. Pure CPU ({@link HorizonArena} on a GridWorldView corridor). */
     private static void horizon(SceneContext ctx) {
         HorizonArena.Result off = HorizonArena.run(0);
@@ -1251,8 +1255,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y+20
         SceneArena.buildFloor(level, cx, cz, floorY);
 
-        Set<String> savedWl = BotConfig.buildBlockWhitelist;
-        ctx.cleanup(() -> BotConfig.buildBlockWhitelist = savedWl);
+        Set<String> savedWl = GameConfig.buildBlockWhitelist;
+        ctx.cleanup(() -> GameConfig.buildBlockWhitelist = savedWl);
 
         // Default heuristic: full cube → usable; bamboo (thin column) / sand (FallingBlock) → NOT usable.
         if (!BuildBlocks.isUsableBuildBlock(Blocks.DIRT))
@@ -1276,7 +1280,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.fail("buildBlockWhitelist: placeableBlockCount should ignore bamboo, expected 10 got " + w.placeableBlockCount());
 
         // Whitelist override: pin to bamboo only → dirt now rejected, bamboo allowed by explicit id.
-        BotConfig.buildBlockWhitelist = Set.of("minecraft:bamboo");
+        GameConfig.buildBlockWhitelist = Set.of("minecraft:bamboo");
         if (!BuildBlocks.isUsableBuildBlock(Blocks.BAMBOO))
             ctx.fail("buildBlockWhitelist: whitelisted bamboo must be usable when explicitly listed");
         if (BuildBlocks.isUsableBuildBlock(Blocks.DIRT))
@@ -1314,11 +1318,11 @@ public final class WorldDriverCoreScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.pathArchive = true;
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ControlConfig.pathArchive = true;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         BlockPos goal = new BlockPos(cx + 8, floorY + 1, cz);
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
@@ -1375,11 +1379,11 @@ public final class WorldDriverCoreScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.pathArchive = true;     // gates sampleTick for BOTH record + replay capture
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ControlConfig.pathArchive = true;     // gates sampleTick for BOTH record + replay capture
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         final BlockPos goal = new BlockPos(cx + 8, floorY + 1, cz);
         BotLevelHolder.current = level;

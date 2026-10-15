@@ -13,6 +13,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
 
 /**
  * A value outside a key's documented range is invalid_params at its own path, and nothing is written.
@@ -37,11 +38,11 @@ class SettingsRangeTest {
     }
 
     private static void assertRejectedAndUnchanged(String key, Object value, String field) throws ReflectiveOperationException {
-        Object before = BotConfig.class.getField(field).get(null);
+        Object before = BotConfig.field(field).get(null);
         List<ApiIssue> issues = assertThrows(ApiException.class, () -> patch(key, value), key + "=" + value + " was accepted")
                 .error().issues();
         assertEquals("/values/" + key, issues.get(0).path(), key + "=" + value + ": " + issues);
-        assertEquals(before, BotConfig.class.getField(field).get(null), key + "=" + value + " changed the field");
+        assertEquals(before, BotConfig.field(field).get(null), key + "=" + value + " changed the field");
     }
 
     @Test
@@ -97,6 +98,6 @@ class SettingsRangeTest {
     @Test
     void anInRangeValueIsApplied() {
         patch("goalFieldRadius", 96);
-        assertEquals(96, BotConfig.goalFieldRadius);
+        assertEquals(96, PlanningConfig.goalFieldRadius);
     }
 }

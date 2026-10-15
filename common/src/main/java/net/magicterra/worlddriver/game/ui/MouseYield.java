@@ -5,7 +5,7 @@ import net.magicterra.worlddriver.game.ui.MouseYieldGate;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.PauseScreen;
 import org.lwjgl.glfw.GLFW;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 
 /**
  * Client adapter around {@link MouseYieldGate}: samples the real ESC key / cursor state
@@ -61,7 +61,7 @@ public final class MouseYield {
     public static void tick(Minecraft mc) {
         if (mc == null || mc.getWindow() == null || mc.mouseHandler == null) return;
         MouseYieldGate.Action action = GATE.tick(
-                BotConfig.mouseYield,
+                GameConfig.mouseYield,
                 pollEscDoubleTap(mc),
                 mc.screen != null,
                 mc.mouseHandler.isMouseGrabbed());

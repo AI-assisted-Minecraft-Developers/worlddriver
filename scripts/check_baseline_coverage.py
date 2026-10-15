@@ -46,7 +46,9 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BOT_CONFIG = os.path.join(ROOT, "common/src/main/java/net/magicterra/worlddriver/config/BotConfig.java")
+CONFIG_DIR = os.path.join(ROOT, "common/src/main/java/net/magicterra/worlddriver/config")
+# The baseline lives here; the fields it pins are declared across every *Config class, one per layer.
+BOT_CONFIG = os.path.join(CONFIG_DIR, "BotConfig.java")
 SCENE_GLOB = os.path.join(ROOT, "common/src/testmod/**/*.java")
 
 # Baselined fields that NO scene restores to its shipped default. Each one is a code path
@@ -82,7 +84,7 @@ UNEXERCISED = {
 }
 # The last four are worth calling out: they DO appear in scene sources, but never assigned
 # the shipped value — a scene mentioning a flag is not a scene exercising it. That gap is
-# why this gate matches on `BotConfig.<field> = <shipped value>;` rather than on the name.
+# why this gate matches on `<Layer>Config.<field> = <shipped value>;` rather than on the name.
 
 
 def _norm(value):
@@ -101,7 +103,7 @@ def read_baseline(src):
                  "the gate's anchor moved; update this script deliberately.")
     body = src.split(marker, 1)[1]
     body = body[:body.index("\n    }")]
-    return re.findall(r"^\s{8}(\w+)\s*=\s*([^;]+);", body, re.M)
+    return re.findall(r"^\s{8}(?:\w+Config\.)?(\w+)\s*=\s*([^;]+);", body, re.M)
 
 
 _BOOL_DECL = re.compile(r"public static volatile boolean (\w+)\s*=\s*(true|false);")
@@ -135,10 +137,12 @@ def doc_default_conflicts(src):
 
 
 def main():
-    src = open(BOT_CONFIG, encoding="utf-8").read()
-    assigns = read_baseline(src)
-    defaults = dict(re.findall(
-        r"public static volatile \w+ (\w+)\s*=\s*([^;]+);", src))
+    assigns = read_baseline(open(BOT_CONFIG, encoding="utf-8").read())
+    configs = {os.path.basename(p): open(p, encoding="utf-8").read()
+               for p in sorted(glob.glob(os.path.join(CONFIG_DIR, "*Config.java")))}
+    defaults = {}
+    for src in configs.values():
+        defaults.update(re.findall(r"public static volatile \w+ (\w+)\s*=\s*([^;]+);", src))
 
     problems = []
 
@@ -151,13 +155,14 @@ def main():
     unknown = [k for k, _ in assigns if k not in defaults]
     for k in sorted(unknown):
         problems.append(f"UNKNOWN-FIELD: applyGameTestBaseline() assigns {k}, which is not "
-                        f"a declared `public static volatile` BotConfig field")
+                        f"a declared `public static volatile` config field")
 
-    for name, line, stated, actual in doc_default_conflicts(src):
-        problems.append(
-            f"DOC-DEFAULT: BotConfig.java:{line} {name} is declared `= {actual}` but its "
-            f"javadoc says 'Default {stated}' — the javadoc is a flag's only documentation, "
-            f"so fix the prose (or the declaration) rather than leaving them to disagree")
+    for file, src in configs.items():
+        for name, line, stated, actual in doc_default_conflicts(src):
+            problems.append(
+                f"DOC-DEFAULT: {file}:{line} {name} is declared `= {actual}` but its "
+                f"javadoc says 'Default {stated}' — the javadoc is a flag's only documentation, "
+                f"so fix the prose (or the declaration) rather than leaving them to disagree")
 
     scene_src = "\n".join(
         open(p, encoding="utf-8", errors="replace").read()
@@ -169,7 +174,7 @@ def main():
             continue
         # A scene covers the shipped behaviour only by writing the SHIPPED value back.
         want = defaults[k].strip()
-        if not re.search(r"BotConfig\.%s\s*=\s*%s\s*;" % (re.escape(k), re.escape(want)),
+        if not re.search(r"\b\w*Config\.%s\s*=\s*%s\s*;" % (re.escape(k), re.escape(want)),
                          scene_src):
             uncovered.add(k)
 
@@ -177,7 +182,7 @@ def main():
         problems.append(
             f"UNCOVERED: {k} is pinned to {dict(assigns)[k].strip()} for the whole suite but "
             f"ships as {defaults[k].strip()}, and no scene restores it — that code path would "
-            f"never execute in CI. Add a scene that sets BotConfig.{k} = {defaults[k].strip()}; "
+            f"never execute in CI. Add a scene that sets <Layer>Config.{k} = {defaults[k].strip()}; "
             f"or, if that is genuinely not yet possible, add '{k}' to UNEXERCISED in "
             f"scripts/check_baseline_coverage.py with a reason in the commit message")
 

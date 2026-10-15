@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.game.body.ClientPlayerBody;
 import net.magicterra.worlddriver.game.body.BotUtil;
 import net.minecraft.client.Minecraft;
@@ -64,7 +64,7 @@ public final class ContactDamageEscape {
         DamageSource src = p.getLastDamageSource();
         String msgId = src != null ? src.getMsgId() : null;
         boolean hot = ContactEscapeGate.shouldTrigger(
-                msgId, p.hurtTime, BotConfig.contactDamageEscape);
+                msgId, p.hurtTime, BehaviorConfig.contactDamageEscape);
 
         if (!active) {
             if (!hot) return false;

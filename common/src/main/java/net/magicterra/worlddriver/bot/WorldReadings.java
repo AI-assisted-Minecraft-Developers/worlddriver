@@ -27,7 +27,7 @@ import net.magicterra.worlddriver.bot.world.SurvivalFacts;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
 import net.magicterra.worlddriver.bot.world.WorldModel;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
@@ -67,7 +67,7 @@ public final class WorldReadings {
                               SceneParams p, int selfId) {
         ServerWorldView w = new ServerWorldView(level);
         int survivable = SurvivalMath.survivableFall(20f); // assume full HP server-side
-        HazardField f = HazardField.compute(w, center, radius, survivable, BotConfig.deepWaterMax);
+        HazardField f = HazardField.compute(w, center, radius, survivable, WorldConfig.deepWaterMax);
         // (0,1) is a placeholder threat direction (south) for the server overview;
         // the real flee direction is derived client-side from actual nearby threats.
         int[] flee = SurvivalFacts.safeFleeStep(f, 0, 1);

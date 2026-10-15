@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.game.body.ClientIntents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -24,7 +24,7 @@ public final class AutoEat {
     private boolean eating;
 
     /** Hold the use intent on a food item until the player is full. Triggers below
-     *  {@link BotConfig#autoEatFoodThreshold}; releases at food=20. Looks for
+     *  {@link BehaviorConfig#autoEatFoodThreshold}; releases at food=20. Looks for
      *  the food in the hotbar first; swaps to it if the held slot is not edible.
      *  Won't run while a process owns the use intent (the host gates the call). */
     public void tick(Minecraft mc, LocalPlayer p) {
@@ -36,7 +36,7 @@ public final class AutoEat {
             }
             return;
         }
-        if (food > BotConfig.autoEatFoodThreshold && !eating) return;
+        if (food > BehaviorConfig.autoEatFoodThreshold && !eating) return;
         ItemStack held = p.getMainHandItem();
         if (!isFoodStack(held)) {
             int slot = findFoodHotbarSlot(p);

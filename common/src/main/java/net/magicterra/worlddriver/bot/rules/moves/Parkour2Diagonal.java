@@ -3,7 +3,8 @@ package net.magicterra.worlddriver.bot.rules.moves;
 import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -42,13 +43,13 @@ public final class Parkour2Diagonal extends Move {
     public boolean valid(WorldView w, BlockPos from) {
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
         // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
-        if (BotConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
+        if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
         if (!Move.hasRunway(w, from)) return false;
         BlockPos to = apply(from);
         // Never leap a bottomless gap while a bridge is affordable: see Move.overTheVoid for why
         // this is a rule and not a price. When placement is off there is nothing better to do, so
         // the leap stays available rather than leaving the bot with no move at all.
-        if (BotConfig.pathfinderForbidParkourOverTheVoid && BotConfig.allowPlace
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace
                 && Move.overTheVoid(w, from, to)) return false;
         if (!w.canStandAt(to)) return false;
         // Buoyancy: no parkour LANDING in submerged water — the bot sinks/stalls there
@@ -56,7 +57,7 @@ public final class Parkour2Diagonal extends Move {
         if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) return false;
         // ...and (opt-in) refuse a leap onto a DEEP pocket SURFACE (≥2 water below, head
         // air): buoyant bot floats there and can't climb out (#47 dead-end-pocket dive).
-        if (BotConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
+        if (RulesConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
         if (!w.isPassable(from.offset(0, 2, 0))) return false;
         int sx = Integer.signum(dx), sz = Integer.signum(dz);
         // Diagonal midpoint (1,1) and the two cardinal half-steps must

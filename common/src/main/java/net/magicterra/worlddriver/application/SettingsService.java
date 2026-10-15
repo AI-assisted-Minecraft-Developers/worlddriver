@@ -13,7 +13,6 @@ import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
 import net.magicterra.worlddriver.bot.BotApi;
-import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.BotConfigFile;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.SettingsApi;

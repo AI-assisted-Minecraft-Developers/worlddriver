@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.rules.moves;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -32,7 +32,7 @@ public final class DiagonalAscend extends Move {
         if (!valid(w, from)) return null;
         double c = cost;
         if (waterBelow(w, from, 6)) c += 200;
-        else c += net.magicterra.worlddriver.config.BotConfig.pathfinderDiagAscendPenalty;  // dry diagUp is unmountable on steep terrain (§30) — route around via cardinal stepUp when penalised
+        else c += net.magicterra.worlddriver.config.RulesConfig.pathfinderDiagAscendPenalty;  // dry diagUp is unmountable on steep terrain (§30) — route around via cardinal stepUp when penalised
         if (dropAtLaunch(w, from.offset(dx, 0, 0)) || dropAtLaunch(w, from.offset(0, 0, dz))) c += Diagonal.DROP_CORNER_TAX;
         return new Move.Edge(apply(from), c, java.util.List.of(), java.util.List.of(), name());
     }
@@ -78,7 +78,7 @@ public final class DiagonalAscend extends Move {
         // crosses, not of the launch row. Gating only the flat Diagonal was an exemption written
         // narrower than its family — the third such in two days; rung 20 kept leaving the world
         // from island rims (-15,60,36 / -16,61,34 / -18,61,36 / -35,62,-6) after the flat one closed.
-        if (BotConfig.pathfinderForbidParkourOverTheVoid
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid
                 && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) return false;
         return clearColumn(w, sideA) && clearColumn(w, sideB);
     }

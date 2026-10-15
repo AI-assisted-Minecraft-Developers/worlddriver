@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.game.body;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -119,15 +119,15 @@ public final class BotUtil {
 
     /**
      * Step {@code cur} toward {@code target} by at most
-     * {@link BotConfig#smoothLookDegPerTick} when {@link BotConfig#smoothLook}
+     * {@link GameConfig#smoothLookDegPerTick} when {@link GameConfig#smoothLook}
      * is on; otherwise snap straight to the target (current behavior). Valid for
      * both yaw (wraps mod 360) and pitch (no wrap within ±90). Used by the
      * pathfinding Walker and the LookProcess; functional aiming snaps by calling
      * the rotation setters directly instead of going through here.
      */
     public static float smoothAngle(float cur, float target) {
-        if (!BotConfig.smoothLook) return target;
-        float max = Math.max(0.1f, BotConfig.smoothLookDegPerTick);
+        if (!GameConfig.smoothLook) return target;
+        float max = Math.max(0.1f, GameConfig.smoothLookDegPerTick);
         float d = Mth.degreesDifference(cur, target);
         if (Math.abs(d) <= max) return target;
         return cur + Math.copySign(max, d);
@@ -171,7 +171,7 @@ public final class BotUtil {
      *
      * <p>Fire goes by {@link BlockTags#FIRE} so a datapack-added fire block is covered
      * automatically; everything else is {@link #HAZARD_BLOCKS} by block reference. The
-     * user-configurable {@code BotConfig.extraHazardBlocks} (Baritone-style {@code blocksToAvoid})
+     * user-configurable {@code GameConfig.extraHazardBlocks} (Baritone-style {@code blocksToAvoid})
      * is checked LAST so the built-ins stay short-circuit cheap.
      *
      * <p><b>Not every {@code isHazard} belongs here.</b> Two others answer deliberately
@@ -193,7 +193,7 @@ public final class BotUtil {
         if (s.getFluidState().is(FluidTags.LAVA)) return true;
         if (s.is(BlockTags.FIRE)) return true;
         if (HAZARD_BLOCKS.contains(s.getBlock())) return true;
-        Set<String> extras = BotConfig.extraHazardBlocks;
+        Set<String> extras = GameConfig.extraHazardBlocks;
         return !extras.isEmpty()
                 && extras.contains(BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString());
     }

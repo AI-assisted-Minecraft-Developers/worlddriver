@@ -8,7 +8,7 @@ import java.util.function.BiFunction;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.world.ClientWorldView;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
@@ -158,8 +158,8 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
         // The same hand on both players: the client's LocalPlayer and its ServerPlayer share one
         // inventory on an integrated server, so a break price that differs is a rule that differs.
         helm.hold(new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.DIRT, 16));
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
 
         // Let the client receive the palette before either view is asked.
         helm.sync(40, () -> {

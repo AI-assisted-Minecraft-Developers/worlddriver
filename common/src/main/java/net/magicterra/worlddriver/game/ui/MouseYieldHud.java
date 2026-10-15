@@ -4,7 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 
 /**
  * The on-screen "the bot is driving" badge. Rendered from each loader's HUD hook
@@ -29,7 +29,7 @@ public final class MouseYieldHud {
 
     /** Draw the badge if the bot is driving. No-op otherwise (and while the HUD is hidden). */
     public static void render(GuiGraphics gfx) {
-        if (!BotConfig.mouseYieldHud || gfx == null) return;
+        if (!GameConfig.mouseYieldHud || gfx == null) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.player == null || mc.options == null || mc.options.hideGui) return;
         if (!MouseYield.driving()) return;

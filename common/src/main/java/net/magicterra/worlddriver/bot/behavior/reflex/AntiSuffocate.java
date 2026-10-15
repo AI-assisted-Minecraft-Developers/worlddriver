@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -25,7 +26,7 @@ import static net.magicterra.worlddriver.game.body.BotInteract.selectBestToolFor
  * in seconds, dig-out oscillating y56↔y59 with no progress. None of those
  * processes guards the head cell; this does, generally, for all of them.
  *
- * <p>Mechanics: gated on {@link BotConfig#antiSuffocate} + {@link BotConfig#allowBreak}
+ * <p>Mechanics: gated on {@link BehaviorConfig#antiSuffocate} + {@link WorldConfig#allowBreak}
  * (it mines the head block). Fires only while {@link LocalPlayer#isInWall()} (a
  * suffocating block overlaps the eyes). In a falling-sand column it chews UPWARD —
  * each break lets the column above drop in and the top becomes air — until the
@@ -96,7 +97,7 @@ public final class AntiSuffocate {
         if (src != null) lastDamageMsgId = src.getMsgId();
 
         boolean suffocating = AntiSuffocateGate.shouldTrigger(p.isInWall(), lastDamageMsgId,
-                BotConfig.antiSuffocate, BotConfig.allowBreak);
+                BehaviorConfig.antiSuffocate, WorldConfig.allowBreak);
         if (!suffocating) { reset(mc, "clear"); return false; }
 
         BlockPos head = resolveHead(mc, p);

@@ -19,8 +19,8 @@ when those are loaded — one of the reasons this skill exists.
 
 Source of truth: the contracts under `common/.../api/methods/*.java` (each method's params,
 reply and description; `mc.bot.setting`'s is `common/.../bot/SettingsContracts.java`, built from
-`bot/SettingsRegistry.java` — the canonical ordered key list — backed by `config/BotConfig.java`, the
-fields and their ranges), `common/.../application/CoreMethods.java` (which core methods exist),
+`bot/SettingsRegistry.java` — the canonical ordered key list — backed by the `config/*Config.java`
+classes, one per layer, enumerated from `config/BotConfig.java`: the fields and their ranges), `common/.../application/CoreMethods.java` (which core methods exist),
 and `.../rpc/RpcServer.java` (envelope; binds `127.0.0.1` on port 39801, WS path `/rpc`). A
 build also writes every method's schemas to `methods.json` and a reference to
 `api-reference.md` (`docs/dev/api-artifacts.md`). When in doubt, grep `api/methods/` for the
@@ -308,8 +308,8 @@ Single source: **`SettingsRegistry.java`** — the ordered `HAND` list (canonica
 names, some with a `dotted.name` ⇄ `botConfigField` remap like
 `walker.repathEveryTicks`→`walkerRepathEveryTicks`) **plus a reflective pass that
 auto-includes every `public static volatile` primitive/String field of
-`BotConfig`.** So the *field is the schema*: adding a settable `BotConfig` field
-makes it a valid key with no second edit. Ranges live in **`SettingsDocs.java`**: a
+the config classes (`BotConfig.CLASSES`).** So the *field is the schema*: adding a settable field
+to one of them makes it a valid key with no second edit. Ranges live in **`SettingsDocs.java`**: a
 key's row opens with `[min,max]`, that row is the key's schema description, and the
 contract rejects any number outside it as `out_of_range` (an aliased field's own name,
 e.g. `walkerRepathEveryTicks`, is held to its alias's range). `SettingsContracts.java`

@@ -7,7 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.RiskAt;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
@@ -27,8 +28,8 @@ class RouteEventsTest {
     private double savedRatio;
     private int savedCooldown;
 
-    @BeforeEach void save() { savedRatio = BotConfig.detourAlarmRatio; savedCooldown = BotConfig.routeEventCooldownTicks; }
-    @AfterEach void restore() { BotConfig.detourAlarmRatio = savedRatio; BotConfig.routeEventCooldownTicks = savedCooldown; }
+    @BeforeEach void save() { savedRatio = BehaviorConfig.detourAlarmRatio; savedCooldown = BehaviorConfig.routeEventCooldownTicks; }
+    @AfterEach void restore() { BehaviorConfig.detourAlarmRatio = savedRatio; BehaviorConfig.routeEventCooldownTicks = savedCooldown; }
 
     private static List<BlockPos> line(int n) {
         List<BlockPos> p = new ArrayList<>();
@@ -68,7 +69,7 @@ class RouteEventsTest {
         RouteEvents ev = new RouteEvents(List.of("ForbidRegion"), true, false, sink);
         ev.onSearch(result(List.of(), false, Map.of("NoWater", 900)), goal, null, 0, null, null);
         assertEquals(RouteEvents.TERRAIN, out.get(0).data().get("reason"));
-        PathFinder.Result spent = new PathFinder.Result(List.of(), List.of(), false, BotConfig.pathfinderMaxNodes, 10, 30, false, false, Map.of());
+        PathFinder.Result spent = new PathFinder.Result(List.of(), List.of(), false, PlanningConfig.pathfinderMaxNodes, 10, 30, false, false, Map.of());
         RouteEvents ev2 = new RouteEvents(List.of("ForbidRegion"), true, false, sink);
         ev2.onSearch(spent, goal, null, 0, null, null);
         assertEquals(RouteEvents.BUDGET, out.get(1).data().get("reason"));
@@ -83,7 +84,7 @@ class RouteEventsTest {
 
     @Test
     void detourReportsTheRatioAndTheHeaviestTax() {
-        BotConfig.detourAlarmRatio = 2.0;
+        BehaviorConfig.detourAlarmRatio = 2.0;
         // 9 cells straight then back and forth: length 27 over a straight line of 9
         List<BlockPos> path = new ArrayList<>(line(10));
         for (int i = 0; i < 18; i++) path.add(new BlockPos(9, 64, (i % 2 == 0) ? 1 : 0));
@@ -103,7 +104,7 @@ class RouteEventsTest {
 
     @Test
     void exposedFiresForANewObserverOnlyAndDebounces() {
-        BotConfig.routeEventCooldownTicks = 3;
+        BehaviorConfig.routeEventCooldownTicks = 3;
         RiskAt risk = new RiskAt() {
             @Override public List<ThreatSnapshot.Threat> seeing(BlockPos c) {
                 return c.getX() >= 3 && c.getX() <= 5 ? List.of(skel(7)) : List.of();

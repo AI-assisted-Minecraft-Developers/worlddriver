@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.rules.moves;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -55,7 +55,7 @@ public final class DiagonalDescend extends Move {
         // Diagonal was the third time in two days an exemption was written narrower than the family
         // it had to cover; rung 20 kept leaving the world from island rims (-15,60,36 / -16,61,34 /
         // -18,61,36 / -35,62,-6) after the flat one was closed.
-        if (BotConfig.pathfinderForbidParkourOverTheVoid
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid
                 && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) return false;
 
         return clearColumn(w, sideA) && clearColumn(w, sideB);

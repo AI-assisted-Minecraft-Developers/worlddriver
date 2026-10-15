@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.debug.GridWorldView;
 import net.minecraft.core.BlockPos;
@@ -27,10 +27,10 @@ class OpenWaterLakeTest {
     private int horizonBefore;
 
     @BeforeEach
-    void keepHorizon() { horizonBefore = BotConfig.pathfinderHorizonBlocks; }
+    void keepHorizon() { horizonBefore = PlanningConfig.pathfinderHorizonBlocks; }
 
     @AfterEach
-    void restoreHorizon() { BotConfig.pathfinderHorizonBlocks = horizonBefore; }
+    void restoreHorizon() { PlanningConfig.pathfinderHorizonBlocks = horizonBefore; }
 
     @Test
     void straightSwimAtBothHorizons() {
@@ -40,7 +40,7 @@ class OpenWaterLakeTest {
         BlockPos start = new BlockPos(0, GROUND - 1, 0);
         BlockPos goal = new BlockPos(LEN + 4, GROUND + 1, 0);
         for (int hz : new int[] { 48, 0 }) {
-            BotConfig.pathfinderHorizonBlocks = hz;
+            PlanningConfig.pathfinderHorizonBlocks = hz;
             PathFinder.Search s = new PathFinder(w, 100_000, 5_000).newSearch(start, new Goal.Block(goal));
             while (!s.advance(5_000)) { }
             PathFinder.Result r = s.result();

@@ -28,6 +28,22 @@ BOT_ORDER = ['bot', 'bot/arbitration', 'bot/behavior', 'bot/control', 'bot/plann
 GAME = ('game', 'game/observe', 'game/body', 'game/edit', 'game/ui')
 # Types the facade hands out and takes back whole: a caller may hold one, never look inside.
 FACADE_EXPORTS = {'bot/behavior/BotProcess'}
+# The settings, one class per layer: a layer reads its own and the ones below, game the lowest.
+CONFIG_LAYER = {'config/BotConfig': 'bot', 'config/ArbitrationConfig': 'bot/arbitration',
+                'config/BehaviorConfig': 'bot/behavior', 'config/ControlConfig': 'bot/control',
+                'config/PlanningConfig': 'bot/planning', 'config/RulesConfig': 'bot/rules',
+                'config/WorldConfig': 'bot/world', 'config/GameConfig': 'game'}
+CONFIG_ORDER = BOT_ORDER + ['game']
+
+
+def config_allows(src, target):
+    """Whether a class in layer src may read the settings class target."""
+    if target not in CONFIG_LAYER:
+        return True
+    rank = 'game' if src in GAME else src
+    if rank not in CONFIG_ORDER:
+        return True
+    return CONFIG_ORDER.index(CONFIG_LAYER[target]) >= CONFIG_ORDER.index(rank)
 # Stack violations not fixed yet, one "file<TAB>what" per line, under the same shrink-only rule.
 STACK_PENDING = ROOT / 'scripts/architecture-pending.txt'
 
@@ -132,6 +148,8 @@ def stack_violations(source):
             dst = stack_unit(target)
             if target in FACADE_EXPORTS and stack_allows(src, 'bot'):
                 continue
+            if not config_allows(src, target):
+                found.add((relative.as_posix(), f'config {target.rsplit("/", 1)[-1]}'))
             if target != name and not stack_allows(src, dst):
                 found.add((relative.as_posix(), f'{dst} {target.rsplit("/", 1)[-1]}'))
     return found

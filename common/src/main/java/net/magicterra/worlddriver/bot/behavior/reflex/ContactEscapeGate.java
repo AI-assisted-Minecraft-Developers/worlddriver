@@ -34,7 +34,7 @@ public final class ContactEscapeGate {
 
     /** @param lastDamageMsgId {@code getLastDamageSource().getMsgId()}, null if none
      *  @param hurtTime        vanilla post-hit invulnerability countdown (10 → 0)
-     *  @param enabled         {@code BotConfig.contactDamageEscape} */
+     *  @param enabled         {@code BehaviorConfig.contactDamageEscape} */
     public static boolean shouldTrigger(String lastDamageMsgId, int hurtTime, boolean enabled) {
         return enabled && hurtTime > 0 && lastDamageMsgId != null
                 && CONTACT_MSG_IDS.contains(lastDamageMsgId);

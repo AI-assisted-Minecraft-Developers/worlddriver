@@ -158,7 +158,7 @@ one where a row says so. The client player is named explicitly wherever it behav
 differently, and the mob has a group of its own at the end.
 
 A status established from a scene result was established under the scene baseline, which is
-not the configuration a live client runs. `BotConfig.allowBreak` and `BotConfig.allowPlace`
+not the configuration a live client runs. `WorldConfig.allowBreak` and `WorldConfig.allowPlace`
 are both on by default, so a `goto` on a live client will mine and bridge its way through;
 `BotConfig.applyGameTestBaseline()` pins both off, along with several movement settings, for
 the duration of a scene run, and a live client never calls it. A scene that wants one of

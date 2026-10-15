@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.world;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
+import net.magicterra.worlddriver.config.WorldConfig;
 
 /**
  * Pathfinder's read-only view of the world. Keeps the A* core decoupled from
@@ -94,7 +95,7 @@ public interface WorldView {
     default double breakCost(BlockPos pos, BlockPos from) { return breakCost(pos); }
 
     /**
-     * Like {@link #breakCost}, but gated on {@code BotConfig.allowSwimEscapeBreak}
+     * Like {@link #breakCost}, but gated on {@code WorldConfig.allowSwimEscapeBreak}
      * instead of {@code allowBreak}. The water-escape moves
      * ({@link net.magicterra.worlddriver.bot.rules.moves.SwimAshoreBreak} /
      * {@link net.magicterra.worlddriver.bot.rules.moves.SwimTraverseBreak}) price
@@ -297,12 +298,12 @@ public interface WorldView {
     }
 
     /**
-     * Whether submerged cells are refused as lateral nodes: {@code BotConfig.pathfinderSurfaceWaterNodes}
+     * Whether submerged cells are refused as lateral nodes: {@code WorldConfig.pathfinderSurfaceWaterNodes}
      * unless the current search opted into {@code Capability.DIVE} (see {@link #diveSearch}), whose
      * whole purpose is to route the bot through water with its head under. Live views hold the
      * dive flag; the interface default only knows the config.
      */
-    default boolean surfaceWaterNodes() { return net.magicterra.worlddriver.config.BotConfig.pathfinderSurfaceWaterNodes; }
+    default boolean surfaceWaterNodes() { return net.magicterra.worlddriver.config.WorldConfig.pathfinderSurfaceWaterNodes; }
 
     /** Told by {@code PathFinder.Search} whether the search it is about to run has the DIVE opt-in.
      *  The interface default forgets it; a live view keeps it so {@link #surfaceWaterNodes} can answer. */
@@ -335,7 +336,7 @@ public interface WorldView {
      * that costs tens of seconds of bank-dig / shore-swim. Distinct from a SHALLOW
      * 1-deep splash (solid floor below → not floating-water) which the bot stands in
      * and steps out of, and from a fully-submerged landing (head water) already barred.
-     * Used by the PARKOUR leaps (gated by {@link net.magicterra.worlddriver.config.BotConfig#pathfinderForbidParkourIntoDeepWater})
+     * Used by the PARKOUR leaps (gated by {@link net.magicterra.worlddriver.config.RulesConfig#pathfinderForbidParkourIntoDeepWater})
      * to refuse leaping INTO such a pocket; plain step/fall water entries are left to
      * cross real water bodies.
      */

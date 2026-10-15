@@ -4,11 +4,12 @@ import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 
 /**
  * 3-block 45° diagonal leap — gated behind the same
- * {@link net.magicterra.worlddriver.config.BotConfig#allowParkour4} switch as
+ * {@link net.magicterra.worlddriver.config.RulesConfig#allowParkour4} switch as
  * {@link Parkour4} since this is an even longer reach (~4.24 blocks
  * horizontal) at the absolute edge of sprint-jump physics. Cost 47.
  * The player sweeps the entire 2×2 corner column at foot+head; no stand-able
@@ -17,19 +18,19 @@ import net.magicterra.worlddriver.config.BotConfig;
  */
 public final class Parkour3Diagonal extends Move {
     public Parkour3Diagonal(int dx, int dz) { super(dx * 3, 0, dz * 3, 47); }
-    @Override public boolean availableInSearch(WorldView w) { return BotConfig.allowParkour4; }
+    @Override public boolean availableInSearch(WorldView w) { return RulesConfig.allowParkour4; }
     public boolean valid(WorldView w, BlockPos from) {
-        if (!BotConfig.allowParkour4) return false;
+        if (!RulesConfig.allowParkour4) return false;
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
         // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
-        if (BotConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
+        if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
         if (!Move.hasRunway(w, from)) return false;
         BlockPos to = apply(from);
         // The void rule covers the WHOLE leap family, not the three members it was first written
         // against. An exemption narrower than the family it must cover is how this class of bug
         // leaks back: rung 20 kept leaving the world from cells the first three gates never saw.
         // See Move.overTheVoid — a rule and not a price, and only while a bridge is affordable.
-        if (BotConfig.pathfinderForbidParkourOverTheVoid && BotConfig.allowPlace
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace
                 && Move.overTheVoid(w, from, to)) return false;
         if (!w.canStandAt(to)) return false;
         // Buoyancy: no parkour LANDING in submerged water — the bot sinks/stalls there
@@ -37,7 +38,7 @@ public final class Parkour3Diagonal extends Move {
         if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) return false;
         // ...and (opt-in) refuse a leap onto a DEEP pocket SURFACE (≥2 water below, head
         // air): buoyant bot floats there and can't climb out (#47 dead-end-pocket dive).
-        if (BotConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
+        if (RulesConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
         if (!w.isPassable(from.offset(0, 2, 0))) return false;
         int sx = Integer.signum(dx), sz = Integer.signum(dz);
         // Check every cell in the 2x2 trapezoidal sweep between launch

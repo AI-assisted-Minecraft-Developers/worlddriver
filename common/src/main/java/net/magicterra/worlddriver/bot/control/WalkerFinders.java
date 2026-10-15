@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.control;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.planning.PathTuning;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
@@ -30,7 +30,7 @@ final class WalkerFinders {
 
     /** The quick-start finder: a small node cap, one call. */
     static PathFinder quick(Walker wk, WorldView world, long maxMs) {
-        return scoped(wk, new PathFinder(world, BotConfig.pathfinderQuickNodes, maxMs, wk.profile)).withOwner(wk.owner);
+        return scoped(wk, new PathFinder(world, ControlConfig.pathfinderQuickNodes, maxMs, wk.profile)).withOwner(wk.owner);
     }
 
     /**

@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.control;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -76,7 +77,7 @@ final class WalkerTickEdgeGuards {
         // unchanged water actuator. Strict ADD: inert when landedOnVine=false → identical to the old gate.
         double vineDx = (wp.getX() + 0.5) - p.getX();
         double vineDz = (wp.getZ() + 0.5) - p.getZ();
-        boolean landedOnVine = BotConfig.walkerVineLandGrab
+        boolean landedOnVine = ControlConfig.walkerVineLandGrab
                 && world.isClimbable(foot) && !p.onGround()
                 && (vineDx * vineDx + vineDz * vineDz) < OVERSHOOT_RESYNC_SQ;
         boolean onVine = (!parkourEdge || landedOnVine)
@@ -85,7 +86,7 @@ final class WalkerTickEdgeGuards {
         // while airborne OR in-water (the bug window), whether or not onVine engages — so an A/B can see
         // if the foot EVER becomes the climbable vine while parkourEdge is still true (the landedOnVine
         // case) or if the arc skips the vine straight to the water pocket (foot air→water, never climbable).
-        if (BotConfig.walkerDebug && (!p.onGround() || p.isInWater())) {
+        if (GameConfig.walkerDebug && (!p.onGround() || p.isInWater())) {
             BlockPos footBelow = foot.below();
             LOG.info("[VINEDIAG] py={} foot={},{},{} climb(foot)={} climb(below)={} parkourEdge={} inWater={} onGround={} landedOnVine={} onVine={} cur2={} wp={},{},{}",
                     String.format(Locale.ROOT, "%.2f", p.getY()),
@@ -130,7 +131,7 @@ final class WalkerTickEdgeGuards {
             // wp.y > foot.y there, untouched). Force the slide-down so the bot drops off the vine onto the
             // bank / into the inlet and the normal walk/stepDown resumes (it grounds → the !onGround gate
             // ends the cling). Strict ADD: inert when OFF or when wp.y > foot.y (a real climb).
-            if (BotConfig.walkerVineDescentDrop && wp.getY() <= foot.getY()) climbUp = false;
+            if (ControlConfig.walkerVineDescentDrop && wp.getY() <= foot.getY()) climbUp = false;
             // FREE-HANGING vine sustain (walkerVineFreeHangClimb). A wall-less vine (wallYaw==null:
             // no solid horizontal neighbour of the foot column) cannot be climbed by ramming a wall —
             // vanilla's (horizontalCollision||jumping) ascent has no wall to keep horizontalCollision
@@ -144,7 +145,7 @@ final class WalkerTickEdgeGuards {
             // bot wedges — live-verified). commandMove tracks wp exactly while the camera slews, so the
             // off-axis drift is corrected without the camera lag mis-aiming a raw forward press. Wall-
             // backed cells (wallYaw!=null) hand back to the wall-press path to top out + step off.
-            boolean freeHang = BotConfig.walkerVineFreeHangClimb && wallYaw == null && climbUp;
+            boolean freeHang = ControlConfig.walkerVineFreeHangClimb && wallYaw == null && climbUp;
             float vYaw;
             boolean pressForward = false;           // for the wall-backed / legacy path below
             boolean freeHangDrive = false;          // true → horizontal driven by commandMove (decoupled)
@@ -190,7 +191,7 @@ final class WalkerTickEdgeGuards {
                 vYaw = (float) Math.toDegrees(Math.atan2(-vdx, vdz));
                 pressForward = climbUp;
             }
-            if (Math.abs(angleDiff(p.getYRot(), vYaw)) > BotConfig.walkerYawHysteresisDeg) {
+            if (Math.abs(angleDiff(p.getYRot(), vYaw)) > ControlConfig.walkerYawHysteresisDeg) {
                 float want = smoothAngle(p.getYRot(), vYaw);
                 float dyaw = angleDiff(p.getYRot(), want);
                 if (Math.abs(dyaw) > WALKER_MAX_YAW_SLEW_DEG) dyaw = Math.copySign(WALKER_MAX_YAW_SLEW_DEG, dyaw);
@@ -221,7 +222,7 @@ final class WalkerTickEdgeGuards {
             Walker.avatarSneak(a, false);              // sneak would HALT the vine climb
             p.setShiftKeyDown(false);
             p.setSprinting(false);
-            if (BotConfig.walkerDebug)
+            if (GameConfig.walkerDebug)
                 LOG.info("[walker] vine-climb foot={},{},{} ahead={},{},{} climbUp={} freeHang={} fhDrive={} yaw={} py={}",
                         foot.getX(), foot.getY(), foot.getZ(),
                         ahead.getX(), ahead.getY(), ahead.getZ(), climbUp, freeHang, freeHangDrive,

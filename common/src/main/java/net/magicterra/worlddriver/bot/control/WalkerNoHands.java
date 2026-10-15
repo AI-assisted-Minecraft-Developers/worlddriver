@@ -15,7 +15,7 @@ import net.minecraft.world.item.Item;
  * nothing breaks, and every reading says so.
  *
  * <p>The walker is not a verb — it cannot refuse an order the way a process does at the top of
- * its tick — and its dig/place sites are already gated on {@code BotConfig.allowBreak} /
+ * its tick — and its dig/place sites are already gated on {@code WorldConfig.allowBreak} /
  * {@code allowPlace} and on {@code holdPlaceable()} answering true. So a handless bot is driven
  * with these hands rather than a null the fifty sites would each have to guard: the gates fall
  * closed on their own, and the readings ({@code breakHeld()} false, {@code destroyProgress()}

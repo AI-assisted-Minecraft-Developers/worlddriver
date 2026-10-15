@@ -5,6 +5,10 @@ import java.util.Locale;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
@@ -134,9 +138,9 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -193,23 +197,23 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
         // pfDepthPenalty() returns max(penalty, 25) when boxed-escalation is ON, which would clamp BOTH
         // penalty=0 and penalty=6 to an identical 25 → false failure. Force it OFF so pfDepthPenalty()
         // returns the raw penalty we set.
-        BotConfig.pathfinderBoxedEscalate = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // each search runs to completion (deterministic)
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxNodes = 1_000_000;
+        PlanningConfig.pathfinderBoxedEscalate = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // each search runs to completion (deterministic)
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxNodes = 1_000_000;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, plY + 1, cz + 2);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        BotConfig.pathfinderDepthPenalty = 0;
+        PlanningConfig.pathfinderDepthPenalty = 0;
         var r0 = runSearch(w, start, goal);
-        BotConfig.pathfinderDepthPenalty = 6;
+        PlanningConfig.pathfinderDepthPenalty = 6;
         var r6 = runSearch(w, start, goal);
         WorldDriverCommon.LOG.info("[wd.basin] penalty0: reached={} expanded={} | penalty6: reached={} expanded={}",
                 r0.goalReached(), r0.expanded(), r6.goalReached(), r6.expanded());
@@ -222,10 +226,10 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         // Failure-case: a node budget BETWEEN the two counts — penalty=0 burns it in the trap and FAILS;
         // penalty=6 reaches via the rim within it.
         int budget = (r0.expanded() + r6.expanded()) / 2;
-        BotConfig.pathfinderMaxNodes = budget;
-        BotConfig.pathfinderDepthPenalty = 0;
+        PlanningConfig.pathfinderMaxNodes = budget;
+        PlanningConfig.pathfinderDepthPenalty = 0;
         var b0 = runSearch(w, start, goal);
-        BotConfig.pathfinderDepthPenalty = 6;
+        PlanningConfig.pathfinderDepthPenalty = 6;
         var b6 = runSearch(w, start, goal);
         WorldDriverCommon.LOG.info("[wd.basin] budget={}: penalty0 reached={} | penalty6 reached={}",
                 budget, b0.goalReached(), b6.goalReached());
@@ -280,11 +284,11 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        double oco = BotConfig.pathfinderWaterClimbOutCost;   // the configured default (baseline value)
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxNodes = 1_000_000;
+        double oco = PlanningConfig.pathfinderWaterClimbOutCost;   // the configured default (baseline value)
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxNodes = 1_000_000;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, wsurf, cz);
         ServerPlayer fp = av.fakePlayer();
@@ -292,10 +296,10 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
 
         // Tax OFF: the +1 exit is allowed (its maxY is recorded, not judged). Tax default: flush wins.
-        BotConfig.pathfinderWaterClimbOutCost = 0;
+        PlanningConfig.pathfinderWaterClimbOutCost = 0;
         var rOff = runSearch(w, start, goal);
         int maxYOff = maxPathY(rOff);
-        BotConfig.pathfinderWaterClimbOutCost = oco;        // the configured default
+        PlanningConfig.pathfinderWaterClimbOutCost = oco;        // the configured default
         var rOn = runSearch(w, start, goal);
         int maxYOn = maxPathY(rOn);
         WorldDriverCommon.LOG.info("[wd.waterClimbOutRoute] taxOff: reached={} maxY={} | taxDefault({}): reached={} maxY={}",
@@ -350,10 +354,10 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;          // no carving — the stall must be the buoyant reach, not a dig
-        BotConfig.allowPlace = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = false;          // no carving — the stall must be the buoyant reach, not a dig
+        WorldConfig.allowPlace = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         int[] advanceTick = { -1, -1 };    // first tick the step-pointer left the water node, per run
         int[] nodeDwell = new int[2];      // ticks the step-pointer sat ON the water node, per run
@@ -361,8 +365,8 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         double[] minCur2 = { Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY };
         // Run 0 = flag OFF (must WEDGE), run 1 = flag ON (must ADVANCE).
         for (int leg = 0; leg < 2; leg++) {
-            BotConfig.walkerWaterStepDownFloat = (leg == 1);
-            BotConfig.walkerDebug = true;
+            ControlConfig.walkerWaterStepDownFloat = (leg == 1);
+            GameConfig.walkerDebug = true;
             // SEED the bot in the EAST-adjacent 1-deep water cell (cx+1), pressed WEST toward the head-walled
             // node, with a small west velocity. It grounds (foot=waterY) but its head is blocked → pins short.
             ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, waterY, cz + 0.5);
@@ -465,12 +469,12 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = true;             // leak precondition: only forbidDig should stop the pad punch
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = false;
-        BotConfig.walkerWallDigFallback = false; // irrelevant in water; isolate the pad break
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = true;             // leak precondition: only forbidDig should stop the pad punch
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = false;
+        ControlConfig.walkerWallDigFallback = false; // irrelevant in water; isolate the pad break
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         // Phase A: forbidDig (NoBreak) — the pad MUST survive.
         setup.run();
@@ -569,19 +573,19 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;          // pure swim/walk — the route choice must be the gate, not a dig
-        BotConfig.allowPlace = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each search completes in one go
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = false;          // pure swim/walk — the route choice must be the gate, not a dig
+        WorldConfig.allowPlace = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each search completes in one go
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         // ---- Part A: predicate A/B on the committed plan ----
         int[] subNodes = new int[2];
         boolean[] reached = new boolean[2];
         for (int leg = 0; leg < 2; leg++) {
-            BotConfig.pathfinderFloatingSurfaceCross = (leg == 1);
+            PlanningConfig.pathfinderFloatingSurfaceCross = (leg == 1);
             // The bug lives in the legacy model, where every water cell is a node; run 0 reproduces it
             // there. Under the surface-node model (run 1) a submerged crossing cannot be planned at all.
-            BotConfig.pathfinderSurfaceWaterNodes = (leg == 1);
+            WorldConfig.pathfinderSurfaceWaterNodes = (leg == 1);
             ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, surface - 1, cz + 0.5);
             ServerPlayer fp = av.fakePlayer();
             final ServerPlayer fpc = fp;
@@ -613,9 +617,9 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     + "(the surface route must still solve the crossing).");
 
         // ---- Part B: integration — the floating Walker crosses cleanly with the flag ON ----
-        BotConfig.pathfinderFloatingSurfaceCross = true;
-        BotConfig.pathfinderSurfaceWaterNodes = true;
-        BotConfig.walkerDebug = true;
+        PlanningConfig.pathfinderFloatingSurfaceCross = true;
+        WorldConfig.pathfinderSurfaceWaterNodes = true;
+        GameConfig.walkerDebug = true;
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, surface - 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
@@ -705,10 +709,10 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each search completes in one go
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxNodes = 1_000_000;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each search completes in one go
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxNodes = 1_000_000;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 2.5, surface, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -736,7 +740,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         int[] laneNodes = new int[2];
         boolean[] reached = new boolean[2];
         for (int leg = 0; leg < 2; leg++) {
-            BotConfig.pathfinderVineOverWaterTax = (leg == 1);
+            PlanningConfig.pathfinderVineOverWaterTax = (leg == 1);
             PathFinder.Search s = new PathFinder(w).newSearch(start, goal);
             s.advance(Long.MAX_VALUE / 2);
             PathFinder.Result r = s.result();
@@ -812,10 +816,10 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each search completes in one go
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxNodes = 1_000_000;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each search completes in one go
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxNodes = 1_000_000;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 2.5, surface, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -841,7 +845,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         int[] padNodes = new int[2];
         boolean[] reached = new boolean[2];
         for (int leg = 0; leg < 2; leg++) {
-            BotConfig.pathfinderPadOverWaterTax = (leg == 1);
+            PlanningConfig.pathfinderPadOverWaterTax = (leg == 1);
             PathFinder.Search s = new PathFinder(w).newSearch(start, goal);
             s.advance(Long.MAX_VALUE / 2);
             PathFinder.Result r = s.result();
@@ -924,10 +928,10 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each search completes in one go
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxNodes = 1_000_000;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each search completes in one go
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxNodes = 1_000_000;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 2.5, surface, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -952,11 +956,11 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     + "already fire; expected a Y-aware goal.");
 
         // ---- REGION 1: the CLUSTER WALL A/B (single-pad tax ON for BOTH runs; CLUSTER flag is the variable).
-        BotConfig.pathfinderPadOverWaterTax = true;        // the shipped single-pad fix stays ON for the A/B
+        PlanningConfig.pathfinderPadOverWaterTax = true;        // the shipped single-pad fix stays ON for the A/B
         int[] wallNodes = new int[2];
         boolean[] reached = new boolean[2];
         for (int leg = 0; leg < 2; leg++) {
-            BotConfig.pathfinderPadClusterTax = (leg == 1);
+            PlanningConfig.pathfinderPadClusterTax = (leg == 1);
             PathFinder.Search s = new PathFinder(w).newSearch(start, goal);
             s.advance(Long.MAX_VALUE / 2);
             PathFinder.Result r = s.result();
@@ -983,7 +987,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     + "— the surcharge must DETOUR around the wall, never forbid the crossing (clear lanes at cz±3).");
 
         // ---- REGION 2: the LONE sparse pad (no single-pad regression).
-        BotConfig.pathfinderPadClusterTax = true;
+        PlanningConfig.pathfinderPadClusterTax = true;
         PathFinder.Result rLone = new PathFinder(w).findPath(start, goal);
         int loneNodes = 0;
         for (BlockPos p : rLone.path())
@@ -1073,7 +1077,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, waterFootY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -1094,7 +1098,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     + "long open-water crossing (need ≥ the 64 reject gate). Lengthen spanX.");
 
         // (1) OFF: the far open-water continuation must be REJECTED (the live dead-stop root).
-        BotConfig.walkerDeepWaterFloatBeeline = false;
+        ControlConfig.walkerDeepWaterFloatBeeline = false;
         Walker wOff = new Walker();
         boolean acceptOff = wOff.adoptForTest(w, cont, contEdges, foot);
         WorldDriverCommon.LOG.info("[wd.deepWaterFloatBeeline] OFF accept={} (expect false: anchor-gate rejects mis-anchored)", acceptOff);
@@ -1104,7 +1108,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     + "not reproduce. Baseline broken.");
 
         // (2) ON: the SAME continuation must be ACCEPTED and the step driven toward the far node.
-        BotConfig.walkerDeepWaterFloatBeeline = true;
+        ControlConfig.walkerDeepWaterFloatBeeline = true;
         Walker wOn = new Walker();
         boolean acceptOn = wOn.adoptForTest(w, cont, contEdges, foot);
         WorldDriverCommon.LOG.info("[wd.deepWaterFloatBeeline] ON accept={} step={} node={} (expect true: clear-LOS open-water bee-line)",

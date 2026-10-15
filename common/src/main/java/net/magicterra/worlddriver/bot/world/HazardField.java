@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.world;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 
@@ -102,7 +102,7 @@ public final class HazardField {
 
     /** Huge-but-finite avoidance cost for entering a lethal cell. Never Infinity (keeps A* feasible).
      *  Deep water is the one lethal verdict the planner does not pay for
-     *  ({@link BotConfig#pathfinderDeepWaterPriced}): its surface cell is a swim the water taxes
+     *  ({@link WorldConfig#pathfinderDeepWaterPriced}): its surface cell is a swim the water taxes
      *  price, and charging it 10 000 sent every crossing to the nearest rim. */
     public double lethalPenalty(BlockPos foot) {
         int dx = foot.getX() - center.getX();
@@ -110,7 +110,7 @@ public final class HazardField {
         if (Math.abs(dx) > radius || Math.abs(dz) > radius) return 0;
         HazardCell c = at(dx, dz);
         if (!c.lethal()) return 0.0;
-        if (BotConfig.pathfinderDeepWaterPriced && c.deepWaterDepth() > 0 && !c.contactDamage()) return 0.0;
+        if (WorldConfig.pathfinderDeepWaterPriced && c.deepWaterDepth() > 0 && !c.contactDamage()) return 0.0;
         return 10_000.0;
     }
 }

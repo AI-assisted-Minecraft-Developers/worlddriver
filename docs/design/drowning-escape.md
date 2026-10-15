@@ -35,7 +35,7 @@ on dry land, 57 underwater and grounded, and 282 underwater and hovering. Bare-h
 150, 750 and 3750 — which is the hard edge of this whole design: **there is no posture and no
 threshold at which a bare-handed bot digs its way out of stone.**
 
-That makes `BotConfig.drownEscapeAirThreshold` (100) the wrong dial to reach for, twice over.
+That makes `ControlConfig.drownEscapeAirThreshold` (100) the wrong dial to reach for, twice over.
 Its range is capped: raising it to 300, so the reflex latches the instant the bot submerges,
 lifts the budget from 300 ticks to 500, which still buys exactly one stone block. And the same
 number is a divisor in two other places that move the opposite way. `WalkerTickClimb` prices
@@ -133,7 +133,7 @@ conditional on the cell under the feet being standable.
 ## Instrumentation is unconditional
 
 Both arms print a throttled row every ten ticks, and neither is gated on
-`BotConfig.walkerDebug`. That is a deliberate reversal. The rows used to be behind that flag,
+`GameConfig.walkerDebug`. That is a deliberate reversal. The rows used to be behind that flag,
 and gate runs never set it, so a run in which this chain latched and the bot drowned 300 ticks
 later at an unchanged position produced exactly one line of log — the latch — and nothing to say
 which arm had it. A reading available only behind a flag is a reading the run that needs it never
@@ -176,7 +176,8 @@ the hypothesis is settled it should be promoted in the same change, or it become
 - `bot/arbitration/DrownEscapeChain.java` — both arms, the recentre, and the stand-up-to-dig release.
 - `bot/behavior/reflex/DrownEscapeGate.java` — the pure latch, and the only part a dedicated server exercises.
 - `game/body/BotInteract.java` — `riseBlockedCell`, `drownVerticalRow`, `continueDestroy`.
-- `config/BotConfig.java` — `autoDrownEscape`, `drownEscapeAirThreshold`, `drownEscapeReleaseAir`.
+- `config/ArbitrationConfig.java` — `autoDrownEscape`, `drownEscapeReleaseAir`; `config/ControlConfig.java` —
+  `drownEscapeAirThreshold`.
 - `bot/arbitration/Priorities.java` — where 500 sits relative to the other reflexes.
 
 The scenes are `wd.drownEscapeGateMatrix`, `wd.drownEscapePreempt` and `wd.drownEscapeSurface` for the

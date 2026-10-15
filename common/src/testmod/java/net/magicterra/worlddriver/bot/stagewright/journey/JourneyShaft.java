@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 import java.util.List;
 import java.util.function.Consumer;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.BodyGeometry;
@@ -212,7 +212,7 @@ public final class JourneyShaft {
 
     private static void climbFrom(JourneyRig rig, int surfaceY, int colX, int colZ, String tag,
                                   Runnable then) {
-        BotConfig.allowPlace = true;
+        WorldConfig.allowPlace = true;
         climbName = tag + "#" + (++climbSeq);
         int rise = Math.max(0, surfaceY - rig.player().blockPosition().getY());
         int cap = climbCoursesFor(rise);
@@ -314,15 +314,15 @@ public final class JourneyShaft {
      * reason the pinned fallback beside this one carries {@link NoBreak}.
      */
     private static void climbTheFlightItself(JourneyRig rig, int surfaceY, Runnable then) {
-        boolean couldPlace = BotConfig.allowPlace;
-        boolean couldBreak = BotConfig.allowBreak;
-        BotConfig.allowPlace = false;
-        BotConfig.allowBreak = false;
+        boolean couldPlace = WorldConfig.allowPlace;
+        boolean couldBreak = WorldConfig.allowBreak;
+        WorldConfig.allowPlace = false;
+        WorldConfig.allowBreak = false;
         rig.evidence(climbName + ".walkedNotTowered", true);
         rig.settle(new IntentProcess(new Intent(new Goal.YLevel(surfaceY), List.of(),
                         CapabilityProfile.ALL, List.of(new NoBreak()))), 3_000, () -> {
-            BotConfig.allowPlace = couldPlace;
-            BotConfig.allowBreak = couldBreak;
+            WorldConfig.allowPlace = couldPlace;
+            WorldConfig.allowBreak = couldBreak;
             recordExit(rig, then);
         });
     }
@@ -1318,12 +1318,12 @@ public final class JourneyShaft {
                 : "no standable cell in this column at y=" + (at.getY() + 1) + ".."
                         + (at.getY() - COLUMN_FOOTHOLD_DROP)
                         + " - can only walk by column, and will most likely not get there");
-        boolean couldBreak = BotConfig.allowBreak;
-        BotConfig.allowBreak = false;
+        boolean couldBreak = WorldConfig.allowBreak;
+        WorldConfig.allowBreak = false;
         // Longer than the 120 ticks the same-height cell needed, because the column's foothold can
         // be several rows under the bot in a hollow alcove and the walk now includes that descent.
         rig.settle(new IntentProcess(new Intent(goal)), 200, () -> {
-            BotConfig.allowBreak = couldBreak;
+            WorldConfig.allowBreak = couldBreak;
             BlockPos back = rig.player().blockPosition();
             if (back.getX() == climbColX && back.getZ() == climbColZ) { then.run(); return; }
             // WHY it did not get there, from the walker itself. `pinnedLost` and `driftKept` both

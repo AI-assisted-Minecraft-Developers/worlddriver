@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.debug;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
@@ -31,7 +31,7 @@ import net.magicterra.worlddriver.bot.control.BotLevelHolder;
  * {@link PathArchive} and writes it to disk as JSON under
  * {@code config/worlddriver/replays/}.
  *
- * <p>Gated by {@link BotConfig#pathArchive}: when false every callback returns
+ * <p>Gated by {@link ControlConfig#pathArchive}: when false every callback returns
  * immediately. Session boundary is the first {@code onSearchBegin} when none is
  * open; a second begin while a session is open (i.e. a repath) accumulates into
  * the same session without resetting it. The archive is finalised and flushed on
@@ -123,7 +123,7 @@ public final class PathArchiveRecorder implements PathTrace {
      * per-tick deviation) and a reference to the plan archive the run replays.
      * Subsequent {@link #onWalkerTick} ticks accumulate into this session and
      * {@link #onTerminal} writes a {@code replay-run-*.json}. Ignores
-     * {@link BotConfig#pathArchive} (the replay tool always wants the run captured).</p>
+     * {@link ControlConfig#pathArchive} (the replay tool always wants the run captured).</p>
      */
     public void armReplay(List<BlockPos> planNodes, String planRefFile, int replayEntityId) {
         sessionOpen = true;
@@ -156,7 +156,7 @@ public final class PathArchiveRecorder implements PathTrace {
 
     @Override
     public void onSearchBegin(BlockPos start, Goal goal) {
-        if (!BotConfig.pathArchive) return;
+        if (!ControlConfig.pathArchive) return;
         if (sessionOpen) return;   // repath into same session OR replay armed — do NOT reset
 
         sessionOpen = true;
@@ -199,7 +199,7 @@ public final class PathArchiveRecorder implements PathTrace {
     @Override
     public void onSearchResult(List<BlockPos> path, List<Move.Edge> edges, boolean goalReached,
                                int expanded, long ms, double finalCost) {
-        if (!BotConfig.pathArchive || !sessionOpen) return;
+        if (!ControlConfig.pathArchive || !sessionOpen) return;
 
         Level level = BotLevelHolder.current;
 
@@ -284,7 +284,7 @@ public final class PathArchiveRecorder implements PathTrace {
         // A replay run always captures (it ignores pathArchive); a plan archive only
         // when pathArchive is on. Either way a session must be open.
         if (!sessionOpen) return;
-        if (!replayArmed && !BotConfig.pathArchive) return;
+        if (!replayArmed && !ControlConfig.pathArchive) return;
         // Identity pin (see replayEntityId): a replay run captures ONLY the replaying
         // avatar's ticks — concurrent walkers (client bot, other scenes) are foreign.
         if (replayArmed && replayEntityId != null && s.entityId() != replayEntityId) return;
@@ -318,7 +318,7 @@ public final class PathArchiveRecorder implements PathTrace {
     public void onTerminal(Outcome outcome, String reason) {
         if (!sessionOpen) return;
         boolean replay = replayArmed;
-        if (!replay && !BotConfig.pathArchive) return;
+        if (!replay && !ControlConfig.pathArchive) return;
         sessionOpen = false;
         replayArmed = false;
         replayEntityId = null;

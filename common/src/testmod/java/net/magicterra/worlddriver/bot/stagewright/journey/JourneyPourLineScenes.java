@@ -12,6 +12,8 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.ServerAvatarManager;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.ServerWorldDriver;
@@ -354,9 +356,9 @@ public final class JourneyPourLineScenes implements SceneProvider {
     private static void config(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowPlace = false;
-        BotConfig.allowBreak = false;
-        BotConfig.walkerDebug = false;
+        WorldConfig.allowPlace = false;
+        WorldConfig.allowBreak = false;
+        GameConfig.walkerDebug = false;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(JourneyRamp::reset);

@@ -14,6 +14,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.magicterra.worlddriver.config.GameConfig;
 
 /**
  * Where a movement task leaves the bot, and the two recoveries that put it back on ground it can
@@ -790,10 +791,10 @@ public final class JourneyLandingScenes implements SceneProvider {
      */
     private static BlockPos stageLipArena(SceneContext ctx) {
         ServerLevel level = ctx.level();
-        boolean debugWas = net.magicterra.worlddriver.config.BotConfig.walkerDebug;
-        net.magicterra.worlddriver.config.BotConfig.walkerDebug = true;
+        boolean debugWas = net.magicterra.worlddriver.config.GameConfig.walkerDebug;
+        net.magicterra.worlddriver.config.GameConfig.walkerDebug = true;
         ctx.cleanup(() -> {
-            net.magicterra.worlddriver.config.BotConfig.walkerDebug = debugWas;
+            net.magicterra.worlddriver.config.GameConfig.walkerDebug = debugWas;
             JourneyStairs.forget();
             JourneyStairwell.stairTop = null;
             JourneyStairwell.stairBottom = null;

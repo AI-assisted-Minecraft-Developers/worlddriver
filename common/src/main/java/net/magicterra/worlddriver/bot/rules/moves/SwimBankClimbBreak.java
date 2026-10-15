@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.rules.moves;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -19,7 +19,7 @@ import java.util.List;
  * expires once the water leaves the 3×3 ring below the feet), so a bank taller
  * than +2 was unclimbable and A* returned "no path" to any elevated far shore.
  * This move uses {@link Move#bankClimbContext} instead: it stays in context as
- * long as water lies straight DOWN within {@link BotConfig#swimBankClimbMaxHeight}
+ * long as water lies straight DOWN within {@link WorldConfig#swimBankClimbMaxHeight}
  * blocks through a CONTINUOUS solid bank face — i.e. the bot is still climbing
  * the same cliff it left the water on. A dry-land route far from water reads
  * false and the move is pruned, so land pathing is unchanged.
@@ -40,7 +40,7 @@ public final class SwimBankClimbBreak extends Move {
     @Override public boolean valid(WorldView w, BlockPos from) { return eval(w, from) != null; }
 
     @Override public Edge eval(WorldView w, BlockPos from) {
-        if (!bankClimbContext(w, from, BotConfig.swimBankClimbMaxHeight)) return null;
+        if (!bankClimbContext(w, from, WorldConfig.swimBankClimbMaxHeight)) return null;
         if (w.isSubmergedFoot(from)) return null;               // must start within 1 of the surface to jump-mount (WorldView#isSubmergedFoot)
         BlockPos to = apply(from);                              // from + (dx, 1, dz)
         BlockPos floor = to.offset(0, -1, 0);                   // = from + (dx, 0, dz): the bank we land on

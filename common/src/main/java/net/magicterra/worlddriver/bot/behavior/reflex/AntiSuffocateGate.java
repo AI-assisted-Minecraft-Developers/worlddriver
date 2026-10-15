@@ -35,8 +35,8 @@ public final class AntiSuffocateGate {
      * @param isInWall        client's {@code LocalPlayer#isInWall()} read this tick.
      * @param lastDamageMsgId {@code getLastDamageSource().getMsgId()}, or null if no
      *                        damage source is tracked (vanilla's own ~40-tick window).
-     * @param cfgOn           {@code BotConfig#antiSuffocate}.
-     * @param allowBreak      {@code BotConfig#allowBreak}.
+     * @param cfgOn           {@code BehaviorConfig#antiSuffocate}.
+     * @param allowBreak      {@code WorldConfig#allowBreak}.
      */
     public static boolean shouldTrigger(boolean isInWall, String lastDamageMsgId,
                                         boolean cfgOn, boolean allowBreak) {

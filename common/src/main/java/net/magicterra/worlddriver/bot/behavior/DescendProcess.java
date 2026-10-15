@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
@@ -62,7 +64,7 @@ public final class DescendProcess implements BotProcess {
 
     public DescendProcess(int targetY) { this.targetY = targetY; }
 
-    private static void dbg(String m, Object... a) { if (BotConfig.walkerDebug) LOG.info("[descend] " + m, a); }
+    private static void dbg(String m, Object... a) { if (GameConfig.walkerDebug) LOG.info("[descend] " + m, a); }
 
     @Override public String kind() { return "escape"; }
 
@@ -96,7 +98,7 @@ public final class DescendProcess implements BotProcess {
         if (p == null) return done(a, st, "no player");
         hands = a.hands().orElse(null);
         if (hands == null) return done(a, st, BodyReady.Reason.NO_HANDS);
-        if (!BotConfig.allowBreak) return done(a, st, "allowBreak is off — descend mines every step");
+        if (!WorldConfig.allowBreak) return done(a, st, "allowBreak is off — descend mines every step");
         BlockPos foot = p.blockPosition();
         st.escape.pathStep = steps;
         st.escape.target = foot;
@@ -216,7 +218,7 @@ public final class DescendProcess implements BotProcess {
         a.aimAtBlock(target);
         hands.breakHold(true);
         hands.continueDestroy(target);
-        if (++actTicks > BotConfig.breakTimeoutTicks * 3) {
+        if (++actTicks > ControlConfig.breakTimeoutTicks * 3) {
             return done(a, st, "carve timeout at " + target.toShortString());
         }
         return false;
@@ -270,7 +272,7 @@ public final class DescendProcess implements BotProcess {
         a.aimAtBlock(below);
         hands.breakHold(true);
         hands.continueDestroy(below);
-        if (++actTicks > BotConfig.breakTimeoutTicks * 3) {
+        if (++actTicks > ControlConfig.breakTimeoutTicks * 3) {
             return done(a, st, "own-floor dig timeout at " + below.toShortString());
         }
         return false;

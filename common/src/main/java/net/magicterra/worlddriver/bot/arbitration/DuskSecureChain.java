@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.arbitration;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
@@ -24,7 +24,7 @@ import static net.magicterra.worlddriver.game.body.BotInteract.releaseKeys;
  * night (it never outbids 40). When still exposed and unsheltered — and not already
  * cornered/mid-dig — this now escalates to {@link Priorities#DUSK_URGENT}(90), which
  * outranks USER/COMBAT but stays below SURVIVAL/BUNKER so a real flee/dig-in still wins.
- * {@link BotConfig#duskUrgentDryRun} lets the escalated path be observed (an emitted
+ * {@link ArbitrationConfig#duskUrgentDryRun} lets the escalated path be observed (an emitted
  * event) for a first live night before it is allowed to actually preempt.
  */
 public final class DuskSecureChain implements Chain {
@@ -118,7 +118,7 @@ public final class DuskSecureChain implements Chain {
 
     @Override public float priority(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
-        if (!BotConfig.autoSecureAtDusk || mc.player == null) { idleTicks = 0; return 0f; }
+        if (!ArbitrationConfig.autoSecureAtDusk || mc.player == null) { idleTicks = 0; return 0f; }
         // Once a shelter dig is committed, hold the channel until BunkerProcess finishes.
         // The 1-wide shaft we dig makes the bot 'cornered', which must NOT trip our own
         // start-gate and abandon a half-dug, unsealed hole. (Live-cert finding.)
@@ -132,7 +132,7 @@ public final class DuskSecureChain implements Chain {
             if (s.present() && !s.exposedAtNight()) rearmPending = false;
             idleTicks = 0; return 0f;
         }
-        float bid = urgentBid(true, false, BotConfig.duskUrgent, BotConfig.duskUrgentDryRun);
+        float bid = urgentBid(true, false, ArbitrationConfig.duskUrgent, ArbitrationConfig.duskUrgentDryRun);
         // final-review finding #3: emit the "would have escalated" canary BEFORE the
         // legacy idle-tier THREAT_RADIUS veto below (and independent of the idle-debounce
         // window) — a nearby-threat night is exactly the case the escalation is for, and
@@ -140,7 +140,7 @@ public final class DuskSecureChain implements Chain {
         // maybeEmitDryRun was ever reached, so the canary emitted nothing precisely when
         // mobs were near. This only affects the OBSERVE-ONLY emit; the RETURNED bid below
         // still runs through the legacy veto/debounce path completely unchanged.
-        if (wouldEscalate(true, false, BotConfig.duskUrgent, BotConfig.duskUrgentDryRun)) {
+        if (wouldEscalate(true, false, ArbitrationConfig.duskUrgent, ArbitrationConfig.duskUrgentDryRun)) {
             maybeEmitDryRun(mc);
         }
         if (bid == Priorities.IDLE_SECURE) {
@@ -162,7 +162,7 @@ public final class DuskSecureChain implements Chain {
         Minecraft mc = Chain.clientOf(body);
         if (mc.player == null) return;
         if (process == null) {
-            process = new BunkerProcess(BotConfig.bunkerDepth);
+            process = new BunkerProcess(ArbitrationConfig.bunkerDepth);
             process.attach(st);
             announceAutoTrigger(mc, rearmPending);
         }
@@ -189,20 +189,20 @@ public final class DuskSecureChain implements Chain {
     /** Push a warning-level {@code duskSecure.triggered} event the instant this reflex
      *  starts an UNATTENDED dig, so an auto-trigger is never a silent surprise: the Agent
      *  can react (e.g. mc.bot.cancel) and the operator sees it. Pairs with the off-by-default
-     *  {@link BotConfig#autoSecureAtDusk} to keep the "dig three, fill one" bunker predominantly an Agent-invoked
+     *  {@link ArbitrationConfig#autoSecureAtDusk} to keep the "dig three, fill one" bunker predominantly an Agent-invoked
      *  action (mc.bot.bunker) rather than an uncontrolled reflex. */
     private void announceAutoTrigger(Minecraft mc, boolean rearm) {
         if (mc.player == null) return;
         BlockPos p = mc.player.blockPosition();
         emitter.emit("duskSecure.triggered", p, Map.of(
                         "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ()),
-                        "depth", BotConfig.bunkerDepth,
+                        "depth", ArbitrationConfig.bunkerDepth,
                         // gap#75-b: distinguishes a re-arm after preemption from a fresh
                         // dusk trigger in the event stream.
                         "rearm", rearm));
     }
 
-    /** Observe-only canary for {@link BotConfig#duskUrgentDryRun}: pushes at most one
+    /** Observe-only canary for {@link ArbitrationConfig#duskUrgentDryRun}: pushes at most one
      *  {@code duskSecure.urgentDryRun} event per {@link #DRY_RUN_EMIT_COOLDOWN_TICKS}
      *  ticks so a first live night can confirm the escalation WOULD have fired before
      *  the flag is flipped to actually preempt the user task. Mirrors {@link

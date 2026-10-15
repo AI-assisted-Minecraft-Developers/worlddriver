@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.arbitration;
 
 import net.magicterra.worlddriver.game.body.ClientPlayerBody;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
@@ -17,7 +17,7 @@ import static net.magicterra.worlddriver.game.body.BotInteract.releaseKeys;
  * Phase B reflex — an arrow/trident/fireball is predicted to hit, so strafe
  * perpendicular to its flight to step out of the line. Outranked only by
  * PanicChain (a creeper blast is the bigger threat) and the clutch. Gated on
- * {@link BotConfig#autoDodge}. (Dragon-breath cloud avoidance reuses this lane in
+ * {@link ArbitrationConfig#autoDodge}. (Dragon-breath cloud avoidance reuses this lane in
  * Phase G; ThreatScanner doesn't track AreaEffectClouds yet.)
  */
 public final class DodgeChain implements Chain {
@@ -26,7 +26,7 @@ public final class DodgeChain implements Chain {
 
     @Override public float priority(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
-        if (!BotConfig.autoDodge || mc.player == null) return 0f;
+        if (!ArbitrationConfig.autoDodge || mc.player == null) return 0f;
         return imminent(mc) != null ? Priorities.DODGE : 0f;
     }
 
@@ -60,7 +60,7 @@ public final class DodgeChain implements Chain {
         int bestT = Integer.MAX_VALUE;
         for (ThreatScanner.Incoming in : scan.projectiles()) {
             if (!in.willHit()) continue;
-            if (in.pos().distanceToSqr(me) > BotConfig.projectileDodgeRadius * BotConfig.projectileDodgeRadius) continue;
+            if (in.pos().distanceToSqr(me) > ArbitrationConfig.projectileDodgeRadius * ArbitrationConfig.projectileDodgeRadius) continue;
             if (in.ticksToImpact() < bestT) { best = in; bestT = in.ticksToImpact(); }
         }
         return best;

@@ -3,7 +3,8 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 import java.util.List;
 
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
@@ -81,7 +82,7 @@ final class JourneyFurnaceRung {
         // ±8 band in the air: "none" here means the world under the bot's feet was never in scope,
         // and a coordinate means there WAS a candidate and something else refused it.
         rig.evidence("furnace.topUp.stoneInBand", String.valueOf(
-                rig.nearestBlock("minecraft:stone", 32, BotConfig.mineSearchVerticalRadius)));
+                rig.nearestBlock("minecraft:stone", 32, BehaviorConfig.mineSearchVerticalRadius)));
         // Radius 32, not the stone rung's 16: that one mined from the bottom of its own shaft where
         // stone is everywhere, and its comment already records that at a swamp SURFACE "the radius,
         // not the quota, is what binds". This is the cheap attempt on purpose — if it comes back
@@ -145,10 +146,10 @@ final class JourneyFurnaceRung {
             rig.evidence("furnace.stone.quota", quota + " = shortfall " + shortfall + " + shaft depth "
                     + depth + " + margin 4");
             rig.attempting("dig a shaft down to the stone layer: the bot did not descend with the shaft");
-            boolean place = BotConfig.allowPlace;
-            BotConfig.allowPlace = false;
+            boolean place = WorldConfig.allowPlace;
+            WorldConfig.allowPlace = false;
             JourneyShaft.descendByMining(rig, stone.getY() + 1, () -> {
-                BotConfig.allowPlace = place;
+                WorldConfig.allowPlace = place;
                 rig.evidence("furnace.stone.landedY", rig.player().blockPosition().getY());
                 rig.attempting("mine stone: MineProcess did not obtain cobblestone");
                 rig.drive(new MineProcess(List.of("minecraft:stone"), quota, 16), 16_000, () -> {

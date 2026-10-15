@@ -5,6 +5,10 @@ import java.util.Locale;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.rules.Move;
@@ -136,9 +140,9 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerPillarReachGoalNoSnap = true;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
+        ControlConfig.walkerPillarReachGoalNoSnap = true;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.06, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -194,9 +198,9 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = true;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = true;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -245,9 +249,9 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;   // force the bridge — no dig-around
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = true;
+        WorldConfig.allowBreak = false;   // force the bridge — no dig-around
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = true;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz - 4 + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -290,11 +294,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = true;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = true;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 5 + 0.5, launchY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -347,11 +351,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = true;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = true;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz - 3.5);
         ServerPlayer fp = av.fakePlayer();
@@ -415,10 +419,10 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;          // no carving — the stall must be the crest orbit, not a dig
-        BotConfig.allowPlace = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = false;          // no carving — the stall must be the crest orbit, not a dig
+        WorldConfig.allowPlace = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, poseX, poseY, poseZ);
         ServerPlayer fp = av.fakePlayer();
@@ -431,8 +435,8 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         boolean[] advanced = new boolean[2];
         double[] obsCur2 = { Double.NaN, Double.NaN };
         for (int leg = 0; leg < 2; leg++) {
-            BotConfig.walkerStepUpCrestReach = (leg == 1);
-            BotConfig.walkerDebug = true;
+            ControlConfig.walkerStepUpCrestReach = (leg == 1);
+            GameConfig.walkerDebug = true;
             fp.setPos(poseX, poseY, poseZ);
             fp.setDeltaMovement(0, 0, 0);
             Walker walker = new Walker();
@@ -501,11 +505,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = true;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = true;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -567,11 +571,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -639,11 +643,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, H, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -702,7 +706,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;
+        WorldConfig.allowBreak = false;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, H, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -742,11 +746,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = true;                 // bridging needs placement
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = true;                 // bridging needs placement
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, baseY + 2, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -793,10 +797,10 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = true;
-        BotConfig.walkerDebug = true;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = true;
+        GameConfig.walkerDebug = true;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, base + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();

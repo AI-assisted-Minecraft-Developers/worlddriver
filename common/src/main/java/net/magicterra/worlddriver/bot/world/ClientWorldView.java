@@ -38,7 +38,7 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.effect.MobEffectInstance;
 import java.util.ArrayList;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.game.observe.BuildBlocks;
 
 /** Reads the live client {@link Level} for the pathfinder: passability, solidity,
@@ -61,7 +61,7 @@ public final class ClientWorldView implements StateWorldView {
     /** Set per search by PathFinder: a DIVE search keeps submerged cells as nodes. */
     private volatile boolean diveSearch;
     @Override public void diveSearch(boolean on) { diveSearch = on; }
-    @Override public boolean surfaceWaterNodes() { return BotConfig.pathfinderSurfaceWaterNodes && !diveSearch; }
+    @Override public boolean surfaceWaterNodes() { return WorldConfig.pathfinderSurfaceWaterNodes && !diveSearch; }
     /** WorldModel injected from BotApiImpl so dangerCost can query the
      *  per-tick HazardField; null until wired (headless / unit tests). */
     private WorldModel worldModel;
@@ -119,13 +119,13 @@ public final class ClientWorldView implements StateWorldView {
         return lvl == null ? Long.MIN_VALUE : lvl.getGameTime();
     }
     /** Single funnel for every world blockstate read in this class. Cached only
-     *  while {@link #cacheActive} (a search slice) AND {@link BotConfig#pathfinderCacheEnabled};
+     *  while {@link #cacheActive} (a search slice) AND {@link WorldConfig#pathfinderCacheEnabled};
      *  otherwise reads straight through. Returns AIR when the level is gone so callers
      *  behave as for an unloaded cell. */
     private BlockState state(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return Blocks.AIR.defaultBlockState();
-        if (!cacheActive || !BotConfig.pathfinderCacheEnabled) return lvl.getBlockState(p);
+        if (!cacheActive || !WorldConfig.pathfinderCacheEnabled) return lvl.getBlockState(p);
         long k = p.asLong();
         BlockState s = stateCache.get(k);
         if (s == null) {
@@ -162,17 +162,17 @@ public final class ClientWorldView implements StateWorldView {
         // that shape — ascending edge whose landing faces another 2-high wall — so
         // the planner prefers a gentle switchback/detour; an isolated step or a
         // staircase with a flat landing stays untaxed.
-        if (BotConfig.pathfinderSteepAscentTax > 0 && to.getY() > from.getY()) {
+        if (WorldConfig.pathfinderSteepAscentTax > 0 && to.getY() > from.getY()) {
             int adx = Integer.signum(to.getX() - from.getX());
             int adz = Integer.signum(to.getZ() - from.getZ());
             if (adx != 0 || adz != 0) {
                 BlockPos ahead = to.offset(adx, 0, adz);
                 if (isSolid(ahead) && isSolid(ahead.above())) {
-                    dc += BotConfig.pathfinderSteepAscentTax;
+                    dc += WorldConfig.pathfinderSteepAscentTax;
                 }
             }
         }
-        if (BotConfig.waterFlowPenalty <= 0) return dc;
+        if (WorldConfig.waterFlowPenalty <= 0) return dc;
         Vec3 flow = waterFlow(to);
         double fx = flow.x, fz = flow.z;
         double fm = Math.sqrt(fx * fx + fz * fz);
@@ -183,7 +183,7 @@ public final class ClientWorldView implements StateWorldView {
         // Component of travel AGAINST the current (>0 only when heading upstream).
         double upstream = -(fx * dx + fz * dz) / dm;          // = |flow|·cos(angle to downstream), signed
         if (upstream <= 0) return dc;                          // crossing or with the flow → no extra cost
-        return dc + BotConfig.waterFlowPenalty * upstream;         // |flow|·cosθ scaled
+        return dc + WorldConfig.waterFlowPenalty * upstream;         // |flow|·cosθ scaled
     }
     @Override public double breakCost(BlockPos p) {
         // Hopeless-dig poison (see BreakFeasibility): cells the executor proved
@@ -191,7 +191,7 @@ public final class ClientWorldView implements StateWorldView {
         // quick-start stub kept re-adopting a bare-hand submerged bank carve,
         // 4000t sticky-dig churn per lap).
         if (net.magicterra.worlddriver.bot.world.BreakFeasibility.isPoisoned(p)) return Double.POSITIVE_INFINITY;
-        if (!BotConfig.allowBreak) {
+        if (!WorldConfig.allowBreak) {
             // Flee-escape exception: a fleeing bot enclosed by LEAVES must be able to
             // punch through them to escape (the canopy-snipe death — autoRetreat fired
             // but the bot was boxed in by leaf blocks and couldn't move, so a skeleton
@@ -199,7 +199,7 @@ public final class ClientWorldView implements StateWorldView {
             // them finite can't explode the search the way general breaking would, and
             // it's gated to an ACTIVE flee (fleeSearch) + leaves only — normal,
             // demo-safe movement still never breaks anything.
-            if (fleeSearch && BotConfig.allowFleeBreak) {
+            if (fleeSearch && WorldConfig.allowFleeBreak) {
                 if (state(p).is(BlockTags.LEAVES)) return rawBreakCost(p);
             }
             return Double.POSITIVE_INFINITY;
@@ -223,7 +223,7 @@ public final class ClientWorldView implements StateWorldView {
             // aim resets on top (live flooded-oak forest: 200-291t held on one log,
             // progress reset, 90s churn). ×5 alone priced that dig 5× too cheap, which
             // is exactly how A* chose "tunnel through submerged trunks" over a detour.
-            return c * (BotConfig.pathfinderFloatingBreakTax && isWater(from) ? 25 : 5);
+            return c * (WorldConfig.pathfinderFloatingBreakTax && isWater(from) ? 25 : 5);
         }
         return c;
     }
@@ -241,7 +241,7 @@ public final class ClientWorldView implements StateWorldView {
      *  high bank. Beyond it, water pathing uses only swim/walk/normal moves. */
     private static final int ESCAPE_RADIUS = 6;
     @Override public double escapeBreakCost(BlockPos p) {
-        if (!BotConfig.allowSwimEscapeBreak) return Double.POSITIVE_INFINITY;
+        if (!WorldConfig.allowSwimEscapeBreak) return Double.POSITIVE_INFINITY;
         BlockPos o = escapeOrigin;
         boolean nearOrigin = o == null
                 || (Math.abs(p.getX() - o.getX()) <= ESCAPE_RADIUS
@@ -260,7 +260,7 @@ public final class ClientWorldView implements StateWorldView {
         // moves only eval from bot-cells in a water / bank-climb context (the
         // actual path frontier), and open water far from any bank has no solid
         // neighbours to break — no branching explosion.
-        if (!nearOrigin && !risesFromWater(p, BotConfig.swimBankClimbMaxHeight + 2)) {
+        if (!nearOrigin && !risesFromWater(p, WorldConfig.swimBankClimbMaxHeight + 2)) {
             return Double.POSITIVE_INFINITY;
         }
         // Hopeless-dig poison applies HERE too (2026-07-21 live, minutes after the
@@ -311,10 +311,10 @@ public final class ClientWorldView implements StateWorldView {
         return CellRules.breakCost(lvl, p, state(p), pl, dig);
     }
     @Override public boolean canPlace() {
-        return BotConfig.allowPlace && hasPlaceableBlock();
+        return WorldConfig.allowPlace && hasPlaceableBlock();
     }
     @Override public boolean canParkourPlace() {
-        return BotConfig.allowParkourPlace && hasPlaceableBlock();
+        return WorldConfig.allowParkourPlace && hasPlaceableBlock();
     }
     /** A placeable, NON-FALLING BlockItem is on the hotbar (creative can pull
      *  from anywhere). Falling blocks (sand/gravel/concrete_powder) are excluded:
@@ -482,7 +482,7 @@ public final class ClientWorldView implements StateWorldView {
         jumpUpBlocks = Math.max(1, jumpApexBlocks(v));
     }
     @Override public boolean canWaterBucketFall() { return bucketFallReady; }
-    @Override public int maxWaterBucketFall() { return BotConfig.maxWaterBucketFall; }
+    @Override public int maxWaterBucketFall() { return WorldConfig.maxWaterBucketFall; }
     @Override public boolean isMlgFloor(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return false;
@@ -509,7 +509,7 @@ public final class ClientWorldView implements StateWorldView {
             LocalPlayer op = Minecraft.getInstance().player;
             escapeOrigin = op != null ? op.blockPosition() : null;
         }
-        bucketFallReady = BotConfig.allowWaterBucketFall
+        bucketFallReady = WorldConfig.allowWaterBucketFall
                 && Minecraft.getInstance().player != null
                 && hotbarSlotOf(Minecraft.getInstance().player,
                                 Items.WATER_BUCKET) >= 0;
@@ -539,7 +539,7 @@ public final class ClientWorldView implements StateWorldView {
         // so the search and the Walker agree on what heights are reachable.
         snapshotMovementCaps();
         // Flee-context flag, snapshotted consistent for the whole A* run.
-        fleeSearch = BotConfig.fleeActive;
+        fleeSearch = WorldConfig.fleeActive;
         // Survivable-fall depth for the ledge penalty (HP-aware lethal-lip detection).
         {
             LocalPlayer lp = Minecraft.getInstance().player;
@@ -552,7 +552,7 @@ public final class ClientWorldView implements StateWorldView {
     }
     @Override public double dangerCost(BlockPos foot) {
         double penalty = 0;
-        if (BotConfig.avoidDanger) {
+        if (WorldConfig.avoidDanger) {
             Level lvl = Minecraft.getInstance().level;
             if (lvl != null) {
                 // Severity-graded hazard ring: lava (lethal) ≫ fire > contact
@@ -561,11 +561,11 @@ public final class ClientWorldView implements StateWorldView {
                 for (int[] o : DANGER_OFFSETS) {
                     BlockState s = state(foot.offset(o[0], o[1], o[2]));
                     if (s.getFluidState().is(FluidTags.LAVA)) {   // tag: source AND flowing (lake edges)
-                        penalty += BotConfig.lavaDangerPenalty;
+                        penalty += WorldConfig.lavaDangerPenalty;
                     } else if (s.is(BlockTags.FIRE)) {
-                        penalty += BotConfig.dangerPenaltyPerCell;
-                    } else if (BotConfig.contactDangerPenalty > 0 && HAZARD_BLOCKS.contains(s.getBlock())) {
-                        penalty += BotConfig.contactDangerPenalty;
+                        penalty += WorldConfig.dangerPenaltyPerCell;
+                    } else if (WorldConfig.contactDangerPenalty > 0 && HAZARD_BLOCKS.contains(s.getBlock())) {
+                        penalty += WorldConfig.contactDangerPenalty;
                     }
                 }
                 // Cliff / void edge: an open horizontal neighbour with a tall
@@ -578,8 +578,8 @@ public final class ClientWorldView implements StateWorldView {
                 // and the bot walked in circles (the dense-jungle backtrack —
                 // A/B root cause 2026-06-06). Healthy bot descends freely; a fragile
                 // one (low HP → small survivableFall) still shuns dangerous drops.
-                if (BotConfig.ledgeDangerPenalty > 0) {
-                    int lethalDepth = Math.max(BotConfig.ledgeDangerMinDrop, ledgeSafeDepth + 1);
+                if (WorldConfig.ledgeDangerPenalty > 0) {
+                    int lethalDepth = Math.max(WorldConfig.ledgeDangerMinDrop, ledgeSafeDepth + 1);
                     int scanCap = lethalDepth + 1;
                     for (int[] h : HORIZONTAL_4) {
                         BlockPos n = foot.offset(h[0], 0, h[1]);
@@ -595,7 +595,7 @@ public final class ClientWorldView implements StateWorldView {
                             depth++;
                         }
                         if (!water && depth >= lethalDepth) {
-                            penalty += BotConfig.ledgeDangerPenalty * (fleeSearch ? BotConfig.fleeDangerBoost : 1.0);
+                            penalty += WorldConfig.ledgeDangerPenalty * (fleeSearch ? WorldConfig.fleeDangerBoost : 1.0);
                             break;
                         }
                     }
@@ -605,8 +605,8 @@ public final class ClientWorldView implements StateWorldView {
                 // Additive (not a ban) — a sole water crossing is still taken, but
                 // a long open-water swim loses to any reasonable land detour. This
                 // is the fix for pathfinding that walked into the sea and drowned.
-                if (BotConfig.waterDangerPenalty > 0 && isWater(foot)) {
-                    penalty += BotConfig.waterDangerPenalty * (fleeSearch ? BotConfig.fleeDangerBoost : 1.0);
+                if (WorldConfig.waterDangerPenalty > 0 && isWater(foot)) {
+                    penalty += WorldConfig.waterDangerPenalty * (fleeSearch ? WorldConfig.fleeDangerBoost : 1.0);
                     // SUBMERGED layer extra: a cell the bot floats fully under moves at
                     // ~2 b/s vs ~5.6 b/s surface sprint-swim, yet Walk prices both 10, so
                     // A* hugs the lake bed whenever the floor undulates and the executor
@@ -626,7 +626,7 @@ public final class ClientWorldView implements StateWorldView {
                     // surface), so anyone tuning waterDangerPenalty off the old sentence was
                     // tuning a gate one cell tighter than they thought.
                     if (isSubmergedFoot(foot)) {
-                        penalty += BotConfig.waterDangerPenalty * 4;
+                        penalty += WorldConfig.waterDangerPenalty * 4;
                     }
                 }
                 // FLOWING water (a current) costs extra on top of the still-water
@@ -635,19 +635,19 @@ public final class ClientWorldView implements StateWorldView {
                 // / still water). Flat + omnidirectional here (drift risk); the
                 // upstream-specific cost is in directionalCost. Scaled by flow
                 // magnitude (capped at 1 — a full-speed current).
-                if (BotConfig.waterFlowPenalty > 0) {
+                if (WorldConfig.waterFlowPenalty > 0) {
                     Vec3 flow = waterFlow(foot);
                     double fm = Math.sqrt(flow.x * flow.x + flow.z * flow.z);
-                    if (fm > 1e-3) penalty += BotConfig.waterFlowPenalty * Math.min(1.0, fm);
+                    if (fm > 1e-3) penalty += WorldConfig.waterFlowPenalty * Math.min(1.0, fm);
                 }
                 // Canopy-walk snag: leaves block motion, so A* otherwise treats the
                 // tree-tops as a free floor and routes across them — the bumpy
                 // per-block surface wedges the bot (wooded-mountain stall). Penalise
                 // standing ON a leaf block so the planner prefers ground / going
                 // around / breaking through. Additive, not a ban.
-                if (BotConfig.leafSnagPenalty > 0
+                if (WorldConfig.leafSnagPenalty > 0
                         && state(foot.offset(0, -1, 0)).is(BlockTags.LEAVES)) {
-                    penalty += BotConfig.leafSnagPenalty;
+                    penalty += WorldConfig.leafSnagPenalty;
                 }
                 // (Vine-cling A/B-DISPROVEN 2026-06-06: a blanket dangerCost penalty on
                 // cells with a vine in the player's space inflated A* 6k→21k nodes / cost
@@ -668,12 +668,12 @@ public final class ClientWorldView implements StateWorldView {
                 // but a short deliberate dig / a genuinely path-less descent still
                 // happens. Fix for the bot routing y70→y22 into a cave and dying
                 // (GAP #17, strengthened).
-                if (BotConfig.deepDarkPenalty > 0) {
+                if (WorldConfig.deepDarkPenalty > 0) {
                     int surfaceY = lvl.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                             foot.getX(), foot.getZ());
                     int depthBelow = surfaceY - foot.getY();
-                    if (depthBelow >= BotConfig.deepDarkMinDepth) {
-                        penalty += BotConfig.deepDarkPenalty * Math.min(depthBelow, 64);
+                    if (depthBelow >= WorldConfig.deepDarkMinDepth) {
+                        penalty += WorldConfig.deepDarkPenalty * Math.min(depthBelow, 64);
                     }
                 }
             }
@@ -682,7 +682,7 @@ public final class ClientWorldView implements StateWorldView {
         // the Agent marked to route around — applied regardless of avoidMobs and not
         // tied to the live mob snapshot, so the planner detours around a known bad
         // area (a monster tunnel it spotted from afar) even with no mob scanned there.
-        double[][] zones = BotConfig.avoidZones;
+        double[][] zones = WorldConfig.avoidZones;
         if (zones.length > 0) {
             double fx = foot.getX() + 0.5, fy = foot.getY(), fz = foot.getZ() + 0.5;
             for (double[] z : zones) {
@@ -690,7 +690,7 @@ public final class ClientWorldView implements StateWorldView {
                 double dx = fx - z[0], dy = fy - z[1], dz = fz - z[2], r = z[3];
                 if (r <= 0) continue;
                 double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (dist < r) penalty += BotConfig.avoidZonePenalty * (r - dist) / r;
+                if (dist < r) penalty += WorldConfig.avoidZonePenalty * (r - dist) / r;
             }
         }
         // Walker stuck-node blacklist: a soft, decaying bump around each node the

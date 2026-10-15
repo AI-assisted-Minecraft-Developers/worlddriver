@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.game.body.ClientPlayerBody;
 import net.magicterra.worlddriver.game.body.BotUtil;
 import net.minecraft.client.Minecraft;
@@ -51,7 +51,7 @@ public final class LavaProximityEscape {
 
     /** @return true if it drove the escape this tick (keys are ours). */
     public static boolean tick(Minecraft mc, LocalPlayer p) {
-        if (mc.level == null || p == null || !BotConfig.lavaProximityEscape) {
+        if (mc.level == null || p == null || !BehaviorConfig.lavaProximityEscape) {
             reset("off");
             return false;
         }

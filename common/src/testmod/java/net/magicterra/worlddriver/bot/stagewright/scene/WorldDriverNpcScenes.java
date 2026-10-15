@@ -9,6 +9,10 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
@@ -150,8 +154,8 @@ public final class WorldDriverNpcScenes implements SceneProvider {
         BlockPos o = ctx.origin().above(20);
         BlockPos lo = o.offset(-3, -1, -3), hi = o.offset(3, 3, 3);
         stage(ctx, lo, hi);
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
         fill(level, lo, o.offset(3, -1, 3), STONE);
         LivingBody npc = SceneBody.npc(ctx, o);
         LevelWorldView view = LevelWorldView.forBody(level, npc.entity());
@@ -241,11 +245,11 @@ public final class WorldDriverNpcScenes implements SceneProvider {
     private static void stage(SceneContext ctx, BlockPos lo, BlockPos hi) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
-        BotConfig.walkerDebug = true;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
+        GameConfig.walkerDebug = true;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         ServerLevel level = ctx.level();
         fill(level, lo, hi, AIR);
         ctx.cleanup(() -> fill(level, lo, hi, AIR));

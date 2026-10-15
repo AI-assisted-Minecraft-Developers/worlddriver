@@ -11,6 +11,8 @@ import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.BodyHost;
 import net.magicterra.worlddriver.bot.BodyRegistry;
 import net.magicterra.worlddriver.bot.ServerAvatarManager;
@@ -71,12 +73,12 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         BlockPos lo = o.offset(-2, -1, -4), hi = o.offset(COURSE + 2, 3, 4);
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
         // The shipped arrival rule, which the pinned baseline turns off: without it the walker spends the
         // last node from 0.67 out, and a server-side player ended path-consumed a cell short (x=…329.984,
         // finalDist 10) on both loaders while the NPC arrived.
-        BotConfig.walkerHoldLastNodeUntilStanding = true;
+        ControlConfig.walkerHoldLastNodeUntilStanding = true;
         fill(level, lo, hi, AIR);
         ctx.cleanup(() -> fill(level, lo, hi, AIR));
         fill(level, lo, o.offset(COURSE + 2, -1, 4), STONE);

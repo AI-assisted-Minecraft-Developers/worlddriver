@@ -10,7 +10,7 @@ import java.util.function.BooleanSupplier;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotApi;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.*;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
@@ -696,10 +696,10 @@ public final class JourneyRig {
      */
     private static String armedReflexes() {
         var on = new java.util.ArrayList<String>();
-        if (BotConfig.autoRetreat) on.add("autoRetreat(HP≤" + BotConfig.retreatHpThreshold + ")");
-        if (BotConfig.autoFight) on.add("autoFight(threat≥" + BotConfig.autoFightThreatThreshold + ")");
-        if (BotConfig.autoDodge) on.add("autoDodge");
-        if (BotConfig.autoHeal) on.add("autoHeal(HP≤" + BotConfig.healHpThreshold + ")");
+        if (ArbitrationConfig.autoRetreat) on.add("autoRetreat(HP≤" + ArbitrationConfig.retreatHpThreshold + ")");
+        if (ArbitrationConfig.autoFight) on.add("autoFight(threat≥" + ArbitrationConfig.autoFightThreatThreshold + ")");
+        if (ArbitrationConfig.autoDodge) on.add("autoDodge");
+        if (BotConfig.autoHeal) on.add("autoHeal(HP≤" + BehaviorConfig.healHpThreshold + ")");
         if (BotConfig.autoShield) on.add("autoShield");
         if (BotConfig.autoEquip) on.add("autoEquip");
         return on.isEmpty()
@@ -1079,7 +1079,7 @@ public final class JourneyRig {
             // bound and dies on the framework's generic "await step exceeded", which is the exact
             // failure this method was extracted to stop.
             // NoBreak, because THIS WALK IS NOT ALLOWED TO MINE ITS OWN WAY. A* is asked for a
-            // route while `BotConfig.allowBreak` is globally true (JourneyRig:1409), so the cheapest
+            // route while `WorldConfig.allowBreak` is globally true (JourneyRig:1409), so the cheapest
             // route to a cell the bot cannot swing at is regularly a tunnel — and the rock it
             // tunnels through belongs to whatever the rung has already built.
             //
@@ -2124,7 +2124,7 @@ public final class JourneyRig {
         //     ./gradlew :fabric:runJourneyIntegratedServer -PwalkerDebug=true
         // Empty when not asked for, default here in Java: the build file holding a lever
         // permanently open is a mistake this block has made once already (see the rehearse budget).
-        BotConfig.walkerDebug = "true".equals(System.getProperty("worlddriver.journey.walkerDebug", ""));
+        GameConfig.walkerDebug = "true".equals(System.getProperty("worlddriver.journey.walkerDebug", ""));
         // FIVE TIMES THE SHIPPED DEFAULT (6 ms), on the axis the freeze complaint is about — and
         // until now the only line here without a reason. 6 ms is chosen to keep a search well
         // inside one 16 ms frame WHILE WALKING; 30 ms is what the product spends only when the
@@ -2138,7 +2138,7 @@ public final class JourneyRig {
         // would confound the rung timings the ladder is being read for — but it must be one arm of
         // the A/B when the repeat-search suppression lands, or that fix will be credited with a
         // change this line could have made on its own.
-        BotConfig.pathfinderSliceMs = 30;
+        ControlConfig.pathfinderSliceMs = 30;
         // Bound by NODES, not by the wall clock — the shape 58 scene sites across nine files
         // already use, and for the reason PathFinder's own comment gives: a millisecond cap makes
         // the same search answer differently depending on how busy the box is that day, while a
@@ -2159,13 +2159,13 @@ public final class JourneyRig {
         // 208 on MineProcess's, 927 on a 600/80 pair nobody has yet traced. A rung whose task is a
         // mine is therefore NOT running with the budget set here, and a change to these two lines
         // can never explain a change in its behaviour.
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxNodes = 100_000;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxNodes = 100_000;
         // Both are compiled-default ON, so these two are re-assertions rather than overrides. They
         // stay written out because a playthrough without them is not a playthrough, and a reader
         // asking "is this ladder allowed to mine?" should find the answer here, not two files away.
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
     }
 
     // ---- reading the bot ----

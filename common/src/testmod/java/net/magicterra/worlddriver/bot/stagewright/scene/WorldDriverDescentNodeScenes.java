@@ -7,6 +7,9 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerGeometry;
@@ -80,7 +83,7 @@ import net.minecraft.world.level.block.NetherPortalBlock;
  *
  * <h2>The arm that must go red</h2>
  *
- * Both arms stage the identical box and drive the identical walker; {@link BotConfig#walkerDescentNodeHold}
+ * Both arms stage the identical box and drive the identical walker; {@link ControlConfig#walkerDescentNodeHold}
  * is the only difference. The control (hold OFF = the ladder's build) must reproduce the burn, and
  * the rig <b>hard-fails</b> if it does not: an arena whose control walks out has not earned the right
  * to report that the subject did. {@code wd.serverStillWalksDownAStaircase} is the other half — the
@@ -180,7 +183,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     private static void stepsDownAPerchItPlanned(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = true;
+        GameConfig.walkerDebug = true;
         ctx.cleanup(() -> clearBox(ctx));
 
         stageBox(ctx);
@@ -305,7 +308,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      */
     private static Leg drive(SceneContext ctx, String arm, boolean hold) {
         ServerLevel level = ctx.level();
-        BotConfig.walkerDescentNodeHold = hold;
+        ControlConfig.walkerDescentNodeHold = hold;
 
         BlockPos foot = ctx.rel(0, BOX_Y0 + PERCH_LAYER, 0);
         double x0 = foot.getX() + PERCH_DX, z0 = foot.getZ() + PERCH_DZ;
@@ -437,7 +440,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     private static final int STAIR_TICKS = 200;
 
     /**
-     * An ordinary staircase, walked twice, with {@link BotConfig#walkerDescentNodeHold} as the only
+     * An ordinary staircase, walked twice, with {@link ControlConfig#walkerDescentNodeHold} as the only
      * difference — and the two arms must AGREE.
      *
      * <p>This is the arm the fix had to earn separately. Holding the step pointer on a node below the
@@ -458,7 +461,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     private static void stillWalksDownAStaircase(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = true;
+        GameConfig.walkerDebug = true;
         ctx.cleanup(() -> clearStair(ctx));
 
         stageStair(ctx);
@@ -499,7 +502,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
 
     private static Stair stairDrive(SceneContext ctx, String arm, boolean hold) {
         ServerLevel level = ctx.level();
-        BotConfig.walkerDescentNodeHold = hold;
+        ControlConfig.walkerDescentNodeHold = hold;
 
         BlockPos top = ctx.rel(0, STAIR_TOP + 1, 0);
         ServerPlayerBody av = SceneBody.avatar(ctx, level,
@@ -740,12 +743,12 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     private static void walkTheDoorstep(SceneContext ctx, Doorway dw) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = true;
+        GameConfig.walkerDebug = true;
         // The pathfinder's own breaking/placing is OFF on the dogfood server and the NETHER rung never
         // turns it on, so this is what the ladder walked with: the alcove's cobblestone is a wall, not
         // something A* tunnels through.
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
         // Registered before anything is built: a LIT portal left standing in the shared dogfood world
         // would take the next scene's bot to the Nether.
         ctx.cleanup(() -> clearDoorway(ctx, dw));
@@ -823,7 +826,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      */
     private static Door doorDrive(SceneContext ctx, Doorway dw, String arm, boolean hold) {
         ServerLevel level = ctx.level();
-        BotConfig.walkerDescentNodeHold = hold;
+        ControlConfig.walkerDescentNodeHold = hold;
 
         BlockPos perch = doorPerch(ctx, dw);
         BlockPos step = doorstep(ctx, dw);

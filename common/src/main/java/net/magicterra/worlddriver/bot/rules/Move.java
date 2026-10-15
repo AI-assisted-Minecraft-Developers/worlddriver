@@ -441,7 +441,7 @@ public abstract class Move {
         for (int[] d : DIAGONAL) ms.add(new DiagonalDescend(d[0], d[1]));
         // Dry falls 2-3 are Baritone's no-damage cap, but the SHIPPING cap is 4, so
         // fall4 (1 HP) is live on a default run and only fall5 is inert until
-        // BotConfig.pathfinderMaxDryFall is raised (Fall.valid gates live) — the
+        // RulesConfig.pathfinderMaxDryFall is raised (Fall.valid gates live) — the
         // "fall a small step instead of building a dirt staircase" lever.
         for (int[] d : CARDINAL)
             for (int drop = 2; drop <= 5; drop++)
@@ -466,7 +466,7 @@ public abstract class Move {
         ms.add(new ClimbDown());
         ms.add(new SwimUp());
         ms.add(new SwimDown());
-        ms.add(new SurfaceClimbOut());   // the honest wet exit (BotConfig.pathfinderSurfaceWaterNodes)
+        ms.add(new SurfaceClimbOut());   // the honest wet exit (WorldConfig.pathfinderSurfaceWaterNodes)
         ms.add(new SurfaceDive());   // A5: opt-in-only planned surface dive (Capability.DIVE)
         // Parkour: 2-block cardinal leap at same Y. Only emitted when there's
         // a real gap (no stand-able cell between) so A* doesn't pick it over
@@ -479,7 +479,7 @@ public abstract class Move {
         for (int[] d : DIAGONAL) ms.add(new Parkour2Diagonal(d[0], d[1]));
         // 4-block cardinal leap — at the edge of vanilla sprint+jump physics
         // (often needs jump-boost or Speed in survival). Gated behind
-        // BotConfig.allowParkour4 so the default expansion budget can't
+        // RulesConfig.allowParkour4 so the default expansion budget can't
         // discover unreachable goals.
         for (int[] d : CARDINAL) ms.add(new Parkour4(d[0], d[1]));
         // 3-block 45° diagonal leap — same long-parkour gate.
@@ -513,7 +513,7 @@ public abstract class Move {
         for (int[] d : CARDINAL) ms.add(new StairUpBreak(d[0], d[1]));
         ms.add(new DownBreak());
         // Water-escape breaks (Baritone has no analogue): mine the bank to climb
-        // ASHORE from water — gated on BotConfig.allowSwimEscapeBreak (default on,
+        // ASHORE from water — gated on WorldConfig.allowSwimEscapeBreak (default on,
         // separate from allowBreak) and only valid in a waterEscapeContext, so a
         // bot trapped in a flooded pit / behind a high lake bank can dig out even
         // with general break-to-move off, while dry-land routes are untouched.

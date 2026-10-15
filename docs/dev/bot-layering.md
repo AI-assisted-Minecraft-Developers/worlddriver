@@ -192,10 +192,13 @@ vanilla behaviour survives the seam, and do not duplicate its claims here.
 
 ## Settings
 
-Two classes, one surface:
+Two kinds of class, one surface:
 
-- `BotConfig` holds the knobs themselves as mutable volatile statics. It is common- and
-  server-safe, so a dedicated-server scene can read it.
+- The `config/*Config` classes hold the knobs themselves as mutable volatile statics, one
+  class per layer: each knob sits in the lowest layer that reads it, and a layer reads only
+  its own class and the ones below (`check_architecture.py` holds it to that). `BotConfig`
+  holds the facade's own and enumerates, persists and pins them all. They are common- and
+  server-safe, so a dedicated-server scene can read them.
 - `SettingsRegistry` is the single source of truth for the `mc.bot.setting` key surface.
   The read snapshot, the MCP schema and the write path all derive from it, and applying an
   unrecognised key is rejected.
@@ -210,7 +213,7 @@ at class load too.
 
 All of that keeps the key set, the snapshot, the schema and the documentation agreeing
 about which knobs *exist*. None of it asks whether a knob does anything. A field added to
-`BotConfig` surfaces automatically, so a flag whose read site never landed — or whose
+a config class surfaces automatically, so a flag whose read site never landed — or whose
 behaviour was later refactored away, leaving the knob behind — is accepted and echoed as
 set while changing nothing, and the caller gets every signal that it worked.
 `SettingsConsumerTest` in `common/src/test` closes that side by failing the build when a
@@ -222,8 +225,8 @@ flag in the same change.**
 `scripts/check_source_budget.py` caps two things, and both apply here: no hand-written
 Java file may exceed the file limit, and no method may exceed the method limit unless it
 is on the script's grandfather list, in which case it may shrink but never grow. Read the
-script for the current numbers. `Walker.java` and `BotConfig.java` both sit close to the
-file cap, so adding to either means extracting first; shaving comments to buy a few lines
+script for the current numbers. `Walker.java` sits close to the
+file cap, so adding to it means extracting first; shaving comments to buy a few lines
 trades readability for a number the check cannot tell apart from real work.
 
 The `WalkerTick*` phase classes are the reference pattern for carving up a large

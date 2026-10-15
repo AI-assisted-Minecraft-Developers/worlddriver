@@ -6,7 +6,9 @@ import java.util.Locale;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ArbitrationConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.behavior.reflex.DrownEscapeGate;
@@ -70,11 +72,11 @@ import static net.magicterra.worlddriver.game.body.BotInteract.selectBestToolFor
  * gained, with the scan reporting a clear path the whole time.
  *
  * <p>Entry/release live in the pure {@link DrownEscapeGate} (matrix-tested with
- * no client): enter at {@code air <= }{@link BotConfig#drownEscapeAirThreshold}
+ * no client): enter at {@code air <= }{@link ControlConfig#drownEscapeAirThreshold}
  * (100 — far below the idle float's 240, so a planned dive/crossing is not
  * preempted), release with WIDE hysteresis at {@code air >= }
- * {@link BotConfig#drownEscapeReleaseAir} (280) or head-out-and-recovering.
- * Gated on {@link BotConfig#autoDrownEscape} (default ON — it saves the bot's
+ * {@link ArbitrationConfig#drownEscapeReleaseAir} (280) or head-out-and-recovering.
+ * Gated on {@link ArbitrationConfig#autoDrownEscape} (default ON — it saves the bot's
  * life and touches nothing but its own vertical motion).
  *
  * <p>gap#72 lifecycle: the latch is the episode ({@link #episodePhase} =
@@ -148,13 +150,13 @@ public final class DrownEscapeChain implements Chain {
         boolean was = latched;
         latched = DrownEscapeGate.next(latched, underwater, air,
                 prevAir < 0 ? air : prevAir,
-                BotConfig.drownEscapeAirThreshold, BotConfig.drownEscapeReleaseAir,
-                BotConfig.autoDrownEscape);
+                ControlConfig.drownEscapeAirThreshold, ArbitrationConfig.drownEscapeReleaseAir,
+                ArbitrationConfig.autoDrownEscape);
         prevAir = air;
         if (latched != was) {
             LOG.info("[drownEscape] {} (air={} underwater={} enter<={} release>={})",
                     latched ? "PREEMPT — floating straight up" : "released",
-                    air, underwater, BotConfig.drownEscapeAirThreshold, BotConfig.drownEscapeReleaseAir);
+                    air, underwater, ControlConfig.drownEscapeAirThreshold, ArbitrationConfig.drownEscapeReleaseAir);
         }
         return latched;
     }
@@ -280,7 +282,7 @@ public final class DrownEscapeChain implements Chain {
         } else {
             a.commandMove(0f, 0f);
         }
-        if (BotConfig.allowBreak && lidBlocksRise
+        if (WorldConfig.allowBreak && lidBlocksRise
                 && mc.level.getBlockState(lid).getDestroySpeed(mc.level, lid) >= 0f) {
             selectBestToolFor(mc, lid);
             aimAtBlockSnap(p, lid);

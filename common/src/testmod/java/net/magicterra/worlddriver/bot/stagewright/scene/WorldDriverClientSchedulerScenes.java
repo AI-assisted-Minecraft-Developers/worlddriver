@@ -14,7 +14,7 @@ import net.magicterra.worlddriver.api.methods.control.ControlContracts.CancelPar
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.ProcessEnd;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.StatusParams;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Status;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.behavior.SleepProcess;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
@@ -97,8 +97,8 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
         ctx.record("test setup", "one-deep strip of water at x in [-1,1], the bot standing in the water at " + start.toShortString() + ", two motionless husks 4 blocks away on the east bank");
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
-        BotConfig.autoBunker = true;
-        BotConfig.autoRetreat = true;
+        ArbitrationConfig.autoBunker = true;
+        ArbitrationConfig.autoRetreat = true;
         ServerPlayer body = helm.player();
         // Below the bunker threshold (10) and the retreat one, and too hungry to regenerate out of it.
         body.setHealth(5f);
@@ -149,9 +149,9 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
         ctx.record("test setup", "beach, the bot standing at " + start.toShortString() + ", water directly to the east at x in [1,4]; time 15000 (night)");
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
-        BotConfig.autoSecureAtDusk = true;
-        BotConfig.duskUrgent = true;
-        BotConfig.duskUrgentDryRun = false;
+        ArbitrationConfig.autoSecureAtDusk = true;
+        ArbitrationConfig.duskUrgent = true;
+        ArbitrationConfig.duskUrgentDryRun = false;
         // Time packets reach the client once a second; wait for the night to be the client's too.
         helm.sync(40, () -> {
             helm.bot().runProcess(new HoldStill(1_000));

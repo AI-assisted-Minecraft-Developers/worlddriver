@@ -11,6 +11,11 @@ import java.util.function.BiConsumer;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ArbitrationConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.reflex.AntiSuffocateGate;
@@ -158,11 +163,11 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         for (int dy = 1; dy <= 3; dy++)
             level.setBlockAndUpdate(new BlockPos(cx, floorY + dy, cz), Blocks.AIR.defaultBlockState());
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().clearContent();
@@ -210,11 +215,11 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());
         level.setBlockAndUpdate(new BlockPos(cx, floorY + 2, cz), Blocks.AIR.defaultBlockState());
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().clearContent();
@@ -325,9 +330,9 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());
         level.setBlockAndUpdate(new BlockPos(cx, floorY + 2, cz), Blocks.AIR.defaultBlockState());
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = false;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = false;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().clearContent();
@@ -391,10 +396,10 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         BlockPos from = new BlockPos(cx - 2, floorY + 13, cz);
         final int minDist = 10;   // satisfied at dx ≥ 8, right after the planned descent
 
-        BotConfig.walkerDebug = false;
-        BotConfig.lowHealthCareful = 6.0;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        GameConfig.walkerDebug = false;
+        ControlConfig.lowHealthCareful = 6.0;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 13, cz + 0.5);
         driver.fakePlayer().setHealth(2.0f);
@@ -459,11 +464,11 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
                 for (int dy = -4; dy <= 1; dy++)
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
 
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().clearContent();
@@ -535,9 +540,9 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         BlockPos bottomCell = new BlockPos(cx, floorY + 1, cz);   // first water cell ON the sealed floor
         Goal.Near goal = new Goal.Near(bottomCell, 1);
 
-        BotConfig.walkerDebug = false;
-        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        GameConfig.walkerDebug = false;
+        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         CapabilityProfile diveProfile = new CapabilityProfile(
                 EnumSet.noneOf(Capability.class), EnumSet.of(Capability.DIVE));
@@ -656,12 +661,12 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         BlockPos goalCell = new BlockPos(cx + 4, floorY + 3, cz);   // AIR-pocket cell above the water
         Goal.Near goal = new Goal.Near(goalCell, 2);
 
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
         // SMALL slice (NOT the usual unbounded pin): the executor's search must take MANY TICKS
         // to resolve so the arena reproduces the live PRE-PATH RACE. maxMs stays unbounded so
         // the search itself is still node-budget-deterministic.
-        BotConfig.pathfinderSliceMs = 1;
-        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        ControlConfig.pathfinderSliceMs = 1;
+        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         CapabilityProfile diveProfile = new CapabilityProfile(
                 EnumSet.noneOf(Capability.class), EnumSet.of(Capability.DIVE));
@@ -797,11 +802,11 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
     // key-release half touches Minecraft.getInstance() and is live-verified, same split as the
     // migrated ad.chainEpisodeCancel scene / BunkerChain).
     static void drownEscapeChainLifecycleMatrix(BiConsumer<Boolean, String> check) {
-        boolean oEnabled = BotConfig.autoDrownEscape;
-        int oEnter = BotConfig.drownEscapeAirThreshold, oRelease = BotConfig.drownEscapeReleaseAir;
-        BotConfig.autoDrownEscape = true;
-        BotConfig.drownEscapeAirThreshold = 100;
-        BotConfig.drownEscapeReleaseAir = 280;
+        boolean oEnabled = ArbitrationConfig.autoDrownEscape;
+        int oEnter = ControlConfig.drownEscapeAirThreshold, oRelease = ArbitrationConfig.drownEscapeReleaseAir;
+        ArbitrationConfig.autoDrownEscape = true;
+        ControlConfig.drownEscapeAirThreshold = 100;
+        ArbitrationConfig.drownEscapeReleaseAir = 280;
         try {
             DrownEscapeChain ch = new DrownEscapeChain();
             check.accept(ch.episodePhase() == null, "fresh chain has no episode");
@@ -814,12 +819,12 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
             check.accept(ch.updateLatch(true, 99),
                     "still underwater+critical after a cancel re-arms next evaluation (fresh-instance contract)");
             ch.resetEpisodeState();
-            BotConfig.autoDrownEscape = false;
+            ArbitrationConfig.autoDrownEscape = false;
             check.accept(!ch.updateLatch(true, 10), "setting off: chain never latches");
         } finally {
-            BotConfig.autoDrownEscape = oEnabled;
-            BotConfig.drownEscapeAirThreshold = oEnter;
-            BotConfig.drownEscapeReleaseAir = oRelease;
+            ArbitrationConfig.autoDrownEscape = oEnabled;
+            ControlConfig.drownEscapeAirThreshold = oEnter;
+            ArbitrationConfig.drownEscapeReleaseAir = oRelease;
         }
     }
 
@@ -1020,15 +1025,15 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY();
         final int depth = 6;                     // water column floorY+1 .. floorY+depth
-        boolean oEnabled = BotConfig.autoDrownEscape;
-        int oEnter = BotConfig.drownEscapeAirThreshold, oRelease = BotConfig.drownEscapeReleaseAir;
-        BotConfig.autoDrownEscape = true;
-        BotConfig.drownEscapeAirThreshold = 100;
-        BotConfig.drownEscapeReleaseAir = 280;
+        boolean oEnabled = ArbitrationConfig.autoDrownEscape;
+        int oEnter = ControlConfig.drownEscapeAirThreshold, oRelease = ArbitrationConfig.drownEscapeReleaseAir;
+        ArbitrationConfig.autoDrownEscape = true;
+        ControlConfig.drownEscapeAirThreshold = 100;
+        ArbitrationConfig.drownEscapeReleaseAir = 280;
         ctx.cleanup(() -> {
-            BotConfig.autoDrownEscape = oEnabled;
-            BotConfig.drownEscapeAirThreshold = oEnter;
-            BotConfig.drownEscapeReleaseAir = oRelease;
+            ArbitrationConfig.autoDrownEscape = oEnabled;
+            ControlConfig.drownEscapeAirThreshold = oEnter;
+            ArbitrationConfig.drownEscapeReleaseAir = oRelease;
         });
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
@@ -1108,8 +1113,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         if (preemptTick < 0)
             ctx.fail("gap#76 (live death #25): DrownEscapeChain NEVER preempted the active process while "
                     + "the bot drowned — minAir=" + minAir + " flips=" + flips);
-        if (airAtPreempt > BotConfig.drownEscapeAirThreshold)
-            ctx.fail("gap#76: preempted too early, air=" + airAtPreempt + " > threshold " + BotConfig.drownEscapeAirThreshold);
+        if (airAtPreempt > ControlConfig.drownEscapeAirThreshold)
+            ctx.fail("gap#76: preempted too early, air=" + airAtPreempt + " > threshold " + ControlConfig.drownEscapeAirThreshold);
         if (userInterrupts[0] < 1)
             ctx.fail("gap#76: preemption must interrupt the user chain (onInterrupt)");
         if (minAir <= 0)
@@ -1119,7 +1124,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
                     + fp.getAirSupply() + " under=" + fp.isUnderWater() + ")");
         if (fp.getY() < yAtPreempt + 2.0)
             ctx.fail("gap#76: bot did not float up: y " + yAtPreempt + " → " + fp.getY());
-        if (underAtRelease && airAtRelease < BotConfig.drownEscapeReleaseAir)
+        if (underAtRelease && airAtRelease < ArbitrationConfig.drownEscapeReleaseAir)
             ctx.fail("gap#76: released while still underwater below the release level (air=" + airAtRelease
                     + ") — hysteresis violated");
         if (!"user".equals(sched.currentName()))
@@ -1144,7 +1149,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState()));
 
-        BotConfig.walkerDebug = false;
+        GameConfig.walkerDebug = false;
         level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.STONE.defaultBlockState());
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();

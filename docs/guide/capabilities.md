@@ -373,7 +373,7 @@ Every call names an `op`:
 
 Values travel as one `{key: value}` object, and each key has its own value type. The key
 set is not hand-listed anywhere: it is derived reflectively from the settable fields of
-`BotConfig`, rendered into this tool's input schema with a one-line explanation and a range
+the config classes, rendered into this tool's input schema with a one-line explanation and a range
 per key, and a class-load check fails the build if a documented key stops existing. **Read
 the schema from `tools/list`** — it is the only listing that cannot go stale.
 

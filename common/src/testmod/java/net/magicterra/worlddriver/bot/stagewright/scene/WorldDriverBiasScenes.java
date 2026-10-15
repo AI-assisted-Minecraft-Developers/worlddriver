@@ -5,6 +5,9 @@ import java.util.List;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.PathSmoothing;
 import net.magicterra.worlddriver.bot.rules.Capability;
@@ -186,8 +189,8 @@ public final class WorldDriverBiasScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
 
         PathFinder.Result r = new PathFinder(w, SearchProfile.NONE)
                 .findPath(start, new Goal.YLevel(targetY));
@@ -228,11 +231,11 @@ public final class WorldDriverBiasScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = true;
+        WorldConfig.allowBreak = true;
 
         double probeCost = w.breakCost(new BlockPos(cx, top, cz), start);
         WorldDriverCommon.LOG.info("[wd.digDownY] probe allowBreak={} breakCost(topBlock)={}",
-                BotConfig.allowBreak, probeCost);
+                WorldConfig.allowBreak, probeCost);
 
         PathFinder.Result r = new PathFinder(w, SearchProfile.NONE)
                 .findPath(start, new Goal.YLevel(targetY));
@@ -286,8 +289,8 @@ public final class WorldDriverBiasScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
 
         PathFinder.Result plain = new PathFinder(w, SearchProfile.NONE)
                 .findPath(start, new Goal.YLevel(targetY));
@@ -533,7 +536,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = true;
+        WorldConfig.allowBreak = true;
 
         PathFinder.Result plain = new PathFinder(w, SearchProfile.NONE)
                 .findPath(start, new Goal.YLevel(targetY));
@@ -543,7 +546,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         WorldDriverCommon.LOG.info(
                 "[wd.forbidDig] allowBreak={} plain.goalReached={} minPathY(plain)={} plainLen={} | "
                 + "held.goalReached={} heldLen={}",
-                BotConfig.allowBreak, plain.goalReached(), minPathY(plain), plain.path().size(),
+                WorldConfig.allowBreak, plain.goalReached(), minPathY(plain), plain.path().size(),
                 held.goalReached(), held.path().size());
 
         if (!plain.goalReached() || minPathY(plain) != targetY)
@@ -551,7 +554,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
                     + plain.goalReached() + " minY=" + minPathY(plain));
         if (held.goalReached())
             ctx.fail("forbidDig: NoBreak did NOT hold: constrained plan still reached YLevel(" + targetY
-                    + ") with allowBreak=" + BotConfig.allowBreak + " — path=" + held.path());
+                    + ") with allowBreak=" + WorldConfig.allowBreak + " — path=" + held.path());
     }
 
     /** Ported from {@code AgentGameTestBias#shorelineHugArena}: A3b {@link ShorelineHug} cost-bias.
@@ -667,7 +670,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDiagonalStringPull = true;
+        ControlConfig.walkerDiagonalStringPull = true;
 
         PathFinder.Result hugged = new PathFinder(w, hug).findPath(start, new Goal.Block(goal));
         BlockPos rawWorst = firstOutOfBand(hugged, 2, w);
@@ -727,8 +730,8 @@ public final class WorldDriverBiasScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
 
         PathFinder.Result r = new PathFinder(w, 200, 100, SearchProfile.NONE)
                 .findPath(start, new Goal.Block(new BlockPos(cx, top + 2, cz)));
@@ -777,9 +780,9 @@ public final class WorldDriverBiasScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
-        BotConfig.walkerDebug = true;   // STOP line names the committing branch
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
+        GameConfig.walkerDebug = true;   // STOP line names the committing branch
 
         PathFinder.Result r = new PathFinder(w, 200, 100, SearchProfile.NONE)
                 .findPath(start, new Goal.Block(goalPos));

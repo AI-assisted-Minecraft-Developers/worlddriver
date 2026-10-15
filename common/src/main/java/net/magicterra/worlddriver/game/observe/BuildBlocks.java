@@ -1,13 +1,13 @@
 package net.magicterra.worlddriver.game.observe;
 
 import java.util.Set;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 
 /**
  * Which blocks the bot may PLACE, and which it must not spend. Dist-neutral (callable from both
  * client and dedicated-server WorldViews, and from the bodies that pick what to hold). Split out of
  * {@code BotConfig} when that file hit its 3000-line budget — the predicates read
- * {@link BotConfig#buildBlockWhitelist} at call time and touch no class-init state, so the move
+ * {@link GameConfig#buildBlockWhitelist} at call time and touch no class-init state, so the move
  * carries none of the persistence block's clinit trap.
  */
 public final class BuildBlocks {
@@ -21,7 +21,7 @@ public final class BuildBlocks {
      *  older test rejected mud/soul_sand/soul_soil for being 14/16 tall though the bot stands
      *  on them fine. It still rejects the thin/partial blocks this exists for (bottom slabs,
      *  fences, carpets, bamboo, saplings) that would leave the bot stuck on the path it builds. A non-empty
-     *  {@link BotConfig#buildBlockWhitelist} overrides the SHAPE test ONLY — the other three still
+     *  {@link GameConfig#buildBlockWhitelist} overrides the SHAPE test ONLY — the other three still
      *  apply. */
     public static boolean isUsableBuildBlock(net.minecraft.world.level.block.Block block) {
         if (block instanceof net.minecraft.world.level.block.FallingBlock) return false;
@@ -35,7 +35,7 @@ public final class BuildBlocks {
         if (isInteractiveBlock(block)) return false;
         net.minecraft.world.level.block.state.BlockState st = block.defaultBlockState();
         if (!st.blocksMotion()) return false;
-        Set<String> wl = BotConfig.buildBlockWhitelist;
+        Set<String> wl = GameConfig.buildBlockWhitelist;
         if (!wl.isEmpty()) {
             net.minecraft.resources.ResourceLocation id =
                     net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block);
@@ -77,7 +77,7 @@ public final class BuildBlocks {
         if (!(block instanceof net.minecraft.world.level.block.FallingBlock)) return false;
         net.minecraft.world.level.block.state.BlockState st = block.defaultBlockState();
         if (!st.blocksMotion()) return false;
-        Set<String> wl = BotConfig.buildBlockWhitelist;
+        Set<String> wl = GameConfig.buildBlockWhitelist;
         if (!wl.isEmpty()) {
             net.minecraft.resources.ResourceLocation id =
                     net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block);

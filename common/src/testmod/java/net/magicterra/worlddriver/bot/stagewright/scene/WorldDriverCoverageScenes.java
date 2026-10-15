@@ -4,6 +4,10 @@ import java.util.List;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerExpectAlarms;
@@ -93,9 +97,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = true;
-        BotConfig.allowBreak = true;
-        BotConfig.allowPlace = true;
+        GameConfig.walkerDebug = true;
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = true;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -146,9 +150,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerExpectAlarm = true;
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
+        ControlConfig.walkerExpectAlarm = true;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -229,9 +233,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDrowningEscape = true;   // pinnedBaseline() turns it off for arenas
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
+        ControlConfig.walkerDrowningEscape = true;   // pinnedBaseline() turns it off for arenas
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 3 + 0.5, floorY - 3, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -295,9 +299,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.pathfinderMaxNodes = 120;   // ~half the corridor per search → forced best-effort
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
+        PlanningConfig.pathfinderMaxNodes = 120;   // ~half the corridor per search → forced best-effort
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -338,9 +342,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerAscendMovement = true;
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
+        ControlConfig.walkerAscendMovement = true;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -418,19 +422,19 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = true;
+        GameConfig.walkerDebug = true;
         // Horizon soft-commit (the live boxed-pocket mechanism): a short receding horizon
         // best-effort-commits INTO the pocket (nearest-to-goal frontier is the dead end).
         // maxNodes starvation was tried and starves the escape too (v1/v2 postmortems).
-        BotConfig.pathfinderHorizonBlocks = 8;
-        BotConfig.walkerFasterChurnRepath = true; // 240t churn window
-        BotConfig.walkerWallCornerFastChurn = true; // hCol-pinned press → 160t window
+        PlanningConfig.pathfinderHorizonBlocks = 8;
+        ControlConfig.walkerFasterChurnRepath = true; // 240t churn window
+        ControlConfig.walkerWallCornerFastChurn = true; // hCol-pinned press → 160t window
         // In a TRULY sealed pocket the futile-search cap (5 consecutive no-progress
         // searches → FAILED, gap#49-③) races the churn windows and won in v6 (t=279).
         // This scene is about the churn machinery, so give the cap headroom.
-        BotConfig.walkerFutileSearchCap = 60;
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
+        ControlConfig.walkerFutileSearchCap = 60;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -520,15 +524,15 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = true;
+        GameConfig.walkerDebug = true;
         // BOTH slice knobs must be pinned: with path==null the search runs at
         // max(pathfinderSliceMs, pathfinderIdleSliceMs) — v1-v4 pinned only the walking
         // slice, the 30ms idle slice finished the big search ON TICK 1 and the
         // quick-start branch never executed.
-        BotConfig.pathfinderSliceMs = 0;
-        BotConfig.pathfinderIdleSliceMs = 0;
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
+        ControlConfig.pathfinderSliceMs = 0;
+        ControlConfig.pathfinderIdleSliceMs = 0;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -545,7 +549,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             // The pre-path quick-start branch runs while the big search is in flight; 40
             // pinned ticks are ample for it (stub adoption is tick-1). Then restore the
             // slice budgets so the big search can actually LAND and supersede the stub.
-            if (t == 40) { BotConfig.pathfinderSliceMs = 6; BotConfig.pathfinderIdleSliceMs = 30; }
+            if (t == 40) { ControlConfig.pathfinderSliceMs = 6; ControlConfig.pathfinderIdleSliceMs = 30; }
             s = walker.tick(av, w);
             av.step();
             if (t % 60 == 0)
@@ -649,10 +653,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
     private static void ascentRamSlideBack(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = true;
-        BotConfig.walkerAscentRamJitterImmune = true;
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
+        GameConfig.walkerDebug = true;
+        ControlConfig.walkerAscentRamJitterImmune = true;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
         String err = slideBackCourse(ctx, 900);
         if (err != null) ctx.fail("ascentRamSlideBack: " + err);
     }
@@ -732,10 +736,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
     private static void aboveNodeStallPitFill(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = true;
-        BotConfig.walkerAboveNodeStallRecover = true;   // pinnedBaseline turns it off
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
+        GameConfig.walkerDebug = true;
+        ControlConfig.walkerAboveNodeStallRecover = true;   // pinnedBaseline turns it off
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
         String err = pitFillCourse(ctx, 700);
         if (err != null) ctx.fail("aboveNodeStallPitFill: " + err);
     }
@@ -751,10 +755,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
     private static void verticalResyncSlideBack(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = true;
-        BotConfig.walkerVerticalResync = true;
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
+        GameConfig.walkerDebug = true;
+        ControlConfig.walkerVerticalResync = true;
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
         String err = slideBackCourse(ctx, 900);
         if (err != null) ctx.fail("verticalResyncSlideBack: " + err);
     }
@@ -778,10 +782,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = true;
-        BotConfig.walkerStepUpBackoffRetry = true;   // pinnedBaseline turns it off
-        BotConfig.allowBreak = false;
-        BotConfig.allowPlace = false;
+        GameConfig.walkerDebug = true;
+        ControlConfig.walkerStepUpBackoffRetry = true;   // pinnedBaseline turns it off
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -887,9 +891,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerPillarSurfacePlace = true;   // pinnedBaseline() turns it off for arenas
-        BotConfig.allowPlace = true;                 // ditto, and the subject here IS a placement
-        BotConfig.allowBreak = false;
+        ControlConfig.walkerPillarSurfacePlace = true;   // pinnedBaseline() turns it off for arenas
+        WorldConfig.allowPlace = true;                 // ditto, and the subject here IS a placement
+        WorldConfig.allowBreak = false;
         // Also baseline-disabled (BotConfig:2326 production ON, :2968 arena OFF). Production runs
         // with it ON and this scene is about pillaring, so ON is the right world to test in.
         //
@@ -901,7 +905,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // and the destination IS water, so the third term exempts it from needing a support ⇒
         // canStandAt(dest) is true ⇒ snapGoalToStandable returns on its own first line. Confirmed
         // by walk.goalSnapped=false. The real cause was the plan's shape (see the plan below).
-        BotConfig.walkerPillarReachGoalNoSnap = true;
+        ControlConfig.walkerPillarReachGoalNoSnap = true;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -920,7 +924,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         if (w.isWater(dest.above()))
             ctx.fail("surfacePillar: " + dest.above().toShortString() + " is water, so this is a FLOODED shaft, "
                     + "not a water-surface shaft; the carve-out condition does not hold and the assertion degenerates to 0==0.");
-        if (!BotConfig.walkerPillarSurfacePlace)
+        if (!ControlConfig.walkerPillarSurfacePlace)
             ctx.fail("surfacePillar: walkerPillarSurfacePlace is off, so the WalkerTickClimb carve-out is "
                     + "dead code and the two phase classes must agree by construction.");
 

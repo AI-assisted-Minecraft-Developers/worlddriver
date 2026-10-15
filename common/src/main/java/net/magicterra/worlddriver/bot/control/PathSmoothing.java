@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot.control;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
@@ -108,7 +110,7 @@ public final class PathSmoothing {
                         // §90: a DIAGONAL merge is admitted only under the honest
                         // player-width corridor probe — the ray-only guard is what made
                         // diagonal collapsing fabricate unthreadable corner-cuts.
-                        || (BotConfig.walkerDiagonalStringPull
+                        || (ControlConfig.walkerDiagonalStringPull
                             && losWalkableBody(w, path.get(i), path.get(j + 1))))
                     && losWalkable(w, path.get(i), path.get(j + 1))) {
                 j++;
@@ -123,7 +125,7 @@ public final class PathSmoothing {
             // silently re-introduces the cliff edge / lava graze the planner paid
             // to avoid (losWalkable only checks walkability, not danger). On safe
             // ground both sums are 0, so normal zigzag staircases still collapse.
-            if ((BotConfig.avoidDanger
+            if ((WorldConfig.avoidDanger
                     && straightLineDanger(w, path.get(i), path.get(j))
                        > waypointDanger(w, path, i, j) + 1e-6)
                     // Same rule for per-intent bias (ShorelineHug / AvoidRegion /
@@ -247,7 +249,7 @@ public final class PathSmoothing {
     public static boolean losWalkableBody(WorldView w, double ax, double az, BlockPos a, BlockPos b) {
         int steps = 2 * Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
         return steps == 0 || losWalkableBody(w, ax, az, a, b.getX() + 0.5, b.getZ() + 0.5, b.getY(), steps,
-                BotConfig.walkerCarrotBodyHalfWidth);
+                ControlConfig.walkerCarrotBodyHalfWidth);
     }
 
     /** {@link #losWalkableBody(WorldView, double, double, BlockPos, BlockPos)} from the body's true position to the
@@ -388,7 +390,7 @@ public final class PathSmoothing {
             for (Move cand : Move.ALL)
                 if (e.move.equals(cand.name()) && cand.apply(from).equals(e.to)) { m = cand; break; }
             if (m == null || m.eval(w, from) != null) continue;
-            if (BotConfig.walkerDebug)
+            if (GameConfig.walkerDebug)
                 LOG.info("[walker] stale plan: edge {} {} {},{},{} → {},{},{} no longer admitted by the world → {}",
                         i, e.move, from.getX(), from.getY(), from.getZ(), e.to.getX(), e.to.getY(), e.to.getZ(),
                         i == 1 ? "discard" : "cut to " + i + " nodes");

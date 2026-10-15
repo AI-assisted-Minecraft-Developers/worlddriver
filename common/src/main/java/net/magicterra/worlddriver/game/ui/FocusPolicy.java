@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.game.ui;
 
 import net.minecraft.client.Minecraft;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 
 /**
  * Suppresses vanilla's pause-on-lost-focus while the bot is driving, and hands the human's
@@ -74,7 +74,7 @@ public final class FocusPolicy {
     public static void apply(Minecraft mc, boolean botDriving) {
         if (mc == null || mc.options == null) return;
         if (!startupApplied) applyStartupProperty(mc);
-        boolean want = botDriving && BotConfig.keepTickingUnfocused;
+        boolean want = botDriving && GameConfig.keepTickingUnfocused;
         if (want == overriding) return;
         if (want) {
             savedPauseOnLostFocus = mc.options.pauseOnLostFocus;

@@ -90,7 +90,7 @@ public final class WorldDriverClientEvents {
             if (b != null) b.onDisconnect();
         });
         // "Bot is driving" badge — the visible half of the mouse-yield handshake
-        // (BotConfig.mouseYield / mouseYieldHud). Drawn after the vanilla HUD so it lands on top.
+        // (GameConfig.mouseYield / mouseYieldHud). Drawn after the vanilla HUD so it lands on top.
         ClientGuiEvent.RENDER_HUD.register((graphics, delta) -> MouseYieldHud.render(graphics));
     }
 }

@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
@@ -166,7 +166,7 @@ public final class CraftProcess implements BotProcess {
     private boolean beginReclaim(Body a, Player p, Level lvl) {
         if (reclaimTried) return false;
         reclaimTried = true;
-        if (!BotConfig.craftReclaimTable) return false;
+        if (!BehaviorConfig.craftReclaimTable) return false;
         if (placedTable == null || !isTable(lvl, placedTable)) return false;
         menus.closeContainer();          // can't swing at a block with the table menu open
         hands.selectTool(placedTable);   // an axe if we carry one; bare hands work too

@@ -1,13 +1,13 @@
 package net.magicterra.worlddriver.bot.rules.moves;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 
 /**
  * Step off a ledge and fall {@code drop} blocks. Each block adds a tick of
- * fall time + a damage check. Drops above {@link BotConfig#pathfinderMaxDryFall}
+ * fall time + a damage check. Drops above {@link RulesConfig#pathfinderMaxDryFall}
  * are gated off.
  *
  * <p><b>That cap ships at 4, not at the no-damage 3.</b> Baritone's conservative
@@ -31,7 +31,7 @@ public final class Fall extends Move {
         // cap of 4 this admits fall2..fall4 and rejects only Fall(5) — it is NOT the
         // no-fall-damage gate it was written as: fall4 costs 1 HP every time it
         // fires. Lower the knob to 3 to get damage-free routing back.
-        if (drop > BotConfig.pathfinderMaxDryFall) return false;
+        if (drop > RulesConfig.pathfinderMaxDryFall) return false;
         BlockPos to = apply(from);
         if (!w.canStandAt(to)) return false;
         // Buoyancy: a fall into SUBMERGED water (more water directly above the

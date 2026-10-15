@@ -8,6 +8,8 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.Intent;
@@ -245,9 +247,9 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
     private static void config(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowPlace = false;
-        BotConfig.allowBreak = false;
-        BotConfig.walkerDebug = false;
+        WorldConfig.allowPlace = false;
+        WorldConfig.allowBreak = false;
+        GameConfig.walkerDebug = false;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
         // Registered BEFORE anything is built, so an arm that fails mid-drive still hands the shared

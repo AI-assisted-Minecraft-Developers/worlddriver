@@ -2,7 +2,8 @@ package net.magicterra.worlddriver.bot.arbitration;
 
 import net.magicterra.worlddriver.game.body.ClientPlayerBody;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ArbitrationConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
@@ -22,7 +23,7 @@ import static net.magicterra.worlddriver.game.body.BotInteract.releaseKeys;
  * straight away from it. A creeper's fuse is ~1.5 s; pathfinding away is too slow
  * to plan, so this is a blunt immediate response (turn back to the creeper, hold
  * forward + sprint) rather than a planned route. Outbids everything except the
- * water-bucket clutch. Gated on {@link BotConfig#autoDodge}.
+ * water-bucket clutch. Gated on {@link ArbitrationConfig#autoDodge}.
  */
 public final class PanicChain implements Chain {
 
@@ -30,7 +31,7 @@ public final class PanicChain implements Chain {
 
     @Override public float priority(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
-        if (!BotConfig.autoDodge || mc.player == null) return 0f;
+        if (!ArbitrationConfig.autoDodge || mc.player == null) return 0f;
         return nearestCreeper(mc) != null ? Priorities.PANIC : 0f;
     }
 
@@ -57,7 +58,7 @@ public final class PanicChain implements Chain {
         // are walkable and non-lethal, using the same HazardField the planner uses.
         BlockPos foot = p.blockPosition();
         HazardField hf = HazardField.compute(w, foot, 3,
-                SurvivalMath.survivableFall(p.getHealth()), BotConfig.deepWaterMax);
+                SurvivalMath.survivableFall(p.getHealth()), WorldConfig.deepWaterMax);
         double bestX = 0, bestZ = 0;
         boolean found = false;
         for (double off : FLEE_OFFSETS) {
@@ -104,8 +105,8 @@ public final class PanicChain implements Chain {
         double bestDist = Double.MAX_VALUE;
         for (ThreatScanner.Threat t : scan.threats()) {
             if (!t.type().endsWith("creeper")) continue;
-            boolean close = t.distance() <= BotConfig.creeperKeepDistance;
-            boolean swelling = t.creeperSwell() > 0f && t.distance() <= BotConfig.creeperKeepDistance + 3.0;
+            boolean close = t.distance() <= ArbitrationConfig.creeperKeepDistance;
+            boolean swelling = t.creeperSwell() > 0f && t.distance() <= ArbitrationConfig.creeperKeepDistance + 3.0;
             if ((close || swelling) && t.distance() < bestDist) { best = t.entity(); bestDist = t.distance(); }
         }
         return best;

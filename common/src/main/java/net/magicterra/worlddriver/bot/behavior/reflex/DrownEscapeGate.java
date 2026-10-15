@@ -51,10 +51,10 @@ public final class DrownEscapeGate {
      * @param air        {@code LivingEntity#getAirSupply()} this tick.
      * @param prevAir    air supply on the PREVIOUS tick ({@code air} again on the
      *                   first observation — treated as "not recovering").
-     * @param enterAir   {@code BotConfig#drownEscapeAirThreshold} (default 100).
-     * @param releaseAir {@code BotConfig#drownEscapeReleaseAir} (default 280),
+     * @param enterAir   {@code ControlConfig#drownEscapeAirThreshold} (default 100).
+     * @param releaseAir {@code ArbitrationConfig#drownEscapeReleaseAir} (default 280),
      *                   clamped to {@link #MAX_AIR}.
-     * @param enabled    {@code BotConfig#autoDrownEscape}. Disabled drops an
+     * @param enabled    {@code ArbitrationConfig#autoDrownEscape}. Disabled drops an
      *                   existing latch immediately.
      * @return the new latch state (true = the chain should hold the channel).
      */

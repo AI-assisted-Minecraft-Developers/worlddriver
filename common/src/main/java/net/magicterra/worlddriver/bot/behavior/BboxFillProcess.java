@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
@@ -156,7 +156,7 @@ public final class BboxFillProcess implements BotProcess {
                         currentTarget = null;
                         phase = Phase.SEARCH;
                     }
-                } else if (breakingTicks > BotConfig.breakTimeoutTicks) {
+                } else if (breakingTicks > ControlConfig.breakTimeoutTicks) {
                     skipped++;
                     blacklist.add(currentTarget);
                     hands.breakHold(false);

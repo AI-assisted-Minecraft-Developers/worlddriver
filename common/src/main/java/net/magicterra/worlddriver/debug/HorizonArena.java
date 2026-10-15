@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.debug;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.minecraft.core.BlockPos;
@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * Deterministic gate for the receding-horizon early-stop
- * ({@link BotConfig#pathfinderHorizonBlocks}).
+ * ({@link PlanningConfig#pathfinderHorizonBlocks}).
  *
  * <p>Reproduces the long-haul FREEZE root cause on a {@link GridWorldView} (so it has
  * none of the live measurement ceiling): a long flat corridor toward a FAR XZ goal that
@@ -54,13 +54,13 @@ public final class HorizonArena {
     /**
      * Build the corridor and run the read-only segment-commitment chain (mirrors the
      * Walker: feed each committed endpoint back as the next start) under the given
-     * {@code horizonBlocks}. Saves/restores the live {@link BotConfig#pathfinderHorizonBlocks}.
+     * {@code horizonBlocks}. Saves/restores the live {@link PlanningConfig#pathfinderHorizonBlocks}.
      */
     public static Result run(int horizonBlocks) {
         return run(horizonBlocks, 0);
     }
 
-    /** As {@link #run(int)} but also sets {@link BotConfig#pathfinderSoftCommitNodes}
+    /** As {@link #run(int)} but also sets {@link PlanningConfig#pathfinderSoftCommitNodes}
      *  (0 = off) for the duration, so a test can isolate the soft-commit early-stop. */
     public static Result run(int horizonBlocks, int softCommitNodes) {
         // place=false: no bridging, so the search is BOUNDED by the corridor (a few
@@ -78,10 +78,10 @@ public final class HorizonArena {
 
         // NOTHING GLOBAL IS TOUCHED HERE, and that is the point of the shape.
         //
-        // This used to write BotConfig.pathfinderHorizonBlocks / pathfinderSoftCommitNodes and put
+        // This used to write PlanningConfig.pathfinderHorizonBlocks / pathfinderSoftCommitNodes and put
         // them back in a finally. That is unsound the moment anything else in the JVM is planning,
         // and it silently disconnected this arena's only variable: pfHorizonBlocks() returns 0
-        // whenever BotConfig.pathfinderBoxedEscalate is set, and a client Walker on another thread
+        // whenever PlanningConfig.pathfinderBoxedEscalate is set, and a client Walker on another thread
         // writes that flag every tick it runs. On integratedServerNeoforge, with the client bot
         // churning on an unreachable goal, run(48) planned with the horizon OFF and returned numbers
         // byte-identical to run(0) — the scene measured nothing and still reported a colour.
@@ -93,7 +93,7 @@ public final class HorizonArena {
         {
             for (; segments < 60; segments++) {
                 PathFinder.Result r = new PathFinder(w, 8_000, 30_000).withOwner("debug.horizon")
-                        .withTuning(horizonBlocks, softCommitNodes, BotConfig.pathfinderDepthPenalty)
+                        .withTuning(horizonBlocks, softCommitNodes, PlanningConfig.pathfinderDepthPenalty)
                         .findPath(from, goal);
                 List<BlockPos> path = r.path();
                 BlockPos end = path.isEmpty() ? from : path.get(path.size() - 1);

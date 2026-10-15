@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.control;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Hands;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -47,7 +47,7 @@ public final class WalkerExpectAlarms {
     /** Note a placement's expected cell for the PLACE-noBlock observer (call right
      *  after {@code a.placeOn(clicked, UP)} with {@code clicked.above()}). */
     void notePlace(BlockPos cell) {
-        if (!BotConfig.walkerExpectAlarm) return;
+        if (!ControlConfig.walkerExpectAlarm) return;
         exPlacePos = cell;
         exPlaceTicksLeft = 8;
     }

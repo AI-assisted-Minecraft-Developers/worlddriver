@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.game.body.BotInteract;
 import net.magicterra.worlddriver.game.body.ClientIntents;
 import net.minecraft.client.Minecraft;
@@ -14,7 +14,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.alchemy.PotionContents;
 
 /**
- * Phase B reflex — when health is at/below {@link BotConfig#healHpThreshold} and
+ * Phase B reflex — when health is at/below {@link BehaviorConfig#healHpThreshold} and
  * the hotbar holds a healing item (enchanted/plain golden apple, or a drinkable
  * potion granting Instant Health / Regeneration), select it and hold the use intent
  * to consume it. Sibling of {@link AutoEat}; the host arbitrates the use intent with
@@ -25,7 +25,7 @@ public final class AutoHeal {
     private boolean healing;
 
     public boolean wants(Minecraft mc, LocalPlayer p) {
-        return p.getHealth() <= BotConfig.healHpThreshold && healSlot(p) >= 0;
+        return p.getHealth() <= BehaviorConfig.healHpThreshold && healSlot(p) >= 0;
     }
 
     public void engage(Minecraft mc, LocalPlayer p) {

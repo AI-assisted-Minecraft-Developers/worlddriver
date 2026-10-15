@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.rules.moves;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -18,10 +18,10 @@ public final class StepDown extends Move {
                 java.util.List.of(), java.util.List.of(), name());
     }
 
-    /** {@link BotConfig#pathfinderHeadStrikeTax} when a block sits at landing + 2 in the cell past
+    /** {@link RulesConfig#pathfinderHeadStrikeTax} when a block sits at landing + 2 in the cell past
      *  {@code to} along (dx, dz), or in either corner a diagonal sweeps; else 0. */
     static double headStrikeTax(WorldView w, BlockPos to, int dx, int dz) {
-        double tax = BotConfig.pathfinderHeadStrikeTax;
+        double tax = RulesConfig.pathfinderHeadStrikeTax;
         if (tax <= 0) return 0;
         BlockPos h = to.offset(0, 2, 0);
         boolean strike = !w.isPassable(h.offset(dx, 0, dz))

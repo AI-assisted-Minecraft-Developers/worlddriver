@@ -11,6 +11,8 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.ServerAvatarManager;
@@ -187,9 +189,9 @@ public final class JourneyRampScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         // Placement stays ON: this arena's whole subject is a loop that places blocks, and every
         // course it claims is read back off the world rather than off the call.
-        BotConfig.allowPlace = true;
-        BotConfig.allowBreak = false;
-        BotConfig.walkerDebug = false;
+        WorldConfig.allowPlace = true;
+        WorldConfig.allowBreak = false;
+        GameConfig.walkerDebug = false;
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(JourneyRamp::reset);

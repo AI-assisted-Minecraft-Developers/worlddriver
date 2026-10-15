@@ -1,6 +1,9 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.BehaviorConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
@@ -76,7 +79,7 @@ public final class MineProcess implements BotProcess {
     // from scratch on every scanForTarget. See canHarvest / the tool gate below.
     private String noTargetReason;
     // Position where this mine command began. Targets beyond
-    // BotConfig.mineMaxDriftFromStart of this anchor are rejected so a single
+    // BehaviorConfig.mineMaxDriftFromStart of this anchor are rejected so a single
     // mine command can't chain hops across the world (e.g. swim an ocean toward
     // scattered red_sand). Set lazily on first tick (attach has no player).
     private BlockPos startAnchor;
@@ -354,7 +357,7 @@ public final class MineProcess implements BotProcess {
                         BlockPos foot = blockPosOf(p);
                         Target clear = findClearingTarget(lvl, foot, currentTarget);
                         if (clear != null) {
-                            if (BotConfig.walkerDebug)
+                            if (GameConfig.walkerDebug)
                                 LOG.info("[mine] stand unreachable for {} -> clear leaf {} (stand {})",
                                         currentTarget, clear.block(), clear.stand());
                             aimAt(clear.block(), lvl);
@@ -505,9 +508,9 @@ public final class MineProcess implements BotProcess {
                     } else {
                         phase = Phase.SEARCH;
                     }
-                } else if (breakingTicks > BotConfig.breakTimeoutTicks) {
+                } else if (breakingTicks > ControlConfig.breakTimeoutTicks) {
                     retireTarget("still unbroken after " + breakingTicks + "t of mining (limit "
-                            + BotConfig.breakTimeoutTicks + "t)");
+                            + ControlConfig.breakTimeoutTicks + "t)");
                 }
             }
             case COLLECT -> {
@@ -828,17 +831,17 @@ public final class MineProcess implements BotProcess {
         // vertical band — the old dy-outer loop silently never reached dy in [+4,+8] once
         // a wide horizontal radius blew the budget on the low layers (a jungle-canopy log
         // sat in plain sight and was reported unreachable).
-        BlockPos[] offsets = NearestFirstScan.offsetsNearestFirst(r, BotConfig.mineSearchVerticalRadius);
+        BlockPos[] offsets = NearestFirstScan.offsetsNearestFirst(r, BehaviorConfig.mineSearchVerticalRadius);
         int budget = Math.min(offsets.length, SCAN_BUDGET);
         for (int i = 0; i < budget; i++) {
             scanned++;
             BlockPos bp = foot.offset(offsets[i]);
             // Cap horizontal drift from where the command began so a chain of
             // SEARCH hops can't walk the bot across the world / an ocean.
-            if (BotConfig.mineMaxDriftFromStart > 0 && startAnchor != null) {
+            if (BehaviorConfig.mineMaxDriftFromStart > 0 && startAnchor != null) {
                 long hx = bp.getX() - startAnchor.getX();
                 long hz = bp.getZ() - startAnchor.getZ();
-                long cap = BotConfig.mineMaxDriftFromStart;
+                long cap = BehaviorConfig.mineMaxDriftFromStart;
                 if (hx * hx + hz * hz > cap * cap) continue;
             }
             if (blacklist.contains(bp)) continue;
@@ -877,7 +880,7 @@ public final class MineProcess implements BotProcess {
         // stand-and-break, return one as a clearing target so mining it opens access.
         if (nearestUnreachable != null) {
             Target clear = findClearingTarget(lvl, foot, nearestUnreachable);
-            if (BotConfig.walkerDebug)
+            if (GameConfig.walkerDebug)
                 LOG.info("[mine] no direct stand; nearestUnreachable={} -> clearing={}",
                         nearestUnreachable, clear == null ? "null" : clear.block());
             if (clear != null) return clear;
@@ -890,9 +893,9 @@ public final class MineProcess implements BotProcess {
             // face-adjacent cell nearest the bot as the goal and let it carve the
             // tunnel. A genuinely unreachable ore (out of budget, lava-walled) makes
             // the Walker FAIL, which blacklists the ore — still a clean abort.
-            if (BotConfig.allowBreak) {
+            if (WorldConfig.allowBreak) {
                 Target dig = findDigStand(lvl, foot, nearestUnreachable);
-                if (BotConfig.walkerDebug)
+                if (GameConfig.walkerDebug)
                     LOG.info("[mine] no clearing leaf; buried target {} -> digStand={}",
                             nearestUnreachable, dig == null ? "null" : dig.stand());
                 if (dig != null) return dig;
@@ -907,9 +910,9 @@ public final class MineProcess implements BotProcess {
                     + BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(toolBlocked).getBlock())
                     + " needs " + toolBlockedTool + " — none held or in inventory";
         }
-        if (BotConfig.walkerDebug)
+        if (GameConfig.walkerDebug)
             LOG.info("[mine] scan found no target (scanned={} targetHits={} lavaSkips={} toolBlocked={} foot={} r={} vR={})",
-                    scanned, targetHits, targetLavaSkips, toolBlocked, foot, r, BotConfig.mineSearchVerticalRadius);
+                    scanned, targetHits, targetLavaSkips, toolBlocked, foot, r, BehaviorConfig.mineSearchVerticalRadius);
         return null;
     }
 
@@ -967,7 +970,7 @@ public final class MineProcess implements BotProcess {
                         if (!isLeaf(lvl.getBlockState(lp))) continue;
                         if (lavaTouching(lvl, lp)) continue;
                         BlockPos stand = findStandableAdjacent(lvl, lp, foot.getY());
-                        if (BotConfig.walkerDebug)
+                        if (GameConfig.walkerDebug)
                             LOG.info("[mine] clearing-candidate leaf {} -> stand {}", lp, stand);
                         if (stand == null) continue;
                         return new Target(lp, stand, faceFromStandToBlock(stand, lp), true);

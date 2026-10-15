@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -38,9 +38,9 @@ public final class LookProcess implements BotProcess {
         if (track != null) st.look.target = track;
         st.look.startedAtMs = System.currentTimeMillis();
         st.look.lastError = null;
-        if (BotConfig.walkerDebug)
+        if (GameConfig.walkerDebug)
             LOG.info("[look] attach goal={} smoothLook={} degPerTick={}",
-                    st.look.goal, BotConfig.smoothLook, BotConfig.smoothLookDegPerTick);
+                    st.look.goal, GameConfig.smoothLook, GameConfig.smoothLookDegPerTick);
     }
 
     public boolean tick(Body a, WorldView w, BotState st) {
@@ -59,7 +59,7 @@ public final class LookProcess implements BotProcess {
         p.setYRot(ny); p.yHeadRot = ny; p.yBodyRot = ny; p.setXRot(np);
         float yawErr = Math.abs(Mth.degreesDifference(ny, ty));
         boolean aligned = yawErr < ALIGN_EPS && Math.abs(tp - np) < ALIGN_EPS;
-        if (BotConfig.walkerDebug)
+        if (GameConfig.walkerDebug)
             LOG.info("[look] t={} yaw {}->{} (tgt {}) pitch {}->{} (tgt {}) yawErr={} aligned={}",
                     ticks, curY, ny, ty, curP, np, tp, yawErr, aligned);
         if (aligned) { st.look.reset(); return true; }

@@ -9,7 +9,8 @@ import java.util.Map;
 
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.WalkerGeometry;
 import net.magicterra.worlddriver.bot.behavior.CombatProcess;
@@ -1920,8 +1921,8 @@ public final class JourneyNetherRungs {
      * is this rung's policy and not the suite's — the six gates never see it.
      */
     private static void dontCutCornersOverLava(JourneyRig rig) {
-        BotConfig.pathfinderDiagAscendPenalty = DIAG_ASCEND_PENALTY;
-        rig.evidence("crossing.diagAscendPenalty", BotConfig.pathfinderDiagAscendPenalty
+        RulesConfig.pathfinderDiagAscendPenalty = DIAG_ASCEND_PENALTY;
+        rig.evidence("crossing.diagAscendPenalty", RulesConfig.pathfinderDiagAscendPenalty
                 + " (extra cost of a diagonal ascent; whether it took effect is shown by the walked edges at"
                 + " the end of the flight rows, not by this row)");
     }
@@ -2553,7 +2554,7 @@ public final class JourneyNetherRungs {
      * <p><b>The defect is that only one half of the walker knows those cells are dangerous.</b> The
      * executor asks {@code WalkerGeometry.lethalDropAdjacent}; the planner asks
      * {@code ClientWorldView.dangerCost}, and those are different predicates.
-     * {@link BotConfig#lavaDangerPenalty} is 300 and was ON for the whole run — but it prices a
+     * {@link WorldConfig#lavaDangerPenalty} is 300 and was ON for the whole run — but it prices a
      * stand cell that TOUCHES lava, and a lip cell touches nothing: the lava is eight blocks down,
      * past a drop. So A* priced the shore at a plain 10 per step and routed along it, straight into
      * the cells its own executor refuses to walk through.
@@ -2567,7 +2568,7 @@ public final class JourneyNetherRungs {
      * arrived reported {@code end=arrived} with zero footing-guard entries. This is that fix, on the
      * terrain it was not applied to.
      *
-     * <p>Three hundred, same as rung 12's and as {@link BotConfig#lavaDangerPenalty}: a plain walk
+     * <p>Three hundred, same as rung 12's and as {@link WorldConfig#lavaDangerPenalty}: a plain walk
      * edge is 10, so a lip cell is worth thirty blocks of detour. <b>A tax, never a
      * {@code Constraint}</b> — a crossing whose only route is a lip still has one, merely dear. That
      * distinction is why this is safe on 400 blocks of terrain nobody has surveyed.

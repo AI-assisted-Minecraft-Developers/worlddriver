@@ -7,6 +7,9 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerGeometry;
@@ -160,9 +163,9 @@ public final class JourneyCrossingScenes implements SceneProvider {
         // The guards keep their live values — this arm is a claim about them staying out of the way,
         // and an arm that switched them off could not make it. Placement is off because a plug under
         // the bot would change the geometry the arms differ in; the shore pair owns that question.
-        BotConfig.allowPlace = false;
-        BotConfig.allowBreak = false;
-        BotConfig.walkerDebug = false;
+        WorldConfig.allowPlace = false;
+        WorldConfig.allowBreak = false;
+        GameConfig.walkerDebug = false;
         ctx.cleanup(() -> clear(ctx));
 
         stage(ctx);
@@ -224,9 +227,9 @@ public final class JourneyCrossingScenes implements SceneProvider {
     private static void stillStopsForALongFall(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowPlace = false;
-        BotConfig.allowBreak = false;
-        BotConfig.walkerDebug = false;
+        WorldConfig.allowPlace = false;
+        WorldConfig.allowBreak = false;
+        GameConfig.walkerDebug = false;
         ctx.cleanup(() -> clear(ctx));
 
         stage(ctx);
@@ -309,10 +312,10 @@ public final class JourneyCrossingScenes implements SceneProvider {
     private static void repathSeparatesARimWalkFromALivelock(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowPlace = false;      // paving the trench is another answer; the pin is the subject
-        BotConfig.allowBreak = false;
-        BotConfig.walkerDebug = false;
-        BotConfig.lethalEdgeBrake = false; // isolate the STRIDE guard, as the shore/rim pairs do
+        WorldConfig.allowPlace = false;      // paving the trench is another answer; the pin is the subject
+        WorldConfig.allowBreak = false;
+        GameConfig.walkerDebug = false;
+        ControlConfig.lethalEdgeBrake = false; // isolate the STRIDE guard, as the shore/rim pairs do
         ctx.cleanup(() -> clearTrench(ctx));
 
         stageTrench(ctx);
@@ -539,9 +542,9 @@ public final class JourneyCrossingScenes implements SceneProvider {
     private static void rowSeparatesAPerchFromMidAir(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.allowPlace = false;
-        BotConfig.allowBreak = false;
-        BotConfig.walkerDebug = false;
+        WorldConfig.allowPlace = false;
+        WorldConfig.allowBreak = false;
+        GameConfig.walkerDebug = false;
         ctx.cleanup(() -> clearShaft(ctx));
 
         stageShaft(ctx);
