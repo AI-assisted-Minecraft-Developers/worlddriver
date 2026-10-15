@@ -41,8 +41,8 @@ public final class BodyReady {
         public static final String PAUSED = "paused";
         public static final String SLEEPING = "sleeping";
         public static final String CHUNK_UNLOADED = "chunk_unloaded";
-        /** The controlled player has no {@code Hands} (or no {@code Containers}) and the verb needs
-         *  them. Stamped by the process itself on its slot's {@code lastError}, since the
+        /** The controlled entity lacks a capability the verb needs ({@code Equipment},
+         *  {@code BlockInteraction}, {@code Menus}, ...). Stamped by the process itself on its slot's {@code lastError}, since the
          *  controlled player is only known at tick time; a compile-time constant, so a server-side process naming it loads nothing
          *  from this client-only class. */
         public static final String NO_HANDS = "no_hands";

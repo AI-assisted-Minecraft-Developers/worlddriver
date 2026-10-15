@@ -1,11 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright;
 
-import java.util.Optional;
-
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.BodyCapabilities;
-import net.magicterra.worlddriver.game.body.Containers;
-import net.magicterra.worlddriver.game.body.Hands;
 import net.magicterra.worlddriver.testcontent.DrivenMob;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
@@ -25,8 +20,8 @@ import net.minecraft.world.phys.Vec3;
  * the attribute and scales the impulse by it, which is what {@code MoveControl}'s walk branch leaves
  * on a mob moving at speed modifier 1.
  *
- * <p><b>No hands, no menus.</b> A process that needs either refuses with {@code no_hands}, and the
- * walker drives its handless stand-in. The planner is kept from pricing digs and placements by the
+ * <p><b>No hands, no menus.</b> Every optional capability keeps {@link Body}'s empty default, so a
+ * process that needs one refuses with {@code no_hands}, and the walker drives its handless stand-in. The planner is kept from pricing digs and placements by the
  * view: {@code LevelWorldView} over an entity that is not a player prices every break as impossible
  * and counts no placeable blocks.
  *
@@ -45,8 +40,6 @@ public final class LivingBody implements Body {
     }
 
     @Override public Mob entity() { return mob; }
-    @Override public Optional<Hands> hands() { return Optional.empty(); }
-    @Override public Optional<Containers> containers() { return Optional.empty(); }
 
     @Override public void commandMove(float left, float forward) { this.left = left; this.forward = forward; }
     @Override public void commandForward(float forward) { this.forward = forward; this.left = 0; }
@@ -73,10 +66,6 @@ public final class LivingBody implements Body {
         BlockHitResult hit = mob.level().clip(
                 new ClipContext(eye, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, mob));
         return hit.getType() == HitResult.Type.BLOCK ? hit.getBlockPos() : null;
-    }
-
-    @Override public BodyCapabilities capabilities() {
-        return new BodyCapabilities(false, false, false, true, 0, 1, mob.getBbWidth());
     }
 
     @Override public boolean dbgForwardImpulse() { return forward != 0; }

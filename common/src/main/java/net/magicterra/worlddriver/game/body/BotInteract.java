@@ -80,7 +80,7 @@ public final class BotInteract {
      * A {@code LocalPlayer} held in a local and called on its own methods was never the problem.
      * Full account in {@code docs/design/drowning-escape.md}.
      *
-     * <p>The swing is not decoration — see {@code net.magicterra.worlddriver.game.body.Hands#breakHold}. Vanilla swings on every
+     * <p>The swing is not decoration — see {@code BlockInteraction#breakHold}. Vanilla swings on every
      * successful {@code continueDestroyBlock} tick, and a dig without one is both visibly armless
      * and, to a third-party server, a mining-without-swinging anticheat signature.
      */

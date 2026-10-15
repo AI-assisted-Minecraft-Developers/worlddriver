@@ -433,7 +433,7 @@ final class WalkerTickDrive {
         boolean slowDiagUpPillar = "diagUp".equals(edge != null ? edge.move : null)
                 && diagUp && upDy == 1 && p.onGround() && !p.isInWater()
                 && wk.stepProg.noStepProgressTicks > DIAGUP_PILLAR_TICKS;
-        if ((overJump || slowDiagUpPillar) && WorldConfig.allowPlace && wk.hands.holdPillarBlock()) {
+        if ((overJump || slowDiagUpPillar) && WorldConfig.allowPlace && wk.equipment.holdPillarBlock()) {
             wk.pillarRecover.latch = PILLAR_RECOVER_TICKS;
             wk.pillarRecover.cell = foot;                 // grounded feet cell = the rung we fill
         }
@@ -462,10 +462,10 @@ final class WalkerTickDrive {
                 wk.avatarJump(a, false);
                 // Preempting: suffocation is death, a navigation claim is a preference. The other
                 // six walker digs queue behind whoever holds the slot; this one takes it.
-                Walker.avatarDigPreempt(wk, a, recCeiling, true);
+                WalkerDig.avatarDigPreempt(wk, a, recCeiling, true);
                 return Walker.Step.WALKING;
             }
-            wk.hands.breakHold(false);
+            wk.blocks.breakHold(false);
             p.setXRot(89.5f);                         // look straight down to aim the support
             if (p.onGround()) {
                 wk.jumpTag = "pillarRecoverRung";
@@ -475,7 +475,7 @@ final class WalkerTickDrive {
                 // Place into the feet cell once risen clear of it (vanilla rejects the place
                 // while the player AABB still overlaps the target cell — gate on real height).
                 if (p.getY() >= wk.pillarRecover.cell.getY() + 1.0 && !world.isSolid(wk.pillarRecover.cell)) {
-                    wk.hands.placeOn(wk.pillarRecover.cell.offset(0, -1, 0), Direction.UP);
+                    wk.blocks.placeOn(wk.pillarRecover.cell.offset(0, -1, 0), Direction.UP);
                     wk.exAlarms.notePlace(wk.pillarRecover.cell);
                 }
             }
@@ -1498,7 +1498,7 @@ final class WalkerTickDrive {
                             wp.getX(), wp.getY(), wp.getZ(), wk.stepProg.noStepProgressTicks);
             }
             if (pad != null) {
-                Walker.avatarDig(wk, a, pad);
+                WalkerDig.avatarDig(wk, a, pad, false);
             }
         }
         // walkerWallDigFallback (§71, C49): the purest "recovery fires but does nothing"
@@ -1523,13 +1523,13 @@ final class WalkerTickDrive {
                 && p.horizontalCollision
                 && (wk.stuckTicks > 40
                     || (ControlConfig.walkerPhysicalStallClock && wk.physStall.stallTicks > 60))
-                && !wk.hands.breakHeld()) {
+                && !wk.blocks.breakHeld()) {
             double fdx = (wp.getX() + 0.5) - p.getX(), fdz = (wp.getZ() + 0.5) - p.getZ();
             double fl = Math.sqrt(fdx * fdx + fdz * fdz);
             if (fl > 1e-3) {
                 BlockPos tgt = wallDigTarget(world, p, wp, fdx / fl, fdz / fl);
                 if (tgt != null) {
-                    Walker.avatarDig(wk, a, tgt, true);
+                    WalkerDig.avatarDig(wk, a, tgt, true);
                     if (GameConfig.walkerDebug)
                         LOG.info("[walker] wall-dig FALLBACK {},{},{} stuckT={}",
                                 tgt.getX(), tgt.getY(), tgt.getZ(), wk.stuckTicks);
@@ -1542,7 +1542,7 @@ final class WalkerTickDrive {
         // progress (the C36-J1 cave-dig replay slowdown). Movement keys stay whatever the
         // travel logic chose: a human holding W+LMB against the wall being dug.
         if (ControlConfig.walkerDigAimPriority && wk.stickyDig.pos != null && world.isSolid(wk.stickyDig.pos)) {
-            Walker.avatarDig(wk, a, wk.stickyDig.pos, true);   // prelude's repeat of this cell is dropped
+            WalkerDig.avatarDig(wk, a, wk.stickyDig.pos, true);   // prelude's repeat of this cell is dropped
         }
         if (GameConfig.walkerDebug) {
             // [dbgcollide] hard physics evidence for the hill speed-sawtooth: is the
@@ -1563,7 +1563,7 @@ final class WalkerTickDrive {
                     String.format(Locale.ROOT, "%.2f", p.getX()),
                     String.format(Locale.ROOT, "%.2f", p.getY()),
                     String.format(Locale.ROOT, "%.2f", p.getZ()),
-                    p.onGround(), wk.hands.breakHeld(),
+                    p.onGround(), wk.blocks.breakHeld(),
                     dryDescent, String.format(Locale.ROOT, "%.0f", driveTargetYaw),
                     aimSrc, wk.stuckTicks, Double.isNaN(riserLead) ? cx.leadWhy : String.format(Locale.ROOT, "%.2f", riserLead));
         }
@@ -1924,7 +1924,7 @@ final class WalkerTickDrive {
     static void settleDigKey(Walker wk, Body a) {
         if (wk.digDrivenThisTick) wk.digIdleTicks = 0;
         else if (wk.digKeyOwned && ++wk.digIdleTicks >= DIG_KEY_RELEASE_TICKS) {
-            if (wk.hands.breakHeld()) wk.hands.breakHold(false);
+            if (wk.blocks.breakHeld()) wk.blocks.breakHold(false);
             wk.digKeyOwned = false;
             wk.digIdleTicks = 0;
         }

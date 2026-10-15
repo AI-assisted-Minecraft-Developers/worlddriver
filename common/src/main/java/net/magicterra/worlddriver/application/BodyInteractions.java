@@ -12,7 +12,8 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
 import net.magicterra.worlddriver.bot.BodyHost;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.Attack;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BotUtil;
 import net.magicterra.worlddriver.api.game.HandWords;
 import net.magicterra.worlddriver.game.body.HandVerbs;
@@ -64,18 +65,18 @@ final class BodyInteractions {
         return new Responses.Turned(aim[0], aim[1]);
     }
 
-    /** The item into the main hand through {@link Hands#holdItem}, the reach every process trusts. */
+    /** The item into the main hand through {@link Equipment#holdItem}, the reach every process trusts. */
     static ImmediateResponse holdItem(BodyHost host, InteractContracts.HoldParams p) {
-        Hands hands = host.body().hands().orElse(null);
+        Equipment hands = host.body().equipment().orElse(null);
         if (hands == null) return noHands(host);
         Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, p.item()).orElseThrow(() -> ApiException.invalidParam(
                 "/item", ApiIssue.Code.INVALID_VALUE, "no item " + p.item() + " in this game"));
         return hands.holdItemOrEmptyHand(item) ? new Responses.Held(RegistryIds.itemId(host.entity().getMainHandItem()))
-                : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, Hands.cannotHold(item, host.id()));
+                : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, Equipment.cannotHold(item, host.id()));
     }
 
     static ImmediateResponse useItem(BodyHost host, InteractContracts.UseParams p) {
-        ServerPlayer sp = host.body().hands().isPresent() && host.entity() instanceof ServerPlayer s ? s : null;
+        ServerPlayer sp = host.body().equipment().isPresent() && host.entity() instanceof ServerPlayer s ? s : null;
         if (sp == null) return noHands(host);
         if (p.entityId().isPresent()) return useOnEntity(sp, p, p.entityId().get());
         if (p.pos().isPresent()) return useOnBlock(sp, p, p.pos().get());
@@ -132,9 +133,9 @@ final class BodyInteractions {
         }
     }
 
-    /** Through {@link Hands#attackEntity}, as the client's verb goes: the footing guard lives on that one path. */
+    /** Through {@link Attack#attackEntity}, as the client's verb goes: the footing guard lives on that one path. */
     static ImmediateResponse attackEntity(BodyHost host, InteractContracts.AttackParams p) {
-        Hands hands = host.body().hands().orElse(null);
+        Attack hands = host.body().attack().orElse(null);
         if (hands == null) return noHands(host);
         LivingEntity self = host.entity();
         Entity target = self.level().getEntity(p.entityId());

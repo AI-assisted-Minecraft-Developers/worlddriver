@@ -51,7 +51,7 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p>See {@link ServerAvatarBodies} for where the player comes from: always a player that has joined.
  */
-public class ServerPlayerBody implements Body, Hands, Containers {
+public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteraction, Bag, Menus {
 
     private final ServerPlayer fp;
 
@@ -187,9 +187,13 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     public ServerPlayer fakePlayer() { return fp; }
 
     @Override public ServerPlayer entity() { return fp; }
-    /** A player always has hands and menus; this class is both. */
-    @Override public Optional<Hands> hands() { return Optional.of(this); }
-    @Override public Optional<Containers> containers() { return Optional.of(this); }
+    /** A player has every capability; this class is all of them. */
+    @Override public Optional<Equipment> equipment() { return Optional.of(this); }
+    @Override public Optional<Attack> attack() { return Optional.of(this); }
+    @Override public Optional<BlockInteraction> blockInteraction() { return Optional.of(this); }
+    @Override public Optional<Bag> bag() { return Optional.of(this); }
+    @Override public Optional<Menus> menus() { return Optional.of(this); }
+    @Override public net.minecraft.world.Container contents() { return fp == null ? null : fp.getInventory(); }
 
     @Override public void commandMove(float left, float forward) { pendingLeft = left; pendingForward = forward; }
     @Override public void commandForward(float forward) { pendingForward = forward; pendingLeft = 0; }
@@ -681,15 +685,13 @@ public class ServerPlayerBody implements Body, Hands, Containers {
         fp.attack(target);   // server-authoritative: applies damage/knockback/crit directly
     }
 
-    /** Why the last swing was declined by {@code Hands.attackEntity}'s footing guard, or null.
+    /** Why the last swing was declined by {@code Attack.attackEntity}'s footing guard, or null.
      *  Unlike the client's, this object outlives the tick — so a stale reading here would be a lie
      *  the next tick; {@code attackEntity} therefore writes it on EVERY call, pass or refuse. */
     private String lastAttackRefusal;
 
     @Override public void noteAttackRefusal(String why) { this.lastAttackRefusal = why; }
     @Override public String lastAttackRefusal() { return lastAttackRefusal; }
-
-    @Override public BodyCapabilities capabilities() { return BodyCapabilities.PLAYER; }
 
     @Override public boolean dbgForwardImpulse() { return pendingForward != 0; }
     @Override public boolean dbgJumping() { return pendingJump; }

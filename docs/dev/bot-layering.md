@@ -151,8 +151,9 @@ water, velocity, bounding box, health — and every pose it sets is identical on
 `LocalPlayer`, a server `ServerPlayer` and a driven mob. The interface itself carries only
 what every driven entity has: locomotion impulse and the look.
 
-What only an entity with an inventory has sits behind two optionals: `Hands` (hold, place,
-break, swing, use) and `Containers` (recipe book, container clicks, closing). A process
+What only some entities have sits behind one optional per capability: `Equipment` (hold, use
+what is held), `Attack` (swing), `BlockInteraction` (place, break, use a block), `Bag` (what is
+carried) and `Menus` (recipe book, container clicks, closing). A process
 that needs them asks at the top of its tick and, when the answer is empty, stamps its
 slot's `lastError` with the `no_hands` reason from `BodyReady` and finishes; a caller that
 never asks cannot compile a call to them. `asPlayer()` is the raw `Player` view for the
@@ -237,7 +238,7 @@ moved text without decomposing the method — which is why the method budget exi
 
 | Package | What it is |
 |---|---|
-| `body/` | `Body`, `Hands`, `Containers`, `BodyCapabilities`, `BodyRegistry`, `ClientPlayerBody` |
+| `body/` | `Body`, `Equipment`, `Attack`, `BlockInteraction`, `Bag`, `Menus`, `BodyRegistry`, `ClientPlayerBody` |
 | `movement/` | `Walker`, the `WalkerTick*` phases, the look and input controllers, the clutch |
 | `pathfinder/` | A*, the move catalog, constraints, cost modifiers |
 | `process/` | One class per verb behaviour |

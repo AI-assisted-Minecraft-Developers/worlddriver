@@ -8,7 +8,8 @@ import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.magicterra.worlddriver.game.body.Attack;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -34,9 +35,9 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p>Drives through the {@link Body} seam: locomotion via the player's own input
  * ({@code commandMove}/{@code commandForward}/{@code commandJump} — never the shared
- * human keybinds), the hit via {@link Hands#attackEntity} (the vanilla left-click
+ * human keybinds), the hit via {@link Attack#attackEntity} (the vanilla left-click
  * path: weapon damage, sweep, knockback, crit), and the bow draw via
- * {@link Hands#commandUseItem}. Timing is judged on the {@link Player} state
+ * {@link Equipment#commandUseItem}. Timing is judged on the {@link Player} state
  * (attack cooldown {@link Player#getAttackStrengthScale}, ground/fall for crits) so
  * it stays correct under server lag. The same code runs over a client
  * {@code LocalPlayer} (zero regression) or a server {@code FakePlayer}; entity
@@ -57,7 +58,8 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class CombatProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Hands hands;
+    private Equipment equipment;
+    private Attack attack;
 
     public enum Mode { KILL, ENGAGE, DEFEND }
 
@@ -119,8 +121,9 @@ public final class CombatProcess implements BotProcess {
         // The swing and its cooldown are a player's: a controlled entity that is not a player has
         // no hands for them.
         Player p = a.asPlayer();
-        hands = a.hands().orElse(null);
-        if (hands == null || p == null) {
+        equipment = a.equipment().orElse(null);
+        attack = a.attack().orElse(null);
+        if (equipment == null || attack == null || p == null) {
             failure = st.combat.lastError = BodyReady.Reason.NO_HANDS; cleanup(a); return true;
         }
         ticks++;
@@ -276,7 +279,7 @@ public final class CombatProcess implements BotProcess {
         // Pre-jump so we're descending when the cooldown completes (vanilla crit rule).
         a.commandJump(BehaviorConfig.combatCrit && p.onGround() && scale >= 0.85f && scale < 1.0f);
         if (scale >= 1.0f) {
-            hands.attackEntity(target);
+            attack.attackEntity(target);
             p.swing(InteractionHand.MAIN_HAND);
             st.combatSwings++;
             st.combatWellTimed++;
@@ -343,11 +346,11 @@ public final class CombatProcess implements BotProcess {
         a.commandForward(fwd);
         // Draw the bow (hold use); release the moment it's fully charged → fires.
         if (p.isUsingItem() && p.getTicksUsingItem() >= BOW_FULL_DRAW) {
-            hands.commandUseItem(false);                    // up-edge = release = shoot
+            equipment.commandUseItem(false);                    // up-edge = release = shoot
             st.combatSwings++;
             st.combatWellTimed++;
         } else {
-            hands.commandUseItem(true);
+            equipment.commandUseItem(true);
         }
     }
 
@@ -431,7 +434,7 @@ public final class CombatProcess implements BotProcess {
 
     private void cleanup(Body a) {
         a.releaseInputs();
-        a.hands().ifPresent(h -> h.commandUseItem(false));
+        a.equipment().ifPresent(h -> h.commandUseItem(false));
         Player p = a.asPlayer();
         if (p != null && p.isUsingItem()) p.stopUsingItem();
     }

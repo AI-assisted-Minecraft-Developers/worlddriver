@@ -1431,7 +1431,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                     + (pinnedAt == null ? "?" : String.valueOf(pinnedAt.getY() + 0.95))
                     + ", high enough for the 0.9 gate but below the 1.0 physics line), yet placeFutile was"
                     + " never true and pillarNoPlaceTicks peaked at only " + maxNoPlace + "."
-                    + " WalkerTickClimb unconditionally zeroes the counter after a.place(), and Hands.place"
+                    + " WalkerTickClimb unconditionally zeroes the counter after a.place(), and BlockInteraction.place"
                     + " returns void with no success result to report, so placeFutile is always false and"
                     + " the dig fallback behind it can never take over.");
     }

@@ -5,7 +5,8 @@ import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -25,7 +26,8 @@ import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 public final class BboxFillProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Hands hands;
+    private Equipment equipment;
+    private BlockInteraction blocks;
     private static final int PLACE_TIMEOUT_TICKS = 60;
 
     private final BlockPos minP;
@@ -73,8 +75,9 @@ public final class BboxFillProcess implements BotProcess {
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
-        hands = a.hands().orElse(null);
-        if (hands == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
+        equipment = a.equipment().orElse(null);
+        blocks = a.blockInteraction().orElse(null);
+        if (equipment == null || blocks == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         Level lvl = p.level();
 
         switch (phase) {
@@ -143,11 +146,11 @@ public final class BboxFillProcess implements BotProcess {
                           && hp.getY() >= minP.getY() && hp.getY() <= maxP.getY()
                           && hp.getZ() >= minP.getZ() && hp.getZ() <= maxP.getZ();
                 }
-                hands.breakHold(inBbox);
+                blocks.breakHold(inBbox);
                 breakingTicks++;
                 if (cleared(lvl) && !currentBlockId(lvl).equals(breakStartId)) {
                     broken++;
-                    hands.breakHold(false);
+                    blocks.breakHold(false);
                     if (fillId != null) {
                         placeTicks = 0;
                         phase = Phase.PLACING;
@@ -159,7 +162,7 @@ public final class BboxFillProcess implements BotProcess {
                 } else if (breakingTicks > ControlConfig.breakTimeoutTicks) {
                     skipped++;
                     blacklist.add(currentTarget);
-                    hands.breakHold(false);
+                    blocks.breakHold(false);
                     currentTarget = null;
                     phase = Phase.SEARCH;
                 }
@@ -167,7 +170,7 @@ public final class BboxFillProcess implements BotProcess {
             case PLACING -> {
                 a.commandForward(0f);
                 a.commandJump(false);
-                hands.breakHold(false);
+                blocks.breakHold(false);
                 p.setSprinting(false);
                 // Already-correct cell shortcut (race: another tick saw the
                 // place complete before we measured).
@@ -180,7 +183,7 @@ public final class BboxFillProcess implements BotProcess {
                     phase = Phase.SEARCH;
                     return false;
                 }
-                if (!HeldItem.holdById(hands, fillId)) {
+                if (!HeldItem.holdById(equipment, fillId)) {
                     // No matching item in inventory — can't place this cell.
                     // Skip rather than loop forever.
                     skipped++;
@@ -205,7 +208,7 @@ public final class BboxFillProcess implements BotProcess {
                             currentTarget.getX() - face.getStepX(),
                             currentTarget.getY() - face.getStepY(),
                             currentTarget.getZ() - face.getStepZ());
-                    hands.placeOn(support, face);
+                    blocks.placeOn(support, face);
                 }
                 placeTicks++;
                 // NOTE: a success is recognised only by the `nowId.equals(fillId)` shortcut at the

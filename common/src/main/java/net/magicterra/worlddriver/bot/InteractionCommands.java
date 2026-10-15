@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
 import net.magicterra.worlddriver.game.body.ClientPlayerBody;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.api.game.HandWords;
 import net.magicterra.worlddriver.game.body.HandVerbs;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
@@ -46,7 +46,7 @@ final class InteractionCommands {
         Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, params.item()).orElseThrow();
         return new ClientPlayerBody(mc).holdItemOrEmptyHand(item)
                 ? new Responses.Held(RegistryIds.itemId(mc.player.getMainHandItem()))
-                : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, Hands.cannotHold(item, params.body()));
+                : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, Equipment.cannotHold(item, params.body()));
     }
 
     static ImmediateResponse useItem(InteractContracts.UseParams p) {
@@ -120,7 +120,7 @@ final class InteractionCommands {
         Entity target = mc.level.getEntity(p.entityId());
         if (target == null) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + p.entityId());
         if (target == player) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot attack self");
-        // The same swing path the bot processes take — Hands.attackEntity, whose default method carries the
+        // The same swing path the bot processes take — Attack.attackEntity, whose default method carries the
         // BlastFooting rule — rather than a second copy of the guard in front of a direct mc.gameMode.attack:
         // an invariant enforced on two paths comes back through whichever forgot it. Swung BEFORE the aim, so
         // a refusal leaves the player not yet turned toward what it declined to hit; the server's attack

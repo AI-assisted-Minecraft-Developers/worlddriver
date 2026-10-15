@@ -477,7 +477,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
                 + "pass with zero contribution whenever the client already happened to be on that slot)");
 
         ctx.record("thread.atWrite", Thread.currentThread().getName());
-        client.hands().orElseThrow().setSelectedSlot(targetSlot);
+        client.equipment().orElseThrow().setSelectedSlot(targetSlot);
         int serverSlot = real.getInventory().selected;
         Integer clientSlot = clientSelectedSlot();
         ctx.record("slot.action", "setSelectedSlot(" + targetSlot + ") (not holdItem: it looks the item "

@@ -75,7 +75,7 @@ final class WalkerTickPrelude {
      */
     private static void expireDigClaim(Walker wk, Body a, WorldView world, LivingEntity p) {
         if (!ControlConfig.walkerDigAimPriority || wk.stickyDig.pos == null) return;
-        float prog = wk.hands.destroyProgress();
+        float prog = wk.blocks.destroyProgress();
         boolean spent;
         if (prog < 0) {
             spent = ++wk.stickyDig.ticks > Math.min(ControlConfig.breakTimeoutTicks, 300);
@@ -149,7 +149,7 @@ final class WalkerTickPrelude {
 
         // Expectation alarms read LAST tick's pressed state vs THIS tick's world response —
         // run before the per-tick input baseline below clears anything.
-        if (ControlConfig.walkerExpectAlarm) wk.exAlarms.tick(wk.hands, a, world, p, wk.path, wk.step, wk.stepProg.noStepProgressTicks);
+        if (ControlConfig.walkerExpectAlarm) wk.exAlarms.tick(wk.blocks, a, world, p, wk.path, wk.step, wk.stepProg.noStepProgressTicks);
 
         // Per-tick baseline for the jump/sneak channel: default to "not jumping / not
         // sneaking" so any path that returns without setting them can't leak a stale
@@ -306,7 +306,7 @@ final class WalkerTickPrelude {
             // (a cyclically-resetting aim never stalls but must not own forever).
             // destroyProgress()==-1 (no reflection / server avatar) degrades to
             // the stall counter alone, which then equals the legacy cap behavior.
-            float prog = wk.hands.destroyProgress();
+            float prog = wk.blocks.destroyProgress();
             if (prog > wk.stickyDig.lastProgress + 1e-4f) {
                 wk.stickyDig.lastProgress = prog;
                 wk.stickyDig.stallTicks = 0;
@@ -329,15 +329,15 @@ final class WalkerTickPrelude {
                 wk.stickyDig.engage(null);
             } else {
                 ControlConfig.walkerDigActive = true;   // dig-priority: AutoSwim's backstop yields while this hold is live and air is healthy
-                wk.hands.selectTool(wk.stickyDig.pos);
+                wk.equipment.selectTool(wk.stickyDig.pos);
                 a.aimAtBlock(wk.stickyDig.pos);
                 // The drive advances the exact cell regardless of where the crosshair is — while
                 // bobbing in water the eye raycast dips behind the bank lip on some ticks, and
                 // vanilla's crosshair-driven continueAttack used to retarget and ZERO the progress
                 // on those ticks. It cannot any more: the drive makes that pass stand aside (see
                 // ClientIntents), so the raycast-miss latch this used to keep is gone with the key.
-                wk.hands.breakHold(true);
-                wk.hands.continueDestroy(wk.stickyDig.pos);
+                wk.blocks.breakHold(true);
+                wk.blocks.continueDestroy(wk.stickyDig.pos);
                 wk.digDrivenThisTick = true;
                 wk.digKeyOwned = true;
                 return Walker.Step.WALKING;

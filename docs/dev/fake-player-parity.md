@@ -18,9 +18,10 @@ it is worse than a missing row, because it is believed.
 
 Everything the walker and the per-verb processes actuate goes through
 [`Body`](../../common/src/main/java/net/magicterra/worlddriver/game/body/Body.java), which
-exposes locomotion and the look. What only a bot with an inventory has is behind two
-optionals, `Body.hands()` and `Body.containers()`; a process that needs either asks at the
-top of its tick and refuses the order with `no_hands` when it is absent.
+exposes locomotion and the look. What only some bots have is behind one optional per
+capability — `Body.equipment()`, `attack()`, `blockInteraction()`, `bag()` and `menus()`; a
+process that needs one asks at the top of its tick and refuses the order with `no_hands` when
+it is absent.
 
 There are three implementations, and one of them is used in two arrangements that differ
 enough to count separately. Class paths below are relative to
@@ -244,7 +245,7 @@ The two routes described above do not agree here, and the difference is delibera
 `mc.bot.*` verb addressed at a named bot lands in `application/BodyInteractions`, which does what
 the server's packet handlers do with a packet, reach check included: it refuses a use or an
 attack out of range, where a client's equivalent packet would simply be ignored, and swings
-on a consumed action. The `Hands` actuator the walker and the processes drive does neither.
+on a consumed action. The `Equipment` / `Attack` / `BlockInteraction` actuators the walker and the processes drive do neither.
 That asymmetry is the first thing to check when a scene and an API call disagree about
 whether an action was possible.
 

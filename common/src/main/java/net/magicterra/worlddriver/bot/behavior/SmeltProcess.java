@@ -3,8 +3,9 @@ package net.magicterra.worlddriver.bot.behavior;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Containers;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.Menus;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.core.BlockPos;
@@ -43,8 +44,9 @@ import net.magicterra.worlddriver.game.observe.BuildBlocks;
 public final class SmeltProcess implements BotProcess {
     /** This tick's hands and menus, bound at the top of {@link #tick}, which is the one place
      *  either can be absent. */
-    private Hands hands;
-    private Containers menus;
+    private Equipment equipment;
+    private BlockInteraction blocks;
+    private Menus menus;
     private static final int OPEN_TIMEOUT = 40;
     /** Vanilla smelt is 200 ticks/item; budget generously per item + slack. */
     private static final int PER_ITEM_TIMEOUT = 260;
@@ -125,11 +127,12 @@ public final class SmeltProcess implements BotProcess {
         Player p = a.asPlayer();
         Level lvl = a.entity() == null ? null : a.entity().level();
         if (lvl == null) { fail(s, "no player"); s.smelt.lastError = error; s.smelt.reset(); return true; }
-        hands = a.hands().orElse(null);
-        menus = a.containers().orElse(null);
+        equipment = a.equipment().orElse(null);
+        blocks = a.blockInteraction().orElse(null);
+        menus = a.menus().orElse(null);
         // Not a player: no inventory to smelt from. Both refusals publish their own error, because they
         // return before the FAIL branch below, which is what publishes a failure's.
-        if (hands == null || menus == null || p == null) {
+        if (equipment == null || blocks == null || menus == null || p == null) {
             fail(s, BodyReady.Reason.NO_HANDS); s.smelt.lastError = error; s.smelt.reset(); return true;
         }
 
@@ -197,7 +200,7 @@ public final class SmeltProcess implements BotProcess {
                 LOG.info("[smelt] INIT adopt: bag empty, resuming furnace {} target={}× {}",
                         fz.toShortString(), targetOut, path(input));
                 a.aimAtBlock(fz);
-                hands.useBlock(fz, faceTowardEye(fz, p));
+                blocks.useBlock(fz, faceTowardEye(fz, p));
                 waited = 0;
                 st = St.OPEN_WAIT;
                 return;
@@ -225,7 +228,7 @@ public final class SmeltProcess implements BotProcess {
                 fz.toShortString(), targetOut, path(input), have);
         // NOTE: a server FakePlayer can't open menus, so OPEN_WAIT times out there.
         a.aimAtBlock(fz);
-        hands.useBlock(fz, faceTowardEye(fz, p));
+        blocks.useBlock(fz, faceTowardEye(fz, p));
         waited = 0;
         st = St.OPEN_WAIT;
     }
@@ -526,7 +529,7 @@ public final class SmeltProcess implements BotProcess {
     }
 
     private BlockPos placeFurnace(Body a, Player p, Level lvl) {
-        return PlaceNearby.place(a, hands, p,lvl, Items.FURNACE, Blocks.FURNACE, "smelt");
+        return PlaceNearby.place(a, equipment, blocks, p,lvl, Items.FURNACE, Blocks.FURNACE, "smelt");
     }
 
 

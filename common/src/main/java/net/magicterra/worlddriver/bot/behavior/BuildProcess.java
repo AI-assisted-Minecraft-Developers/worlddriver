@@ -4,7 +4,8 @@ import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -27,7 +28,8 @@ import net.magicterra.worlddriver.game.observe.RegistryIds;
 
 public final class BuildProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Hands hands;
+    private Equipment equipment;
+    private BlockInteraction blocks;
     private static final int PLACE_TIMEOUT_TICKS = 60;
 
     private final BlockPos origin;
@@ -71,8 +73,9 @@ public final class BuildProcess implements BotProcess {
         // Stamped for the same reason as BackfillProcess: `BotState.toMap` drops a null lastError,
         // so staying silent here reports "finished, no error" rather than nothing at all.
         if (p == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
-        hands = a.hands().orElse(null);
-        if (hands == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
+        equipment = a.equipment().orElse(null);
+        blocks = a.blockInteraction().orElse(null);
+        if (equipment == null || blocks == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         Level lvl = p.level();
 
         switch (phase) {
@@ -123,7 +126,7 @@ public final class BuildProcess implements BotProcess {
                     return false;
                 }
                 if (s == Walker.Step.ARRIVED) {
-                    if (!HeldItem.holdById(hands, schematic.entries.get(idx).blockId)) {
+                    if (!HeldItem.holdById(equipment, schematic.entries.get(idx).blockId)) {
                         failedIdx.add(idx);
                         skipped++;
                         idx++;
@@ -187,7 +190,7 @@ public final class BuildProcess implements BotProcess {
                 // clicks miss when the server drops the packet (e.g. mid-tick
                 // re-pathing puts the player slightly out of reach).
                 if (placeTicks == 2 || (placeTicks - 2) % 5 == 0) {
-                    hands.placeOn(support, currentFace);
+                    blocks.placeOn(support, currentFace);
                 }
                 placeTicks++;
                 // Read the block back through the level: BlockStatePredictionHandler

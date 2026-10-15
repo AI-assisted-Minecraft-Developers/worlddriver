@@ -5,7 +5,8 @@ import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.SearchProfile;
@@ -29,7 +30,8 @@ import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 public final class BackfillProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Hands hands;
+    private Equipment equipment;
+    private BlockInteraction blocks;
     private static final int PLACE_TIMEOUT_TICKS = 60;
     /** A stand reached by digging reopens a cell this process filled, and that dig is recorded as the
      *  bot's own break: the two would trade the same cells for as long as the bot stays idle. */
@@ -70,8 +72,9 @@ public final class BackfillProcess implements BotProcess {
         // error", which is the one thing that did not happen. BboxFillProcess and FarmProcess, which
         // share this very `st.builder` slot, have always stamped it.
         if (p == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
-        hands = a.hands().orElse(null);
-        if (hands == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
+        equipment = a.equipment().orElse(null);
+        blocks = a.blockInteraction().orElse(null);
+        if (equipment == null || blocks == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         Level lvl = p.level();
         BlockPos playerFoot = blockPosOf(p);
 
@@ -85,7 +88,7 @@ public final class BackfillProcess implements BotProcess {
                     return true;
                 }
                 String blockId = BehaviorConfig.autoBackfillBlock;
-                if (!HeldItem.holdById(hands, blockId)) {
+                if (!HeldItem.holdById(equipment, blockId)) {
                     failed.add(pick);
                     return false;
                 }
@@ -137,7 +140,7 @@ public final class BackfillProcess implements BotProcess {
                     else if (!p.isCrouching()) return false;
                 }
                 if (placeTicks == 2 || (placeTicks - 2) % 5 == 0) {
-                    hands.placeOn(support, currentFace);
+                    blocks.placeOn(support, currentFace);
                 }
                 placeTicks++;
                 BlockState now = lvl.getBlockState(currentBlock);

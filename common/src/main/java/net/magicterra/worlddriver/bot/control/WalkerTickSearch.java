@@ -48,7 +48,7 @@ final class WalkerTickSearch {
         int bucket = -1;
         if (ControlConfig.walkerFutileSearchCap <= 0) bucket = 0;
         else if (res.goalReached()) bucket = 1;
-        else if (wk.hands.breakHeld()) bucket = 2;
+        else if (wk.blocks.breakHeld()) bucket = 2;
         else if (wk.waterClimb.digging) bucket = 3;
         else if (world.isWater(foot)) bucket = 4;
         else if (!res.hasPath() && world.hasStuckPenalties()) bucket = 5;
@@ -316,7 +316,7 @@ final class WalkerTickSearch {
                 // actually held, keep the current path; the futile-dig release still abandons
                 // a hopeless dig, which drops the hold and lets the next repath adopt normally.
                 if (!keepCurrent && ControlConfig.walkerDigCommitHoldRepath
-                        && wk.waterClimb.digRiser != null && wk.hands.breakHeld()) {
+                        && wk.waterClimb.digRiser != null && wk.blocks.breakHeld()) {
                     keepCurrent = true;
                     if (GameConfig.walkerDebug)
                         LOG.info("[walker] dig-commit-hold: KEEP current path (committed bank dig at {},{},{} in progress)",

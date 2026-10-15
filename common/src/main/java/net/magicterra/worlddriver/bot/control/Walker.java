@@ -7,7 +7,8 @@ import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.bot.control.BotLevelHolder;
 import net.magicterra.worlddriver.bot.control.PathSmoothing.SmoothResult;
 import net.magicterra.worlddriver.bot.rules.Move;
@@ -124,9 +125,10 @@ public final class Walker {
      *  Null until the first tick, which is also the first time a search can start. */
     LivingEntity body;
 
-    /** That bot's hands, or {@link WalkerNoHands} when it has none — never null, so the
-     *  tick phases' dig and place sites read and drive it without a guard each. */
-    Hands hands = WalkerNoHands.INSTANCE;
+    /** That bot's equipment and block interaction, or {@link WalkerNoHands} when it lacks either —
+     *  never null, so the tick phases' dig and place sites read and drive them without a guard each. */
+    Equipment equipment = WalkerNoHands.INSTANCE;
+    BlockInteraction blocks = WalkerNoHands.INSTANCE;
 
     /** Set the per-intent search profile for subsequent searches. Null → {@link SearchProfile#NONE}. */
     public void setSearchProfile(SearchProfile p) {
@@ -288,7 +290,7 @@ public final class Walker {
         BlockPos gaveUpPos;       // where the pillar proved futile (walkerClimbGaveUpSticky) — while the foot stays within 3 blocks and the TTL runs, the gave-up latch survives climb-context resets (repath node swaps) so the proven-futile pillar can't re-engage in a loop
         int gaveUpTtl;            // ticks left on the sticky gave-up latch (walkerClimbGaveUpSticky); decremented per tick, 0 = expired
         int pillarNoPlaceTicks;   // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
-        BlockPos placeAttemptCell;   // the cell the last climb-out click aimed at, carried to the NEXT tick so the ledger above can ask whether it actually filled. Hands.place is void — the click has no verdict — and vanilla refuses any placement whose cell still intersects the bot's AABB, so "clicked" and "placed" are different events and only the second one is progress. Cleared once read.
+        BlockPos placeAttemptCell;   // the cell the last climb-out click aimed at, carried to the NEXT tick so the ledger above can ask whether it actually filled. BlockInteraction.place is void — the click has no verdict — and vanilla refuses any placement whose cell still intersects the bot's AABB, so "clicked" and "placed" are different events and only the second one is progress. Cleared once read.
         int pillarHighWaterY = Integer.MIN_VALUE;   // highest foot.getY() this takeover has reached — the OTHER half of "successful place / height gain". A HIGH-WATER MARK, not a per-tick delta: a buoyant bob crosses a block boundary every cycle, so "higher than last tick" is true forever and would count buoyancy as progress; "higher than ever" stops refreshing the moment the bob settles between two cells. Re-based at engagePillar so a re-locked column cannot inherit the previous segment's height.
         int targetY;              // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
         int colX, colZ;           // LOCKED column the takeover pillars in (don't chase repathing nodes)
@@ -1475,15 +1477,11 @@ public final class Walker {
     /** Raw forward (keyUp equivalent) for the special branches that drive the impulse
      *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */
     static void avatarForward(Body a, boolean v) { a.commandForward(v ? 1f : 0f); }
-    /** THE ONE DOOR for a walker dig — see {@link WalkerDig#avatarDig}. Aim at the RETURNED cell. */
-    static BlockPos avatarDig(Walker wk, Body a, BlockPos cell) { return WalkerDig.avatarDig(wk, a, cell, false); }
-    static BlockPos avatarDig(Walker wk, Body a, BlockPos cell, boolean selectTool) { return WalkerDig.avatarDig(wk, a, cell, selectTool); }
-    /** {@link #avatarDig} for a dig that must not queue: suffocation. Takes the slot, then digs. */
-    static BlockPos avatarDigPreempt(Walker wk, Body a, BlockPos cell, boolean selectTool) { return WalkerDig.avatarDigPreempt(wk, a, cell, selectTool); }
 
     public Step tick(Body a, WorldView world) {
         body = a.entity();
-        hands = a.hands().orElse(WalkerNoHands.INSTANCE);
+        equipment = a.equipment().orElse(WalkerNoHands.INSTANCE);
+        blocks = a.blockInteraction().orElse(WalkerNoHands.INSTANCE);
         // Single-exit wrapper: tickInner() has dozens of early returns (pillar, dig, escape,
         // stepUp...), so a safety invariant appended to its tail only covers SOME ticks — the
         // gap #53 death strode over a well mouth from a branch that never reached it. Run the
@@ -1734,7 +1732,7 @@ public final class Walker {
      * continuing and falling forever.
      */
     private void widenFooting(Body a, WorldView world, LivingEntity p, BlockPos foot) {
-        if (!WorldConfig.allowPlace || hands.breakHeld() || !hands.holdPlaceable()) return;
+        if (!WorldConfig.allowPlace || blocks.breakHeld() || !equipment.holdPlaceable()) return;
         var box = p.getBoundingBox();
         for (int cx = (int) Math.floor(box.minX); cx <= (int) Math.floor(box.maxX); cx++) {
             for (int cz = (int) Math.floor(box.minZ); cz <= (int) Math.floor(box.maxZ); cz++) {
@@ -1745,7 +1743,7 @@ public final class Walker {
                     if (!world.isPassable(new BlockPos(cx, y, cz))) { bottomless = false; break; }
                 }
                 if (!bottomless) continue;
-                hands.place(world::isSolid, support);
+                blocks.place(world::isSolid, support);
                 exAlarms.notePlace(support);
                 LOG.info("[walker] footing guard: placed support at {},{},{} (sole {} < {}, the column drops into the void)",
                         support.getX(), support.getY(), support.getZ(),
@@ -2075,7 +2073,7 @@ public final class Walker {
      * <i>unconditionally false</i>: nothing changed colour, so nothing changed.
      */
     public static volatile int waterPillarEngages;
-    /** Times the climb-out actually clicked — {@code crestClearOf} passed and {@code Hands#place}
+    /** Times the climb-out actually clicked — {@code crestClearOf} passed and {@code BlockInteraction#place}
      *  was called. The one bit neither the ledger nor the world can supply: a cell that stayed water
      *  means "clicked and vanilla refused" and "never clicked at all" equally well, and those are
      *  opposite findings about the crest gate. {@code wd.pillarLedgerCountsRefusedPlaces} ran a full
@@ -2385,10 +2383,10 @@ public final class Walker {
         // this: over an ordinary drop a graze costs health the bot walks off, and killing momentum
         // on every ledge would make ridge walking crawl.
         if (bottomless) p.setDeltaMovement(0.0, dm.y, 0.0);
-        boolean canPlug = WorldConfig.allowPlace && !hands.breakHeld()
+        boolean canPlug = WorldConfig.allowPlace && !blocks.breakHeld()
                 && (bottomless || constructionPlan || guardPlugFires >= GUARD_PLUG_ARM_FIRES);
-        boolean held = canPlug && hands.holdPlaceable();
-        if (held) hands.place(world::isSolid, strideCell.below());
+        boolean held = canPlug && equipment.holdPlaceable();
+        if (held) blocks.place(world::isSolid, strideCell.below());
         // place() has no return value, so read the WORLD for the outcome. A client-side place
         // may land a tick later — then the next scan finds floor and stops firing, which is the
         // same signal; what matters is that repeated fires on one cell now read "plug FAILED"

@@ -27,7 +27,7 @@ public interface BodyHost {
     /** {@code player} or {@code npc}. */
     String kind();
 
-    /** The {@link Body} its processes drive; its {@link Body#hands()} is what the hand verbs act through. */
+    /** The {@link Body} its processes drive; its capabilities ({@link Body#equipment()}, {@link Body#attack()}, ...) are what the hand verbs act through. */
     Body body();
 
     /** The entity, or null once there is none. */

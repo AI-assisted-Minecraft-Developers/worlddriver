@@ -68,7 +68,7 @@ public final class HoldStill implements BotProcess {
         // walk the bot off the hole just as surely as a goal would.
         a.commandMove(0, 0);
         a.commandJump(false);
-        a.hands().ifPresent(h -> h.breakHold(false));
+        a.blockInteraction().ifPresent(h -> h.breakHold(false));
         return ++elapsed >= ticks;
     }
 }

@@ -4,8 +4,9 @@ import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Containers;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.Menus;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -51,8 +52,9 @@ import net.magicterra.worlddriver.game.observe.RecipeResolver;
 public final class CraftProcess implements BotProcess {
     /** This tick's hands and menus, bound at the top of {@link #tick}, which is the one place
      *  either can be absent. */
-    private Hands hands;
-    private Containers menus;
+    private Equipment equipment;
+    private BlockInteraction blocks;
+    private Menus menus;
     /** Max ticks to wait for the server to fill the grid / open the table. */
     private static final int STEP_TIMEOUT = 40;
     /** Ticks to keep re-planning before declaring materials missing — the client
@@ -115,11 +117,12 @@ public final class CraftProcess implements BotProcess {
         Player p = a.asPlayer();
         Level lvl = a.entity() == null ? null : a.entity().level();
         if (lvl == null) { fail(s, null, "no player"); s.craft.lastError = error; s.craft.reset(); return true; }
-        hands = a.hands().orElse(null);
-        menus = a.containers().orElse(null);
+        equipment = a.equipment().orElse(null);
+        blocks = a.blockInteraction().orElse(null);
+        menus = a.menus().orElse(null);
         // Not a player: no inventory to craft from. Both refusals publish their own error, because they
         // return before the FAIL branch below, which is what publishes a failure's.
-        if (hands == null || menus == null || p == null) {
+        if (equipment == null || blocks == null || menus == null || p == null) {
             fail(s, p, BodyReady.Reason.NO_HANDS); s.craft.lastError = error; s.craft.reset(); return true;
         }
 
@@ -169,7 +172,7 @@ public final class CraftProcess implements BotProcess {
         if (!BehaviorConfig.craftReclaimTable) return false;
         if (placedTable == null || !isTable(lvl, placedTable)) return false;
         menus.closeContainer();          // can't swing at a block with the table menu open
-        hands.selectTool(placedTable);   // an axe if we carry one; bare hands work too
+        equipment.selectTool(placedTable);   // an axe if we carry one; bare hands work too
         reclaimTicks = 0;
         pickupTicks = 0;
         st = St.RECLAIM;
@@ -193,17 +196,17 @@ public final class CraftProcess implements BotProcess {
             // sameDestroyTarget branch keeps accumulating afterwards. Keeping the key down
             // is what makes the pair work under a grabbed mouse too, where vanilla drives
             // the same break and the two simply agree.
-            hands.breakHold(true);
-            hands.continueDestroy(placedTable);
+            blocks.breakHold(true);
+            blocks.continueDestroy(placedTable);
             return;
         }
-        hands.breakHold(false);
+        blocks.breakHold(false);
         if (++pickupTicks >= PICKUP_GRACE) endReclaim(a);
     }
 
     /** Back to whichever terminal we were headed for when reclaim interrupted us. */
     private void endReclaim(Body a) {
-        hands.breakHold(false);
+        blocks.breakHold(false);
         st = error != null ? St.FAIL : St.DONE;
     }
 
@@ -284,7 +287,7 @@ public final class CraftProcess implements BotProcess {
         // Right-click the table to open its menu (block.use takes priority over
         // placing even while holding a crafting_table).
         a.aimAtBlock(table);
-        hands.useBlock(table, faceTowardEye(table, p));
+        blocks.useBlock(table, faceTowardEye(table, p));
         waited = 0;
         st = St.OPEN_WAIT;
     }
@@ -345,7 +348,7 @@ public final class CraftProcess implements BotProcess {
 
     /** Place a crafting table from inventory nearby, return its position (or null). */
     private BlockPos placeTable(Body a, Player p, Level lvl) {
-        BlockPos cell = PlaceNearby.place(a, hands, p,lvl, Items.CRAFTING_TABLE, Blocks.CRAFTING_TABLE, "craft");
+        BlockPos cell = PlaceNearby.place(a, equipment, blocks, p,lvl, Items.CRAFTING_TABLE, Blocks.CRAFTING_TABLE, "craft");
         // The ONLY assignment of placedTable: this table is ours, so it is the
         // only one reclaim may break (gap #276).
         if (cell != null) placedTable = cell;

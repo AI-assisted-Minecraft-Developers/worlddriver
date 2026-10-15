@@ -407,7 +407,7 @@ public final class JourneyPortalEntry {
             }
             a.aimAtBlock(cell);
             a.commandJump(false);
-            a.hands().ifPresent(h -> h.breakHold(false));
+            a.blockInteraction().ifPresent(h -> h.breakHold(false));
             // The brake the arriving walk latched, every tick, because step() re-applies it every
             // tick. See the javadoc: a sneaking player will not step off a ledge, and this move is one.
             a.commandSneak(false);

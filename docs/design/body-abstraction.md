@@ -26,11 +26,14 @@ missing — and each of those showed up as a row in the fake-player parity table
 `Body` replaces the old `Avatar` interface. Its one mandatory member is a `LivingEntity`;
 `asPlayer()` returns null for anything that is not a player and callers must check. Locomotion —
 movement and jump and sneak and sprint commands, aiming, releasing inputs — is mandatory, because
-every controlled entity can move. Hands and containers are optional, because the vanilla operations behind them
-are `Player`-only: crafting, container menus, `useItemOn` placement, the recipe book, eating and
-elytra all route through the player's own menu and game-mode machinery and have no `LivingEntity`
-equivalent. That is not a simplification, it is the shape of vanilla, and expressing it as two
-optional capability groups is what lets a process refuse work cleanly instead of failing at a cast.
+every controlled entity can move. Everything else is optional — `Equipment`, `Attack`,
+`BlockInteraction`, `Bag` and `Menus`, one interface each — because most of the vanilla operations
+behind them are `Player`-only: crafting, container menus, `useItemOn` placement, the recipe book,
+eating and elytra all route through the player's own menu and game-mode machinery and have no
+`LivingEntity` equivalent. That is not a simplification, it is the shape of vanilla, and expressing
+it as optional capabilities is what lets a process refuse work cleanly instead of failing at a cast.
+They were two groups, `Hands` and `Containers`, until the layering rework split them so that a mob
+which can hold or swing but not dig can say so.
 
 A process that needs hands checks for them when it attaches and refuses with a single named reason
 if they are absent. Processes that only need to move — following, exploring, running away, and the

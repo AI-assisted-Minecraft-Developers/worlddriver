@@ -1349,7 +1349,7 @@ public final class JourneyRehearsal {
         }
         JourneyLedger.staged("rehearsal: set " + lit + " eyes as block state and ran the tail of "
                 + "EnderEyeItem.useOn, instead of driving the avatar's useBlock (that is rung 18)");
-        ctx.record("rehearsal.eyesSet", lit + " (HAS_EYE written directly, not through Hands.useBlock —"
+        ctx.record("rehearsal.eyesSet", lit + " (HAS_EYE written directly, not through BlockInteraction.useBlock —"
                 + " that is the action under test on rung 18, and the test setup must not perform it)");
         BlockPattern.BlockPatternMatch match = last == null ? null
                 : EndPortalFrameBlock.getOrCreatePortalShape().find(level, last);

@@ -351,7 +351,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         JourneyHands.aimThenAct(rig, visible, () -> {
             JourneyHands.holdForUse(rig, Items.BUCKET, "waterFill");
             JourneyHands.handsAtUse(rig, "waterFill");
-            rig.evidence("waterFill.result", String.valueOf(rig.hands().useItemInHand()));
+            rig.evidence("waterFill.result", String.valueOf(rig.equipment().useItemInHand()));
             rig.settle(new HoldStill(3), 12, () -> {
                 int after = fp.getInventory().countItem(Items.WATER_BUCKET);
                 ctx.record("subject.waterBucket", before + " → " + after);

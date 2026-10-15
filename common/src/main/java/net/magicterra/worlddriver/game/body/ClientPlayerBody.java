@@ -17,7 +17,7 @@ import net.minecraft.world.entity.player.Player;
  * the decoupled {@link AvatarInput} lazily, exactly as the old Walker.tick did
  * (a respawn / dimension change builds a fresh vanilla KeyboardInput).
  */
-public final class ClientPlayerBody implements Body, Hands, Containers {
+public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInteraction, Bag, Menus {
 
     private final Minecraft mc;
     private final LocalPlayer p;
@@ -38,9 +38,13 @@ public final class ClientPlayerBody implements Body, Hands, Containers {
      *  hands it this {@code Body}, since the chains read the local player, the client level and the
      *  client-only helpers through it. */
     public Minecraft mc() { return mc; }
-    /** A player always has hands and menus; this class is both. */
-    @Override public Optional<Hands> hands() { return Optional.of(this); }
-    @Override public Optional<Containers> containers() { return Optional.of(this); }
+    /** A player has every capability; this class is all of them. */
+    @Override public Optional<Equipment> equipment() { return Optional.of(this); }
+    @Override public Optional<Attack> attack() { return Optional.of(this); }
+    @Override public Optional<BlockInteraction> blockInteraction() { return Optional.of(this); }
+    @Override public Optional<Bag> bag() { return Optional.of(this); }
+    @Override public Optional<Menus> menus() { return Optional.of(this); }
+    @Override public net.minecraft.world.Container contents() { return p == null ? null : p.getInventory(); }
 
     @Override public void commandMove(float left, float forward) { AvatarInput a = ai(); if (a != null) a.commandMove(left, forward); }
     @Override public void commandForward(float forward) { AvatarInput a = ai(); if (a != null) a.commandForward(forward); }
@@ -168,8 +172,6 @@ public final class ClientPlayerBody implements Body, Hands, Containers {
                 ? mc.gameMode.useItem(p, net.minecraft.world.InteractionHand.MAIN_HAND)
                 : net.minecraft.world.InteractionResult.PASS;
     }
-
-    @Override public BodyCapabilities capabilities() { return BodyCapabilities.PLAYER; }
 
     @Override public boolean dbgForwardImpulse() { return p.input.forwardImpulse != 0; }
     @Override public boolean dbgJumping() { return p.input.jumping; }

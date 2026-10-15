@@ -4,7 +4,7 @@ import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.world.BreakFeasibility;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -122,7 +122,7 @@ final class WalkerTickClimb {
      *
      * <p><b>The ledger counts RESULTS, and it has to lag a tick to do it.</b> Only the world can say
      * whether a placement landed, and it cannot say so until the tick after the click. This used to
-     * be written as "clicked → zero the counter", which is a different event: {@link Hands#place}
+     * be written as "clicked → zero the counter", which is a different event: {@link BlockInteraction#place}
      * returns {@code void}, so the click never had a verdict to report, and a bot sitting in the
      * band where vanilla refuses every placement pressed the button forever while gaining nothing.
      * The counter is what hands this bank over to the dig ({@code placeFutile} at the top of
@@ -148,7 +148,7 @@ final class WalkerTickClimb {
         // one this tick can see. wd.waterLowBank is the whole cycle: click at X.98, the cell turns
         // solid, the bot stands on it, a ground jump fires +0.42, and the bot arrives at (X+1).98
         // to do it again — three times, out of the water.
-        // Counting only the click is what broke: Hands#place returns void, so a refused click and a
+        // Counting only the click is what broke: BlockInteraction#place returns void, so a refused click and a
         // landed one were the same event, and a bot bobbing in a band it could never place from
         // pressed the button forever while the dig fallback behind it could not fire.
         // The rise half is bounded by the pillar ceiling and monotone (high-water, never a per-tick
@@ -169,7 +169,7 @@ final class WalkerTickClimb {
         }
         if (!fcSolid && fcSupport && fcCleared) {     // feet cleared the cell
             Walker.waterPillarPlaceCalls++;
-            wk.hands.place(world::isSolid, fillCell);
+            wk.blocks.place(world::isSolid, fillCell);
             // Remember THIS cell, overwriting any older attempt: an earlier cell that filled late
             // must not be allowed to pay for the one being clicked now.
             wk.waterClimb.placeAttemptCell = fillCell;
@@ -240,7 +240,7 @@ final class WalkerTickClimb {
      */
     private static Walker.Step pillarTakeoverTick(Walker wk, Body a, WorldView world, LivingEntity p,
                                                   BlockPos foot, BlockPos cwp, boolean wantClimbNow, boolean wantClimb) {
-                boolean haveBlock = ControlConfig.allowSwimEscapePlace && wk.hands.holdPlaceable();
+                boolean haveBlock = ControlConfig.allowSwimEscapePlace && wk.equipment.holdPlaceable();
                 // Done when we've topped out onto DRY solid ground (grounded, clear of
                 // water). The old `foot.y >= targetY` test fired the instant targetY was
                 // a path node BELOW us (A* dives to the pool floor), declaring success at
@@ -456,7 +456,7 @@ final class WalkerTickClimb {
                             LOG.info("[walker] climbout-place side foothold {},{},{} (one-deep water, bot afloat at y={})",
                                     side.getX(), side.getY(), side.getZ(), String.format("%.2f", p.getY()));
                         Walker.waterPillarPlaceCalls++;
-                        wk.hands.place(world::isSolid, side);
+                        wk.blocks.place(world::isSolid, side);
                         wk.waterClimb.placeAttemptCell = side;
                         wk.waterClimb.placedRungs.add(side);
                         wk.waterClimb.sideRung = true;
@@ -555,7 +555,7 @@ final class WalkerTickClimb {
      */
     private static boolean bailOnBreathInfeasibleDig(Walker wk, Body a, LivingEntity p, BlockPos b) {
         if (!breathInfeasibleDig(p, b)) return false;
-        wk.hands.breakHold(false);
+        wk.blocks.breakHold(false);
         BreakFeasibility.poison(b, BREATH_POISON_TTL_MS);
         if (GameConfig.walkerDebug)
             LOG.info("[walker] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
@@ -658,7 +658,7 @@ final class WalkerTickClimb {
                 }
                 if (wk.drownGuard.latch && reallyInWater && p.isInWater()) {
                     wk.avatarJump(a, true);
-                    wk.hands.breakHold(false);
+                    wk.blocks.breakHold(false);
                     p.setSprinting(false);
                     boolean riseBlocked = world.isSolid(foot.offset(0, 2, 0)) || p.horizontalCollision;
                     if (riseBlocked) {
@@ -891,7 +891,7 @@ final class WalkerTickClimb {
             // which is still seven times cheaper than the shortest floating dig.
             if (waterClimbing && wk.waterClimb.stall > WATER_CLIMB_STALL && !wk.waterClimb.pillarGaveUp
                     && (!deepDig || swimAshorePillarFallback || ControlConfig.walkerFootholdBeforeBankDig)
-                    && ControlConfig.allowSwimEscapePlace && wk.hands.holdPlaceable()) {
+                    && ControlConfig.allowSwimEscapePlace && wk.equipment.holdPlaceable()) {
                 // THIS CONDITION IS SATISFIED ON EVERY TICK OF A PILLAR THAT IS ALREADY RUNNING,
                 // so everything latched below has to be gated on the transition rather than on
                 // the condition. `wk.waterClimb.stall` is only cleared when the climb context is
@@ -952,7 +952,7 @@ final class WalkerTickClimb {
                     && wk.mayBreak() && WorldConfig.allowSwimEscapeBreak   // mayBreak(): honor per-goto forbidDig, not just the global switch
                     // deepDig no longer jumps the queue past a block in hand — see the foothold-first
                     // note at the pillar takeover; the pillar's own `placeFutile` bail sets pillarGaveUp.
-                    && (!wk.hands.holdPlaceable() || wk.waterClimb.pillarGaveUp
+                    && (!wk.equipment.holdPlaceable() || wk.waterClimb.pillarGaveUp
                         || (deepDig && !ControlConfig.walkerFootholdBeforeBankDig))) {
                 // Keep digging the LATCHED riser while it's still solid — a buoyant bob
                 // (foot.y flickering ±1) or lateral drift (foot.z wandering) must NOT
@@ -1089,7 +1089,7 @@ final class WalkerTickClimb {
                     if (GameConfig.walkerDebug)
                         LOG.info("[walker] water climb-out: block-less bank dig (bob-stalled, no place block) riser={},{},{}",
                                 riser.getX(), riser.getY(), riser.getZ());
-                    wk.hands.selectTool(riser);
+                    wk.equipment.selectTool(riser);
                     // Re-snap the look onto the riser ONLY when it changes, not every
                     // tick: aimAtBlock SNAPS yaw+pitch from the LIVE (bobbing) eye, so a
                     // per-tick call judders the camera ~25°/cycle — the violent camera shake the
@@ -1121,7 +1121,7 @@ final class WalkerTickClimb {
                     // held was ignored here — the two phases alternated targets every 20–40 ticks
                     // and each switch threw away the other's destroyProgress. See
                     // Walker.StickyDig.engage for the measurement that named it.
-                    BlockPos digCell = Walker.avatarDig(wk, a, riser);
+                    BlockPos digCell = WalkerDig.avatarDig(wk, a, riser, false);
                     wk.waterClimb.lastDigRiser = digCell;
                     wk.waterClimb.lastDigAimEyeY = p.getEyeY();
                     // Sticky-dig coverage gap (2026-07-21 live lake basin): the per-tick
@@ -1211,7 +1211,7 @@ final class WalkerTickClimb {
                 float ny = p.getYRot() + dyaw;
                 p.setYRot(ny); p.yHeadRot = ny; p.yBodyRot = ny;
                 p.setXRot(0f);
-                wk.hands.breakHold(false);
+                wk.blocks.breakHold(false);
                 p.setSprinting(false);
                 Walker.avatarForward(a, true);
                 if (p.horizontalCollision) wk.jumpTag = "riserHop";
@@ -1224,7 +1224,7 @@ final class WalkerTickClimb {
             wk.stuckTicks = 0;   // pillaring stays on one cell while placing — not "stuck"
             if (wk.step != wk.pillar.step) { wk.pillar.step = wk.step; wk.pillar.sinceJump = -1; }
             if (++wk.actionTicks > ControlConfig.breakTimeoutTicks) {
-                wk.hands.breakHold(false);
+                wk.blocks.breakHold(false);
                 wk.avatarJump(a, false);
                 wk.lastError = "pillar stalled at " + wk.path.get(wk.step);
                 wk.path = null;
@@ -1233,16 +1233,16 @@ final class WalkerTickClimb {
             for (BlockPos b : edge.toBreak) {
                 if (world.isSolid(b)) {
                     wk.avatarJump(a, false);
-                    wk.hands.selectTool(b);
+                    wk.equipment.selectTool(b);
                     if (bailOnBreathInfeasibleDig(wk, a, p, b)) return Walker.Step.WALKING;
                     ControlConfig.walkerDigActive = true;
                     // Claim, aim and drive all live inside avatarDig now: this site used to dig `b`
                     // first and claim it afterwards, so it drove a cell another phase already held.
-                    Walker.avatarDig(wk, a, b);
+                    WalkerDig.avatarDig(wk, a, b, false);
                     return Walker.Step.WALKING;
                 }
             }
-            wk.hands.breakHold(false);
+            wk.blocks.breakHold(false);
             // Buoyant pillar — the bot is rising out of water. Two sub-cases:
             //   (a) FLOODED shaft (the destination cell is itself water): just hold
             //       jump and FLOAT up through it; water follows up so the next
@@ -1280,17 +1280,17 @@ final class WalkerTickClimb {
             if (shaftFlooded || p.isInWater() || world.isWater(wk.path.get(wk.step).offset(0, -1, 0))) {
                 wk.avatarJump(a, true);
                 // gap#81: routine pillar/scaffold filler must not spend gathered wood.
-                if (!shaftFlooded && wk.hands.holdThrowawayPlaceable()) {
+                if (!shaftFlooded && wk.equipment.holdThrowawayPlaceable()) {
                     BlockPos wp = edge.toPlace.get(0);
                     p.setXRot(89.5f);                       // look down to aim the support
                     if (feetClearOf(p, wp)) {              // bobbed clear of the place cell
-                        wk.hands.placeOn(wp.offset(0, -1, 0), Direction.UP);
+                        wk.blocks.placeOn(wp.offset(0, -1, 0), Direction.UP);
                         wk.exAlarms.notePlace(wp);
                     }
                 }
                 return Walker.Step.WALKING;
             }
-            if (!wk.hands.holdPlaceable()) {
+            if (!wk.equipment.holdPlaceable()) {
                 wk.lastError = "pillar: no placeable block in hotbar";
                 wk.path = null;
                 return Walker.Step.WALKING;
@@ -1313,7 +1313,7 @@ final class WalkerTickClimb {
                 // the old fixed 3-tick delay fired at ~+0.99 and the place
                 // no-op'd against the player's own hitbox. Gate on real height.
                 if (wk.pillar.sinceJump >= PILLAR_PLACE_DELAY && p.getY() >= place.getY() + 1.0) {
-                    wk.hands.placeOn(support, Direction.UP);
+                    wk.blocks.placeOn(support, Direction.UP);
                     wk.exAlarms.notePlace(place);
                 }
             }
@@ -1366,12 +1366,12 @@ final class WalkerTickClimb {
             p.setSprinting(sprint);
             Walker.avatarSneak(a, placed);               // sneak-brake / ledge-guard on landing
             p.setShiftKeyDown(placed);
-            if (!placed && !grounded && wk.hands.holdPlaceable()) {
+            if (!placed && !grounded && wk.equipment.holdPlaceable()) {
                 // 4.0, not the full blockReachToCentre(p): this fires MID-LEAP, so the eye read
                 // here is already a tick stale by the time the place lands. The margin is bought
                 // on purpose — see BotUtil#standingEye for the table of what each reach site pays.
                 if (eyeWithin(p, floor, PARKOUR_PLACE_REACH)) {
-                    wk.hands.place(world::isSolid, floor);
+                    wk.blocks.place(world::isSolid, floor);
                     if (GameConfig.walkerDebug)
                         LOG.info(
                                 "[walker] parkour-place floor={},{},{} y={} dy={} solid={}",
@@ -1419,7 +1419,7 @@ final class WalkerTickClimb {
             if (++wk.actionTicks > ControlConfig.breakTimeoutTicks) {
                 // Lag or an unexpected obstruction — drop the path and let
                 // the next tick repath from the current position.
-                wk.hands.breakHold(false);
+                wk.blocks.breakHold(false);
                 wk.lastError = "break/place stalled at " + wk.path.get(wk.step);
                 wk.path = null;
                 return Walker.Step.WALKING;
@@ -1452,12 +1452,12 @@ final class WalkerTickClimb {
                     && !p.onGround() && !p.isUnderWater();
             for (BlockPos b : edge.toBreak) {
                 if (world.isSolid(b)) {
-                    wk.hands.selectTool(b);
+                    wk.equipment.selectTool(b);
                     if (bailOnBreathInfeasibleDig(wk, a, p, b)) return Walker.Step.WALKING;
                     ControlConfig.walkerDigActive = true;
                     // Claim, aim and drive all live inside avatarDig now: this site used to dig `b`
                     // first and claim it afterwards, so it drove a cell another phase already held.
-                    Walker.avatarDig(wk, a, b);
+                    WalkerDig.avatarDig(wk, a, b, false);
                     boolean climbBreak = floatingPocket && b.getY() >= foot.getY();
                     if ((swimEscapeBreak && p.isInWater() && !p.isUnderWater()) || climbBreak) {
                         Walker.avatarForward(a, true);     // press into the aimed bank (surface only)
@@ -1467,7 +1467,7 @@ final class WalkerTickClimb {
                     return Walker.Step.WALKING;
                 }
             }
-            wk.hands.breakHold(false);
+            wk.blocks.breakHold(false);
             for (BlockPos b : edge.toPlace) {
                 if (!world.isSolid(b)) {
                     // Descending-place LIP ANCHOR (task#4, replay-0013): the place
@@ -1492,13 +1492,13 @@ final class WalkerTickClimb {
                                 foot.getX(), foot.getY(), foot.getZ(), String.format(Locale.ROOT, "%.2f", p.getY()),
                                 wk.step, b.getX(), b.getY(), b.getZ(), p.onGround(), edge.move);
                     a.aimAtBlock(b);
-                    wk.hands.place(world::isSolid, b);
+                    wk.blocks.place(world::isSolid, b);
                     return Walker.Step.WALKING;
                 }
             }
             return Walker.Step.WALKING;                  // settle a tick before walking on
         }
-        wk.hands.breakHold(false);
+        wk.blocks.breakHold(false);
         wk.actionTicks = 0;
 
         // Pillar placed but the player is still rising onto it — hold (no

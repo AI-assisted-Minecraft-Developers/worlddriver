@@ -5,7 +5,8 @@ import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -40,7 +41,8 @@ import static net.magicterra.worlddriver.game.body.BotUtil.yawFor;
  */
 public final class BunkerProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Hands hands;
+    private Equipment equipment;
+    private BlockInteraction blocks;
 
     private enum Phase { DIG_DOWN, CARVE, STEP_IN, PLUG, SEALED, DONE }
 
@@ -136,8 +138,9 @@ public final class BunkerProcess implements BotProcess {
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) return finish(st, w, a, "no-player", "player entity unavailable — no action taken");
-        hands = a.hands().orElse(null);
-        if (hands == null) return finish(st, w, a, "no-hands", BodyReady.Reason.NO_HANDS);
+        equipment = a.equipment().orElse(null);
+        blocks = a.blockInteraction().orElse(null);
+        if (equipment == null || blocks == null) return finish(st, w, a, "no-hands", BodyReady.Reason.NO_HANDS);
         BlockPos foot = p.blockPosition();
         if (startY == Integer.MIN_VALUE) {
             startY = foot.getY();
@@ -251,24 +254,24 @@ public final class BunkerProcess implements BotProcess {
             bottom = foot.immutable();
             phase = Phase.CARVE;
             actTicks = 0;
-            hands.breakHold(false);
+            blocks.breakHold(false);
             dbg("DIG_DOWN done bottom={} (dug {} down from y={})", bottom, effectiveDepth, startY);
             return false;
         }
         BlockPos below = foot.below();
         if (w.isWater(foot) || w.isWater(foot.offset(0, 1, 0))
                 || w.isWater(below) || w.isHazard(below) || w.isHazard(foot.offset(0, 1, 0))) {
-            hands.breakHold(false); a.releaseInputs();
+            blocks.breakHold(false); a.releaseInputs();
             return finish(st, w, a, "unsafe-mid-dig", "hazard opened mid-dig");   // unsafe
         }
         if (!w.isSolid(below)) return false;                                   // mid-fall, settle
-        hands.selectTool(below);
+        equipment.selectTool(below);
         a.aimAtBlock(below);
-        hands.breakHold(true);
-        hands.continueDestroy(below);
+        blocks.breakHold(true);
+        blocks.continueDestroy(below);
         acted = true;
         if (++digTicks > ControlConfig.breakTimeoutTicks) {
-            hands.breakHold(false); a.releaseInputs();
+            blocks.breakHold(false); a.releaseInputs();
             return finish(st, w, a, "dig-timeout", "break timeout (unbreakable below?)");
         }
         return false;
@@ -313,21 +316,21 @@ public final class BunkerProcess implements BotProcess {
         BlockPos n0 = bottom.relative(nicheDir);
         BlockPos n1 = n0.above();
         BlockPos target = w.isSolid(n1) ? n1 : (w.isSolid(n0) ? n0 : null);   // clear head first, then foot
-        if (target == null) { dbg("CARVE done dir={} → STEP_IN", nicheDir); phase = Phase.STEP_IN; actTicks = 0; hands.breakHold(false); return false; }
-        hands.selectTool(target);
+        if (target == null) { dbg("CARVE done dir={} → STEP_IN", nicheDir); phase = Phase.STEP_IN; actTicks = 0; blocks.breakHold(false); return false; }
+        equipment.selectTool(target);
         a.aimAtBlock(target);
-        hands.breakHold(true);
-        hands.continueDestroy(target);
+        blocks.breakHold(true);
+        blocks.continueDestroy(target);
         acted = true;
         if (++actTicks > ControlConfig.breakTimeoutTicks * 2) {
-            hands.breakHold(false); a.releaseInputs();
+            blocks.breakHold(false); a.releaseInputs();
             return finish(st, w, a, "act-timeout", "seal/carve timeout");
         }
         return false;
     }
 
     private boolean stepIn(Body a, WorldView w, LivingEntity p, BlockPos foot) {
-        hands.breakHold(false);
+        blocks.breakHold(false);
         BlockPos n0 = bottom.relative(nicheDir);
         // Must enter the niche FULLY — pressed against its back wall — before
         // plugging. A blockPos-only match (foot.z == n0.z) fires while the bot
@@ -374,7 +377,7 @@ public final class BunkerProcess implements BotProcess {
             dbg("PLUG sealed (p0={},p1={} both solid) → SEALED-hold", p0, p1);
             phase = Phase.SEALED; sealedOk = true; a.releaseInputs(); return false;   // sealed → hold the pocket (GAP #22)
         }
-        if (!hands.holdPlaceable()) {
+        if (!equipment.holdPlaceable()) {
             dbg("PLUG no placeable block in hand → DONE UNSEALED target={}", target);
             phase = Phase.DONE; a.releaseInputs();
             return finish(st, w, a, phase.name(), null); // nothing to plug with
@@ -395,7 +398,7 @@ public final class BunkerProcess implements BotProcess {
         }
         a.commandForward(0f);
         a.aimAtBlock(target);
-        hands.place(w::isSolid, target);
+        blocks.place(w::isSolid, target);
         acted = true;
         dbg("PLUG place target={} solidNow={} t={}", target, w.isSolid(target), actTicks);
         if (++plugTicks > ControlConfig.breakTimeoutTicks) {

@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.behavior;
 
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.Equipment;
 
 import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
@@ -29,7 +29,7 @@ import net.magicterra.worlddriver.bot.planning.ElytraPathfinder;
 
 public final class ElytraProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Hands hands;
+    private Equipment equipment;
     /** Give up arming flight after this many ticks (~3 s) — no elytra, stuck
      *  on the ground, or in water. */
     private static final int TAKEOFF_TIMEOUT = 60;
@@ -134,8 +134,8 @@ public final class ElytraProcess implements BotProcess {
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) { st.elytra.lastError = "player vanished"; st.elytra.reset(); return true; }
-        hands = a.hands().orElse(null);
-        if (hands == null) { st.elytra.lastError = BodyReady.Reason.NO_HANDS; st.elytra.reset(); return true; }
+        equipment = a.equipment().orElse(null);
+        if (equipment == null) { st.elytra.lastError = BodyReady.Reason.NO_HANDS; st.elytra.reset(); return true; }
 
         if (phase == Phase.TAKEOFF) {
             if (p.isFallFlying()) {
@@ -151,7 +151,7 @@ public final class ElytraProcess implements BotProcess {
                     a.commandJump(true);          // jump to leave the ground
                 } else {
                     a.commandJump(false);
-                    if (hands.startFallFlying()) {
+                    if (equipment.startFallFlying()) {
                         phase = Phase.FLYING;
                     }
                 }
@@ -301,8 +301,8 @@ public final class ElytraProcess implements BotProcess {
                 float yaw = smoothAngle(prevYaw, rawYaw);
                 p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw;
                 p.setXRot(d.pitch());
-                if (d.fire() && hands.holdItem(Items.FIREWORK_ROCKET)) {
-                    InteractionResult r = hands.useItemInHand();
+                if (d.fire() && equipment.holdItem(Items.FIREWORK_ROCKET)) {
+                    InteractionResult r = equipment.useItemInHand();
                     if (r.consumesAction()) { p.swing(InteractionHand.MAIN_HAND); controller.onFired(); }
                 }
                 st.elytra.pathLen = (int) Math.round(goalDist);
@@ -332,8 +332,8 @@ public final class ElytraProcess implements BotProcess {
 
             // Firework boost policy.
             if (useFireworks && sinceFirework >= fireworkEveryTicks
-                    && hands.holdItem(Items.FIREWORK_ROCKET)) {
-                InteractionResult r = hands.useItemInHand();
+                    && equipment.holdItem(Items.FIREWORK_ROCKET)) {
+                InteractionResult r = equipment.useItemInHand();
                 if (r.consumesAction()) { p.swing(InteractionHand.MAIN_HAND); sinceFirework = 0; }
             } else if (sinceFirework < Integer.MAX_VALUE) {
                 sinceFirework++;

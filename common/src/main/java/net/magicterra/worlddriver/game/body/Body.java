@@ -16,16 +16,17 @@ import net.minecraft.world.entity.player.Player;
  * {@code ServerPlayer} and a driven mob alike. What is abstracted here is the
  * locomotion every controlled entity has — impulse via the entity's own input, and the look.
  *
- * <p>What only an entity with an inventory has is behind two optionals: {@link #hands()}
- * (hold, place, break, swing, use) and {@link #containers()} (menus). A process that
- * needs either asks for it at the top of its tick and refuses the order with
- * {@code no_hands} when it is absent; a caller that never asks cannot compile a call to
- * it. {@link #asPlayer()} is the raw {@link Player} view for the few readers of a player's
+ * <p>What only some entities have is behind optionals, one per capability: {@link #equipment()}
+ * (hold, use what is held), {@link #attack()} (swing), {@link #blockInteraction()} (place, break,
+ * use a block), {@link #bag()} (what is carried) and {@link #menus()}. A process asks for the ones
+ * it needs at the top of its tick and refuses the order with {@code no_hands} when one is absent; a
+ * caller that never asks cannot compile a call to it.
+ * {@link #asPlayer()} is the raw {@link Player} view for the few readers of a player's
  * own state (food, abilities, the attack cooldown) and is null for an entity that is not one.
  *
  * <p>{@link ClientPlayerBody} maps every method 1:1 to the previous inline
  * Walker behaviour (zero regression). {@code ServerPlayerBody} drives a joined
- * {@code ServerPlayer}. Both implement {@link Hands} and {@link Containers} themselves.
+ * {@code ServerPlayer}. Both implement every capability themselves.
  * This interface was {@code Avatar} until 2026-09-14; the name changed with the split,
  * so that a third-party implementation reads as what it is — the controlled entity itself,
  * not a costume.
@@ -40,11 +41,20 @@ public interface Body {
      *  has — inventory, menus, abilities, attack cooldown — should be reached through this. */
     default Player asPlayer() { return entity() instanceof Player p ? p : null; }
 
-    /** The controlled entity's hands, or empty for one that cannot hold, place, break or use. */
-    Optional<Hands> hands();
+    /** What the entity holds and wears, or empty for one that holds nothing. */
+    default Optional<Equipment> equipment() { return Optional.empty(); }
 
-    /** The controlled entity's menus, or empty for one that has none. */
-    Optional<Containers> containers();
+    /** The entity's melee swing, or empty for one that cannot attack. */
+    default Optional<Attack> attack() { return Optional.empty(); }
+
+    /** Placing, breaking and using blocks, or empty for an entity that cannot. */
+    default Optional<BlockInteraction> blockInteraction() { return Optional.empty(); }
+
+    /** What the entity carries, or empty for one that carries nothing. */
+    default Optional<Bag> bag() { return Optional.empty(); }
+
+    /** The entity's menus, or empty for one that has none. */
+    default Optional<Menus> menus() { return Optional.empty(); }
 
     // --- movement impulse (the player's OWN input, not shared keybinds) ---
     /**
@@ -120,8 +130,6 @@ public interface Body {
      *  view vector. Used by processes that gate an action on what they're aiming at
      *  (e.g. bbox-fill only breaking cells inside its region). */
     BlockPos lookingAtBlock();
-
-    BodyCapabilities capabilities();
 
     // --- debug snapshot of the commanded input (walker trace only) ---
     default boolean dbgForwardImpulse() { return false; }

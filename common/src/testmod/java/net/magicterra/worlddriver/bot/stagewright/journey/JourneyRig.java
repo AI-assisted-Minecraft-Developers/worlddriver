@@ -14,7 +14,8 @@ import net.magicterra.worlddriver.config.*;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
@@ -512,11 +513,10 @@ public final class JourneyRig {
         return body().avatar();
     }
 
-    /** {@link #avatar()}'s hands. Every journey bot is a player, so an empty answer is a rig
-     *  defect and throws rather than being reported as a scene finding. */
-    public Hands hands() {
-        return avatar().hands().orElseThrow(() -> new IllegalStateException("the journey bot has no hands"));
-    }
+    /** {@link #avatar()}'s equipment and block interaction. Every journey bot is a player, so an empty
+     *  answer is a rig defect and throws rather than being reported as a scene finding. */
+    public Equipment equipment() { return avatar().equipment().orElseThrow(() -> new IllegalStateException("the journey bot has no hands")); }
+    public BlockInteraction blocks() { return avatar().blockInteraction().orElseThrow(() -> new IllegalStateException("the journey bot has no hands")); }
 
     /**
      * One process slot's reading, taken from whichever half of the driver actually wrote it —

@@ -14,7 +14,9 @@ import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.Attack;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BlastFooting;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -1034,7 +1036,7 @@ public final class JourneyEndRungs {
                 rig.evidence("eye." + i + ".hand", "could not hold ender_eye; holding " + heldItem(rig));
             }
             double reach = Math.sqrt(rig.player().blockPosition().distSqr(frame));
-            rig.hands().useBlock(frame, Direction.UP);
+            rig.blocks().useBlock(frame, Direction.UP);
             rig.settle(new HoldStill(2), 10, () -> {
                 if (!hasEye(level, frame)) {
                     rig.evidence("eye." + i + ".missed", xyz(frame) + " is still "
@@ -2365,10 +2367,11 @@ public final class JourneyEndRungs {
         public boolean tick(Body a, WorldView w, BotState st) {
             a.commandMove(0, 0);
             a.commandJump(false);
-            Hands h = a.hands().orElse(null);
+            Attack h = a.attack().orElse(null);
+            BlockInteraction b = a.blockInteraction().orElse(null);
             LivingEntity p = a.entity();
-            if (p == null || h == null || !target.isAlive()) return true;
-            h.breakHold(false);
+            if (p == null || h == null || b == null || !target.isAlive()) return true;
+            b.breakHold(false);
             double d = p.distanceTo(target);
             if (d < closest) closest = d;
             sinceSwing++;
@@ -2448,12 +2451,14 @@ public final class JourneyEndRungs {
         public boolean tick(Body a, WorldView w, BotState st) {
             a.commandMove(0, 0);
             a.commandJump(false);
-            Hands h = a.hands().orElse(null);
+            Attack h = a.attack().orElse(null);
+            Equipment eq = a.equipment().orElse(null);
+            BlockInteraction b = a.blockInteraction().orElse(null);
             Player p = a.asPlayer();
-            if (p == null || h == null) {
+            if (p == null || h == null || eq == null || b == null) {
                 why = "the bot's player entity is gone (a.asPlayer()==null or no hands)"; return true;
             }
-            h.breakHold(false);
+            b.breakHold(false);
             EnderDragon dragon = nearestDragon(p.level(), p.position());
             if (dragon != null && dragon.isDeadOrDying()) { why = "the dragon is dying"; return true; }
             if (dragon == null) {
@@ -2489,7 +2494,7 @@ public final class JourneyEndRungs {
             Entity aim = head != null && headAway <= reach ? head
                     : nearestAway <= reach ? nearest : null;
             if (aim != null && sinceSwing >= SWING_EVERY) {
-                if (p.isUsingItem()) h.commandUseItem(false);   // drop the draw, this is melee now
+                if (p.isUsingItem()) eq.commandUseItem(false);   // drop the draw, this is melee now
                 holdSword(p);
                 h.attackEntity(aim);
                 sinceSwing = 0;
@@ -2524,7 +2529,7 @@ public final class JourneyEndRungs {
                 else {
                 drawTicks = p.isUsingItem() ? p.getTicksUsingItem() : 0;
                 if (drawTicks >= BOW_FULL_DRAW) {
-                    h.commandUseItem(false);              // up-edge = release = shoot
+                    eq.commandUseItem(false);              // up-edge = release = shoot
                     // Count AMMO, not releases. The first cut incremented here and reported 9516
                     // shots from a quiver of 256: once the arrows run out stopUsingItem still gets
                     // called every cycle, so the counter went on climbing while nothing was fired.
@@ -2534,7 +2539,7 @@ public final class JourneyEndRungs {
                     if (ammoBefore < 0) ammoBefore = now;
                     if (now < ammoBefore) { arrows += ammoBefore - now; ammoBefore = now; }
                 } else if (p.isUsingItem()) {
-                    h.commandUseItem(true);               // already drawing: keep holding
+                    eq.commandUseItem(true);               // already drawing: keep holding
                 } else {
                     // RE-ARM. commandUseItem is edge-triggered on the avatar's own useHeld flag, so
                     // once vanilla stops the use by itself — which the melee branch's release does
@@ -2547,8 +2552,8 @@ public final class JourneyEndRungs {
                     // The down-edge is safe here and does NOT waste an arrow: we only reach this
                     // branch when isUsingItem() is false, i.e. useItem is already EMPTY, and
                     // releaseUsingItem() skips the fire on an empty stack and just resets.
-                    h.commandUseItem(false);
-                    h.commandUseItem(true);
+                    eq.commandUseItem(false);
+                    eq.commandUseItem(true);
                 }
                 }
             }

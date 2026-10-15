@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.control;
 
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.BotUtil;
@@ -11,16 +11,15 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
- * The walker's one dig door — every walker dig routes through {@link #avatarDig}. Held outside
- * {@link Walker} for that file's line budget; the two static delegations there keep the seven
- * call sites unchanged.
+ * The walker's one dig door — every walker dig routes through {@link #avatarDig}; aim at the cell
+ * it returns. Held outside {@link Walker} for that file's line budget.
  */
 final class WalkerDig {
     private WalkerDig() {}
 
     /**
      * Break {@code cell}: hold the key AND drive the destroy directly, never one alone. On a client
-     * avatar {@link Hands#breakHold} only rides vanilla's continueAttack pipeline, which a driven
+     * avatar {@link BlockInteraction#breakHold} only rides vanilla's continueAttack pipeline, which a driven
      * client never reaches because the mouse is never grabbed — so the key by itself breaks
      * nothing. Server avatars break on the key and take the destroy as an inherited no-op, which is
      * why every wd.server* dig scene passed for as long as the walker drove the key alone.
@@ -45,10 +44,10 @@ final class WalkerDig {
         // Tool and crosshair go on the cell actually being driven, never on the cell that was merely
         // requested: vanilla's sameDestroyTarget compares the HELD ITEM as well as the position, so
         // swapping the tool mid-dig throws the progress away exactly the way switching cells does.
-        if (selectTool) wk.hands.selectTool(target);
+        if (selectTool) wk.equipment.selectTool(target);
         a.aimAtBlock(target);
-        wk.hands.breakHold(true);
-        wk.hands.continueDestroy(target);
+        wk.blocks.breakHold(true);
+        wk.blocks.continueDestroy(target);
         if (wk != null) {
             wk.digDrivenThisTick = true;
             wk.digKeyOwned = true;
@@ -74,7 +73,7 @@ final class WalkerDig {
     static void preDigNextBreak(Walker wk, Body a, WorldView world) {
         if (!ControlConfig.walkerPreDigNextBreak || wk.path == null || wk.stickyDig.pos != null) return;
         LivingEntity p = a.entity();
-        if (p == null || p.onGround() || p.isInWater() || wk.hands.destroyProgress() < 0) return;
+        if (p == null || p.onGround() || p.isInWater() || wk.blocks.destroyProgress() < 0) return;
         if (wk.step + 1 >= wk.path.size()) return;
         Move.Edge cur = wk.edgeAt(wk.step), next = wk.edgeAt(wk.step + 1);
         if (next == null || !"stairUpBreak".equals(next.move) || !next.toPlace.isEmpty()) return;
@@ -87,10 +86,10 @@ final class WalkerDig {
                 || !BotUtil.eyeWithin(p, b, BotUtil.blockReachToCentre(p))) return;
         double yaw = Math.toDegrees(Math.atan2(-(b.getX() + 0.5 - p.getX()), b.getZ() + 0.5 - p.getZ()));
         if (Math.abs(Mth.wrapDegrees(yaw - p.getYRot())) > PRE_DIG_MAX_YAW) return;
-        wk.hands.selectTool(b);
+        wk.equipment.selectTool(b);
         a.aimAtBlock(b);
-        wk.hands.breakHold(true);
-        wk.hands.continueDestroy(b);
+        wk.blocks.breakHold(true);
+        wk.blocks.continueDestroy(b);
         wk.digDrivenThisTick = true;
         wk.digKeyOwned = true;
     }

@@ -4,7 +4,8 @@ import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -26,7 +27,8 @@ import net.minecraft.world.level.block.CropBlock;
 
 public final class FarmProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Hands hands;
+    private Equipment equipment;
+    private BlockInteraction blocks;
     /** Crop block id → item id that re-plants it. Kept private; the public
      *  {@code farm()} entry validates incoming filter against this set. */
     public static final Map<String, String> SEED_FOR = Map.of(
@@ -84,8 +86,9 @@ public final class FarmProcess implements BotProcess {
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
-        hands = a.hands().orElse(null);
-        if (hands == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
+        equipment = a.equipment().orElse(null);
+        blocks = a.blockInteraction().orElse(null);
+        if (equipment == null || blocks == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         Level lvl = p.level();
 
         switch (phase) {
@@ -135,13 +138,13 @@ public final class FarmProcess implements BotProcess {
                 a.commandJump(false);
                 p.setSprinting(false);
                 a.aimAtBlock(currentTarget);
-                hands.breakHold(true);
-                hands.continueDestroy(currentTarget);
+                blocks.breakHold(true);
+                blocks.continueDestroy(currentTarget);
                 breakingTicks++;
                 BlockState bs = lvl.getBlockState(currentTarget);
                 if (bs.isAir()) {
                     harvested++;
-                    hands.breakHold(false);
+                    blocks.breakHold(false);
                     if (replant) {
                         placeTicks = 0;
                         phase = Phase.REPLANT;
@@ -153,18 +156,18 @@ public final class FarmProcess implements BotProcess {
                 } else if (breakingTicks > BREAK_TIMEOUT_TICKS) {
                     skipped++;
                     blacklist.add(currentTarget);
-                    hands.breakHold(false);
+                    blocks.breakHold(false);
                     currentTarget = null;
                     phase = Phase.SEARCH;
                 }
             }
             case REPLANT -> {
-                hands.breakHold(false);
+                blocks.breakHold(false);
                 a.commandForward(0f);
                 a.commandJump(false);
                 p.setSprinting(false);
                 String seedId = SEED_FOR.get(currentCropId);
-                if (seedId == null || !HeldItem.holdById(hands, seedId)) {
+                if (seedId == null || !HeldItem.holdById(equipment, seedId)) {
                     // No seed in hand — skip this cell rather than spin.
                     unplanted++;
                     blacklist.add(currentTarget);
@@ -178,7 +181,7 @@ public final class FarmProcess implements BotProcess {
                 BlockPos farmland = currentTarget.offset(0, -1, 0);
                 aimAtSupportFace(p, currentTarget, Direction.UP);
                 if (placeTicks == 0) {
-                    hands.placeOn(farmland, Direction.UP);
+                    blocks.placeOn(farmland, Direction.UP);
                 }
                 placeTicks++;
                 BlockState now = lvl.getBlockState(currentTarget);

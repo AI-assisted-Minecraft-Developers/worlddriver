@@ -28,7 +28,7 @@ import net.magicterra.worlddriver.config.WorldConfig;
  *   <li>the client executor — {@code ClientPlayerBody#holdPillarBlock} →
  *       {@code BotInteract.ensureHoldingPillarBlock} — applies {@code isUsablePillarBlock}, which
  *       ACCEPTS supported falling blocks, and ends in {@code swapFromMainInv}, so in survival it
- *       reaches 9..35 as well. (The server avatar takes {@code Hands}'s default, i.e. plain
+ *       reaches 9..35 as well. (The server avatar takes {@code Equipment}'s default, i.e. plain
  *       {@code holdPlaceable()}, so this axis is a client-side gap.)</li>
  * </ul>
  * On a client the planner is therefore STRICTER than the actuator on both axes at once: a bot

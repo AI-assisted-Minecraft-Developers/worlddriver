@@ -10,12 +10,13 @@ import net.minecraft.world.item.crafting.RecipeManager;
 /**
  * What the controlled player does with menus: the recipe book, container clicks, closing.
  *
- * <p>Split out of {@link Body} with {@link Hands}, and for the same reason: vanilla hangs
- * menus off {@code Player} ({@code containerMenu}, {@code inventoryMenu}), so only a player
- * can answer these. A process that crafts or smelts asks {@link Body#containers()} and refuses
- * the order when it is empty. Every method here was moved from the old {@code Avatar} unchanged.
+ * <p>One of the optional capabilities a {@link Body} may have: vanilla hangs menus off
+ * {@code Player} ({@code containerMenu}, {@code inventoryMenu}), so only a player can answer these.
+ * A process that crafts or smelts asks {@link Body#menus()} and refuses the order when it is empty.
+ * Not called {@code Containers}: vanilla's {@code Container} is what stores the items, and this is
+ * the screen over it — vanilla's {@code AbstractContainerMenu}.
  */
-public interface Containers {
+public interface Menus {
 
     /** The player whose menus these are. */
     LivingEntity entity();

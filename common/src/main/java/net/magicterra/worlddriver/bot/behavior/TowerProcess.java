@@ -3,7 +3,8 @@ package net.magicterra.worlddriver.bot.behavior;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerGeometry;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -27,7 +28,8 @@ import net.minecraft.world.item.BlockItem;
 
 public final class TowerProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Hands hands;
+    private Equipment equipment;
+    private BlockInteraction blocks;
     /** Minimum ticks between jump-press and the place attempt — a lower bound
      *  only. The block fills the cell we jumped FROM, so vanilla's entity
      *  collision (Level#isUnobstructed) rejects it until the feet have actually
@@ -123,8 +125,9 @@ public final class TowerProcess implements BotProcess {
         // The tower is laid from a player's inventory: a controlled entity that is not a player has
         // no hands for it.
         Player p = a.asPlayer();
-        hands = a.hands().orElse(null);
-        if (hands == null || p == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
+        equipment = a.equipment().orElse(null);
+        blocks = a.blockInteraction().orElse(null);
+        if (equipment == null || blocks == null || p == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         int feetY = (int) Math.floor(p.getY());
         if (startFeetY == Integer.MIN_VALUE) { startFeetY = feetY; lastApexFloorY = feetY; }
         st.builder.target = new BlockPos(
@@ -178,7 +181,7 @@ public final class TowerProcess implements BotProcess {
         // Always hold the block; auto-pick a BlockItem from hotbar if none specified. Every course,
         // and that repetition is the point: whatever the last course's break moved into the hand,
         // this puts the pillar block back.
-        if (!ensureHoldingPlaceable(hands, preferredBlockId, reachIntoBag)) {
+        if (!ensureHoldingPlaceable(equipment, preferredBlockId, reachIntoBag)) {
             failure = st.builder.lastError = "no placeable block in hotbar";
             st.builder.reset();
             a.releaseInputs();
@@ -290,7 +293,7 @@ public final class TowerProcess implements BotProcess {
                 // feet are clear of jumpFromY, so the placement isn't obstructed.
                 BlockPos support = new BlockPos(jumpFromX, jumpFromY - 1, jumpFromZ);
                 faceDown(p);
-                hands.placeOn(support, Direction.UP);
+                blocks.placeOn(support, Direction.UP);
                 // Count only VERIFIED placements (gap #75-a family audit): placeOn can
                 // no-op (obstruction/reach/wind-down) and blindly incrementing decouples
                 // `placed` from the world. Both ends make the block observable in-tick
@@ -349,23 +352,23 @@ public final class TowerProcess implements BotProcess {
      *       "fix" this branch by pointing it at the bag; that argument has been had.</li>
      * </ul>
      */
-    public static boolean ensureHoldingPlaceable(Hands hands, String preferred) {
-        return ensureHoldingPlaceable(hands, preferred, false);
+    public static boolean ensureHoldingPlaceable(Equipment equipment, String preferred) {
+        return ensureHoldingPlaceable(equipment, preferred, false);
     }
 
     /** @param reachIntoBag let a NAMED block be fetched from slots 9..35; see the overload's note. */
-    public static boolean ensureHoldingPlaceable(Hands hands, String preferred, boolean reachIntoBag) {
-        if (!(hands.entity() instanceof Player p)) return false;
+    public static boolean ensureHoldingPlaceable(Equipment equipment, String preferred, boolean reachIntoBag) {
+        if (!(equipment.entity() instanceof Player p)) return false;
         if (preferred != null) {
-            return reachIntoBag ? HeldItem.holdByIdFromAnywhere(hands, preferred)
-                                : HeldItem.holdById(hands, preferred);
+            return reachIntoBag ? HeldItem.holdByIdFromAnywhere(equipment, preferred)
+                                : HeldItem.holdById(equipment, preferred);
         }
         Inventory inv = p.getInventory();
         // Auto-pick: prefer current slot if it's a BlockItem, else scan hotbar.
         if (isPlaceableBlockItem(inv.getSelected())) return true;
         for (int s = 0; s < 9; s++) {
             if (isPlaceableBlockItem(inv.items.get(s))) {
-                hands.setSelectedSlot(s);
+                equipment.setSelectedSlot(s);
                 return true;
             }
         }

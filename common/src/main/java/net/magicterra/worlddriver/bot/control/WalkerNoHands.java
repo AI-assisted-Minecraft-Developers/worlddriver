@@ -2,17 +2,17 @@ package net.magicterra.worlddriver.bot.control;
 
 import java.util.function.Predicate;
 
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 
 /**
- * The {@link Hands} the walker drives when the bot has none: nothing is held, nothing places,
- * nothing breaks, and every reading says so.
+ * The {@link Equipment} and {@link BlockInteraction} the walker drives when the bot lacks them:
+ * nothing is held, nothing places, nothing breaks, and every reading says so.
  *
  * <p>The walker is not a verb — it cannot refuse an order the way a process does at the top of
  * its tick — and its dig/place sites are already gated on {@code WorldConfig.allowBreak} /
@@ -20,12 +20,12 @@ import net.minecraft.world.item.Item;
  * with these hands rather than a null the fifty sites would each have to guard: the gates fall
  * closed on their own, and the readings ({@code breakHeld()} false, {@code destroyProgress()}
  * −1) are the same ones a client player reports between digs. What this does NOT do is keep the
- * pathfinder from planning a dig for a bot that cannot dig — that is {@code BodyCapabilities}'
- * job and lands with the first non-player. Walker-private on purpose: a process reaching
+ * pathfinder from planning a dig for a bot that cannot dig — that is the move catalog's job
+ * ({@code MoveCatalog}), and lands with the first non-player. Walker-private on purpose: a process reaching
  * for a null-object here to make an order "succeed" without hands is the failure the split
  * exists to make impossible.
  */
-final class WalkerNoHands implements Hands {
+final class WalkerNoHands implements Equipment, BlockInteraction {
 
     static final WalkerNoHands INSTANCE = new WalkerNoHands();
 
@@ -42,7 +42,6 @@ final class WalkerNoHands implements Hands {
     @Override public void breakHold(boolean v) {}
     @Override public boolean breakHeld() { return false; }
     @Override public boolean canBreak(BlockPos pos) { return false; }
-    @Override public void attackEntityUnchecked(Entity target) {}
     @Override public void commandUseItem(boolean hold) {}
     @Override public InteractionResult useItemInHand() { return InteractionResult.PASS; }
     @Override public boolean startFallFlying() { return false; }

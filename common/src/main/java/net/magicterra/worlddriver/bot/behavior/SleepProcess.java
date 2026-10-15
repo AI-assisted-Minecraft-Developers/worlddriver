@@ -4,7 +4,7 @@ import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -20,7 +20,7 @@ import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 public final class SleepProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
-    private Hands hands;
+    private BlockInteraction blocks;
     private static final int USE_TIMEOUT_TICKS = 40;        // ~2 s — bed reply is one tick after the click
     private static final int CLICK_INTERVAL_TICKS = 10;     // re-click cadence within USE phase
 
@@ -56,8 +56,8 @@ public final class SleepProcess implements BotProcess {
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) return giveUp(st, "player vanished");
-        hands = a.hands().orElse(null);
-        if (hands == null) return giveUp(st, BodyReady.Reason.NO_HANDS);
+        blocks = a.blockInteraction().orElse(null);
+        if (blocks == null) return giveUp(st, BodyReady.Reason.NO_HANDS);
         Level lvl = p.level();
 
         switch (phase) {
@@ -108,7 +108,7 @@ public final class SleepProcess implements BotProcess {
                 p.setShiftKeyDown(false);
                 if (++sinceLastClick >= CLICK_INTERVAL_TICKS) {
                     sinceLastClick = 0;
-                    hands.placeOn(bedPos, Direction.UP);
+                    blocks.placeOn(bedPos, Direction.UP);
                 }
                 if (++useTicks > USE_TIMEOUT_TICKS) {
                     return giveUp(st, approachShortfall != null

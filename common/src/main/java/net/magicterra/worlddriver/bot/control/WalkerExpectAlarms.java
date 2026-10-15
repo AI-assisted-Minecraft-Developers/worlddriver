@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.control;
 
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
@@ -68,12 +68,12 @@ public final class WalkerExpectAlarms {
         exRepathFlipTick = pfTickCounter;
     }
 
-    void tick(Hands hands, Body a, WorldView world, LivingEntity p, List<BlockPos> path, int step, int noStepProgressTicks) {
+    void tick(BlockInteraction blocks, Body a, WorldView world, LivingEntity p, List<BlockPos> path, int step, int noStepProgressTicks) {
         if (exThrottle > 0) exThrottle--;
         // DIG-dropped / DIG-slow: vanilla resets break progress on ANY released tick, so a
         // committed dig must hold continuously until the block breaks. Dropping the hold
         // while the target is still solid = wasted progress (the GroundBlip bug class).
-        boolean held = hands.breakHeld();
+        boolean held = blocks.breakHeld();
         BlockPos aim = a.lookingAtBlock();
         if (exPrevBreakHeld && !held && exPrevAimBlock != null && world.isSolid(exPrevAimBlock)) {
             if (exThrottle == 0 && exDigHoldTicks >= 5) {

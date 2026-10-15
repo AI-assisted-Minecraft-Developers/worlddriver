@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.minecraft.world.entity.player.Inventory;
@@ -26,7 +26,7 @@ import net.minecraft.world.item.Items;
  * CREATIVE ONLY — main-inventory slots 9..35 via {@code Inventory.pickSlot}. In survival a stack
  * sitting past slot 8 is invisible here and the caller reports "no block".
  *
- * <p>That is NOT what {@link Hands#holdItem} does. Both avatars reach the bag there:
+ * <p>That is NOT what {@link Equipment#holdItem} does. Both avatars reach the bag there:
  * {@code ClientPlayerBody} through {@code BotInteract.swapFromMainInv} (a real SWAP click), and
  * {@code ServerPlayerBody} by swapping the stacks directly.
  *
@@ -66,7 +66,7 @@ final class HeldItem {
 
     /** Put the item whose registry id is {@code itemId} in the main hand; false if it is not
      *  anywhere this scan can reach (see the class note — survival stops at hotbar slot 8). */
-    static boolean holdById(Hands hands, String itemId) {
+    static boolean holdById(Equipment hands, String itemId) {
         if (!(hands.entity() instanceof Player p)) return false;
         Inventory inv = p.getInventory();
         if (matches(inv.getSelected(), itemId)) return true;
@@ -93,7 +93,7 @@ final class HeldItem {
      * {@link #holdById}, and if that cannot see it, the BAG too — the OPT-IN twin, for callers that
      * have said in their own constructor that they want the wider reach.
      *
-     * <p>Delegates to {@link Hands#holdItem} rather than growing a fourth copy of "scan the bag,
+     * <p>Delegates to {@link Equipment#holdItem} rather than growing a fourth copy of "scan the bag,
      * SWAP one up": that seam is already implemented by each {@code Body} implementation — the
      * client sends a real SWAP click through {@code BotInteract.swapFromMainInv}, the server
      * exchanges the two stacks in place —
@@ -103,7 +103,7 @@ final class HeldItem {
      * a tower that did NOT, and "spending blocks the caller never put in hand" stays a side effect
      * the verb is not allowed to have by default.
      */
-    static boolean holdByIdFromAnywhere(Hands hands, String itemId) {
+    static boolean holdByIdFromAnywhere(Equipment hands, String itemId) {
         if (!(hands.entity() instanceof Player p)) return false;
         if (holdById(hands, itemId)) return true;
         // `holdItem(AIR)` would match the empty stacks that fill a sparse inventory and report a

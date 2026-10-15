@@ -1,7 +1,8 @@
 package net.magicterra.worlddriver.bot.behavior;
 
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.player.Player;
@@ -35,8 +36,8 @@ final class PlaceNearby {
      *
      * @return the cell now holding {@code expected}, or null (reason logged).
      */
-    static BlockPos place(Body a, Hands hands, Player p, Level lvl, Item item, Block expected, String logTag) {
-        if (!hands.holdItem(item)) {
+    static BlockPos place(Body a, Equipment equipment, BlockInteraction blocks, Player p, Level lvl, Item item, Block expected, String logTag) {
+        if (!equipment.holdItem(item)) {
             LOG.info("[{}] placeNearby: holdItem({}) FAILED at foot={}", logTag, item, p.blockPosition());
             return null;
         }
@@ -53,7 +54,7 @@ final class PlaceNearby {
                 if (bs.isAir() || bs.canBeReplaced()) continue;
                 a.aimAtBlock(cell);
                 // Click the support's top face → block lands in `cell`.
-                hands.useBlock(below, Direction.UP);
+                blocks.useBlock(below, Direction.UP);
                 if (lvl.getBlockState(cell).is(expected)) return cell;
                 LOG.info("[{}] placeNearby: click failed cell={} ({}) below={} ({})",
                         logTag, cell, cs, below, bs);

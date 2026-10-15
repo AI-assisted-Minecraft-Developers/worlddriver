@@ -7,7 +7,9 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.game.body.Hands;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.behavior.Intent;
@@ -661,7 +663,7 @@ final class JourneyRamp {
      * this line was measured on the real ladder and nothing could be measured anywhere else: the
      * loop needed a {@link JourneyRig} for four services and only two of them were real. The two
      * that were not are a level and a player, which any scene has; {@code holdItem} and
-     * {@code placeOn} come off the {@link Hands} the rig hands out; and the evidence sink
+     * {@code placeOn} come off the {@link Body} the rig hands out; and the evidence sink
      * is a {@link BiConsumer} the rig satisfies by method reference. What is left in {@link #lay} is
      * walking and recursion — see that method's note for the two lines a scene cannot reach.
      *
@@ -670,7 +672,7 @@ final class JourneyRamp {
      * {@code gameMode.useItemOn}, which has no reach gate on this avatar, so without it a flight
      * could be built through ten blocks of rock and read as one the bot earned.
      */
-    static Pass layWhereItStands(ServerLevel level, ServerPlayer player, Hands av,
+    static Pass layWhereItStands(ServerLevel level, ServerPlayer player, Body av,
                                  Set<BlockPos> corridor, List<BlockPos> flight, int from,
                                  BiConsumer<String, Object> evidence, String tag) {
         return layWhereItStands(level, player, av, corridor, flight, from, evidence, tag, true);
@@ -687,9 +689,11 @@ final class JourneyRamp {
      * It reports {@link Stop#PENDING} instead — <b>without</b> writing a {@code .step.N} row, because
      * the reason it would print is read from the same too-early world. See {@link Stop#PENDING}.
      */
-    static Pass layWhereItStands(ServerLevel level, ServerPlayer player, Hands av,
+    static Pass layWhereItStands(ServerLevel level, ServerPlayer player, Body av,
                                  Set<BlockPos> corridor, List<BlockPos> flight, int from,
                                  BiConsumer<String, Object> evidence, String tag, boolean settled) {
+        Equipment hand = av.equipment().orElseThrow();
+        BlockInteraction blocks = av.blockInteraction().orElseThrow();
         BlockPos body = player.blockPosition();
         int laid = from;
         while (laid < flight.size()) {
@@ -709,12 +713,12 @@ final class JourneyRamp {
                     && !walkedThrough(flight, shoulder)
                     && !bodyIsInTheWay(player, shoulder)
                     && Math.sqrt(body.distSqr(shoulder)) <= JourneyStairs.MEND_REACH
-                    && av.holdItem(Items.COBBLESTONE)) {
-                JourneyStairs.placeInto(level, av, shoulder);
+                    && hand.holdItem(Items.COBBLESTONE)) {
+                JourneyStairs.placeInto(level, blocks, shoulder);
                 if (level.getBlockState(shoulder).blocksMotion()) laid(shoulder);
             }
-            boolean held = av.holdItem(Items.COBBLESTONE);
-            if (held) JourneyStairs.placeInto(level, av, support);
+            boolean held = hand.holdItem(Items.COBBLESTONE);
+            if (held) JourneyStairs.placeInto(level, blocks, support);
             // THE WORLD, not the call — the same discipline the stair mend and the backing mend
             // already run on. `placeOn` reports nothing, and a step that was never laid produces the
             // identical row to one that was.
@@ -806,7 +810,7 @@ final class JourneyRamp {
                             BlockPos landing, boolean alreadyAside, int settledAt, String tag,
                             Runnable then) {
         ServerLevel level = rig.ctx().level();
-        Pass p = layWhereItStands(level, rig.player(), rig.hands(), corridor, flight,
+        Pass p = layWhereItStands(level, rig.player(), rig.avatar(), corridor, flight,
                 from, rig::evidence, tag, false);
         if (p.stop() == Stop.PENDING) {
             // ONE WAIT PER COURSE, not one per pass. Every course places exactly once, so a latch
