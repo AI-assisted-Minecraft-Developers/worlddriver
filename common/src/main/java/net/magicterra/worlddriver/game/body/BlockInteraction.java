@@ -49,9 +49,10 @@ public interface BlockInteraction {
      * The hold for the bookkeeping, the drive for the block. Releasing the hold drops the pending
      * stand-aside too, so vanilla's next pass aborts the break exactly as a released key did.
      *
-     * <p>Server-side players: there {@code breakHold(true)} destroys the block directly and
-     * {@code continueDestroy} is an inherited no-op. That asymmetry is why the client half went
-     * unnoticed for so long — every dig scene in the suite was a {@code wd.server*} scene.
+     * <p>Server-side players: there {@code breakHold(true)} destroys the aimed block directly, and
+     * {@code continueDestroy} on the same cell in the same tick adds nothing. That asymmetry is why
+     * the client half went unnoticed for so long — every dig scene in the suite was a
+     * {@code wd.server*} scene.
      */
     void breakHold(boolean v);
     /** Whether the break action is currently held (debug). */
@@ -78,7 +79,7 @@ public interface BlockInteraction {
 
     /** Advance vanilla block destruction on {@code cell} directly, bypassing the
      *  crosshair raycast (self-starts on first call — AntiSuffocate gap#69
-     *  pattern). No-op on players without a client game mode. */
+     *  pattern). At most once per cell per tick. No-op on a body that cannot break blocks. */
     default void continueDestroy(BlockPos cell) {}
     /** Abandon the break in progress, so its progress is lost; a reflex that drove one with
      *  {@link #continueDestroy} ends it here. */

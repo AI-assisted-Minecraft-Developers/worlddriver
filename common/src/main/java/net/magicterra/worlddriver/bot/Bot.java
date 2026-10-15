@@ -14,11 +14,11 @@ import net.magicterra.worlddriver.bot.behavior.Readiness;
 /**
  * A body and the stack that drives it, addressed by name: what the {@code mc.bot.*} verbs that take
  * {@code body} need from a controlled entity that is not this client's own player, and what
- * {@link BotTicker} advances once per server tick until it reports finished.
+ * {@link BotTicker} advances once per server tick until it is unregistered or its entity is gone.
  *
  * <p>A bot runs one process at a time and the server tick advances it, so every method here is
  * called on the server thread. The client player is not one yet: {@code self} keeps going through
- * {@code BotApi}, with the scheduler, chains and reflexes a bot here does not have.
+ * {@code BotApi}; both run their decisions through a {@link BotBrain}.
  *
  * <p>This was two interfaces, {@code BodyHost} (addressable) and {@code BodyDriver} (ticked), until
  * the layering rework; every implementation was both.
@@ -28,7 +28,8 @@ public interface Bot {
     /** One server tick of driving. */
     Walker.Step tick();
 
-    /** Whether the bot is done; {@link BotTicker} drops it then. */
+    /** Whether the task it was last given has ended. A finished bot stays on {@link BotTicker}'s
+     *  list and keeps ticking. */
     boolean finished();
 
     /**

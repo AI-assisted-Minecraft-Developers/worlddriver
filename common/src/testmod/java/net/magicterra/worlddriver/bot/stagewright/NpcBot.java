@@ -18,10 +18,11 @@ import net.minecraft.world.level.Level;
  * A {@link LivingBody} addressable as {@code npc:<name>}, and its own driver on the server tick: the
  * NPC counterpart of {@link net.magicterra.worlddriver.bot.PlayerBot}.
  *
- * <p>Shaped like that driver on purpose: one process, dropped from {@link BotTicker} when it
- * finishes, registered again by {@link #start}. A difference between the two driven entities on the
- * same route then comes from the entity and not from the bot. Like that driver, a finished bot
- * stops stepping its entity, and a driven mob nobody pumps stands where it stopped.
+ * <p>Shaped like that driver's task contract on purpose: one process, registered again by
+ * {@link #start}. A difference between the two driven entities on the same route then comes from the
+ * entity and not from the bot. Unlike that driver it has no reflexes: a finished bot stays on
+ * {@link BotTicker}'s list but stops stepping its entity, and a driven mob nobody pumps stands where
+ * it stopped.
  *
  * <p>An NPC holds no chunk ticket, so a walk can carry it out of the loaded area. The tick after its
  * chunk unloads, or after it dies, ends the task with the reason {@link #refusal} would have refused

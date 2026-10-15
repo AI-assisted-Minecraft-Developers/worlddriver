@@ -1,13 +1,13 @@
 package net.magicterra.worlddriver.bot;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
-import net.magicterra.worlddriver.bot.ActionTickets;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
-import net.magicterra.worlddriver.bot.arbitration.HeldProcess;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
+import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -16,27 +16,24 @@ import java.util.Map;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 
 /**
- * A joined server player under the bot stack, addressable as {@code player:<name>}: the real
- * {@link Walker} and the per-verb processes steering a
- * {@link ServerPlayerBody} (a headless {@link ServerPlayer}) with no client. Each call to
- * {@link #tick()} advances the Walker (which sets the avatar's impulse/jump via
- * the {@code Body} seam) then runs the manual vanilla physics step. This is
- * exactly the loop the headless arenas validate; {@link BotTicker}
- * wires it to the live {@code ServerTickEvent} so a dedicated server drives the
+ * A joined server player under the bot stack, addressable as {@code player:<name>}: a
+ * {@link BotBrain} — the same scheduler, chains and reflexes the client's own player runs under —
+ * steering a {@link ServerPlayerBody} (a headless {@link ServerPlayer}) with no client. Each call to
+ * {@link #tick()} runs the brain's phases over the body, then the manual vanilla physics step;
+ * {@link BotTicker} wires it to the live {@code ServerTickEvent} so a dedicated server drives the
  * bot with no {@code LocalPlayer}.
  *
- * <p>Capability note: the bot is a {@code ServerPlayer}, so it
- * has full Player capability (place/break/craft/containers). This Phase-2
- * increment wires the MOVEMENT loop end-to-end on the server tick; richer
- * task processes (mine/craft) migrate off the client {@code mc} in later work.
+ * <p>Capability note: the bot is a {@code ServerPlayer}, so it has full Player capability
+ * (place/break/craft/containers).
  *
  * <p>MIGRATION (P1.6 Task 1): moved verbatim from
  * {@code net.magicterra.worlddriver.neoforge.sim.ServerWorldDriver}; the player type is now
  * vanilla {@link ServerPlayer}. It was {@code ServerWorldDriver} until the layering rework, which
  * folded the {@code ServerBodyHost} that made it addressable into it.
  *
- * <p>{@link BotTicker} drops a finished bot, so {@link #start} registers it again, the way every
- * scene that reuses one does.
+ * <p>A bot stays on {@link BotTicker}'s list after its task ends, and its reflexes keep running,
+ * until it is unregistered, its player is removed, or its tick throws. {@link #start} registers it
+ * again in case it was taken off.
  *
  * <p><b>Why the accessors are {@code non-final}.</b> This class is extension surface for other
  * mods. The NeoForge shim of the same simple name, which narrowed {@link #avatar()} and
@@ -66,8 +63,11 @@ public class PlayerBot implements Bot {
      * arrive. See {@link #world()}, which rebuilds when the bot has moved on.
      */
     private volatile LevelWorldView world;
+    /** The walker the bare {@link #gotoGoal}/{@link #mine} tasks drive; processes own their own. */
     private final Walker walker = new Walker("server");
-    private final BotState botState = new BotState();
+    /** Events go nowhere yet: the agent's stream carries no bot id, so a server bot's
+     *  {@code threat.appeared} would read as the client player's. */
+    private final BotBrain brain;
     private volatile Walker.Step last = Walker.Step.WALKING;
     private volatile boolean finished;
     /**
@@ -76,13 +76,11 @@ public class PlayerBot implements Bot {
      * having no goal, so {@link #activeKind()} must not report one.
      */
     private volatile boolean tasked;
-    private volatile BlockPos mineTarget;   // non-null = mine task: navigate near, then break
-    /** Holds a real ({@code Body}-migrated) BotProcess when there is one, and the slots it switched on. */
-    private final HeldProcess held = new HeldProcess(botState);
 
     public PlayerBot(ServerPlayerBody avatar) {
         this.avatar = avatar;
         this.world = new LevelWorldView(avatar.fakePlayer().level(), avatar.fakePlayer());
+        this.brain = new BotBrain((type, pos, data) -> {}, this::world);
     }
 
     /** Put the level's shared player at {@code (x,y,z)} and wrap it in a driver. */
@@ -99,17 +97,13 @@ public class PlayerBot implements Bot {
     /**
      * Point the driver at a goal (re-arms a finished driver).
      *
-     * <p>Dropping the held process is not tidiness — {@link #tick()} tests it FIRST, so a driver
-     * that has ever run a process would silently keep running it and this call would do nothing.
-     * See {@link #mine} for how that was found.
+     * <p>It supersedes whatever process the bot holds. That is not tidiness — a driver that kept
+     * its old process would silently keep running it and this call would do nothing. See
+     * {@link #mine} for how that was found.
      */
     public PlayerBot gotoGoal(Goal goal) {
+        startTask(new WalkerTask("goto", null));
         walker.setGoal(goal);
-        mineTarget = null;
-        held.cancel("superseded by goto");
-        finished = false;
-        tasked = true;
-        last = Walker.Step.WALKING;
         return this;
     }
 
@@ -117,91 +111,66 @@ public class PlayerBot implements Bot {
      * Mine task: navigate within reach of {@code target}, then break it. A real headless task beyond
      * movement — reuses the validated Walker + the {@link ServerPlayerBody} break actuator.
      *
-     * <p>⚠️ Dropping the held process is the fix for a silent no-op. {@link #tick()} branches on
-     * the process before it looks at {@code mineTarget}, and neither this method nor
-     * {@link #gotoGoal} used to clear it — so on a driver that had run any {@link BotProcess},
-     * every later {@code mine}/{@code gotoGoal} was ignored and the OLD process ran again. Nothing
-     * reported an error: the stale process reached its already-satisfied goal, the driver finished,
-     * and the caller saw a mine "complete" with the block still standing. The journey's iron rung
-     * dug a twelve-block shaft that way and the ground never changed
+     * <p>⚠️ Superseding the held process is the fix for a silent no-op. The tick ran the process
+     * before it looked at the mine target, and neither this method nor {@link #gotoGoal} used to
+     * drop it — so on a driver that had run any {@link BotProcess}, every later
+     * {@code mine}/{@code gotoGoal} was ignored and the OLD process ran again. Nothing reported an
+     * error: the stale process reached its already-satisfied goal, the driver finished, and the
+     * caller saw a mine "complete" with the block still standing. The journey's iron rung dug a
+     * twelve-block shaft that way and the ground never changed
      * ({@code shaft.N.broke=grass_block} twelve times over); {@code wd.serverSelfShaftDescends}
      * missed it because a fresh driver mines before it has ever held a process, which is the one
      * ordering where the bug cannot appear.
      */
     public PlayerBot mine(BlockPos target) {
-        this.mineTarget = target.immutable();
+        startTask(new WalkerTask("mine", target.immutable()));
         walker.setGoal(new Goal.Near(target, 2));
-        held.cancel("superseded by mine");
-        finished = false;
-        tasked = true;
-        last = Walker.Step.WALKING;
         return this;
     }
 
-    /** Run a real ({@code Body}-migrated) {@link BotProcess} headless on the server tick.
-     *  This is the Phase-2b process-layer seam: the SAME process the client
-     *  scheduler runs (e.g. {@link net.magicterra.worlddriver.bot.behavior.IntentProcess})
-     *  drives the FakePlayer through its {@code tick(Body,...)} path — no
-     *  bespoke driver logic, no client {@code mc}.
-     *
-     *  <p>Every ending goes through {@link HeldProcess} as the client's goes through
-     *  {@code UserTaskChain}: the outgoing process hears {@code onCancelled} ({@code MineProcess}
-     *  releases its trunk-tax waiver there), and the slots it switched on go inactive. */
+    /** Run a real {@link BotProcess} headless on the server tick: the SAME process the client
+     *  runs (e.g. {@link net.magicterra.worlddriver.bot.behavior.IntentProcess}), held in the
+     *  brain's user task chain, so the reflex chains preempt it as they preempt the client's. */
     public PlayerBot runProcess(BotProcess p) {
         return runProcess(p, null);
     }
 
     /** {@link #runProcess(BotProcess)} carrying out {@code action}, which ends with the process. */
     public PlayerBot runProcess(BotProcess p, ActionHandle action) {
-        held.start(p, ActionTickets.of(action));
-        this.mineTarget = null;
+        brain.startAction(p, action);
         finished = false;
         tasked = true;
         last = Walker.Step.WALKING;
         return this;
     }
 
+    private void startTask(WalkerTask task) {
+        runProcess(task);
+    }
+
     /** Stop the held process if it still carries {@code action}; what a cancel requested off the server thread comes back to. */
     @Override public boolean cancelAction(ActionHandle action, String reason) {
-        if (!held.cancelAction(ActionTickets.of(action), reason)) return false;
-        mineTarget = null;
+        if (!brain.cancelAction(avatar, action, reason)) return false;
         finished = true;
         last = Walker.Step.FAILED;
         return true;
     }
 
-    /** The tick threw: the held process ends with the error, and its action fails. */
+    /** The tick threw: the task ends with the error, and its action fails. */
     @Override public void crashed(Throwable t) {
-        held.crashed(t);
-        mineTarget = null;
+        brain.crashed(avatar, t.getClass().getSimpleName() + ": " + t.getMessage());
         finished = true;
         last = Walker.Step.FAILED;
     }
 
     /**
      * The kind of task the driver is on, or null when it has none or has finished: the held
-     * process's kind, or {@code mine}/{@code goto} for the two bare tasks {@link BotCommand}
-     * sets.
+     * process's kind, {@code mine}/{@code goto} for the two bare tasks {@link BotCommand} sets.
      */
     public String activeKind() {
         if (finished || !tasked) return null;
-        BotProcess p = held.process();
-        return p != null ? p.kind() : mineTarget != null ? "mine" : "goto";
-    }
-
-    /**
-     * Stop the task the way the client's {@code UserTaskChain.cancel} does: the process hears
-     * {@code onCancelled}, and the slots it switched on keep {@code reason} as their error and go
-     * inactive, so a status read tells a cancelled order from a running one. The manager drops the
-     * finished driver on its next tick. False when there was nothing to stop.
-     */
-    private boolean end(String reason) {
-        if (activeKind() == null) return false;
-        held.cancel(reason);
-        mineTarget = null;
-        finished = true;
-        last = Walker.Step.FAILED;
-        return true;
+        BotProcess p = brain.userProcess();
+        return p != null ? p.kind() : null;
     }
 
     /** Address this bot as {@code player:<name>}; set it before registering with {@link BotRegistry}. */
@@ -223,10 +192,18 @@ public class PlayerBot implements Bot {
         BotTicker.register(this);
     }
 
+    /**
+     * Stop the task the way the client's {@code mc.bot.cancel} does: the process hears
+     * {@code onCancelled}, and the slots it switched on keep the reason as their error and go
+     * inactive, so a status read tells a cancelled order from a running one. Null when there was
+     * nothing to stop.
+     */
     @Override public String cancel(String process) {
         String kind = busy() ? activeKind() : null;
         if (kind == null || !("all".equals(process) || kind.equals(process))) return null;
-        end("user-cancel");
+        brain.cancel(avatar, "all".equals(process) ? "all" : kind);
+        finished = true;
+        last = Walker.Step.FAILED;
         return kind;
     }
 
@@ -245,42 +222,73 @@ public class PlayerBot implements Bot {
     public Walker.Step lastStep() { return last; }
     /** The last ending of a process this driver ran, with its own verdict. {@link #lastStep()} says
      *  ARRIVED for any process that stopped by itself, so this is what says whether it did the job. */
-    @Override public Map<String, Object> lastProcessEnd() { return held.lastEnd(); }
+    @Override public Map<String, Object> lastProcessEnd() { return brain.lastProcessEnd(); }
     @Override public boolean finished() { return finished; }
-    @Override public BotState botState() { return botState; }
+    @Override public BotState botState() { return brain.state; }
 
-    /** One server tick of agent driving: the Walker decides, then physics steps.
-     *  For a mine task, once navigation arrives within reach the avatar breaks
-     *  the target (level.destroyBlock — no reach gate) and the task completes. */
+    /**
+     * One server tick: the brain's phases over the body in the client's order — perceive, the
+     * clutch (which owns the tick when it fires), the threat scan over every entity in the bot's
+     * level, then the reflexes and the scheduler — and the physics step. Runs on a finished bot
+     * too: an idle bot still floats when it drowns and steps out of a cactus.
+     */
     public Walker.Step tick() {
-        if (finished) return last;
-        world().signals().clear();
-        BotProcess process = held.process();
-        if (process != null) {                       // real BotProcess over the avatar
-            boolean done = process.tick(avatar, world(), botState);
+        brain.perceive(avatar);
+        if (brain.clutch(avatar)) {
             avatar.step();
-            if (done) { held.finished(); finished = true; last = Walker.Step.ARRIVED; }
-            else { held.ranOn(); last = Walker.Step.WALKING; }
             return last;
         }
-        Walker.Step s = walker.tick(avatar, world());
+        brain.refreshThreats(avatar, avatar.fakePlayer().serverLevel().getAllEntities());
+        brain.act(avatar);
         avatar.step();
-        if (mineTarget != null) {
-            if (!world.isSolid(mineTarget)) {        // already broken (or arrived + broke last tick)
-                finished = true; last = Walker.Step.ARRIVED; return last;
-            }
-            if (s != Walker.Step.WALKING) {          // navigation finished → break it
-                avatar.selectTool(mineTarget);
-                avatar.aimAtBlock(mineTarget);
-                avatar.breakHold(true);
-                if (!world.isSolid(mineTarget)) { finished = true; last = Walker.Step.ARRIVED; }
-                else last = Walker.Step.WALKING;     // keep trying (destroyBlock is instant; guards a stuck nav)
-                return last;
-            }
-            last = s; return last;
+        if (tasked && !finished && brain.userProcess() == null) {
+            finished = true;
+            if (last == Walker.Step.WALKING) last = Walker.Step.ARRIVED;
         }
-        last = s;
-        if (s != Walker.Step.WALKING) finished = true;
         return last;
+    }
+
+    /** {@link #gotoGoal} and {@link #mine} on the bare walker, held as a process so the reflex
+     *  chains preempt it as they preempt any task. Claims no status slot, as the bare tasks never
+     *  did; {@link #lastStep()} carries the walker's own verdict. */
+    private final class WalkerTask implements BotProcess {
+        private final String kind;
+        /** Non-null for a mine: navigate near, then break it. */
+        private final BlockPos target;
+        private String failure;
+
+        WalkerTask(String kind, BlockPos target) {
+            this.kind = kind;
+            this.target = target;
+        }
+
+        @Override public String kind() { return kind; }
+        @Override public void attach(BotState st) {}
+        @Override public String failure() { return failure; }
+        @Override public void onResume() { walker.forceRepath(); }
+
+        @Override public boolean tick(Body a, WorldView w, BotState st) {
+            Walker.Step s = walker.tick(a, w);
+            if (target == null) {
+                last = s;
+                if (s == Walker.Step.WALKING) return false;
+                if (s != Walker.Step.ARRIVED) failure = "walker " + s;
+                return true;
+            }
+            if (!w.isSolid(target)) {            // already broken (or arrived + broke last tick)
+                last = Walker.Step.ARRIVED;
+                return true;
+            }
+            if (s == Walker.Step.WALKING) {
+                last = s;
+                return false;
+            }
+            // Navigation finished → break it (destroyBlock is instant; keep trying guards a stuck nav).
+            avatar.selectTool(target);
+            avatar.aimAtBlock(target);
+            avatar.breakHold(true);
+            last = w.isSolid(target) ? Walker.Step.WALKING : Walker.Step.ARRIVED;
+            return last == Walker.Step.ARRIVED;
+        }
     }
 }

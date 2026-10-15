@@ -3,13 +3,14 @@ package net.magicterra.worlddriver.bot;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import net.magicterra.worlddriver.bot.planning.PathFinder;
+import net.minecraft.world.entity.LivingEntity;
 
 /**
- * Phase 2 registry: the server-tick driver of every active
- * {@link Bot}. The platform calls {@link #tickAll()} once per
- * server tick (from {@code ServerTickEvent.Post}); a driver that has finished
- * (reached/failed) is dropped automatically, and a driver that throws is
- * removed so a single faulty agent can never wedge the whole server tick.
+ * Phase 2 registry: the server-tick driver of every registered {@link Bot}. The platform calls
+ * {@link #tickAll()} once per server tick (from {@code ServerTickEvent.Post}). A bot stays on the
+ * list when its task ends — an idle bot's reflexes keep it alive — and leaves it when it is
+ * {@link #unregister}ed, when its entity has been removed from the world, or when its tick throws,
+ * so a single faulty agent can never wedge the whole server tick.
  *
  * <p>This is the seam that makes agent driving headless: the same Walker loop
  * the arenas exercise now runs autonomously on the dedicated-server tick, with
@@ -33,17 +34,27 @@ public final class BotTicker {
 
     public static void register(Bot d) { ACTIVE.addIfAbsent(d); }
     public static void unregister(Bot d) { ACTIVE.remove(d); }
-    /** Whether {@code d} is still on the tick list; {@link #tickAll} drops a finished driver itself. */
+    /** Whether {@code d} is on the tick list, idle or not. */
     public static boolean isRegistered(Bot d) { return ACTIVE.contains(d); }
-    public static int activeCount() { return ACTIVE.size(); }
+    /** How many registered bots are on a task. An idle bot is ticked but not counted, so a caller
+     *  waiting for the tasks it started reads zero when they have ended. */
+    public static int activeCount() {
+        int n = 0;
+        for (Bot d : ACTIVE) if (d.busy()) n++;
+        return n;
+    }
     public static void clear() { ACTIVE.clear(); }
 
-    /** Advance every registered driver one tick; drop finished/crashed ones. */
+    /** Advance every registered bot one tick; drop the ones whose entity is gone, and the crashed. */
     public static void tickAll() {
         for (Bot d : ACTIVE) {
+            LivingEntity e = d.entity();
+            if (e == null || e.isRemoved()) {
+                ACTIVE.remove(d);
+                continue;
+            }
             try {
                 d.tick();
-                if (d.finished()) ACTIVE.remove(d);
             } catch (Throwable t) {
                 net.magicterra.worlddriver.config.Mod.LOG.error("[BotTicker] driver crashed, removing", t);
                 ACTIVE.remove(d);   // a crashed driver must not wedge the server tick

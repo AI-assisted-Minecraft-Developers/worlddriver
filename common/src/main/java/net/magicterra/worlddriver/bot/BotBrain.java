@@ -420,6 +420,12 @@ public final class BotBrain {
 
     public boolean paused() { return paused; }
 
+    /** The foreground user process, held or suspended, or null when there is none. */
+    public BotProcess userProcess() { return userTask.process(); }
+
+    /** {@code {kind, error}} of the last ending of a process a caller started, or null. */
+    public Map<String, Object> lastProcessEnd() { return userTask.lastEnd(); }
+
     /** Pause or resume the bot; pausing releases what the bot held on {@code body}. */
     public void setPaused(Body body, boolean pause) {
         if (pause && !paused) body.releaseControls();   // an input held at the moment of pausing would stay down
@@ -547,6 +553,18 @@ public final class BotBrain {
         backfillTracker.clear();                      // drop the orphaned backfill queue
         combatChain.suppressAutoFor(BotConfig.respawnGraceTicks);
         respawnGraceLeft = BotConfig.respawnGraceTicks;
+    }
+
+    /** The bot's tick threw outside any process: the task, the fight and every episode end with
+     *  {@code error}, and the actions they carried fail with it. */
+    public void crashed(Body body, String error) {
+        if (combatChain.engaged()) {
+            combatChain.standDown(body, h -> h.fail(error));
+            state.combat.lastError = error;
+            state.combat.active = false;
+        }
+        userTask.cancel(error, h -> h.fail(error));
+        scheduler.cancelAllEpisodes(body, error);
     }
 
     /** The body left its world. Whatever the bot was doing there ends now rather than resuming in

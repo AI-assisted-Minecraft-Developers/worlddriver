@@ -108,6 +108,13 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     public static boolean faithfulBreak = false;
     private BlockPos breakProgPos;
     private float breakProg;
+    /** The cell a break last advanced on and the player tick it did — the pair that keeps
+     *  {@link #continueDestroy} from advancing a cell {@link #breakHold} already advanced this tick,
+     *  which under {@link #faithfulBreak} would dig at double speed. The player's own tick count,
+     *  not the level's: {@link #step()} advances it, and a scene may step a bot many times inside one
+     *  level tick. */
+    private BlockPos advancedCell;
+    private int advancedTick = -1;
 
     public ServerPlayerBody(ServerPlayer fp) {
         this.fp = fp;
@@ -470,30 +477,53 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
 
     @Override public void breakHold(boolean v) {
         breakHeld = v;
-        if (!v || aimTarget == null || fp.level().getBlockState(aimTarget).isAir()) {
+        if (!v || aimTarget == null) {
             breakProgPos = null;
             breakProg = 0f;
             return;
         }
-        if (!canBreakFromHere(aimTarget)) {
+        advanceBreak(aimTarget);
+    }
+
+    /**
+     * The client's drive on an exact cell, which is how a reflex digs out of a block its eyes are
+     * inside (no crosshair can resolve that). Here it advances the same break {@link #breakHold}
+     * does, on {@code cell}, unless {@code breakHold} advanced that cell this tick already — the
+     * processes call both, one after the other, every tick they dig.
+     */
+    @Override public void continueDestroy(BlockPos cell) {
+        if (cell == null || (advancedTick == fp.tickCount && cell.equals(advancedCell))) return;
+        advanceBreak(cell);
+    }
+
+    /** Abandon the break in progress, as vanilla's {@code stopDestroyBlock} does. */
+    @Override public void stopDestroy() {
+        breakProgPos = null;
+        breakProg = 0f;
+    }
+
+    private void advanceBreak(BlockPos cell) {
+        if (fp.level().getBlockState(cell).isAir() || !canBreakFromHere(cell)) {
             breakProgPos = null;
             breakProg = 0f;
             return;
         }
+        advancedCell = cell.immutable();
+        advancedTick = fp.tickCount;
         if (!faithfulBreak) {
-            destroyAimed();
+            destroyAt(cell);
             return;
         }
         // Faithful slow-mine: accumulate the SAME per-tick destroy fraction the live client
         // does. getDestroyProgress folds in block hardness, the held tool/enchants, AND the
         // player-state penalties (÷5 not-on-ground, ÷5 underwater) via Player.getDigSpeed — so
         // a hand-mined stone afloat ticks at ~1/750. breakHold is called once per tick during a
-        // dig, so one call == one tick of progress; reset when the aim moves to a new block.
-        net.minecraft.world.level.block.state.BlockState st = fp.level().getBlockState(aimTarget);
-        if (!aimTarget.equals(breakProgPos)) { breakProgPos = aimTarget; breakProg = 0f; }
-        breakProg += st.getDestroyProgress(fp, fp.level(), aimTarget);
+        // dig, so one call == one tick of progress; reset when the target moves to a new block.
+        net.minecraft.world.level.block.state.BlockState st = fp.level().getBlockState(cell);
+        if (!cell.equals(breakProgPos)) { breakProgPos = cell.immutable(); breakProg = 0f; }
+        breakProg += st.getDestroyProgress(fp, fp.level(), cell);
         if (breakProg >= 1.0f) {
-            destroyAimed();
+            destroyAt(cell);
             breakProgPos = null;
             breakProg = 0f;
         }
@@ -517,8 +547,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      * itself. This line names the cell and the tick so the next run can say WHICH break did it;
      * without it the evidence stops at "the support was gone" and the planner move stays anonymous.
      */
-    private void destroyAimed() {
-        BlockPos target = aimTarget;
+    private void destroyAt(BlockPos target) {
         // Solid as the pathfinder's views read it: the block stops motion.
         Predicate<BlockPos> solid = c -> fp.level().getBlockState(c).blocksMotion();
         double soleBefore = loggedDugOwnFloor ? 0.0 : BodyGeometry.soleOnSolid(solid, fp);

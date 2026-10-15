@@ -53,6 +53,7 @@ mc.bot.<verb>
   └─ BotApi              facade — returns fast, work continues on the tick
       └─ ClientBot       the client's player: client-only work around one brain
           └─ BotBrain    one bot's chains, reflexes, threat scan, world model, clutch
+                         (a server PlayerBot holds one too, ticked by BotTicker)
               └─ ProcessScheduler   one movement channel, chains bid per tick
               └─ Chain          a policy: how badly it wants the channel this tick
                   └─ BotProcess one verb's behaviour, ticked
@@ -225,7 +226,9 @@ player list, with a connection that goes nowhere.
 
 A `Bot` is a body and the stack that drives it, addressed by name: `PlayerBot` over a
 joined server player, and in the test content `NpcBot` over a driven mob. `BotTicker`
-advances every registered bot once per server tick and drops it when it finishes, and
+advances every registered bot once per server tick. A bot whose task has ended stays on the
+list, idle, so its reflexes keep running; it leaves when it is unregistered, when its entity is
+removed, or when its tick throws. `BotTicker.activeCount()` counts only the bots on a task.
 `BotRegistry` holds the bots the API can address besides the client's own player. Whoever
 creates a bot registers it: `/worlddriver server spawn <name>` (`BotCommand`) registers
 `player:<name>`, the test content registers `npc:<name>`, and a third-party mod registers
@@ -240,9 +243,10 @@ The `mc.bot.*` verbs that drive a bot take a `body` parameter; `equip`, `setting
 judged on the entity. A process verb's parameters are read by `bot/VerbOrders`, the same
 builder `BotBrain` uses for `self`, so the two cannot read one order differently. The hand
 verbs are `application/BodyInteractions`, which does on the server what a client click's
-packets would have done there, reach check included. A server bot runs one process on the
-server tick with no scheduler, chains or reflexes; `self` keeps all three and is not yet a
-`Bot`. `BodyRoutes`, `BodyInteractions` and `VerbOrders` must not name a client class — on a
+packets would have done there, reach check included. A `PlayerBot` runs its own `BotBrain`
+on the server tick — the scheduler, the chains and the reflexes `self` has, with the same
+defaults — and `self` is not yet a `Bot`. A server bot's brain sends no events yet: the agent's
+event stream carries no bot id, so one would read as the client player's. `BodyRoutes`, `BodyInteractions` and `VerbOrders` must not name a client class — on a
 dedicated server they are the only `mc.bot.*` code that runs.
 
 How faithfully a server-side player reproduces a real player, and every known divergence, is

@@ -77,7 +77,8 @@ import net.minecraft.world.phys.Vec3;
  * {@code gtOnlySkips(...)} → deleted. The real {@code IntentProcess}/{@code MineProcess}/
  * {@code RunAwayProcess}/{@code BuildProcess}/{@code FollowProcess}/{@code CombatProcess}/
  * {@code LookProcess}/{@code BridgeProcess} tasks and the bespoke driver/gotoGoal tasks run over the
- * bounded {@code BotTicker.register}+{@code tickAll()} loop (finish auto-unregisters).
+ * bounded {@code BotTicker.register}+{@code tickAll()} loop ({@code activeCount()} falls to zero when
+ * the task ends; the idle bot stays registered).
  *
  * <p><b>⚡ The three re-entrant {@code level.tick()} mines.</b> The legacy
  * {@code serverForbidDigWallArena} / {@code serverFollowArena} / {@code serverCombatArena} each ran a
@@ -356,7 +357,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), reached);
         if (!driver.finished() || BotTicker.activeCount() != 0)
-            ctx.fail("server driver did not finish + auto-unregister: finished="
+            ctx.fail("server driver did not finish and go idle: finished="
                     + driver.finished() + " active=" + BotTicker.activeCount());
         if (!reached)
             ctx.fail("server-driven agent did not reach the goal: pos=("

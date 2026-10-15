@@ -297,7 +297,7 @@ public final class FixtureRunner {
             fp.getInventory().clearContent();
             ctx.cleanup(() -> BotTicker.unregister(driver));
             return new Helm() {
-                // The manager drops a finished driver, so every task registers again.
+                // Registering again is a no-op unless the cleanup or a crash took the driver off.
                 @Override public void start(BotProcess p) { driver.runProcess(p); BotTicker.register(driver); }
                 @Override public boolean busy() { return !driver.finished(); }
                 @Override public LivingEntity entity() { return fp; }
