@@ -14,6 +14,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 
 /**
@@ -530,6 +532,12 @@ public final class JourneyLandingScenes implements SceneProvider {
     private static void bankedPondScoop(SceneContext ctx, boolean farSeat) {
         ServerLevel level = ctx.level();
         ctx.cleanup(() -> clearBox(ctx));
+        // The ladder this guards walks on the shipped walker, which holds the last node until the
+        // foot stands in it. The arena baseline spends it from the air, mid-way up the bank, and an
+        // idle bot that lets go of its keys there drops back into the cell it was leaving.
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ControlConfig.walkerHoldLastNodeUntilStanding = true;
         flatGround(ctx);
 
         // The seat, one below the surface. The bank is the untouched stone at dx=-1.
