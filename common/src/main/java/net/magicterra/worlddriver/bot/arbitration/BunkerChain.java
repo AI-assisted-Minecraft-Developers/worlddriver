@@ -5,19 +5,12 @@ import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.game.body.ClientIntents;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.BunkerProcess;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.minecraft.core.BlockPos;
-
-import static net.magicterra.worlddriver.game.body.BotInteract.aimAtBlockSnap;
-import static net.magicterra.worlddriver.game.body.BotInteract.continueDestroy;
-import static net.magicterra.worlddriver.game.body.BotInteract.ensureHoldingPlaceableAny;
-import static net.magicterra.worlddriver.game.body.BotInteract.releaseKeys;
-import static net.magicterra.worlddriver.game.body.BotInteract.selectBestToolFor;
-import static net.magicterra.worlddriver.game.body.BotInteract.walkerPlace;
+import net.minecraft.world.entity.LivingEntity;
 
 /**
  * Emergency "dig three, fill one" bunker reflex. When the bot is CORNERED — HP at/below
@@ -54,14 +47,16 @@ public final class BunkerChain implements Chain {
     @Override public String name() { return "bunker"; }
 
     @Override public float priority(Body body, WorldView w, BotState st) {
-        Minecraft mc = Chain.clientOf(body);
-        if (!ArbitrationConfig.autoBunker || mc.player == null) return 0f;
+        LivingEntity p = body == null ? null : body.entity();
+        // A body that cannot dig and place has no bunker to make.
+        if (!ArbitrationConfig.autoBunker || p == null
+                || body.blockInteraction().isEmpty() || body.equipment().isEmpty()) return 0f;
         int near = surroundCount(st.threats.current());
         // Self-heal on displacement/respawn even when NOT winning the bid: the old check
         // lived in tick(), which only runs while this chain holds the channel — a stale
         // sealed episode from before a death could bid 300 forever (gap#68-⑦).
-        if (a.active() && mc.player != null) {
-            BlockPos f = mc.player.blockPosition();
+        if (a.active()) {
+            BlockPos f = p.blockPosition();
             if (a.displacedFrom(f.getX(), f.getY(), f.getZ())) a.reset();
         }
         if (a.sealed) {
@@ -74,7 +69,7 @@ public final class BunkerChain implements Chain {
         // needs to hold, so it never took the channel (observed live: bot beaten
         // to death with bunker priority stuck at 0). The tick() handles a
         // non-grounded start gracefully (waits to settle before digging).
-        boolean cornered = mc.player.getHealth() <= ArbitrationConfig.bunkerHpThreshold
+        boolean cornered = p.getHealth() <= ArbitrationConfig.bunkerHpThreshold
                 && near >= ArbitrationConfig.bunkerMinHostiles;
         // death#26 (07-20 live): a ranged attacker (skeleton) pins a low-HP bot in
         // the OPEN — controlled-live proof: a 6-HP naked bot fled continuously for
@@ -86,8 +81,8 @@ public final class BunkerChain implements Chain {
         // bunkerTriggerRadius. The !sealed guard stops the gap#29 re-dig ratchet once
         // the pocket is capped (near=0 for a range-13 shooter would otherwise reset
         // the sealed latch and re-trigger a deeper dig every tick attackedMe holds).
-        boolean sealed = BunkerProcess.enclosed(w, mc.player.blockPosition());
-        boolean rangedPinned = shouldRangedBunker(mc.player.getHealth(),
+        boolean sealed = BunkerProcess.enclosed(w, p.blockPosition());
+        boolean rangedPinned = shouldRangedBunker(p.getHealth(),
                 ArbitrationConfig.retreatHpThreshold, st.threats.current(), sealed);
         return (cornered || rangedPinned) ? Priorities.BUNKER : 0f;
     }
@@ -108,9 +103,10 @@ public final class BunkerChain implements Chain {
     }
 
     @Override public void tick(Body body, WorldView w, BotState st) {
-        Minecraft mc = Chain.clientOf(body);
-        LocalPlayer p = mc.player;
-        if (p == null) return;
+        LivingEntity p = body.entity();
+        BlockInteraction blocks = body.blockInteraction().orElse(null);
+        Equipment hands = body.equipment().orElse(null);
+        if (p == null || blocks == null || hands == null) return;
         BlockPos foot = p.blockPosition();
         // Stale-episode guard (survival-run death#2 aftermath): the bot could die
         // mid-dig at HP≤10 and respawn at full HP tens of blocks away; the old code
@@ -122,12 +118,12 @@ public final class BunkerChain implements Chain {
         // reset-on-every-preempt in onInterrupt, was the gap#29 downward ratchet that
         // marched a 3.8-HP bot from y-5 to y-15. See {@link BunkerAnchor}.
         if (a.displacedFrom(foot.getX(), foot.getY(), foot.getZ())) {
-            releaseKeys();
+            body.releaseControls();
             a.reset();
         }
         a.beginIfIdle(foot.getX(), foot.getY(), foot.getZ());
 
-        if (a.sealed) { releaseKeys(); return; }      // safe pocket — sit tight
+        if (a.sealed) { body.releaseControls(); return; }      // safe pocket — sit tight
 
         int depth = a.depth(foot.getY());
         a.noteDepth(depth);                           // descended a level → reset per-block watchdog
@@ -140,34 +136,32 @@ public final class BunkerChain implements Chain {
             // combat take over instead.
             String unsafe = unsafeDigSite(w, foot);
             if (unsafe != null) {
-                giveUp(unsafe);
+                giveUp(blocks, unsafe);
                 return;
             }
             if (!w.isSolid(below)) { return; }        // already open (still falling) — settle a tick
-            selectBestToolFor(mc, below);
-            aimAtBlockSnap(p, below);
-            ClientIntents.holdDig(true);
-            // Through BotInteract, not inline: naming MultiPlayerGameMode here puts a client class
-            // in this chain's own bytecode, and this chain is constructed on a dedicated server by
-            // the gate's matrix scenes. See BotInteract#continueDestroy — the drive is what breaks
-            // the block, and it also makes vanilla's attack pass stand aside (ClientIntents).
-            continueDestroy(mc, p, below);
-            if (++a.digTicks > ControlConfig.breakTimeoutTicks) giveUp("unbreakable");   // bedrock and the like
+            hands.selectTool(below);
+            body.aimAtBlock(below);
+            blocks.breakHold(true);
+            // The drive is what breaks the block on the exact cell, and on the client it also makes
+            // vanilla's attack pass stand aside.
+            blocks.continueDestroy(below);
+            if (++a.digTicks > ControlConfig.breakTimeoutTicks) giveUp(blocks, "unbreakable");   // bedrock and the like
             return;
         }
 
         // --- deep enough: seal the roof (the cell just above the head) ---
-        ClientIntents.holdDig(false);
+        blocks.breakHold(false);
         BlockPos ceiling = foot.offset(0, 2, 0);
-        if (w.isSolid(ceiling)) { a.sealed = true; releaseKeys(); return; }
-        if (ensureHoldingPlaceableAny(mc)) {
-            aimAtBlockSnap(p, ceiling);
-            walkerPlace(mc, p, w::isSolid, ceiling);
+        if (w.isSolid(ceiling)) { a.sealed = true; body.releaseControls(); return; }
+        if (hands.holdPlaceable()) {
+            body.aimAtBlock(ceiling);
+            blocks.place(w::isSolid, ceiling);
         } else {
             // Nothing placeable (e.g. hand-mined stone dropped nothing). The deep
             // hole still buys time; stop churning and hold.
             a.sealed = true;
-            releaseKeys();
+            body.releaseControls();
         }
     }
 
@@ -183,22 +177,22 @@ public final class BunkerChain implements Chain {
     /** Give the site up and leave the bid. {@link #priority} reads only health and hostiles, which
      *  a bad site does not change, so without the bail it re-bids 300 next tick and retreat (100)
      *  and combat (60) never get control of the bot. */
-    void giveUp(String reason) {
-        ClientIntents.holdDig(false);
+    void giveUp(BlockInteraction blocks, String reason) {
+        if (blocks != null) blocks.breakHold(false);
         a.reset();
         if (scheduler != null) scheduler.bail(this, reason, BAIL_COOLDOWN_TICKS);
     }
 
     @Override public void registeredWith(ProcessScheduler s) { scheduler = s; }
 
-    @Override public void onInterrupt(Chain by) {
+    @Override public void onInterrupt(Body body, Chain by) {
         // Release the movement channel but PRESERVE the episode (startY + sealed). The
         // old reset() here re-anchored startY to the current, lower foot Y on the next
         // tick — under a flickering swarm (dodge/combat trading the channel every few
         // ticks) that ratcheted the bot arbitrarily deep (gap#29). A genuine relocation
         // is caught by displacedFrom() on the resuming tick; a plain preemption must
         // resume the SAME pocket, not dig a fresh one.
-        releaseKeys();
+        if (body != null) body.releaseControls();
         a.onPreempt();
     }
 
@@ -209,11 +203,9 @@ public final class BunkerChain implements Chain {
         return a.active() ? "DIGGING" : null;
     }
 
-    @Override public void cancelEpisode(String reason) {
+    @Override public void cancelEpisode(Body body, String reason) {
         resetEpisodeState();
-        // Client-only key release — split from the state reset so the state semantics
-        // stay testable on the dedicated GameTest server (no client classes there).
-        releaseKeys();
+        if (body != null) body.releaseControls();
     }
 
     /** Pure episode-state reset (server-safe, matrix-testable). Public (not merely

@@ -1,16 +1,12 @@
 package net.magicterra.worlddriver.bot.arbitration;
 
-import net.magicterra.worlddriver.game.body.ClientPlayerBody;
-
 import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
 import net.magicterra.worlddriver.bot.world.WorldView;
-import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
-
-import static net.magicterra.worlddriver.game.body.BotInteract.releaseKeys;
 
 /**
  * Phase B reflex — an arrow/trident/fireball is predicted to hit, so strafe
@@ -24,16 +20,16 @@ public final class DodgeChain implements Chain {
     @Override public String name() { return "dodge"; }
 
     @Override public float priority(Body body, WorldView w, BotState st) {
-        Minecraft mc = Chain.clientOf(body);
-        if (!ArbitrationConfig.autoDodge || mc.player == null) return 0f;
-        return imminent(mc, st) != null ? Priorities.DODGE : 0f;
+        LivingEntity p = body == null ? null : body.entity();
+        if (!ArbitrationConfig.autoDodge || p == null) return 0f;
+        return imminent(p, st) != null ? Priorities.DODGE : 0f;
     }
 
     @Override public void tick(Body body, WorldView w, BotState st) {
-        Minecraft mc = Chain.clientOf(body);
-        ThreatScanner.Incoming in = imminent(mc, st);
-        if (in == null || mc.player == null) return;
-        var p = mc.player;
+        LivingEntity p = body.entity();
+        if (p == null) return;
+        ThreatScanner.Incoming in = imminent(p, st);
+        if (in == null) return;
         // Perpendicular to the projectile's horizontal velocity (rotate 90° in XZ).
         Vec3 v = in.vel();
         double px = -v.z, pz = v.x;
@@ -42,19 +38,17 @@ public final class DodgeChain implements Chain {
             p.setYRot((float) (Math.toDegrees(Math.atan2(pz, px)) - 90.0));
             p.setXRot(0f);
         }
-        ClientPlayerBody a = new ClientPlayerBody(mc);
-        a.commandForward(1f);
-        a.commandSprint(true);
+        body.commandForward(1f);
+        body.commandSprint(true);
     }
 
-    @Override public void onInterrupt(Chain by) { releaseKeys(); }
+    @Override public void onInterrupt(Body body, Chain by) { if (body != null) body.releaseControls(); }
     @Override public void onResume() {}
 
     /** The soonest projectile predicted to hit, within the dodge radius. */
-    private ThreatScanner.Incoming imminent(Minecraft mc, BotState st) {
+    private ThreatScanner.Incoming imminent(LivingEntity p, BotState st) {
         ThreatScanner.Scan scan = st.threats.current();
-        if (mc.player == null) return null;
-        Vec3 me = mc.player.position();
+        Vec3 me = p.position();
         ThreatScanner.Incoming best = null;
         int bestT = Integer.MAX_VALUE;
         for (ThreatScanner.Incoming in : scan.projectiles()) {

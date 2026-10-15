@@ -12,26 +12,19 @@ import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.behavior.reflex.DrownEscapeGate;
-import net.magicterra.worlddriver.game.body.ClientPlayerBody;
-import net.magicterra.worlddriver.game.body.ClientIntents;
-import net.magicterra.worlddriver.bot.control.WalkerGeometry;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.BodyGeometry;
 import net.magicterra.worlddriver.bot.world.WorldView;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.game.body.BotInteract.aimAtBlockSnap;
-import static net.magicterra.worlddriver.game.body.BotInteract.continueDestroy;
-import static net.magicterra.worlddriver.game.body.BotInteract.drownVerticalRow;
-import static net.magicterra.worlddriver.game.body.BotInteract.riseBlockedCell;
-import static net.magicterra.worlddriver.game.body.BotInteract.selectBestToolFor;
 
 /**
  * ACTIVE-process drowning-escape reflex (gap#76, live death #25). A mine
@@ -53,7 +46,7 @@ import static net.magicterra.worlddriver.game.body.BotInteract.selectBestToolFor
  * zero horizontal input, zero turning (the same idle-passivity boundary gap#70
  * drew: a survival float is a reflex, not autonomous movement). If something is
  * in the way of the rise — asked by sweeping the player's own box up, see
- * {@code BotInteract#riseBlockedCell}, NOT by naming one cell above one column — break it,
+ * {@link #blockedAbove}, NOT by naming one cell above one column — break it,
  * {@code allowBreak} permitting, in the {@link BunkerChain} aim+attack style
  * ({@code AntiSuffocate} owns the eye-cell case; the lid here is above it).
  *
@@ -99,13 +92,12 @@ public final class DrownEscapeChain implements Chain {
     /** Air supply seen on the previous evaluation, for the head-out-and-
      *  recovering release condition. Sentinel -1 = no previous reading. */
     private int prevAir = -1;
-    /** True while OUR tick() is holding client keys, so interrupt/cancel release
-     *  exactly our hold and the release path never touches client classes on a
-     *  dedicated server (where tick(mc=null) never actuates). */
+    /** True while OUR tick() is holding the body's jump or dig, so interrupt/cancel release
+     *  exactly our hold. */
     private boolean keysHeld;
     /** Throttle counter for the capped-lateral-escape debug line. */
     private int dbg;
-    /** Throttle counter for {@code BotInteract#drownVerticalRow}. Deliberately NOT shared with {@link #dbg}: one
+    /** Throttle counter for {@link #verticalRow}. Deliberately NOT shared with {@link #dbg}: one
      *  counter across two mutually-exclusive arms lets a run of lateral ticks advance the vertical
      *  arm's phase, so the vertical rows would land on an arbitrary subset of ticks instead of
      *  every tenth of its own. Two arms, two clocks. */
@@ -130,16 +122,15 @@ public final class DrownEscapeChain implements Chain {
     @Override public String name() { return NAME; }
 
     @Override public float priority(Body body, WorldView w, BotState st) {
-        Minecraft mc = Chain.clientOf(body);
         if (underwaterForTest != null && airForTest != null) {
             return updateLatch(underwaterForTest.getAsBoolean(), airForTest.getAsInt())
                     ? Priorities.DROWN_ESCAPE : 0f;
         }
-        if (mc == null || mc.player == null || !mc.player.isAlive()) {
+        LivingEntity p = body == null ? null : body.entity();
+        if (p == null || !p.isAlive()) {
             resetEpisodeState();
             return 0f;
         }
-        LocalPlayer p = mc.player;
         return updateLatch(p.isUnderWater(), p.getAirSupply()) ? Priorities.DROWN_ESCAPE : 0f;
     }
 
@@ -162,10 +153,9 @@ public final class DrownEscapeChain implements Chain {
     }
 
     @Override public void tick(Body body, WorldView w, BotState st) {
-        Minecraft mc = Chain.clientOf(body);
-        if (mc == null) return;                     // headless arena: decision-layer only
-        LocalPlayer p = mc.player;
-        if (p == null) return;
+        LivingEntity p = body == null ? null : body.entity();
+        if (p == null) return;                      // headless arena: decision-layer only
+        BlockInteraction blocks = body.blockInteraction().orElse(null);
         // OVERHANG LATERAL ESCAPE (live death #27, 2026-07-21 flooded Mountains
         // channel). Pure-vertical float assumes "up = air". When the bot is under a
         // SOLID cap — an undercut cliff shelf, where the lake tunnels beneath several
@@ -195,15 +185,14 @@ public final class DrownEscapeChain implements Chain {
             if (dir != null) {
                 float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], (double) dir[1]));
                 p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(0f);
-                ClientPlayerBody a = new ClientPlayerBody(mc);
-                a.commandJump(true);                // stay buoyant crossing under the lid
+                body.commandJump(true);             // stay buoyant crossing under the lid
                 // Raw camera-frame forward: the yaw was just set at the open column, so "along
                 // the player" IS "toward open water". commandForward also forces leftImpulse to 0,
                 // which is what the keyDown/keyLeft/keyRight clears were for.
-                a.commandForward(1f);               // swim toward open water
-                a.commandSprint(false);
-                a.commandSneak(false);
-                ClientIntents.holdDig(false);
+                body.commandForward(1f);            // swim toward open water
+                body.commandSprint(false);
+                body.commandSneak(false);
+                if (blocks != null) blocks.breakHold(false);
                 keysHeld = true;
                 // UNCONDITIONAL, throttled — deliberately the same gate its vertical sibling
                 // (`dbgV++ % 10 == 0`, no flag) has always had. This row used to be behind
@@ -247,10 +236,9 @@ public final class DrownEscapeChain implements Chain {
         // do, never zeroed anything while a process was running: AvatarInput.tick overwrites
         // the impulses after vanilla's key pass, so the keys were the one input nobody read.
         // That is the same failure this class's own doc describes AutoSwim losing to.
-        ClientPlayerBody a = new ClientPlayerBody(mc);
-        a.commandJump(true);
-        a.commandSprint(false);
-        a.commandSneak(false);                      // a held sneak SINKS the bot (aiStep sink)
+        body.commandJump(true);
+        body.commandSprint(false);
+        body.commandSneak(false);                   // a held sneak SINKS the bot (aiStep sink)
         keysHeld = true;
         // Sealed lid: whatever stops the rise, break it (allowBreak permitting). The eye cell
         // itself is AntiSuffocate's job; this is above it.
@@ -263,7 +251,7 @@ public final class DrownEscapeChain implements Chain {
         // wd.drownEscapeClientPinnedByNeighbourColumn: jumpReadBack=true hitCeiling=true lidBlocks=false
         // — the command landed, physics said blocked, the scan said clear — 200 ticks, 0.000 blocks.
         // The live death it reproduces spent 261 ticks the same way.
-        BlockPos lid = riseBlockedCell(mc, p, RISE_PROBE);
+        BlockPos lid = blockedAbove(p);
         boolean lidBlocksRise = lid != null;
         boolean breaking = false;
         // RECENTRE, before reaching for a pick. When the rise is blocked but the bot's OWN column
@@ -278,24 +266,22 @@ public final class DrownEscapeChain implements Chain {
             double off = Math.sqrt((cx - p.getX()) * (cx - p.getX()) + (cz - p.getZ()) * (cz - p.getZ()));
             // Eased by the remaining offset: a full press across 0.2 blocks of water carries the
             // bot to the OPPOSITE boundary, trading one pinning neighbour for the other one.
-            a.commandToward(cx, cz, (float) Math.min(1.0, off * 5.0));
+            body.commandToward(cx, cz, (float) Math.min(1.0, off * 5.0));
         } else {
-            a.commandMove(0f, 0f);
+            body.commandMove(0f, 0f);
         }
-        if (WorldConfig.allowBreak && lidBlocksRise
-                && mc.level.getBlockState(lid).getDestroySpeed(mc.level, lid) >= 0f) {
-            selectBestToolFor(mc, lid);
-            aimAtBlockSnap(p, lid);
-            ClientIntents.holdDig(true);
-            // Through BotInteract, not inline: naming MultiPlayerGameMode here puts a client class
-            // in this chain's own bytecode, and this chain is constructed on a dedicated server by
-            // the gate's matrix scenes. See BotInteract#continueDestroy — the drive is what breaks
-            // the lid, and it also makes vanilla's attack pass stand aside (ClientIntents). A
-            // drowning bot under a lid has one breath, and a break that never starts spends all of it.
-            continueDestroy(mc, p, lid);
+        if (WorldConfig.allowBreak && lidBlocksRise && blocks != null
+                && p.level().getBlockState(lid).getDestroySpeed(p.level(), lid) >= 0f) {
+            body.equipment().ifPresent(h -> h.selectTool(lid));
+            body.aimAtBlock(lid);
+            blocks.breakHold(true);
+            // The drive is what breaks the lid on the exact cell, and on the client it also makes
+            // vanilla's attack pass stand aside. A drowning bot under a lid has one breath, and a
+            // break that never starts spends all of it.
+            blocks.continueDestroy(lid);
             breaking = true;
         }
-        if (!breaking) ClientIntents.holdDig(false);
+        if (!breaking && blocks != null) blocks.breakHold(false);
         // STAND UP TO DIG. Vanilla's Player#getDestroySpeed divides the rate by 5 when the player is
         // off the ground and by 5 AGAIN when its eyes are in water, and this arm was paying both:
         // the jump above is held every tick, so the player hovers instead of resting on whatever it
@@ -317,14 +303,14 @@ public final class DrownEscapeChain implements Chain {
         // GUARDED BY THE FLOOR, and the guard is geometry rather than caution. `RISE_PROBE` is 0.5
         // and it lifts the player's OWN box: feet at y, box top y+1.8, probe reaching y+2.3 — so in a
         // two-tall pocket a GROUNDED player still finds the lid, and the release costs nothing. In a
-        // deeper pocket the player would sink away from the lid, `riseBlockedCell` would return null,
+        // deeper pocket the player would sink away from the lid, `blockedAbove` would return null,
         // the jump would go straight back on, and the pair would oscillate with the break progress
         // reset every cycle. Asking whether the cell under the feet can be stood on separates the
         // pocket this helps from the pocket it would wreck.
         if (breaking && w != null) {
             BlockPos below = new BlockPos(Mth.floor(p.getX()), Mth.floor(p.getY()) - 1,
                     Mth.floor(p.getZ()));
-            if (!cellOpen(w, below)) a.commandJump(false);
+            if (!cellOpen(w, below)) body.commandJump(false);
         }
         // UNCONDITIONAL, not gated on walkerDebug: gates do not run with walkerDebug on. On
         // stagewrightIntegratedServerNeoforge both armed arms of the drown scenes reported a net rise
@@ -335,11 +321,7 @@ public final class DrownEscapeChain implements Chain {
         // apart from "the arm never ran".
         // Same lesson, same day, as BotInteract's [place] row. The %10 throttle stays: this arm
         // only ticks while the bot is actually drowning, so the volume is an episode, not a stream.
-        // Through BotInteract for the same reason continueDestroy above goes through it: the row
-        // reads p.input, which only LocalPlayer has, and a method DECLARED here with LocalPlayer in
-        // its descriptor stops this class loading on a dedicated server. An invokestatic resolves
-        // its owner, not its owner's dependencies. See blockedAbove's note for what that cost.
-        if (dbgV++ % 10 == 0) drownVerticalRow(mc, p, lid, lidBlocksRise, breaking);
+        if (dbgV++ % 10 == 0) verticalRow(body, p, lid, lidBlocksRise, breaking);
     }
 
     /** How far up the bot's own box is swept to ask "will this rise hit something". Half a block: far
@@ -356,7 +338,7 @@ public final class DrownEscapeChain implements Chain {
      * column, a slab, a stair, a lily pad and a mangrove root alike, because it asks the same
      * geometry vanilla's own collision does rather than re-deriving it from one {@code BlockPos}.
      *
-     * <p><b>The repo already knew this.</b> {@link WalkerGeometry#pillarRiseBlockers} was written
+     * <p><b>The repo already knew this.</b> {@link BodyGeometry#pillarRiseBlockers} was written
      * from the same 0.6-width measurement in 2026-08-19 for {@code TowerProcess}, and this arm
      * re-derived it — so this now delegates instead. Do not re-inline it: that helper's shape test
      * is {@code Shapes.joinIsNotEmpty}, which is exact where a {@code bounds()} test over-reports
@@ -365,30 +347,18 @@ public final class DrownEscapeChain implements Chain {
      * <p>The list comes back lowest-first and the lowest is what this arm wants: that is the face
      * actually bearing on the player.
      *
-     * <p><b>METHOD BODY IN {@code BotInteract#riseBlockedCell}, and it must stay there.</b> The
-     * scan takes a {@code Player}; this arm has a {@code LocalPlayer}. Handing one to the other is
-     * a WIDENING, and a widening is what forces the verifier to LOAD {@code LocalPlayer} to prove
-     * the subtype relation — which a dedicated server cannot do, and the gate's matrix scenes construct this
-     * chain on one. Keeping the widening inside a client-only class costs nothing: an
-     * {@code invokestatic} resolves its owner, and that owner is never loaded on a server because
-     * {@code tick} returns at {@code mc == null} first.
-     *
-     * <p><b>Two wrong explanations were committed here first; both are retracted.</b> It is not
-     * "the descriptor names a client class" (this class named {@code LocalPlayer} in descriptors
-     * long before, and passed) and not "it calls into a client type" ({@code KeyMapping.setDown},
-     * {@code ClientLevel.getBlockState}, {@code Minecraft.getInstance} and a {@code yHeadRot} write
-     * were all here in the last green revision). Comparing {@code javap} output and git history
-     * cleared every suspect and found nothing, because the cause was in none of them. What settled
-     * it in seconds was one STACK — the scene's three matrices fenced separately so the throwable
-     * could be printed. The lesson is the method, not just the answer: when a message names a
-     * missing CLASS it is telling you what could not load, never who asked.
+     * <p>This used to live in {@code BotInteract}, because the arm held the client's
+     * {@code LocalPlayer} and handing it to the scan's wider parameter made the verifier load that
+     * class on a dedicated server. The chain now holds only the body's own entity type, so there is
+     * no client type here to widen.
      */
-    // (method body moved — see above)
+    private static BlockPos blockedAbove(LivingEntity p) {
+        List<BlockPos> hits = BodyGeometry.riseBlockers(p, RISE_PROBE);
+        return hits.isEmpty() ? null : hits.get(0);
+    }
 
-    /*
-     * The execution-layer row for the pure-vertical arm — METHOD BODY IN BotInteract#drownVerticalRow.
-     * Deliberately a plain comment, not javadoc: there is no member here to attach it to, and a
-     * javadoc block with nothing under it silently documents whatever comes next.
+    /**
+     * The execution-layer row for the pure-vertical arm.
      *
      * <p>Before this existed the arm printed <b>nothing</b> per tick, and the lid-break sub-arm
      * printed nothing ever. The log it left behind therefore could not tell apart the three ways a
@@ -400,9 +370,9 @@ public final class DrownEscapeChain implements Chain {
      *
      * <p>Every field separates exactly one candidate, so none of them is decoration:
      * <ul>
-     *   <li>{@code jumpReadBack} is read back off the player's own {@code Input}, i.e. what
-     *       {@link net.magicterra.worlddriver.game.body.AvatarInput#tick} actually left there on
-     *       the previous tick — <b>not</b> what this class asked for. The command channel is
+     *   <li>{@code jumpReadBack} is read back off the body's own input ({@link Body#dbgJumping()}),
+     *       i.e. what the client's {@code AvatarInput#tick} actually left there on the previous
+     *       tick — <b>not</b> what this class asked for. The command channel is
      *       last-writer-wins and heavily contended, so "we commanded it" is not the same claim.
      *       This said "nine callers", which is {@code AutoSwim}'s count ALONE — one file measured
      *       and reported as the whole. A repo-wide {@code grep -rn "commandJump(" common/src/main}
@@ -412,7 +382,8 @@ public final class DrownEscapeChain implements Chain {
      *       ~36 writes across 14 behaviour classes. The argument survives either way (more
      *       contention, not less); the NUMBER is what a reader would use to bound a race audit,
      *       and it has already drifted once since being corrected here, so re-run the grep. ⚠️ The
-     *       identical wrong nine also sat in {@code BotInteract} — two copies from one memory,
+     *       identical wrong nine also sat in the client-side copy of this row that has since been
+     *       folded in here — two copies from one memory,
      *       which is why the fix is a derivation rather than a better number.</li>
      *   <li>{@code hitCeiling} ({@code verticalCollision}) is the one-row proof of "buoyancy IS
      *       applying and something is in the way" — the state every column scan in this class is
@@ -425,23 +396,52 @@ public final class DrownEscapeChain implements Chain {
      *   <li>{@code breakingLid} makes the break arm visible at all.</li>
      * </ul>
      *
-     * <p><b>The method body lives in {@code BotInteract#drownVerticalRow}, not here.</b> It reads
-     * {@code p.input}, which only {@code LocalPlayer} has, and a method DECLARED in this class with
-     * {@code LocalPlayer} in its descriptor stops the class loading on a dedicated server — see
-     * {@link #blockedAbove} for the measurement that established it.
+     * <p>Unconditional by design: gates never set {@code walkerDebug}, so a flag here would mean no
+     * rows in exactly the runs that need them. The {@code %10} throttle lives at the call site.
      */
+    private static void verticalRow(Body body, LivingEntity p, BlockPos lid,
+                                    boolean lidBlocksRise, boolean breaking) {
+        Level level = p.level();
+        AABB box = p.getBoundingBox();
+        // With nothing in the way `lid` is null, and the row still has to say WHICH cells were
+        // looked at — a reader diagnosing "did not rise" needs the neighbours named on the clear ticks too,
+        // otherwise the interesting rows have no baseline to differ from.
+        int scanY = lid != null ? lid.getY() : p.blockPosition().getY() + 2;
+        StringBuilder straddled = new StringBuilder();
+        // maxX/maxZ are EXCLUSIVE edges: a box ending exactly on a boundary does not occupy the
+        // next cell, and floor(maxX) would name one it never touches. Vanilla's own convention.
+        for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX - 1.0E-7); x++) {
+            for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ - 1.0E-7); z++) {
+                BlockPos c = new BlockPos(x, scanY, z);
+                BlockState bs = level.getBlockState(c);
+                if (straddled.length() > 0) straddled.append(", ");
+                straddled.append(c.toShortString()).append('=')
+                        .append(BuiltInRegistries.BLOCK.getKey(bs.getBlock()))
+                        .append(bs.getCollisionShape(level, c).isEmpty() ? "" : "(solid)");
+            }
+        }
+        LOG.info("[drownEscape] vertical arm y={} fallSpeed={} jumpReadBack={} onGround={} hitCeiling={} inWater={} "
+                        + "underWater={} waterHeight={} air={} lidCell={} lidBlocks={} breakingLid={} straddledColumns={}",
+                String.format(Locale.ROOT, "%.3f", p.getY()),
+                String.format(Locale.ROOT, "%.4f", p.getDeltaMovement().y),
+                body.dbgJumping(), p.onGround(), p.verticalCollision,
+                p.isInWater(), p.isUnderWater(),
+                String.format(Locale.ROOT, "%.3f", p.getFluidHeight(FluidTags.WATER)),
+                p.getAirSupply(), lid == null ? "none (the way up is clear)" : lid.toShortString(),
+                lidBlocksRise, breaking, straddled);
+    }
 
-    @Override public void onInterrupt(Chain by) { releaseHeldKeys(); }
+    @Override public void onInterrupt(Body body, Chain by) { releaseHeldKeys(body); }
 
     @Override public String episodePhase() { return latched ? "FLOATING" : null; }
 
-    @Override public void cancelEpisode(String reason) {
+    @Override public void cancelEpisode(Body body, String reason) {
         resetEpisodeState();
-        releaseHeldKeys();
+        releaseHeldKeys(body);
     }
 
     /** Pure episode-state reset (server-safe, matrix-testable) — the client
-     *  key-release half stays in {@link #releaseHeldKeys()}, same split as
+     *  key-release half stays in {@link #releaseHeldKeys(Body)}, same split as
      *  {@link BunkerChain#resetEpisodeState()}. */
     public void resetEpisodeState() {
         latched = false;
@@ -590,20 +590,18 @@ public final class DrownEscapeChain implements Chain {
         return false;
     }
 
-    /** Release exactly what OUR tick() drove. Guarded on {@link #keysHeld}
-     *  so a dedicated GameTest server (where tick(mc=null) never actuates) never
-     *  resolves a client class here.
+    /** Release exactly what OUR tick() drove, on the body it drove. Guarded on {@link #keysHeld}
+     *  so an episode that never actuated releases nothing.
      *
-     *  <p>The movement half self-releases — the avatar's commands are per-tick and an
+     *  <p>The movement half self-releases — the body's commands are per-tick and an
      *  uncommanded tick falls back to the real keybind — so the explicit jump(false) below is
      *  only belt-and-braces for the one tick between interrupt and the next scheduler pass.
      *  The dig latch is genuinely LATCHED and its release is load-bearing. */
-    private void releaseHeldKeys() {
+    private void releaseHeldKeys(Body body) {
         if (!keysHeld) return;
         keysHeld = false;
-        Minecraft mc = Minecraft.getInstance();
-        if (mc == null || mc.options == null) return;
-        new ClientPlayerBody(mc).commandJump(false);
-        ClientIntents.holdDig(false);
+        if (body == null) return;
+        body.commandJump(false);
+        body.blockInteraction().ifPresent(b -> b.breakHold(false));
     }
 }

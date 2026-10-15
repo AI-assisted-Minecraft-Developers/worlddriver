@@ -53,6 +53,7 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
     @Override public void commandSprint(boolean v) { if (p != null) p.setSprinting(v); }
     @Override public void commandUseItem(boolean hold) { ClientIntents.holdUse(hold); }
     @Override public void requestLookSnap() { LookController.requestSnap(); }
+    @Override public void releaseControls() { BotInteract.releaseKeys(); }
 
     @Override public boolean holdPlaceable() { return BotInteract.ensureHoldingPlaceableAny(mc); }
     @Override public boolean holdPillarBlock() { return BotInteract.ensureHoldingPillarBlock(mc); }

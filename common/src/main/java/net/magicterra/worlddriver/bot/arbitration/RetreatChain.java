@@ -10,13 +10,12 @@ import net.magicterra.worlddriver.bot.world.ThreatScanner;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.BunkerProcess;
 import net.magicterra.worlddriver.bot.behavior.RunAwayProcess;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.RangedAttackMob;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.game.body.BotInteract.releaseKeys;
 import static net.magicterra.worlddriver.game.body.BotUtil.blockPosOf;
 
 /**
@@ -117,16 +116,16 @@ public final class RetreatChain implements Chain {
     @Override public String name() { return "retreat"; }
 
     @Override public float priority(Body body, WorldView w, BotState st) {
-        Minecraft mc = Chain.clientOf(body);
-        if (!ArbitrationConfig.autoRetreat || mc.player == null) {
+        LivingEntity p = body == null ? null : body.entity();
+        if (!ArbitrationConfig.autoRetreat || p == null) {
             // gap#72-④: an in-flight flee killed by the toggle is a transition too.
             if (retreating) LOG.info("[retreat] release reason=disabled");
             return idle();
         }
-        float hp = mc.player.getHealth();
+        float hp = p.getHealth();
         float thr = ArbitrationConfig.retreatHpThreshold;
         ThreatScanner.Scan scan = st.threats.current();
-        long now = mc.player.level().getGameTime();
+        long now = p.level().getGameTime();
         // final-review L1: stamp on the RISING EDGE only (false→true), not on every
         // tick the level stays true — see lastHurtGameTime's javadoc.
         boolean hurtNow = hurtByAnyone(scan);
@@ -135,7 +134,7 @@ public final class RetreatChain implements Chain {
         // gap#72-③: block-level "am I in a sealed 1×1 pocket" ground truth, shared
         // with BunkerProcess so the reflex and the bunker agree on what "sealed"
         // means. Live block reads, so a breached pocket stops exempting instantly.
-        boolean sealed = BunkerProcess.enclosed(w, mc.player.blockPosition());
+        boolean sealed = BunkerProcess.enclosed(w, p.blockPosition());
         // death#26: level-stamp "a threat is present" every tick the signal holds, on
         // the SAME sealed-filtered scan the release gate uses — so a sealed bot whose
         // only "threat" is an unreachable mob pacing the roof does NOT keep its
@@ -155,7 +154,7 @@ public final class RetreatChain implements Chain {
             // CombatChain, so this reads last tick's value: one-tick-stale, which is
             // acceptable for a gate whose job is "don't flee a healthy ongoing brawl".
             boolean combatEngaged = st.combat.active;
-            String reason = enterReason(hp, thr, mc.player.getMaxHealth(), scan, combatEngaged, sealed);
+            String reason = enterReason(hp, thr, p.getMaxHealth(), scan, combatEngaged, sealed);
             if (reason == null) return idle();
             retreating = true;                       // latch the flee
             // gap#72-④: one line per TRANSITION (enter/release/preempt), never per tick —
@@ -472,8 +471,8 @@ public final class RetreatChain implements Chain {
     }
 
     @Override public void tick(Body body, WorldView w, BotState st) {
-        Minecraft mc = Chain.clientOf(body);
-        if (mc.player == null) return;
+        LivingEntity p = body.entity();
+        if (p == null) return;
         if (process == null) {
             // Flee AWAY FROM THE THREATS (their centroid), not merely "16 blocks from
             // where I happen to stand". Goal.RunAway maximises distance from its
@@ -483,7 +482,7 @@ public final class RetreatChain implements Chain {
             // into the mob (the zig-zag half of fleeing in circles).
             // Report flee status to the reflex's OWN slot (state.retreat), never the
             // user mc.bot.runAway slot — so reflex and user flee never stomp each other.
-            process = new RunAwayProcess(fleeFrom(mc, st.threats.current()), FLEE_DIST, state.retreat);
+            process = new RunAwayProcess(fleeFrom(p, st.threats.current()), FLEE_DIST, state.retreat);
             process.attach(state);
         }
         // Reached safe distance but still latched (HP low / threat near): start a
@@ -495,24 +494,20 @@ public final class RetreatChain implements Chain {
 
     /** The point to flee away from: the centroid of nearby hostiles, or the bot's
      *  own foot if none are currently scanned (so the flee still has a valid goal). */
-    private static BlockPos fleeFrom(Minecraft mc, ThreatScanner.Scan scan) {
+    private static BlockPos fleeFrom(LivingEntity self, ThreatScanner.Scan scan) {
         double sx = 0, sy = 0, sz = 0; int n = 0;
         for (ThreatScanner.Threat t : scan.threats()) {
             if (t.distance() > CLEAR_RADIUS + 6) continue;   // only nearby mobs steer the flee
             Entity e = t.entity();
             sx += e.getX(); sy += e.getY(); sz += e.getZ(); n++;
         }
-        if (n == 0) {
-            // Three doubles, not the entity: mc.player is a LocalPlayer, and widening one into an
-            // Entity parameter makes the verifier load that class on a dedicated server.
-            return blockPosOf(mc.player.getX(), mc.player.getY(), mc.player.getZ());
-        }
+        if (n == 0) return blockPosOf(self.getX(), self.getY(), self.getZ());
         return new BlockPos((int) Math.floor(sx / n), (int) Math.floor(sy / n), (int) Math.floor(sz / n));
     }
 
     /** Preempted by something higher (panic/dodge) — drop the flee so the next
      *  activation starts fresh from the current position. */
-    @Override public void onInterrupt(Chain by) {
+    @Override public void onInterrupt(Body body, Chain by) {
         // gap#72-④: preemption is the third transition worth a line (enter/release are
         // the other two) — fires once per preempt, never per tick.
         LOG.info("[retreat] preempted by={} (flee latch kept, resumes when repriced)",
@@ -529,7 +524,7 @@ public final class RetreatChain implements Chain {
         state.retreat.pathLen = 0;
         state.retreat.pathStep = 0;
         state.retreat.target = null;
-        releaseKeys();
+        if (body != null) body.releaseControls();
     }
 
     /** Resumed (e.g. after a panic dodge) — the next tick rebuilds the flee from
@@ -546,7 +541,7 @@ public final class RetreatChain implements Chain {
     /** gap#68-⑦: reach the flee latch even with no process (e.g. mid-preempt,
      *  {@code process == null} while a higher chain steers) so cancel is idempotent
      *  and fully stops the reflex from re-arming. */
-    @Override public void cancelEpisode(String reason) {
+    @Override public void cancelEpisode(Body body, String reason) {
         // gap#72-④: an explicit cancel that actually ended something is a transition.
         if (retreating || process != null)
             LOG.info("[retreat] release reason=cancelled ({})", reason);
@@ -562,7 +557,7 @@ public final class RetreatChain implements Chain {
         // gap#68-⑦ idempotence: even with NO held process (e.g. mid-preempt, a higher
         // chain steers while the flee latch persists) the slot must still clear.
         if (state.retreat.active) { state.retreat.lastError = reason; state.retreat.reset(); }
-        releaseKeys();
+        if (body != null) body.releaseControls();
     }
 
     /** Test seam (gap#72-②): inject a held flee so cancel-by-kind routing is

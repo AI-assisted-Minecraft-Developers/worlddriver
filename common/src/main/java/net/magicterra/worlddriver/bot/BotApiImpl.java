@@ -38,6 +38,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.magicterra.worlddriver.game.ui.ClientChatLog;
+import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.ClientIntents;
 import net.magicterra.worlddriver.game.body.ClientPlayerBody;
 import net.magicterra.worlddriver.bot.control.Walker;
@@ -112,6 +113,9 @@ public final class BotApiImpl implements BotApi {
         Minecraft mc = Minecraft.getInstance();
         return WorldReadings.threats(mc.level, mc.player, radius, state.threats.velocities());
     }
+    /** The body this bot steers: the client's own player. A cancel or stand-down that arrives off
+     *  the tick releases what the chains held on it. */
+    private static Body body() { return new ClientPlayerBody(Minecraft.getInstance()); }
     // Wire the WorldModel into the ClientWorldView so dangerCost can apply the
     // HazardField lethal-cell penalty. Done in an instance initialiser so both
     // final fields are guaranteed initialised before any tick fires. The cast is
@@ -337,7 +341,7 @@ public final class BotApiImpl implements BotApi {
     @Override
     public void engage(CombatContracts.Params p, ActionHandle action) {
         Ticket ticket = ActionTickets.of(action);
-        action.bindStopper(why -> Minecraft.getInstance().execute(() -> combatChain.cancelAction(ticket)));
+        action.bindStopper(why -> Minecraft.getInstance().execute(() -> combatChain.cancelAction(body(), ticket)));
         combatChain.engage(VerbOrders.mode(p.mode()), VerbOrders.entityId(p), VerbOrders.entityType(p), p.force(), ticket,
                 new CombatContracts.Fought(p.mode(), p.target()));
     }
@@ -345,7 +349,7 @@ public final class BotApiImpl implements BotApi {
     @Override
     public ImmediateResponse equip(InteractContracts.EquipParams params) {
         boolean armorOnly = params.armorOnly() || params.profile() == InteractContracts.Profile.ARMOR;
-        AutoEquip.Result r = AutoEquip.equipBest(new ClientPlayerBody(Minecraft.getInstance()), !armorOnly,
+        AutoEquip.Result r = AutoEquip.equipBest(body(), !armorOnly,
                 BotConfig.equipDurabilityThreshold);
         return new Responses.Equipped(armorOnly ? InteractContracts.Profile.ARMOR : params.profile(), r.equipped(),
                 new InteractContracts.Loadout(slot(r, "head"), slot(r, "chest"), slot(r, "legs"), slot(r, "feet"), slot(r, "mainHand")),
@@ -455,7 +459,7 @@ public final class BotApiImpl implements BotApi {
             // Combat lives in its own chain, not the user-task slot — cancel it directly.
             if ("all".equals(which) || "combat".equals(which)) {
                 if (combatChain.engaged()) {
-                    combatChain.standDown();
+                    combatChain.standDown(body());
                     state.combat.lastError = "user-cancel";
                     state.combat.active = false;
                     hits.add("combat");
@@ -465,7 +469,7 @@ public final class BotApiImpl implements BotApi {
             // every chain episode + the user slot + the orphan backfill queue.
             if ("all".equals(which)) {
                 cancelCurrent("user-cancel");
-                scheduler.cancelAllEpisodes("user-cancel");
+                scheduler.cancelAllEpisodes(body(), "user-cancel");
                 backfillTracker.clear();
                 return List.of("all");
             }
@@ -477,7 +481,8 @@ public final class BotApiImpl implements BotApi {
             CancelRouting.Plan plan =
                     CancelRouting.resolve(which, c != null ? c.kind() : null, scheduler.chains());
             if (plan.cancelUserProcess()) cancelCurrent("user-cancel");
-            for (Chain target : plan.episodeTargets()) target.cancelEpisode("user-cancel");
+            Body body = body();
+            for (Chain target : plan.episodeTargets()) target.cancelEpisode(body, "user-cancel");
             hits.addAll(plan.labels());
             return List.copyOf(hits);
         });
@@ -564,7 +569,7 @@ public final class BotApiImpl implements BotApi {
                 reset.add(held.kind());
             }
             if (combatChain.engaged()) {
-                combatChain.standDown(h -> h.cancelled(Ticket.Stop.TEST_RESET));
+                combatChain.standDown(body(), h -> h.cancelled(Ticket.Stop.TEST_RESET));
                 state.combat.lastError = "mc.test.reset";
                 state.combat.active = false;
                 reset.add("combat");
@@ -721,7 +726,7 @@ public final class BotApiImpl implements BotApi {
         // active processes, THEN let autoRespawn skip past.
         eventDetector.detectDeath(mc, () -> {
             cancelAllProcesses("player-death");
-            scheduler.cancelAllEpisodes("player-death");   // reset every chain's episode state
+            scheduler.cancelAllEpisodes(body(), "player-death");   // reset every chain's episode state
             backfillTracker.clear();                        // drop the orphaned backfill queue
             combatChain.suppressAutoFor(BotConfig.respawnGraceTicks);
             respawnGraceLeft = BotConfig.respawnGraceTicks;
@@ -963,7 +968,7 @@ public final class BotApiImpl implements BotApi {
     /** Client thread only. */
     @Override public boolean cancelAction(ActionHandle action, String reason) {
         Ticket ticket = ActionTickets.of(action);
-        return userTask.cancelAction(ticket, reason) || combatChain.cancelAction(ticket);
+        return userTask.cancelAction(ticket, reason) || combatChain.cancelAction(body(), ticket);
     }
 
     @Override public net.magicterra.worlddriver.api.thread.ServerThreadHop clientHop() {
@@ -980,12 +985,12 @@ public final class BotApiImpl implements BotApi {
      */
     public void onDisconnect() {
         if (combatChain.engaged()) {
-            combatChain.standDown(h -> h.cancelled(Ticket.Stop.CONNECTION_CLOSED));
+            combatChain.standDown(body(), h -> h.cancelled(Ticket.Stop.CONNECTION_CLOSED));
             state.combat.lastError = "disconnected";
             state.combat.active = false;
         }
         userTask.cancel("disconnected", h -> h.cancelled(Ticket.Stop.CONNECTION_CLOSED));
-        scheduler.cancelAllEpisodes("disconnected");
+        scheduler.cancelAllEpisodes(body(), "disconnected");
         backfillTracker.clear();
     }
 
@@ -1095,7 +1100,7 @@ public final class BotApiImpl implements BotApi {
      *  always-on ClutchController is intentionally left running. */
     private void cancelAllProcesses(String reason) {
         if (combatChain.engaged()) {
-            combatChain.standDown(h -> h.fail("the body died (" + reason + ")"));
+            combatChain.standDown(body(), h -> h.fail("the body died (" + reason + ")"));
             state.combat.lastError = reason;
             state.combat.active = false;
         }

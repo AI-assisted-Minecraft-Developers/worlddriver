@@ -118,11 +118,11 @@ called when a process is superseded before finishing; overriding it and finalisi
 walker are two different things, and counting overrides does not answer the second
 question.
 
-The chains take a `Body` too — `Chain.priority(Body, …)` and `Chain.tick(Body, …)` — but
-the chain implementations still read the local player, the client level and the
-client-only helpers through `Minecraft`, so each downcasts at the top of both methods via
-`Chain.clientOf(body)`. That returns null for any `Body` that is not the client's, which is
-also what the headless scenes pass when they tick the scheduler with no `Body`.
+The chains take a `Body` too — `Chain.priority(Body, …)`, `Chain.tick(Body, …)`,
+`onInterrupt(Body, …)` and `cancelEpisode(Body, …)` — and steer only through it: the player is
+`body.entity()`, digging and placing go through `blockInteraction()`, the hands through
+`equipment()`. No chain names a client type, so the same chains run over any body. The headless
+scenes pass a null `Body` when they tick the scheduler to exercise the bidding alone.
 
 ## `Walker` — executing a path
 

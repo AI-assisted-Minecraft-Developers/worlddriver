@@ -6,12 +6,9 @@ import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.game.body.ClientIntents;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.CombatProcess;
-import net.minecraft.client.Minecraft;
-
-import static net.magicterra.worlddriver.game.body.BotInteract.releaseKeys;
+import net.minecraft.world.entity.LivingEntity;
 
 /**
  * Phase C movement-channel chain (priority {@code COMBAT} 60, above the user task
@@ -112,28 +109,31 @@ public final class CombatChain implements Chain {
     }
 
     /** Drop any combat intent and release the channel (the {@code mc.bot.cancel}
-     *  path). Telemetry is kept for a post-mortem read, mirroring lastError. */
-    public void standDown() {
-        standDown(h -> h.cancelled(Ticket.Stop.REQUESTED));
+     *  path). Telemetry is kept for a post-mortem read, mirroring lastError. {@code body} is
+     *  what the fight held inputs on, or null when there is none to release. */
+    public void standDown(Body body) {
+        standDown(body, h -> h.cancelled(Ticket.Stop.REQUESTED));
     }
 
     /** {@link #standDown}, ending the explicit fight's action with {@code ending}. */
-    public void standDown(Consumer<Ticket> ending) {
+    public void standDown(Body body, Consumer<Ticket> ending) {
         this.intentMode = null;
         this.intentId = null;
         this.intentType = null;
         this.intentForce = false;
         this.process = null;
         state.combat.active = false;
-        releaseKeys();
-        releaseUseKey();
+        if (body != null) {
+            body.releaseControls();
+            releaseUseKey(body);
+        }
         endIntentAction(ending);
     }
 
     /** Stand down if the explicit fight is still {@code action}'s; false when that action has left. */
-    public boolean cancelAction(Ticket action) {
+    public boolean cancelAction(Body body, Ticket action) {
         if (action == null || !action.equals(intentAction)) return false;
-        standDown(h -> { });
+        standDown(body, h -> { });
         return true;
     }
 
@@ -151,9 +151,8 @@ public final class CombatChain implements Chain {
     }
 
     @Override public float priority(Body body, WorldView w, BotState st) {
-        Minecraft mc = Chain.clientOf(body);
         decayAutoSuppression();
-        float bid = bid(mc);
+        float bid = bid(body);
         // Keep the status slot truthful EVERY tick (not just on engage). Without
         // this an explicit fight left combat.active stuck true after it finished
         // (the same stale-slot bug as the retreat reflex), and an AUTO fight never
@@ -170,15 +169,16 @@ public final class CombatChain implements Chain {
         return !force && hp <= thr;
     }
 
-    private float bid(Minecraft mc) {
-        if (mc.player == null) return 0f;
-        float hp = mc.player.getHealth();
+    private float bid(Body body) {
+        LivingEntity p = body == null ? null : body.entity();
+        if (p == null) return 0f;
+        float hp = p.getHealth();
         if (intentMode != null) {
             if (frailBlocked(hp, ArbitrationConfig.combatFrailThreshold, intentForce)) {
                 // Explicit kill order on fragile HP: refuse loudly instead of dying quietly.
                 String why = "frail-abort: health " + hp + " is at or below combatFrailThreshold "
                         + ArbitrationConfig.combatFrailThreshold + "; pass force: true to fight anyway";
-                standDown(h -> h.fail(why));
+                standDown(body, h -> h.fail(why));
                 state.combat.lastError = "frail-abort hp=" + hp;
                 return 0f;
             }
@@ -193,7 +193,7 @@ public final class CombatChain implements Chain {
                 // tick()-side disengage would be unreachable and the exit silent.
                 // Entering frail while NOT engaged stays quiet: simply don't bid.
                 if (engaged()) {
-                    standDown();
+                    standDown(body);
                     state.combat.lastError = "frail-disengage";
                 }
                 return 0f;
@@ -205,7 +205,6 @@ public final class CombatChain implements Chain {
     }
 
     @Override public void tick(Body body, WorldView w, BotState st) {
-        Minecraft mc = Chain.clientOf(body);
         if (process == null) {
             if (intentMode != null) {
                 process = new CombatProcess(intentMode, intentId, intentType);
@@ -235,7 +234,7 @@ public final class CombatChain implements Chain {
                     else h.succeed();
                 });
             }
-            releaseKeys();
+            body.releaseControls();
         }
         // Reflect liveness immediately (so a finished fight clears active this tick,
         // not one tick late via priority()).
@@ -247,29 +246,31 @@ public final class CombatChain implements Chain {
      *  the fight continues once the higher chain stands down. gap#72-①: dropped via
      *  the unified lifecycle (onCancelled fires) but with NO slot — state.combat is
      *  recomputed from engaged() every tick, so it never orphans. */
-    @Override public void onInterrupt(Chain by) {
+    @Override public void onInterrupt(Body body, Chain by) {
         process = ChainProcessLifecycle.drop(process, null,
                 ChainProcessLifecycle.INTERRUPTED, "preempted by " + (by != null ? by.name() : "unknown"));
-        releaseKeys();
-        releaseUseKey();
+        if (body != null) {
+            body.releaseControls();
+            releaseUseKey(body);
+        }
     }
 
     @Override public void onResume() {}
 
     @Override public String episodePhase() { return engaged() ? "ENGAGED" : null; }
 
-    @Override public void cancelEpisode(String reason) {
-        if (engaged()) { standDown(); state.combat.lastError = reason; }
+    @Override public void cancelEpisode(Body body, String reason) {
+        if (engaged()) { standDown(body); state.combat.lastError = reason; }
     }
 
     /** Drop the use intent the {@link CombatProcess} holds while drawing a bow.
-     *  {@code releaseKeys()} deliberately omits it (the idle path runs it AFTER
+     *  {@link Body#releaseControls()} deliberately omits it (the idle path runs it AFTER
      *  the shield/heal/eat reflexes set the intent, so clearing it there would clobber
      *  them every tick); but on a combat preempt/stand-down the bow draw must drop,
      *  or the bot flees with the bow still held — CombatProcess's own release
      *  path is bypassed once the process is detached. */
-    private static void releaseUseKey() {
-        ClientIntents.holdUse(false);
+    private static void releaseUseKey(Body body) {
+        body.equipment().ifPresent(h -> h.commandUseItem(false));
     }
 
     private void resetCounters() {

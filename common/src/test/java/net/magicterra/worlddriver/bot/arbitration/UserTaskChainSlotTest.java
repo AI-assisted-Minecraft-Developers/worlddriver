@@ -52,7 +52,7 @@ class UserTaskChainSlotTest {
 
     private final BotState st = new BotState();
     private int keyReleases;
-    private final UserTaskChain chain = new UserTaskChain(st, () -> keyReleases++);
+    private final UserTaskChain chain = new UserTaskChain(st, b -> keyReleases++);
 
     @Test
     void cancellingASleepMidWalkSwitchesTheGotoSlotOff() {
@@ -98,7 +98,7 @@ class UserTaskChainSlotTest {
     @Test
     void theEpisodeCancelOnDeathReachesTheSlotToo() {
         chain.setProcess(sleepLike());
-        chain.cancelEpisode("player-death");
+        chain.cancelEpisode(null, "player-death");
         assertFalse(st.mc_goto.active);
     }
 

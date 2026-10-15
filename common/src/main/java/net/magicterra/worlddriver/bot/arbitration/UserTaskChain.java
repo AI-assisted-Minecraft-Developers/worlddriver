@@ -10,9 +10,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-
-import static net.magicterra.worlddriver.game.body.BotInteract.releaseKeys;
-
 /**
  * The baseline movement-channel chain: holds the single foreground
  * {@link BotProcess} that the {@code mc.bot.goto/mine/build/...} verbs start.
@@ -31,14 +28,19 @@ public final class UserTaskChain implements Chain {
     /** The slots {@link #process} switched on when it attached; switched off at every ending. */
     private SlotClaim claim = SlotClaim.NONE;
 
-    /** Clears the movement keybinds; a seam so the chain runs in a JVM test with no client. */
-    private final Runnable keyRelease;
+    /** Releases what the process held on the body it drove (null when there is none); a seam so the
+     *  chain runs in a JVM test with no game. */
+    private final Consumer<Body> keyRelease;
+
+    /** The body the last {@link #tick} drove. A stop that comes from a verb or a cancel arrives
+     *  without one, and what it has to release is held on this body. Null until the first tick. */
+    private Body driven;
 
     public UserTaskChain(BotState state) {
-        this(state, () -> releaseKeys());
+        this(state, b -> { if (b != null) b.releaseControls(); });
     }
 
-    UserTaskChain(BotState state, Runnable keyRelease) {
+    UserTaskChain(BotState state, Consumer<Body> keyRelease) {
         this.state = state;
         this.keyRelease = keyRelease;
     }
@@ -117,7 +119,7 @@ public final class UserTaskChain implements Chain {
         c.onCancelled(reason);   // let the process finalize per-session observers (e.g. flush a path archive)
         endClaim(reason);
         recordEnd(c.kind(), reason);
-        keyRelease.run();
+        keyRelease.accept(driven);
         process = null;
         if (a != null) ending.accept(a);
     }
@@ -173,6 +175,7 @@ public final class UserTaskChain implements Chain {
     @Override public void tick(Body body, WorldView w, BotState st) {
         BotProcess c = process;
         if (c == null) return;
+        driven = body;
         try {
             if (c.tick(body, w, st)) {
                 Ticket a = action;
@@ -180,7 +183,7 @@ public final class UserTaskChain implements Chain {
                 String failure = c.failure();
                 endClaim(null);
                 recordEnd(c.kind(), failure);
-                if (drove) keyRelease.run();
+                if (drove) keyRelease.accept(body);
                 process = null;
                 if (a != null) {
                     if (failure == null) a.succeed();
@@ -198,7 +201,7 @@ public final class UserTaskChain implements Chain {
             try { c.onCancelled(err); } catch (RuntimeException ignored) { /* finalize must not mask the original */ }
             endClaim(err);
             recordEnd(c.kind(), err);
-            keyRelease.run();
+            keyRelease.accept(body);
             process = null;
             if (a != null) a.fail(err);
         }
@@ -217,8 +220,8 @@ public final class UserTaskChain implements Chain {
     /** Preempted by a higher-priority chain: stop in place, keep the process so
      *  it can resume. With no process held this is the handover to idle after an ending, which
      *  already settled the keys. */
-    @Override public void onInterrupt(Chain by) {
-        if (process != null) keyRelease.run();
+    @Override public void onInterrupt(Body body, Chain by) {
+        if (process != null) keyRelease.accept(body != null ? body : driven);
         interrupted = true;
     }
 
@@ -232,7 +235,10 @@ public final class UserTaskChain implements Chain {
 
     @Override public String episodePhase() { BotProcess c = process; return c == null ? null : c.kind(); }
 
-    @Override public void cancelEpisode(String reason) { cancel(reason); }
+    @Override public void cancelEpisode(Body body, String reason) {
+        if (body != null) driven = body;
+        cancel(reason);
+    }
 
     private void endClaim(String error) {
         claim.release(error);

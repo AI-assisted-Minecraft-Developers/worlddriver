@@ -24,7 +24,7 @@ class BunkerChainBailTest {
         sched.register(bunker);
         bunker.anchorForTest().beginIfIdle(0, 64, 0);
 
-        bunker.giveUp("water");
+        bunker.giveUp(null, "water");
 
         ProcessScheduler.Bail b = sched.bailOf(bunker);
         assertNotNull(b, "a bunker that gave up must leave the bid");
@@ -37,7 +37,7 @@ class BunkerChainBailTest {
     void aStandaloneChainStillResetsItsEpisode() {
         BunkerChain bunker = new BunkerChain();
         bunker.anchorForTest().beginIfIdle(0, 64, 0);
-        bunker.giveUp("unbreakable");
+        bunker.giveUp(null, "unbreakable");
         assertNull(bunker.episodePhase());
     }
 

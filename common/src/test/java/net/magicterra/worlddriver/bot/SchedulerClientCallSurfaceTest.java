@@ -17,105 +17,28 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A scheduler class may NAME a client type; it may not start CALLING a new one.
+ * No class in {@code bot/arbitration/**} names a client type anywhere in its bytecode.
  *
- * <p><b>The failure this guards cost a double-loader gate on 2026-08-22.</b> Five pure-logic
- * matrix scenes ({@code wd.cancelRouting}, {@code wd.retreatGateMatrix},
- * {@code wd.chainEpisodeCancelMatrix}, {@code wd.drownEscapeGateMatrix},
- * {@code wd.drownEscapePreempt}) died at <b>0 ticks</b> on both loaders with
- * {@code Cannot load class net.minecraft.client.player.LocalPlayer in environment type SERVER}
- * / {@code Attempted to load class ... for invalid dist DEDICATED_SERVER}. Those scenes
- * {@code new BunkerChain()} and {@code new RetreatChain(st)} directly, so the chains are
- * CONSTRUCTED on a dedicated server. One commit had written
- * {@code mc.gameMode.continueDestroyBlock(...)} inline in two chains, putting a reference to
- * {@code MultiPlayerGameMode} into the chains' own constant pools; the fix routed it through
- * {@code BotInteract.continueDestroy}, leaving an invokestatic — because resolving a static call
- * resolves the OWNER, not the owner's dependencies.
+ * <p><b>Why this is read from bytecode.</b> The chains are constructed on a dedicated server by the
+ * {@code wd.*Matrix} scenes, and a class there that needs a client class to load or verify dies at
+ * 0 ticks with {@code Attempted to load class ... for invalid dist DEDICATED_SERVER} — no stack into
+ * the code that caused it. {@code :common} is a two-sided source set, so javac compiles such a
+ * chain clean. Two shapes have taken the gate down this way: a client call written inline in a
+ * chain ({@code mc.gameMode.continueDestroyBlock}, 2026-08-22), and the client player handed to a
+ * parameter declared {@code Player}/{@code Entity}, which makes the verifier load
+ * {@code LocalPlayer} to prove the subtype relation (2026-08-23 and again 2026-08-26). The second
+ * leaves no client owner in the pool, only the widening at the call site.
  *
- * <p><b>Why it is invisible to everything else.</b> {@code :common} is a two-sided source set, so
- * to javac {@code MultiPlayerGameMode} is an ordinary class and the code compiles clean. The
- * source-level guard of the day ({@code ClientBreakSitePairingTest}, retired with the attack key
- * on 2026-09-14) saw THAT a site drove the destroy pipeline, never from which layer — it passed
- * this. Only loading the class on a dedicated server fails, which is why the gate was the first
- * thing to notice.
- *
- * <p><b>The rule is measured, not derived.</b> Every chain in this package already calls
- * {@code Minecraft}, {@code LocalPlayer} and {@code ClientLevel} (and, until the attack/use
- * latches moved to {@code ClientIntents}, {@code KeyMapping} and {@code Options}) — seven of the
- * fourteen classes do, and the 306-scene gate is green over
- * them. So "no client calls in the scheduler" is not the rule; it would fail half the package on
- * a healthy tree, and a guard that cries wolf gets switched off. What this pins instead is the
- * surface that is <b>demonstrably loadable on a dedicated server today</b>: the set below was
- * read out of the green build's bytecode. Whatever the JVM's exact reason for tolerating these
- * and refusing {@code MultiPlayerGameMode} — verification order, transitive linkage, Fabric's own
- * dist stripping — this test does not guess at it. It records what is known to work and makes the
- * next addition state its case.
- *
- * <p><b>The second rule, added after the first one turned out not to be the discriminator.</b>
- * What decides "will a dedicated server load this class" is not the call; it is the
- * <b>widening</b>. Handing a client type to a parameter declared {@code Player}/{@code Entity}
- * makes the verifier load {@code LocalPlayer} to prove the subtype relation, and that is what
- * actually took the gate down in {@code 239be43b} (AGENTS.md hard rule 12,
- * {@code docs/design/drowning-escape.md}, and {@code BotInteract#riseBlockedCell}, which exists
- * solely to host one). The owner scan reads Methodref/Fieldref OWNERS and cannot see a widening by
- * construction, so a second scan reads the invoked <b>descriptors</b> and asserts that no call
- * site in this package takes a wide player type at all — see {@link #wideBodyParams}.
- *
- * <p><b>What the second scan can and cannot say.</b> It reports the PARAMETER's declared type, not
- * the argument's: proving which value reaches which slot needs dataflow this file does not do. So
- * it is one-sided — an empty result is a proof of no widening, a non-empty one is a question to
- * answer, not a verdict. That asymmetry is usable because the measured state today is empty; the
- * day it stops being empty, someone has to say why the argument is not the client player.
- *
- * <p><b>2026-08-26: the widening scan was correct, in scope, and nobody ran it.</b> A tidy-up
- * folded twelve hand-written foot-cell floors into {@code BotUtil.blockPosOf}, and one of the
- * twelve was {@code RetreatChain}'s {@code blockPosOf(mc.player)} — a {@code LocalPlayer} handed
- * to an {@code Entity} parameter, inside this package, which is precisely what
- * {@link #wideBodyParams} reports and what the second assertion refuses. It went to
- * {@code stagewrightDedicatedServer*} instead and killed {@code wd.retreatGateMatrix} and
- * {@code wd.cancelRouting} at 0 ticks. Nothing about the scanner failed; the workflow never asked
- * it. Two things follow, and the second is the one that keeps costing gates. First: this file is
- * a seconds-long {@code :common:test} with no game attached, so a change that alters the SHAPE of
- * a call — folding into a helper, extracting a method, adding a parameter — can be cleared before
- * the gate rather than by it. Second: the reasoning that shipped it was "the expressions are
- * byte-identical, so a mistake could only fail at COMPILE time". Byte-identical is an assertion
- * about the expression; the call site is where a widening lives, and javac reports nothing at all
- * about it. A refactor whose whole claim is "the diff is only a shape" is not the exception to
- * this rule, it is its main occasion.
- *
- * <p><b>Why the scope stays at one package.</b> The assertion shape here is "the set is EMPTY",
- * and that is only available where the set is empty. A scan of all 409 compiled classes on
- * 2026-08-26 found wide-parameter call sites are ordinary outside this package: {@code Walker}
- * alone hands a {@code Player} to {@code WalkerGeometry.soleOnSolid}, {@code lethalDropAdjacent},
- * {@code nearestLethalHopRing} and its own {@code widenFooting}, and it is dual-loaded —
- * {@code PlayerBot} holds a {@code Walker} and ticks it. So aiming this same assertion at
- * {@code bot/movement/**} would go red on a healthy tree and get switched off, which is the very
- * failure the ALLOWED list above is shaped to avoid. Covering that package needs the other
- * question — the ARGUMENT's type rather than the parameter's — and that needs dataflow this file
- * does not do. Until someone writes it, everything outside {@code bot/arbitration/**} is guarded by
- * the dedicated-server gate and by nothing else.
- *
- * <p><b>And a prefilter can hide the exact shape it is hunting.</b> That scan first skipped every
- * class with no {@code net/minecraft/client/} Methodref/Fieldref owner — the reading
- * {@link #clientOwners} does — and {@code Walker} disappeared from the results, because it only
- * NAMES {@code Minecraft} in a descriptor and never calls a member on it. A class that receives a
- * {@code LocalPlayer} as a parameter and hands it onward has no client owner in its pool at all.
- * So "does it call a client class" must never be used to decide "can it widen one": the two
- * readings below are separate on purpose, and only the second one answers rule 12.
- *
- * <p>Measured 2026-08-23 with {@code javap -c} over the compiled package, so the gap is recorded
- * rather than merely suspected: every client type in an invoked descriptor's PARAMETER position is
- * the exact type ({@code LocalPlayer} into a {@code LocalPlayer} parameter, {@code Minecraft} into
- * a {@code Minecraft} one), the only three {@code Entity} descriptors are return types, and the
- * owner union is exactly {@link #ALLOWED}. So the package is clean under both rules today. That
- * reading covers invoke sites only — a {@code putfield} into a wider field or an {@code areturn}
- * from a wider return type can widen just as well — and the authority remains a green
- * {@code stagewrightDedicatedServer*} run on both loaders, not this file and not a javap listing.
+ * <p><b>Why the rule is "none at all".</b> Until the chains steered through {@code Body}, they read
+ * the client player, so the guard had to allow a measured list of client owners and separately
+ * forbid wide player parameters. Now every chain gets its player as {@code body.entity()}, a
+ * {@code LivingEntity} the server can load, and holds no client type to call or widen. A pool with
+ * no {@code net/minecraft/client/} string in it — owners, descriptors, signatures, class refs —
+ * rules out both shapes at once, and the wide parameters the old rule refused are now the normal
+ * way to pass the player.
  */
 class SchedulerClientCallSurfaceTest {
 
@@ -123,275 +46,80 @@ class SchedulerClientCallSurfaceTest {
     private static final Path SCHEDULER_CLASSES =
             Path.of("build/classes/java/main/net/magicterra/worlddriver/bot/arbitration");
 
-    /**
-     * Client classes {@code bot/arbitration/**} is allowed to invoke or read fields on.
-     *
-     * <p>The reason is the same for every row and is written once rather than invented five
-     * times: each was already being called here before the 2026-08-22 incident and rode a green
-     * 306-scene dedicated-server gate. The per-row note says what the chains use it FOR, which is
-     * what a reader needs to judge whether a new arrival belongs beside them.
-     */
-    private static final Map<String, String> ALLOWED = new TreeMap<>(Map.of(
-            "net/minecraft/client/Minecraft",
-            "the entry point every chain's tick(mc, …) is handed — getInstance/player/level/options",
-            "net/minecraft/client/player/LocalPlayer",
-            "the client player: blockPosition/getHealth/getAirSupply/position/setYRot/setSprinting/…",
-            // KeyMapping and Options left this list on 2026-09-14: the attack/use latches the
-            // reflexes used to set through them are ClientIntents now, a class with no client
-            // types in it. Dropped, not kept — an allowlist row nothing exercises is accumulated.
-            "net/minecraft/client/multiplayer/ClientLevel",
-            "getBlockState, for DrownEscapeChain's lid collision-shape test"));
+    private static final String CLIENT = "net/minecraft/client/";
 
-    /**
-     * The class whose arrival killed the gate. Not merely absent from {@link #ALLOWED} — named,
-     * so the failure message can say "this is the exact shape that already cost a gate once"
-     * instead of "unexpected class".
-     */
-    private static final String THE_ONE_THAT_BROKE_THE_GATE =
-            "net/minecraft/client/multiplayer/MultiPlayerGameMode";
-
-    /** Outside the guarded scope and legitimately full of client calls — the specimen that proves
-     *  the scanner can see {@link #THE_ONE_THAT_BROKE_THE_GATE} in real bytecode, and the specimen
-     *  for the widening scan too: {@code BotInteract#riseBlockedCell} exists precisely to HOST one
-     *  ({@code WalkerGeometry.riseBlockers(Player, double)} taking a {@code LocalPlayer}). */
+    /** Outside the guarded scope and full of client calls: proof the scanner sees a client type in
+     *  real bytecode, including the one whose inline call first took the gate down. */
     private static final Path BOT_INTERACT_CLASS =
             Path.of("build/classes/java/main/net/magicterra/worlddriver/game/body/BotInteract.class");
 
-    /**
-     * Player types wide enough that passing a {@code LocalPlayer} into one is the rule-12 widening.
-     *
-     * <p>The list is the client player's own supertypes and nothing else. {@code LocalPlayer}
-     * extends {@code AbstractClientPlayer} extends {@code Player} extends {@code LivingEntity}
-     * extends {@code Entity} — so a parameter declared as any of the last three forces the
-     * verifier to load {@code LocalPlayer} to prove assignability, while a parameter declared
-     * {@code LocalPlayer} or {@code AbstractClientPlayer} is client-side already and costs nothing
-     * extra on a server that will never load the class holding it.
-     */
-    private static final Set<String> WIDE_BODY_TYPES = Set.of(
-            "net/minecraft/world/entity/player/Player",
-            "net/minecraft/world/entity/LivingEntity",
-            "net/minecraft/world/entity/Entity");
-
-    // ------------------------------------------------------------------ the assertions
-
     @Test
-    void noSchedulerClassCallsAnUnvettedClientClass() {
+    void noSchedulerClassNamesAClientType() {
         Map<String, Set<String>> offenders = new TreeMap<>();
         for (Path c : schedulerClasses()) {
-            Set<String> unvetted = new TreeSet<>(clientOwners(read(c)));
-            unvetted.removeAll(ALLOWED.keySet());
-            if (!unvetted.isEmpty()) offenders.put(c.getFileName().toString(), unvetted);
+            Set<String> hits = clientMentions(read(c));
+            if (!hits.isEmpty()) offenders.put(c.getFileName().toString(), hits);
         }
         assertTrue(offenders.isEmpty(),
-                "a class in bot/arbitration/** now invokes (or reads a field on) a client class that "
-                + "has never been shown to load on a dedicated server. These chains are CONSTRUCTED "
-                + "there by the wd.*Matrix scenes, and a class that will not load kills the scene at "
-                + "0 ticks with 'invalid dist DEDICATED_SERVER' — no stack into your code, no hint "
-                + "that it is about bytecode. Route the call through a helper outside this package "
-                + "(BotInteract is where the client-side actuators live): an invokestatic resolves "
-                + "the owner without its dependencies, which is exactly why the same call is fine "
-                + "there and fatal here. If you believe the class really is loadable server-side, "
-                + "add it to ALLOWED with what it is used for — and prove it with a gate run, not "
-                + "with a compile: " + offenders);
+                "a class in bot/arbitration/** names a client type. The chains are constructed on a "
+                + "dedicated server, where such a class can fail to load or verify and kill the scene "
+                + "at 0 ticks with 'invalid dist DEDICATED_SERVER'. Steer through the Body the chain "
+                + "is handed (body.entity(), blockInteraction(), equipment()); a client-only effect "
+                + "belongs in a ClientPlayerBody override: " + offenders);
     }
 
     @Test
-    void noSchedulerClassWidensAClientBodyIntoAServerParameter() {
-        Map<String, Set<String>> offenders = new TreeMap<>();
-        for (Path c : schedulerClasses()) {
-            Set<String> wide = wideBodyParams(read(c));
-            if (!wide.isEmpty()) offenders.put(c.getFileName().toString(), wide);
-        }
-        assertTrue(offenders.isEmpty(),
-                "a class in bot/arbitration/** now calls something that takes a WIDE player type "
-                + "(Player/LivingEntity/Entity). These chains are constructed on a dedicated "
-                + "server, and if the argument is the client player, the widening makes the verifier "
-                + "load LocalPlayer to prove the subtype relation — a class that does not exist "
-                + "there. That is AGENTS.md hard rule 12, and it is what actually killed the gate "
-                + "in 239be43b: the FIX that changed a parameter from LocalPlayer to Player is what "
-                + "created it, so 'I removed the client type from the signature' is the wrong "
-                + "instinct here. The shape that survives is to move the widening into a "
-                + "client-only class and reach it with invokestatic (BotInteract#riseBlockedCell "
-                + "exists for exactly this). If the argument genuinely is a server-side player, the call "
-                + "still has to be proved by a green stagewrightDedicatedServer* on BOTH loaders "
-                + "before this test is taught to allow it — and taught by name, not by widening "
-                + "the predicate: " + offenders);
-    }
-
-    @Test
-    void theScannerSeesAWideningWhereOneDemonstrablyExists() {
-        // Same argument as the owner control below: a widening scan that finds nothing anywhere is
-        // indistinguishable from a clean tree. BotInteract#riseBlockedCell hands its LocalPlayer to
-        // WalkerGeometry.riseBlockers(Player, double) — the one widening in this repo that is there
-        // ON PURPOSE, hosted outside the scheduler so no server ever loads the class holding it.
+    void theScannerSeesAClientTypeWhereOneDemonstrablyExists() {
         assertTrue(Files.isRegularFile(BOT_INTERACT_CLASS),
                 "the specimen class is missing: " + BOT_INTERACT_CLASS.toAbsolutePath());
-        Set<String> wide = wideBodyParams(read(BOT_INTERACT_CLASS));
-        assertTrue(wide.contains("net/minecraft/world/entity/player/Player"),
-                "the descriptor scan cannot find the deliberate widening in BotInteract, so every "
-                + "green above means only that it found nothing anywhere. Wide parameters it did "
-                + "report: " + wide);
-    }
-
-    @Test
-    void theScannerSeesTheClassThatBrokeTheGate() {
-        // The whole test is worthless if the scanner cannot find a client-owned call in real
-        // bytecode. BotInteract is the honest specimen: it lives outside the guarded package and
-        // legitimately calls MultiPlayerGameMode.continueDestroyBlock — the exact class and member
-        // that took both loaders down when it was written inline in a chain instead.
-        assertTrue(Files.isRegularFile(BOT_INTERACT_CLASS),
-                "the specimen class is missing: " + BOT_INTERACT_CLASS.toAbsolutePath());
-        Set<String> owners = clientOwners(read(BOT_INTERACT_CLASS));
-        assertTrue(owners.contains(THE_ONE_THAT_BROKE_THE_GATE),
-                "the scanner cannot find MultiPlayerGameMode in a class that demonstrably calls it, "
-                + "so every green above means only that the scanner found nothing anywhere. Owners "
-                + "it did report: " + new TreeSet<>(owners));
-    }
-
-    @Test
-    void theRuleWouldRejectThatClassInsideTheScope() {
-        // Same predicate, known-bad input: had the inline call still been in a chain, this is the
-        // comparison that would have flagged it. Kept because the assertion above only proves the
-        // scanner CAN see the class, not that the rule REFUSES it.
-        assertFalse(ALLOWED.containsKey(THE_ONE_THAT_BROKE_THE_GATE),
-                "MultiPlayerGameMode was added to the allowlist. It is the one client class known "
-                + "to be fatal in this package — if that has genuinely changed, it needs a green "
-                + "dedicated-server gate behind it and this control rewritten to name whatever the "
-                + "new fatal class is, because a control that cannot fail is not a control.");
+        Set<String> hits = clientMentions(read(BOT_INTERACT_CLASS));
+        assertTrue(hits.stream().anyMatch(s -> s.contains("net/minecraft/client/multiplayer/MultiPlayerGameMode")),
+                "the scanner cannot find MultiPlayerGameMode in a class that demonstrably calls it, so "
+                + "a green above means only that it found nothing anywhere. It reported: " + hits);
     }
 
     @Test
     void theScopeIsThereAtAll() {
         List<Path> classes = schedulerClasses();
         assertTrue(classes.size() >= 10,
-                "expected the compiled scheduler package (14 classes at last count), found "
-                + classes.size() + " in " + SCHEDULER_CLASSES.toAbsolutePath()
+                "expected the compiled scheduler package, found " + classes.size() + " classes in "
+                + SCHEDULER_CLASSES.toAbsolutePath()
                 + " — an empty or moved output directory makes this test vacuously green");
-        Set<String> everything = new TreeSet<>();
-        for (Path c : classes) everything.addAll(clientOwners(read(c)));
-        assertEquals(new TreeSet<>(ALLOWED.keySet()), everything,
-                "the client-call surface of bot/arbitration/** no longer matches the manifest. An "
-                + "extra entry is caught by the first test with a fuller message; a MISSING one "
-                + "means the package stopped calling a class it used to — drop the row, so the "
-                + "allowlist keeps meaning 'measured', not 'accumulated'.");
     }
 
     // ------------------------------------------------------------------ class-file reading
 
-    /**
-     * The owners of every {@code Methodref} / {@code Fieldref} / {@code InterfaceMethodref} in a
-     * class's constant pool that live under {@code net/minecraft/client/}.
-     *
-     * <p>Those three tags are exactly what {@code invoke*} and {@code get/putfield} resolve
-     * against, which is the "calls it" half of the rule. A type that only appears in a signature,
-     * a local variable, or a {@code checkcast} contributes a {@code Utf8}/{@code Class} entry
-     * instead and is deliberately not reported — this package passes {@code LocalPlayer} through
-     * constantly and does so safely, because every one of those parameters is itself declared
-     * {@code LocalPlayer}.
-     *
-     * <p><b>Passing through is not unconditionally safe, and nothing here checks which kind it
-     * is.</b> Hand the same value to a parameter declared {@code Player}/{@code Entity} and the
-     * verifier loads {@code LocalPlayer} anyway — the widening of AGENTS.md hard rule 12, the
-     * shape that actually killed the gate. It leaves no Methodref owner behind, so this method
-     * cannot see it by construction.
-     */
-    private static Set<String> clientOwners(byte[] classFile) {
-        return scan(classFile).owners();
-    }
-
-    /**
-     * The Minecraft types this class hands to a parameter declared WIDER than they are — the
-     * widening of AGENTS.md hard rule 12, read straight out of the invoked descriptors.
-     *
-     * <p>Reported by the parameter's declared type, not by the argument's: proving which value
-     * reaches which slot needs dataflow, and this file does not do dataflow. What it can say
-     * exactly is <b>which wide player types this class's call sites accept at all</b>, and today
-     * that set is EMPTY for {@code bot/arbitration/**} — measured, not assumed. An empty set cannot
-     * widen, so an empty set is the invariant worth pinning; the day one appears, someone has to
-     * say why the argument is not the client player.
-     *
-     * <p>Deliberately narrow: only the player class hierarchy ({@link #WIDE_BODY_TYPES}). A descriptor
-     * taking {@code Level} or {@code BlockPos} widens nothing that has a client subclass in this
-     * codebase's call graph, and flagging those would make the guard cry wolf — which, as the
-     * class comment already says about the owner rule, gets a guard switched off.
-     */
-    private static Set<String> wideBodyParams(byte[] classFile) {
+    /** Every {@code Utf8} constant that mentions a client type. Class refs, member descriptors and
+     *  generic signatures all resolve to {@code Utf8} entries, so one pass sees every way a class can
+     *  name a type. */
+    private static Set<String> clientMentions(byte[] classFile) {
         Set<String> out = new TreeSet<>();
-        for (String descriptor : scan(classFile).descriptors()) {
-            int open = descriptor.indexOf('(');
-            int close = descriptor.indexOf(')');
-            if (open != 0 || close < 0) continue;          // a field descriptor has no parameters
-            for (String param : parameterTypes(descriptor.substring(1, close))) {
-                if (WIDE_BODY_TYPES.contains(param)) out.add(param);
-            }
-        }
+        for (String s : utf8(classFile)) if (s.contains(CLIENT)) out.add(s);
         return out;
     }
 
-    /** The class names in one descriptor's parameter list, arrays unwrapped, primitives dropped. */
-    private static List<String> parameterTypes(String params) {
-        List<String> out = new ArrayList<>();
-        int i = 0;
-        while (i < params.length()) {
-            char c = params.charAt(i);
-            if (c == '[') { i++; continue; }
-            if (c != 'L') { i++; continue; }               // a primitive: one character, no name
-            int end = params.indexOf(';', i);
-            if (end < 0) break;
-            out.add(params.substring(i + 1, end));
-            i = end + 1;
-        }
-        return out;
-    }
-
-    /** One pass over the constant pool: {@code net/minecraft/client/} ref owners, and every
-     *  Methodref/Fieldref descriptor. Both readings come from the same walk because the pool has
-     *  to be parsed in order — a second parser would be a second place to get the tag widths
-     *  wrong, and getting them wrong turns this whole file green rather than red. */
-    private record Pool(Set<String> owners, List<String> descriptors) { }
-
-    private static Pool scan(byte[] classFile) {
+    private static List<String> utf8(byte[] classFile) {
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(classFile))) {
             if (in.readInt() != 0xCAFEBABE) throw new AssertionError("not a class file");
             in.readUnsignedShort();                       // minor
             in.readUnsignedShort();                       // major
             int count = in.readUnsignedShort();
-            String[] utf8 = new String[count];
-            int[] classNameIndex = new int[count];
-            int[] nameAndTypeDescriptor = new int[count];
-            List<int[]> refs = new ArrayList<>();          // {class_index, name_and_type_index}
+            List<String> out = new ArrayList<>();
             for (int i = 1; i < count; i++) {
                 int tag = in.readUnsignedByte();
                 switch (tag) {
-                    case 1 -> utf8[i] = in.readUTF();
-                    case 7 -> classNameIndex[i] = in.readUnsignedShort();
-                    case 9, 10, 11 -> {                    // Fieldref / Methodref / InterfaceMethodref
-                        int owner = in.readUnsignedShort();
-                        refs.add(new int[]{owner, in.readUnsignedShort()});
-                    }
-                    case 12 -> {                           // NameAndType: name, then descriptor
-                        in.readUnsignedShort();
-                        nameAndTypeDescriptor[i] = in.readUnsignedShort();
-                    }
-                    case 8, 16, 19, 20 -> in.readUnsignedShort();
-                    case 3, 4, 17, 18 -> in.readInt();
+                    case 1 -> out.add(in.readUTF());
+                    case 7, 8, 16, 19, 20 -> in.readUnsignedShort();
+                    case 3, 4, 9, 10, 11, 12, 17, 18 -> in.readInt();
                     case 15 -> { in.readUnsignedByte(); in.readUnsignedShort(); }
                     case 5, 6 -> { in.readLong(); i++; }   // Long/Double eat two pool slots
                     default -> throw new AssertionError(
                             "unknown constant-pool tag " + tag + " at " + i + " — the class-file "
                             + "format moved. Teach this parser the new tag; skipping entries would "
-                            + "silently shorten the surface it reports and turn this guard green.");
+                            + "silently shorten what it reports and turn this guard green.");
                 }
             }
-            Set<String> owners = new TreeSet<>();
-            List<String> descriptors = new ArrayList<>();
-            for (int[] ref : refs) {
-                String owner = utf8[classNameIndex[ref[0]]];
-                if (owner != null && owner.startsWith("net/minecraft/client/")) owners.add(owner);
-                String descriptor = utf8[nameAndTypeDescriptor[ref[1]]];
-                if (descriptor != null) descriptors.add(descriptor);
-            }
-            return new Pool(owners, descriptors);
+            return out;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -400,9 +128,9 @@ class SchedulerClientCallSurfaceTest {
     private static List<Path> schedulerClasses() {
         assertTrue(Files.isDirectory(SCHEDULER_CLASSES),
                 "compiled scheduler classes not found at " + SCHEDULER_CLASSES.toAbsolutePath()
-                + " (cwd " + Path.of(".").toAbsolutePath() + "). This test reads BYTECODE, so it "
-                + "needs the main classes on disk; :common:test already depends on :common:classes, "
-                + "so a missing directory means the output layout moved, not that you forgot to build.");
+                + " (cwd " + Path.of(".").toAbsolutePath() + "). This test reads BYTECODE; "
+                + ":common:test already depends on :common:classes, so a missing directory means the "
+                + "output layout moved.");
         try (Stream<Path> s = Files.walk(SCHEDULER_CLASSES)) {
             return new ArrayList<>(s.filter(p -> p.toString().endsWith(".class")).toList());
         } catch (IOException e) {

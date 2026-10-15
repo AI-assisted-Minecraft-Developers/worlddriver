@@ -4,14 +4,6 @@ bot/ClientEventDetector.java	(root) WorldDriverCommon
 bot/ClientEventDetector.java	net.minecraft.client
 bot/InteractionCommands.java	net.minecraft.client
 bot/ReplayInstaller.java	net.minecraft.client
-bot/arbitration/BunkerChain.java	net.minecraft.client
-bot/arbitration/Chain.java	net.minecraft.client
-bot/arbitration/CombatChain.java	net.minecraft.client
-bot/arbitration/DodgeChain.java	net.minecraft.client
-bot/arbitration/DrownEscapeChain.java	net.minecraft.client
-bot/arbitration/DuskSecureChain.java	net.minecraft.client
-bot/arbitration/PanicChain.java	net.minecraft.client
-bot/arbitration/RetreatChain.java	net.minecraft.client
 bot/behavior/Readiness.java	net.minecraft.client
 bot/behavior/reflex/AutoRespawn.java	net.minecraft.client
 bot/control/ClutchController.java	net.minecraft.client

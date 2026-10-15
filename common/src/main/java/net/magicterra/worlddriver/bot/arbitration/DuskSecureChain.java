@@ -8,10 +8,9 @@ import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.BunkerProcess;
 import net.magicterra.worlddriver.bot.behavior.RouteEvents;
 import net.magicterra.worlddriver.bot.world.WorldModel;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.LivingEntity;
 import java.util.Map;
-import static net.magicterra.worlddriver.game.body.BotInteract.releaseKeys;
 
 /**
  * Idle-only proactive shelter at dusk (controlled re-intro of the shelved BunkerChain).
@@ -116,8 +115,8 @@ public final class DuskSecureChain implements Chain {
     }
 
     @Override public float priority(Body body, WorldView w, BotState st) {
-        Minecraft mc = Chain.clientOf(body);
-        if (!ArbitrationConfig.autoSecureAtDusk || mc.player == null) { idleTicks = 0; return 0f; }
+        LivingEntity p = body == null ? null : body.entity();
+        if (!ArbitrationConfig.autoSecureAtDusk || p == null) { idleTicks = 0; return 0f; }
         // Once a shelter dig is committed, hold the channel until BunkerProcess finishes.
         // The 1-wide shaft we dig makes the bot 'cornered', which must NOT trip our own
         // start-gate and abandon a half-dug, unsealed hole. (Live-cert finding.)
@@ -140,7 +139,7 @@ public final class DuskSecureChain implements Chain {
         // mobs were near. This only affects the OBSERVE-ONLY emit; the RETURNED bid below
         // still runs through the legacy veto/debounce path completely unchanged.
         if (wouldEscalate(true, false, ArbitrationConfig.duskUrgent, ArbitrationConfig.duskUrgentDryRun)) {
-            maybeEmitDryRun(mc);
+            maybeEmitDryRun(p.blockPosition());
         }
         if (bid == Priorities.IDLE_SECURE) {
             // Legacy idle tier keeps its protections: never near a threat, never preempting.
@@ -158,12 +157,12 @@ public final class DuskSecureChain implements Chain {
     }
 
     @Override public void tick(Body body, WorldView w, BotState st) {
-        Minecraft mc = Chain.clientOf(body);
-        if (mc.player == null) return;
+        LivingEntity p = body.entity();
+        if (p == null) return;
         if (process == null) {
             process = new BunkerProcess(ArbitrationConfig.bunkerDepth);
             process.attach(st);
-            announceAutoTrigger(mc, rearmPending);
+            announceAutoTrigger(p.blockPosition(), rearmPending);
         }
         if (process.tick(body, w, st)) processEnded();
     }
@@ -190,9 +189,7 @@ public final class DuskSecureChain implements Chain {
      *  can react (e.g. mc.bot.cancel) and the operator sees it. Pairs with the off-by-default
      *  {@link ArbitrationConfig#autoSecureAtDusk} to keep the "dig three, fill one" bunker predominantly an Agent-invoked
      *  action (mc.bot.bunker) rather than an uncontrolled reflex. */
-    private void announceAutoTrigger(Minecraft mc, boolean rearm) {
-        if (mc.player == null) return;
-        BlockPos p = mc.player.blockPosition();
+    private void announceAutoTrigger(BlockPos p, boolean rearm) {
         emitter.emit("duskSecure.triggered", p, Map.of(
                         "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ()),
                         "depth", ArbitrationConfig.bunkerDepth,
@@ -206,10 +203,8 @@ public final class DuskSecureChain implements Chain {
      *  ticks so a first live night can confirm the escalation WOULD have fired before
      *  the flag is flipped to actually preempt the user task. Mirrors {@link
      *  #announceAutoTrigger}'s emit shape. */
-    private void maybeEmitDryRun(Minecraft mc) {
+    private void maybeEmitDryRun(BlockPos p) {
         if (dryRunCooldown > 0) { dryRunCooldown--; return; }
-        if (mc.player == null) return;
-        BlockPos p = mc.player.blockPosition();
         emitter.emit("duskSecure.urgentDryRun", p, Map.of(
                         "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ())));
         dryRunCooldown = DRY_RUN_EMIT_COOLDOWN_TICKS;
@@ -219,9 +214,9 @@ public final class DuskSecureChain implements Chain {
     // process != null (the mid-dig hold), so a stale value can't leak into a fresh bid —
     // but reset it anyway for defensive clarity: a cancelled/interrupted episode must
     // never be found holding a phantom 90 (gap#68-⑨ review note).
-    @Override public void onInterrupt(Chain by) {
+    @Override public void onInterrupt(Body body, Chain by) {
         interruptEpisodeState(by != null ? by.name() : "unknown");
-        releaseKeys();
+        if (body != null) body.releaseControls();
     }
 
     @Override public String episodePhase() { return process != null ? "SECURING" : null; }
@@ -231,15 +226,14 @@ public final class DuskSecureChain implements Chain {
      *  found the (unrelated, usually idle) BunkerChain. */
     @Override public String heldProcessKind() { return process != null ? process.kind() : null; }
 
-    @Override public void cancelEpisode(String reason) {
+    @Override public void cancelEpisode(Body body, String reason) {
         cancelEpisodeState(reason);
-        releaseKeys();
+        if (body != null) body.releaseControls();
     }
 
-    /** Pure state half of {@link #onInterrupt} (server-safe, matrix-testable — the
-     *  {@link BunkerChain#resetEpisodeState()} split precedent: the client key-release
-     *  half touches {@code Minecraft.getInstance()} and can't run on the dedicated
-     *  GameTest server). gap#72-①: a bare {@code process = null} here orphaned the
+    /** State half of {@link #onInterrupt}, which the matrix scenes drive with no body to
+     *  release (the {@link BunkerChain#resetEpisodeState()} split precedent). gap#72-①: a bare
+     *  {@code process = null} here orphaned the
      *  st.bunker slot (its only reset lives in BunkerProcess.finish, unreachable once
      *  the reference is dropped) — active=true/SEALED lingered forever after a
      *  RetreatChain preemption. Dropping a held process now runs the unified

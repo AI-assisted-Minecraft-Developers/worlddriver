@@ -38,7 +38,7 @@ class UserTaskChainEndTest {
     }
 
     private final BotState st = new BotState();
-    private final UserTaskChain chain = new UserTaskChain(st, () -> { });
+    private final UserTaskChain chain = new UserTaskChain(st, b -> { });
 
     private Map<String, Object> endOf(BotProcess p) {
         chain.setProcess(p);

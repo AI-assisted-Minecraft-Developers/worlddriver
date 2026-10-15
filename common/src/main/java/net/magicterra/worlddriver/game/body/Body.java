@@ -124,6 +124,14 @@ public interface Body {
         LivingEntity e = entity();
         if (e != null) e.setShiftKeyDown(false);
     }
+    /** The idle release a reflex chain does when it loses the bot or its episode is cancelled: every
+     *  held movement input and a held dig. Not the use intent — the hand reflexes arbitrate that
+     *  one themselves. The client player overrides it to its keybind release, which a human's keys
+     *  share. */
+    default void releaseControls() {
+        releaseInputs();
+        blockInteraction().ifPresent(b -> b.breakHold(false));
+    }
 
     // --- look ---
     /** Snap the look (yaw+pitch) onto the block at {@code cell}. */

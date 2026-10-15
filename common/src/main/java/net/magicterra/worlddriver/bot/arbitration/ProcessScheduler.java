@@ -140,7 +140,7 @@ public final class ProcessScheduler {
                     "[scheduler] chain {} -> {} (bids: {})",
                     current == null ? "idle" : current.name(),
                     best == null ? "idle" : best.name(), prios);
-            if (current != null) current.onInterrupt(best);
+            if (current != null) current.onInterrupt(body, best);
             if (best != null) best.onResume();
         }
         current = best;
@@ -154,9 +154,10 @@ public final class ProcessScheduler {
      *  The structural fix for "cancel can't reach a process-less reflex chain" (gap#68-⑦):
      *  mc.bot.cancel{all} and the player-death hook both call this. Idempotent. Bails are
      *  lifted too: a bail describes the site the chain gave up on, and after a respawn or an
-     *  explicit stand-down that site is no longer the question. */
-    public void cancelAllEpisodes(String reason) {
-        for (Chain c : chains) c.cancelEpisode(reason);
+     *  explicit stand-down that site is no longer the question. {@code body} is what the chains
+     *  release their held inputs on; see {@link Chain#cancelEpisode}. */
+    public void cancelAllEpisodes(Body body, String reason) {
+        for (Chain c : chains) c.cancelEpisode(body, reason);
         held.clear();
     }
 

@@ -1070,7 +1070,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
             @Override public String name() { return "user"; }
             @Override public float priority(Body body, WorldView w, BotState st) { return Priorities.USER; }
             @Override public void tick(Body body, WorldView w, BotState st) { /* keeps digging */ }
-            @Override public void onInterrupt(Chain by) { userInterrupts[0]++; }
+            @Override public void onInterrupt(Body body, Chain by) { userInterrupts[0]++; }
         };
         ProcessScheduler sched = new ProcessScheduler();
         sched.register(drown);

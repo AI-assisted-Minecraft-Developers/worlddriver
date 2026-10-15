@@ -89,7 +89,7 @@ overwrites the impulses after vanilla's key pass.
 
 ## What blocks the rise is measured with the player's hitbox, not with a column
 
-The obstruction is found by `BotInteract.riseBlockedCell`, which lifts the player's **own bounding
+The obstruction is found by `DrownEscapeChain.blockedAbove`, which lifts the player's **own bounding
 box** by `RISE_PROBE` (0.5 of a block) and reports what it hits.
 
 It used to name `p.blockPosition().above(2)` — the cell two above the foot — which is correct only
@@ -126,7 +126,7 @@ grounds that the bot can always ground itself; this reflex was the one place tha
 The guard on that release is geometry rather than caution, and it has to be. `RISE_PROBE` of 0.5
 lifting a 1.8-tall box reaches 2.3 above the feet, so in a two-block-tall pocket a grounded bot
 still finds the lid and releasing the jump costs nothing. In a deeper pocket the bot would sink
-away from the lid, `riseBlockedCell` would return null, the jump would go straight back on, and
+away from the lid, `blockedAbove` would return null, the jump would go straight back on, and
 the two would oscillate with the break progress reset on every cycle — so the release is
 conditional on the cell under the feet being standable.
 
@@ -147,19 +147,16 @@ the row printed when the lateral scan found a breathable column it could not rea
 vertical counter without incrementing it, so the two halves of the same decision land on the same
 ticks.
 
-## Why the client calls go through `BotInteract`
+## Why the chain names no client type
 
-`riseBlockedCell` and the debug row both take a `LocalPlayer`. Declaring a method with
-`LocalPlayer` in its descriptor **on this chain** stops the chain loading on a dedicated server —
-and the gate's matrix scenes construct it there. `invokestatic` resolves its owner, not its owner's
-dependencies, and `tick()` returns at a null `Minecraft` before anything in `BotInteract` is ever
-reached, so the helper class is simply never loaded. `continueDestroy` is in the same position for
-the same reason.
-
-The discriminator here is widening, not calling: handing a client type to a parameter declared as a
-wider type forces the verifier to load the client type to prove the subtype relation. Holding one in
-a local variable and calling its own methods has always been fine. `AGENTS.md` states this as a hard
-rule; it is repeated here because this chain is the class that established it.
+The gate's matrix scenes construct this chain on a dedicated server, so it must load there. It
+once held the client's `LocalPlayer`, and handing that to a parameter declared as a wider type made
+the verifier load `LocalPlayer` to prove the subtype relation — which is what established the
+widening rule in `AGENTS.md`. The lid scan and the debug row lived in `BotInteract` to keep that
+widening out of the chain. The chain now steers through the `Body` it is ticked with: the player
+is `body.entity()`, the dig goes through `blockInteraction()`, and the jump read-back is
+`body.dbgJumping()`. With no client type held, there is nothing to widen, and both methods live in
+the chain again.
 
 ## What is still open
 
@@ -173,9 +170,10 @@ the hypothesis is settled it should be promoted in the same change, or it become
 
 ## Where to look
 
-- `bot/arbitration/DrownEscapeChain.java` — both arms, the recentre, and the stand-up-to-dig release.
-- `bot/behavior/reflex/DrownEscapeGate.java` — the pure latch, and the only part a dedicated server exercises.
-- `game/body/BotInteract.java` — `riseBlockedCell`, `drownVerticalRow`, `continueDestroy`.
+- `bot/arbitration/DrownEscapeChain.java` — both arms, the recentre, the stand-up-to-dig release,
+  the lid scan (`blockedAbove`) and the debug row (`verticalRow`).
+- `bot/behavior/reflex/DrownEscapeGate.java` — the pure latch.
+- `game/body/BotInteract.java` — `continueDestroy`, which the client body's dig goes through.
 - `config/ArbitrationConfig.java` — `autoDrownEscape`, `drownEscapeReleaseAir`; `config/ControlConfig.java` —
   `drownEscapeAirThreshold`.
 - `bot/arbitration/Priorities.java` — where 500 sits relative to the other reflexes.

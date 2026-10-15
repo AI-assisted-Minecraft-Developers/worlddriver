@@ -2,9 +2,7 @@ package net.magicterra.worlddriver.bot.arbitration;
 
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.ClientPlayerBody;
 import net.magicterra.worlddriver.bot.world.WorldView;
-import net.minecraft.client.Minecraft;
 
 /**
  * A competing behaviour over the <em>movement channel</em>. Each tick every
@@ -36,25 +34,9 @@ public interface Chain {
     /** Run when this chain wins the bid for the movement channel. */
     void tick(Body body, WorldView w, BotState st);
 
-    /**
-     * The client a reflex chain runs on, or null when {@code body} is not the client player.
-     *
-     * <p>The scheduler works in terms of the {@code Body} interface, so a process it hands the
-     * channel to can drive any controlled player; the
-     * chains themselves still read the local player, the client level and the client-only
-     * helpers ({@code ThreatScanner}, {@code BotInteract}, the {@code auto} reflexes) through
-     * {@code Minecraft}, so each one downcasts here at the top of {@link #priority} and
-     * {@link #tick}. Whether the reflex layer should run over a server-side player at all is
-     * open; until it is decided, a chain over a player that is not the client's sees the same
-     * null it sees in the headless matrix scenes and sits the bid out.
-     */
-    static Minecraft clientOf(Body body) {
-        return body instanceof ClientPlayerBody c ? c.mc() : null;
-    }
-
     /** Called when a higher-priority chain preempts this one: save a minimal
-     *  resume point, release held keys. {@code by} is the preempting chain. */
-    default void onInterrupt(Chain by) {}
+     *  resume point, release what it held on {@code body}. {@code by} is the preempting chain. */
+    default void onInterrupt(Body body, Chain by) {}
 
     /** Called when this chain regains the channel after being suspended. */
     default void onResume() {}
@@ -90,8 +72,11 @@ public interface Chain {
      * its own trigger condition re-arms it). Calling it on an already-idle chain
      * must be a harmless no-op. Does not affect the chain's normal tick/priority
      * behaviour while an episode IS active and simply running its course.
+     *
+     * <p>{@code body} is the bot whose inputs the episode may still hold, or null when there is
+     * none to release (no world yet, or a caller with no body to hand).
      */
-    default void cancelEpisode(String reason) {}
+    default void cancelEpisode(Body body, String reason) {}
 
     /**
      * The {@link net.magicterra.worlddriver.bot.behavior.BotProcess#kind()} of the process

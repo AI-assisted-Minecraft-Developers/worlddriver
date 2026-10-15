@@ -54,7 +54,7 @@ class ActionEndingTest {
 
     private final ActionRegistry registry = new ActionRegistry();
     private final BotState st = new BotState();
-    private final UserTaskChain chain = new UserTaskChain(st, () -> { });
+    private final UserTaskChain chain = new UserTaskChain(st, b -> { });
     private final HeldProcess held = new HeldProcess(new BotState());
 
     private ActionHandle admit(String body) {
@@ -106,7 +106,7 @@ class ActionEndingTest {
         ActionHandle h = admit("self");
         chain.setProcess(new Step(3, null, false), of(h));
         chain.tick(null, null, st);
-        chain.onInterrupt(null);
+        chain.onInterrupt(null, null);
         chain.onResume();
         assertInstanceOf(Running.class, h.snapshot());
         chain.tick(null, null, st);

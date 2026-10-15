@@ -29,7 +29,7 @@ class UserTaskChainKeyReleaseTest {
 
     private final BotState st = new BotState();
     private int keyReleases;
-    private final UserTaskChain chain = new UserTaskChain(st, () -> keyReleases++);
+    private final UserTaskChain chain = new UserTaskChain(st, b -> keyReleases++);
 
     @Test
     void aProcessThatEndsOnItsFirstTickReleasesNothing() {
@@ -54,7 +54,7 @@ class UserTaskChainKeyReleaseTest {
     void aPreemptedProcessStillReleases() {
         chain.setProcess(new Finisher(10));
         chain.tick(null, null, st);
-        chain.onInterrupt(null);
+        chain.onInterrupt(null, null);
         assertEquals(1, keyReleases, "a held process that is interrupted mid-run did take the keys");
     }
 

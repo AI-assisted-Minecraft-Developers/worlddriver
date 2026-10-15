@@ -51,7 +51,7 @@ class ProcessSchedulerTest {
             }
         }
 
-        @Override public void onInterrupt(Chain by) { interruptedBy.add(by == null ? "idle" : by.name()); }
+        @Override public void onInterrupt(Body body, Chain by) { interruptedBy.add(by == null ? "idle" : by.name()); }
 
         @Override public void registeredWith(ProcessScheduler s) { scheduler = s; }
     }
@@ -140,7 +140,7 @@ class ProcessSchedulerTest {
         sched.tick(null, null, st);
         sched.tick(null, null, st);
         assertNull(sched.currentName());
-        sched.cancelAllEpisodes("player-death");
+        sched.cancelAllEpisodes(null, "player-death");
         assertNull(sched.bailOf(bunker));
         sched.tick(null, null, st);
         assertEquals("bunker", sched.currentName(), "a respawn starts from a clean table");

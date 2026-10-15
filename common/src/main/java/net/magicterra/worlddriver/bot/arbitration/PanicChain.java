@@ -1,7 +1,5 @@
 package net.magicterra.worlddriver.bot.arbitration;
 
-import net.magicterra.worlddriver.game.body.ClientPlayerBody;
-
 import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
@@ -10,12 +8,10 @@ import net.magicterra.worlddriver.bot.world.ThreatScanner;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.world.HazardField;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
-
-import static net.magicterra.worlddriver.game.body.BotInteract.releaseKeys;
 
 /**
  * Phase B top-priority reflex — a creeper is close enough to be lethal, so sprint
@@ -29,8 +25,7 @@ public final class PanicChain implements Chain {
     @Override public String name() { return "panic"; }
 
     @Override public float priority(Body body, WorldView w, BotState st) {
-        Minecraft mc = Chain.clientOf(body);
-        if (!ArbitrationConfig.autoDodge || mc.player == null) return 0f;
+        if (!ArbitrationConfig.autoDodge || body == null || body.entity() == null) return 0f;
         return nearestCreeper(st) != null ? Priorities.PANIC : 0f;
     }
 
@@ -41,12 +36,11 @@ public final class PanicChain implements Chain {
             {0, 25, -25, 50, -50, 75, -75, 90, -90, 115, -115, 135, -135, 160, -160, 180};
 
     @Override public void tick(Body body, WorldView w, BotState st) {
-        Minecraft mc = Chain.clientOf(body);
         Entity creeper = nearestCreeper(st);
-        if (creeper == null || mc.player == null) return;
-        var p = mc.player;
+        LivingEntity p = body.entity();
+        if (creeper == null || p == null) return;
         Vec3 away = p.position().subtract(creeper.position());   // creeper → me
-        if (away.lengthSqr() <= 1.0e-6) { releaseKeys(); return; }
+        if (away.lengthSqr() <= 1.0e-6) { body.releaseControls(); return; }
         double ax = away.x, az = away.z;
         double len = Math.sqrt(ax * ax + az * az);
         ax /= len; az /= len;
@@ -72,16 +66,15 @@ public final class PanicChain implements Chain {
             // Cornered: every heading steps into a lethal cell. Holding still and
             // eating the blast (a full-HP bot often survives a single creeper) beats
             // a guaranteed void/lava death. Face away, but do NOT sprint forward.
-            releaseKeys();
+            body.releaseControls();
             p.setYRot((float) (Math.toDegrees(Math.atan2(az, ax)) - 90.0));
             p.setXRot(0f);
             return;
         }
         p.setYRot((float) (Math.toDegrees(Math.atan2(bestZ, bestX)) - 90.0));
         p.setXRot(0f);
-        ClientPlayerBody a = new ClientPlayerBody(mc);
-        a.commandForward(1f);
-        a.commandSprint(true);
+        body.commandForward(1f);
+        body.commandSprint(true);
     }
 
     /** The cell {@code dist} blocks along (dx,dz) from the bot is walkable and
@@ -93,7 +86,7 @@ public final class PanicChain implements Chain {
         return cell.standable() && !cell.lethal();
     }
 
-    @Override public void onInterrupt(Chain by) { releaseKeys(); }
+    @Override public void onInterrupt(Body body, Chain by) { if (body != null) body.releaseControls(); }
     @Override public void onResume() {}
 
     /** The closest creeper within the keep-distance (or one already swelling a bit

@@ -8,9 +8,6 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
-import net.minecraft.tags.FluidTags;
-import net.minecraft.util.Mth;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.network.protocol.game.ServerboundContainerClosePacket;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -24,7 +21,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
-import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
 import net.minecraft.world.item.enchantment.Enchantments;
@@ -105,108 +101,6 @@ public final class BotInteract {
         // per-tick stopDestroyBlock that used to zero the progress never runs while we drive.
         ClientIntents.assertDig(cell);
         return ok;
-    }
-
-    /**
-     * The lowest cell that would stop this bot rising {@code rise} blocks, or null if none does.
-     *
-     * <p><b>Here, not in the chain, because of the WIDENING.</b> The scan itself is
-     * {@link net.magicterra.worlddriver.bot.control.WalkerGeometry#riseBlockers}, which takes a
-     * {@link net.minecraft.world.entity.player.Player} — so calling it with a {@code LocalPlayer}
-     * is a widening conversion, and <b>a widening conversion is exactly what forces the verifier to
-     * LOAD {@code LocalPlayer}</b> in order to prove the subtype relation. Do that inside a chain
-     * and the chain stops loading on a dedicated server, where the gate's matrix scenes construct
-     * it ({@code new DrownEscapeChain()}).
-     *
-     * <p>Measured 2026-08-23 the expensive way. The framework reports only
-     * <i>"Cannot load class net.minecraft.client.player.LocalPlayer in environment type SERVER"</i>
-     * — which names the class that could not load, never the instruction that asked. Comparing
-     * {@code javap} output and git history against a known-good revision cleared every other
-     * suspect in turn (the class named {@code LocalPlayer} before; it called {@code KeyMapping},
-     * {@code ClientLevel}, {@code Minecraft.getInstance} before; it wrote {@code yHeadRot} before)
-     * and never found the cause, <b>because the cause was not any of those</b>. One stack, printed
-     * by fencing the scene's three matrices separately, named the line in seconds.
-     *
-     * <p>The rule that survives, sharper than "must not call into a client type":
-     * <b>a class the dedicated server has to load must not hand a client type to a parameter
-     * declared as a wider type.</b> Holding it in a local and calling its own methods is fine.
-     */
-    public static BlockPos riseBlockedCell(Minecraft mc, LocalPlayer p, double rise) {
-        if (mc.level == null) return null;
-        List<BlockPos> hits = BodyGeometry.riseBlockers(p, rise);
-        return hits.isEmpty() ? null : hits.get(0);
-    }
-
-    /**
-     * The execution-layer row for {@code DrownEscapeChain}'s pure-vertical arm.
-     *
-     * <p><b>Here rather than in the chain, for the same reason {@link #continueDestroy} is.</b> The
-     * row reads {@code p.input}, which only {@code LocalPlayer} has. A method DECLARED on a chain
-     * with {@code LocalPlayer} in its descriptor is resolved when that chain's class is prepared,
-     * and the gate's matrix scenes construct chains on a DEDICATED SERVER — measured 2026-08-23,
-     * declaring it there turned {@code wd.drownEscapeGateMatrix} and {@code wd.drownEscapePreempt}
-     * into <i>"Cannot load class net.minecraft.client.player.LocalPlayer in environment type
-     * SERVER"</i>, at 0 ticks, on {@code new DrownEscapeChain()}. {@code javap -p} on the chain
-     * named the two offending descriptors in one line. This class already names {@code LocalPlayer}
-     * throughout, so an {@code invokestatic} into it costs the chain nothing.
-     *
-     * <p>Every field separates exactly one candidate, so none is decoration:
-     * <ul>
-     *   <li>{@code jumpReadBack} is read back off the player's own {@code Input} — what
-     *       {@code AvatarInput#tick} actually left there last tick, <b>not</b> what the chain asked
-     *       for. That channel is last-writer-wins and heavily contended, so "we commanded it" is
-     *       a different claim from "it landed". This said "nine writers", which is
-     *       {@code AutoSwim}'s count ALONE — one file measured and reported as the whole. Derive
-     *       it, do not quote it: {@code grep -rn "commandJump(" common/src/main} returned 41 lines
-     *       on 2026-08-26, five of them plumbing (the declaration in {@code Body}, the impl in
-     *       {@code AvatarInput}, the since-retired {@code BotInput} forwarder, and the two avatar overrides),
-     *       leaving ~36 writes across 14 behaviour classes. ⚠️ The same wrong nine was written
-     *       into {@code DrownEscapeChain} as well, and both copies came from one memory rather
-     *       than from two greps — which is the whole reason to re-run it here.</li>
-     *   <li>{@code hitCeiling} ({@code verticalCollision}) is the one-row proof of "buoyancy IS
-     *       applying and something is in the way" — the state every column scan in the chain is
-     *       blind to. A bot neither rising nor sinking is pinned, and only this says so without
-     *       arithmetic on two samples 200 ticks apart. It is true for a bot standing on the FLOOR
-     *       too, so the pin signature needs {@code onGround=false} alongside it.</li>
-     *   <li>{@code straddledColumns} prints the cells the box actually straddles at the lid's
-     *       height, not the one cell {@code blockPosition()} names. A bot at x=-27.716 has its edge
-     *       at -28.016 — 0.016 inside the NEXT column, which every single-column scan ignores.</li>
-     *   <li>{@code breakingLid} makes the break arm visible at all.</li>
-     * </ul>
-     *
-     * <p>Unconditional by design: gates never set {@code walkerDebug}, so a flag here would mean no
-     * rows in exactly the runs that need them. The {@code %10} throttle lives at the call site.
-     */
-    public static void drownVerticalRow(Minecraft mc, LocalPlayer p, BlockPos lid,
-                                        boolean lidBlocksRise, boolean breaking) {
-        if (mc.level == null) return;
-        AABB box = p.getBoundingBox();
-        // With nothing in the way `lid` is null, and the row still has to say WHICH cells were
-        // looked at — a reader diagnosing "did not rise" needs the neighbours named on the clear ticks too,
-        // otherwise the interesting rows have no baseline to differ from.
-        int scanY = lid != null ? lid.getY() : p.blockPosition().getY() + 2;
-        StringBuilder straddled = new StringBuilder();
-        // maxX/maxZ are EXCLUSIVE edges: a box ending exactly on a boundary does not occupy the
-        // next cell, and floor(maxX) would name one it never touches. Vanilla's own convention.
-        for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX - 1.0E-7); x++) {
-            for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ - 1.0E-7); z++) {
-                BlockPos c = new BlockPos(x, scanY, z);
-                BlockState bs = mc.level.getBlockState(c);
-                if (straddled.length() > 0) straddled.append(", ");
-                straddled.append(c.toShortString()).append('=')
-                        .append(BuiltInRegistries.BLOCK.getKey(bs.getBlock()))
-                        .append(bs.getCollisionShape(mc.level, c).isEmpty() ? "" : "(solid)");
-            }
-        }
-        LOG.info("[drownEscape] vertical arm y={} fallSpeed={} jumpReadBack={} onGround={} hitCeiling={} inWater={} "
-                        + "underWater={} waterHeight={} air={} lidCell={} lidBlocks={} breakingLid={} straddledColumns={}",
-                String.format(Locale.ROOT, "%.3f", p.getY()),
-                String.format(Locale.ROOT, "%.4f", p.getDeltaMovement().y),
-                p.input != null && p.input.jumping, p.onGround(), p.verticalCollision,
-                p.isInWater(), p.isUnderWater(),
-                String.format(Locale.ROOT, "%.3f", p.getFluidHeight(FluidTags.WATER)),
-                p.getAirSupply(), lid == null ? "none (the way up is clear)" : lid.toShortString(),
-                lidBlocksRise, breaking, straddled);
     }
 
     /**

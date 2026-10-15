@@ -134,15 +134,14 @@ The shape that survives is to put the widening inside a client-only class and re
 `invokestatic`, which resolves its owner and not its owner's dependencies; a chain whose tick
 method opens by returning when the client is absent never loads that owner on a server. Verify by
 measurement rather than by reading. For `bot/arbitration/**` the measurement is already written:
-`SchedulerClientCallSurfaceTest` parses the compiled constant pool and fails on any call site in
-that package whose descriptor takes `Player`, `LivingEntity` or `Entity`. It carries its own
-positive controls, so a green result means it looked rather than that it found nothing.
+`SchedulerClientCallSurfaceTest` parses the compiled constant pool and fails if any class in that
+package names a client type at all. The chains steer through `Body` and hold no client value, so
+there is nothing there to call or to widen. It carries its own positive control, so a green result
+means it looked rather than that it found nothing.
 `./gradlew :common:test` runs it and needs no game. **Run it before landing any change that alters
 the shape of a call** — folding a duplicated expression into a shared helper, extracting a method,
 adding a parameter. Those read as tidy-ups, which is the disguise this rule keeps being broken in.
 
-That test guards one package and its scope cannot simply be widened: it asserts the
-wide-parameter set is empty, which is only true in `bot/arbitration/**`. `Walker` is loaded on both
-sides and legitimately makes such calls, so pointing the same assertion at `bot/control/**` fails
-a healthy tree. Outside that package, disassemble the class and count the calls taking a `Player`
-parameter by hand.
+That test guards one package. The rest of `bot/` is moving to the same state — the client-only
+classes still left there are listed in `scripts/architecture-pending.txt` — and until a package
+is clean, disassemble the class and count the calls taking a `Player` parameter by hand.
