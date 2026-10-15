@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-16
+
+- **A server bot now has the same reflexes as the client's bot, switched on by the same settings.**
+  Each `/worlddriver server` bot runs its own `BotBrain`, the decision stack the client's bot runs:
+  eating, healing, shield, totem, gear and tool choice, swimming up, the water-bucket clutch, breaking
+  out of a block that buries its head, stepping out of cactus and away from lava, and the survival and
+  combat chains that interrupt its task. Before, a server bot only ran the task it was given.
+- **An idle server bot keeps living until it is removed.** Once its task ended, a server bot used to
+  stop dead: no physics, wherever it was, in mid-air too, with its keys still held until the next task.
+  It now falls, floats and reacts like any player, and lets go of the keys it pressed when a task ends,
+  as the client's bot does. A scene that relied on the old freeze to finish a jump onto a ledge now runs
+  on the walker setting the product ships with, which holds the last step until the bot is standing.
+- **The server's bot list drops a bot whose player is gone or whose tick throws,** and its count of
+  active bots counts the ones with a task, not every registered one.
+- **On the client, `threat.appeared` now comes before `player.hurt` in the same tick.** The threat scan
+  moved into the bot's own tick, which runs before the hurt detector. Server bots do not publish these
+  events yet: the event stream has no field saying which bot an event belongs to.
+- **Java callers:** `BotApiImpl` is split into `BotBrain` (the per-bot stack, in `bot/`) and
+  `ClientBot` (the client's half, in `application/client/`). `ClientEventDetector`,
+  `InteractionCommands` and `AutoRespawn` moved to `application/client/`, `ReplayInstaller` to
+  `debug/`. `ClientThreatScanner` is replaced by one `ThreatWatch` per bot.
+
 ## 2026-10-15
 
 - **The mod's internals are re-layered; code built against the old names must be rebuilt.** Nothing on
