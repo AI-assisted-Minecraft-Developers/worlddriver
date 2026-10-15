@@ -13,11 +13,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
 import net.magicterra.worlddriver.game.observe.BlockMatch;
+import net.magicterra.worlddriver.game.observe.LoadedCube;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.LevelChunk;
 
 /**
  * {@code mc.query q=blocks}: every non-air cell of a cube, as rows.
@@ -63,33 +63,15 @@ final class BlockQuery {
         return select.isEmpty() || select.get().isEmpty() || select.get().contains(f);
     }
 
-    /** Runs on the server thread: {@code getChunkNow} answers only from loaded chunks there. */
+    /** Runs on the server thread, reading loaded chunks only; see {@link LoadedCube}. */
     List<BlockRow> scan(ServerLevel level, BlockPos center) {
-        int minCx = (center.getX() - radius) >> 4, maxCx = (center.getX() + radius) >> 4;
-        int minCz = (center.getZ() - radius) >> 4, maxCz = (center.getZ() + radius) >> 4;
-        int w = maxCx - minCx + 1;
-        LevelChunk[] chunks = new LevelChunk[w * (maxCz - minCz + 1)];
-        List<ChunkPos> unloaded = new ArrayList<>();
-        for (int cx = minCx; cx <= maxCx; cx++)
-            for (int cz = minCz; cz <= maxCz; cz++) {
-                LevelChunk c = level.getChunkSource().getChunkNow(cx, cz);
-                if (c == null) unloaded.add(new ChunkPos(cx, cz));
-                chunks[(cz - minCz) * w + (cx - minCx)] = c;
-            }
-        if (!unloaded.isEmpty()) throw new UnloadedAreaException(center, radius, unloaded);
-
         List<BlockRow> out = new ArrayList<>();
-        BlockPos.MutableBlockPos bp = new BlockPos.MutableBlockPos();
-        for (int dx = -radius; dx <= radius; dx++)
-            for (int dy = -radius; dy <= radius; dy++)
-                for (int dz = -radius; dz <= radius; dz++) {
-                    bp.set(center.getX() + dx, center.getY() + dy, center.getZ() + dz);
-                    LevelChunk chunk = chunks[((bp.getZ() >> 4) - minCz) * w + ((bp.getX() >> 4) - minCx)];
-                    BlockState st = chunk.getBlockState(bp);
-                    if (st.isAir()) continue;
-                    if (match != null && !match.test(st)) continue;
-                    out.add(row(Positions.position(bp), RegistryIds.blockId(st), RegistryIds.stateProperties(st)));
-                }
+        List<ChunkPos> unloaded = LoadedCube.nonAir(level, center, radius, (bp, st) -> {
+            if (match == null || match.test(st)) {
+                out.add(row(Positions.position(bp), RegistryIds.blockId(st), RegistryIds.stateProperties(st)));
+            }
+        });
+        if (!unloaded.isEmpty()) throw new UnloadedAreaException(center, radius, unloaded);
         return out;
     }
 }

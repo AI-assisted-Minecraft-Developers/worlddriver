@@ -20,13 +20,13 @@ import net.magicterra.worlddriver.api.methods.world.WorldContracts.RestoreParams
 import net.magicterra.worlddriver.api.methods.world.WorldContracts.Restored;
 import net.magicterra.worlddriver.api.methods.world.WorldContracts.SnapshotParams;
 import net.magicterra.worlddriver.api.methods.world.WorldContracts.Snapshotted;
+import net.magicterra.worlddriver.game.edit.BlockEdits;
+import net.magicterra.worlddriver.game.edit.RegionSnapshot;
 import net.minecraft.core.BlockPos;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,9 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * verbatim — the deterministic setup/teardown primitive the GameTest YAML layer
  * (proposal §4.1 C) builds on. All reads and writes run on the server thread.
  *
- * <p>Snapshots hold live {@link BlockState} / {@link CompoundTag} objects rather
- * than serialized bytes — restore is then an exact identity put with no
- * (de)serialization round-trip. The store is bounded ({@link WorldContracts#MAX_SNAPSHOTS}) and
+ * <p>The store of {@link RegionSnapshot}s is bounded ({@link WorldContracts#MAX_SNAPSHOTS}) and
  * cleared when the server detaches; it is JVM-local and never persisted.
  */
 public final class WorldService implements WorldApi {
@@ -51,7 +49,7 @@ public final class WorldService implements WorldApi {
     static final int MAX_VOLUME = WorldContracts.MAX_VOLUME;
 
     private final DriverApplication api;
-    private final Map<String, Snapshot> store = new LinkedHashMap<>();
+    private final Map<String, RegionSnapshot> store = new LinkedHashMap<>();
     private final AtomicLong autoId = new AtomicLong();
 
     WorldService(DriverApplication api) { this.api = api; }
@@ -60,42 +58,10 @@ public final class WorldService implements WorldApi {
         return WorldApiBinding.methods(this);
     }
 
-    /** Immutable captured region. Indexing is x-major, then y, then z. */
-    private static final class Snapshot {
-        final int minX, minY, minZ, sx, sy, sz;
-        final BlockState[] states;
-        final CompoundTag[] beTags; // null entry == no block entity at that cell
-        int nonAir;
-        int blockEntities;
-
-        Snapshot(int minX, int minY, int minZ, int sx, int sy, int sz) {
-            this.minX = minX; this.minY = minY; this.minZ = minZ;
-            this.sx = sx; this.sy = sy; this.sz = sz;
-            this.states = new BlockState[sx * sy * sz];
-            this.beTags = new CompoundTag[sx * sy * sz];
-        }
-
-        int idx(int dx, int dy, int dz) { return (dx * sy + dy) * sz + dz; }
-    }
-
     /** Write a list of blocks into the level on the calling (server) thread, restoring
-     *  block-entity NBT where present. Shared by mc.world.restore and the path replayer. */
+     *  block-entity NBT where present. The path replayer's restore. */
     public static void restoreCells(ServerLevel level, List<WorldCell> cells) {
-        for (WorldCell c : cells) {
-            level.setBlockAndUpdate(c.pos(), c.state());
-            if (c.beTag() != null) {
-                BlockEntity be = level.getBlockEntity(c.pos());
-                if (be != null) {
-                    try {
-                        be.loadWithComponents(c.beTag(), level.registryAccess());
-                        be.setChanged();
-                    } catch (RuntimeException ignored) {
-                        // Malformed/foreign BE data — block state is still
-                        // restored; skip the contents rather than abort.
-                    }
-                }
-            }
-        }
+        for (WorldCell c : cells) BlockEdits.restore(level, c.pos(), c.state(), c.beTag());
     }
 
     /** Drop all retained snapshots — called when the server detaches. */
@@ -151,27 +117,10 @@ public final class WorldService implements WorldApi {
 
         ServerLevel level = api.level();
         return api.requireServerHop().submit(() -> {
-            Snapshot snap = new Snapshot(minX, minY, minZ, sx, sy, sz);
-            BlockPos.MutableBlockPos cur = new BlockPos.MutableBlockPos();
-            for (int dx = 0; dx < sx; dx++)
-                for (int dy = 0; dy < sy; dy++)
-                    for (int dz = 0; dz < sz; dz++) {
-                        cur.set(minX + dx, minY + dy, minZ + dz);
-                        BlockState st = level.getBlockState(cur);
-                        int i = snap.idx(dx, dy, dz);
-                        snap.states[i] = st;
-                        if (!st.isAir()) snap.nonAir++;
-                        if (p.blockEntities()) {
-                            BlockEntity be = level.getBlockEntity(cur);
-                            if (be != null) {
-                                snap.beTags[i] = be.saveWithFullMetadata(level.registryAccess());
-                                snap.blockEntities++;
-                            }
-                        }
-                    }
+            RegionSnapshot snap = RegionSnapshot.capture(level, new BlockPos(minX, minY, minZ), sx, sy, sz, p.blockEntities());
             synchronized (store) { store.put(snapId, snap); }
             return new Snapshotted(snapId, new BlockPosition(minX, minY, minZ), new BlockPosition(maxX, maxY, maxZ),
-                    sx * sy * sz, snap.nonAir, snap.blockEntities);
+                    snap.cells(), snap.nonAir(), snap.blockEntities());
         }, ctx);
     }
 
@@ -182,31 +131,18 @@ public final class WorldService implements WorldApi {
     @Override
     public CompletionStage<Restored> restore(RestoreParams p, CallContext ctx) {
         String id = p.id();
-        Snapshot snap;
+        RegionSnapshot snap;
         synchronized (store) { snap = store.get(id); }
         if (snap == null) throw ApiException.invalidParam("/id", ApiIssue.Code.INVALID_VALUE, "unknown snapshot id: " + id);
 
         ServerLevel level = api.level();
         long cursor = api.eventCursor();
         return api.requireServerHop().submit(() -> {
-            // Build the cell list while counting, then delegate the actual block
-            // writes to the shared restoreCells helper.
-            List<WorldCell> cells = new ArrayList<>(snap.sx * snap.sy * snap.sz);
-            int beRestored = 0;
-            for (int dx = 0; dx < snap.sx; dx++)
-                for (int dy = 0; dy < snap.sy; dy++)
-                    for (int dz = 0; dz < snap.sz; dz++) {
-                        int i = snap.idx(dx, dy, dz);
-                        BlockPos pos = new BlockPos(snap.minX + dx, snap.minY + dy, snap.minZ + dz);
-                        CompoundTag tag = snap.beTags[i];
-                        cells.add(new WorldCell(pos, snap.states[i], tag));
-                        if (tag != null) beRestored++;
-                    }
-            restoreCells(level, cells);
+            snap.restore(level);
             api.emit("world.restore", new BlockPos(snap.minX, snap.minY, snap.minZ),
-                    JsonValue.of(id + "@" + cells.size() + " blocks"));
+                    JsonValue.of(id + "@" + snap.cells() + " blocks"));
             if (p.discard()) synchronized (store) { store.remove(id); }
-            return new Restored(id, cells.size(), beRestored, api.eventsAfter(cursor, p.returnEvents()));
+            return new Restored(id, snap.cells(), snap.blockEntities(), api.eventsAfter(cursor, p.returnEvents()));
         }, ctx);
     }
 }

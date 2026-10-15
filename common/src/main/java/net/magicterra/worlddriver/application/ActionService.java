@@ -17,14 +17,11 @@ import net.magicterra.worlddriver.api.methods.action.ActionContracts.Filled;
 import net.magicterra.worlddriver.api.methods.action.ActionContracts.PlaceManyParams;
 import net.magicterra.worlddriver.api.methods.action.ActionContracts.Placed;
 import net.magicterra.worlddriver.api.methods.action.ActionContracts.Via;
-import net.minecraft.commands.CommandResultCallback;
-import net.minecraft.commands.CommandSource;
-import net.minecraft.commands.CommandSourceStack;
+import net.magicterra.worlddriver.game.edit.BlockEdits;
+import net.magicterra.worlddriver.game.edit.ServerCommands;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import java.util.ArrayList;
@@ -54,22 +51,17 @@ public final class ActionService implements ActionApi {
      */
     @Override
     public CompletionStage<Filled> fill(FillParams p, CallContext ctx) {
-        int minX = Math.min(p.from().x(), p.to().x()), maxX = Math.max(p.from().x(), p.to().x());
-        int minY = Math.min(p.from().y(), p.to().y()), maxY = Math.max(p.from().y(), p.to().y());
-        int minZ = Math.min(p.from().z(), p.to().z()), maxZ = Math.max(p.from().z(), p.to().z());
+        BlockPos min = new BlockPos(Math.min(p.from().x(), p.to().x()), Math.min(p.from().y(), p.to().y()),
+                Math.min(p.from().z(), p.to().z()));
+        BlockPos max = new BlockPos(Math.max(p.from().x(), p.to().x()), Math.max(p.from().y(), p.to().y()),
+                Math.max(p.from().z(), p.to().z()));
         BlockPos from = Positions.blockPos(p.from()), to = Positions.blockPos(p.to());
         ServerLevel level = api.level();
         // An unknown id is refused here, before anything is written.
         BlockState state = block("/type", p.type());
         long cursor = api.eventCursor();
         return api.requireServerHop().submit(() -> {
-            int n = 0;
-            for (int x = minX; x <= maxX; x++)
-                for (int y = minY; y <= maxY; y++)
-                    for (int z = minZ; z <= maxZ; z++) {
-                        level.setBlockAndUpdate(new BlockPos(x, y, z), state);
-                        n++;
-                    }
+            int n = BlockEdits.fill(level, min, max, state);
             api.emit("block.fill", from, JsonValue.of(p.type() + "@" + from + "->" + to));
             return new Filled(n, api.eventsAfter(cursor, p.returnEvents()));
         }, ctx);
@@ -90,7 +82,7 @@ public final class ActionService implements ActionApi {
             for (int i = 0; i < states.size(); i++) {
                 ActionContracts.Placement row = p.blocks().get(i);
                 BlockPos bp = Positions.blockPos(row.pos());
-                level.setBlockAndUpdate(bp, states.get(i));
+                BlockEdits.set(level, bp, states.get(i));
                 api.emit("block.place", bp, JsonValue.of(row.type()));
             }
             return new Placed(states.size(), api.eventsAfter(cursor, p.returnEvents()));
@@ -155,8 +147,7 @@ public final class ActionService implements ActionApi {
                 boolean isAir = type.equals("air") || type.equals("minecraft:air");
                 BlockState newState = isAir ? Blocks.AIR.defaultBlockState() : block("/cmd", type);
                 return api.requireServerHop().submit(() -> {
-                    String prev = RegistryIds.blockId(level.getBlockState(pos));
-                    level.setBlockAndUpdate(pos, newState);
+                    String prev = RegistryIds.blockId(BlockEdits.set(level, pos, newState));
                     api.emit(isAir ? "block.break" : "block.place", pos, JsonValue.of(isAir ? prev : type));
                     return new CommandResult(true, Optional.of(Via.FAST_PATH), Optional.empty(), true, 1, List.of(),
                             api.eventsAfter(cursor, p.returnEvents()));
@@ -168,71 +159,13 @@ public final class ActionService implements ActionApi {
         String finalCmd = trimmed;
         MinecraftServer s = api.server();
         return api.requireServerHop().submit(() -> {
-            // Anchor the source on a real player when one is connected so @s / @p
-            // resolve to them (and the command runs *in their dimension*). Without
-            // this, the server-console source has no entity, so @s silently matches
-            // 0 selectors and runCommand returns ok:true for a no-op — exactly the
-            // footgun that drove this fix. Falls back to the server console on
-            // dedicated server / before-anyone-joined.
-            ServerPlayer anchor = s.getPlayerList().getPlayers().isEmpty()
-                    ? null : s.getPlayerList().getPlayers().get(0);
-            // Collect feedback instead of suppressing it: parse errors and command
-            // output (e.g. `data get`'s NBT text) land in `feedback` for the caller.
-            List<String> feedback = new ArrayList<>();
-            CommandSource collector = new CommandSource() {
-                @Override
-                public void sendSystemMessage(Component message) {
-                    feedback.add(message.getString());
-                }
-
-                @Override
-                public boolean acceptsSuccess() {
-                    return true;
-                }
-
-                @Override
-                public boolean acceptsFailure() {
-                    return true;
-                }
-
-                @Override
-                public boolean shouldInformAdmins() {
-                    return false;
-                }
-            };
-            // Brigadier reports the command's own outcome through the result
-            // callback (1.20.2+ execution rework made performPrefixedCommand void).
-            boolean[] cbState = {false, false}; // [fired, success]
-            int[] cbValue = {0};
-            CommandResultCallback callback = (success, result) -> {
-                cbState[0] = true;
-                cbState[1] = success;
-                cbValue[0] = result;
-            };
-            CommandSourceStack src = ((anchor != null)
-                    ? anchor.createCommandSourceStack()
-                    : s.createCommandSourceStack())
-                    .withSource(collector)
-                    .withPermission(4)
-                    .withCallback(callback);
-            boolean ok;
-            String err = null;
-            try {
-                s.getCommands().performPrefixedCommand(src, finalCmd);
-                ok = true;
-            } catch (Throwable t) {
-                ok = false;
-                err = t.getMessage() == null ? t.toString() : t.getMessage();
-            }
-            // A parse failure doesn't throw — Brigadier reports it via the source's
-            // failure feedback with no callback. Treat "no callback fired" as failed
-            // unless the command genuinely produced no result (rare; still ok:true).
-            boolean success = ok && cbState[0] && cbState[1];
+            ServerCommands.Outcome o = ServerCommands.run(s, finalCmd);
             // Push a command.result event so subscribers see commands run by any
             // agent/transport (the synchronous return only reaches the caller).
-            api.emit("command.result", null, JsonValue.of(Map.of("cmd", finalCmd, "ok", ok, "success", success)));
-            return new CommandResult(ok, ok ? Optional.of(Via.BRIGADIER) : Optional.empty(), Optional.ofNullable(err),
-                    success, cbValue[0], List.copyOf(feedback), api.eventsAfter(cursor, p.returnEvents()));
+            api.emit("command.result", null, JsonValue.of(Map.of("cmd", finalCmd, "ok", o.ok(), "success", o.success())));
+            return new CommandResult(o.ok(), o.ok() ? Optional.of(Via.BRIGADIER) : Optional.empty(),
+                    Optional.ofNullable(o.error()), o.success(), o.value(), o.feedback(),
+                    api.eventsAfter(cursor, p.returnEvents()));
         }, ctx);
     }
 }
