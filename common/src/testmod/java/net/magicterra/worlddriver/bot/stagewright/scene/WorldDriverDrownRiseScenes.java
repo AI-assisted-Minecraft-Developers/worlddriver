@@ -13,6 +13,8 @@ import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.bot.BotTicker;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -40,10 +42,11 @@ import net.minecraft.world.level.block.Blocks;
  *       simulated by hand. It never constructs {@code DrownEscapeChain}.</li>
  * </ul>
  *
- * <p>{@code DrownEscapeChain.tick} opens with {@code if (mc == null) return;} — so the entire
- * execution layer of the reflex that outranks every user process is unreachable from a dedicated
+ * <p>{@code DrownEscapeChain.tick} opened with {@code if (mc == null) return;} — so the entire
+ * execution layer of the reflex that outranks every user process was unreachable from a dedicated
  * server, which is where all four of those run. Twenty-six assertions on "should it rise", zero on
- * "did it actually rise".
+ * "did it actually rise". The chain now steers any body, and the {@code wd.drownEscapeServer*} arms
+ * run it on an idle server bot.
  *
  * <p><b>What that cost.</b> Integrated ladder, 2026-08-22, BED rung: the reflex preempted at
  * {@code air=100}, held the movement channel for 261 ticks, and the bot drowned at
@@ -82,6 +85,14 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
                         WorldDriverDrownRiseScenes::pinnedByNeighbourColumn),
                 Scene.of("wd.drownEscapeClientStaysDownDisarmed", 400,
                         WorldDriverDrownRiseScenes::staysDownDisarmed),
+                // The same three arms on an idle server bot, whose own brain runs the reflex on the
+                // server tick. They run where the client arms skip, and skip where those run.
+                Scene.of("wd.drownEscapeServerRisesInOpenWater", 400,
+                        ctx -> run(ctx, false, true, true)),
+                Scene.of("wd.drownEscapeServerPinnedByNeighbourColumn", 400,
+                        ctx -> run(ctx, true, true, true)),
+                Scene.of("wd.drownEscapeServerStaysDownDisarmed", 400,
+                        ctx -> run(ctx, false, false, true)),
                 // The arm the ladder of 2026-08-26 needed and nobody had. The three above cover the
                 // vertical arm and the disarmed counter-arm; NONE of them ever enters the lateral
                 // one — measured on the integrated gate the day this went in: `CAPPED lid` rows = 0
@@ -124,7 +135,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
     /** Open column, nothing overhead: the bot must reach air. This is the arm that says the
      *  actuation path works at all — command channel, scheduler, client physics, end to end. */
     private static void risesInOpenWater(SceneContext ctx) {
-        run(ctx, false, true);
+        run(ctx, false, true, false);
     }
 
     /** The regression. Same open column by every scan this class performs, but a solid block in the
@@ -132,7 +143,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
      *  {@code DrownEscapeChain} looks there, so the bot should be pinned one block below air with
      *  the reflex reporting a clear path. */
     private static void pinnedByNeighbourColumn(SceneContext ctx) {
-        run(ctx, true, true);
+        run(ctx, true, true, false);
     }
 
     /**
@@ -145,7 +156,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
      * describing the wrong subject. Its whole job is to prove the other two arms' green is not free.
      */
     private static void staysDownDisarmed(SceneContext ctx) {
-        run(ctx, false, false);
+        run(ctx, false, false, false);
     }
 
     /** Ticks the lid arm gets. Dirt is ~15 ticks bare-handed, ×5 for a submerged head and ×5 again
@@ -358,24 +369,37 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
 
     // ------------------------------------------------------------------ the rig
 
-    private static void run(SceneContext ctx, boolean pinNeighbour, boolean armed) {
+    /**
+     * One arm. {@code serverBody} puts an idle server bot in the column instead of the client's
+     * player: registered on {@link BotTicker} with no task, so what lifts it is its own brain's
+     * {@code DrownEscapeChain} and drowning float on the server tick, the same reflexes the client
+     * arms exercise through the client's brain.
+     */
+    private static void run(SceneContext ctx, boolean pinNeighbour, boolean armed, boolean serverBody) {
         MinecraftServer server = ctx.server();
         boolean integrated = server != null && !server.isDedicatedServer();
         ctx.record("topology", (integrated ? "integratedServer" : "dedicatedServer")
                 + ", mc.bot.* in this JVM=" + BotHooks.isAvailable());
-        if (!integrated || !BotHooks.isAvailable()) {
-            // Not a soft spot in the coverage — a hard one, and named. DrownEscapeChain.tick's first
-            // line is `if (mc == null) return;`, so on a dedicated server this subject does not
-            // merely go untested, it cannot execute. The dedicated gates' pass says nothing here.
-            ctx.skip("DrownEscapeChain's execution layer requires a real LocalPlayer in the same JVM: "
-                    + "the first line of tick() is if (mc == null) return. On a dedicated server this coverage is not weak, it is zero.");
-        }
-        List<ServerPlayer> humans = SceneBody.humanPlayers(ctx);
-        if (humans.isEmpty()) {
-            ctx.skip("no real player on the integrated server: the client has not entered the world yet, or has disconnected");
-        }
-        ServerPlayer body = humans.get(0);
         ServerLevel level = ctx.level();
+        ServerPlayer body;
+        if (serverBody) {
+            BotTicker.clear();
+            ctx.cleanup(BotTicker::clear);
+            PlayerBot bot = SceneBody.managed(ctx, level, ctx.origin().getX() + 0.5, ctx.origin().getY() + 8, ctx.origin().getZ() + 0.5);
+            BotTicker.register(bot);
+            body = bot.fakePlayer();
+        } else {
+            if (!integrated || !BotHooks.isAvailable()) {
+                // The client arms need the client's own brain in this JVM; a dedicated server has none,
+                // and the server arms cover the same reflex there.
+                ctx.skip("the client arms drive the client's own player, which a dedicated server does not have");
+            }
+            List<ServerPlayer> humans = SceneBody.humanPlayers(ctx);
+            if (humans.isEmpty()) {
+                ctx.skip("no real player on the integrated server: the client has not entered the world yet, or has disconnected");
+            }
+            body = humans.get(0);
+        }
 
         // ---- the column ----------------------------------------------------------------
         BlockPos o = ctx.origin();
@@ -426,13 +450,15 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         GameConfig.walkerDebug = true;            // the arm's per-tick row is gated on it
         WorldConfig.allowBreak = true;             // so a lid the scan DOES see would be broken
 
-        // ---- the player, restored on the way out --------------------------------------
-        final double homeX = body.getX(), homeY = body.getY(), homeZ = body.getZ();
-        final int homeAir = body.getAirSupply();
-        ctx.cleanup(() -> {
-            body.teleportTo(homeX, homeY, homeZ);
-            body.setAirSupply(homeAir);
-        });
+        // ---- the player, restored on the way out (a minted bot is discarded instead) ----
+        if (!serverBody) {
+            final double homeX = body.getX(), homeY = body.getY(), homeZ = body.getZ();
+            final int homeAir = body.getAirSupply();
+            ctx.cleanup(() -> {
+                body.teleportTo(homeX, homeY, homeZ);
+                body.setAirSupply(homeAir);
+            });
+        }
         body.teleportTo(bodyX, y0, bodyZ);
         // FULL air for the sync wait, and the staged value only once measuring starts.
         //

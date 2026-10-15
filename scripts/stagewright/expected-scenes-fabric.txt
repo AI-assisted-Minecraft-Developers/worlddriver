@@ -146,6 +146,9 @@ wd.contactEscapeGateMatrix
 wd.drownEscapePreempt
 wd.serverObserveAirSupply
 wd.antiSuffocateWaterNotSuffocating
+# AntiSuffocate on an idle server bot's own brain, and its disarmed counter-arm.
+wd.serverAntiSuffocateBreaksTheHeadBlock
+wd.serverAntiSuffocateDisarmedStaysBuried
 
 # Avatar family — regression guards on the server-side player, each pinned to a recorded baseline.
 wd.serverAgentDistinctBodies
@@ -537,12 +540,17 @@ wd.actuatorSplitOnAnAdoptedBody
 # rungs use after the fix. Kept as a SECOND scene so the one above stays a ruler for the raw
 # divergence — if anyone routes those call sites back to the server avatar, it still says so.
 wd.actuatorSplitThroughTheClientAvatar
-# The drowning family's execution layer. DrownEscapeChain.tick returns at `mc == null`, so these
-# three EXECUTE only on the integrated topology and SKIP (loudly, naming the hole) everywhere else.
+# The drowning family's execution layer on the client's own player: these three EXECUTE only on
+# the integrated topology and SKIP everywhere else.
 # The pinned arm is optional until its hypothesis is settled — see the class note.
 wd.drownEscapeClientRisesInOpenWater
 wd.drownEscapeClientPinnedByNeighbourColumn
 wd.drownEscapeClientStaysDownDisarmed
+# The same three arms on an idle server bot, whose own brain runs the chain on the server tick.
+# They run where the client arms skip (dedicated topologies) and skip where those run.
+wd.drownEscapeServerRisesInOpenWater
+wd.drownEscapeServerPinnedByNeighbourColumn
+wd.drownEscapeServerStaysDownDisarmed
 # The capped-pocket arm. The three above never enter the lateral escape at all: measured on
 # stagewrightIntegratedServerFabric 2026-08-26, `CAPPED lid` rows = 0 across the whole run,
 # because cappedColumn is false in every arena they stage.

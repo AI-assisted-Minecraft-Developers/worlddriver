@@ -132,7 +132,9 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
                 Scene.of("wd.contactEscapeGateMatrix", 200, WorldDriverSurvivalScenes::contactEscapeGateMatrixScene),
                 Scene.of("wd.drownEscapePreempt", 400, WorldDriverSurvivalScenes::drownEscapePreemptScene),
                 Scene.of("wd.serverObserveAirSupply", 200, WorldDriverSurvivalScenes::serverObserveAirSupplyScene),
-                Scene.of("wd.antiSuffocateWaterNotSuffocating", 200, WorldDriverSurvivalScenes::antiSuffocateWaterNotSuffocatingScene));
+                Scene.of("wd.antiSuffocateWaterNotSuffocating", 200, WorldDriverSurvivalScenes::antiSuffocateWaterNotSuffocatingScene),
+                Scene.of("wd.serverAntiSuffocateBreaksTheHeadBlock", 200, ctx -> serverAntiSuffocateScene(ctx, true)),
+                Scene.of("wd.serverAntiSuffocateDisarmedStaysBuried", 200, ctx -> serverAntiSuffocateScene(ctx, false)));
     }
 
     // ==================================================================================
@@ -1199,5 +1201,54 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         level.setBlockAndUpdate(air, Blocks.AIR.defaultBlockState());
         antiSuffocateSuffocatesBlockMatrix(level, stone, water, air,
                 (ok, msg) -> { if (!ok) ctx.fail(msg); });
+    }
+
+    /** Ticks the reflex gets to clear the head cell: a server-side break is instant, so one tick
+     *  would do; the rest is room for the trigger, which reads the damage the wall deals. */
+    private static final int SUFFOCATE_BUDGET = 60;
+
+    /**
+     * wd.serverAntiSuffocateBreaksTheHeadBlock / wd.serverAntiSuffocateDisarmedStaysBuried — an
+     * idle server bot with a dirt block in its head cell, registered on {@link BotTicker} with no
+     * task. Armed, its own brain's {@code AntiSuffocate} must break the block through the server
+     * body's {@code continueDestroy}, the only call that reflex makes; disarmed, the block must stay,
+     * which is what says the armed arm's clearing was the reflex and nothing else.
+     */
+    private static void serverAntiSuffocateScene(SceneContext ctx, boolean armed) {
+        ServerLevel level = ctx.level();
+        BlockPos o = ctx.origin();
+        BlockPos foot = o.above(2);
+        BlockPos head = foot.above();
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++) {
+                level.setBlockAndUpdate(o.offset(dx, 1, dz), Blocks.STONE.defaultBlockState());
+                for (int dy = 2; dy <= 4; dy++)
+                    level.setBlockAndUpdate(o.offset(dx, dy, dz), Blocks.AIR.defaultBlockState());
+            }
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        net.magicterra.worlddriver.config.BehaviorConfig.antiSuffocate = armed;
+        WorldConfig.allowBreak = true;
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
+        PlayerBot bot = SceneBody.managed(ctx, foot);
+        BotTicker.register(bot);
+        ServerPlayer fp = bot.fakePlayer();
+        level.setBlockAndUpdate(head, Blocks.DIRT.defaultBlockState());
+        ctx.record("setup.inWall", fp.isInWall());
+        final int[] t = { 0 };
+        ctx.await(() -> level.getBlockState(head).isAir() || ++t[0] >= SUFFOCATE_BUDGET)
+                .within(SUFFOCATE_BUDGET + 100).then(() -> {
+                    boolean cleared = level.getBlockState(head).isAir();
+                    ctx.record("head.cleared", cleared + " after " + t[0] + "/" + SUFFOCATE_BUDGET + " ticks");
+                    ctx.record("bot.health", fp.getHealth());
+                    if (armed && !cleared)
+                        ctx.fail("the head cell " + head.toShortString() + " is still "
+                                + level.getBlockState(head).getBlock() + " after " + SUFFOCATE_BUDGET
+                                + " ticks with antiSuffocate on: the idle server bot's reflex did not break it");
+                    if (!armed && cleared)
+                        ctx.fail("counter-arm failed: antiSuffocate is off, yet the head cell was cleared; "
+                                + "something other than the reflex broke it, so the armed arm proves nothing");
+                });
     }
 }
