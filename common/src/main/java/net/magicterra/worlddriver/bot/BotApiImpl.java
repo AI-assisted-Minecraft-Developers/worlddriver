@@ -176,6 +176,12 @@ public final class BotApiImpl implements BotApi {
     private final AutoHeal autoHeal = new AutoHeal();
     private final AutoTotem autoTotem = new AutoTotem();
     private final AutoTool autoTool = new AutoTool();
+    /** The body-safety reflexes run after the scheduler; each keeps its own episode state. */
+    private final AutoSwim autoSwim = new AutoSwim();
+    private final AntiSuffocate antiSuffocate = new AntiSuffocate();
+    private final ContactDamageEscape contactEscape = new ContactDamageEscape();
+    private final net.magicterra.worlddriver.bot.behavior.reflex.LavaProximityEscape lavaEscape =
+            new net.magicterra.worlddriver.bot.behavior.reflex.LavaProximityEscape();
 
     /** Records cells the bot's own digs broke while {@link BotConfig#autoBackfill}
      *  is on. BackfillProcess consumes from this when no main process is
@@ -889,7 +895,7 @@ public final class BotApiImpl implements BotApi {
         // .drowningSentinel's doc for the controller's idle-passivity ruling). Mark the
         // release gate dirty when it actually held jump so the idle release path clears
         // that trailing key once air recovers, same bookkeeping as autoSwim's lift below.
-        if (mc.player != null && AutoSwim.drowningSentinel(mc, mc.player, scheduler.current() == null))
+        if (mc.player != null && autoSwim.drowningSentinel(body, scheduler.current() == null))
             releaseGate.markDirtied();
         // gap#76: while DrownEscapeChain holds the channel the contract is PURE
         // VERTICAL (hold jump only) — AutoSwim.tick's in-process backstop would
@@ -902,7 +908,7 @@ public final class BotApiImpl implements BotApi {
             // to bob until it drowned (spawn-water death-loop). Steering is
             // idle-gated inside AutoSwim so it never fights an active goto's own
             // water-escape moves.
-            AutoSwim.tick(mc, mc.player, world, scheduler.current() == null);
+            autoSwim.tick(body, world, scheduler.current() == null);
             // autoSwim holds keyJump while submerged; mark dirty so the gate clears
             // that trailing jump once it surfaces (it self-clears keyUp but not jump).
             releaseGate.markDirtied();
@@ -912,19 +918,19 @@ public final class BotApiImpl implements BotApi {
         // can't be suffocated to death mid-dig. Unconditional like autoSwim's lift —
         // runs after the scheduler so it overrides a digging process's aim ONLY while
         // the head is actually choking, then hands control straight back.
-        if (mc.player != null) AntiSuffocate.tick(mc, mc.player);
+        if (mc.player != null) antiSuffocate.tick(body);
         // Contact-damage backstop (death #14, cactus): while a damaging BLOCK is
         // grinding the hull (cactus/berry bush/fire/magma), face away and step out
         // of contact. LLM latency can never beat a 2 Hz contact tick, and the
         // entity-attribution reflexes never fire for block damage. Same
         // idle-passivity carve-out as drowningSentinel/hurt-entry: reacting to
         // taking damage is a survival reflex, not uncommanded movement.
-        if (mc.player != null) ContactDamageEscape.tick(mc, mc.player);
+        if (mc.player != null) contactEscape.tick(body);
         // Lava-front backstop (deaths #27/#29/#30): a FLOWING lava cell beside
         // the feet means the front arrives within ~1.5s — walk away NOW. The
         // path brakes prevent walking/falling INTO the flow; this one prevents
         // dying in place while the planner deliberates.
-        if (mc.player != null) net.magicterra.worlddriver.bot.behavior.reflex.LavaProximityEscape.tick(mc, mc.player);
+        if (mc.player != null) lavaEscape.tick(body);
         // Keep the combat status slot's liveness in sync with the chain, so a status poll reads the
         // fight's end the moment it comes. Counters/goal/lastError persist for post-mortem.
         state.combat.active = combatChain.engaged();

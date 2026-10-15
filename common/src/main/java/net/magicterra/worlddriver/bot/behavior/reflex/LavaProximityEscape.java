@@ -1,13 +1,12 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
 import net.magicterra.worlddriver.config.BehaviorConfig;
-import net.magicterra.worlddriver.game.body.ClientPlayerBody;
+import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.BotUtil;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.Vec3;
@@ -39,23 +38,24 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  * episode so a fully-ringed bot hands the channel back to the planner.
  */
 public final class LavaProximityEscape {
-    private LavaProximityEscape() {}
 
     private static final int LINGER_TICKS = 12;
     private static final int MAX_EPISODE_TICKS = 80;
 
-    private static boolean active;
-    private static int linger;
-    private static int episodeTicks;
-    private static BlockPos lastLava;
+    private boolean active;
+    private int linger;
+    private int episodeTicks;
+    private BlockPos lastLava;
 
     /** @return true if it drove the escape this tick (keys are ours). */
-    public static boolean tick(Minecraft mc, LocalPlayer p) {
-        if (mc.level == null || p == null || !BehaviorConfig.lavaProximityEscape) {
+    public boolean tick(Body body) {
+        Player p = body.asPlayer();
+        if (p == null || !BehaviorConfig.lavaProximityEscape) {
             reset("off");
             return false;
         }
-        BlockPos threat = nearestThreat(mc.level, p);
+        Level level = p.level();
+        BlockPos threat = nearestThreat(level, p);
         boolean hot = threat != null || p.isInLava();
         if (!active) {
             if (!hot) return false;
@@ -92,16 +92,16 @@ public final class LavaProximityEscape {
         BlockPos awayCell = BlockPos.containing(me.x + Math.signum(dx),
                                                 me.y, me.z + Math.signum(dz));
         boolean badVector = Math.hypot(dx, dz) < 0.35
-                || isLava(mc.level, awayCell)
-                || isLava(mc.level, awayCell.below())
-                || !mc.level.getBlockState(awayCell.below()).blocksMotion();
+                || isLava(level, awayCell)
+                || isLava(level, awayCell.below())
+                || !level.getBlockState(awayCell.below()).blocksMotion();
         if (badVector) {
             // `open` is this reflex's own notion of a cell the player fits through, and it is
             // LOOSER than the contact sibling's: `!blocksMotion()` steps over a carpet or a
             // pressure plate that `getCollisionShape().isEmpty()` refuses. The shared picker
             // takes the test as a parameter so merging the two moved neither.
             Direction d = BotUtil.stepAwayCardinal(p.blockPosition(),
-                    c -> isLava(mc.level, c), c -> !mc.level.getBlockState(c).blocksMotion());
+                    c -> isLava(level, c), c -> !level.getBlockState(c).blocksMotion());
             if (d != null) { dx = d.getStepX(); dz = d.getStepZ(); }
             else { dx = 1; dz = 0; }   // fully ringed: any push beats standing still
         }
@@ -115,16 +115,15 @@ public final class LavaProximityEscape {
         // process is commanding every tick. On the SHARED keybind the steer never reached the
         // player at all; on commandForward it was discarded whenever the Walker commanded a move.
         // Either way the reflex was inert precisely on the occasion it was built for.
-        ClientPlayerBody a = new ClientPlayerBody(mc);
-        a.commandMove(0f, 1f);
-        a.commandJump(p.horizontalCollision || p.isInLava());
+        body.commandMove(0f, 1f);
+        body.commandJump(p.horizontalCollision || p.isInLava());
         return true;
     }
 
     /** Nearest FLOWING lava cell in the foot 8-neighbourhood or the ring one
      *  below it (the front eats the floor level first). The own/below cells
      *  count regardless of source-ness — standing on or in any lava is hot. */
-    private static BlockPos nearestThreat(Level lvl, LocalPlayer p) {
+    private static BlockPos nearestThreat(Level lvl, Player p) {
         BlockPos foot = p.blockPosition();
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
@@ -151,7 +150,7 @@ public final class LavaProximityEscape {
      *  re-asserting has already handed the channel back. (Under the old keybinds that made
      *  this an actual latch leak — {@code keyUp.setDown(true)} stays down — which is why the
      *  sibling had a release and this one's absence was a divergence, not a simplification.) */
-    private static void reset(String why) {
+    private void reset(String why) {
         if (active) LOG.info("[lavaEscape] handing back ({}), {} ticks", why, episodeTicks);
         active = false;
         linger = 0;

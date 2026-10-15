@@ -140,6 +140,9 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
      *  literal stays Mojang-named), latching a flag that made the sensor return −1 forever.
      *  A widened field is an ordinary field read that tiny-remapper rewrites with everything
      *  else, so there is no lookup left to fail and no degraded path to keep alive. */
+    @Override public void stopDestroy() {
+        if (mc.gameMode != null) mc.gameMode.stopDestroyBlock();
+    }
     @Override public float destroyProgress() {
         return mc.gameMode == null ? -1f : mc.gameMode.destroyProgress;
     }

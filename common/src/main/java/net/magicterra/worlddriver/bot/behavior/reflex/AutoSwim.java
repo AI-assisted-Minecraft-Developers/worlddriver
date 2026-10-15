@@ -4,10 +4,9 @@ import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.world.WorldView;
-import net.minecraft.client.Minecraft;
-import net.magicterra.worlddriver.game.body.AvatarInput;
-import net.minecraft.client.player.LocalPlayer;
+import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.LivingEntity;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
 
@@ -39,12 +38,11 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  * to being hit while idle).
  */
 public final class AutoSwim {
-    private AutoSwim() {}
 
     /** True while {@link #drowningSentinel} is the one holding jump, so it
      *  releases its own hold exactly once when air recovers/surfaces, without
      *  clobbering a jump some other actuator set. */
-    private static boolean floatHeld;
+    private boolean floatHeld;
 
     /** Max horizontal (Chebyshev) rings scanned for a shore when beaching. */
     private static final int SHORE_SCAN_R = 10;
@@ -62,32 +60,25 @@ public final class AutoSwim {
      *  so a dig that runs the lungs down hands over smoothly instead of at the wire. */
     private static final int DIG_AIR_RESERVE = 20;
     /** Throttle counter for walkerDebug shore logging. */
-    private static int DBG = 0;
+    private int dbg = 0;
 
-    /**
-     * The bot's own per-tick input channel on this player, installed if vanilla replaced it.
-     *
-     * <p><b>Why this class no longer touches {@code mc.options.key*}.</b> Those are the SHARED
-     * global keybinds a human's keyboard maps to, and writing them is not merely impolite — it does
-     * not work. {@link AvatarInput#tick} runs vanilla's key pass FIRST and then <b>overwrites</b>
-     * {@code forwardImpulse}/{@code leftImpulse} with whatever the Walker commanded that tick. So
-     * every horizontal key this class pressed was discarded whenever a movement process was active,
-     * while {@code keyJump} — which the Walker usually does not command — survived.
-     *
-     * <p>Measured 2026-08-22 on the integrated (real-client) ladder: a bot submerged at world spawn
-     * bobbed between y=61 and y=63 for 7 800 ticks with <b>zero horizontal displacement</b>, the mine
-     * process re-planned 217 times from the same cell, and the rung timed out. Jump worked; swimming
-     * did not. That asymmetry is exactly this bug, and it is invisible from the log because the keys
-     * were "pressed" successfully — they just never reached the impulse.
-     *
-     * <p>Writing the command channel also puts this backstop where it belongs in precedence:
-     * {@code BotApiImpl} runs autoSwim LAST, so its command is the last write before vanilla
-     * consumes it, and the drowning backstop now overrides a stuck process instead of losing to it.
-     */
-    private static AvatarInput in(Minecraft mc, LocalPlayer p) {
-        if (!(p.input instanceof AvatarInput)) p.input = new AvatarInput(mc.options);
-        return (AvatarInput) p.input;
-    }
+    // Every input below goes through the body's per-tick command channel, never the shared keybinds.
+    //
+    // Those are the SHARED global keybinds a human's keyboard maps to, and writing them is not merely
+    // impolite — it does not work. The client body's AvatarInput runs vanilla's key pass FIRST and then
+    // OVERWRITES forwardImpulse/leftImpulse with whatever the Walker commanded that tick. So every
+    // horizontal key this class pressed was discarded whenever a movement process was active, while
+    // keyJump — which the Walker usually does not command — survived.
+    //
+    // Measured 2026-08-22 on the integrated (real-client) ladder: a bot submerged at world spawn bobbed
+    // between y=61 and y=63 for 7 800 ticks with zero horizontal displacement, the mine process
+    // re-planned 217 times from the same cell, and the rung timed out. Jump worked; swimming did not.
+    // That asymmetry is exactly this bug, and it is invisible from the log because the keys were
+    // "pressed" successfully — they just never reached the impulse.
+    //
+    // Writing the command channel also puts this backstop where it belongs in precedence: the host runs
+    // autoSwim LAST, so its command is the last write before vanilla consumes it, and the drowning
+    // backstop overrides a stuck process instead of losing to it.
 
     /** Idle drowning REFLEX — must be called UNCONDITIONALLY every client tick, same as
      *  its predecessor (NOT behind the autoSwim flag: with autoSwim off, an idle bot left
@@ -114,40 +105,37 @@ public final class AutoSwim {
      *
      *  @return true iff this call drove {@code keyJump} (so the caller can mark the
      *          release gate dirty and avoid a trailing held jump). */
-    public static boolean drowningSentinel(Minecraft mc, LocalPlayer p, boolean idle) {
+    public boolean drowningSentinel(Body body, boolean idle) {
+        LivingEntity p = body.entity();
         if (!idle || p == null) {
-            // p may be null here (the old code released through mc.options and did not care).
-            if (floatHeld) { if (p != null) in(mc, p).commandJump(false); floatHeld = false; }
+            if (floatHeld) { if (p != null) body.commandJump(false); floatHeld = false; }
             return false;
         }
         boolean floating = DrowningFloatGate.shouldFloat(p.isUnderWater(), p.getAirSupply(),
                 BehaviorConfig.drownFloatAirThreshold, BehaviorConfig.autoFloatWhenDrowning);
         if (floating) {
-            in(mc, p).commandJump(true);
+            body.commandJump(true);
             floatHeld = true;
-            if (GameConfig.walkerDebug && (DBG++ % 20 == 0))
+            if (GameConfig.walkerDebug && (dbg++ % 20 == 0))
                 // blockPosition(), not (int) casts — those truncate toward zero, so at x=-9.3 the
                 // row named -9 while the bot was in -10. See LavaProximityEscape's note: the same
                 // pattern there turned "standing on a lava source" into "adjacent to one".
                 LOG.info("[drowningFloat] idle + underwater + air={} <= threshold {} → holding jump to surface at {}",
                         p.getAirSupply(), BehaviorConfig.drownFloatAirThreshold, p.blockPosition().toShortString());
         } else if (floatHeld) {
-            in(mc, p).commandJump(false);
+            body.commandJump(false);
             floatHeld = false;
         }
         return floating;
-    }
-
-    /** Legacy 2-arg entry (lift only) kept for any caller that lacks a WorldView. */
-    public static void tick(Minecraft mc, LocalPlayer p) {
-        in(mc, p).commandJump(p.isInWater() && p.isUnderWater());
     }
 
     /**
      * Full backstop. {@code idle} = no movement process owns the channel this
      * tick (only then do we steer, to avoid fighting an active pathing process).
      */
-    public static void tick(Minecraft mc, LocalPlayer p, WorldView world, boolean idle) {
+    public void tick(Body body, WorldView world, boolean idle) {
+        LivingEntity p = body.entity();
+        if (p == null) return;
         // DRIVER POSITIONING: the driver only EXECUTES agent commands. With NO command (idle = no
         // movement process owns the bot this tick), it must not move the bot at all. A bot left in
         // water with no goal may be deliberately waiting, or holding a submerged position to reach
@@ -177,9 +165,9 @@ public final class AutoSwim {
                 && p.getAirSupply() > ControlConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE) return;
         boolean inWater = p.isInWater();
         if (inWater && p.isUnderWater()) {
-            in(mc, p).commandJump(true);
+            body.commandJump(true);
         } else if (!inWater) {
-            in(mc, p).commandJump(false);
+            body.commandJump(false);
         }
         // (idle already returned above.) In-process drowning backstop: a goto/runAway that gets the
         // bot stuck submerged (the lake death-loop: drowned at y61 mid-path) gives no steering of its
@@ -190,7 +178,7 @@ public final class AutoSwim {
         // Fully out on dry land (on ground AND head clear of water) — done; let the
         // idle releaseKeys() take over. While still IN water, keep steering even if
         // momentarily on a shallow bottom, so the bot walks up the entry slope.
-        if (p.onGround() && !inWater) { in(mc, p).commandForward(0f); return; }
+        if (p.onGround() && !inWater) { body.commandForward(0f); return; }
 
         int bx = (int) Math.floor(p.getX());
         int by = (int) Math.floor(p.getY());
@@ -202,30 +190,28 @@ public final class AutoSwim {
         // vertical beelines to air; the horizontal shore-steer below only kicks in
         // once the head nears the surface (cell 2 above the foot is no longer water).
         if (p.isUnderWater() && world.isWater(new BlockPos(bx, by + 2, bz))) {
-            AvatarInput ai = in(mc, p);
-            ai.commandJump(true);
+            body.commandJump(true);
             // commandMove(0,0) zeroes BOTH impulses, which is what the four cleared direction keys
             // were for — and unlike them it survives, because it is the same field the Walker's own
-            // command writes. Sprint has no command channel and is not an input at all, so it is
-            // set on the player directly.
-            ai.commandMove(0f, 0f);
-            p.setSprinting(false);
+            // command writes. Sprint is not an input at all: the body sets it on the entity directly.
+            body.commandMove(0f, 0f);
+            body.commandSprint(false);
             // gap#80: a held sneak SINKS the bot (DrownEscapeChain.tick's own comment) — a
             // concurrently-latched sneak from a prior process would defeat this straight-up climb.
-            ai.commandSneak(false);
-            if (GameConfig.walkerDebug && (DBG++ % 8 == 0))
+            body.commandSneak(false);
+            if (GameConfig.walkerDebug && (dbg++ % 8 == 0))
                 LOG.info("[autoSwim] deep-ascent straight-up pos={},{},{} air={}",
                         bx, by, bz, p.getAirSupply());
             return;
         }
         int[] dir = nearestShore(world, bx, by, bz);
-        if (GameConfig.walkerDebug && (DBG++ % 8 == 0)) {
+        if (GameConfig.walkerDebug && (dbg++ % 8 == 0)) {
             LOG.info("[autoSwim] pos={},{},{} under={} onGround={} idle={} shoreDir={}",
                     bx, by, bz, p.isUnderWater(), p.onGround(), idle,
                     dir == null ? "null" : (dir[0] + "," + dir[1]));
         }
         if (dir == null) {                          // no reachable bank in range: keep rising
-            if (p.isUnderWater()) in(mc, p).commandJump(true);
+            if (p.isUnderWater()) body.commandJump(true);
             return;
         }
         float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], (double) dir[1]));
@@ -235,11 +221,10 @@ public final class AutoSwim {
         p.setXRot(0f);                              // swim flat toward the bank
         // Raw camera-frame forward, which is what keyUp meant: the yaw was just set to point at the
         // bank, so "along the player's facing" IS "toward the bank" and no decoupling is wanted here.
-        AvatarInput ai = in(mc, p);
-        ai.commandForward(1f);
+        body.commandForward(1f);
         // Stay buoyant while escaping: hold jump until truly on dry land, so the bot
         // rises to the surface AND hops up 1–2 block banks instead of bobbing.
-        if (!p.onGround()) ai.commandJump(true);
+        if (!p.onGround()) body.commandJump(true);
     }
 
     /**

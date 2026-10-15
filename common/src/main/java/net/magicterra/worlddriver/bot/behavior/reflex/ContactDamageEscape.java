@@ -1,14 +1,13 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
 import net.magicterra.worlddriver.config.BehaviorConfig;
-import net.magicterra.worlddriver.game.body.ClientPlayerBody;
+import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.BotUtil;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -41,7 +40,6 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  * cactus after a cancel() was exactly the second half of death #14.)
  */
 public final class ContactDamageEscape {
-    private ContactDamageEscape() {}
 
     /** Ticks to keep walking after the damage gate clears — bridges the ≤10-tick
      *  hurtTime gap between contact hits and puts a full block between hull and
@@ -53,14 +51,16 @@ public final class ContactDamageEscape {
      *  10 ticks later, and the planner/critic see the hurt telemetry meanwhile. */
     private static final int MAX_EPISODE_TICKS = 100;
 
-    private static boolean active;
-    private static int linger;
-    private static int episodeTicks;
-    private static BlockPos lastHazard;
+    private boolean active;
+    private int linger;
+    private int episodeTicks;
+    private BlockPos lastHazard;
 
     /** @return true if it drove the escape this tick (keys are ours). */
-    public static boolean tick(Minecraft mc, LocalPlayer p) {
-        if (mc.level == null || p == null) { reset(mc, "level-gone"); return false; }
+    public boolean tick(Body body) {
+        Player p = body.asPlayer();
+        if (p == null) { reset(body, "level-gone"); return false; }
+        Level level = p.level();
         DamageSource src = p.getLastDamageSource();
         String msgId = src != null ? src.getMsgId() : null;
         boolean hot = ContactEscapeGate.shouldTrigger(
@@ -78,10 +78,10 @@ public final class ContactDamageEscape {
                     msgId, String.format("%.1f", p.getHealth()), p.blockPosition().toShortString());
         }
         if (hot) linger = LINGER_TICKS;
-        else if (--linger <= 0) { reset(mc, "clear"); return false; }
-        if (++episodeTicks > MAX_EPISODE_TICKS) { reset(mc, "episode-cap"); return false; }
+        else if (--linger <= 0) { reset(body, "clear"); return false; }
+        if (++episodeTicks > MAX_EPISODE_TICKS) { reset(body, "episode-cap"); return false; }
 
-        BlockPos hazard = nearestHazard(mc.level, p);
+        BlockPos hazard = nearestHazard(level, p);
         if (hazard != null) lastHazard = hazard;
         Vec3 me = p.position();
         double dx, dz;
@@ -95,7 +95,7 @@ public final class ContactDamageEscape {
             // Standing IN the hazard (berry bush / fire) or it is directly BELOW
             // (magma floor): away-vector is degenerate — pick a clear cardinal.
             Direction d = BotUtil.stepAwayCardinal(p.blockPosition(),
-                    c -> isContactHazard(mc.level, c), c -> passable(mc.level, c));
+                    c -> isContactHazard(level, c), c -> passable(level, c));
             if (d != null) { dx = d.getStepX(); dz = d.getStepZ(); }
             else { dx = 1; dz = 0; }  // fully ringed: any push beats standing still
         }
@@ -111,9 +111,8 @@ public final class ContactDamageEscape {
         // an active `goto` is what pressed the hull into the cactus in the first place (death #14
         // above). keyJump survived only because the Walker rarely commands jump, which is why the
         // reflex looked half-alive rather than dead.
-        ClientPlayerBody a = new ClientPlayerBody(mc);
-        a.commandMove(0f, 1f);
-        a.commandJump(p.horizontalCollision);
+        body.commandMove(0f, 1f);
+        body.commandJump(p.horizontalCollision);
         return true;
     }
 
@@ -121,7 +120,7 @@ public final class ContactDamageEscape {
      *  cell and the cell below it (magma / fire carpet), plus the 8 horizontal
      *  neighbours at foot and head height (a 0.6-wide hull can graze a diagonal
      *  cactus at a hugged corner). */
-    private static BlockPos nearestHazard(Level lvl, LocalPlayer p) {
+    private static BlockPos nearestHazard(Level lvl, Player p) {
         BlockPos foot = p.blockPosition();
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
@@ -161,7 +160,7 @@ public final class ContactDamageEscape {
         return lvl.getBlockState(pos).getCollisionShape(lvl, pos).isEmpty();
     }
 
-    private static void reset(Minecraft mc, String outcome) {
+    private void reset(Body body, String outcome) {
         if (active) {
             LOG.info("[contactEscape] episode end ({}) after {}t — last hazard {}",
                     outcome, episodeTicks,
@@ -172,9 +171,8 @@ public final class ContactDamageEscape {
             // the sibling LavaProximityEscape, which drives the same two keys, never had it:
             // its reset() only logs, so every lava episode left the forward key held until
             // something else happened to clear it. The channel swap retires that asymmetry.
-            ClientPlayerBody a = new ClientPlayerBody(mc);
-            a.commandForward(0f);
-            a.commandJump(false);
+            body.commandForward(0f);
+            body.commandJump(false);
         }
         active = false;
         linger = 0;

@@ -80,4 +80,7 @@ public interface BlockInteraction {
      *  crosshair raycast (self-starts on first call — AntiSuffocate gap#69
      *  pattern). No-op on players without a client game mode. */
     default void continueDestroy(BlockPos cell) {}
+    /** Abandon the break in progress, so its progress is lost; a reflex that drove one with
+     *  {@link #continueDestroy} ends it here. */
+    default void stopDestroy() {}
 }

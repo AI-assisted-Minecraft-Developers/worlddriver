@@ -2,17 +2,16 @@ package net.magicterra.worlddriver.bot.behavior.reflex;
 
 import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
+import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.game.body.BotInteract.aimAtBlockSnap;
-import static net.magicterra.worlddriver.game.body.BotInteract.continueDestroy;
-import static net.magicterra.worlddriver.game.body.BotInteract.selectBestToolFor;
 
 /**
  * Suffocation backstop (sibling of {@link AutoSwim}): when a solid block collapses
@@ -27,7 +26,7 @@ import static net.magicterra.worlddriver.game.body.BotInteract.selectBestToolFor
  * processes guards the head cell; this does, generally, for all of them.
  *
  * <p>Mechanics: gated on {@link BehaviorConfig#antiSuffocate} + {@link WorldConfig#allowBreak}
- * (it mines the head block). Fires only while {@link LocalPlayer#isInWall()} (a
+ * (it mines the head block). Fires only while {@code Entity#isInWall()} (a
  * suffocating block overlaps the eyes). In a falling-sand column it chews UPWARD —
  * each break lets the column above drop in and the top becomes air — until the
  * head clears, which both stops the damage and opens the escape channel. Tracks
@@ -62,7 +61,7 @@ import static net.magicterra.worlddriver.game.body.BotInteract.selectBestToolFor
  * suffocation bookkeeping on exactly that tick: the bot took full HP→0 damage
  * with this reflex reading {@code isInWall()==false} every tick, zero action.
  * The server's damage attribution is authoritative and trusted ABOVE the client
- * geometry: {@link LocalPlayer#getLastDamageSource()} mirrors the server's last
+ * geometry: the client player's {@code getLastDamageSource()} mirrors the server's last
  * hurt cause via {@code ClientboundDamageEventPacket} (vanilla's own ~40-tick
  * last-damager window, same one {@link net.magicterra.worlddriver.bot.world.ThreatScanner}
  * and {@link net.magicterra.worlddriver.bot.ClientEventDetector} already lean on for
@@ -81,30 +80,32 @@ import static net.magicterra.worlddriver.game.body.BotInteract.selectBestToolFor
  * {@link #resolveHead}.
  */
 public final class AntiSuffocate {
-    private AntiSuffocate() {}
 
     /** True while we are the one driving the break, so we stop exactly our own break. */
-    private static boolean driving;
+    private boolean driving;
     /** The head cell of the running episode; changes when the resolved target moves
      *  (new suffocation episode or the fallback chain moved). */
-    private static BlockPos trackedHead;
+    private BlockPos trackedHead;
 
     /** @return true if it took over to break a suffocating head block this tick. */
-    public static boolean tick(Minecraft mc, LocalPlayer p) {
-        if (mc.level == null) { reset(mc, "level-gone"); return false; }
+    public boolean tick(Body body) {
+        Player p = body.asPlayer();
+        BlockInteraction blocks = body.blockInteraction().orElse(null);
+        if (p == null || blocks == null) { reset(blocks, "level-gone"); return false; }
+        Level level = p.level();
         String lastDamageMsgId = null;
         DamageSource src = p.getLastDamageSource();
         if (src != null) lastDamageMsgId = src.getMsgId();
 
         boolean suffocating = AntiSuffocateGate.shouldTrigger(p.isInWall(), lastDamageMsgId,
                 BehaviorConfig.antiSuffocate, WorldConfig.allowBreak);
-        if (!suffocating) { reset(mc, "clear"); return false; }
+        if (!suffocating) { reset(blocks, "clear"); return false; }
 
-        BlockPos head = resolveHead(mc, p);
-        if (head == null) { reset(mc, "no-solid-target"); return false; }
-        BlockState st = mc.level.getBlockState(head);
+        BlockPos head = resolveHead(level, p);
+        if (head == null) { reset(blocks, "no-solid-target"); return false; }
+        BlockState st = level.getBlockState(head);
         // Don't flail at an unbreakable block (bedrock = negative destroy speed).
-        if (st.getDestroySpeed(mc.level, head) < 0f) { reset(mc, "unbreakable"); return false; }
+        if (st.getDestroySpeed(level, head) < 0f) { reset(blocks, "unbreakable"); return false; }
 
         if (!head.equals(trackedHead)) {
             // gap#72-④ log dedup: this used to print "head suffocating → breaking …"
@@ -115,14 +116,14 @@ public final class AntiSuffocate {
             trackedHead = head;
         }
 
-        selectBestToolFor(mc, head);
-        aimAtBlockSnap(p, head);
+        body.equipment().ifPresent(h -> h.selectTool(head));
+        body.aimAtBlock(head);
         // Driven on the exact cell, never through the crosshair: the eye origin sits INSIDE
         // solid geometry when we are genuinely embedded, and a raycast starting inside a solid
         // block misses or resolves to the wrong face. continueDestroyBlock self-starts on the
         // first call for a new target, and the drive makes vanilla's own attack pass stand
         // aside (ClientIntents), so nothing retargets or zeroes it between our ticks.
-        continueDestroy(mc, p, head);
+        blocks.continueDestroy(head);
         driving = true;
         return true;
     }
@@ -157,17 +158,17 @@ public final class AntiSuffocate {
      *  {@code DrownEscapeChain}'s float-up reflex (live log: "breaking
      *  Block{minecraft:water}" then 10 raycast misses into direct-drive).
      *  @return the block to break, or null if nothing nearby reads solid. */
-    private static BlockPos resolveHead(Minecraft mc, LocalPlayer p) {
+    private static BlockPos resolveHead(Level level, Player p) {
         BlockPos eye = BlockPos.containing(p.getEyePosition());
-        if (AntiSuffocateGate.suffocates(mc.level, eye)) return eye;
+        if (AntiSuffocateGate.suffocates(level, eye)) return eye;
         BlockPos above = p.blockPosition().above();
-        if (AntiSuffocateGate.suffocates(mc.level, above)) return above;
+        if (AntiSuffocateGate.suffocates(level, above)) return above;
         if (!AntiSuffocateGate.allowProximityFallback(p.hurtTime)) return null;
         BlockPos foot = p.blockPosition();
-        if (AntiSuffocateGate.suffocates(mc.level, foot)) return foot;
+        if (AntiSuffocateGate.suffocates(level, foot)) return foot;
         for (Direction d : Direction.Plane.HORIZONTAL) {
             BlockPos n = eye.relative(d);
-            if (AntiSuffocateGate.suffocates(mc.level, n)) return n;
+            if (AntiSuffocateGate.suffocates(level, n)) return n;
         }
         return null;
     }
@@ -178,10 +179,10 @@ public final class AntiSuffocate {
      *  "clear" = the suffocation gate dropped; "no-solid-target" = nothing solid
      *  left to break (typically the break succeeded and the trigger's ~40t damage
      *  tail is still decaying); "unbreakable" = gave up (bedrock); "level-gone". */
-    private static void reset(Minecraft mc, String outcome) {
+    private void reset(BlockInteraction blocks, String outcome) {
         if (trackedHead != null)
             LOG.info("[antiSuffocate] episode end ({}) — last target {}", outcome, trackedHead.toShortString());
-        if (driving) { if (mc.gameMode != null) mc.gameMode.stopDestroyBlock(); driving = false; }
+        if (driving) { if (blocks != null) blocks.stopDestroy(); driving = false; }
         trackedHead = null;
     }
 }
