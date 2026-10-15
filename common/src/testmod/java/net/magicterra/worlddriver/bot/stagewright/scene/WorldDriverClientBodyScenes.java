@@ -29,7 +29,7 @@ import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.api;
 import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 
 /**
- * The precondition in front of every verb that moves or acts through the player ({@code BodyReady}),
+ * The precondition in front of every verb that moves or acts through the player ({@code Readiness}),
  * on the client's real player:
  * a dead player is refused as {@code body_unavailable} instead of accepted,
  * a read ({@code mc.bot.status}) still answers, and the same order is taken again once the player

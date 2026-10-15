@@ -11,9 +11,9 @@ import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.TowerProcess;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -236,8 +236,8 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         WorldConfig.allowPlace = true;
         WorldConfig.allowBreak = false;
         GameConfig.walkerDebug = false;
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         // The flight is a static of the ladder's own code. A gate scene that left one behind would
         // hand a ladder run in the same process a staircase it never dug.
         ctx.cleanup(JourneyStairs::forget);
@@ -247,8 +247,8 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
     }
 
     /** A bot standing in {@code foot}, stocked and settled, with the cleanup that removes it. */
-    private static ServerWorldDriver body(SceneContext ctx, BlockPos foot) {
-        ServerWorldDriver driver = SceneBody.managed(ctx, foot);
+    private static PlayerBot body(SceneContext ctx, BlockPos foot) {
+        PlayerBot driver = SceneBody.managed(ctx, foot);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, STOCK));
         fp.getInventory().selected = 0;
@@ -266,7 +266,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         int climbed() { return endY - startY; }
     }
 
-    private static Run tower(SceneContext ctx, String arm, ServerWorldDriver driver, int courses) {
+    private static Run tower(SceneContext ctx, String arm, PlayerBot driver, int courses) {
         ServerPlayer fp = driver.fakePlayer();
         BlockPos start = fp.blockPosition();
         int before = carrying(fp);
@@ -716,7 +716,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         ctx.setBlock(WET_SOURCE_X, BASE + WET_FEET, 0, Blocks.WATER);
 
         BlockPos foot = ctx.rel(WET_STAND_X, BASE + WET_FEET, 0);
-        ServerWorldDriver driver = SceneBody.managed(ctx, foot);
+        PlayerBot driver = SceneBody.managed(ctx, foot);
         ServerPlayer fp = driver.fakePlayer();
         // NO PLACEABLE BLOCK, on purpose — see the class note above. `pillarBlock` falls back to
         // cobblestone with a count of zero, `.hand` records that it could not be held, and execution

@@ -16,11 +16,12 @@ import java.util.Map;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 
 /**
- * Phase 2: a fully server-side agent driver — the real {@link Walker} steering a
+ * A joined server player under the bot stack, addressable as {@code player:<name>}: the real
+ * {@link Walker} and the per-verb processes steering a
  * {@link ServerPlayerBody} (a headless {@link ServerPlayer}) with no client. Each call to
  * {@link #tick()} advances the Walker (which sets the avatar's impulse/jump via
  * the {@code Body} seam) then runs the manual vanilla physics step. This is
- * exactly the loop the headless arenas validate; {@link ServerAvatarManager}
+ * exactly the loop the headless arenas validate; {@link BotTicker}
  * wires it to the live {@code ServerTickEvent} so a dedicated server drives the
  * bot with no {@code LocalPlayer}.
  *
@@ -31,7 +32,11 @@ import net.magicterra.worlddriver.game.body.ServerPlayerBody;
  *
  * <p>MIGRATION (P1.6 Task 1): moved verbatim from
  * {@code net.magicterra.worlddriver.neoforge.sim.ServerWorldDriver}; the player type is now
- * vanilla {@link ServerPlayer}.
+ * vanilla {@link ServerPlayer}. It was {@code ServerWorldDriver} until the layering rework, which
+ * folded the {@code ServerBodyHost} that made it addressable into it.
+ *
+ * <p>{@link BotTicker} drops a finished bot, so {@link #start} registers it again, the way every
+ * scene that reuses one does.
  *
  * <p><b>Why the accessors are {@code non-final}.</b> This class is extension surface for other
  * mods. The NeoForge shim of the same simple name, which narrowed {@link #avatar()} and
@@ -41,11 +46,16 @@ import net.magicterra.worlddriver.game.body.ServerPlayerBody;
  * <p>Who holds a driver of THIS type: the testmod's scenes, via
  * {@code SceneBody.mint}/{@code managed}/{@code bare} — and {@code JourneyRig}, which wraps an
  * adopted real player when the topology supplies one and mints otherwise; {@code /worlddriver
- * server} ({@link ServerAvatarCommand}); plus {@link ServerAvatarManager}, which keeps the
+ * server} ({@link BotCommand}); plus {@link BotTicker}, which keeps the
  * registered drivers and {@link #tick()}s them from the common server-tick hook.
  */
-public class ServerWorldDriver implements BodyDriver {
+public class PlayerBot implements Bot {
+
+    public static final String KIND = "player";
+
     private final ServerPlayerBody avatar;
+    /** The name it is addressed by, or null until {@link #named} gives it one. */
+    private volatile String name;
     /**
      * Not final: the bot can change dimension, and a view does not follow it.
      *
@@ -70,20 +80,20 @@ public class ServerWorldDriver implements BodyDriver {
     /** Holds a real ({@code Body}-migrated) BotProcess when there is one, and the slots it switched on. */
     private final HeldProcess held = new HeldProcess(botState);
 
-    public ServerWorldDriver(ServerPlayerBody avatar) {
+    public PlayerBot(ServerPlayerBody avatar) {
         this.avatar = avatar;
         this.world = new LevelWorldView(avatar.fakePlayer().level(), avatar.fakePlayer());
     }
 
     /** Put the level's shared player at {@code (x,y,z)} and wrap it in a driver. */
-    public static ServerWorldDriver create(ServerLevel level, double x, double y, double z) {
-        return new ServerWorldDriver(ServerPlayerBody.create(level, x, y, z));
+    public static PlayerBot create(ServerLevel level, double x, double y, double z) {
+        return new PlayerBot(ServerPlayerBody.create(level, x, y, z));
     }
 
     /** {@link #create} with an isolated player ({@link ServerPlayerBody#createUnique}) —
      *  the production entry point: every {@code /worlddriver server} agent gets its own player. */
-    public static ServerWorldDriver createIsolated(ServerLevel level, double x, double y, double z) {
-        return new ServerWorldDriver(ServerPlayerBody.createUnique(level, x, y, z));
+    public static PlayerBot createIsolated(ServerLevel level, double x, double y, double z) {
+        return new PlayerBot(ServerPlayerBody.createUnique(level, x, y, z));
     }
 
     /**
@@ -93,7 +103,7 @@ public class ServerWorldDriver implements BodyDriver {
      * that has ever run a process would silently keep running it and this call would do nothing.
      * See {@link #mine} for how that was found.
      */
-    public ServerWorldDriver gotoGoal(Goal goal) {
+    public PlayerBot gotoGoal(Goal goal) {
         walker.setGoal(goal);
         mineTarget = null;
         held.cancel("superseded by goto");
@@ -118,7 +128,7 @@ public class ServerWorldDriver implements BodyDriver {
      * missed it because a fresh driver mines before it has ever held a process, which is the one
      * ordering where the bug cannot appear.
      */
-    public ServerWorldDriver mine(BlockPos target) {
+    public PlayerBot mine(BlockPos target) {
         this.mineTarget = target.immutable();
         walker.setGoal(new Goal.Near(target, 2));
         held.cancel("superseded by mine");
@@ -137,12 +147,12 @@ public class ServerWorldDriver implements BodyDriver {
      *  <p>Every ending goes through {@link HeldProcess} as the client's goes through
      *  {@code UserTaskChain}: the outgoing process hears {@code onCancelled} ({@code MineProcess}
      *  releases its trunk-tax waiver there), and the slots it switched on go inactive. */
-    public ServerWorldDriver runProcess(BotProcess p) {
+    public PlayerBot runProcess(BotProcess p) {
         return runProcess(p, null);
     }
 
     /** {@link #runProcess(BotProcess)} carrying out {@code action}, which ends with the process. */
-    public ServerWorldDriver runProcess(BotProcess p, ActionHandle action) {
+    public PlayerBot runProcess(BotProcess p, ActionHandle action) {
         held.start(p, ActionTickets.of(action));
         this.mineTarget = null;
         finished = false;
@@ -152,7 +162,7 @@ public class ServerWorldDriver implements BodyDriver {
     }
 
     /** Stop the held process if it still carries {@code action}; what a cancel requested off the server thread comes back to. */
-    public boolean cancelAction(ActionHandle action, String reason) {
+    @Override public boolean cancelAction(ActionHandle action, String reason) {
         if (!held.cancelAction(ActionTickets.of(action), reason)) return false;
         mineTarget = null;
         finished = true;
@@ -170,7 +180,7 @@ public class ServerWorldDriver implements BodyDriver {
 
     /**
      * The kind of task the driver is on, or null when it has none or has finished: the held
-     * process's kind, or {@code mine}/{@code goto} for the two bare tasks {@link ServerAvatarCommand}
+     * process's kind, or {@code mine}/{@code goto} for the two bare tasks {@link BotCommand}
      * sets.
      */
     public String activeKind() {
@@ -185,13 +195,39 @@ public class ServerWorldDriver implements BodyDriver {
      * inactive, so a status read tells a cancelled order from a running one. The manager drops the
      * finished driver on its next tick. False when there was nothing to stop.
      */
-    public boolean cancel(String reason) {
+    private boolean end(String reason) {
         if (activeKind() == null) return false;
         held.cancel(reason);
         mineTarget = null;
         finished = true;
         last = Walker.Step.FAILED;
         return true;
+    }
+
+    /** Address this bot as {@code player:<name>}; set it before registering with {@link BotRegistry}. */
+    public PlayerBot named(String name) { this.name = name; return this; }
+
+    /** {@code player:<name>}, or the player's own name when nothing has named it. */
+    @Override public String id() { return KIND + ":" + (name != null ? name : fakePlayer().getGameProfile().getName()); }
+    @Override public String kind() { return KIND; }
+    @Override public ServerPlayerBody body() { return avatar; }
+    @Override public ServerPlayer entity() { return avatar.fakePlayer(); }
+
+    /** A bot that is off the tick list is not moving, whatever it last held. */
+    @Override public boolean busy() {
+        return activeKind() != null && BotTicker.isRegistered(this);
+    }
+
+    @Override public void start(BotProcess process, ActionHandle action) {
+        runProcess(process, action);
+        BotTicker.register(this);
+    }
+
+    @Override public String cancel(String process) {
+        String kind = busy() ? activeKind() : null;
+        if (kind == null || !("all".equals(process) || kind.equals(process))) return null;
+        end("user-cancel");
+        return kind;
     }
 
     public ServerPlayerBody avatar() { return avatar; }
@@ -209,9 +245,9 @@ public class ServerWorldDriver implements BodyDriver {
     public Walker.Step lastStep() { return last; }
     /** The last ending of a process this driver ran, with its own verdict. {@link #lastStep()} says
      *  ARRIVED for any process that stopped by itself, so this is what says whether it did the job. */
-    public Map<String, Object> lastProcessEnd() { return held.lastEnd(); }
-    public boolean finished() { return finished; }
-    public BotState botState() { return botState; }
+    @Override public Map<String, Object> lastProcessEnd() { return held.lastEnd(); }
+    @Override public boolean finished() { return finished; }
+    @Override public BotState botState() { return botState; }
 
     /** One server tick of agent driving: the Walker decides, then physics steps.
      *  For a mine task, once navigation arrives within reach the avatar breaks

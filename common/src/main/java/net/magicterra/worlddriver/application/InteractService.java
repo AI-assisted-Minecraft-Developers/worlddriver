@@ -21,7 +21,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.Used;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.BodyRegistry;
+import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.VerbOrders;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -48,7 +48,7 @@ final class InteractService implements InteractApi {
 
     @Override
     public CompletionStage<ImmediateResponse> equip(InteractContracts.EquipParams p, CallContext ctx) {
-        return actions.within(BodyRegistry.SELF, ctx, Refused::new,
+        return actions.within(BotRegistry.SELF, ctx, Refused::new,
                 (bot, self) -> bot.equip(p), host -> { throw new IllegalStateException("equip is self's alone"); });
     }
 
@@ -79,7 +79,7 @@ final class InteractService implements InteractApi {
     public CompletionStage<ImmediateResponse> useItem(InteractContracts.UseParams p, CallContext ctx) {
         CompletionStage<ImmediateResponse> used = actions.within(p.body(), ctx, Refused::new,
                 (bot, self) -> bot.useItem(p), host -> BodyInteractions.useItem(host, p));
-        if (!BodyRegistry.isSelf(p.body())) return used;
+        if (!BotRegistry.isSelf(p.body())) return used;
         return used.thenCompose(r -> r instanceof Used u && u.on() instanceof OnEntity before
                 ? settle(BotHooks.impl(), u, before, 0, ctx) : CompletableFuture.completedFuture(r));
     }

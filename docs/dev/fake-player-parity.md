@@ -31,7 +31,7 @@ enough to count separately. Class paths below are relative to
 | Bot | Class | Underlying entity | In `level.players()` |
 |---|---|---|---|
 | Client player | `game/body/ClientPlayerBody.java` | the client's own `LocalPlayer` | yes, as the person's player |
-| Joined player | `game/body/ServerPlayerBody.java` over `game/body/JoinedPlayerBodies.JoinedBody` | a `ServerPlayer` the server joined to itself | yes |
+| Joined player | `game/body/ServerPlayerBody.java` over `game/body/JoinedPlayers.JoinedBody` | a `ServerPlayer` the server joined to itself | yes |
 | Adopted player | `game/body/ServerPlayerBody.java` over a client's own `ServerPlayer` | the server-side half of a connected player | yes |
 | Mob | `bot/stagewright/LivingBody.java` (test sources) | a `DrivenPiglin`, a mob | no — it is not a player |
 
@@ -41,7 +41,7 @@ vanilla's client code: `mc.gameMode.attack`, `continueDestroyBlock`, `handlePlac
 `mc.hitResult`. Its parity with a real player is not a property to be maintained; it *is*
 a real player, driven by something other than a hand on a keyboard.
 
-**The joined player** is the one this document is mostly about. `ServerAvatarBodies` hands
+**The joined player** is the one this document is mostly about. `JoinedPlayers.BOTS` hands
 out nothing else. It is a `ServerPlayer` put through `PlayerList.placeNewPlayer` with a
 connection that goes nowhere, so the server treats it as a player that has arrived: it is
 in the player list, registered with the `ChunkMap`, carries the inventory-menu listener
@@ -59,7 +59,7 @@ own connection already ticks it, and pumping would tick it twice.
 
 **How a bot is addressed.** Every `mc.bot.*` verb takes an optional `body` parameter.
 Absent, blank or `self` routes the call to the client's own `BotApi`, exactly as before the
-parameter existed; any other value names an entry in `BodyRegistry` and routes to
+parameter existed; any other value names an entry in `BotRegistry` and routes to
 `BodyRoutes`, which never touches the client bot. On a dedicated server that is the only
 `mc.bot.*` code that runs, and `mc.bot.status` — bound straight to the bot route — answers
 there with no client attached. Bots are registered by whoever creates them:

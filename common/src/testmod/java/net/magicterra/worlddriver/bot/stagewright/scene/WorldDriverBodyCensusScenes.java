@@ -12,7 +12,7 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.game.body.JoinedPlayerBodies;
+import net.magicterra.worlddriver.game.body.JoinedPlayers;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.minecraft.advancements.AdvancementHolder;
@@ -222,12 +222,12 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         });
 
         // ---- column B: a JoinedBody, minted directly rather than through the seam ----
-        // Directly, from a JoinedPlayerBodies of its own, exactly as it was minted while column A
+        // Directly, from a JoinedPlayers of its own, exactly as it was minted while column A
         // still existed: the census player never shares the seam's cache with the scene players, and
         // its readings stay comparable with the archived two-column runs.
         final int jx = ox + COLUMN_GAP;
         ServerPlayerBody joinedAvatar = measureColumn(ctx, "joined", level, jx, floorY, oz, () -> {
-            JoinedPlayerBodies bodies = new JoinedPlayerBodies();
+            JoinedPlayers bodies = new JoinedPlayers();
             GameProfile profile = new GameProfile(
                     java.util.UUID.nameUUIDFromBytes(
                             "OfflinePlayer:wd-census".getBytes(java.nio.charset.StandardCharsets.UTF_8)),
@@ -471,7 +471,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         boolean clientHalf = BotHooks.isAvailable();
         List<ServerPlayer> humans = new ArrayList<>();
         for (ServerPlayer p : ctx.level().players()) {
-            if (p instanceof JoinedPlayerBodies.JoinedBody) continue;
+            if (p instanceof JoinedPlayers.JoinedBody) continue;
             humans.add(p);
         }
         String kind = !dedicated ? "integratedServer"
@@ -530,7 +530,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         } catch (NoSuchMethodException e) {
             emptyTick = false;
         }
-        return "avatar.step()/ServerAvatarManager"
+        return "avatar.step()/BotTicker"
                 + "; in the ServerLevel entity tick list=" + inLevel
                 + "; tick() overridden by a subclass=" + emptyTick
                 + " (an empty override cuts off channel one)"

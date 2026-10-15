@@ -21,9 +21,9 @@ import net.magicterra.worlddriver.bot.rules.constraints.MobCluster;
 import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
 import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
@@ -176,10 +176,10 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         BlockPos start = new BlockPos(cx, y + 1, cz), goal = new BlockPos(cx + 20, y + 1, cz);
         BlockPos shadowGoal = new BlockPos(cx + 18, y + 1, cz - 3);
 
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, y + 1, cz + 0.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, y + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
-        ctx.cleanup(() -> ServerAvatarManager.unregister(driver));
+        ctx.cleanup(() -> BotTicker.unregister(driver));
         LevelWorldView w = new LevelWorldView(level, fp);
         Map<String, Object> sight = Map.of("of", "ranged", "range", 32, "mode", "avoid");
         RouteParams.Parsed avoid = RouteParams.parse(Map.of("sight", sight));
@@ -209,7 +209,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
             Intent intent = new Intent(List.of(new Goal.Block(goal)), avoid.profile().bias(),
                     avoid.profile().capability(), avoid.profile().constraints(), null);
             driver.runProcess(new IntentProcess(intent));
-            ServerAvatarManager.register(driver);
+            BotTicker.register(driver);
             final int[] ticks = { 0 }, seen = { 0 };
             final StringBuilder trace = new StringBuilder();
             ctx.await(() -> {

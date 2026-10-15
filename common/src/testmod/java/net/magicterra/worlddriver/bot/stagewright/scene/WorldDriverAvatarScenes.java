@@ -20,9 +20,9 @@ import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.ElytraProcess;
-import net.magicterra.worlddriver.game.body.JoinedPlayerBodies;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.game.body.JoinedPlayers;
+import net.magicterra.worlddriver.bot.PlayerBot;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
@@ -55,8 +55,8 @@ import net.minecraft.world.phys.Vec3;
  * {@code beefLeft==1}, the empty-then-full recharge bar, etc. — and are translated one-for-one with
  * no number moved. The canonical wave-6 substitutions apply: {@code helper.getLevel()} →
  * {@link SceneContext#level()}; absolute {@code cx/cz} → origin X/Z; absolute {@code floorY=220} →
- * {@code origin.y + 20} / {@code floorY=200} → {@code origin.y}; {@code ServerWorldDriver.create} →
- * {@link ServerWorldDriver#createIsolated} and {@code ServerPlayerBody.create} →
+ * {@code origin.y + 20} / {@code floorY=200} → {@code origin.y}; {@code PlayerBot.create} →
+ * {@link PlayerBot#createIsolated} and {@code ServerPlayerBody.create} →
  * {@link ServerPlayerBody#createUnique} (the per-scene isolated player — the shell these tests
  * were promoted to a REQUIRED regression guard on; it changes identity only, not the player physics
  * the golden numbers measure); legacy NeoForge {@code FakePlayer} → common {@link ServerPlayer};
@@ -114,8 +114,8 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
             SceneArena.clearBox(level, ax, floorY, az, 6, 8);
             SceneArena.clearBox(level, bx, floorY, bz, 6, 8);
@@ -129,14 +129,14 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(ax + dx, floorY, az + dz), Blocks.STONE.defaultBlockState());
                 level.setBlockAndUpdate(new BlockPos(bx + dx, floorY, bz + dz), Blocks.STONE.defaultBlockState());
             }
-        ServerWorldDriver a = SceneBody.bare(ctx, level, ax + 0.5, floorY + 1, az + 0.5);
-        ServerWorldDriver b = SceneBody.bare(ctx, level, bx + 0.5, floorY + 1, bz + 0.5);
+        PlayerBot a = SceneBody.bare(ctx, level, ax + 0.5, floorY + 1, az + 0.5);
+        PlayerBot b = SceneBody.bare(ctx, level, bx + 0.5, floorY + 1, bz + 0.5);
         ctx.cleanup(() -> { a.fakePlayer().discard(); b.fakePlayer().discard(); });
         ServerPlayer fpA = a.fakePlayer(), fpB = b.fakePlayer();
 
         if (fpA == fpB)
             ctx.fail("both server agents are literally the same entity ("
-                    + System.identityHashCode(fpA) + "): ServerAvatarBodies.shared(level) is a"
+                    + System.identityHashCode(fpA) + "): JoinedPlayers.BOTS.shared(level) is a"
                     + " per-level singleton, so agents (and concurrent arenas) fight over one player");
 
         // B is parked. A walks. Vanilla-obvious, and the whole point of having two agents.
@@ -165,8 +165,8 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> SceneArena.clearBox(level, cx, floorY, cz, 3, 5));
         GameConfig.walkerDebug = false;
 
@@ -174,7 +174,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
 
         // --- (A) A HELD USE COMPLETES: eating. ---
@@ -235,8 +235,8 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> SceneArena.clearBox(level, cx, floorY, cz, 3, 5));
         GameConfig.walkerDebug = false;
 
@@ -244,7 +244,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         equipMainHand(fp, new ItemStack(Items.IRON_SWORD));
@@ -363,8 +363,8 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
             for (int dx = -1; dx <= 1; dx++)
                 for (int dz = -1; dz <= 1; dz++)
@@ -381,24 +381,24 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 40, cz + 0.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 40, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.ELYTRA));   // fresh wing (full durability)
         // No fireworks: pure glide takeoff (boost needs a ticked firework entity).
         driver.runProcess(new ElytraProcess(
                 new BlockPos(cx + 400, floorY + 40, cz), null, 0f, false, 0, 2000, 3.0, true));
-        ServerAvatarManager.register(driver);
+        BotTicker.register(driver);
 
         boolean flewAtSomePoint = false;
-        for (int t = 0; t < 60 && ServerAvatarManager.activeCount() > 0; t++) {
-            ServerAvatarManager.tickAll();
+        for (int t = 0; t < 60 && BotTicker.activeCount() > 0; t++) {
+            BotTicker.tickAll();
             if (fp.isFallFlying()) flewAtSomePoint = true;
         }
-        boolean crashed = !driver.finished() && ServerAvatarManager.activeCount() == 0;
+        boolean crashed = !driver.finished() && BotTicker.activeCount() == 0;
         WorldDriverCommon.LOG.info("[wd.serverElytra] flew={} pos=({},{},{}) finished={} active={} crashed={}",
                 flewAtSomePoint, fp.getX(), fp.getY(), fp.getZ(),
-                driver.finished(), ServerAvatarManager.activeCount(), crashed);
+                driver.finished(), BotTicker.activeCount(), crashed);
         if (crashed)
             ctx.fail("server ElytraProcess crashed the tick (driver removed unfinished)");
         if (!flewAtSomePoint)
@@ -437,7 +437,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
                 UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8)), name);
         ServerPlayer bot;
         try {
-            bot = new JoinedPlayerBodies().unique(level, profile);
+            bot = new JoinedPlayers().unique(level, profile);
         } catch (RuntimeException e) {
             ctx.fail("the bot did not join past a modded payload sent at login: " + e);
             return;

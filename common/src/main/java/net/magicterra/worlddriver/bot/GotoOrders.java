@@ -15,7 +15,7 @@ import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Trip;
 import net.magicterra.worlddriver.api.methods.bot.MoveContracts;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
-import net.magicterra.worlddriver.bot.BodyRegistry;
+import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.RouteEvents;
 import net.magicterra.worlddriver.bot.behavior.Intent;
@@ -98,7 +98,7 @@ public final class GotoOrders {
         if (target == null) {
             return new Refuse(RefusalReason.INVALID_WORLD_TARGET, "flying needs a target cell, and " + goal + " has none");
         }
-        MoveContracts.ElytraParams flight = new MoveContracts.ElytraParams(BodyRegistry.SELF,
+        MoveContracts.ElytraParams flight = new MoveContracts.ElytraParams(BotRegistry.SELF,
                 Optional.of(Positions.position(target)), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 40, Optional.empty(), 3.0, true, 1, 0);
         return switch (VerbOrders.elytraFly(flight, self)) {

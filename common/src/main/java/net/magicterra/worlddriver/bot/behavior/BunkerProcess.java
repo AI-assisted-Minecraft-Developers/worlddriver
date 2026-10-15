@@ -3,7 +3,6 @@ package net.magicterra.worlddriver.bot.behavior;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
@@ -140,7 +139,7 @@ public final class BunkerProcess implements BotProcess {
         if (p == null) return finish(st, w, a, "no-player", "player entity unavailable — no action taken");
         equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
-        if (equipment == null || blocks == null) return finish(st, w, a, "no-hands", BodyReady.Reason.NO_HANDS);
+        if (equipment == null || blocks == null) return finish(st, w, a, "no-hands", Readiness.Reason.NO_HANDS);
         BlockPos foot = p.blockPosition();
         if (startY == Integer.MIN_VALUE) {
             startY = foot.getY();

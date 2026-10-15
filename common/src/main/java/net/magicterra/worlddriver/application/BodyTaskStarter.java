@@ -25,8 +25,8 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.BodyHost;
-import net.magicterra.worlddriver.bot.BodyRegistry;
+import net.magicterra.worlddriver.bot.Bot;
+import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -102,7 +102,7 @@ final class BodyTaskStarter {
         }
         WaitPermits.Lease held = lease;
         try {
-            CompletionStage<ActionResponse<R>> started = BodyRegistry.isSelf(body)
+            CompletionStage<ActionResponse<R>> started = BotRegistry.isSelf(body)
                     ? startOnSelf(ctx, planner) : startOnHost(body, ctx, planner);
             return started.thenCompose(r -> r instanceof Accepted<R> a && awaitMs > 0 && !a.action().terminal()
                     ? awaitEnding(a.action(), awaitMs, ctx) : CompletableFuture.completedFuture(r))
@@ -127,7 +127,7 @@ final class BodyTaskStarter {
                 return new Refused<R>(RefusalReason.BODY_UNAVAILABLE, refusal == null ? "self has no player"
                         : String.valueOf(refusal.get("error")));
             }
-            return admitAndStart(BodyRegistry.SELF, ActionHandle.Scope.CLIENT, ctx, planner.plan(self), (process, h) -> {
+            return admitAndStart(BotRegistry.SELF, ActionHandle.Scope.CLIENT, ctx, planner.plan(self), (process, h) -> {
                 h.bindStopper(why -> client.execute(() -> bot.cancelAction(h, "cancelled: " + why.wireName())));
                 bot.startAction(process, h);
             });
@@ -143,7 +143,7 @@ final class BodyTaskStarter {
         long generation = actions.generation(ActionHandle.Scope.SERVER);
         return hop.submit(() -> {
             actions.requireGeneration(ActionHandle.Scope.SERVER, generation);
-            BodyHost host = BodyRegistry.get(body);
+            Bot host = BotRegistry.get(body);
             if (host == null) {
                 return new Refused<R>(RefusalReason.BODY_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots");
             }
@@ -165,8 +165,8 @@ final class BodyTaskStarter {
      * or that another run holds, is answered through {@code refuse} with nothing done.
      */
     <T> CompletionStage<T> within(String body, CallContext ctx, BiFunction<RefusalReason, String, T> refuse,
-                                  BiFunction<BotApi, LivingEntity, T> onSelf, Function<BodyHost, T> onHost) {
-        if (BodyRegistry.isSelf(body)) {
+                                  BiFunction<BotApi, LivingEntity, T> onSelf, Function<Bot, T> onHost) {
+        if (BotRegistry.isSelf(body)) {
             BotApi bot = BotHooks.impl();
             if (bot == null) return CompletableFuture.completedFuture(refuse.apply(RefusalReason.BODY_UNAVAILABLE, NO_CLIENT));
             return bot.clientHop().submit(() -> {
@@ -176,7 +176,7 @@ final class BodyTaskStarter {
                     return refuse.apply(RefusalReason.BODY_UNAVAILABLE, refusal == null ? "self has no player"
                             : String.valueOf(refusal.get("error")));
                 }
-                ActionRegistry.Denied busy = actions.claim(BodyRegistry.SELF, ctx.run());
+                ActionRegistry.Denied busy = actions.claim(BotRegistry.SELF, ctx.run());
                 return busy != null ? refuse.apply(busy.reason(), busy.message()) : onSelf.apply(bot, self);
             }, ctx);
         }
@@ -186,7 +186,7 @@ final class BodyTaskStarter {
                     body + " is unavailable: no server is attached"));
         }
         return hop.submit(() -> {
-            BodyHost host = BodyRegistry.get(body);
+            Bot host = BotRegistry.get(body);
             if (host == null) return refuse.apply(RefusalReason.BODY_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots");
             Map<String, Object> refusal = host.refusal();
             if (refusal != null) return refuse.apply(RefusalReason.BODY_UNAVAILABLE, String.valueOf(refusal.get("error")));

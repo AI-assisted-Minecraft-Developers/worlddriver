@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.core.BlockPos;
 
 import java.util.Locale;
@@ -157,7 +157,7 @@ final class JourneyLeg {
      * search genuinely failed are exactly the confusion an A/B is there to rule out, and an arm
      * that ran out of budget is not evidence about the subject at all.
      */
-    static String walkerEnd(ServerWorldDriver driver) {
+    static String walkerEnd(PlayerBot driver) {
         var goto_ = driver.botState().mc_goto;
         String end = goto_.endReason;
         String err = goto_.lastError;

@@ -6,7 +6,6 @@ import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
@@ -123,7 +122,7 @@ public final class MineProcess implements BotProcess {
      * {@code cancelAllProcesses → cancelCurrent → UserTaskChain.cancel}, and the call is on
      * {@code UserTaskChain:47}. Starting a new order funnels there too — {@code setProcess} cancels
      * the outgoing process with {@code "superseded"} before attaching the new one. The server rig's
-     * two entry points ({@code ServerWorldDriver.runProcess} / {@code mine}) did NOT, and were given
+     * two entry points ({@code PlayerBot.runProcess} / {@code mine}) did NOT, and were given
      * the same door for this waiver's sake.
      */
     @Override public void onCancelled(String reason) {
@@ -242,7 +241,7 @@ public final class MineProcess implements BotProcess {
         Player p = a.asPlayer();
         equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
-        if (equipment == null || blocks == null || p == null) { st.mine.lastError = BodyReady.Reason.NO_HANDS; finish(st, null, null, BodyReady.Reason.NO_HANDS); return true; }
+        if (equipment == null || blocks == null || p == null) { st.mine.lastError = Readiness.Reason.NO_HANDS; finish(st, null, null, Readiness.Reason.NO_HANDS); return true; }
         Level lvl = p.level();
         // Quota reached → switch to COLLECT instead of declaring done. The
         // old behaviour left the player wherever the last break completed,

@@ -138,7 +138,7 @@ public interface BotApi {
     // Why that matters: {@code BotProcess.tick(Minecraft,...)} default-bridges to
     // {@code tick(Body,...)} over a {@code ClientPlayerBody}, so the SAME process
     // object drives a client {@code LocalPlayer} here and a headless {@code FakePlayer}
-    // under {@code ServerWorldDriver}. That is the whole point of the bot interface, and
+    // under {@code PlayerBot}. That is the whole point of the bot interface, and
     // without these three the only in-JVM caller of it — the playthrough ladder — had to
     // spawn a fake player even on a topology that has a real player standing right there.
 
@@ -243,7 +243,7 @@ public interface BotApi {
      * of those sites touch client state is decided at RUNTIME by {@code realPlayerHelm(ctx)} — false
      * on {@code runJourneyServer}, where the answer is zero and this whole gap is unreachable, true
      * on the integrated topology, where it is all of them. A static grep cannot settle it either,
-     * because {@code avatar()} in those files also names {@code ServerWorldDriver.avatar()}, and
+     * because {@code avatar()} in those files also names {@code PlayerBot.avatar()}, and
      * because a site binding the result to a local first matches no {@code avatar().} pattern at
      * all. State the mechanism, as above. Do not restore a number.
      *
@@ -269,7 +269,7 @@ public interface BotApi {
     /**
      * The standard refusal when the bot cannot take an order right now — no player, a world still
      * loading, a dead player, a paused game, a bed, a chunk not yet on the client — or null when it
-     * can. {@link BodyReady} decides and shapes it ({@code {ok:false, error, reason}}); this is the
+     * can. {@link Readiness} decides and shapes it ({@code {ok:false, error, reason}}); this is the
      * client-thread read of it that the driver puts in front of every verb that acts on the
      * bot, so the same refusal comes back on every transport instead of {@code started: true} for
      * a bot that cannot move. Reads only; starts nothing.

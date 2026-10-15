@@ -4,22 +4,39 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
-import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.control.Walker;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.bot.behavior.Readiness;
 
 /**
- * A bot the API addresses by name: what the {@code mc.bot.*} verbs that take {@code body} need from
- * a controlled entity that is not this client's own player.
+ * A body and the stack that drives it, addressed by name: what the {@code mc.bot.*} verbs that take
+ * {@code body} need from a controlled entity that is not this client's own player, and what
+ * {@link BotTicker} advances once per server tick until it reports finished.
  *
- * <p>A host runs one process at a time and the server tick advances it, so every method here is
- * called on the server thread. The client player is not a host. {@code self} keeps going through
- * {@code BotApi}, with the scheduler, chains and reflexes a host does not have.
+ * <p>A bot runs one process at a time and the server tick advances it, so every method here is
+ * called on the server thread. The client player is not one yet: {@code self} keeps going through
+ * {@code BotApi}, with the scheduler, chains and reflexes a bot here does not have.
+ *
+ * <p>This was two interfaces, {@code BodyHost} (addressable) and {@code BodyDriver} (ticked), until
+ * the layering rework; every implementation was both.
  */
-public interface BodyHost {
+public interface Bot {
+
+    /** One server tick of driving. */
+    Walker.Step tick();
+
+    /** Whether the bot is done; {@link BotTicker} drops it then. */
+    boolean finished();
+
+    /**
+     * {@link #tick} threw and {@link BotTicker} is dropping the bot: end whatever it held with the
+     * error, or a caller waiting on it waits until its own deadline for an ending that never comes.
+     */
+    default void crashed(Throwable t) {}
 
     /** {@code player:<name>} or {@code npc:<name>}. */
     String id();
@@ -63,23 +80,23 @@ public interface BodyHost {
 
     /**
      * Why the bot cannot take an order now, as {@code {ok:false, error, reason}}, or null. The same
-     * words the client's {@code BodyReady} uses, judged on the entity instead of on a screen.
+     * words the client's {@code Readiness} uses, judged on the entity instead of on a screen.
      */
     default Map<String, Object> refusal() {
         LivingEntity e = entity();
         // A removed entity that was not killed has most often gone to disk with its chunk; the id
         // still names it, so this is not unknown_body.
         if (e == null || (e.isRemoved() && e.getRemovalReason() != Entity.RemovalReason.KILLED)) {
-            return refuse(BodyReady.Reason.CHUNK_UNLOADED, "bot " + id() + " is not in a loaded chunk");
+            return refuse(Readiness.Reason.CHUNK_UNLOADED, "bot " + id() + " is not in a loaded chunk");
         }
-        if (!e.isAlive()) return refuse(BodyReady.Reason.DEAD, "bot " + id() + " is dead");
+        if (!e.isAlive()) return refuse(Readiness.Reason.DEAD, "bot " + id() + " is dead");
         if (!e.level().hasChunkAt(e.blockPosition())) {
-            return refuse(BodyReady.Reason.CHUNK_UNLOADED, "the chunk under bot " + id() + " is not loaded");
+            return refuse(Readiness.Reason.CHUNK_UNLOADED, "the chunk under bot " + id() + " is not loaded");
         }
         return null;
     }
 
-    /** A refusal in the shape {@code BodyReady.Refusal} gives, built without loading that client class. */
+    /** A refusal in the shape {@code Readiness.Refusal} gives, built without loading that client class. */
     static Map<String, Object> refuse(String reason, String error) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("ok", false);

@@ -14,9 +14,9 @@ import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -359,8 +359,8 @@ public final class JourneyPourLineScenes implements SceneProvider {
         WorldConfig.allowPlace = false;
         WorldConfig.allowBreak = false;
         GameConfig.walkerDebug = false;
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         ctx.cleanup(JourneyRamp::reset);
         ctx.cleanup(JourneySight::forgetMould);
         // No staircase at all, and said so rather than assumed: JourneyRamp.fillable consults
@@ -374,8 +374,8 @@ public final class JourneyPourLineScenes implements SceneProvider {
     }
 
     /** A bot standing in {@code foot}, settled, holding a pickaxe and a bucket's worth of nothing. */
-    private static ServerWorldDriver body(SceneContext ctx, BlockPos foot) {
-        ServerWorldDriver driver = SceneBody.managed(ctx, foot);
+    private static PlayerBot body(SceneContext ctx, BlockPos foot) {
+        PlayerBot driver = SceneBody.managed(ctx, foot);
         ServerPlayer fp = driver.fakePlayer();
         // A pickaxe because the take-back arm mines with it and `destroyBlock` hands the held item to
         // `dropResources` — a fist opens the cell and drops nothing.
@@ -390,7 +390,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
     /** The shot, fired the way the pour fires it, described the way {@code cast*.picks} describes it. */
     private record Shot(BlockPos stopped, BlockPos landing, String where) {}
 
-    private static Shot fire(SceneContext ctx, ServerWorldDriver driver, BlockPos aim) {
+    private static Shot fire(SceneContext ctx, PlayerBot driver, BlockPos aim) {
         ServerPlayer fp = driver.fakePlayer();
         BlockHitResult hit = JourneyPour.fire(driver.avatar(), fp, aim);
         BlockPos landing = JourneyPour.landedIn(hit);
@@ -406,7 +406,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
 
     /** {@link JourneyHands#swing} — the arena's own break oracle, shared with the portal-entry
      *  arenas so there is one of it rather than one per file. */
-    private static boolean swing(ServerWorldDriver driver, BlockPos cell) {
+    private static boolean swing(PlayerBot driver, BlockPos cell) {
         return JourneyHands.swing(driver, cell);
     }
 
@@ -476,7 +476,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
                         + " ray passes through it and this arm measures 'nothing to aim at' instead of"
                         + " 'blocked' — " + level.getBlockState(backing).getBlock()).isTrue();
 
-        ServerWorldDriver control = body(ctx, stand);
+        PlayerBot control = body(ctx, stand);
         Shot clear = fire(ctx, control, backing);
         ctx.record("control.shot", clear.where());
         ctx.record("control.after", (target.equals(clear.landing()) ? 0 : 1) + " fault(s): lands in "
@@ -495,7 +495,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
                 + " clearPourLine exemption would never apply to it")
                 .isTrue();
 
-        ServerWorldDriver subject = body(ctx, stand);
+        PlayerBot subject = body(ctx, stand);
         ServerPlayer fp = subject.fakePlayer();
         Shot shot = fire(ctx, subject, backing);
         ctx.record("subject.shot", shot.where());
@@ -580,7 +580,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
 
         // ---- control: a bot standing on the step may not be handed its own floor ----
         stage(ctx, true, CAST_SO_FAR);
-        ServerWorldDriver control = body(ctx, onTop);
+        PlayerBot control = body(ctx, onTop);
         List<BlockPos> refused = JourneySight.blockersOnTheLine(level, corridor(ctx), target, AWAY,
                 JourneyPortalRung.POUR_LINE, control.fakePlayer());
         ctx.record("control.body", control.fakePlayer().blockPosition().toShortString()
@@ -596,7 +596,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
 
         // ---- subject ----
         stage(ctx, true, CAST_SO_FAR);
-        ServerWorldDriver subject = body(ctx, stand);
+        PlayerBot subject = body(ctx, stand);
         ServerPlayer fp = subject.fakePlayer();
 
         BlockPos before = nearestVerified(ctx, fp);
@@ -883,7 +883,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         // Parked outside the mould: pourGrade reads the eye HEIGHT and uses the bot only as the
         // clip's shape context, so where it stands cannot move a line — but it must not be inside a
         // cell this arm is about to describe.
-        ServerWorldDriver driver = body(ctx, ctx.rel(0, BASE, -2));
+        PlayerBot driver = body(ctx, ctx.rel(0, BASE, -2));
         ServerPlayer fp = driver.fakePlayer();
 
         BlockPos died = ring(ctx, last);
@@ -996,7 +996,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         level.setBlockAndUpdate(JourneyForge.wetCellFor(base(ctx), AWAY,
                 JourneyForge.RING[last][0], JourneyForge.RING[last][1]),
                 Blocks.AIR.defaultBlockState());
-        ServerWorldDriver driver = body(ctx, stand(ctx));
+        PlayerBot driver = body(ctx, stand(ctx));
         ServerPlayer fp = driver.fakePlayer();
 
         Set<BlockPos> corridor = corridor(ctx);
@@ -1155,7 +1155,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
                 + " the same state by distance (5.21>4.50); this setup reaches it by solidity, so it"
                 + " measures the candidate list itself rather than the way it runs out");
 
-        ServerWorldDriver driver = body(ctx, stand(ctx));
+        PlayerBot driver = body(ctx, stand(ctx));
         ServerPlayer fp = driver.fakePlayer();
 
         Map<String, Integer> why = new LinkedHashMap<>();
@@ -1206,7 +1206,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         int tried = 0;
         for (BlockPos foot : verified) {
             if (tried++ >= SHOTS_TRIED) break;
-            ServerWorldDriver shooter = body(ctx, foot);
+            PlayerBot shooter = body(ctx, foot);
             Shot s = fire(ctx, shooter, side);
             if (tried == 1) firstShot = s.where();
             if (target.equals(s.landing())) lands.add(foot.immutable());

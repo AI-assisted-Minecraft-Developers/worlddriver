@@ -22,7 +22,7 @@ import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.QuartPos;
@@ -83,7 +83,7 @@ import net.minecraft.world.phys.AABB;
  *
  * <ol>
  *   <li><b>The driver's {@code WorldView} is pinned to the level the bot was created in.</b>
- *       {@code ServerWorldDriver} builds one {@code LevelWorldView} in its constructor, from
+ *       {@code PlayerBot} builds one {@code LevelWorldView} in its constructor, from
  *       {@code fakePlayer().level()}, and hands that same view to every {@code BotProcess} for the
  *       rest of the run. The journey's bot is created in the overworld at SPAWN and never
  *       replaced, so from the moment it steps through the portal the pathfinder is planning routes
@@ -1592,7 +1592,7 @@ public final class JourneyNetherRungs {
      * one world agree in all 27; a single disagreement proves they are two worlds, and 27
      * disagreements is not needed to prove it.
      *
-     * <p>Why this rung spends a step on it. {@code ServerWorldDriver} builds its
+     * <p>Why this rung spends a step on it. {@code PlayerBot} builds its
      * {@code LevelWorldView} once, in its constructor, from the level the bot was created in — and
      * the journey's bot is created in the overworld at SPAWN and never replaced. So from the moment
      * it steps through the portal, every {@code BotProcess} it runs is handed a view of the
@@ -1608,7 +1608,7 @@ public final class JourneyNetherRungs {
         rig.evidence("worldview.disagreements", off + "/27 cells (3×3×3 around the bot, read two ways)");
         if (off == 0) return true;
         ctx.fail("the driver's pathfinding view is not the bot's world: " + off + " of the 27 cells around"
-                + " the bot differ between LevelWorldView and ServerLevel. ServerWorldDriver builds one"
+                + " the bot differ between LevelWorldView and ServerLevel. PlayerBot builds one"
                 + " LevelWorldView from fakePlayer().level() in its constructor and never replaces it, and this"
                 + " bot was created in the overworld at the SPAWN rung — so past the portal every search reads"
                 + " overworld blocks at Nether coordinates. The rest of this rung (spawner, room, fight) is"

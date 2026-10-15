@@ -6,7 +6,6 @@ import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.Attack;
@@ -124,7 +123,7 @@ public final class CombatProcess implements BotProcess {
         equipment = a.equipment().orElse(null);
         attack = a.attack().orElse(null);
         if (equipment == null || attack == null || p == null) {
-            failure = st.combat.lastError = BodyReady.Reason.NO_HANDS; cleanup(a); return true;
+            failure = st.combat.lastError = Readiness.Reason.NO_HANDS; cleanup(a); return true;
         }
         ticks++;
 

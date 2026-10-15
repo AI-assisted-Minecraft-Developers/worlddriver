@@ -121,7 +121,7 @@ chunk unloads or it dies mid-journey.
 
 ### Bots are addressed by name through one optional parameter
 
-`BodyRegistry` maps a name to a host. The client player is `self` and is not in the registry at all,
+`BotRegistry` maps a name to a host. The client player is `self` and is not in the registry at all,
 which keeps the existing client path exactly as it was. A server player registers as
 `player:<name>`, and the testmod registers mobs as `npc:<name>`.
 
@@ -162,7 +162,7 @@ shim is a failed scene, not a caught null.
 ## Where to look
 
 - `game/body/Body.java` — the interface, and what is mandatory versus optional.
-- `bot/BodyRegistry.java` and `BodyHost.java` — naming and the per-bot process slot.
+- `bot/BotRegistry.java` and `Bot.java` — naming and the per-bot process slot.
 - `game/body/ClientPlayerBody.java` — the client implementation.
 - `game/body/ServerPlayerBody.java` and the joined-player pump beside it — the server implementation.
 - `application/BodyRoutes.java` and `application/BodyInteractions.java` — how the `body` parameter reaches a process and

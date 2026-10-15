@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -16,7 +16,7 @@ import net.minecraft.world.item.Items;
  * exist — the GameTest path was retired in P4-final and these are now the only copies.
  * The type narrowing at the move was the neoforge {@code FakePlayer} to vanilla
  * {@link ServerPlayer} (a FakePlayer IS a ServerPlayer) and the driver parameter to the
- * common {@link ServerWorldDriver}.
+ * common {@link PlayerBot}.
  *
  * <p>Every probe here holds the environment constant so it measures only what it names.
  * {@link #grantWaterEffects} does that for the avatar — drowning, burning and starving
@@ -33,12 +33,12 @@ public final class SimProbes {
     /** One full-strength swing at a fresh NoAI zombie; returns the health it lost.
      *  <p>Moved from {@code AgentGameTestServer#probeSwing} (P1.6 Task 2);
      *  {@code FakePlayer fp} → {@link ServerPlayer fp}, driver param → common
-     *  {@link ServerWorldDriver}.
+     *  {@link PlayerBot}.
      *  <p>No longer verbatim: the target is made fire-proof and its i-frames are cleared at
      *  the instant of the swing. Both lines exist to keep the environment OUT of the
      *  measurement — see the comments at each. The legacy body could omit them only because
      *  its arena could not tick an entity, so its zombie could never burn. */
-    public static float probeSwing(ServerLevel level, ServerWorldDriver driver, ServerPlayer fp,
+    public static float probeSwing(ServerLevel level, PlayerBot driver, ServerPlayer fp,
                                     ItemStack weapon, int cx, int floorY, int cz) {
         fp.getInventory().clearContent();
         if (!weapon.isEmpty()) { fp.getInventory().setItem(0, weapon); }

@@ -17,9 +17,9 @@ import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.magicterra.worlddriver.bot.behavior.TowerProcess;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.Mth;
@@ -127,11 +127,11 @@ import net.minecraft.world.phys.AABB;
  *       because it is the only reading that splits "never called / no face / no block" — and this process never
  *       calls {@code exAlarms.notePlace}, so a place it silently loses is invisible everywhere
  *       else.</li>
- *   <li><b>Only arm 2 plans.</b> The other four drive {@code ServerWorldDriver.tick()} synchronously
+ *   <li><b>Only arm 2 plans.</b> The other four drive {@code PlayerBot.tick()} synchronously
  *       inside the scene body, the way the sibling {@code wd.parkourVoid*} scenes drive their
  *       Walker: TowerProcess never touches the pathfinder, so a few hundred of its ticks inside one
  *       server tick costs nothing. Arm 2's walk DOES plan, so it runs over
- *       {@code ServerAvatarManager} on real server ticks and only its tower half is synchronous.</li>
+ *       {@code BotTicker} on real server ticks and only its tower half is synchronous.</li>
  * </ul>
  */
 public final class WorldDriverTowerScenes implements SceneProvider {
@@ -335,7 +335,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * @param beforeEachTick run immediately before every {@code driver.tick()}; the seam
      *                       {@link #apexWatch} samples through, and a no-op everywhere else
      */
-    private static Run runTower(SceneContext ctx, String arm, ServerWorldDriver driver,
+    private static Run runTower(SceneContext ctx, String arm, PlayerBot driver,
                                 int targetY, int columnCells, int budget, Runnable beforeEachTick) {
         ServerLevel level = ctx.level();
         ServerPlayer fp = driver.fakePlayer();
@@ -391,7 +391,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
     }
 
     /** A server-side player, its driver, and the cleanup that removes both. */
-    private static ServerWorldDriver body(SceneContext ctx, double x, double y, double z) {
+    private static PlayerBot body(SceneContext ctx, double x, double y, double z) {
         return SceneBody.managed(ctx, x, y, z);
     }
 
@@ -428,11 +428,11 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         towerConfig();
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         stageFlatArena(ctx, 3, floorY);
 
-        ServerWorldDriver driver = body(ctx, cx + 0.5, standY, cz + 0.5);
+        PlayerBot driver = body(ctx, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         // Slot 0, because that is the constraint TowerProcess actually has outside creative — see
         // arm 5, which holds the other side of it.
@@ -499,8 +499,8 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         // server tick is the shape that has wedged this suite before.
         ControlConfig.pathfinderSliceMs = 20;
         PlanningConfig.pathfinderMaxMs = 2000;
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
 
         // The box is not centred on the origin, so this arm stages its own instead of the square.
         ctx.cleanup(() -> clearBox(level, cx, cz, floorY, -3, runway + 3, -3, HEADROOM + 4, -3, 3));
@@ -510,7 +510,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz),
                         Blocks.STONE.defaultBlockState());
 
-        ServerWorldDriver driver = body(ctx, cx + 0.5, standY, cz + 0.5);
+        PlayerBot driver = body(ctx, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         fp.getInventory().selected = 0;
@@ -522,9 +522,9 @@ public final class WorldDriverTowerScenes implements SceneProvider {
                 cx + runway, standY, courses, cz, stock);
 
         final BlockPos far = new BlockPos(cx + runway, standY, cz);
-        ServerAvatarManager.register(driver.runProcess(new IntentProcess(new Intent(new Goal.Block(far)))));
+        BotTicker.register(driver.runProcess(new IntentProcess(new Intent(new Goal.Block(far)))));
         ctx.await(driver::finished).within(400).then(() -> {
-            ServerAvatarManager.unregister(driver);
+            BotTicker.unregister(driver);
             BlockPos at = fp.blockPosition();
             ctx.record("walk.end", "arrived at " + at.toShortString() + " (runway end "
                     + far.toShortString() + ") | endReason=" + driver.botState().mc_goto.endReason
@@ -585,8 +585,8 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         towerConfig();
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
 
         final int baseY = topY - 3;                        // a pillar, not a single block
         final int catchY = baseY - drop - 1;
@@ -601,7 +601,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         for (int y = baseY; y <= topY; y++)
             level.setBlockAndUpdate(new BlockPos(cx, y, cz), Blocks.STONE.defaultBlockState());
 
-        ServerWorldDriver driver = body(ctx, cx + 0.5, standY, cz + 0.5);
+        PlayerBot driver = body(ctx, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         fp.getInventory().selected = 0;
@@ -680,8 +680,8 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         towerConfig();
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         stageFlatArena(ctx, 3, floorY);
 
         noOpLeg(ctx, "atLevel", cx - 2, cz, standY, stock, 0, "targetY == current feet cell");
@@ -691,7 +691,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
     /** One order that asks for no climb at all: its own bot, its own column, its own record keys. */
     private static void noOpLeg(SceneContext ctx, String arm, int x, int z, int standY,
                                 int stock, int dTargetY, String order) {
-        ServerWorldDriver driver = body(ctx, x + 0.5, standY, z + 0.5);
+        PlayerBot driver = body(ctx, x + 0.5, standY, z + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         fp.getInventory().selected = 0;
@@ -754,11 +754,11 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         towerConfig();
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         stageFlatArena(ctx, 3, floorY);
 
-        ServerWorldDriver driver = body(ctx, cx + 0.5, standY, cz + 0.5);
+        PlayerBot driver = body(ctx, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         // Nine hotbar slots of things that are emphatically not blocks — tools, buckets, food — so
         // the hotbar is FULL rather than merely lacking cobblestone. A hotbar with an empty slot
@@ -896,8 +896,8 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         towerConfig();
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
 
         // ---- control: the ceiling is in, and the tower must NOT get out from under it ----
         stageFlatArena(ctx, 3, floorY);
@@ -906,7 +906,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, ceilY, cz + dz),
                         Blocks.STONE.defaultBlockState());
 
-        ServerWorldDriver control = body(ctx, cx + 0.5, standY, cz + 0.5);
+        PlayerBot control = body(ctx, cx + 0.5, standY, cz + 0.5);
         ServerPlayer cfp = control.fakePlayer();
         cfp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         cfp.getInventory().selected = 0;
@@ -957,7 +957,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
 
         // ---- subject: the same order, the same rig, that one row of stone gone ----
         stageFlatArena(ctx, 3, floorY);
-        ServerWorldDriver subject = body(ctx, cx + 0.5, standY, cz + 0.5);
+        PlayerBot subject = body(ctx, cx + 0.5, standY, cz + 0.5);
         ServerPlayer sfp = subject.fakePlayer();
         sfp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         sfp.getInventory().selected = 0;
@@ -1011,14 +1011,14 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         towerConfig();
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
 
         // ---- control: the player straddles into the lidded column ----
         stageFlatArena(ctx, 3, floorY);
         level.setBlockAndUpdate(lid, Blocks.STONE.defaultBlockState());
 
-        ServerWorldDriver control = body(ctx, cx + 0.05, standY, cz + 0.5);
+        PlayerBot control = body(ctx, cx + 0.05, standY, cz + 0.5);
         ServerPlayer cfp = control.fakePlayer();
         cfp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         cfp.getInventory().selected = 0;
@@ -1052,7 +1052,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         // ---- subject: same arena, same lid, the player a fifth of a block further in ----
         stageFlatArena(ctx, 3, floorY);
         level.setBlockAndUpdate(lid, Blocks.STONE.defaultBlockState());
-        ServerWorldDriver subject = body(ctx, cx + 0.5, standY, cz + 0.5);
+        PlayerBot subject = body(ctx, cx + 0.5, standY, cz + 0.5);
         ServerPlayer sfp = subject.fakePlayer();
         sfp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         sfp.getInventory().selected = 0;

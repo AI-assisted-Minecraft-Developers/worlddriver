@@ -12,7 +12,7 @@ bot/arbitration/DrownEscapeChain.java	net.minecraft.client
 bot/arbitration/DuskSecureChain.java	net.minecraft.client
 bot/arbitration/PanicChain.java	net.minecraft.client
 bot/arbitration/RetreatChain.java	net.minecraft.client
-bot/behavior/BodyReady.java	net.minecraft.client
+bot/behavior/Readiness.java	net.minecraft.client
 bot/behavior/reflex/AntiSuffocate.java	net.minecraft.client
 bot/behavior/reflex/AutoEat.java	net.minecraft.client
 bot/behavior/reflex/AutoEquip.java	net.minecraft.client

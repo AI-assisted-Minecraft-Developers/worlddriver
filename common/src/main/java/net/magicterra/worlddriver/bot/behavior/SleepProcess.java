@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.bot.behavior;
 
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.control.Walker;
@@ -57,7 +56,7 @@ public final class SleepProcess implements BotProcess {
         LivingEntity p = a.entity();
         if (p == null) return giveUp(st, "player vanished");
         blocks = a.blockInteraction().orElse(null);
-        if (blocks == null) return giveUp(st, BodyReady.Reason.NO_HANDS);
+        if (blocks == null) return giveUp(st, Readiness.Reason.NO_HANDS);
         Level lvl = p.level();
 
         switch (phase) {

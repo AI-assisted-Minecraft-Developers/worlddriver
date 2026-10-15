@@ -28,7 +28,7 @@ import net.magicterra.worlddriver.game.observe.BuildBlocks;
  * interface defaults (no live HazardField here).
  *
  * <p>Which view a task plans through is decided by construction, not by the task's name:
- * {@code new LevelWorldView} comes from {@code ServerWorldDriver} (the FakePlayer driver) and
+ * {@code new LevelWorldView} comes from {@code PlayerBot} (the FakePlayer driver) and
  * the scenes, {@code new ClientWorldView} from {@code BotApiImpl}, the real client player.
  */
 public final class LevelWorldView implements StateWorldView {

@@ -4,7 +4,6 @@ import net.magicterra.worlddriver.api.ProbeMethods;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
-import net.magicterra.worlddriver.api.methods.event.EventContracts;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;

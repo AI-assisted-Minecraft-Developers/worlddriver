@@ -53,7 +53,7 @@ import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.GotoOrders;
 import net.magicterra.worlddriver.bot.VerbOrders;
-import net.magicterra.worlddriver.bot.BodyRegistry;
+import net.magicterra.worlddriver.bot.BotRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -203,7 +203,7 @@ final class BotTaskService implements BotTaskApi {
         if (p.target().orElse(null) instanceof CombatContracts.FoeType t) {
             requireRegistered(BuiltInRegistries.ENTITY_TYPE, "entity type", "/target/type", t.type());
         }
-        boolean self = BodyRegistry.isSelf(p.body());
+        boolean self = BotRegistry.isSelf(p.body());
         return actions.start(p.body(), p.awaitMs(), ctx, body -> self
                 ? new BodyTaskStarter.Launch<>(h -> BotHooks.impl().engage(p, h))
                 : plan(VerbOrders.combat(p, body)));
@@ -265,7 +265,7 @@ final class BotTaskService implements BotTaskApi {
             case GotoContracts.EntityType t -> requireRegistered(BuiltInRegistries.ENTITY_TYPE, "entity type", "/target/type", t.type());
             case null, default -> { }
         }
-        boolean self = BodyRegistry.isSelf(p.body());
+        boolean self = BotRegistry.isSelf(p.body());
         if (p.plan().orElse(null) == GotoContracts.PlanMode.SCORE) return score(p, self, ctx);
         return actions.start(p.body(), p.awaitMs(), ctx, body -> {
             if (self) return plan(BotHooks.impl().planGoto(p));

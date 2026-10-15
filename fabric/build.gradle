@@ -368,7 +368,7 @@ loom {
         // until 2026-08-22. `journeyIntegratedServer` ADOPTS the client's real player
         // (`JourneyRig.spawnBody` takes the adoption branch, `realPlayerHelm` flips the helm to
         // `BotApi.runProcess`); the other two create the headless server-side player via
-        // `ServerWorldDriver.createIsolated`. That is not a code reading — a run of it recorded
+        // `PlayerBot.createIsolated`. That is not a code reading — a run of it recorded
         // `journey.body=real:ServerPlayer Player452` and `journey.steer=clientUserTask/
         // ClientPlayerAvatar` against the headless arm's `joined` / `serverTick`, which is how the
         // deep-water jump gate got found. So the fake-player capability gaps (fallDistance always

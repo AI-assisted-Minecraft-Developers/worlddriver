@@ -93,7 +93,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 2026-08-26 found wide-parameter call sites are ordinary outside this package: {@code Walker}
  * alone hands a {@code Player} to {@code WalkerGeometry.soleOnSolid}, {@code lethalDropAdjacent},
  * {@code nearestLethalHopRing} and its own {@code widenFooting}, and it is dual-loaded —
- * {@code ServerWorldDriver} holds a {@code Walker} and ticks it. So aiming this same assertion at
+ * {@code PlayerBot} holds a {@code Walker} and ticks it. So aiming this same assertion at
  * {@code bot/movement/**} would go red on a healthy tree and get switched off, which is the very
  * failure the ALLOWED list above is shaped to avoid. Covering that package needs the other
  * question — the ARGUMENT's type rather than the parameter's — and that needs dataflow this file

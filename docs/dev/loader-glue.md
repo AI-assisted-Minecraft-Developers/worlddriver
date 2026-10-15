@@ -83,7 +83,7 @@ not have.** The existing ones satisfy that; new ones must too.
 ## One command root, registered twice
 
 The `worlddriver` literal is registered separately by `WorldDriverCommon.registerCommands`
-and by `ServerAvatarCommand.register`. Brigadier's `CommandNode.addChild` merges a second
+and by `BotCommand.register`. Brigadier's `CommandNode.addChild` merges a second
 literal of the same name into the existing node, so each registration owns its own
 subtree, and the permission requirement sits on the subtree that needs it rather than on
 the shared root.

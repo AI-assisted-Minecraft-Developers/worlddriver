@@ -28,8 +28,8 @@ import net.magicterra.worlddriver.bot.behavior.EscapeProcess;
 import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.magicterra.worlddriver.bot.behavior.MineProcess;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.BotTicker;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
@@ -45,7 +45,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.magicterra.worlddriver.bot.stagewright.LivingBody;
-import net.magicterra.worlddriver.bot.stagewright.NpcBodyHost;
+import net.magicterra.worlddriver.bot.stagewright.NpcBot;
 
 /**
  * Runs one hand-built scene: puts a bot at the start marker, runs each task in {@code legs}, and
@@ -290,18 +290,18 @@ public final class FixtureRunner {
         // ---- helms
 
         private Helm serverHelm(BlockPos foot, float yaw) {
-            ServerWorldDriver driver = SceneBody.mint(ctx, ctx.level(), foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5);
+            PlayerBot driver = SceneBody.mint(ctx, ctx.level(), foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5);
             ServerPlayer fp = driver.fakePlayer();
             fp.setYRot(yaw);
             fp.setYHeadRot(yaw);
             fp.getInventory().clearContent();
-            ctx.cleanup(() -> ServerAvatarManager.unregister(driver));
+            ctx.cleanup(() -> BotTicker.unregister(driver));
             return new Helm() {
                 // The manager drops a finished driver, so every task registers again.
-                @Override public void start(BotProcess p) { driver.runProcess(p); ServerAvatarManager.register(driver); }
+                @Override public void start(BotProcess p) { driver.runProcess(p); BotTicker.register(driver); }
                 @Override public boolean busy() { return !driver.finished(); }
                 @Override public LivingEntity entity() { return fp; }
-                @Override public String describe() { return "server-side player " + fp.getGameProfile().getName() + " (ServerAvatarManager)"; }
+                @Override public String describe() { return "server-side player " + fp.getGameProfile().getName() + " (BotTicker)"; }
             };
         }
 
@@ -321,7 +321,7 @@ public final class FixtureRunner {
         }
 
         /**
-         * A driven piglin under the {@link NpcBodyHost} the {@code body} param reaches NPCs through, so a
+         * A driven piglin under the {@link NpcBot} the {@code body} param reaches NPCs through, so a
          * task runs on it the way an order by name does. {@code npc:<name>} names the mob;
          * {@code npc:worlddriver:driven_piglin} is the one type there is. Not put in the registry: a
          * run is not something to send orders to.
@@ -339,15 +339,15 @@ public final class FixtureRunner {
             mob.setYRot(yaw);
             mob.setYHeadRot(yaw);
             if (!label.isBlank()) mob.setCustomName(Component.literal(label));
-            NpcBodyHost host = new NpcBodyHost(label.isBlank() ? name : label, npc);
-            ctx.cleanup(() -> ServerAvatarManager.unregister(host));
+            NpcBot host = new NpcBot(label.isBlank() ? name : label, npc);
+            ctx.cleanup(() -> BotTicker.unregister(host));
             return new Helm() {
                 @Override public void start(BotProcess p) { host.start(p); }
                 @Override public boolean busy() { return host.busy(); }
                 // A mob put on a cell's floor takes a few steps with no input before its first move finds it.
                 @Override public void settle(Runnable then) { for (int i = 0; i < 5; i++) npc.step(); then.run(); }
                 @Override public LivingEntity entity() { return mob; }
-                @Override public String describe() { return "npc " + host.id() + " (NpcBodyHost)"; }
+                @Override public String describe() { return "npc " + host.id() + " (NpcBot)"; }
             };
         }
 

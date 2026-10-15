@@ -854,7 +854,7 @@ public final class JourneyPortalRung {
      * {@code FallingBlock} and nothing fell; the dig simply failed, and the line named a mechanism
      * instead of saying so.
      *
-     * <p><b>The bot stands in the corridor first.</b> {@code ServerWorldDriver.mine} is
+     * <p><b>The bot stands in the corridor first.</b> {@code PlayerBot.mine} is
      * {@code walker.setGoal(Near(cell, 2))} with breaking on, and a walker asked to get near a cell
      * in a wall will happily tunnel through the wall — which here is the mould. That is what the same
      * run did: it ended at {@code -10,59,34}, and {@code -10,59,34} is not a corridor cell at all, it
@@ -895,7 +895,7 @@ public final class JourneyPortalRung {
     /**
      * Dig one cell of the mould WITHOUT letting the walk to it dig anything else.
      *
-     * <p>{@code ServerWorldDriver.mine} is a walker goal plus a swing, and the walker plans with
+     * <p>{@code PlayerBot.mine} is a walker goal plus a swing, and the walker plans with
      * {@code WorldConfig.allowBreak} on for the whole casting phase — so when the cell it is sent to
      * has no walkable approach, it invents one THROUGH the mould. {@link #standBehind} was the first
      * answer to that and it only covers the case where a corridor stand exists; when it reports
@@ -1191,7 +1191,7 @@ public final class JourneyPortalRung {
         return null;
     }
 
-    /** {@code ServerWorldDriver.mine} walks to {@code Goal.Near(cell, 2)}, so this is the radius the
+    /** {@code PlayerBot.mine} walks to {@code Goal.Near(cell, 2)}, so this is the radius the
      *  dig will and will not start inside. Named because it is the number the whole stand exists to
      *  satisfy: measured, {@code -11,56,36} to {@code -11,58,38} is 2.83 and the dig never began. */
     private static final int DIG_ARRIVE = 2;
@@ -1300,7 +1300,7 @@ public final class JourneyPortalRung {
      * <p><b>It no longer prints {@code mine.lastError} or {@code mine.endReason}, and that is a
      * correction rather than a trim.</b> Those two live in {@code botState().mine}, which only a
      * {@link net.magicterra.worlddriver.bot.behavior.MineProcess} ever writes — and this dig is not
-     * one. {@code ServerWorldDriver.mine(BlockPos)} sets {@code mineTarget} and a walker goal and
+     * one. {@code PlayerBot.mine(BlockPos)} sets {@code mineTarget} and a walker goal and
      * explicitly clears {@code process}, so what the line reported was the LAST MineProcess to have
      * run, from somewhere else entirely. On the ladder run of 2026-08-12 it printed
      * {@code end=collect swept everything it could reach (broke 64/64 …)} beside a cell that had

@@ -21,8 +21,8 @@ import net.magicterra.worlddriver.bot.arbitration.CombatChain;
 import net.magicterra.worlddriver.bot.arbitration.DuskSecureChain;
 import net.magicterra.worlddriver.bot.arbitration.Priorities;
 import net.magicterra.worlddriver.bot.arbitration.RetreatChain;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.PlayerBot;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.HazardField;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -78,7 +78,7 @@ import net.minecraft.world.level.block.Blocks;
  * discard their avatar/mobs and scrub every block they place (the #40 persistent-world lesson). The
  * canonical substitutions are the wave-6 Station set: {@code helper.getLevel()} →
  * {@link SceneContext#level()}; absolute {@code cx/cz} → origin X/Z; absolute {@code floorY=220} →
- * {@code origin.y + 20}; {@code ServerWorldDriver.create} → {@link ServerWorldDriver#createIsolated};
+ * {@code origin.y + 20}; {@code PlayerBot.create} → {@link PlayerBot#createIsolated};
  * legacy {@code FakePlayer} → common {@link ServerPlayer}; {@code try/finally} config save/restore →
  * {@link BotConfig#pinnedBaseline()} + {@code ctx.cleanup(pin::close)}; {@code throw} →
  * {@link SceneContext#fail}. ⛔ No scene calls {@code level.tick()} (this family has none — the
@@ -771,8 +771,8 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
         GameConfig.walkerDebug = false;
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         // Scrub the whole dirt slab + dig shaft on any exit (#40 persistent-world lesson).
         ctx.cleanup(() -> {
             for (int dx = -4; dx <= 4; dx++)
@@ -792,7 +792,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
             }
         level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());
 
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));  // server breaks drop nothing → pre-stock plug blocks

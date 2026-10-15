@@ -38,18 +38,18 @@ import net.minecraft.world.phys.Vec3;
  * {@code net.magicterra.worlddriver.neoforge.sim.ServerPlayerBody}; the ONLY
  * substantive change is that the player type is now vanilla {@link ServerPlayer}
  * (was NeoForge {@code FakePlayer}) and the player is obtained through the
- * {@link ServerAvatarBodies} seam instead of {@code FakePlayerFactory} directly.
+ * {@link JoinedPlayers#BOTS} seam instead of {@code FakePlayerFactory} directly.
  *
  * <p><b>Who calls this.</b> The testmod's scenes take a bare avatar from {@code SceneBody.avatar},
- * or one wrapped in a {@link ServerWorldDriver} from {@code SceneBody.mint}/{@code managed}/
+ * or one wrapped in a {@link PlayerBot} from {@code SceneBody.mint}/{@code managed}/
  * {@code bare}; three call sites instead construct one directly over a player they already hold —
  * {@code JourneyRig}'s adopted real player, the same wrapper rebuilt in
  * {@code WorldDriverActuatorSplitScenes}, and the joined column of {@code wd.bodyParityCensus}. In
- * production the caller is {@code /worlddriver server} ({@link ServerAvatarCommand}). The class
+ * production the caller is {@code /worlddriver server} ({@link BotCommand}). The class
  * stays {@code non-final} because it is extension surface for other mods; the NeoForge shim that
  * used to subclass it was deleted with the fake players.
  *
- * <p>See {@link ServerAvatarBodies} for where the player comes from: always a player that has joined.
+ * <p>See {@link JoinedPlayers#BOTS} for where the player comes from: always a player that has joined.
  */
 public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteraction, Bag, Menus {
 
@@ -126,13 +126,13 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     /**
      * Build a bot player at {@code pos} in {@code level}, ready to drive.
      *
-     * <p>⚠️ SHARED PLAYER: {@link ServerAvatarBodies#shared} is a per-LEVEL SINGLETON — every
+     * <p>⚠️ SHARED PLAYER: {@link JoinedPlayers#shared} is a per-LEVEL SINGLETON — every
      * caller of THIS factory in a level shares one player. Production never rides it
      * ({@code /worlddriver server} → {@link #createUnique}, one player per agent, guarded by the required
      * {@code wd.serverAgentDistinctBodies} scene).
      *
      * <p><b>Nothing else rides it either: this factory has no caller left in the tree.</b> Its one
-     * caller is {@code ServerWorldDriver.create}, which itself has none. The GameTest arenas that
+     * caller is {@code PlayerBot.create}, which itself has none. The GameTest arenas that
      * used to share a player — the reason this javadoc gave for keeping it — were retired in
      * P4-final, and the scenes that replaced them create per-scene players through
      * {@code SceneBody.avatar}/{@code bare}, i.e. {@link #createUnique}. Both halves of the dead
@@ -146,7 +146,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
             new java.util.concurrent.atomic.AtomicInteger();
 
     public static ServerPlayerBody create(ServerLevel level, double x, double y, double z) {
-        return init(ServerAvatarBodies.shared(level), x, y, z);
+        return init(JoinedPlayers.BOTS.shared(level), x, y, z);
     }
 
     /** Like {@link #create} but with a player of its OWN — a fresh unique GameProfile, so this
@@ -173,7 +173,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         String name = "agent-body-" + BODY_SEQ.incrementAndGet();
         com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(
                 java.util.UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8)), name);
-        return init(ServerAvatarBodies.unique(level, profile), x, y, z);
+        return init(JoinedPlayers.BOTS.unique(level, profile), x, y, z);
     }
 
     private static ServerPlayerBody init(ServerPlayer fp, double x, double y, double z) {
@@ -698,7 +698,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     @Override public boolean dbgSneak() { return pendingSneak; }
     /** When vanilla's jump gate last let a press through — see {@code JoinedBody.jumpFromGround}. */
     @Override public long dbgLastJumpTick() {
-        return fp instanceof JoinedPlayerBodies.JoinedBody joined ? joined.lastJumpGameTime() : -1;
+        return fp instanceof JoinedPlayers.JoinedBody joined ? joined.lastJumpGameTime() : -1;
     }
 
     /**
@@ -721,7 +721,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      *         it twice
      */
     public void step() {
-        if (!(fp instanceof JoinedPlayerBodies.JoinedBody joined)) {
+        if (!(fp instanceof JoinedPlayers.JoinedBody joined)) {
             throw new IllegalStateException("step() pumps a player this server joined; "
                     + fp.getGameProfile().getName() + " is ticked by its own connection");
         }

@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 
@@ -643,7 +643,7 @@ final class JourneyHands {
      * <p>Two arena files each had a byte-identical copy of the twin. One independent oracle is the
      * point; two are just two, and the second is free to drift into agreeing with the subject.
      */
-    static boolean swing(ServerWorldDriver driver, BlockPos cell) {
+    static boolean swing(PlayerBot driver, BlockPos cell) {
         ServerPlayerBody av = driver.avatar();
         if (!av.canBreak(cell)) return false;
         av.selectTool(cell);

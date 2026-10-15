@@ -6,7 +6,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.ParseResults;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.tree.CommandNode;
-import net.magicterra.worlddriver.bot.ServerAvatarCommand;
+import net.magicterra.worlddriver.bot.BotCommand;
 import net.minecraft.commands.CommandSource;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -31,7 +31,7 @@ class ProductionCommandsTest {
     private static CommandDispatcher<CommandSourceStack> production() {
         CommandDispatcher<CommandSourceStack> d = new CommandDispatcher<>();
         WorldDriverCommon.registerCommands(d);
-        ServerAvatarCommand.register(d);
+        BotCommand.register(d);
         return d;
     }
 
@@ -68,7 +68,7 @@ class ProductionCommandsTest {
         CommandDispatcher<CommandSourceStack> d = new CommandDispatcher<>();
         d.register(Commands.literal(ROOT).then(Commands.literal("other").executes(ctx -> 1)));
         WorldDriverCommon.registerCommands(d);
-        ServerAvatarCommand.register(d);
+        BotCommand.register(d);
         assertOperatorOnly(d, "port", "mcp", "reload", "server");
     }
 

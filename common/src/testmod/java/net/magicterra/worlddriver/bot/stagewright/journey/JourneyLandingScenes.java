@@ -6,7 +6,7 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -106,7 +106,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         for (int dy = 1; dy <= TOWER; dy++) ctx.setBlock(0, GROUND + dy, 0, Blocks.COBBLESTONE);
 
         BlockPos home = ctx.rel(3, GROUND + 1, 0);
-        ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, GROUND + TOWER + 1, 0));
+        PlayerBot driver = SceneBody.managed(ctx, ctx.rel(0, GROUND + TOWER + 1, 0));
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
         fp.getInventory().selected = 0;
@@ -161,7 +161,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         for (int dy = 0; dy > -PIT; dy--) ctx.setBlock(0, GROUND + dy, 0, Blocks.AIR);
 
         BlockPos home = ctx.rel(3, GROUND + 1, 0);
-        ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, GROUND - PIT + 1, 0));
+        PlayerBot driver = SceneBody.managed(ctx, ctx.rel(0, GROUND - PIT + 1, 0));
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, 64));
         fp.getInventory().items.set(1, new ItemStack(Items.STONE_PICKAXE));
@@ -216,7 +216,7 @@ public final class JourneyLandingScenes implements SceneProvider {
                 for (int dy = 0; dy > -POOL_DEPTH; dy--)
                     ctx.setBlock(dx, GROUND + dy, dz, Blocks.WATER);
 
-        ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, GROUND - SUBMERGED, 0));
+        PlayerBot driver = SceneBody.managed(ctx, ctx.rel(0, GROUND - SUBMERGED, 0));
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.LAVA_BUCKET));
         // AND BLOCKS, because the real bot has them. The first staging carried only the bucket and
@@ -310,7 +310,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         // failure was made of, and a reader who greps for it should land here.
         ctx.setBlock(-1, GROUND + 1, -1, Blocks.OBSIDIAN);
 
-        ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, GROUND + 1, 0));
+        PlayerBot driver = SceneBody.managed(ctx, ctx.rel(0, GROUND + 1, 0));
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.BUCKET));
         fp.getInventory().selected = 0;
@@ -399,7 +399,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         BlockPos open = ctx.rel(2, GROUND, 0);
         ctx.setBlock(2, GROUND, 0, Blocks.WATER);
 
-        ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, GROUND + 1, 0));
+        PlayerBot driver = SceneBody.managed(ctx, ctx.rel(0, GROUND + 1, 0));
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.BUCKET));
         fp.getInventory().selected = 0;
@@ -551,7 +551,7 @@ public final class JourneyLandingScenes implements SceneProvider {
             ctx.setBlock(FAR_POND_DX, GROUND, 0, Blocks.WATER);
         }
 
-        ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, GROUND, 0));
+        PlayerBot driver = SceneBody.managed(ctx, ctx.rel(0, GROUND, 0));
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.BUCKET));
         fp.getInventory().selected = 0;
@@ -870,7 +870,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         // That is the branch's entry condition exactly; what the effect changes is how long it lasts,
         // and the ladder held it open by a different route — a bot at exact position
         // (1.454,58.000,20.500) whose support had just gone, fall distance zero, one tick from the flip.
-        ServerWorldDriver driver = SceneBody.managed(ctx, ends.above());
+        PlayerBot driver = SceneBody.managed(ctx, ends.above());
         ServerPlayer fp = driver.fakePlayer();
         ServerPlayerBody av = driver.avatar();
         fp.addEffect(new net.minecraft.world.effect.MobEffectInstance(
@@ -963,7 +963,7 @@ public final class JourneyLandingScenes implements SceneProvider {
 
         // ON THE LIP: a fifth of a cell into the terminal's column, one row up. The number is the
         // ladder's, not a guess — see the javadoc.
-        ServerWorldDriver driver = SceneBody.managed(ctx, ends.above());
+        PlayerBot driver = SceneBody.managed(ctx, ends.above());
         ServerPlayer fp = driver.fakePlayer();
         ServerPlayerBody av = driver.avatar();
         fp.moveTo(ends.getX() + 0.20, ends.getY() + 1, ends.getZ() + 0.5);

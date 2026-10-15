@@ -14,9 +14,9 @@ import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -250,22 +250,22 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         WorldConfig.allowPlace = false;
         WorldConfig.allowBreak = false;
         GameConfig.walkerDebug = false;
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         // Registered BEFORE anything is built, so an arm that fails mid-drive still hands the shared
         // dogfood world back empty — a portal left standing would take the next scene's bot.
         ctx.cleanup(() -> clearBox(ctx));
     }
 
     /** A bot standing in {@code foot}, settled, with a pickaxe and the cleanup that removes it. */
-    private static ServerWorldDriver body(SceneContext ctx, BlockPos foot) {
+    private static PlayerBot body(SceneContext ctx, BlockPos foot) {
         return body(ctx, foot, 0.5);
     }
 
     /** The same, with the bot's z inside its own cell named — a stance on the LIP of a block is a
      *  different situation from one at its centre, and one arm here needs the lip. */
-    private static ServerWorldDriver body(SceneContext ctx, BlockPos foot, double dz) {
-        ServerWorldDriver driver = SceneBody.managed(ctx,
+    private static PlayerBot body(SceneContext ctx, BlockPos foot, double dz) {
+        PlayerBot driver = SceneBody.managed(ctx,
                 foot.getX() + 0.5, foot.getY(), foot.getZ() + dz);
         ServerPlayer fp = driver.fakePlayer();
         // A pickaxe because the ladder's bot has one by rung 13 and because destroyBlock hands the
@@ -278,7 +278,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         return driver;
     }
 
-    private static boolean inPortal(ServerWorldDriver driver) {
+    private static boolean inPortal(PlayerBot driver) {
         ServerPlayer fp = driver.fakePlayer();
         return fp.level().getBlockState(fp.blockPosition()).is(Blocks.NETHER_PORTAL);
     }
@@ -292,7 +292,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
      * in. What is under test is the entry, and the entry is finished the moment the bot's own cell
      * reads {@code nether_portal}.
      */
-    private static int drive(ServerWorldDriver driver, BotProcess process, int budget) {
+    private static int drive(PlayerBot driver, BotProcess process, int budget) {
         driver.runProcess(process);
         int t = 0;
         for (; t < budget && !driver.finished(); t++) {
@@ -311,7 +311,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
      * {@code aimAtBlock} is the only thing steering the push, and {@code onGround} because
      * {@code getFrictionInfluencedSpeed} reads it.
      */
-    private static String exactly(ServerWorldDriver driver) {
+    private static String exactly(PlayerBot driver) {
         ServerPlayer fp = driver.fakePlayer();
         return String.format(Locale.ROOT, "%.3f/%.3f/%.3f yaw=%.1f onGround=%s dm=%.3f/%.3f/%.3f",
                 fp.getX(), fp.getY(), fp.getZ(), fp.getYRot(), fp.onGround(),
@@ -319,7 +319,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
     }
 
     /** Where the bot is and what it is standing in — the one sentence both arms judge on. */
-    private static String where(ServerWorldDriver driver) {
+    private static String where(PlayerBot driver) {
         ServerPlayer fp = driver.fakePlayer();
         BlockPos at = fp.blockPosition();
         return at.toShortString() + " standing in " + fp.level().getBlockState(at).getBlock();
@@ -327,7 +327,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
 
     /** {@link JourneyHands#swing} — the arena's own break oracle, shared with the pour-line arenas
      *  so there is one of it rather than one per file. */
-    private static boolean swing(ServerWorldDriver driver, BlockPos cell) {
+    private static boolean swing(PlayerBot driver, BlockPos cell) {
         return JourneyHands.swing(driver, cell);
     }
 
@@ -423,7 +423,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
                 .isTrue();
 
         // ---- control: the goal the alternation used to issue on this turn ----
-        ServerWorldDriver blind = body(ctx, perch, LEDGE_DZ);
+        PlayerBot blind = body(ctx, perch, LEDGE_DZ);
         BlockPos before = blind.fakePlayer().blockPosition();
         Goal.XZ column = new Goal.XZ(step.getX(), step.getZ(), 0);
         ctx.record("blind.premise", "XZ(" + step.getX() + "," + step.getZ() + ",0).reached("
@@ -441,7 +441,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
                     + " that was always walkable: " + where(blind));
 
         // ---- subject: what legGoal issues on the same turn, from the same cell ----
-        ServerWorldDriver seeing = body(ctx, perch, LEDGE_DZ);
+        PlayerBot seeing = body(ctx, perch, LEDGE_DZ);
         BlockPos here = seeing.fakePlayer().blockPosition();
         Goal picked = JourneyPortalEntry.legGoal(here, step, true);
         ctx.record("picked", JourneyPortalEntry.legShape(here, step, true) + " → " + picked);
@@ -525,7 +525,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         ctx.check(JourneyPortalEntry.cells(level, bottom)).as("THE RIG: six doorway cells").hasSize(6);
 
         // ---- control: the goal the rung used to ask for, and could never reach ----
-        ServerWorldDriver control = body(ctx, start(ctx));
+        PlayerBot control = body(ctx, start(ctx));
         StringBuilder trail = new StringBuilder();
         int spent = 0;
         for (int i = 0; i < CONTROL_LEGS && !inPortal(control); i++) {
@@ -551,7 +551,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
 
         // ---- subject ----
         stage(ctx, Front.SLAG);
-        ServerWorldDriver subject = body(ctx, start(ctx));
+        PlayerBot subject = body(ctx, start(ctx));
         BlockPos from = subject.fakePlayer().blockPosition();
 
         JourneyPortalEntry.Doorstep walkIn = JourneyPortalEntry.find(level, bottom, from);

@@ -10,8 +10,8 @@ import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.behavior.CombatProcess;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.PlayerBot;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -101,8 +101,8 @@ public final class WorldDriverMobFightScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         SceneArena.buildFloor(level, cx, cz, floorY);
 
         // The gamerule first, because it is the one explanation for "nothing dropped" that has
@@ -114,7 +114,7 @@ public final class WorldDriverMobFightScenes {
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         var fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
@@ -141,9 +141,9 @@ public final class WorldDriverMobFightScenes {
             level.addFreshEntity(blaze);
 
             driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:blaze"));
-            ServerAvatarManager.register(driver);
+            BotTicker.register(driver);
             for (int t = 0; t < 1_200 && blaze.isAlive(); t++) {
-                ServerAvatarManager.tickAll();
+                BotTicker.tickAll();
                 if (blaze.isAlive()) {
                     blaze.tick();                       // its hurt-cooldown, as wd.serverCombat does
                     blaze.setPos(cx + 3.5, floorY + 1, cz + 0.5);
@@ -151,7 +151,7 @@ public final class WorldDriverMobFightScenes {
                 }
             }
             if (!blaze.isAlive()) killed++;
-            for (int t = 0; t < 10; t++) ServerAvatarManager.tickAll();
+            for (int t = 0; t < 10; t++) BotTicker.tickAll();
 
             int here = 0;
             for (var d : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
@@ -201,8 +201,8 @@ public final class WorldDriverMobFightScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         SceneArena.buildFloor(level, cx, cz, floorY);
 
         var dragon = new net.minecraft.world.entity.boss.enderdragon.EnderDragon(
@@ -220,7 +220,7 @@ public final class WorldDriverMobFightScenes {
                         net.minecraft.world.entity.boss.enderdragon.EnderDragon.class,
                         WorldDriverProcessScenes.entityBox(cx, floorY, cz)).isEmpty())
                 .within(200).then(() -> {
-            ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+            PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
             var fp = driver.fakePlayer();
             fp.getInventory().clearContent();
             fp.getInventory().add(new ItemStack(Items.DIAMOND_SWORD));
@@ -231,9 +231,9 @@ public final class WorldDriverMobFightScenes {
             // 1. What the existing combat loop does, unchanged — the reading that says whether the
             //    ladder can reuse it or has to learn the parts.
             driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:ender_dragon"));
-            ServerAvatarManager.register(driver);
+            BotTicker.register(driver);
             for (int t = 0; t < 600; t++) {
-                ServerAvatarManager.tickAll();
+                BotTicker.tickAll();
                 dragon.setPos(cx + 3.5, floorY + 1, cz + 0.5);
                 dragon.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
                 dragon.hurtTime = 0;                     // its own cooldown, as the other fights do
@@ -262,7 +262,7 @@ public final class WorldDriverMobFightScenes {
                 dragon.invulnerableTime = 0;
                 dragon.hurtTime = 0;
                 fp.resetAttackStrengthTicker();
-                for (int t = 0; t < 15; t++) ServerAvatarManager.tickAll();   // let the swing recharge
+                for (int t = 0; t < 15; t++) BotTicker.tickAll();   // let the swing recharge
                 fp.attack(head);
             }
             float afterPart = dragon.getHealth();
@@ -313,8 +313,8 @@ public final class WorldDriverMobFightScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         SceneArena.buildFloor(level, cx, cz, floorY);
         ctx.cleanup(() -> {
             for (int dx = -6; dx <= 6; dx++)
@@ -328,7 +328,7 @@ public final class WorldDriverMobFightScenes {
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         var fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
@@ -756,7 +756,7 @@ public final class WorldDriverMobFightScenes {
      * A blaze fight that is spread ACROSS server ticks instead of crammed into one.
      *
      * <p><b>What the old shape cost, and why a yield alone would not have fixed it.</b> This fight
-     * used to be a plain {@code for} loop calling {@link ServerAvatarManager#tickAll()} up to
+     * used to be a plain {@code for} loop calling {@link BotTicker#tickAll()} up to
      * {@code budget} times, so the entire fight — every one of those simulated ticks, each of which
      * may run a pathfinder search — happened inside a single {@code MinecraftServer.tickServer()}.
      * On a healthy run that is 785–1355 ms and nobody notices. On three dedicated-NeoForge runs out
@@ -868,7 +868,7 @@ public final class WorldDriverMobFightScenes {
         private boolean fallReported;
         private String postFallCensus;
 
-        BlazeFightRun(SceneContext ctx, ServerLevel level, ServerWorldDriver driver, ServerPlayer fp,
+        BlazeFightRun(SceneContext ctx, ServerLevel level, PlayerBot driver, ServerPlayer fp,
                       int cx, int cz, int floorY, int budget, String tag) {
             this.ctx = ctx; this.level = level; this.fp = fp;
             this.cx = cx; this.cz = cz; this.floorY = floorY; this.budget = budget; this.tag = tag;
@@ -882,7 +882,7 @@ public final class WorldDriverMobFightScenes {
             fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
 
             driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:blaze"));
-            ServerAvatarManager.register(driver);
+            BotTicker.register(driver);
             highest = blaze.getY();
         }
 
@@ -983,7 +983,7 @@ public final class WorldDriverMobFightScenes {
                 // in the same line. Same trap as the wp8 probe whose evidence row has to warn that
                 // its scan generates chunks: a run carrying the probe is not comparable with one
                 // that does not.
-                ServerAvatarManager.tickAll();
+                BotTicker.tickAll();
                 if (blaze.isAlive()) {
                     blaze.tick();
                     highest = Math.max(highest, blaze.getY());
@@ -1096,8 +1096,8 @@ public final class WorldDriverMobFightScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         SceneArena.buildFloor(level, cx, cz, floorY);
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
@@ -1121,7 +1121,7 @@ public final class WorldDriverMobFightScenes {
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         var fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
@@ -1201,8 +1201,8 @@ public final class WorldDriverMobFightScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         SceneArena.buildFloor(level, cx, cz, floorY);
 
         // A lid and four walls, five high — tall enough for an enderman, closed enough that a
@@ -1227,7 +1227,7 @@ public final class WorldDriverMobFightScenes {
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         var fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.DIAMOND_SWORD));
@@ -1246,15 +1246,15 @@ public final class WorldDriverMobFightScenes {
             man.setTarget(fp);
 
             driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:enderman"));
-            ServerAvatarManager.register(driver);
+            BotTicker.register(driver);
             int t = 0;
             for (; t < fightTicks && man.isAlive(); t++) {
-                ServerAvatarManager.tickAll();
+                BotTicker.tickAll();
                 if (man.isAlive()) man.tick();                 // AI ON: it teleports when hurt
             }
             if (!man.isAlive()) killed++; else slow++;
             ticks.append(ticks.length() == 0 ? "" : ",").append(t);
-            for (int k = 0; k < 10; k++) ServerAvatarManager.tickAll();
+            for (int k = 0; k < 10; k++) BotTicker.tickAll();
 
             int here = 0;
             for (var d : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
@@ -1324,8 +1324,8 @@ public final class WorldDriverMobFightScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         SceneArena.buildFloor(level, cx, cz, floorY);
         level.setBlockAndUpdate(new BlockPos(cx + 3, floorY, cz), Blocks.OBSIDIAN.defaultBlockState());
 
@@ -1339,7 +1339,7 @@ public final class WorldDriverMobFightScenes {
                         net.minecraft.world.entity.boss.enderdragon.EndCrystal.class,
                         WorldDriverProcessScenes.entityBox(cx, floorY, cz)).isEmpty())
                 .within(200).then(() -> {
-            ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+            PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
             var fp = driver.fakePlayer();
             fp.getInventory().clearContent();
             fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
@@ -1347,10 +1347,10 @@ public final class WorldDriverMobFightScenes {
             ctx.record("crystal.alive0", String.valueOf(crystal.isAlive()));
             for (int i = 0; i < 5 && crystal.isAlive(); i++) {
                 fp.resetAttackStrengthTicker();
-                for (int t = 0; t < 15; t++) ServerAvatarManager.tickAll();
+                for (int t = 0; t < 15; t++) BotTicker.tickAll();
                 fp.attack(crystal);
             }
-            for (int t = 0; t < 20; t++) ServerAvatarManager.tickAll();
+            for (int t = 0; t < 20; t++) BotTicker.tickAll();
 
             ctx.record("crystal.alive", String.valueOf(crystal.isAlive()));
             ctx.record("body.alive", String.valueOf(fp.isAlive()));

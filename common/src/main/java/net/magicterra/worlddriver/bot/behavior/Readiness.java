@@ -29,9 +29,9 @@ import net.minecraft.client.player.LocalPlayer;
  * test can walk every branch without a game; {@link #facts} reads the snapshot and is the only
  * thing here that touches {@link Minecraft} (client thread only).
  */
-public final class BodyReady {
+public final class Readiness {
 
-    private BodyReady() { }
+    private Readiness() { }
 
     /** The fixed words a refusal carries in {@code reason}. */
     public static final class Reason {

@@ -4,7 +4,6 @@ import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
@@ -111,7 +110,7 @@ public final class EscapeProcess implements BotProcess {
         if (p == null) return done(a, st, "no player");
         equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
-        if (equipment == null || blocks == null) return done(a, st, BodyReady.Reason.NO_HANDS);
+        if (equipment == null || blocks == null) return done(a, st, Readiness.Reason.NO_HANDS);
         if (!WorldConfig.allowBreak) return done(a, st, "allowBreak is off — escape mines every step");
         BlockPos foot = p.blockPosition();
         st.escape.pathStep = steps;

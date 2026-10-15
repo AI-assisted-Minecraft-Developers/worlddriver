@@ -13,13 +13,12 @@ import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
-import net.magicterra.worlddriver.bot.BodyHost;
-import net.magicterra.worlddriver.bot.BodyRegistry;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.ServerBodyHost;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.Bot;
+import net.magicterra.worlddriver.bot.BotRegistry;
+import net.magicterra.worlddriver.bot.BotTicker;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.magicterra.worlddriver.bot.stagewright.LivingBody;
-import net.magicterra.worlddriver.bot.stagewright.NpcBodyHost;
+import net.magicterra.worlddriver.bot.stagewright.NpcBot;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -66,7 +65,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
     }
 
     /** The two bots on the staged course, registered under {@link #NAME}; null when the scene failed. */
-    private record Bodies(ServerWorldDriver driver, ServerBodyHost player, LivingBody npcBody, NpcBodyHost npc) {}
+    private record Bodies(PlayerBot driver, PlayerBot player, LivingBody npcBody, NpcBot npc) {}
 
     private static Bodies stage(SceneContext ctx, BlockPos o, BlockPos playerStart, BlockPos npcStart) {
         ServerLevel level = ctx.level();
@@ -83,14 +82,14 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         ctx.cleanup(() -> fill(level, lo, hi, AIR));
         fill(level, lo, o.offset(COURSE + 2, -1, 4), STONE);
 
-        ServerWorldDriver driver = SceneBody.managed(ctx, playerStart);
+        PlayerBot driver = SceneBody.managed(ctx, playerStart);
         LivingBody npcBody = SceneBody.npc(ctx, npcStart);
-        ServerBodyHost player = new ServerBodyHost(NAME, driver);
-        NpcBodyHost npc = new NpcBodyHost(NAME, npcBody);
-        ctx.cleanup(() -> ServerAvatarManager.unregister(npc));
-        for (BodyHost h : List.of(player, npc)) {
-            if (!BodyRegistry.register(h)) { ctx.fail(h.id() + " is already taken: the previous scene did not unregister its bot from BodyRegistry"); return null; }
-            ctx.cleanup(() -> BodyRegistry.unregister(h.id()));
+        PlayerBot player = driver.named(NAME);
+        NpcBot npc = new NpcBot(NAME, npcBody);
+        ctx.cleanup(() -> BotTicker.unregister(npc));
+        for (Bot h : List.of(player, npc)) {
+            if (!BotRegistry.register(h)) { ctx.fail(h.id() + " is already taken: the previous scene did not unregister its bot from BotRegistry"); return null; }
+            ctx.cleanup(() -> BotRegistry.unregister(h.id()));
         }
         for (int i = 0; i < SETTLE_STEPS; i++) { npcBody.step(); driver.avatar().step(); }
         return new Bodies(driver, player, npcBody, npc);
@@ -104,8 +103,8 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         BlockPos npcStart = o.offset(0, 0, 2), npcGoal = o.offset(COURSE, 0, 2);
         Bodies b = stage(ctx, o, playerStart, npcStart);
         if (b == null) return;
-        ServerBodyHost player = b.player();
-        NpcBodyHost npc = b.npc();
+        PlayerBot player = b.player();
+        NpcBot npc = b.npc();
 
         Map<String, Object> listed = call(api, "mc.bot.status", Map.of());
         ctx.record("status.bodies", String.valueOf(listed.get("bodies")));
@@ -178,8 +177,8 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         BlockPos playerStart = o.offset(1, 0, -2), npcStart = o.offset(1, 0, 2);
         Bodies b = stage(ctx, o, playerStart, npcStart);
         if (b == null) return;
-        ServerBodyHost player = b.player();
-        NpcBodyHost npc = b.npc();
+        PlayerBot player = b.player();
+        NpcBot npc = b.npc();
 
         String empty;
         try {

@@ -64,7 +64,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * <h2>The only server-side player</h2>
  *
- * {@link ServerAvatarBodies} hands out these and nothing else. This player was first armed with
+ * {@link #BOTS} hands out these and nothing else. This player was first armed with
  * {@code -Dworlddriver.realPlayerBodies=true} in place of each loader's fake player, which turned
  * the dogfood scenes and the journey ladder into an A/B harness for the two player kinds. Once
  * every gate and every ladder topology ran on this one, the switch and the fake players were
@@ -79,7 +79,17 @@ import org.jetbrains.annotations.Nullable;
  * {@code isConnected() == true} — a disconnected {@code Connection} does not drop packets, it
  * queues them in {@code pendingActions} forever, which is a leak that looks like nothing at all.
  */
-public final class JoinedPlayerBodies {
+public final class JoinedPlayers {
+
+    /**
+     * Where the bots' players come from. Common rather than per loader because joining is vanilla:
+     * nothing here needs a loader API, which is also what lets another mod create a driven player
+     * the same way on either loader. Until 2026-09-14 each loader installed a fake-player factory in
+     * its place (NeoForge's {@code FakePlayerFactory}, and a Fabric copy of it); this was a separate
+     * {@code ServerAvatarBodies} holder until the layering rework. A scene that needs players of its
+     * own constructs another {@code JoinedPlayers}.
+     */
+    public static final JoinedPlayers BOTS = new JoinedPlayers();
 
     /** The name the per-level shared player joins under — one per level, the same per-level sharing
      *  the fake-player factories had, so scene behaviour stayed comparable across the switch. */

@@ -6,7 +6,7 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -129,7 +129,7 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
             ctx.setBlock(DIG_FAR, SURFACE - 1, DIG_Z, Blocks.AIR);
         });
 
-        ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, SURFACE, DIG_Z));
+        PlayerBot driver = SceneBody.managed(ctx, ctx.rel(0, SURFACE, DIG_Z));
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.DIAMOND_PICKAXE));
         fp.getInventory().selected = 0;
@@ -205,7 +205,7 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
         ctx.cleanup(() -> clearBox(ctx));
         stage(ctx);
 
-        ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, SURFACE, 0));
+        PlayerBot driver = SceneBody.managed(ctx, ctx.rel(0, SURFACE, 0));
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, 16));
         fp.getInventory().items.set(1, new ItemStack(Items.CRAFTING_TABLE, 1));

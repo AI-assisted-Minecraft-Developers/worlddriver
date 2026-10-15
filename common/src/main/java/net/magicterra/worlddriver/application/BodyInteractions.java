@@ -11,7 +11,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
-import net.magicterra.worlddriver.bot.BodyHost;
+import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.game.body.Attack;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BotUtil;
@@ -66,7 +66,7 @@ final class BodyInteractions {
     }
 
     /** The item into the main hand through {@link Equipment#holdItem}, the reach every process trusts. */
-    static ImmediateResponse holdItem(BodyHost host, InteractContracts.HoldParams p) {
+    static ImmediateResponse holdItem(Bot host, InteractContracts.HoldParams p) {
         Equipment hands = host.body().equipment().orElse(null);
         if (hands == null) return noHands(host);
         Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, p.item()).orElseThrow(() -> ApiException.invalidParam(
@@ -75,7 +75,7 @@ final class BodyInteractions {
                 : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, Equipment.cannotHold(item, host.id()));
     }
 
-    static ImmediateResponse useItem(BodyHost host, InteractContracts.UseParams p) {
+    static ImmediateResponse useItem(Bot host, InteractContracts.UseParams p) {
         ServerPlayer sp = host.body().equipment().isPresent() && host.entity() instanceof ServerPlayer s ? s : null;
         if (sp == null) return noHands(host);
         if (p.entityId().isPresent()) return useOnEntity(sp, p, p.entityId().get());
@@ -134,7 +134,7 @@ final class BodyInteractions {
     }
 
     /** Through {@link Attack#attackEntity}, as the client's verb goes: the footing guard lives on that one path. */
-    static ImmediateResponse attackEntity(BodyHost host, InteractContracts.AttackParams p) {
+    static ImmediateResponse attackEntity(Bot host, InteractContracts.AttackParams p) {
         Attack hands = host.body().attack().orElse(null);
         if (hands == null) return noHands(host);
         LivingEntity self = host.entity();
@@ -157,7 +157,7 @@ final class BodyInteractions {
         return new Responses.Attacked(p.entityId(), RegistryIds.typeId(target), target.isAlive(), distance);
     }
 
-    private static ImmediateResponse noHands(BodyHost host) {
+    private static ImmediateResponse noHands(Bot host) {
         return new Refused<>(RefusalReason.UNSUPPORTED_CAPABILITY, host.id() + " has no hands");
     }
 }

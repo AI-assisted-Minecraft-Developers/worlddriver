@@ -10,7 +10,7 @@ that interface read a real level:
 | View | Used by | Player |
 |---|---|---|
 | `bot/world/ClientWorldView` | `BotApiImpl` on a shipping client, and `PlanProbeTool` | the real player, a `LocalPlayer` |
-| `bot/world/LevelWorldView` | `ServerWorldDriver`, the `wd.*` scenes, the journey harness | a server-side player |
+| `bot/world/LevelWorldView` | `PlayerBot`, the `wd.*` scenes, the journey harness | a server-side player |
 | `bot/world/ServerWorldView` | `mc.observe.scene` and `WalkerGeometry`'s read-only probes | none |
 
 Each of them used to answer those questions with its own method body, and the three implementations

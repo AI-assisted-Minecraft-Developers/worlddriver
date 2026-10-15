@@ -7,7 +7,7 @@ import java.util.Map;
 
 import net.magicterra.worlddriver.api.action.ActionRegistry;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
-import net.magicterra.worlddriver.bot.behavior.BodyReady;
+import net.magicterra.worlddriver.bot.behavior.Readiness;
 
 /**
  * The controlled entities the API can address by name, besides the client's own player.
@@ -21,17 +21,17 @@ import net.magicterra.worlddriver.bot.behavior.BodyReady;
  * <p>Transport threads read it and the server thread writes it, so every method synchronizes on the
  * map. Iteration is in registration order, which is the order {@code mc.bot.status} lists them in.
  */
-public final class BodyRegistry {
+public final class BotRegistry {
 
     /** The id that names this client's own player. */
     public static final String SELF = Responses.SELF;
 
-    private static final Map<String, BodyHost> HOSTS = new LinkedHashMap<>();
+    private static final Map<String, Bot> HOSTS = new LinkedHashMap<>();
 
-    private BodyRegistry() {}
+    private BotRegistry() {}
 
     /** Adds {@code host}. False, and nothing changes, when its id is already taken. */
-    public static boolean register(BodyHost host) {
+    public static boolean register(Bot host) {
         synchronized (HOSTS) { return HOSTS.putIfAbsent(host.id(), host) == null; }
     }
 
@@ -43,12 +43,12 @@ public final class BodyRegistry {
     }
 
     /** The host registered under {@code id}, or null. */
-    public static BodyHost get(String id) {
+    public static Bot get(String id) {
         synchronized (HOSTS) { return HOSTS.get(id); }
     }
 
     /** Every host, in registration order. */
-    public static List<BodyHost> all() {
+    public static List<Bot> all() {
         synchronized (HOSTS) { return new ArrayList<>(HOSTS.values()); }
     }
 
@@ -63,7 +63,7 @@ public final class BodyRegistry {
 
     /** The refusal for an id nothing is registered under. */
     public static Map<String, Object> unknown(String id) {
-        return BodyHost.refuse(BodyReady.Reason.UNKNOWN_BODY,
+        return Bot.refuse(Readiness.Reason.UNKNOWN_BODY,
                 "no bot named '" + id + "'; mc.bot.status lists the bots");
     }
 }

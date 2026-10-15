@@ -6,8 +6,8 @@ import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.PlayerBot;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -106,8 +106,8 @@ public final class WorldDriverPortalScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
             for (int dx = -3; dx <= 4; dx++)
                 for (int dy = -1; dy <= 3; dy++)
@@ -142,7 +142,7 @@ public final class WorldDriverPortalScenes {
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = true;
 
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         var fp = driver.fakePlayer();
         // A WATER bucket, not an empty one, and that is the order the plan runs in: the water is what
         // gets carried to the site, and the bucket is empty from then on except while it is holding
@@ -165,7 +165,7 @@ public final class WorldDriverPortalScenes {
         ctx.expect(driver.avatar().holdItem(Items.WATER_BUCKET))
                 .as("the water bucket can be brought to the main hand from the bag").isTrue();
         driver.avatar().aimAtBlock(wall);
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
         ctx.record("water.hand", String.valueOf(fp.getMainHandItem().getItem()));
         ctx.record("water.aim", String.format(java.util.Locale.ROOT, "%.1f/%.1f",
                 fp.getYRot(), fp.getXRot()));
@@ -187,7 +187,7 @@ public final class WorldDriverPortalScenes {
         // A tick between aiming and using, because the aim is state the player carries and the ray
         // trace reads it — and because a use that fails for want of a tick and a use that fails for
         // want of reach are the same FAIL from outside.
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
         ctx.record("aim.yawPitch", String.format(java.util.Locale.ROOT, "%.1f/%.1f",
                 fp.getYRot(), fp.getXRot()));
         ctx.record("aim.eyeToSource", String.format(java.util.Locale.ROOT, "%.2f",
@@ -221,7 +221,7 @@ public final class WorldDriverPortalScenes {
         ctx.expect(driver.avatar().holdItem(Items.LAVA_BUCKET))
                 .as("the filled bucket is in the main hand before the pour").isTrue();
         driver.avatar().aimAtBlock(mould.below());
-        ServerAvatarManager.tickAll();          // as above: the aim has to land before the use reads it
+        BotTicker.tickAll();          // as above: the aim has to land before the use reads it
         ctx.record("pour.hand", String.valueOf(fp.getMainHandItem().getItem()));
         ctx.record("pour.aim", String.format(java.util.Locale.ROOT, "%.1f/%.1f",
                 fp.getYRot(), fp.getXRot()));
@@ -238,7 +238,7 @@ public final class WorldDriverPortalScenes {
         //    there is nothing to wait for, and the loop below is only here so that a build where the
         //    conversion IS deferred reports the conversion rather than a missing one.
         for (int t = 0; t < 40 && level.getBlockState(mould).getBlock() != Blocks.OBSIDIAN; t++) {
-            ServerAvatarManager.tickAll();
+            BotTicker.tickAll();
         }
         ctx.record("mould.cast", String.valueOf(level.getBlockState(mould).getBlock()));
         ctx.expect(level.getBlockState(mould).getBlock() == Blocks.OBSIDIAN)
@@ -301,8 +301,8 @@ public final class WorldDriverPortalScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
             for (int dx = -8; dx <= 18; dx++)
                 for (int dy = -1; dy <= 12; dy++)
@@ -373,7 +373,7 @@ public final class WorldDriverPortalScenes {
         BlockPos well = new BlockPos(cx - 6, floorY, cz - 8);
         level.setBlockAndUpdate(well, Blocks.WATER.defaultBlockState());
 
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, x0 + 0.5, floorY + 2, cz - 1.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, x0 + 0.5, floorY + 2, cz - 1.5);
         var fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
         fp.getInventory().items.set(1, new ItemStack(Items.BUCKET, 1));
@@ -455,18 +455,18 @@ public final class WorldDriverPortalScenes {
 
     /** Stand beside a one-cell pool and pick it up. The empty bucket clips {@code SOURCE_ONLY}, so
      *  the ray stops on the fluid itself rather than passing through to the floor. */
-    private static boolean scoopSource(ServerWorldDriver driver, ServerPlayer fp, BlockPos at, int floorY,
+    private static boolean scoopSource(PlayerBot driver, ServerPlayer fp, BlockPos at, int floorY,
                                        net.minecraft.world.item.Item expected) {
         ServerLevel level = (ServerLevel) fp.level();
         boolean inWall = at.getY() > floorY;
         if (inWall) standTo(level, fp, at, floorY);
         else fp.setPos(at.getX() + 0.5, floorY + 1, at.getZ() + 1.5);
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
         if (!driver.avatar().holdItem(Items.BUCKET)) return false;
         driver.avatar().aimAtBlock(inWall ? at.relative(Direction.SOUTH) : at);
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
         driver.avatar().useItemInHand();
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
         return WorldDriverProcessScenes.countItem(fp, expected) >= 1;
     }
 
@@ -474,15 +474,15 @@ public final class WorldDriverPortalScenes {
      *  aiming at the SOLID BACKING behind it: a bucket fills the neighbour of the face its ray lands
      *  on, so aiming into the air cell itself hits nothing and the fluid goes wherever the ray
      *  eventually stops — which is how an earlier version poured its water onto the floor. */
-    private static boolean pourInto(ServerWorldDriver driver, ServerPlayer fp, BlockPos target, int floorY,
+    private static boolean pourInto(PlayerBot driver, ServerPlayer fp, BlockPos target, int floorY,
                                     net.minecraft.world.item.Item held, Block want, ServerLevel level) {
         standTo(level, fp, target, floorY);
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
         if (!driver.avatar().holdItem(held)) return false;
         driver.avatar().aimAtBlock(target.relative(Direction.SOUTH));
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
         driver.avatar().useItemInHand();
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
         return level.getBlockState(target).getBlock() == want;
     }
 
@@ -495,7 +495,7 @@ public final class WorldDriverPortalScenes {
      * whole rung, and it would do so silently: the bot would stand in purple fog forever and the
      * budget would run out, which reads as a slow walk.
      *
-     * <p><b>Why it was genuinely in doubt.</b> {@code JoinedPlayerBodies.JoinedBody} keeps
+     * <p><b>Why it was genuinely in doubt.</b> {@code JoinedPlayers.JoinedBody} keeps
      * {@code tick()} empty for the level's entity loop, so the player is ticked only when its driver
      * steps it. Vanilla's portal handling lives in {@code Entity.baseTick()}, which each step reaches
      * through {@code JoinedBody.pump}'s {@code doTick()}, and {@code checkInsideBlocks()} rides
@@ -523,8 +523,8 @@ public final class WorldDriverPortalScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
             for (int dx = -4; dx <= 5; dx++)
                 for (int dy = -1; dy <= 8; dy++)
@@ -550,7 +550,7 @@ public final class WorldDriverPortalScenes {
             for (int dy = 1; dy <= 3; dy++)
                 level.setBlockAndUpdate(new BlockPos(x0 + dx, y0 + dy, cz), Blocks.AIR.defaultBlockState());
 
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, x0 + 0.5, floorY + 1, cz + 2.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, x0 + 0.5, floorY + 1, cz + 2.5);
         var fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.FLINT_AND_STEEL, 1));
         fp.getInventory().selected = 0;
@@ -558,9 +558,9 @@ public final class WorldDriverPortalScenes {
         BlockPos hearth = new BlockPos(x0, y0, cz);
         driver.avatar().holdItem(Items.FLINT_AND_STEEL);
         driver.avatar().aimAtBlock(hearth);
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
         driver.avatar().useBlock(hearth, Direction.UP);
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
         BlockPos doorway = hearth.above();
         ctx.record("portal.lit", String.valueOf(level.getBlockState(doorway).getBlock()));
         ctx.expect(level.getBlockState(doorway).getBlock() == Blocks.NETHER_PORTAL)
@@ -570,12 +570,12 @@ public final class WorldDriverPortalScenes {
         // budget below is generous by design — a run that spends it all has found a player the timer
         // never starts for, which is a different finding from a player it never fires for.
         driver.runProcess(new HoldStill(4_000));
-        ServerAvatarManager.register(driver);
+        BotTicker.register(driver);
         fp.setPos(doorway.getX() + 0.5, doorway.getY(), doorway.getZ() + 0.5);
 
         final int budget = 600;
         int ticked = 0;
-        while (ticked < budget && fp.level() == level) { ServerAvatarManager.tickAll(); ticked++; }
+        while (ticked < budget && fp.level() == level) { BotTicker.tickAll(); ticked++; }
 
         ctx.record("transit.ticks", ticked + (ticked >= budget ? " (budget exhausted)" : ""));
         ctx.record("transit.dimension", fp.level().dimension().location().toString());
@@ -655,8 +655,8 @@ public final class WorldDriverPortalScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
             for (int dx = -10; dx <= 20; dx++)
                 for (int dy = -1; dy <= 12; dy++)
@@ -680,7 +680,7 @@ public final class WorldDriverPortalScenes {
         BlockPos well = new BlockPos(cx - 8, floorY, cz - 8);
         level.setBlockAndUpdate(well, Blocks.WATER.defaultBlockState());
 
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 7.5, floorY + 1, cz - 5.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, cx + 7.5, floorY + 1, cz - 5.5);
         var fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
         fp.getInventory().items.set(1, new ItemStack(Items.BUCKET, 1));
@@ -762,12 +762,12 @@ public final class WorldDriverPortalScenes {
         // ---- 4. light it ----
         BlockPos hearth = new BlockPos(x0, y0, cz);
         standTo(level, fp, hearth, floorY);
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
         ctx.expect(driver.avatar().holdItem(Items.FLINT_AND_STEEL)).as("flint-and-steel in hand").isTrue();
         driver.avatar().aimAtBlock(hearth);
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
         driver.avatar().useBlock(hearth, Direction.UP);
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
 
         int lit = 0;
         for (BlockPos c : interior)
@@ -783,11 +783,11 @@ public final class WorldDriverPortalScenes {
     /** Place a held cobblestone in {@code target} by clicking {@code face} of {@code support}.
      *  No aim and no walk: {@code useBlock} builds its own hit result, and the reach check the
      *  server applies lives on a packet path this player never uses. */
-    private static boolean placeAt(ServerWorldDriver driver, ServerLevel level, BlockPos target,
+    private static boolean placeAt(PlayerBot driver, ServerLevel level, BlockPos target,
                                    BlockPos support, Direction face) {
         if (!driver.avatar().holdItem(Items.COBBLESTONE)) return false;
         driver.avatar().useBlock(support, face);
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
         return !level.getBlockState(target).isAir();
     }
 
@@ -823,8 +823,8 @@ public final class WorldDriverPortalScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
             for (int dx = -4; dx <= 4; dx++)
                 for (int dy = -1; dy <= 4; dy++)
@@ -849,7 +849,7 @@ public final class WorldDriverPortalScenes {
         }
         ctx.record("frame.blocks", frames.size() + "");
 
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 3.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 3.5);
         var fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.ENDER_EYE, 12));
         fp.getInventory().selected = 0;
@@ -858,7 +858,7 @@ public final class WorldDriverPortalScenes {
         for (BlockPos at : frames) {
             if (!driver.avatar().holdItem(Items.ENDER_EYE)) { ctx.record("eyes.ranOutAt", at.toShortString()); break; }
             driver.avatar().useBlock(at, Direction.UP);
-            ServerAvatarManager.tickAll();
+            BotTicker.tickAll();
             if (level.getBlockState(at).getValue(net.minecraft.world.level.block.EndPortalFrameBlock.HAS_EYE)) set++;
             else ctx.record("eye.missed." + at.toShortString(), String.valueOf(level.getBlockState(at)));
         }
@@ -873,12 +873,12 @@ public final class WorldDriverPortalScenes {
                 .as("the twelfth eye opens the portal").isTrue();
 
         driver.runProcess(new HoldStill(4_000));
-        ServerAvatarManager.register(driver);
+        BotTicker.register(driver);
         fp.setPos(doorway.getX() + 0.5, doorway.getY(), doorway.getZ() + 0.5);
 
         final int budget = 400;
         int ticked = 0;
-        while (ticked < budget && fp.level() == level) { ServerAvatarManager.tickAll(); ticked++; }
+        while (ticked < budget && fp.level() == level) { BotTicker.tickAll(); ticked++; }
         ctx.record("transit.ticks", ticked + (ticked >= budget ? " (budget exhausted)" : ""));
         ctx.record("transit.dimension", fp.level().dimension().location().toString());
         ctx.record("transit.pos", fp.blockPosition().toShortString());
@@ -935,8 +935,8 @@ public final class WorldDriverPortalScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
             for (int dx = -4; dx <= 5; dx++)
                 for (int dy = -1; dy <= 7; dy++)
@@ -965,7 +965,7 @@ public final class WorldDriverPortalScenes {
                 level.setBlockAndUpdate(new BlockPos(x0 + dx, y0 + dy, cz), Blocks.AIR.defaultBlockState());
         ctx.record("frame.blocks", frame.size() + " obsidian");
 
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, x0 + 0.5, floorY + 1, cz + 2.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, x0 + 0.5, floorY + 1, cz + 2.5);
         var fp = driver.fakePlayer();
         // Pickaxe selected, flint-and-steel behind it — the arena starts the way the rung arrives.
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
@@ -978,13 +978,13 @@ public final class WorldDriverPortalScenes {
         ctx.expect(driver.avatar().holdItem(Items.FLINT_AND_STEEL))
                 .as("the flint-and-steel can be brought to the main hand from the bag").isTrue();
         driver.avatar().aimAtBlock(hearth);
-        ServerAvatarManager.tickAll();
+        BotTicker.tickAll();
         ctx.record("light.hand", String.valueOf(fp.getMainHandItem().getItem()));
         ctx.record("light.clicked", hearth.toShortString() + " face=UP");
 
         driver.avatar().useBlock(hearth, Direction.UP);
         for (int t = 0; t < 20 && level.getBlockState(firstInterior).getBlock() != Blocks.NETHER_PORTAL; t++) {
-            ServerAvatarManager.tickAll();
+            BotTicker.tickAll();
         }
         ctx.record("light.cellAfter", String.valueOf(level.getBlockState(firstInterior).getBlock()));
         ctx.record("flintAndSteel.after", WorldDriverProcessScenes.countItem(fp, Items.FLINT_AND_STEEL) + " (durability spent, not the item)");

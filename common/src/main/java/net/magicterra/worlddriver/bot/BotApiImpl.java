@@ -44,12 +44,10 @@ import net.magicterra.worlddriver.bot.control.WalkerPlanAdoption;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
 import net.magicterra.worlddriver.bot.behavior.BackfillProcess;
 import net.magicterra.worlddriver.bot.behavior.BackfillTracker;
-import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.bot.behavior.RouteEvents;
 import net.magicterra.worlddriver.bot.arbitration.BunkerChain;
 import net.magicterra.worlddriver.bot.arbitration.CancelRouting;
 import net.magicterra.worlddriver.bot.arbitration.Ticket;
@@ -81,15 +79,14 @@ import net.magicterra.worlddriver.bot.behavior.reflex.ContactDamageEscape;
 import net.magicterra.worlddriver.bot.behavior.reflex.AutoRespawn;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 import java.util.concurrent.ConcurrentHashMap;
-import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
-import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.world.ClientWorldView;
 import net.magicterra.worlddriver.game.ui.FocusPolicy;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.ui.MouseYield;
+import net.magicterra.worlddriver.bot.behavior.Readiness;
 
 /**
  * Phase-2 client bot impl. Hosts a single active {@link BotProcess} driven
@@ -351,7 +348,7 @@ public final class BotApiImpl implements BotApi {
 
     @Override public Map<String, Object> bodyRefusal() {
         return onClient(() -> {
-            BodyReady.Refusal r = BodyReady.refusal();
+            Readiness.Refusal r = Readiness.refusal();
             return r == null ? null : r.result();
         });
     }
@@ -436,7 +433,7 @@ public final class BotApiImpl implements BotApi {
                 Optional.ofNullable(scheduler.currentName()), c != null && scheduler.current() != userTask, chains, lastPath,
                 String.valueOf(CLUTCH.phase()),
                 new ControlContracts.CombatTally(state.combatSwings, state.combatWellTimed, state.combatCrits, state.combatKills));
-        return new ControlContracts.BodyStatus(net.magicterra.worlddriver.bot.BodyRegistry.SELF, c != null,
+        return new ControlContracts.BodyStatus(net.magicterra.worlddriver.bot.BotRegistry.SELF, c != null,
                 c == null ? Optional.empty() : Optional.of(c.kind()), StatusView.end(userTask.lastEnd()),
                 StatusView.slots(state), Optional.of(reflexes));
     }

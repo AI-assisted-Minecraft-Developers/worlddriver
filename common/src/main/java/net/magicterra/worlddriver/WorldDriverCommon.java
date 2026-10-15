@@ -262,7 +262,7 @@ public final class WorldDriverCommon {
         net.magicterra.worlddriver.api.action.ActionRegistry.GLOBAL.cancelAll(
                 net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason.WORLD_CLOSED);
         // Every addressable bot player wraps an entity of the stopping server.
-        net.magicterra.worlddriver.bot.BodyRegistry.clear();
+        net.magicterra.worlddriver.bot.BotRegistry.clear();
         if (api != null) {
             api.detachServer();
             LOG.info("[{}] driver detached from server (RPC + MCP still up)", MOD_ID);

@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.bot.behavior;
 
 import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Menus;
 import net.magicterra.worlddriver.game.body.Equipment;
@@ -133,7 +132,7 @@ public final class SmeltProcess implements BotProcess {
         // Not a player: no inventory to smelt from. Both refusals publish their own error, because they
         // return before the FAIL branch below, which is what publishes a failure's.
         if (equipment == null || blocks == null || menus == null || p == null) {
-            fail(s, BodyReady.Reason.NO_HANDS); s.smelt.lastError = error; s.smelt.reset(); return true;
+            fail(s, Readiness.Reason.NO_HANDS); s.smelt.lastError = error; s.smelt.reset(); return true;
         }
 
         switch (st) {

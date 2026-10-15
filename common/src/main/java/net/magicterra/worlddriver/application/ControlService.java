@@ -27,8 +27,8 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.Stopped;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.StatusView;
-import net.magicterra.worlddriver.bot.BodyHost;
-import net.magicterra.worlddriver.bot.BodyRegistry;
+import net.magicterra.worlddriver.bot.Bot;
+import net.magicterra.worlddriver.bot.BotRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -62,9 +62,9 @@ final class ControlService implements ControlApi {
             boolean stopped = h != null && h.requestCancel(CancelReason.REQUESTED);
             return done(new Stopped(stopped ? List.of(id) : List.of(), Optional.of(h == null ? before : h.snapshot())));
         }
-        String body = p.body().orElse(BodyRegistry.SELF);
+        String body = p.body().orElse(BotRegistry.SELF);
         String which = p.process().orElse("all");
-        if (BodyRegistry.isSelf(body)) {
+        if (BotRegistry.isSelf(body)) {
             BotApi bot = BotHooks.impl();
             if (bot == null) return refused(NO_CLIENT);
             return bot.clientHop().<ImmediateResponse>submit(() -> new Stopped(bot.cancel(which), Optional.empty()), ctx);
@@ -72,7 +72,7 @@ final class ControlService implements ControlApi {
         ServerThreadHop hop = app.serverHop();
         if (hop == null) return refused(body + " is unavailable: no server is attached");
         return hop.<ImmediateResponse>submit(() -> {
-            BodyHost host = BodyRegistry.get(body);
+            Bot host = BotRegistry.get(body);
             if (host == null) return unknown(body);
             // A host holds one process, so a named cancel matches its kind or nothing.
             String hit = host.cancel(which);
@@ -83,7 +83,7 @@ final class ControlService implements ControlApi {
     @Override
     public CompletionStage<ImmediateResponse> status(ControlContracts.StatusParams p, CallContext ctx) {
         String body = p.body().orElse(null);
-        if (body == null || BodyRegistry.isSelf(body)) {
+        if (body == null || BotRegistry.isSelf(body)) {
             BotApi bot = BotHooks.impl();
             if (bot == null) {
                 return body == null ? bodies(ctx).<ImmediateResponse>thenApply(b -> new Status(b, Optional.empty())) : refused(NO_CLIENT);
@@ -94,7 +94,7 @@ final class ControlService implements ControlApi {
         ServerThreadHop hop = app.serverHop();
         if (hop == null) return refused(body + " is unavailable: no server is attached");
         return hop.<ImmediateResponse>submit(() -> {
-            BodyHost host = BodyRegistry.get(body);
+            Bot host = BotRegistry.get(body);
             if (host == null) return unknown(body);
             BodyStatus s = new BodyStatus(host.id(), host.busy(), Optional.ofNullable(host.botState().activeName()),
                     StatusView.end(host.lastProcessEnd()), StatusView.slots(host.botState()), Optional.empty());
@@ -108,14 +108,14 @@ final class ControlService implements ControlApi {
      */
     private CompletionStage<List<BodySummary>> bodies(CallContext ctx) {
         ServerThreadHop hop = app.serverHop();
-        if (BodyRegistry.all().isEmpty() || hop == null) return CompletableFuture.completedFuture(List.of());
+        if (BotRegistry.all().isEmpty() || hop == null) return CompletableFuture.completedFuture(List.of());
         return hop.submit(ControlService::summaries, ctx);
     }
 
     /** Server thread. */
     private static List<BodySummary> summaries() {
         List<BodySummary> out = new ArrayList<>();
-        for (BodyHost h : BodyRegistry.all()) {
+        for (Bot h : BotRegistry.all()) {
             LivingEntity e = h.entity();
             boolean present = e != null && !e.isRemoved();
             BlockPos at = present ? e.blockPosition() : null;

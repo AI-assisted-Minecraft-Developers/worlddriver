@@ -4,8 +4,8 @@ import java.util.List;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.behavior.SmeltProcess;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.PlayerBot;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.stagewright.scene.Scene;
@@ -76,8 +76,8 @@ public final class WorldDriverSmeltDeliveryScenes {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         GameConfig.walkerDebug = false;
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         // Empty the furnace BEFORE the block goes, or AbstractFurnaceBlock.onRemove drops its
         // contents as item entities and leaves the arena littered for the audit to blame on the
         // next scene. Phase 2 deliberately ends with a loaded furnace, so this is not hypothetical.
@@ -95,14 +95,14 @@ public final class WorldDriverSmeltDeliveryScenes {
             for (int dz = -3; dz <= 3; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
 
-        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.FURNACE, 1));
         fp.getInventory().add(new ItemStack(Items.RAW_IRON, 2));
         fp.getInventory().add(new ItemStack(Items.COAL, 2));
 
-        ServerAvatarManager.register(driver.runProcess(new SmeltProcess("minecraft:raw_iron", 2, null)));
+        BotTicker.register(driver.runProcess(new SmeltProcess("minecraft:raw_iron", 2, null)));
         // 200 ticks an item plus the place/open/load round trips; a run that spends the whole of
         // this has found a furnace that never cooked, which the process now names for itself.
         ctx.await(driver::finished).within(900).then(() -> {
@@ -126,7 +126,7 @@ public final class WorldDriverSmeltDeliveryScenes {
             // first iron, which is exactly this arrangement.
             takeAll(fp, Items.IRON_INGOT);
             fp.getInventory().add(new ItemStack(Items.RAW_IRON, 1));
-            ServerAvatarManager.register(driver.runProcess(new SmeltProcess("minecraft:raw_iron", 1, null)));
+            BotTicker.register(driver.runProcess(new SmeltProcess("minecraft:raw_iron", 1, null)));
             net.minecraft.world.Container furnace =
                     level.getBlockEntity(fpos) instanceof net.minecraft.world.Container c ? c : null;
             ctx.expect(furnace).as("the placed furnace is a container").isNotNull();

@@ -5,30 +5,29 @@ import java.util.Map;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.bot.ActionTickets;
 import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.BodyHost;
+import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.arbitration.HeldProcess;
-import net.magicterra.worlddriver.bot.BodyDriver;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 
 /**
  * A {@link LivingBody} addressable as {@code npc:<name>}, and its own driver on the server tick: the
- * NPC counterpart of {@code ServerBodyHost} over a {@code ServerWorldDriver}.
+ * NPC counterpart of {@link net.magicterra.worlddriver.bot.PlayerBot}.
  *
- * <p>Shaped like that driver on purpose: one process, dropped from {@link ServerAvatarManager} when it
+ * <p>Shaped like that driver on purpose: one process, dropped from {@link BotTicker} when it
  * finishes, registered again by {@link #start}. A difference between the two driven entities on the
- * same route then comes from the entity and not from the host. Like that driver, a finished host
+ * same route then comes from the entity and not from the bot. Like that driver, a finished bot
  * stops stepping its entity, and a driven mob nobody pumps stands where it stopped.
  *
  * <p>An NPC holds no chunk ticket, so a walk can carry it out of the loaded area. The tick after its
  * chunk unloads, or after it dies, ends the task with the reason {@link #refusal} would have refused
  * the order with, left in the slot.
  */
-public final class NpcBodyHost implements BodyHost, BodyDriver {
+public final class NpcBot implements Bot {
 
     public static final String KIND = "npc";
 
@@ -39,7 +38,7 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
     private volatile boolean finished = true;
     private LevelWorldView view;
 
-    public NpcBodyHost(String name, LivingBody body) {
+    public NpcBot(String name, LivingBody body) {
         this.id = KIND + ":" + name;
         this.body = body;
     }
@@ -51,7 +50,7 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
     @Override public BotState botState() { return botState; }
 
     @Override public boolean busy() {
-        return !finished && held.process() != null && ServerAvatarManager.isRegistered(this);
+        return !finished && held.process() != null && BotTicker.isRegistered(this);
     }
 
     @Override public Map<String, Object> lastProcessEnd() { return held.lastEnd(); }
@@ -59,7 +58,7 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
     @Override public void start(BotProcess p, ActionHandle action) {
         held.start(p, ActionTickets.of(action));
         finished = false;
-        ServerAvatarManager.register(this);
+        BotTicker.register(this);
     }
 
     @Override public boolean cancelAction(ActionHandle action, String reason) {
@@ -73,7 +72,7 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
         finished = true;
     }
 
-    /** The way {@code ServerWorldDriver.cancel} ends a task: the process hears it, and the slots it
+    /** The way {@code PlayerBot.cancel} ends a task: the process hears it, and the slots it
      *  switched on keep the reason and go inactive. */
     @Override public String cancel(String which) {
         BotProcess p = busy() ? held.process() : null;
@@ -101,7 +100,7 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
 
     @Override public boolean finished() { return finished; }
 
-    /** Rebuilt when the mob changes level, for the reason {@code ServerWorldDriver.world()} is. */
+    /** Rebuilt when the mob changes level, for the reason {@code PlayerBot.world()} is. */
     private LevelWorldView view() {
         Level now = body.entity().level();
         if (view == null || view.level() != now) view = LevelWorldView.forBody(now, body.entity());

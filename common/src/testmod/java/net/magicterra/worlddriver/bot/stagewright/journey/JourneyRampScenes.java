@@ -15,9 +15,9 @@ import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
@@ -192,8 +192,8 @@ public final class JourneyRampScenes implements SceneProvider {
         WorldConfig.allowPlace = true;
         WorldConfig.allowBreak = false;
         GameConfig.walkerDebug = false;
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
+        BotTicker.clear();
+        ctx.cleanup(BotTicker::clear);
         ctx.cleanup(JourneyRamp::reset);
         // JourneySight.lineOwner is consulted inside the loop. With no mould registered it answers
         // null for everything, which is what a bare alcove should say — but a mould left over from
@@ -209,8 +209,8 @@ public final class JourneyRampScenes implements SceneProvider {
     }
 
     /** A bot standing in {@code foot}, settled, carrying the rung's own cobblestone. */
-    private static ServerWorldDriver body(SceneContext ctx, BlockPos foot) {
-        ServerWorldDriver driver = SceneBody.managed(ctx, foot);
+    private static PlayerBot body(SceneContext ctx, BlockPos foot) {
+        PlayerBot driver = SceneBody.managed(ctx, foot);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, 64));
         fp.getInventory().selected = 0;
@@ -220,12 +220,12 @@ public final class JourneyRampScenes implements SceneProvider {
 
     /** Put the bot in a cell and let physics catch up. This is the stand-in for the {@code walkTo}
      *  {@link JourneyRamp#lay} makes — see the class note for why a scene cannot make the real one. */
-    private static void placeAt(ServerWorldDriver driver, BlockPos foot) {
+    private static void placeAt(PlayerBot driver, BlockPos foot) {
         driver.fakePlayer().moveTo(foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5);
         settle(driver);
     }
 
-    private static void settle(ServerWorldDriver driver) {
+    private static void settle(PlayerBot driver) {
         ServerPlayerBody av = driver.avatar();
         for (int i = 0; i < 3; i++) av.step();
     }
@@ -384,7 +384,7 @@ public final class JourneyRampScenes implements SceneProvider {
      * <p>Bounded at eight passes so a decision that never stops is a FAIL with a trace rather than a
      * scene that hangs; a three-course flight needs at most three.
      */
-    private static Loop driveTheLoop(SceneContext ctx, ServerWorldDriver driver,
+    private static Loop driveTheLoop(SceneContext ctx, PlayerBot driver,
                                      Set<BlockPos> corridor, List<BlockPos> flight, int from,
                                      boolean alreadyAside, String tag) {
         ServerLevel level = ctx.level();
@@ -461,7 +461,7 @@ public final class JourneyRampScenes implements SceneProvider {
         ctx.record("flight", flight.size() + " steps: " + supports(flight)
                 + " (alcove floor y=" + floorY + ", foothold " + landing.toShortString() + ")");
 
-        ServerWorldDriver driver = body(ctx, bottom);
+        PlayerBot driver = body(ctx, bottom);
         ServerPlayer fp = driver.fakePlayer();
         ctx.record("staged", "bot at " + fp.blockPosition().toShortString()
                 + " stands inside this staircase's own first support cell " + bottom.toShortString()
@@ -641,7 +641,7 @@ public final class JourneyRampScenes implements SceneProvider {
                 ? "[no neighbour tied with " + beside.toShortString() + "; it was already unique]"
                 : "sealed " + sealed + ", tied with " + beside.toShortString());
 
-        ServerWorldDriver driver = body(ctx, beside);
+        PlayerBot driver = body(ctx, beside);
         ServerPlayer fp = driver.fakePlayer();
         double dx = (support.getX() - beside.getX()) * STRADDLE;
         double dz = (support.getZ() - beside.getZ()) * STRADDLE;
@@ -770,7 +770,7 @@ public final class JourneyRampScenes implements SceneProvider {
         BlockPos bottom = flight.get(0).below();
         ctx.record("flight", flight.size() + " steps: " + supports(flight));
 
-        ServerWorldDriver driver = body(ctx, bottom);
+        PlayerBot driver = body(ctx, bottom);
         ServerPlayer fp = driver.fakePlayer();
         BlockPos aside = JourneyRamp.stepAsideFor(level, fp, corridor, flight,
                 JourneyRamp.layWhereItStands(level, fp, driver.avatar(), corridor, flight, 0,
@@ -951,7 +951,7 @@ public final class JourneyRampScenes implements SceneProvider {
         // The one floor cell beside the bottom support — taken FROM the flight rather than named
         // again, so the arm cannot end up building one staircase and climbing beside another.
         BlockPos entry = flight.get(0).below().relative(Direction.SOUTH);
-        ServerWorldDriver driver = body(ctx, entry);
+        PlayerBot driver = body(ctx, entry);
         ServerPlayer fp = driver.fakePlayer();
         Loop run = driveTheLoop(ctx, driver, corridor, flight, 0, false, "lay");
         ctx.record("lay.trace", String.join("; ", run.trace()));
@@ -1055,7 +1055,7 @@ public final class JourneyRampScenes implements SceneProvider {
                 + " B/C are about a different face")
                 .isEqualTo(1);
 
-        ServerWorldDriver driver = body(ctx, below);
+        PlayerBot driver = body(ctx, below);
         ServerPlayer fp = driver.fakePlayer();
         boolean solidFromBelow = level.getBlockState(under).blocksMotion();
         boolean hitFromBelow = JourneyRamp.canClick(level, fp,

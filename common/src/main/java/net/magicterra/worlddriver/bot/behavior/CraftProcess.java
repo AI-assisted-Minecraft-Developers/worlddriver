@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.bot.behavior;
 
 import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Menus;
 import net.magicterra.worlddriver.game.body.Equipment;
@@ -123,7 +122,7 @@ public final class CraftProcess implements BotProcess {
         // Not a player: no inventory to craft from. Both refusals publish their own error, because they
         // return before the FAIL branch below, which is what publishes a failure's.
         if (equipment == null || blocks == null || menus == null || p == null) {
-            fail(s, p, BodyReady.Reason.NO_HANDS); s.craft.lastError = error; s.craft.reset(); return true;
+            fail(s, p, Readiness.Reason.NO_HANDS); s.craft.lastError = error; s.craft.reset(); return true;
         }
 
         switch (st) {

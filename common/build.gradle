@@ -17,7 +17,7 @@ loom {
 // OUTPUT to their dev runs; :common itself never runs, so no loom mods{} wiring is
 // needed here. Classpath mirrors the neoforge testmod convention: testmod sees
 // main's OUTPUT plus main's own compile/runtime classpaths — so scene/probe code
-// can reach main classes (Walker, ServerWorldDriver, …) AND main's dependencies
+// can reach main classes (Walker, PlayerBot, …) AND main's dependencies
 // (Minecraft, netty compileOnly), while the testkit scene SPI
 // (Scene/SceneContext/SceneProvider) comes from :stagewright-common namedElements
 // (added explicitly below AND already transitively present in main.compileClasspath).

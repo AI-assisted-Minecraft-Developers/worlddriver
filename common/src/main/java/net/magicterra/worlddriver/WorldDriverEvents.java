@@ -11,8 +11,8 @@ import dev.architectury.event.events.common.TickEvent;
 import net.magicterra.worlddriver.api.game.DriverHost;
 import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.bot.ServerAvatarCommand;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.BotCommand;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.script.ScriptEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -60,11 +60,11 @@ public final class WorldDriverEvents {
         // own registration — it is a mod, not a library the driver has to pump.
         TickEvent.SERVER_POST.register(server -> {
             ScriptEvents.fireTick();
-            ServerAvatarManager.tickAll();
+            BotTicker.tickAll();
         });
         CommandRegistrationEvent.EVENT.register((dispatcher, context, selection) -> {
             WorldDriverCommon.registerCommands(dispatcher);
-            ServerAvatarCommand.register(dispatcher);
+            BotCommand.register(dispatcher);
         });
 
         BlockEvent.BREAK.register(WorldDriverEvents::onBlockBreak);

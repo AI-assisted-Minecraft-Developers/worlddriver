@@ -5,10 +5,10 @@ import java.util.List;
 
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.game.body.JoinedPlayerBodies;
-import net.magicterra.worlddriver.bot.ServerAvatarManager;
+import net.magicterra.worlddriver.game.body.JoinedPlayers;
+import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.magicterra.worlddriver.testcontent.DrivenPiglin;
 import net.magicterra.worlddriver.testcontent.NpcContent;
 import net.minecraft.core.BlockPos;
@@ -87,45 +87,45 @@ public final class SceneBody {
      *
      * @throws net.magicterra.stagewright.contract.SceneSkipped when this topology may not mint one
      */
-    public static ServerWorldDriver mint(SceneContext ctx, ServerLevel level, double x, double y, double z) {
-        ServerWorldDriver driver = bare(ctx, level, x, y, z);
+    public static PlayerBot mint(SceneContext ctx, ServerLevel level, double x, double y, double z) {
+        PlayerBot driver = bare(ctx, level, x, y, z);
         ctx.cleanup(() -> driver.fakePlayer().discard());
         return driver;
     }
 
     /** {@link #mint} in this scene's own level. */
-    public static ServerWorldDriver mint(SceneContext ctx, double x, double y, double z) {
+    public static PlayerBot mint(SceneContext ctx, double x, double y, double z) {
         return mint(ctx, ctx.level(), x, y, z);
     }
 
     /** {@link #mint} standing in the centre of {@code foot}, in this scene's own level. */
-    public static ServerWorldDriver mint(SceneContext ctx, BlockPos foot) {
+    public static PlayerBot mint(SceneContext ctx, BlockPos foot) {
         return mint(ctx, foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5);
     }
 
     /**
-     * A bot player that is also UNREGISTERED from {@link ServerAvatarManager}, with an empty inventory.
+     * A bot player that is also UNREGISTERED from {@link BotTicker}, with an empty inventory.
      *
      * <p>The shape the six copied {@code body(ctx, foot)} helpers had grown. The extra
      * {@code unregister} matters for a bot that was handed a {@code BotProcess}: discarding the
      * entity does not take it off the manager's tick list, and a process still ticking against a
      * discarded player is a leak that poisons the next scene rather than failing this one.
      */
-    public static ServerWorldDriver managed(SceneContext ctx, ServerLevel level, double x, double y, double z) {
-        ServerWorldDriver driver = bare(ctx, level, x, y, z);
+    public static PlayerBot managed(SceneContext ctx, ServerLevel level, double x, double y, double z) {
+        PlayerBot driver = bare(ctx, level, x, y, z);
         ServerPlayer fp = driver.fakePlayer();
-        ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
+        ctx.cleanup(() -> { BotTicker.unregister(driver); fp.discard(); });
         fp.getInventory().clearContent();
         return driver;
     }
 
     /** {@link #managed} in this scene's own level. */
-    public static ServerWorldDriver managed(SceneContext ctx, double x, double y, double z) {
+    public static PlayerBot managed(SceneContext ctx, double x, double y, double z) {
         return managed(ctx, ctx.level(), x, y, z);
     }
 
     /** {@link #managed} standing in the centre of {@code foot}, in this scene's own level. */
-    public static ServerWorldDriver managed(SceneContext ctx, BlockPos foot) {
+    public static PlayerBot managed(SceneContext ctx, BlockPos foot) {
         return managed(ctx, foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5);
     }
 
@@ -135,16 +135,16 @@ public final class SceneBody {
      * <p>For the sites that mint two bot players and discard both in one lambda. They cannot use
      * {@link #mint} without changing how many cleanups run in what order, which is a behaviour
      * change on the dedicated server for no gain. What they must NOT do is call
-     * {@code ServerWorldDriver.createIsolated} directly — that is the one path that bypasses the
+     * {@code PlayerBot.createIsolated} directly — that is the one path that bypasses the
      * rule, and the reason this method exists is to leave no excuse for taking it.
      */
-    public static ServerWorldDriver bare(SceneContext ctx, ServerLevel level, double x, double y, double z) {
+    public static PlayerBot bare(SceneContext ctx, ServerLevel level, double x, double y, double z) {
         refuseWhereAClientShouldDrive(ctx);
-        return ServerWorldDriver.createIsolated(level, x, y, z);
+        return PlayerBot.createIsolated(level, x, y, z);
     }
 
     /** {@link #bare} in this scene's own level. */
-    public static ServerWorldDriver bare(SceneContext ctx, double x, double y, double z) {
+    public static PlayerBot bare(SceneContext ctx, double x, double y, double z) {
         return bare(ctx, ctx.level(), x, y, z);
     }
 
@@ -152,10 +152,10 @@ public final class SceneBody {
      * A bare {@link ServerPlayerBody}, for the scenes that never wanted a driver around it.
      *
      * <p><b>This is the other half of the rule, and forgetting it would have made the first half a
-     * lie.</b> {@code ServerWorldDriver.createIsolated} is only one of two ways a scene mints a bot player:
+     * lie.</b> {@code PlayerBot.createIsolated} is only one of two ways a scene mints a bot player:
      * ninety sites take that one, and NINETY-TWO more call {@code ServerPlayerBody.createUnique}
      * directly because they want to pose and step a player without a driver wrapped around it. Both
-     * bottom out in {@code ServerAvatarBodies.unique}, so both produce a {@code JoinedBody} — a
+     * bottom out in {@code JoinedPlayers.BOTS.unique}, so both produce a {@code JoinedBody} — a
      * gate that covered only the first would have left the integrated topology
      * minting roughly half as many bot players as before and reported the rule as enforced.
      *
@@ -175,7 +175,7 @@ public final class SceneBody {
 
     // A `mintingIsLegal(ctx)` used to sit here, for "the scene that must BRANCH rather than skip".
     // Its javadoc named its one caller, `wd.bodyParityCensus`, and that scene stopped calling it:
-    // it mints DIRECTLY (`new JoinedPlayerBodies()`; its fake-player column now records unavailable)
+    // it mints DIRECTLY (`new JoinedPlayers()`; its fake-player column now records unavailable)
     // precisely so the census is taken on every run rather than branching on the run's shape. A
     // predicate whose only documented caller no longer asks it reads, on the next pass, like a
     // guard that is being honoured somewhere. Deleted rather than left: the live gate is
@@ -244,7 +244,7 @@ public final class SceneBody {
      *  other minted type it used to miss was deleted. */
     public static boolean hasHumanPlayer(SceneContext ctx) {
         for (ServerPlayer p : ctx.players()) {
-            if (!(p instanceof JoinedPlayerBodies.JoinedBody)) return true;
+            if (!(p instanceof JoinedPlayers.JoinedBody)) return true;
         }
         return false;
     }
@@ -260,11 +260,11 @@ public final class SceneBody {
      * to add it.
      *
      * <p>Asked STRUCTURALLY. {@code agent-body-N} is a naming convention
-     * ({@code JoinedPlayerBodies.profileFor}) and conventions get changed by people who do not know
+     * ({@code JoinedPlayers.profileFor}) and conventions get changed by people who do not know
      * a test reads them; the class is what the player types actually differ by.
      */
     public static boolean isDriverMinted(ServerPlayer p) {
-        return p instanceof JoinedPlayerBodies.JoinedBody;
+        return p instanceof JoinedPlayers.JoinedBody;
     }
 
     /** Everyone on this server who is not one of the driver's own bot players, by {@link #isDriverMinted}.

@@ -123,7 +123,7 @@ public final class IntentProcess implements BotProcess {
     }
 
     /** Written against {@code Body}: drives the client LocalPlayer (via the BotProcess bridge)
-     *  or a server FakePlayer (ServerWorldDriver) identically — pure movement, so
+     *  or a server FakePlayer (PlayerBot) identically — pure movement, so
      *  it just hands the Walker the same {@code Body}. */
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity body = a.entity();

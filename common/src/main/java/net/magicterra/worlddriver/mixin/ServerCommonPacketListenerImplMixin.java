@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.mixin;
 
-import net.magicterra.worlddriver.game.body.JoinedPlayerBodies;
+import net.magicterra.worlddriver.game.body.JoinedPlayers;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketSendListener;
 import net.minecraft.network.protocol.Packet;
@@ -40,7 +40,7 @@ abstract class ServerCommonPacketListenerImplMixin {
             at = @At("HEAD"), cancellable = true)
     private void worlddriver$dropPayloadToBot(Packet<?> packet, @Nullable PacketSendListener listener,
                                               CallbackInfo ci) {
-        if (packet instanceof ClientboundCustomPayloadPacket && JoinedPlayerBodies.isSilent(connection)) {
+        if (packet instanceof ClientboundCustomPayloadPacket && JoinedPlayers.isSilent(connection)) {
             ci.cancel();
         }
     }

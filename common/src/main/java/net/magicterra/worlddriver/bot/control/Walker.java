@@ -1274,7 +1274,7 @@ public final class Walker {
      * <p><b>"Entry to a run" is measured against the PREVIOUS CALL, and must never be measured
      * against the clock.</b> It used to be {@code getGameTime() - jumpAskTick > 1}, and that is
      * blind for a whole family of scenes: anything that pumps the bot in a tight in-body loop
-     * ({@code wd.buriedOre} runs 800 {@code ServerAvatarManager.tickAll()} iterations inside ONE
+     * ({@code wd.buriedOre} runs 800 {@code BotTicker.tickAll()} iterations inside ONE
      * server tick, as do the {@code wd.serverMine*} family, {@code wd.selfShaftDigUp} and every
      * other synchronous scene body) advances the walker without advancing the clock, so {@code now}
      * is CONSTANT for the whole run. After the first emitted line {@code now - jumpAskTick == 0} is

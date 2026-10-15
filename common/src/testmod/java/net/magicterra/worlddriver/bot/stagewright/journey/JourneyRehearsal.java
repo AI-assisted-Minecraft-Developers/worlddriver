@@ -9,7 +9,7 @@ import java.util.function.Consumer;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -489,7 +489,7 @@ public final class JourneyRehearsal {
      * rungs 1–5, not the rung itself.
      */
     private static void stageFood(SceneContext ctx) {
-        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        PlayerBot body = JourneyRig.bodyOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
@@ -513,7 +513,7 @@ public final class JourneyRehearsal {
      * pass for a reason the ladder will never have.
      */
     private static void stagePortalLit(SceneContext ctx) {
-        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        PlayerBot body = JourneyRig.bodyOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
@@ -631,7 +631,7 @@ public final class JourneyRehearsal {
      * chosen column would stage the very check the descent depends on.
      */
     private static void stageObsidian(SceneContext ctx) {
-        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        PlayerBot body = JourneyRig.bodyOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
@@ -697,7 +697,7 @@ public final class JourneyRehearsal {
      * test.
      */
     private static void stageNether(SceneContext ctx) {
-        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        PlayerBot body = JourneyRig.bodyOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
@@ -911,7 +911,7 @@ public final class JourneyRehearsal {
      * "the staging built a portal" from "the staging built something portal-shaped".
      */
     private static void buildTheDoorwayAndBankIt(SceneContext ctx) {
-        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        PlayerBot body = JourneyRig.bodyOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — cannot stage the return doorway");
             return;
@@ -1171,7 +1171,7 @@ public final class JourneyRehearsal {
      */
     private static BlockPos standInThePortalRoom(SceneContext ctx, String what,
                                                  Map<String, Integer> kit, String notStaged) {
-        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        PlayerBot body = JourneyRig.bodyOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return null;
@@ -1466,7 +1466,7 @@ public final class JourneyRehearsal {
      * yet either.
      */
     private static void stageDragon(SceneContext ctx) {
-        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        PlayerBot body = JourneyRig.bodyOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;
@@ -1722,7 +1722,7 @@ public final class JourneyRehearsal {
      */
     private static void crossToTheNether(SceneContext ctx, String what, Map<String, Integer> kit,
                                          String notStaged) {
-        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        PlayerBot body = JourneyRig.bodyOrNull();
         if (body == null) {
             ctx.fail("rehearsal: no bot player entity — wd.rehearse02Spawn did not create the avatar");
             return;

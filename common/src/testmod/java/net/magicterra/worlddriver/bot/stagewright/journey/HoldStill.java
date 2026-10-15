@@ -9,7 +9,7 @@ import net.magicterra.worlddriver.bot.behavior.BotProcess;
  * Stand still for N ticks and let physics happen.
  *
  * <p>Sounds like nothing; it is the only way to make this bot fall. A server avatar has no
- * free-running physics — {@code ServerAvatarManager} steps only the avatars a registered driver is
+ * free-running physics — {@code BotTicker} steps only the avatars a registered driver is
  * ticking — so an unregistered bot hangs in the air over the hole it just dug. Every process this
  * suite had available also STEERS, and steering is exactly what ruins a shaft.
  *

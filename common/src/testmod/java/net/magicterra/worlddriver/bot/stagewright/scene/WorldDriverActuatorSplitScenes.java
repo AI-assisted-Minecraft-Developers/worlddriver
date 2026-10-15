@@ -15,7 +15,7 @@ import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.application.client.ClientDriverApi;
 import net.magicterra.worlddriver.application.client.ClientHooks;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.game.body.JoinedPlayerBodies;
+import net.magicterra.worlddriver.game.body.JoinedPlayers;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
@@ -164,7 +164,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         // checking a name before reading the numbers fails exactly when the numbers are interesting.
         //
         // Asked STRUCTURALLY, not by name, through SceneBody.isDriverMinted. `agent-body-N` is a
-        // naming convention (JoinedPlayerBodies.profileFor) and conventions get changed by people
+        // naming convention (JoinedPlayers.profileFor) and conventions get changed by people
         // who do not know this scene reads them; one shared predicate means a minted type added
         // later cannot slip through here as "not a JoinedBody, therefore a real person".
         boolean driverMinted = SceneBody.isDriverMinted(real);
@@ -903,7 +903,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
     private static List<ServerPlayer> humanPlayers(SceneContext ctx) {
         List<ServerPlayer> out = new ArrayList<>();
         for (ServerPlayer p : ctx.level().players()) {
-            if (p instanceof JoinedPlayerBodies.JoinedBody) continue;
+            if (p instanceof JoinedPlayers.JoinedBody) continue;
             out.add(p);
         }
         return out;

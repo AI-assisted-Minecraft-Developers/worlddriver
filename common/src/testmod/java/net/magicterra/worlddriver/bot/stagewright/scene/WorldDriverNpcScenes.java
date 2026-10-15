@@ -7,7 +7,7 @@ import java.util.function.Predicate;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.bot.behavior.BodyReady;
+import net.magicterra.worlddriver.bot.behavior.Readiness;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
@@ -182,7 +182,7 @@ public final class WorldDriverNpcScenes implements SceneProvider {
             // Recorded, not judged: the combat slot's flag belongs to CombatChain, which rewrites it
             // from engaged() every tick, so the process leaves it as attach set it.
             ctx.record(name, "done=" + done + " lastError=" + error + " active=" + slot.active);
-            ctx.check(done && BodyReady.Reason.NO_HANDS.equals(error))
+            ctx.check(done && Readiness.Reason.NO_HANDS.equals(error))
                     .as(name + " on an entity without hands ends with no_hands on its first tick: done=" + done + " lastError=" + error)
                     .isTrue();
         }

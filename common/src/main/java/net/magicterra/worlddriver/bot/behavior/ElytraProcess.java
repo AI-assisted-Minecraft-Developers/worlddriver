@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import net.magicterra.worlddriver.bot.behavior.BodyReady;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 
@@ -135,7 +134,7 @@ public final class ElytraProcess implements BotProcess {
         LivingEntity p = a.entity();
         if (p == null) { st.elytra.lastError = "player vanished"; st.elytra.reset(); return true; }
         equipment = a.equipment().orElse(null);
-        if (equipment == null) { st.elytra.lastError = BodyReady.Reason.NO_HANDS; st.elytra.reset(); return true; }
+        if (equipment == null) { st.elytra.lastError = Readiness.Reason.NO_HANDS; st.elytra.reset(); return true; }
 
         if (phase == Phase.TAKEOFF) {
             if (p.isFallFlying()) {

@@ -20,7 +20,7 @@ import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.magicterra.worlddriver.bot.behavior.MineProcess;
 import net.magicterra.worlddriver.bot.behavior.SmeltProcess;
 import net.magicterra.worlddriver.bot.behavior.TowerProcess;
-import net.magicterra.worlddriver.bot.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -461,7 +461,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.SPAWN);
         rig.attempting("create an empty-handed bot at world spawn");
 
-        ServerWorldDriver body = rig.spawnBody();
+        PlayerBot body = rig.spawnBody();
         var fp = body.fakePlayer();
 
         int carried = 0;

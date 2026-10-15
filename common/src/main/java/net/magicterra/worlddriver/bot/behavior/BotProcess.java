@@ -6,7 +6,7 @@ import net.magicterra.worlddriver.bot.world.WorldView;
 
 /** A bot behaviour driven once per tick. Implementations live in this package;
  *  the host {@code BotApiImpl} owns the single active process (client), and
- *  {@code ServerWorldDriver} can run the same process headless on the server tick.
+ *  {@code PlayerBot} can run the same process headless on the server tick.
  *
  *  <p>The one entry point is {@link #tick(Body, WorldView, BotState)}: it drives whatever
  *  player the {@code Body} wraps (the client's {@code LocalPlayer}, a joined server player),
