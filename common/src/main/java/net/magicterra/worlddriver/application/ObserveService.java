@@ -9,37 +9,23 @@ import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiException;
-import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
 import net.magicterra.worlddriver.api.methods.observe.ObserveApi;
 import net.magicterra.worlddriver.api.methods.observe.ObserveApiBinding;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.AsciiMap;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.BossReading;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.ClientView;
-import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.FleeStep;
-import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.HazardMap;
-import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.HazardSummary;
-import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.HeightStats;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.MapParams;
-import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Overlay;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Plane;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.PlayerParams;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.PlayerReading;
-import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Render;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Scene;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.SceneParams;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Threats;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.SceneOverlays;
-import net.magicterra.worlddriver.application.ItemSnap;
-import net.magicterra.worlddriver.bot.world.AsciiMapRenderer;
-import net.magicterra.worlddriver.bot.world.HazardCell;
-import net.magicterra.worlddriver.bot.world.HazardField;
-import net.magicterra.worlddriver.bot.world.ServerWorldView;
-import net.magicterra.worlddriver.bot.world.SurvivalFacts;
-import net.magicterra.worlddriver.bot.world.SurvivalMath;
+import net.magicterra.worlddriver.bot.WorldReadings;
 import net.magicterra.worlddriver.application.client.ClientDriverApi;
 import net.magicterra.worlddriver.application.client.ClientHooks;
 import net.magicterra.worlddriver.api.game.DriverEvent;
@@ -305,12 +291,8 @@ public final class ObserveService implements ObserveApi {
         }
     }
 
-    /**
-     * Server-side hazard scene: computes a {@link HazardField} over the server
-     * world around a center point (default: first player, else test origin),
-     * derives survival facts (lethalCount, cornered, safeFleeStep), and
-     * optionally renders an ASCII map and the overlays. Works headless.
-     */
+    /** Server-side hazard scene around a center point (default: first player, else test origin); see
+     *  {@link WorldReadings#scene}. Works headless. */
     @Override
     public CompletionStage<Scene> scene(SceneParams p, CallContext ctx) {
         int radius = Math.min(p.radius(), BotConfig.sceneQueryMaxRadius);
@@ -328,45 +310,8 @@ public final class ObserveService implements ObserveApi {
                     center = DriverApplication.ORIGIN;
                 }
             }
-            ServerWorldView w = new ServerWorldView(level);
-            int survivable = SurvivalMath.survivableFall(20f); // assume full HP server-side
-            HazardField f = HazardField.compute(w, center, radius, survivable, BotConfig.deepWaterMax);
-            // (0,1) is a placeholder threat direction (south) for the server overview;
-            // the real flee direction is derived client-side from actual nearby threats.
-            int[] flee = SurvivalFacts.safeFleeStep(f, 0, 1);
-            HazardSummary summary = new HazardSummary(SurvivalFacts.lethalCount(f), SurvivalFacts.cornered(f),
-                    flee == null ? Optional.empty() : Optional.of(new FleeStep(flee[0], flee[1])));
-            Optional<HazardMap> map = p.render() == Render.MAP
-                    ? Optional.of(new HazardMap(AsciiMapRenderer.rows(f), AsciiMapRenderer.legend()))
-                    : Optional.empty();
-            Optional<HeightStats> height = p.overlays().contains(Overlay.HEIGHT)
-                    ? Optional.of(heightStats(f, center, radius)) : Optional.empty();
-            // sight / mobDensity: the route planner's own components over the same grid.
-            SceneOverlays.Result overlays = SceneOverlays.apply(level, center, radius, SceneOverlays.of(f, center),
-                    p.overlays().contains(Overlay.SIGHT), p.overlays().contains(Overlay.MOB_DENSITY),
-                    p.route().orElse(RouteContracts.Route.NONE), selfId);
-            return new Scene(position(center), radius, requested, summary, map, height, overlays.sight(),
-                    overlays.mobDensity());
+            return WorldReadings.scene(level, center, radius, requested, p, selfId);
         }, ctx);
-    }
-
-    /** Surface-Y range over every standable cell of the grid. */
-    private static HeightStats heightStats(HazardField f, BlockPos center, int radius) {
-        int centerY = center.getY();
-        int minY = Integer.MAX_VALUE;
-        int maxY = Integer.MIN_VALUE;
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                HazardCell c = f.at(dx, dz);
-                if (c.standable()) {
-                    int surfaceY = centerY - c.cliffDropDepth();
-                    if (surfaceY < minY) minY = surfaceY;
-                    if (surfaceY > maxY) maxY = surfaceY;
-                }
-            }
-        }
-        boolean any = minY != Integer.MAX_VALUE;
-        return new HeightStats(centerY, any ? Optional.of(minY) : Optional.empty(), any ? Optional.of(maxY) : Optional.empty());
     }
 
 }

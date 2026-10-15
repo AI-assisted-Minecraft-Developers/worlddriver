@@ -24,10 +24,9 @@ import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.game.body.BotUtil.faceTowardEye;
-import static net.magicterra.worlddriver.game.body.BotUtil.STATION_REACH;
-import static net.magicterra.worlddriver.game.body.BotUtil.nearestBlockWithinReach;
 import static net.magicterra.worlddriver.game.observe.RegistryIds.itemId;
 import static net.magicterra.worlddriver.game.observe.RegistryIds.path;
+import net.magicterra.worlddriver.game.body.Stations;
 import net.magicterra.worlddriver.game.observe.BuildBlocks;
 
 /**
@@ -191,7 +190,7 @@ public final class SmeltProcess implements BotProcess {
             // Nothing in the bag — but a nearby furnace may hold a prior
             // interrupted load. Open it and let SMELT_WAIT/COLLECT finish the
             // job; a cold empty furnace fails fast there instead.
-            BlockPos fz = findFurnace(p, lvl);
+            BlockPos fz = Stations.furnace(p, lvl);
             if (fz != null) {
                 furnacePos = fz;
                 adopt = true;
@@ -208,7 +207,7 @@ public final class SmeltProcess implements BotProcess {
         }
         targetOut = Math.min(count, have);
 
-        BlockPos fz = findFurnace(p, lvl);
+        BlockPos fz = Stations.furnace(p, lvl);
         if (fz == null) fz = placeFurnace(a, p, lvl);
         if (fz == null) {
             // The same split CraftProcess makes for its table, for the same measured reason:
@@ -525,14 +524,6 @@ public final class SmeltProcess implements BotProcess {
      *  ranks with — so the number a diagnostic prints is the number the chooser used. */
     private static int burnOf(ItemStack s) {
         return s.isEmpty() ? 0 : AbstractFurnaceBlockEntity.getFuel().getOrDefault(s.getItem(), 0);
-    }
-
-    /** Nearest furnace within interaction reach of the eye. Twin of
-     *  {@code CraftProcess.findTable} — the scan lives in
-     *  {@link net.magicterra.worlddriver.game.body.BotUtil#nearestBlockWithinReach} so the two
-     *  cannot drift the way the PLACE half of this same pair did (see {@code PlaceNearby}). */
-    private static BlockPos findFurnace(Player p, Level lvl) {
-        return nearestBlockWithinReach(p, lvl, Blocks.FURNACE, STATION_REACH, 4, 2);
     }
 
     private BlockPos placeFurnace(Body a, Player p, Level lvl) {

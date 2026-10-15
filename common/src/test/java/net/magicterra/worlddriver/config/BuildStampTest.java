@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver;
+package net.magicterra.worlddriver.config;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot;
 import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static net.magicterra.worlddriver.api.game.Positions.blockPos;
@@ -30,6 +31,7 @@ import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
+import net.magicterra.worlddriver.bot.behavior.BboxFillProcess;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BridgeProcess;
 import net.magicterra.worlddriver.bot.behavior.BuildProcess;
@@ -44,6 +46,7 @@ import net.magicterra.worlddriver.bot.behavior.FarmProcess;
 import net.magicterra.worlddriver.bot.behavior.FollowProcess;
 import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
+import net.magicterra.worlddriver.bot.behavior.LookProcess;
 import net.magicterra.worlddriver.bot.behavior.MineProcess;
 import net.magicterra.worlddriver.bot.behavior.RunAwayProcess;
 import net.magicterra.worlddriver.bot.behavior.Schematic;
@@ -208,18 +211,19 @@ public final class VerbOrders {
     }
 
     /**
-     * The schematic a build order names; {@link IllegalArgumentException} when the bytes are not a
-     * schematic this game reads. Reads no world, so it runs before the order goes to a body.
+     * A build order with its schematic already read: the schematic reads no world, so it is read before
+     * the order goes to a body, and bytes that are no schematic this game reads throw here, as whatever
+     * the reader trips on.
      */
-    public static Schematic schematic(BuildContracts.Schematic s) {
-        return switch (s) {
+    public static Function<LivingEntity, Order<BuildContracts.Built>> build(BuildParams p) {
+        Schematic s = switch (p.schematic()) {
             case BuildContracts.Blocks b -> Schematic.of(b.w(), b.h(), b.d(), b.palette(), b.data());
             case BuildContracts.Sponge sp -> Schematic.fromSpongeSchem(java.util.Base64.getMimeDecoder().decode(sp.base64()));
         };
+        return self -> build(p, s, self);
     }
 
-    /** {@code s} is {@link #schematic} of the order's schematic. */
-    public static Order<BuildContracts.Built> build(BuildParams p, Schematic s, LivingEntity self) {
+    private static Order<BuildContracts.Built> build(BuildParams p, Schematic s, LivingEntity self) {
         if (!hasHands(self)) return handless("build", self);
         BuildProcess build = new BuildProcess(blockPos(p.origin()), s);
         BuildContracts.Size size = new BuildContracts.Size(s.w, s.h, s.d);
@@ -268,6 +272,17 @@ public final class VerbOrders {
                 : target != null ? MoveContracts.FlightMode.GOAL : MoveContracts.FlightMode.GLIDE;
         return new Start<>(new ElytraProcess(target, yaw, pitch, fireworks, p.fireworkEveryTicks(), maxTicks, p.stopXZDist(), reactive),
                 () -> new MoveContracts.Flown(mode, fireworks));
+    }
+
+    /** Turn smoothly toward {@code track}, or to {@code yaw}/{@code pitch} when it is null. */
+    public static BotProcess look(BlockPos track, float yaw, float pitch) {
+        return new LookProcess(track, yaw, pitch);
+    }
+
+    /** Break every non-air block of the box {@code from}..{@code to}, or only {@code filterFrom} when that is not
+     *  null, and put {@code fillId} in its place when that is not null. */
+    public static BotProcess fill(BlockPos from, BlockPos to, String fillId, String filterFrom) {
+        return new BboxFillProcess(from, to, fillId, filterFrom);
     }
 
     /** Whether the chest slot holds an elytra with flight left in it. */

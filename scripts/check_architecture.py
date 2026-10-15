@@ -26,6 +26,8 @@ PENDING = {}
 BOT_ORDER = ['bot', 'bot/arbitration', 'bot/behavior', 'bot/control', 'bot/planning', 'bot/rules',
              'bot/world']
 GAME = ('game', 'game/observe', 'game/body', 'game/edit', 'game/ui')
+# Types the facade hands out and takes back whole: a caller may hold one, never look inside.
+FACADE_EXPORTS = {'bot/behavior/BotProcess'}
 # Stack violations not fixed yet, one "file<TAB>what" per line, under the same shrink-only rule.
 STACK_PENDING = ROOT / 'scripts/architecture-pending.txt'
 
@@ -128,6 +130,8 @@ def stack_violations(source):
         used = {(p.replace('.', '/') + c) for p, c in DRIVER_REFERENCE.findall(text)}
         for target in used & classes:
             dst = stack_unit(target)
+            if target in FACADE_EXPORTS and stack_allows(src, 'bot'):
+                continue
             if target != name and not stack_allows(src, dst):
                 found.add((relative.as_posix(), f'{dst} {target.rsplit("/", 1)[-1]}'))
     return found

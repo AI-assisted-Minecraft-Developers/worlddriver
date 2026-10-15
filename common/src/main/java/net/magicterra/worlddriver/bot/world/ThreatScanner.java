@@ -2,8 +2,6 @@ package net.magicterra.worlddriver.bot.world;
 
 import static net.magicterra.worlddriver.game.observe.RegistryIds.typeId;
 
-import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -222,25 +220,5 @@ public final class ThreatScanner {
         if (charging) s += 0.20;
         if (swell > 0) s += swell * 0.5;
         return Math.max(0.0, Math.min(1.0, s));
-    }
-
-    // === verb serialization (mc.observe.threats) =============================
-
-    public static ObserveContracts.Threats reading(Scan s) {
-        List<ObserveContracts.Threat> threats = new ArrayList<>();
-        for (Threat t : s.threats()) {
-            threats.add(new ObserveContracts.Threat(t.id(), t.type(), point(t.entity().position()), t.distance(),
-                    t.canSeeMe(), t.facingMe(), t.charging(), t.creeperSwell(), t.attackedMe(), t.score()));
-        }
-        List<ObserveContracts.Projectile> proj = new ArrayList<>();
-        for (Incoming in : s.projectiles()) {
-            proj.add(new ObserveContracts.Projectile(in.id(), in.type(), point(in.pos()), point(in.vel()), in.willHit(),
-                    in.ticksToImpact()));
-        }
-        return new ObserveContracts.Threats(threats, proj);
-    }
-
-    private static CommonTypes.Point point(Vec3 v) {
-        return new CommonTypes.Point(v.x, v.y, v.z);
     }
 }

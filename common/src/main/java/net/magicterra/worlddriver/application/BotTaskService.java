@@ -54,7 +54,6 @@ import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.GotoOrders;
 import net.magicterra.worlddriver.bot.VerbOrders;
 import net.magicterra.worlddriver.bot.BodyRegistry;
-import net.magicterra.worlddriver.bot.behavior.BboxFillProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -184,15 +183,15 @@ final class BotTaskService implements BotTaskApi {
         if (p.schematic() instanceof BuildContracts.Blocks b) {
             for (int i = 0; i < b.palette().size(); i++) requireBlock("/schematic/palette/" + i, b.palette().get(i));
         }
-        net.magicterra.worlddriver.bot.behavior.Schematic schematic;
+        Function<LivingEntity, VerbOrders.Order<BuildContracts.Built>> order;
         try {
-            schematic = VerbOrders.schematic(p.schematic());
+            order = VerbOrders.build(p);
         } catch (RuntimeException e) {
             // Malformed NBT surfaces as whatever the reader trips on, not only IllegalArgumentException.
             throw ApiException.invalidParam(p.schematic() instanceof BuildContracts.Sponge ? "/schematic/base64" : "/schematic",
                     ApiIssue.Code.INVALID_VALUE, "not a schematic this game reads: " + e.getMessage());
         }
-        return actions.start(p.body(), p.awaitMs(), ctx, body -> plan(VerbOrders.build(p, schematic, body)));
+        return actions.start(p.body(), p.awaitMs(), ctx, body -> plan(order.apply(body)));
     }
 
     /**
@@ -251,7 +250,7 @@ final class BotTaskService implements BotTaskApi {
             }
             BlockPos from = new BlockPos((int) cells.x0(), (int) cells.y0(), (int) cells.z0());
             BlockPos to = new BlockPos((int) cells.x1(), (int) cells.y1(), (int) cells.z1());
-            return BodyTaskStarter.Start.reporting(new BboxFillProcess(from, to, fillId, filterFrom),
+            return BodyTaskStarter.Start.reporting(VerbOrders.fill(from, to, fillId, filterFrom),
                     new Summary(position(from), position(to), used));
         });
     }

@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.bot.behavior;
+package net.magicterra.worlddriver.game.observe;
 
 import static net.magicterra.worlddriver.game.observe.RegistryIds.itemId;
 

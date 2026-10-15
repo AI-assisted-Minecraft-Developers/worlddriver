@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot;
 
 import java.util.List;
 import java.util.Map;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientScene;
 import net.magicterra.worlddriver.api.methods.test.TestInputContracts;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.world.WorldModel;
@@ -123,11 +124,10 @@ public interface BotApi {
             net.magicterra.worlddriver.api.methods.control.ControlContracts.WaypointOp op);
 
     /**
-     * Per-tick derived-facts blackboard updated on the client tick. Returns the
-     * client-authoritative {@link WorldModel} so that {@code mc.client.scene}
-     * can read the latest snapshot off-thread without blocking the tick.
+     * {@code mc.client.scene}: the latest snapshot of the per-tick derived-facts blackboard
+     * ({@link WorldModel}) the client tick updates, readable off-thread without blocking the tick.
      */
-    WorldModel worldModel();
+    ClientScene scene();
 
     // ---- the object seam: hand the client a process, not a verb ----------------
     // Everything above takes a verb plus params, because everything above is an MCP

@@ -330,7 +330,7 @@ public final class BotUtil {
      * of the eye, or null.
      *
      * <p><b>The other half of a pair that has already been merged once.</b>
-     * {@code CraftProcess.findTable} and {@code SmeltProcess.findFurnace} carried this loop
+     * The table and furnace scans (now {@code Stations.table} and {@code Stations.furnace}) carried this loop
      * twice over, identical but for the block tested and both priced at {@link #STATION_REACH}.
      * The PLACE half of the same two verbs was merged into {@code PlaceNearby} only after the
      * copies had already diverged twice — its javadoc records gap#61 fixing the table's scan
@@ -410,9 +410,9 @@ public final class BotUtil {
      *     <td>{@code FILL_STAND_REACH} = 4.0, no ray</td></tr>
      * <tr><td>{@code WalkerTickClimb} parkour-place</td><td>the real eye</td>
      *     <td>{@code PARKOUR_PLACE_REACH} = 4.0</td></tr>
-     * <tr><td>{@code CraftProcess.findTable}</td><td>the real eye</td>
+     * <tr><td>{@code Stations.table}</td><td>the real eye</td>
      *     <td>{@link #STATION_REACH} = 4.3, via {@link #nearestBlockWithinReach}</td></tr>
-     * <tr><td>{@code SmeltProcess.findFurnace}</td><td>the real eye</td>
+     * <tr><td>{@code Stations.furnace}</td><td>the real eye</td>
      *     <td>{@link #STATION_REACH}, same helper</td></tr>
      * </table>
      *

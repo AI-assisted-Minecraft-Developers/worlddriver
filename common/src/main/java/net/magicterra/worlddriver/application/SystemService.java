@@ -7,7 +7,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledFuture;
 
-import net.magicterra.worlddriver.BuildStamp;
+import net.magicterra.worlddriver.config.BuildStamp;
 import net.magicterra.worlddriver.api.call.ApiTimers;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.call.WaitPermits;

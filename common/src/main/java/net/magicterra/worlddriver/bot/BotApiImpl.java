@@ -9,6 +9,7 @@ import net.magicterra.worlddriver.game.body.HandVerbs;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.bot.CombatContracts;
+import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientScene;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
@@ -41,7 +42,14 @@ import net.magicterra.worlddriver.game.body.ClientIntents;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerPlanAdoption;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
-import net.magicterra.worlddriver.bot.behavior.*;
+import net.magicterra.worlddriver.bot.behavior.BackfillProcess;
+import net.magicterra.worlddriver.bot.behavior.BackfillTracker;
+import net.magicterra.worlddriver.bot.behavior.BodyReady;
+import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.magicterra.worlddriver.bot.behavior.BotState;
+import net.magicterra.worlddriver.bot.behavior.Intent;
+import net.magicterra.worlddriver.bot.behavior.IntentProcess;
+import net.magicterra.worlddriver.bot.behavior.RouteEvents;
 import net.magicterra.worlddriver.bot.arbitration.BunkerChain;
 import net.magicterra.worlddriver.bot.arbitration.CancelRouting;
 import net.magicterra.worlddriver.bot.arbitration.Ticket;
@@ -100,7 +108,7 @@ public final class BotApiImpl implements BotApi {
     /** Per-tick derived-facts blackboard. Updated each client tick; snapshotted
      *  for off-thread reads by {@code mc.client.scene}. */
     private final WorldModel worldModel = new WorldModel();
-    @Override public WorldModel worldModel() { return worldModel; }
+    @Override public ClientScene scene() { return WorldReadings.clientScene(worldModel.snapshot()); }
     // Wire the WorldModel into the ClientWorldView so dangerCost can apply the
     // HazardField lethal-cell penalty. Done in an instance initialiser so both
     // final fields are guaranteed initialised before any tick fires. The cast is

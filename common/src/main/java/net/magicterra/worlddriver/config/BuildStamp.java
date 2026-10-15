@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver;
+package net.magicterra.worlddriver.config;
 
 import java.net.URI;
 import java.net.URL;

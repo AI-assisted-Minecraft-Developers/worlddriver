@@ -62,10 +62,4 @@ public final class ClientThreatScanner {
     public static ThreatScanner.Scan current(Minecraft mc) {
         return ThreatScanner.current();
     }
-
-    /** Fresh scan at an explicit radius (for the {@code mc.observe.threats} verb). */
-    public static ThreatScanner.Scan compute(Minecraft mc, int radius) {
-        if (mc.player == null || mc.level == null) return ThreatScanner.EMPTY;
-        return ThreatScanner.compute(mc.level, mc.player, radius);
-    }
 }

@@ -22,7 +22,7 @@ import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.BodyRegistry;
-import net.magicterra.worlddriver.bot.behavior.LookProcess;
+import net.magicterra.worlddriver.bot.VerbOrders;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 
@@ -58,7 +58,7 @@ final class InteractService implements InteractApi {
             return actions.start(p.body(), p.awaitMs(), ctx, body -> {
                 float[] aim = BodyInteractions.aim(body, p);
                 BlockPos track = p.pos().map(Positions::blockPos).orElse(null);
-                return BodyTaskStarter.Start.reporting(new LookProcess(track, aim[0], aim[1]), new Looked(aim[0], aim[1]));
+                return BodyTaskStarter.Start.reporting(VerbOrders.look(track, aim[0], aim[1]), new Looked(aim[0], aim[1]));
             });
         }
         return actions.within(p.body(), ctx, Refused::new,

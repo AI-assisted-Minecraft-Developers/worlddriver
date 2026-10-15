@@ -1,23 +1,4 @@
 # Layer violations below the api still to be fixed; see scripts/check_architecture.py.
-application/BodyTaskStarter.java	bot/behavior BotProcess
-application/BotTaskService.java	bot/behavior BboxFillProcess
-application/BotTaskService.java	bot/behavior Schematic
-application/ClientService.java	bot/world WorldModel
-application/InteractService.java	bot/behavior LookProcess
-application/ObserveService.java	bot/world AsciiMapRenderer
-application/ObserveService.java	bot/world HazardCell
-application/ObserveService.java	bot/world HazardField
-application/ObserveService.java	bot/world ServerWorldView
-application/ObserveService.java	bot/world SurvivalFacts
-application/ObserveService.java	bot/world SurvivalMath
-application/PlayerSnapshots.java	bot/behavior CraftProcess
-application/RecipeService.java	bot/behavior AcquireResolver
-application/RecipeService.java	bot/behavior CraftProcess
-application/RecipeService.java	bot/behavior RecipeResolver
-application/SystemService.java	(root) BuildStamp
-application/client/ClientObserve.java	bot/behavior CraftProcess
-application/client/ClientObserve.java	bot/world ClientThreatScanner
-application/client/ClientObserve.java	bot/world ThreatScanner
 bot/BotApiImpl.java	(root) WorldDriverCommon
 bot/BotApiImpl.java	net.minecraft.client
 bot/ClientEventDetector.java	(root) WorldDriverCommon
@@ -83,8 +64,6 @@ bot/planning/PathFinder.java	(root) WorldDriverCommon
 bot/rules/modifiers/RiskCostTable.java	(root) WorldDriverCommon
 bot/world/ClientThreatScanner.java	net.minecraft.client
 bot/world/ClientWorldView.java	net.minecraft.client
-bot/world/ThreatScanner.java	api/methods CommonTypes
-bot/world/ThreatScanner.java	api/methods ObserveContracts
 bot/world/WorldModel.java	net.minecraft.client
 config/BotConfig.java	(root) WorldDriverCommon
 config/BotConfigFile.java	(root) WorldDriverCommon

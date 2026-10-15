@@ -18,9 +18,10 @@ import net.magicterra.worlddriver.api.methods.recipe.RecipeContracts.LookupParam
 import net.magicterra.worlddriver.api.methods.recipe.RecipeContracts.PlanParams;
 import net.magicterra.worlddriver.api.methods.recipe.RecipeContracts.Recipes;
 import net.magicterra.worlddriver.api.methods.recipe.RecipeContracts.Stack;
-import net.magicterra.worlddriver.bot.behavior.AcquireResolver;
-import net.magicterra.worlddriver.bot.behavior.CraftProcess;
-import net.magicterra.worlddriver.bot.behavior.RecipeResolver;
+import net.magicterra.worlddriver.game.observe.AcquireResolver;
+import net.magicterra.worlddriver.game.body.Stations;
+import net.magicterra.worlddriver.game.observe.ItemCounts;
+import net.magicterra.worlddriver.game.observe.RecipeResolver;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -194,7 +195,7 @@ public final class RecipeService implements RecipeApi {
         return api.requireServerHop().submit(() -> {
             Map<String, Integer> have = resolveHave(p.have(), botPlayer());   // reads the bag: server thread only
             return body.plan(target, p.count(), have, level.getRecipeManager(), level.registryAccess(),
-                    CraftProcess.availableStations(botPlayer(), level));
+                    Stations.available(botPlayer(), level));
         }, ctx);
     }
 
@@ -272,7 +273,7 @@ public final class RecipeService implements RecipeApi {
      * The stock the planner plans against.
      *
      * <p>OMITTED {@code have} means "plan for the bot as it actually is", so it reads the
-     * real bag through {@link CraftProcess#inventorySnapshot} — the very method the craft
+     * real bag through {@link ItemCounts#bag} — the very method the craft
      * executor consumes from. Planner and executor must measure the same bag with the same
      * ruler; when they don't, the plan is a plan for a different bot. That is gap #38's
      * lesson (stations half) and this is its items half: with the old empty-map default a
@@ -292,7 +293,7 @@ public final class RecipeService implements RecipeApi {
     public static Map<String, Integer> resolveHave(Optional<Map<String, Integer>> given, Player bot) {
         if (given.isPresent()) return new LinkedHashMap<>(given.get());
         Map<String, Integer> have = new LinkedHashMap<>();
-        if (bot != null) have.putAll(CraftProcess.inventorySnapshot(bot));
+        if (bot != null) have.putAll(ItemCounts.bag(bot));
         return have;
     }
 }

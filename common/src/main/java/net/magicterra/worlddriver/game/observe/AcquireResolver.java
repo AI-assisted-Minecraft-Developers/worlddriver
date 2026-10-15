@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.bot.behavior;
+package net.magicterra.worlddriver.game.observe;
 
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -87,7 +87,7 @@ public final class AcquireResolver {
     /** As above, but {@code availableStations} names stations the caller can already
      *  reach (e.g. {@code "crafting_table"} for a placed table in range) so the plan
      *  doesn't include acquiring a redundant one — see
-     *  {@link CraftProcess#availableStations} (gap #275). */
+     *  {@code Stations.available} (gap #275). */
     public static Plan plan(RecipeManager rm, HolderLookup.Provider ra,
                             String target, int count, Map<String, Integer> have,
                             Set<String> availableStations) {

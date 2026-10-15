@@ -21,17 +21,16 @@ import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.game.body.BotUtil.faceTowardEye;
-import static net.magicterra.worlddriver.game.body.BotUtil.STATION_REACH;
-import static net.magicterra.worlddriver.game.body.BotUtil.nearestBlockWithinReach;
 import static net.magicterra.worlddriver.game.observe.RegistryIds.itemId;
 import static net.magicterra.worlddriver.game.observe.RegistryIds.path;
+import net.magicterra.worlddriver.game.body.Stations;
+import net.magicterra.worlddriver.game.observe.ItemCounts;
+import net.magicterra.worlddriver.game.observe.RecipeResolver;
 
 /**
  * Phase E — execute a {@link RecipeResolver} plan as real client-side crafting.
@@ -83,7 +82,7 @@ public final class CraftProcess implements BotProcess {
     private int waited;
     private BlockPos tablePos;   // table currently in use (found OR placed)
     /** The table THIS process placed, and the only block it may ever break (gap #276).
-     *  Deliberately NOT {@link #tablePos}: that one is also set from {@link #findTable},
+     *  Deliberately NOT {@link #tablePos}: that one is also set from {@link Stations#table},
      *  so reclaiming it would demolish a village / player-base table the bot merely
      *  borrowed. Null unless {@link #placeTable} actually succeeded. */
     private BlockPos placedTable;
@@ -218,14 +217,14 @@ public final class CraftProcess implements BotProcess {
             fail(s, p, "unknown item: " + target);
             return;
         }
-        Map<String, Integer> have = inventorySnapshot(p);
+        Map<String, Integer> have = ItemCounts.bag(p);
         // World-aware station availability (gap #275): a crafting_table already PLACED
-        // within reach is usable as-is (setupStation → findTable), so the plan must not
+        // within reach is usable as-is (setupStation → Stations.table), so the plan must not
         // craft a redundant one. The resolver suppresses on an INVENTORY table by itself
         // (via `have`); this supplies the world half it is blind to. Without it, a bot
         // crafting beside a village table would waste 4 planks — and with barely enough
         // planks, a feasible craft would be reported as missing.
-        RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, target, count, have, availableStations(p, lvl));
+        RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, target, count, have, Stations.available(p, lvl));
         if (!plan.complete()) {
             // Give the client inventory a few ticks to catch up before giving up —
             // a craft issued right after a pickup/give would otherwise read empty.
@@ -270,7 +269,7 @@ public final class CraftProcess implements BotProcess {
         // crafting_table: reuse an already-open table, else open one.
         if (p.containerMenu instanceof CraftingMenu) { waited = 0; st = St.PLACE; return; }
 
-        BlockPos table = (tablePos != null && isTable(lvl, tablePos)) ? tablePos : findTable(p, lvl);
+        BlockPos table = (tablePos != null && isTable(lvl, tablePos)) ? tablePos : Stations.table(p, lvl);
         if (table == null) table = placeTable(a, p, lvl);
         if (table == null) {
             // Distinguish the two causes: a missing ITEM needs an acquire plan, a
@@ -344,27 +343,6 @@ public final class CraftProcess implements BotProcess {
         return lvl.getBlockState(pos).is(Blocks.CRAFTING_TABLE);
     }
 
-    /** Stations the bot can use RIGHT NOW without acquiring one — currently just a
-     *  crafting_table already placed within interaction reach ({@link #findTable}, the
-     *  same check {@link #setupStation} uses). SINGLE SOURCE, shared with the planner
-     *  verbs (mc.recipe.resolve / mc.plan.acquire): the plan they report must be the
-     *  plan this process will actually run. If the planner used a different reach rule
-     *  it could promise "no table needed" where setupStation then fails — or, the other
-     *  way, report an infeasible craft that would in fact succeed beside a village table
-     *  (gap #275). {@code p == null} → nothing available (world-less caller). */
-    public static Set<String> availableStations(Player p, Level lvl) {
-        return (p != null && lvl != null && findTable(p, lvl) != null)
-                ? Set.of("crafting_table") : Set.of();
-    }
-
-    /** Nearest crafting table within interaction reach of the eye. Twin of
-     *  {@code SmeltProcess.findFurnace} — the scan lives in
-     *  {@link net.magicterra.worlddriver.game.body.BotUtil#nearestBlockWithinReach} so the two
-     *  cannot drift the way the PLACE half of this same pair did (see {@code PlaceNearby}). */
-    private static BlockPos findTable(Player p, Level lvl) {
-        return nearestBlockWithinReach(p, lvl, Blocks.CRAFTING_TABLE, STATION_REACH, 4, 2);
-    }
-
     /** Place a crafting table from inventory nearby, return its position (or null). */
     private BlockPos placeTable(Body a, Player p, Level lvl) {
         BlockPos cell = PlaceNearby.place(a, hands, p,lvl, Items.CRAFTING_TABLE, Blocks.CRAFTING_TABLE, "craft");
@@ -375,25 +353,6 @@ public final class CraftProcess implements BotProcess {
     }
 
     // === misc ================================================================
-
-    /**
-     * Item id -> count over the bag the craft executor actually consumes from: main
-     * inventory + offhand, armor excluded, ids namespaced. This is the definition of
-     * {@code have} — {@code mc.observe.player} emits its {@code items} map through
-     * THIS method precisely so the bag the agent asks the planner about is the bag the
-     * executor will reach into. Two rulers is how a plan comes back "complete" and then
-     * fails at craft time (gap #38, same lesson, stations half).
-     */
-    public static Map<String, Integer> inventorySnapshot(Player p) {
-        Map<String, Integer> have = new LinkedHashMap<>();
-        for (ItemStack s : p.getInventory().items) {
-            if (s.isEmpty()) continue;
-            have.merge(itemId(s), s.getCount(), Integer::sum);
-        }
-        ItemStack off = p.getInventory().offhand.isEmpty() ? ItemStack.EMPTY : p.getInventory().offhand.get(0);
-        if (!off.isEmpty()) have.merge(itemId(off), off.getCount(), Integer::sum);
-        return have;
-    }
 
 
     /** Compact one-line dump of a resolved job list for the plan-telemetry log line. */

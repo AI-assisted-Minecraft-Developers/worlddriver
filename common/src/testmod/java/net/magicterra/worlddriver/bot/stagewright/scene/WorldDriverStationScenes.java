@@ -14,7 +14,7 @@ import net.magicterra.worlddriver.application.PlayerSnapshots;
 import net.magicterra.worlddriver.application.RecipeService;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.behavior.CraftProcess;
-import net.magicterra.worlddriver.bot.behavior.RecipeResolver;
+import net.magicterra.worlddriver.game.observe.RecipeResolver;
 import net.magicterra.worlddriver.bot.behavior.SmeltProcess;
 import net.magicterra.worlddriver.bot.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.ServerAvatarManager;

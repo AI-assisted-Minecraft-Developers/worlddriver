@@ -22,8 +22,8 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.Look;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.PlayerState;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.TimeOfDay;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Vitals;
-import net.magicterra.worlddriver.bot.behavior.CraftProcess;
 import net.magicterra.worlddriver.game.observe.AttackSnap;
+import net.magicterra.worlddriver.game.observe.ItemCounts;
 import net.magicterra.worlddriver.application.ItemSnap;
 import net.magicterra.worlddriver.game.observe.TimeSnap;
 import net.minecraft.core.BlockPos;
@@ -68,7 +68,7 @@ public final class PlayerSnapshots {
         return new PlayerState(p.getGameProfile().getName(), p.getUUID().toString(),
                 p.level().dimension().location().toString(), gameMode(p), new Point(p.getX(), p.getY(), p.getZ()),
                 position(cell), new Look(p.getYRot(), p.getXRot()), body, vitals,
-                effects(p), time, attack, equipment, inventory, CraftProcess.inventorySnapshot(p), view);
+                effects(p), time, attack, equipment, inventory, ItemCounts.bag(p), view);
     }
 
     /** Active effects, as both mc.observe.player and mc.query's entity rows report them. */

@@ -15,7 +15,7 @@ import java.util.concurrent.CompletableFuture;
 import net.magicterra.worlddriver.protocol.RequestLimits;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import net.magicterra.worlddriver.BuildStamp;
+import net.magicterra.worlddriver.config.BuildStamp;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.rpc.EventNotifications;

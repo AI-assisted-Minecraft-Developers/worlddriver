@@ -44,8 +44,7 @@ import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SlotRow;
 
 import net.magicterra.worlddriver.game.ClientHop;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
-import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.bot.world.ClientThreatScanner;
+import net.magicterra.worlddriver.bot.WorldReadings;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.EntityHitResult;
@@ -59,8 +58,8 @@ import java.util.function.Predicate;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.magicterra.worlddriver.game.observe.BlockMatch;
-import net.magicterra.worlddriver.bot.behavior.CraftProcess;
 import net.magicterra.worlddriver.game.observe.AttackSnap;
+import net.magicterra.worlddriver.game.observe.ItemCounts;
 import net.magicterra.worlddriver.application.ItemSnap;
 import net.magicterra.worlddriver.game.observe.TimeSnap;
 import net.minecraft.world.entity.LivingEntity;
@@ -168,7 +167,7 @@ public final class ClientObserve {
             // take as `have`. Same helper the craft executor counts with, so the bag the
             // agent plans against is the bag the executor reaches into — and the server
             // snapshot emits this field through the same call (ObserveService.playerSnapshot).
-            out.put("items", CraftProcess.inventorySnapshot(p));
+            out.put("items", ItemCounts.bag(p));
             // HitResult — what the camera is aimed at right now (client-side raycast).
             HitResult hr = mc.hitResult;
             Map<String, Object> hit = new LinkedHashMap<>();
@@ -294,7 +293,7 @@ public final class ClientObserve {
         return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             if (mc.level == null || mc.player == null) return new ObserveContracts.Threats(List.of(), List.of());
-            return ThreatScanner.reading(ClientThreatScanner.compute(mc, radius));
+            return WorldReadings.threats(mc.level, mc.player, radius);
         });
     }
 
@@ -366,7 +365,7 @@ public final class ClientObserve {
             ItemStack held = p.getMainHandItem();
             Optional<Stack> mainHand = held == null || held.isEmpty() ? Optional.empty()
                     : Optional.of(new Stack(BuiltInRegistries.ITEM.getKey(held.getItem()).toString(), held.getCount(), wear(held)));
-            Inventory inventory = new Inventory(inv.selected, mainHand, slots, CraftProcess.inventorySnapshot(p));
+            Inventory inventory = new Inventory(inv.selected, mainHand, slots, ItemCounts.bag(p));
             return new ClientPlayer(true, Optional.of(p.getGameProfile().getName()), Optional.of(p.getUUID().toString()),
                     Optional.of(p.level().dimension().location().toString()), Optional.of(new Point(p.getX(), p.getY(), p.getZ())),
                     Optional.of(new Look(p.getYRot(), p.getXRot())), Optional.of(body), Optional.of(vitals), Optional.of(time),

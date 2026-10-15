@@ -11,7 +11,6 @@ import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.api.registry.ApiHandlers;
-import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.call.WaitPermits;
 import net.magicterra.worlddriver.api.registry.ApiMethod;
@@ -26,8 +25,6 @@ import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientScene
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.world.WorldModel;
-import net.minecraft.core.BlockPos;
 import net.magicterra.worlddriver.application.client.ClientDriverApi;
 import net.magicterra.worlddriver.application.client.ClientHooks;
 
@@ -129,16 +126,7 @@ final class ClientService implements ClientApi {
         if (bot == null) {
             throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "mc.client.scene needs a game client, and this JVM has none");
         }
-        WorldModel.Snapshot s = bot.worldModel().snapshot();
-        if (!s.present()) {
-            return new ClientScene(false, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
-        }
-        BlockPos p = s.pos();
-        return new ClientScene(true, Optional.of(Positions.position(p)),
-                Optional.of((double) s.health()), Optional.of(s.food()), Optional.of(s.dayPhase()),
-                Optional.of(s.skyExposed()), Optional.of(s.exposedAtNight()), Optional.of(s.cornered()),
-                Optional.of(s.lethalCount()), Optional.of(List.copyOf(s.rows())));
+        return bot.scene();
     }
 
     private static ClientContracts.BlockScan blocks(ClientDriverApi c, BlocksParams p) {
