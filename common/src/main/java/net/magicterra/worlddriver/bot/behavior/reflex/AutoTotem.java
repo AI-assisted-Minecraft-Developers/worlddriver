@@ -1,7 +1,8 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.Menus;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -30,14 +31,16 @@ public final class AutoTotem {
     /** One SWAP click on the inventory menu: {@code slot} with {@code button} (0..8 a hotbar slot, 40 the offhand). */
     record Click(int slot, int button) {}
 
-    public void tick(Minecraft mc, LocalPlayer p) {
-        if (mc.screen != null || mc.gameMode == null) return;
+    public void tick(Body body) {
+        Player p = body.asPlayer();
+        Menus menus = body.menus().orElse(null);
+        if (p == null || menus == null || menus.menuOpen()) return;
         var menu = p.inventoryMenu;
         Held[] slots = new Held[LAST_HOTBAR + 1];
         for (int i = FIRST_BACKPACK; i <= LAST_HOTBAR; i++) slots[i] = held(menu.getSlot(i).getItem());
         Click c = plan(held(p.getInventory().offhand.get(0)), slots, p.getInventory().selected);
         if (c == null) return;
-        mc.gameMode.handleInventoryMouseClick(menu.containerId, c.slot(), c.button(), ClickType.SWAP, p);
+        menus.containerClick(menu.containerId, c.slot(), c.button(), ClickType.SWAP);
     }
 
     private static Held held(ItemStack s) {

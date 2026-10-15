@@ -337,19 +337,6 @@ public final class BotInteract {
         if (mc.player != null) mc.player.setShiftKeyDown(false);
     }
 
-    public static boolean isFoodStack(ItemStack stk) {
-        if (stk == null || stk.isEmpty()) return false;
-        return stk.get(DataComponents.FOOD) != null;
-    }
-
-    public static int findFoodHotbarSlot(LocalPlayer p) {
-        Inventory inv = p.getInventory();
-        for (int i = 0; i < 9; i++) {
-            if (isFoodStack(inv.items.get(i))) return i;
-        }
-        return -1;
-    }
-
     public static void aimAtBlockSnap(LocalPlayer p, BlockPos block) {
         BotUtil.aimAt(p, block.getX() + 0.5, block.getY() + 0.5, block.getZ() + 0.5);
         // Functional exact aim: vanilla's use-item pass / interaction raycasts off

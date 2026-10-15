@@ -1,14 +1,13 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
 import net.magicterra.worlddriver.config.BehaviorConfig;
-import net.magicterra.worlddriver.game.body.BotInteract;
-import net.magicterra.worlddriver.game.body.ClientIntents;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.Equipment;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.alchemy.PotionContents;
@@ -24,32 +23,37 @@ import net.minecraft.world.item.alchemy.PotionContents;
 public final class AutoHeal {
     private boolean healing;
 
-    public boolean wants(Minecraft mc, LocalPlayer p) {
-        return p.getHealth() <= BehaviorConfig.healHpThreshold && healSlot(p) >= 0;
+    public boolean wants(Body body) {
+        Player p = body.asPlayer();
+        return p != null && body.equipment().isPresent()
+                && p.getHealth() <= BehaviorConfig.healHpThreshold && healSlot(p) >= 0;
     }
 
-    public void engage(Minecraft mc, LocalPlayer p) {
+    public void engage(Body body) {
+        Player p = body.asPlayer();
+        Equipment hands = body.equipment().orElse(null);
+        if (p == null || hands == null) return;
         int slot = healSlot(p);
-        if (slot < 0) { release(mc); return; }
+        if (slot < 0) { release(body); return; }
         if (p.getInventory().selected != slot) {
             // Switch first; defer the use hold a tick so the held item change
             // reaches the server before we start consuming (mirrors AutoEat).
-            BotInteract.selectHotbar(p, slot);
+            hands.setSelectedSlot(slot);
             return;
         }
-        ClientIntents.holdUse(true);
+        hands.commandUseItem(true);
         healing = true;
     }
 
-    public void release(Minecraft mc) {
+    public void release(Body body) {
         if (healing) {
-            ClientIntents.holdUse(false);
+            body.equipment().ifPresent(h -> h.commandUseItem(false));
             healing = false;
         }
     }
 
     /** First hotbar slot holding a healing item, or -1. */
-    private int healSlot(LocalPlayer p) {
+    private int healSlot(Player p) {
         Inventory inv = p.getInventory();
         for (int i = 0; i < 9; i++) {
             if (isHealingItem(inv.items.get(i))) return i;

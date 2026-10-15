@@ -61,10 +61,15 @@ class UseKeyOwnershipTest {
             "AutoShield.java", "arbitration winner; release() called by the losers' branch",
             "AutoHeal.java", "arbitration participant; release() on loss and on completion",
             "AutoEat.java", "arbitration participant; releaseIfActive() on loss, self-clears when fed",
-            "ClientPlayerBody.java", "commandUseItem(hold) — CombatProcess's bow draw, "
-                    + "released on the up-edge that shoots and by CombatChain#releaseUseKey on preempt");
+            "CombatProcess.java", "the bow draw, released on the up-edge that shoots and by "
+                    + "CombatChain#releaseUseKey on preempt",
+            "ClientPlayerBody.java", "commandUseItem(hold): the client body's own latch, which every "
+                    + "acquirer above reaches through the Equipment seam");
 
-    private static final Pattern SET_DOWN = Pattern.compile("ClientIntents\\s*\\.\\s*holdUse\\s*\\(([^)]*)\\)");
+    /** The latch itself, and the body seam every reflex holds it through since they stopped naming
+     *  the client. The leading dot keeps the interface declarations out. */
+    private static final Pattern SET_DOWN =
+            Pattern.compile("(?:ClientIntents\\s*\\.\\s*holdUse|\\.\\s*commandUseItem)\\s*\\(([^)]*)\\)");
 
     @Test
     void onlyKnownFilesPressTheUseKey() {

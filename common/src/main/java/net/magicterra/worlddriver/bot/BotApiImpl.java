@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import net.magicterra.worlddriver.game.ui.ClientChatLog;
 import net.magicterra.worlddriver.game.body.ClientIntents;
+import net.magicterra.worlddriver.game.body.ClientPlayerBody;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerPlanAdoption;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
@@ -722,6 +723,9 @@ public final class BotApiImpl implements BotApi {
         if (BotConfig.autoRespawn) AutoRespawn.tick(mc);
         if (mc.level == null || mc.player == null) { if (releaseGate.consumeRelease()) releaseKeys(); return; }
         if (paused) { if (releaseGate.consumeRelease()) releaseKeys(); return; }
+        // The client's player as the body every reflex and chain below steers; built fresh per
+        // tick for the reason clientAvatar() gives.
+        ClientPlayerBody body = new ClientPlayerBody(mc);
         // Update the perception blackboard every tick so mc.client.scene always
         // serves the freshest client-authoritative snapshot.
         worldModel.update(mc, world, state);
@@ -791,24 +795,24 @@ public final class BotApiImpl implements BotApi {
         // the losers release. Why a builder silences all three — and what keeps this
         // protocol whole at all — is on builderSuppressesAmbients.
         if (builderSuppressesAmbients(c)) {
-            autoShield.release(mc); autoHeal.release(mc); autoEat.releaseIfActive(mc);
+            autoShield.release(body); autoHeal.release(body); autoEat.releaseIfActive(body);
         } else {
             ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
-            if (BotConfig.autoShield && autoShield.wants(mc, mc.player, scan)) {
-                autoHeal.release(mc); autoEat.releaseIfActive(mc);
-                autoShield.engage(mc, mc.player, scan);
-            } else if (BotConfig.autoHeal && autoHeal.wants(mc, mc.player)) {
-                autoShield.release(mc); autoEat.releaseIfActive(mc);
-                autoHeal.engage(mc, mc.player);
+            if (BotConfig.autoShield && autoShield.wants(body, scan)) {
+                autoHeal.release(body); autoEat.releaseIfActive(body);
+                autoShield.engage(body, scan);
+            } else if (BotConfig.autoHeal && autoHeal.wants(body)) {
+                autoShield.release(body); autoEat.releaseIfActive(body);
+                autoHeal.engage(body);
             } else if (BotConfig.autoEat) {
-                autoShield.release(mc); autoHeal.release(mc);
-                autoEat.tick(mc, mc.player);
+                autoShield.release(body); autoHeal.release(body);
+                autoEat.tick(body);
             } else {
-                autoShield.release(mc); autoHeal.release(mc); autoEat.releaseIfActive(mc);
+                autoShield.release(body); autoHeal.release(body); autoEat.releaseIfActive(body);
             }
         }
         // autoTotem owns the offhand slot (not the use key) — runs concurrently.
-        if (BotConfig.autoTotem) autoTotem.tick(mc, mc.player);
+        if (BotConfig.autoTotem) autoTotem.tick(body);
         // autoEquip (Phase F T0): gear up the moment combat starts and keep the
         // best armor/weapon on through the fight. Gated on an engaged combat chain
         // so it doesn't reshuffle the inventory during peaceful crafting/building;
@@ -858,9 +862,7 @@ public final class BotApiImpl implements BotApi {
         // them, or never took them), so it leaves nothing to clean up.
         Chain driving = scheduler.current();
         boolean schedulerDroveThisTick = driving != null && (driving != userTask || userTask.process() != null);
-        // The scheduler works on Body instances; this tick chain is the client's, so the
-        // controlled player is the local player. Built fresh per tick, like every other ClientPlayerBody (see clientAvatar()).
-        scheduler.tick(new net.magicterra.worlddriver.game.body.ClientPlayerBody(mc), world, state);
+        scheduler.tick(body, world, state);
         // Immediately after the chain has had its turn, so a caller polling on the next server
         // tick sees the ending rather than one tick of stale "still busy".
         settleLeg();

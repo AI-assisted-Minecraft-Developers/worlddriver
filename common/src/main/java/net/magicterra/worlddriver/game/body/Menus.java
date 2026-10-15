@@ -34,6 +34,11 @@ public interface Menus {
     void containerClick(int containerId, int slot, int button, ClickType type);
     /** Close the open container back to the inventory menu. */
     void closeContainer();
+    /** Whether something other than the inventory menu is open, so an inventory click now would race
+     *  it. The client player counts any screen, chat and pause included. */
+    default boolean menuOpen() {
+        return entity() instanceof Player p && p.containerMenu != p.inventoryMenu;
+    }
     /** Return any material stranded in the 2×2 crafting grid (InventoryMenu slots
      *  1-4) to the main inventory via QUICK_MOVE, leaving the grid empty. {@code
      *  placeRecipe} fills the grid straight from the inventory, and a craft step

@@ -1,14 +1,12 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.game.body.ClientIntents;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
+import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.game.body.Equipment;
+import net.magicterra.worlddriver.game.body.Hotbar;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
-
-import static net.magicterra.worlddriver.game.body.BotInteract.ensureHolding;
-import static net.magicterra.worlddriver.game.body.BotInteract.hotbarSlotOf;
 
 /**
  * Phase B reflex — raise a shield against an incoming projectile or a meleeing
@@ -24,14 +22,15 @@ public final class AutoShield {
     private boolean raising;
 
     /** True when there's something worth blocking AND a shield to block with. */
-    public boolean wants(Minecraft mc, LocalPlayer p, ThreatScanner.Scan scan) {
-        if (!hasShield(p)) return false;
-        return focus(p, scan) != null;
+    public boolean wants(Body body, ThreatScanner.Scan scan) {
+        Player p = body.asPlayer();
+        if (p == null || body.equipment().isEmpty() || !hasShield(p)) return false;
+        return focus(scan) != null;
     }
 
     /** Pick the thing to face: a projectile predicted to hit, else a facing melee
      *  mob within reach. Returns its position, or null if nothing to block. */
-    private Vec3 focus(LocalPlayer p, ThreatScanner.Scan scan) {
+    private Vec3 focus(ThreatScanner.Scan scan) {
         for (ThreatScanner.Incoming in : scan.projectiles()) {
             if (in.willHit()) return in.pos();
         }
@@ -42,30 +41,33 @@ public final class AutoShield {
         return null;
     }
 
-    public void engage(Minecraft mc, LocalPlayer p, ThreatScanner.Scan scan) {
-        Vec3 at = focus(p, scan);
+    public void engage(Body body, ThreatScanner.Scan scan) {
+        Player p = body.asPlayer();
+        Equipment hands = body.equipment().orElse(null);
+        if (p == null || hands == null) return;
+        Vec3 at = focus(scan);
         if (at != null) faceTowards(p, at);
         // Shield in offhand raises regardless of main hand; otherwise hold one.
         if (!p.getInventory().offhand.get(0).is(Items.SHIELD)) {
-            ensureHolding(mc, Items.SHIELD);
+            hands.holdItem(Items.SHIELD);
         }
-        ClientIntents.holdUse(true);
+        hands.commandUseItem(true);
         raising = true;
     }
 
-    public void release(Minecraft mc) {
+    public void release(Body body) {
         if (raising) {
-            ClientIntents.holdUse(false);
+            body.equipment().ifPresent(h -> h.commandUseItem(false));
             raising = false;
         }
     }
 
-    private boolean hasShield(LocalPlayer p) {
+    private boolean hasShield(Player p) {
         return p.getInventory().offhand.get(0).is(Items.SHIELD)
-                || hotbarSlotOf(p, Items.SHIELD) >= 0;
+                || Hotbar.slotOf(p, Items.SHIELD) >= 0;
     }
 
-    private void faceTowards(LocalPlayer p, Vec3 at) {
+    private void faceTowards(Player p, Vec3 at) {
         double dx = at.x - p.getX();
         double dy = at.y - (p.getY() + p.getEyeHeight());
         double dz = at.z - p.getZ();

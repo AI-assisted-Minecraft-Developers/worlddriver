@@ -155,6 +155,7 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
         if (mc.gameMode != null && p != null) mc.gameMode.handleInventoryMouseClick(containerId, slot, button, type, p);
     }
     @Override public void closeContainer() { BotInteract.closeContainer(mc); }
+    @Override public boolean menuOpen() { return mc.screen != null; }
     @Override public boolean holdItem(net.minecraft.world.item.Item item) { return BotInteract.ensureHolding(mc, item); }
 
     @Override public boolean startFallFlying() {
