@@ -4,7 +4,6 @@ import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.bot.world.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.BunkerProcess;
 import net.magicterra.worlddriver.bot.behavior.RouteEvents;
@@ -145,7 +144,7 @@ public final class DuskSecureChain implements Chain {
         }
         if (bid == Priorities.IDLE_SECURE) {
             // Legacy idle tier keeps its protections: never near a threat, never preempting.
-            for (ThreatScanner.Threat t : ClientThreatScanner.current(mc).threats()) {
+            for (ThreatScanner.Threat t : st.threats.current().threats()) {
                 if (t.distance() <= THREAT_RADIUS) { idleTicks = 0; return 0f; } // never dig in under attack
             }
         }

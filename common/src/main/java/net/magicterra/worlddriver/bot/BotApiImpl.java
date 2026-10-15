@@ -72,7 +72,6 @@ import net.magicterra.worlddriver.bot.behavior.reflex.AutoShield;
 import net.magicterra.worlddriver.bot.behavior.reflex.AutoHeal;
 import net.magicterra.worlddriver.bot.behavior.reflex.AutoTotem;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.bot.world.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.behavior.reflex.AutoTool;
 import net.magicterra.worlddriver.bot.behavior.reflex.AutoSwim;
 import net.magicterra.worlddriver.bot.behavior.reflex.AntiSuffocate;
@@ -109,6 +108,10 @@ public final class BotApiImpl implements BotApi {
      *  for off-thread reads by {@code mc.client.scene}. */
     private final WorldModel worldModel = new WorldModel();
     @Override public ClientScene scene() { return WorldReadings.clientScene(worldModel.snapshot()); }
+    @Override public net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Threats threats(int radius) {
+        Minecraft mc = Minecraft.getInstance();
+        return WorldReadings.threats(mc.level, mc.player, radius, state.threats.velocities());
+    }
     // Wire the WorldModel into the ClientWorldView so dangerCost can apply the
     // HazardField lethal-cell penalty. Done in an instance initialiser so both
     // final fields are guaranteed initialised before any tick fires. The cast is
@@ -785,11 +788,11 @@ public final class BotApiImpl implements BotApi {
         }
         // Refresh the shared threat picture once per tick — reflex chains
         // (panic/dodge) and the use-key arbiter (shield) all read it below.
-        ClientThreatScanner.refresh(mc);
+        state.threats.refresh(mc.player, mc.level.entitiesForRendering());
         // Driver→agent push: emit one-shot events on threat-appeared / player-hurt
         // / player-death transitions (client-sensed; no server-side equivalent for
         // threats, and this is the player the agent actually controls).
-        eventDetector.detectClientEvents(mc);
+        eventDetector.detectClientEvents(mc, state.threats.current());
         // Driver→agent push: surface new chat / system / command-result lines
         // (packet-level ClientChatLog drain) and action-bar / title text (guarded
         // reflection) — no server-side hook in client-MCP mode. Both paths are
@@ -804,7 +807,7 @@ public final class BotApiImpl implements BotApi {
         if (builderSuppressesAmbients(c)) {
             autoShield.release(body); autoHeal.release(body); autoEat.releaseIfActive(body);
         } else {
-            ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
+            ThreatScanner.Scan scan = state.threats.current();
             if (BotConfig.autoShield && autoShield.wants(body, scan)) {
                 autoHeal.release(body); autoEat.releaseIfActive(body);
                 autoShield.engage(body, scan);

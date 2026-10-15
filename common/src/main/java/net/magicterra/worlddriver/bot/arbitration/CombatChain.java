@@ -6,7 +6,6 @@ import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.bot.world.ClientThreatScanner;
 import net.magicterra.worlddriver.game.body.ClientIntents;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.CombatProcess;
@@ -199,7 +198,7 @@ public final class CombatChain implements Chain {
                 }
                 return 0f;
             }
-            ThreatScanner.Threat top = ClientThreatScanner.current(mc).top();
+            ThreatScanner.Threat top = state.threats.current().top();
             if (top != null && top.score() >= ArbitrationConfig.autoFightThreatThreshold) return Priorities.COMBAT;
         }
         return 0f;

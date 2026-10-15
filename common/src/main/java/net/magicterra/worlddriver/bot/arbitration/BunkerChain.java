@@ -5,7 +5,6 @@ import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.bot.world.ClientThreatScanner;
 import net.magicterra.worlddriver.game.body.ClientIntents;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.BunkerProcess;
@@ -57,7 +56,7 @@ public final class BunkerChain implements Chain {
     @Override public float priority(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
         if (!ArbitrationConfig.autoBunker || mc.player == null) return 0f;
-        int near = surroundCount(mc);
+        int near = surroundCount(st.threats.current());
         // Self-heal on displacement/respawn even when NOT winning the bid: the old check
         // lived in tick(), which only runs while this chain holds the channel — a stale
         // sealed episode from before a death could bid 300 forever (gap#68-⑦).
@@ -89,7 +88,7 @@ public final class BunkerChain implements Chain {
         // the sealed latch and re-trigger a deeper dig every tick attackedMe holds).
         boolean sealed = BunkerProcess.enclosed(w, mc.player.blockPosition());
         boolean rangedPinned = shouldRangedBunker(mc.player.getHealth(),
-                ArbitrationConfig.retreatHpThreshold, ClientThreatScanner.current(mc), sealed);
+                ArbitrationConfig.retreatHpThreshold, st.threats.current(), sealed);
         return (cornered || rangedPinned) ? Priorities.BUNKER : 0f;
     }
 
@@ -228,8 +227,7 @@ public final class BunkerChain implements Chain {
     public BunkerAnchor anchorForTest() { return a; }
 
     /** Hostiles within the trigger radius — the "surrounded" gauge. */
-    private int surroundCount(Minecraft mc) {
-        ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
+    private static int surroundCount(ThreatScanner.Scan scan) {
         int n = 0;
         for (ThreatScanner.Threat t : scan.threats()) {
             if (t.distance() <= ArbitrationConfig.bunkerTriggerRadius) n++;

@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.behavior;
 
+import net.magicterra.worlddriver.bot.world.ThreatWatch;
 import net.minecraft.core.BlockPos;
 
 import java.util.LinkedHashMap;
@@ -58,6 +59,10 @@ public final class BotState {
     public volatile int combatWellTimed;
     public volatile int combatCrits;
     public volatile int combatKills;
+
+    /** This bot's threat picture, refreshed once per tick by whatever ticks the bot. Not a status
+     *  slot; it lives here because every chain and process is already handed this object. */
+    public final ThreatWatch threats = new ThreatWatch();
 
     public synchronized Map<String, Object> snapshot() {
         Map<String, Object> out = new LinkedHashMap<>();

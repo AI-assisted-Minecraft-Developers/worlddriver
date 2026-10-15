@@ -106,6 +106,9 @@ public final class CombatProcess implements BotProcess {
 
     @Override public String failure() { return failure; }
 
+    /** The ticking bot's threat picture, taken from the state each tick hands in. */
+    private net.magicterra.worlddriver.bot.world.ThreatWatch threats;
+
     @Override public void attach(BotState s) {
         s.combat.active = true;
         s.combat.goal = "combat " + mode.name().toLowerCase()
@@ -116,6 +119,7 @@ public final class CombatProcess implements BotProcess {
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {
+        threats = st.threats;
         if (a.entity() == null || a.entity().level() == null) { failure = "player vanished"; cleanup(a); return true; }
         // The swing and its cooldown are a player's: a controlled entity that is not a player has
         // no hands for them.
@@ -251,13 +255,12 @@ public final class CombatProcess implements BotProcess {
         return false;
     }
 
-    /** The threat picture: the shared client scan (refreshed each tick by the bot
-     *  host) on the client; a fresh {@link ThreatScanner#compute} on the server, which
-     *  has no refresh loop. {@code Level.isClientSide} is set on both ClientLevel and
-     *  ServerLevel. */
+    /** The threat picture: the bot's own scan (refreshed each tick by the bot host) on the
+     *  client; a fresh {@link ThreatScanner#compute} on the server, which has no refresh loop
+     *  yet. {@code Level.isClientSide} is set on both ClientLevel and ServerLevel. */
     private ThreatScanner.Scan scanFor(Player p) {
         return p.level().isClientSide
-                ? ThreatScanner.current()
+                ? threats.current()
                 : ThreatScanner.compute(p.level(), p, (int) SCAN_RADIUS);
     }
 

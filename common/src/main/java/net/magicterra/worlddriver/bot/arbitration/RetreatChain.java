@@ -7,7 +7,6 @@ import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.bot.world.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.behavior.BunkerProcess;
 import net.magicterra.worlddriver.bot.behavior.RunAwayProcess;
@@ -126,7 +125,7 @@ public final class RetreatChain implements Chain {
         }
         float hp = mc.player.getHealth();
         float thr = ArbitrationConfig.retreatHpThreshold;
-        ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
+        ThreatScanner.Scan scan = st.threats.current();
         long now = mc.player.level().getGameTime();
         // final-review L1: stamp on the RISING EDGE only (false→true), not on every
         // tick the level stays true — see lastHurtGameTime's javadoc.
@@ -484,7 +483,7 @@ public final class RetreatChain implements Chain {
             // into the mob (the zig-zag half of fleeing in circles).
             // Report flee status to the reflex's OWN slot (state.retreat), never the
             // user mc.bot.runAway slot — so reflex and user flee never stomp each other.
-            process = new RunAwayProcess(fleeFrom(mc), FLEE_DIST, state.retreat);
+            process = new RunAwayProcess(fleeFrom(mc, st.threats.current()), FLEE_DIST, state.retreat);
             process.attach(state);
         }
         // Reached safe distance but still latched (HP low / threat near): start a
@@ -496,9 +495,9 @@ public final class RetreatChain implements Chain {
 
     /** The point to flee away from: the centroid of nearby hostiles, or the bot's
      *  own foot if none are currently scanned (so the flee still has a valid goal). */
-    private static BlockPos fleeFrom(Minecraft mc) {
+    private static BlockPos fleeFrom(Minecraft mc, ThreatScanner.Scan scan) {
         double sx = 0, sy = 0, sz = 0; int n = 0;
-        for (ThreatScanner.Threat t : ClientThreatScanner.current(mc).threats()) {
+        for (ThreatScanner.Threat t : scan.threats()) {
             if (t.distance() > CLEAR_RADIUS + 6) continue;   // only nearby mobs steer the flee
             Entity e = t.entity();
             sx += e.getX(); sy += e.getY(); sz += e.getZ(); n++;

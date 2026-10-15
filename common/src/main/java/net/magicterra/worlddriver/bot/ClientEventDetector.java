@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.bot;
 
 import net.magicterra.worlddriver.api.schema.JsonValue;
-import net.magicterra.worlddriver.bot.world.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
 import net.magicterra.worlddriver.game.observe.TimeSnap;
 import net.magicterra.worlddriver.bot.world.WorldModel;
@@ -127,8 +126,9 @@ final class ClientEventDetector {
     /** Emit driver→agent push events for the local player's threat/hurt/death
      *  transitions. Called once per client tick after the threat scan refreshes.
      *  Everything funnels through {@code DriverHost.emitExternal} → the same event
-     *  stream block/chat/death use → subscribers on both transports. */
-    void detectClientEvents(Minecraft mc) {
+     *  stream block/chat/death use → subscribers on both transports. {@code threats} is the bot's
+     *  scan from this tick. */
+    void detectClientEvents(Minecraft mc, ThreatScanner.Scan threats) {
         net.magicterra.worlddriver.api.game.DriverHost api = net.magicterra.worlddriver.WorldDriverCommon.host();
         if (api == null || mc.player == null) return;
         var pl = mc.player;
@@ -165,7 +165,7 @@ final class ClientEventDetector {
         }
         evtLastHealth = hp;
 
-        ThreatScanner.Threat top = ClientThreatScanner.current(mc).top();
+        ThreatScanner.Threat top = threats.top();
         int topId = (top != null) ? top.id() : -1;
         if (topId != -1 && topId != evtLastThreatId) {
             net.minecraft.core.BlockPos tp = top.entity().blockPosition();

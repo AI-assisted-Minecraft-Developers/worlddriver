@@ -4,6 +4,7 @@ import static net.magicterra.worlddriver.api.game.Positions.position;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import net.magicterra.worlddriver.api.game.Positions;
@@ -38,9 +39,10 @@ import net.minecraft.world.phys.Vec3;
 public final class WorldReadings {
     private WorldReadings() {}
 
-    /** The scored hostiles and incoming projectiles around {@code self}: {@code mc.observe.threats}' reply. */
-    public static ObserveContracts.Threats threats(Level level, Player self, int radius) {
-        ThreatScanner.Scan s = ThreatScanner.compute(level, self, radius);
+    /** The scored hostiles and incoming projectiles around {@code self}: {@code mc.observe.threats}' reply.
+     *  {@code projVel} is a threat watch's derived projectile velocities, empty to read each off the entity. */
+    public static ObserveContracts.Threats threats(Level level, Player self, int radius, Map<Integer, Vec3> projVel) {
+        ThreatScanner.Scan s = ThreatScanner.compute(level, self, radius, projVel);
         List<ObserveContracts.Threat> threats = new ArrayList<>();
         for (ThreatScanner.Threat t : s.threats()) {
             threats.add(new ObserveContracts.Threat(t.id(), t.type(), point(t.entity().position()), t.distance(),

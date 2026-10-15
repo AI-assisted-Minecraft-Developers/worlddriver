@@ -129,6 +129,12 @@ public interface BotApi {
      */
     ClientScene scene();
 
+    /**
+     * {@code mc.observe.threats} around this client's player, with each projectile's velocity the
+     * one the bot's own threat watch derived this tick. Client thread only.
+     */
+    net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Threats threats(int radius);
+
     // ---- the object seam: hand the client a process, not a verb ----------------
     // Everything above takes a verb plus params, because everything above is an MCP
     // route and an LLM has no way to hand over an object. The three below are NOT

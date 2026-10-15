@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Phase B/C shared sensing: one per-tick scan of nearby hostiles + incoming
@@ -32,9 +31,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * scans via {@code Level.getEntities} + {@code Level.clip} — an EntityGetter API that
  * works on a {@code ClientLevel} AND a {@code ServerLevel} — so it loads and runs on a
  * dedicated server (a server-driven {@code CombatProcess} over a FakePlayer reads the
- * same scored picture). The client-only refresh loop + {@code Minecraft} convenience
- * overloads + the shared per-tick cache live in {@code ClientThreatScanner}, which
- * publishes its result here via {@link #publish}; {@link #current()} reads it.
+ * same scored picture). The per-tick cache, and the projectile velocities it derives,
+ * are each bot's own {@link ThreatWatch}.
  */
 public final class ThreatScanner {
     private ThreatScanner() {}
@@ -85,43 +83,25 @@ public final class ThreatScanner {
     static final int DEFAULT_RADIUS = 24;
     private static final int PROJECTILE_LOOKAHEAD = 30;
 
-    private static volatile Scan latest = EMPTY;
-
-    /** This tick's estimated projectile velocities (blocks/tick), keyed by entity id —
-     *  derived by {@code ClientThreatScanner} from the position delta (client
-     *  projectiles report {@code getDeltaMovement()}≈0). Read by {@link #assessProjectile}
-     *  so the reflex scan and the observe verb share one full-tick value. Empty on a
-     *  server (no refresh loop), where {@code assessProjectile} falls back to the live
-     *  {@code getDeltaMovement()}. */
-    private static final Map<Integer, Vec3> projVel = new ConcurrentHashMap<>();
-
-    /** Publish the shared per-tick scan ({@code ClientThreatScanner.refresh} → here →
-     *  {@link #current()}). Decouples the client refresh from the dist-neutral core. */
-    public static void publish(Scan s) { latest = s; }
-
-    /** Replace this tick's projectile-velocity table (called by the client refresh). */
-    public static void publishProjectileVel(Map<Integer, Vec3> vel) {
-        projVel.clear();
-        if (vel != null) projVel.putAll(vel);
-    }
-
-    /** The shared scan most recently {@link #publish}ed (by the client refresh). The
-     *  server has no refresh loop, so server callers use {@link #compute(Level, Player,
-     *  int)} directly instead of this. */
-    public static Scan current() {
-        return latest;
-    }
-
     /** Convenience overload at the default radius — the server combat loop path. */
     public static Scan compute(Level lvl, Player player) {
         return compute(lvl, player, DEFAULT_RADIUS);
     }
 
+    /** {@link #compute(Level, Player, int, Map)} with every projectile's velocity read off the entity,
+     *  which is right on a server and ~0 on a client. */
+    public static Scan compute(Level lvl, Player player, int radius) {
+        return compute(lvl, player, radius, Map.of());
+    }
+
     /** Level+Player core: works on BOTH client and server. Scans hostiles +
      *  projectiles via {@code Level.getEntities} (EntityGetter, polymorphic over
      *  ClientLevel/ServerLevel) — no client {@code Minecraft} dependency, so the
-     *  server combat loop (over a FakePlayer) reads the same scored picture. */
-    public static Scan compute(Level lvl, Player player, int radius) {
+     *  server combat loop (over a FakePlayer) reads the same scored picture.
+     *  {@code projVel} is the velocity a {@link ThreatWatch} derived for each projectile it
+     *  has seen before, by entity id; one missing from it falls back to its own
+     *  {@code getDeltaMovement()}. */
+    public static Scan compute(Level lvl, Player player, int radius, Map<Integer, Vec3> projVel) {
         if (lvl == null || player == null) return EMPTY;
         double px = player.getX(), py = player.getY(), pz = player.getZ();
         AABB box = new AABB(px - radius, py - radius, pz - radius, px + radius, py + radius, pz + radius);
@@ -146,7 +126,7 @@ public final class ThreatScanner {
             if (e == player) continue;
 
             if (e instanceof Projectile pr) {
-                Incoming in = assessProjectile(pr, myBody);
+                Incoming in = assessProjectile(pr, myBody, projVel);
                 if (in != null) incoming.add(in);
                 continue;
             }
@@ -173,7 +153,7 @@ public final class ThreatScanner {
         return new Scan(List.copyOf(threats), List.copyOf(incoming));
     }
 
-    private static Incoming assessProjectile(Projectile pr, AABB target) {
+    private static Incoming assessProjectile(Projectile pr, AABB target, Map<Integer, Vec3> projVel) {
         Vec3 pos = pr.position();
         // Use this tick's tracked velocity (client deltaMovement is unreliable for
         // projectiles); fall back to deltaMovement on first sight.

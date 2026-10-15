@@ -7,7 +7,6 @@ import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.bot.world.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.world.HazardField;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
@@ -32,7 +31,7 @@ public final class PanicChain implements Chain {
     @Override public float priority(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
         if (!ArbitrationConfig.autoDodge || mc.player == null) return 0f;
-        return nearestCreeper(mc) != null ? Priorities.PANIC : 0f;
+        return nearestCreeper(st) != null ? Priorities.PANIC : 0f;
     }
 
     /** Candidate flee headings, in degrees offset from "straight away", tried
@@ -43,7 +42,7 @@ public final class PanicChain implements Chain {
 
     @Override public void tick(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
-        Entity creeper = nearestCreeper(mc);
+        Entity creeper = nearestCreeper(st);
         if (creeper == null || mc.player == null) return;
         var p = mc.player;
         Vec3 away = p.position().subtract(creeper.position());   // creeper → me
@@ -99,8 +98,8 @@ public final class PanicChain implements Chain {
 
     /** The closest creeper within the keep-distance (or one already swelling a bit
      *  further out), else null. */
-    private Entity nearestCreeper(Minecraft mc) {
-        ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
+    private Entity nearestCreeper(BotState st) {
+        ThreatScanner.Scan scan = st.threats.current();
         Entity best = null;
         double bestDist = Double.MAX_VALUE;
         for (ThreatScanner.Threat t : scan.threats()) {

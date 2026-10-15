@@ -44,6 +44,8 @@ import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SlotRow;
 
 import net.magicterra.worlddriver.game.ClientHop;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
+import net.magicterra.worlddriver.bot.BotApi;
+import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.WorldReadings;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.HitResult;
@@ -293,7 +295,9 @@ public final class ClientObserve {
         return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
             if (mc.level == null || mc.player == null) return new ObserveContracts.Threats(List.of(), List.of());
-            return WorldReadings.threats(mc.level, mc.player, radius);
+            // The bot's own scan derives client projectile velocities; with no bot, each is read off the entity.
+            BotApi bot = BotHooks.impl();
+            return bot != null ? bot.threats(radius) : WorldReadings.threats(mc.level, mc.player, radius, Map.of());
         });
     }
 

@@ -6,7 +6,6 @@ import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.bot.world.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
@@ -27,12 +26,12 @@ public final class DodgeChain implements Chain {
     @Override public float priority(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
         if (!ArbitrationConfig.autoDodge || mc.player == null) return 0f;
-        return imminent(mc) != null ? Priorities.DODGE : 0f;
+        return imminent(mc, st) != null ? Priorities.DODGE : 0f;
     }
 
     @Override public void tick(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
-        ThreatScanner.Incoming in = imminent(mc);
+        ThreatScanner.Incoming in = imminent(mc, st);
         if (in == null || mc.player == null) return;
         var p = mc.player;
         // Perpendicular to the projectile's horizontal velocity (rotate 90° in XZ).
@@ -52,8 +51,8 @@ public final class DodgeChain implements Chain {
     @Override public void onResume() {}
 
     /** The soonest projectile predicted to hit, within the dodge radius. */
-    private ThreatScanner.Incoming imminent(Minecraft mc) {
-        ThreatScanner.Scan scan = ClientThreatScanner.current(mc);
+    private ThreatScanner.Incoming imminent(Minecraft mc, BotState st) {
+        ThreatScanner.Scan scan = st.threats.current();
         if (mc.player == null) return null;
         Vec3 me = mc.player.position();
         ThreatScanner.Incoming best = null;
