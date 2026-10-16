@@ -117,6 +117,9 @@ public final class DuskSecureChain implements Chain {
     @Override public float priority(Body body, WorldView w, BotState st) {
         LivingEntity p = body == null ? null : body.entity();
         if (!ArbitrationConfig.autoSecureAtDusk || p == null) { idleTicks = 0; return 0f; }
+        // A body that cannot dig would win the channel, fail the dig on its first tick and bid again
+        // after every bail cooldown, cutting into its own order each time.
+        if (body.blockInteraction().isEmpty() || body.equipment().isEmpty()) { idleTicks = 0; return 0f; }
         // Once a shelter dig is committed, hold the channel until BunkerProcess finishes.
         // The 1-wide shaft we dig makes the bot 'cornered', which must NOT trip our own
         // start-gate and abandon a half-dug, unsealed hole. (Live-cert finding.)

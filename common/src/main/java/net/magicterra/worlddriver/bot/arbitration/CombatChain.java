@@ -184,7 +184,10 @@ public final class CombatChain implements Chain {
             }
             return Priorities.COMBAT;
         }
-        if (ArbitrationConfig.autoFight && autoSuppressTicks == 0) {
+        // A body CombatProcess cannot fight with would take the channel and fail the fight on its first
+        // tick, every tick; an explicit order is refused before it gets here.
+        boolean canFight = body.attack().isPresent() && body.equipment().isPresent() && body.asPlayer() != null;
+        if (ArbitrationConfig.autoFight && autoSuppressTicks == 0 && canFight) {
             if (frailBlocked(hp, ArbitrationConfig.combatFrailThreshold, false)) {
                 // Auto-fight turned frail mid-swing: stand down LOUDLY; Retreat (>=100)
                 // naturally takes over. This must live here in bid(), NOT in tick() —
