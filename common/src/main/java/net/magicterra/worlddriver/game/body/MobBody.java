@@ -13,6 +13,8 @@ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.entity.animal.Squid;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
+import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
+import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -102,8 +104,18 @@ public final class MobBody implements Body {
         swimsOnly = !Locomotion.modesOf(mob).contains(Locomotion.Mode.WALK);
     }
 
-    /** Whether {@code mob} can be driven at all: one without AI never runs the step the input goes through. */
-    public static boolean drivable(Mob mob) { return !mob.isNoAi(); }
+    /**
+     * Why {@code mob} cannot be driven at all, or null when it can. One without AI never runs the step
+     * the input goes through, and neither does an ender dragon, which flies by its own phases. A wither's
+     * other two heads pick targets and shoot by themselves, and it breaks the blocks around it once hurt,
+     * none of which the input reaches.
+     */
+    public static String undrivable(Mob mob) {
+        if (mob.isNoAi()) return "it has no AI (NoAI), so it never runs the step the bot's input goes through";
+        if (mob instanceof EnderDragon) return "an ender dragon flies by its own phases and never runs the step the bot's input goes through";
+        if (mob instanceof WitherBoss) return "a wither's other heads shoot and it breaks blocks by itself, which the bot's input cannot stop";
+        return null;
+    }
 
     /** Take {@code mob} over: its goals come off, its path and target are dropped, and it stops despawning. */
     public static MobBody adopt(Mob mob) {

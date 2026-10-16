@@ -40,7 +40,8 @@ public final class MobBot extends ServerBot {
 
     /** Why {@code mob} cannot be taken over, or null when it can. */
     public static String refusal(Mob mob) {
-        if (!MobBody.drivable(mob)) return "it has no AI (NoAI), so it never runs the step the bot's input goes through";
+        String why = MobBody.undrivable(mob);
+        if (why != null) return why;
         String type = BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).toString();
         if (BotConfig.undrivableMobs.contains(type)) return type + " is listed in the undrivableMobs setting";
         return null;
