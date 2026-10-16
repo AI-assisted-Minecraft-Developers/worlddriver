@@ -390,7 +390,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
                 ? String.valueOf(a.get("actionId")) : null;
     }
 
-    private static boolean refusedAs(Map<String, Object> reply, String reason) {
+    static boolean refusedAs(Map<String, Object> reply, String reason) {
         return "refused".equals(reply.get("outcome")) && reason.equals(reply.get("reason"));
     }
 

@@ -45,4 +45,5 @@ net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverNpcScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverBodyRouteScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverWaterMobScenes
+net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverFlyingMobScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverQueryScenes

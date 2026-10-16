@@ -635,6 +635,19 @@ wd.mobAxolotlWalksAndSwims
 wd.mobTurtleWalksAndSwims
 wd.mobFrogWalksAndSwims
 wd.mobDrownedWalksAndSwims
+# Flyers: each crosses a hall over a wall; a ghast and an elder guardian take the hole their body fits;
+# a parrot holds the point it flew to; a wither and an ender dragon are refused.
+wd.mobParrotFliesOverAWall
+wd.mobBeeFliesOverAWall
+wd.mobAllayFliesOverAWall
+wd.mobBatFliesOverAWall
+wd.mobVexFliesOverAWall
+wd.mobPhantomFliesOverAWall
+wd.mobBlazeFliesOverAWall
+wd.mobGhastTakesTheHoleItFits
+wd.mobElderGuardianTakesTheHoleItFits
+wd.mobParrotHoversWhereItArrived
+wd.mobWitherAndDragonAreRefused
 # mc.query q=blocks holds its radius budget and reads only chunks that are already loaded.
 wd.queryBlocksStaysInLoadedChunks
 # The client scan names the chunks ClientLevel has not received, so the mc.query client fallback can refuse them.
