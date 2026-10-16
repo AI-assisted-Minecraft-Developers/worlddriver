@@ -201,6 +201,14 @@ server-side player has the same reflexes as your own, switched on by the same se
 that is not a player entity has no hands, so a task or a hand verb that needs them is refused
 as `unsupported_capability`.
 
+**Driving a vanilla mob.** Any loaded mob can be made a bot. Name it in an order as
+`entity:<uuid>`, and that order takes it over; or run `/worlddriver mob <entity> <name>` on the
+server, and it answers to `mob:<name>`. From then on its own behaviour is off, it no longer
+despawns, and its reflexes run whether or not it has an order, until
+`/worlddriver mob release <bot>` hands it back or it dies or is removed. A mob walks, swims and
+climbs at its own speed, never takes a parkour jump, and reacts one tick later than a player.
+Reading `mc.bot.status` or cancelling never takes a mob over; only an order does.
+
 The hand verbs (`lookAt`, `holdItem`, `useItem`, `attackEntity`, `equip`) act within the call
 and answer `{outcome: 'done', …}` with what came of it, or `{outcome: 'refused', reason, message}`
 with the same reasons a task is refused for: a missing entity, an item not in the inventory or a
@@ -347,8 +355,8 @@ there (`"done (placed=12, skipped=0)"`, `"not needed (…)"`), and so does the a
 says why it stopped — a give-up (a goto that ended short of its goal, a build that skipped
 blocks, a follow that could not close in), an exception, or a cancel. A goto with `invert` or a
 strict `direction` has no goal to reach, so it is done when it stops. The auto-backfill is not a
-user task and leaves `lastProcessEnd` as it was. A named bot's status (`bot: "player:…"` or
-`"npc:…"`) carries its own `lastProcessEnd` in the same shape. `reflexes.lastPath` holds the
+user task and leaves `lastProcessEnd` as it was. A named bot's status (`bot: "player:…"`, `"mob:…"`,
+`"entity:…"` or `"npc:…"`) carries its own `lastProcessEnd` in the same shape. `reflexes.lastPath` holds the
 statistics of the most recent search — how many nodes were expanded, how long it took, and
 whether the goal was reached — which is the first thing to read when the answer to "why is
 it not moving" is not obvious: few expanded nodes together with `goalReached: false` means

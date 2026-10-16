@@ -220,19 +220,25 @@ rather than written down per kind.
 either concrete type is unchanged. That is what lets one process run on a client player and
 headless on a server tick, and what the test scenes' driven-mob `Body` plugs into. The
 server-side players come from `JoinedPlayers`: a `ServerPlayer` that has joined through the
-player list, with a connection that goes nowhere.
+player list, with a connection that goes nowhere. `MobBody` drives any vanilla `Mob` through
+the mob's own move and jump controls with its goals taken off, and implements no optional
+capability.
 
 ### Naming a bot
 
-A `Bot` is a body and the stack that drives it, addressed by name: `PlayerBot` over a
-joined server player, and in the test content `NpcBot` over a driven mob. `BotTicker`
+A `Bot` is a body and the stack that drives it, addressed by name. `ServerBot` holds the
+`BotBrain` and task bookkeeping every server bot shares; `PlayerBot` extends it over a joined
+server player and `MobBot` over a `MobBody`, and in the test content `NpcBot` drives the
+testmod's piglin. `BotTicker`
 advances every registered bot once per server tick. A bot whose task has ended stays on the
 list, idle, so its reflexes keep running; it leaves when it is unregistered, when its entity is
 removed, or when its tick throws. `BotTicker.activeCount()` counts only the bots on a task.
 `BotRegistry` holds the bots the API can address besides the client's own player. Whoever
 creates a bot registers it: `/worlddriver server spawn <name>` (`BotCommand`) registers
-`player:<name>`, the test content registers `npc:<name>`, and a third-party mod registers
-whatever it builds. Transport threads read the registry and the server thread writes it,
+`player:<name>`, `/worlddriver mob <entity> <name>` registers `mob:<name>`, the first order
+naming `entity:<uuid>` registers a loaded mob under that ref (`BotRegistry.resolve`; a status
+read or a cancel never does), the test content registers `npc:<name>`, and a third-party mod
+registers whatever it builds. Unregistering a mob bot releases it: its goals go back on. Transport threads read the registry and the server thread writes it,
 so every method synchronizes on the map; iteration is in registration order, which is the
 order `mc.bot.status` lists bots in. The registry empties when the server stops, since
 every bot wraps an entity of that server.

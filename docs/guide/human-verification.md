@@ -294,3 +294,38 @@ it is idle. `/worlddriver server clear` removes it and forgets the name.
 Bots named `npc:<name>` exist only while a test scene holds one, and there is no command
 to spawn one. They have no hands, so `holdItem`, `useItem`, `attackEntity` and any task that
 needs hands are refused as `unsupported_capability`.
+
+## Drive a vanilla mob
+
+Any loaded mob can be made a bot. Look at a zombie, a wolf or a cow and take it over by name:
+
+```
+/summon minecraft:wolf ~3 ~ ~
+/worlddriver mob @e[type=minecraft:wolf,limit=1,sort=nearest] rex
+```
+
+```bash
+$RPC mc.bot.status '{}'                                      # bots: [..., {id:"mob:rex", kind:"mob", ...}]
+$RPC mc.bot.goto '{"bot":"mob:rex","target":{"kind":"position","pos":{"x":100010,"y":200,"z":100000}},"awaitMs":30000}'
+$RPC mc.bot.mine '{"bot":"mob:rex","blocks":["minecraft:stone"]}'   # refused: unsupported_capability
+```
+
+```
+/worlddriver mob release rex
+```
+
+Without the command, an order that names the mob's UUID as `"bot":"entity:<uuid>"` takes it
+over the same way, under that id; `/data get entity @e[limit=1,sort=nearest] UUID` prints the
+UUID as four numbers, and F3 + right-click a mob copies its UUID in the usual form.
+
+Accept the result when:
+
+- after the takeover the mob stops wandering and stands still until it gets an order, and does not
+  despawn;
+- it walks to the goal on its own legs, at its own pace (a wolf is quicker than a zombie), turning to
+  face where it goes;
+- a hostile one does not attack you while it is taken over;
+- `mine`, `holdItem` and the other verbs that need hands are refused and the mob does not move;
+- after `release` it goes back to its own behaviour within a few seconds (it wanders, a zombie
+  comes for you again) and `mc.bot.status` no longer lists it;
+- if you kill it while it walks, the `goto` ends as `cancelled` with reason `bot_removed`.

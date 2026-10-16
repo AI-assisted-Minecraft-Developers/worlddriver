@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The reference may now also be `mob:<name>` or `entity:<uuid>`. The TypeScript alias is `BotRef`.
   - Java: `Responses.BODY_REF` is `BOT_REF`, `BodyStatus` and `BodySummary` are `BotStatus` and
     `BotSummary`, `BotApi.bodyStatus()` is `botStatus()`, and `ActionRegistry.cancelBody` is `cancelBot`.
+- **Any vanilla mob can be driven as a bot.** An order that names a loaded mob as `entity:<uuid>`
+  takes it over under that id, and `/worlddriver mob <entity> <name>` takes it over as `mob:<name>`.
+  Taken over, the mob's own behaviour is off, it stops despawning, and it runs the bot's reflexes,
+  idle or not, until `/worlddriver mob release <bot>` hands it back or the entity is gone. It walks,
+  swims and climbs at a quarter of its movement speed, never plans a parkour gap, and moves one tick
+  after an order. It has no hands: `mine`, `clearArea`, the build verbs and the hand verbs are refused
+  as `unsupported_capability`. No new method was added; the `bot` parameter reaches it.
 - **A server bot now has the same reflexes as the client's bot, switched on by the same settings.**
   Each `/worlddriver server` bot runs its own `BotBrain`, the decision stack the client's bot runs:
   eating, healing, shield, totem, gear and tool choice, swimming up, the water-bucket clutch, breaking
@@ -29,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on the walker setting the product ships with, which holds the last step until the bot is standing.
 - **The server's bot list drops a bot whose player is gone or whose tick throws,** and its count of
   active bots counts the ones with a task, not every registered one. An action running on a bot whose
-  player is gone ends as `body_removed`, where it used to stay running until the caller's deadline.
+  player is gone ends as `bot_removed`, where it used to stay running until the caller's deadline.
 - **On the client, `threat.appeared` now comes before `player.hurt` in the same tick.** The threat scan
   moved into the bot's own tick, which runs before the hurt detector. Server bots do not publish these
   events yet: the event stream has no field saying which bot an event belongs to.

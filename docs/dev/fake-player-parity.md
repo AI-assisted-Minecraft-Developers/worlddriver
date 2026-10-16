@@ -33,7 +33,8 @@ enough to count separately. Class paths below are relative to
 | Client player | `game/body/ClientPlayerBody.java` | the client's own `LocalPlayer` | yes, as the person's player |
 | Joined player | `game/body/ServerPlayerBody.java` over `game/body/JoinedPlayers.JoinedBody` | a `ServerPlayer` the server joined to itself | yes |
 | Adopted player | `game/body/ServerPlayerBody.java` over a client's own `ServerPlayer` | the server-side half of a connected player | yes |
-| Mob | `bot/stagewright/LivingBody.java` (test sources) | a `DrivenPiglin`, a mob | no — it is not a player |
+| Mob | `game/body/MobBody.java` | any vanilla `Mob`, taken over | no — it is not a player |
+| Test mob | `bot/stagewright/LivingBody.java` (test sources) | a `DrivenPiglin`, a mob | no — it is not a player |
 
 **The client player** writes the player's own `AvatarInput` rather than the shared
 keybinds, so a process cannot clobber keys a person is holding. Everything else it does is
@@ -63,7 +64,8 @@ parameter existed; any other value names an entry in `BotRegistry` and routes to
 `BodyRoutes`, which never touches the client bot. On a dedicated server that is the only
 `mc.bot.*` code that runs, and `mc.bot.status` — bound straight to the bot route — answers
 there with no client attached. Bots are registered by whoever creates them:
-`/worlddriver server spawn <name>` registers `player:<name>`, the test sources register
+`/worlddriver server spawn <name>` registers `player:<name>`, `/worlddriver mob` registers
+`mob:<name>`, an order naming `entity:<uuid>` registers that mob, the test sources register
 `npc:<name>`, and the registry is emptied when the server stops. So the surface is not
 client-only, and a statement about what "the API" can reach has to say which of the two
 routes it means.
@@ -386,6 +388,23 @@ measure it assert arrival only.
 Two things those scenes deliberately do not measure: fall damage, because the driven mob is
 made invulnerable, and chunk behaviour, because a mob holds no chunk ticket and the scenes
 never leave their staging area.
+
+#### A vanilla mob
+
+`MobBody` cannot swap a mob's controls the way the test piglin does, so it steers through
+them, and that costs more than the piglin's rows above. `wd.mobZombieWalksByEntityRefAndIsReleased`
+and `wd.mobWolfAdoptedByCommandWalks` assert arrival only, for the reasons below.
+
+| Behaviour | A player | A vanilla mob | Status |
+|---|---|---|---|
+| Locomotion channel | writes impulse, jump and sneak | turns the input into a heading, faces it, and has `MoveControl.strafe` move it straight ahead; `JumpControl.jump` for the jump | `Accepted` |
+| Speed | the player's walking speed, sprint on top | a quarter of the mob's movement attribute: a zombie at about 0.58 of a walking player, a wolf at 0.75; sprinting changes nothing | `Accepted` |
+| Parkour gaps | planned when the sprint jump clears them | never planned: the world view says it cannot sprint-jump | `Accepted` |
+| Timing | moves in the tick the input is written | reads the input in its own AI step on the next server tick, one tick late | `Accepted` |
+| Its own AI | — | every goal taken off both selectors, the brain's walk target erased each tick; restored at their priorities on release | `Accepted` |
+| Hands, bag, menus | present | absent; the hand verbs and the processes that need them are refused `unsupported_capability` before they start | `Accepted` |
+| Threats and hunger | scanned and read | the threat scan finds nothing, food reads as zero, and the contact and lava escapes do nothing, since all three read a player | `Open` |
+| Despawning | — | marked persistent on takeover, and still persistent after release | `Accepted` |
 
 ## Related documents
 

@@ -4,6 +4,7 @@
 > `bot/`, the two shipped implementations are `ClientPlayerBody` and
 > `ServerPlayerBody`, the testmod adds `LivingBody` and a driveable piglin, and the
 > `mc.bot.*` verbs that drive a bot accept a `bot` parameter (called `body` until 2026-10-16).
+> Since 2026-10-16 a third shipped implementation, `MobBody`, drives any unmodified vanilla mob.
 
 ## The problem
 
@@ -112,8 +113,24 @@ Taking over the mob's movement did not need a mixin, which matters because a mix
 `Mob.serverAiStep` is final, but everything inside it that fights a driver is replaceable from a
 subclass: the brain runs in an overridable method, and the move, jump and look controllers are
 protected fields that the driveable piglin swaps in its constructor for versions that do nothing while
-driven. A mixin is still the answer for driving an unmodified vanilla mob, and is deliberately left
-until there is one.
+driven.
+
+Driving an unmodified vanilla mob turned out not to need a mixin either. `MobBody` takes every goal
+off the mob's two goal selectors and keeps them with their priorities, which stops the mob's own AI
+without stopping its physics (`setNoAi` would stop both); turning the selectors' control flags off
+would not hold, because vanilla turns them back on every few ticks. A mob run by a brain instead of
+goals has its walk target erased every tick. The bot's input then goes through the mob's own move
+and jump controls: the input is turned into a heading, the mob faces it, and `MoveControl.strafe`
+moves it straight ahead. Straight ahead, because `strafe` swaps any sideways or backward input for
+forward whenever the next cell is not plain ground. So the mob keeps its own speed and step height.
+Two costs come with that: a strafe moves at a quarter of the mob's movement speed per unit of
+input, which is too slow for a parkour gap, so a mob's searches plan none; and the input is read in
+the mob's own AI step on the next tick, one tick later than a player's.
+
+A mob is taken over by the first order that names it as `entity:<uuid>`, or by
+`/worlddriver mob <entity> <name>`; it is handed back, goals restored, by
+`/worlddriver mob release <bot>` or when the entity is gone. It is marked persistent on takeover and
+stays so, since vanilla has no way to unset that.
 
 A mob has no chunk ticket. Scenes keep it loaded by the arena's own forced-loading window; a mob
 driven over the network is refused if its chunk is not loaded, and gives up with a named reason if the
@@ -123,7 +140,8 @@ chunk unloads or it dies mid-journey.
 
 `BotRegistry` maps a name to a host. The client player is `self` and is not in the registry at all,
 which keeps the existing client path exactly as it was. A server player registers as
-`player:<name>`, and the testmod registers mobs as `npc:<name>`.
+`player:<name>`, a vanilla mob as `mob:<name>` or `entity:<uuid>`, and the testmod registers its
+piglin as `npc:<name>`.
 
 The `mc.bot.*` verbs that drive a bot take an optional `bot` parameter rather than gaining a parallel
 set of verbs, because every verb's schema is sent in every prompt to every model client and a second
@@ -141,11 +159,11 @@ types, so a client call and a call for a server-side bot construct the same proc
 
 ## What this rules out
 
-The scheduler's reflex layer — automatic eating, automatic swimming, suffocation escape — does **not**
-run on bots other than the client's. Those exist because a human and a driver share one client, and the first
-version deliberately gives a server-side player and a mob a single user-task chain instead. The chain
-interface takes a `Body` so that the reflex layer *can* move there later; that is not the same as it
-having moved.
+The first version ran the scheduler's reflex layer — automatic eating, automatic swimming, suffocation
+escape — only on the client's player, and gave a server-side player and a mob a single user-task chain.
+That was lifted on 2026-10-16: every server bot now runs the same `BotBrain` as the client, reflexes
+included, and keeps running them while idle. The reflexes that need hands or a player (eating, the
+contact and lava escapes) still do nothing on a mob.
 
 The server-side player is a public extension point, not an internal detail. It stays in the released jar
 together with its command surface, so a third-party mod can drive one, and renaming or splitting it is
@@ -168,7 +186,8 @@ shim is a failed scene, not a caught null.
 - `application/BodyRoutes.java` and `application/BodyInteractions.java` — how the `bot` parameter reaches a process and
   how hand operations are performed for a non-client player.
 - `bot/VerbOrders.java` — the shared parameter parsing.
+- `game/body/MobBody.java` and `bot/MobBot.java` — a vanilla mob, taken over and handed back.
 - `common/src/testmod/java/.../stagewright/LivingBody.java` and
-  `.../testcontent/DrivenPiglin.java` — the mob.
+  `.../testcontent/DrivenPiglin.java` — the test mob.
 - `docs/dev/fake-player-parity.md` — the measured differences between the kinds of bot.
 - `docs/design/world-view-parity.md` — the matching story for what each bot's world view believes.
