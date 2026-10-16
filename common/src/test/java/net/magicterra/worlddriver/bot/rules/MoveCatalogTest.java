@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
+import net.magicterra.worlddriver.bot.rules.moves.WaterSwim;
 import net.magicterra.worlddriver.game.body.Locomotion;
 import org.junit.jupiter.api.Test;
 
@@ -38,6 +39,14 @@ class MoveCatalogTest {
         for (Move m : MoveCatalog.of(Locomotion.Mode.SWIM)) if (!names.contains(m.name())) names.add(m.name());
         assertEquals(List.of("swimUp", "swimDown", "climbOutPlace", "swimDownSurface", "swimAshore",
                 "swimAshoreClimb", "swimTraverseBreak", "swimUpBreak"), names);
+    }
+
+    @Test
+    void aBodyThatOnlySwimsGetsTheWaterStrokes() {
+        assertEquals(WaterSwim.ALL, MoveCatalog.forModes(EnumSet.of(Locomotion.Mode.SWIM)));
+        assertEquals(26, WaterSwim.ALL.size());
+        assertTrue(MoveCatalog.waterBound(EnumSet.of(Locomotion.Mode.SWIM)));
+        assertTrue(!MoveCatalog.waterBound(Locomotion.WALK_AND_SWIM));
     }
 
     @Test

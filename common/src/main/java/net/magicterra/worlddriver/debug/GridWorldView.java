@@ -1,7 +1,10 @@
 package net.magicterra.worlddriver.debug;
 
+import java.util.Set;
+
 import net.magicterra.worlddriver.bot.world.MoveSignals;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.game.body.Locomotion;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -28,8 +31,13 @@ public final class GridWorldView implements WorldView {
     private final byte[] cells;
     private boolean place = true;   // pillar/bridge enabled by default so vertical-escape can be staged
 
+    private Set<Locomotion.Mode> modes = Locomotion.WALK_AND_SWIM;
+
     /** Enable/disable block placement (pillar-up / bridge). Returns this for chaining. */
     public GridWorldView withPlace(boolean on) { this.place = on; return this; }
+
+    /** Plan for a body with these ways of moving; a player's by default. Returns this for chaining. */
+    public GridWorldView withModes(Set<Locomotion.Mode> modes) { this.modes = Set.copyOf(modes); return this; }
 
     /** Grid spanning [x0,x0+sx) × [y0,y0+sy) × [z0,z0+sz), all AIR initially. */
     public GridWorldView(int x0, int y0, int z0, int sx, int sy, int sz) {
@@ -71,5 +79,6 @@ public final class GridWorldView implements WorldView {
     @Override public boolean isKnown(BlockPos p)      { return true; }
     @Override public boolean canPlace()               { return place; }
     @Override public int placeableBlockCount()        { return place ? 4096 : 0; }
+    @Override public Set<Locomotion.Mode> moveModes() { return modes; }
 }
 
