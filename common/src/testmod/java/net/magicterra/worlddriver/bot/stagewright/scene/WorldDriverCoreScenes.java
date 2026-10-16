@@ -345,8 +345,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  unknown-body checks into one; 269 until 11_script_eval gained its error, nested-run, request and
      *  result-encoding checks (the settings scripts that stopped self-skipping already ran here in full);
      *  273 until 49_events gained its string-cursor and pollable-target checks; 276 until the typed
-     *  client verbs added refusal and context checks to 10, 15 and 29. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 279;
+     *  client verbs added refusal and context checks to 10, 15 and 29; 279 until 66_body_routes gained
+     *  its check that the old {@code body} key is an unknown field. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 280;
 
     /** task#92 — the same suite's check count on the DEDICATED topology, where the ~35 client-face
      *  scripts each self-skip to a single "no client" placeholder (their real branch needs a client).
@@ -361,8 +362,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  (19, 21, 22, 24, 25, 30, 31, 32, 55) stopped self-skipping, since the settings are this game's and
      *  read the same on every topology, and 11_script_eval gained its error, nested-run, request and
      *  result-encoding checks; 219 until 49_events gained its string-cursor and pollable-target checks;
-     *  222 until the typed client verbs' refusals stopped self-skipping in 13, 14, 15 and 29. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 228;
+     *  222 until the typed client verbs' refusals stopped self-skipping in 13, 14, 15 and 29; 228 until
+     *  66_body_routes gained its old-body-key check, which needs no client. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 229;
 
     /** task#92 — allow-list of check-name substrings permitted to record a {@code SKIP(task#92)} PASS on
      *  a topology whose precondition isn't met. Every skipped check MUST match one of these; any other
