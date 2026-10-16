@@ -44,7 +44,7 @@ import net.minecraft.world.phys.Vec3;
  * next server tick, one tick later than a player body's.
  *
  * <p><b>A mob that does not listen.</b> A modded mob may move by code of its own that reads no input.
- * Input held for {@link #UNRESPONSIVE_TICKS} ticks that moves it nowhere, against no wall, marks it
+ * Input held for {@link #UNRESPONSIVE_TICKS} ticks, counted while it gets nowhere, against no wall, marks it
  * {@link #takeUnresponsive unresponsive}.
  *
  * <p>No hands, no bag, no menus: every optional capability keeps {@link Body}'s empty default.
@@ -216,18 +216,23 @@ public final class MobBody implements Body {
         return was;
     }
 
+    /**
+     * Counts the ticks input was held since the mob last got {@link #UNRESPONSIVE_DISTANCE} from where
+     * the count began. Not a run of consecutive ticks: a stalled walk lets go of the keys between its
+     * recoveries, and a count that reset on every release would never fill.
+     */
     private void watchResponse() {
-        if (magnitude < 0.5f || mob.isPassenger()) { pushStart = null; return; }
-        if (pushStart == null) {
-            pushStart = mob.position();
+        Vec3 now = mob.position();
+        if (pushStart == null || mob.isPassenger()
+                || Math.hypot(now.x - pushStart.x, now.z - pushStart.z) >= UNRESPONSIVE_DISTANCE) {
+            pushStart = now;
             pushTicks = 0;
             pushBlocked = false;
         }
+        if (magnitude < 0.3f) return;
         pushBlocked |= mob.horizontalCollision;
         if (++pushTicks < UNRESPONSIVE_TICKS) return;
-        Vec3 now = mob.position();
-        double moved = Math.hypot(now.x - pushStart.x, now.z - pushStart.z);
-        if (moved < UNRESPONSIVE_DISTANCE && !pushBlocked) unresponsive = true;
+        if (!pushBlocked) unresponsive = true;
         pushStart = null;
     }
 
