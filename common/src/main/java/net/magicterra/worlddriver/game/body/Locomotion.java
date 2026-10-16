@@ -9,7 +9,12 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.FlyingMob;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.navigation.AmphibiousPathNavigation;
+import net.minecraft.world.entity.ai.navigation.FlyingPathNavigation;
+import net.minecraft.world.entity.ai.navigation.PathNavigation;
+import net.minecraft.world.entity.ai.navigation.WaterBoundPathNavigation;
 import net.minecraft.world.entity.animal.FlyingAnimal;
 import net.minecraft.world.entity.animal.WaterAnimal;
 
@@ -58,8 +63,21 @@ public record Locomotion(double width, double height, int stepUpBlocks, int jump
                 walk, fly, modesOf(mover));
     }
 
-    /** A fish only swims; a parrot, a bee or a ghast flies and may land; everything else walks and swims. */
+    /**
+     * A fish only swims; a parrot, a bee or a ghast flies and may land; everything else walks and swims.
+     *
+     * <p>A mob's navigation says it first, because a modded mob nearly always reuses a vanilla one
+     * while its class may extend anything: water-bound only swims, amphibious walks and swims, flying
+     * flies. The vanilla base class decides when the navigation is none of those — a squid keeps a
+     * ground navigation it never follows.
+     */
     static Set<Mode> modesOf(Entity e) {
+        if (e instanceof Mob mob) {
+            PathNavigation nav = mob.getNavigation();
+            if (nav instanceof AmphibiousPathNavigation) return WALK_AND_SWIM;
+            if (nav instanceof WaterBoundPathNavigation) return EnumSet.of(Mode.SWIM);
+            if (nav instanceof FlyingPathNavigation) return EnumSet.of(Mode.WALK, Mode.FLY);
+        }
         if (e instanceof WaterAnimal) return EnumSet.of(Mode.SWIM);
         if (e instanceof FlyingAnimal || e instanceof FlyingMob) return EnumSet.of(Mode.WALK, Mode.FLY);
         return WALK_AND_SWIM;
