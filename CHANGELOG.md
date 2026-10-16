@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-17
+
+- **At most 32 scripts run at once.** `mc.script.eval`, `mc.skill` and `mc.bot.playbook` past that
+  are refused as `server_busy` before they start, instead of each opening one more thread for as
+  long as it runs; a slot comes back when a script ends or is stopped.
+- **A key click, a keybind click and a screenshot no longer hold a thread while they wait**
+  for the client's next tick or its next frame, and neither do `mc.wait.worldReady` between probes
+  or `mc.debug.replay` while the blocks are restored. A screenshot's image is now encoded off the
+  client thread, so a large capture no longer costs the game a frame. Replies are unchanged.
+
 ## 2026-10-16
 
 - **Breaking: the parameter that names which bot a verb drives is now `bot`, not `body`.** Every

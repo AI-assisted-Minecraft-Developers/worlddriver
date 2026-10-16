@@ -160,10 +160,17 @@ event ring buffer, and pure parse/encode work.
 Because `route` blocks waiting for a server tick, calling it from a thread the server
 needs is a deadlock. Each transport already avoids that:
 
-- `RpcServer` receives frames on Netty IO threads and submits them to a cached thread pool
-  (`routeExec`) before calling `route`.
-- `McpServer` gives its `HttpServer` a cached thread pool as its executor.
-- `ScriptEvaluator` runs scripts on its own cached-pool worker, off the server thread.
+- `RpcServer` receives frames on Netty IO threads and runs each on a virtual thread
+  (`routeExec`, at most `TransportLimits.RPC_MAX_WORKERS` at once) before calling `route`.
+- `McpServer` gives its `HttpServer` a bounded pool of platform threads as its executor. Not
+  virtual: the JDK HTTP server writes a response inside a `synchronized` block, which pins a
+  virtual thread's carrier on JDK 21.
+- `ScriptEvaluator` runs scripts on its own cached-pool worker, off the server thread, at most
+  `ScriptEvaluator.MAX_RUNS` at once.
+
+The calls that finish only after a client tick or a frame — a key or keybind click, a screenshot,
+the `mc.wait.worldReady` probe — and the `mc.debug.replay` restore hold no thread while they wait:
+each is a chain of `ServerThreadHop.submit` stages, `ClientThread.nextTick` and `FrameClock.after`.
 
 A fourth caller has to do the same. User scripts and `ScriptEvents` callbacks are the callers
 that cannot: they run on the server thread. For them `ServerThreadGuard.refuseBlocking` makes
