@@ -3,15 +3,18 @@ package net.magicterra.worlddriver.bot;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.magicterra.worlddriver.config.Mod;
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.BotRegistry;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -28,6 +31,10 @@ import net.minecraft.world.phys.Vec3;
  * {@code status} address the most recently spawned driver. {@code spawn <name>} also registers the
  * bot in {@link BotRegistry} as {@code player:<name>}, which is how {@code mc.bot.goto},
  * {@code mc.bot.cancel} and {@code mc.bot.status} address it.
+ *
+ * <p>{@code /worlddriver mob <entity> <name>} adopts a mob as a {@link MobBot} named
+ * {@code mob:<name>}, and {@code /worlddriver mob release <bot>} gives it its own AI back.
+ * {@code clear} releases every adopted mob.
  */
 public final class BotCommand {
     private BotCommand() {}
@@ -56,6 +63,56 @@ public final class BotCommand {
                                         .executes(BotCommand::minePos)))
                         .then(Commands.literal("status").executes(BotCommand::status))
                         .then(Commands.literal("clear").executes(BotCommand::clear))));
+        dispatcher.register(Commands.literal(Mod.ID)
+                .then(Commands.literal("mob")
+                        .requires(s -> s.hasPermission(2))
+                        .then(Commands.literal("release")
+                                .then(Commands.argument("bot", StringArgumentType.greedyString())
+                                        .executes(BotCommand::release)))
+                        .then(Commands.argument("entity", EntityArgument.entity())
+                                .then(Commands.argument("name", StringArgumentType.word())
+                                        .executes(BotCommand::adopt)))));
+    }
+
+    /** {@code /worlddriver mob <entity> <name>}: take the mob over as {@code mob:<name>}. */
+    private static int adopt(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        CommandSourceStack src = ctx.getSource();
+        Entity e = EntityArgument.getEntity(ctx, "entity");
+        String id = MobBot.KIND + ":" + StringArgumentType.getString(ctx, "name");
+        if (!(e instanceof Mob mob)) {
+            src.sendFailure(Component.literal("worlddriver mob: " + e.getName().getString() + " is not a mob"));
+            return 0;
+        }
+        if (BotRegistry.get(id) != null) {
+            src.sendFailure(Component.literal("worlddriver mob: a bot named " + id + " already exists"));
+            return 0;
+        }
+        for (Bot b : BotRegistry.all()) {
+            if (b.entity() == mob) {
+                src.sendFailure(Component.literal("worlddriver mob: that mob is already " + b.id()));
+                return 0;
+            }
+        }
+        MobBot bot = MobBot.adopt(mob, id);
+        BotRegistry.register(bot);
+        BotTicker.register(bot);
+        src.sendSuccess(() -> Component.literal("worlddriver mob: " + mob.getType().getDescription().getString()
+                + " is now " + id), false);
+        return 1;
+    }
+
+    /** {@code /worlddriver mob release <bot>}: give a mob bot's AI back; a bare name means {@code mob:<name>}. */
+    private static int release(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        String arg = StringArgumentType.getString(ctx, "bot").trim();
+        String id = arg.contains(":") ? arg : MobBot.KIND + ":" + arg;
+        if (!(BotRegistry.get(id) instanceof MobBot)) {
+            src.sendFailure(Component.literal("worlddriver mob: no mob bot named " + id));
+            return 0;
+        }
+        BotRegistry.unregister(id);
+        src.sendSuccess(() -> Component.literal("worlddriver mob: released " + id), false);
+        return 1;
     }
 
     private static int spawn(CommandContext<CommandSourceStack> ctx, String name) {

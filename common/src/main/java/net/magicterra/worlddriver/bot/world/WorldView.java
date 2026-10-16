@@ -266,6 +266,10 @@ public interface WorldView {
      *  Default an on-foot player's: walking and swimming. */
     default Set<Locomotion.Mode> moveModes() { return Locomotion.WALK_AND_SWIM; }
 
+    /** Whether the entity runs at a player's sprint, which every parkour gap is measured for. A
+     *  driven mob strafes at about half a walking player's pace and falls short of them. */
+    default boolean sprintJumps() { return true; }
+
     /**
      * Horizontal flow (current) of the fluid at {@code pos}, as a velocity vector
      * (Vec3, y≈0) — vanilla {@code FluidState.getFlow}. Zero for still water / no

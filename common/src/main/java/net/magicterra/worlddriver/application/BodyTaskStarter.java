@@ -143,7 +143,7 @@ final class BodyTaskStarter {
         long generation = actions.generation(ActionHandle.Scope.SERVER);
         return hop.submit(() -> {
             actions.requireGeneration(ActionHandle.Scope.SERVER, generation);
-            Bot host = BotRegistry.get(body);
+            Bot host = BotRegistry.resolve(body, server);
             if (host == null) {
                 return new Refused<R>(RefusalReason.BOT_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots");
             }
@@ -186,7 +186,7 @@ final class BodyTaskStarter {
                     body + " is unavailable: no server is attached"));
         }
         return hop.submit(() -> {
-            Bot host = BotRegistry.get(body);
+            Bot host = BotRegistry.resolve(body, app.server());
             if (host == null) return refuse.apply(RefusalReason.BOT_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots");
             Map<String, Object> refusal = host.refusal();
             if (refusal != null) return refuse.apply(RefusalReason.BOT_UNAVAILABLE, String.valueOf(refusal.get("error")));

@@ -41,6 +41,8 @@ public final class LevelWorldView implements StateWorldView {
     private final LivingEntity body;
     /** The same entity when it is a player, else null: tools, effects and inventory are a player's. */
     private final Player controller;
+    /** See {@link #sprintJumps()}. */
+    private final boolean sprintJumps;
     /** Refreshed per {@link #beginSearch}; the constructor takes one so a view asked to price a
      *  break before any search (probes, scenes) prices with the bot's real effects. */
     private volatile CellRules.DigSnapshot dig;
@@ -64,13 +66,24 @@ public final class LevelWorldView implements StateWorldView {
      * constructor, so {@code new LevelWorldView(level, null)} keeps meaning what it meant.
      */
     public static LevelWorldView forBody(Level level, LivingEntity body) {
-        return new LevelWorldView(level, body, body instanceof Player p ? p : null);
+        return new LevelWorldView(level, body, body instanceof Player p ? p : null, true);
+    }
+
+    /** {@link #forBody} for a mob driven through its own move control, which strafes at a quarter of
+     *  its movement speed: too slow for any parkour gap, so a search plans none. */
+    public static LevelWorldView forStrafingMob(Level level, LivingEntity mob) {
+        return new LevelWorldView(level, mob, null, false);
     }
 
     private LevelWorldView(Level level, LivingEntity body, Player controller) {
+        this(level, body, controller, true);
+    }
+
+    private LevelWorldView(Level level, LivingEntity body, Player controller, boolean sprintJumps) {
         this.level = level;
         this.body = body;
         this.controller = controller;
+        this.sprintJumps = sprintJumps;
         this.dig = CellRules.DigSnapshot.of(controller, level);
     }
 
@@ -186,4 +199,6 @@ public final class LevelWorldView implements StateWorldView {
     @Override public int maxJumpUpBlocks() { return 1; }
 
     @Override public Set<Locomotion.Mode> moveModes() { return Locomotion.of(body).modes(); }
+
+    @Override public boolean sprintJumps() { return sprintJumps; }
 }

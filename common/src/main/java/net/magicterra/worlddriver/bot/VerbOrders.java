@@ -86,10 +86,14 @@ public final class VerbOrders {
 
     /** The verbs that hold, place, break or use something: a body with no hands (an NPC) cannot take them. */
     private static <R> Refuse<R> handless(String verb, LivingEntity self) {
-        return new Refuse<>(RefusalReason.UNSUPPORTED_CAPABILITY, verb + " needs hands, and this body has none");
+        return new Refuse<>(RefusalReason.UNSUPPORTED_CAPABILITY, handlessMessage(verb));
     }
 
-    private static boolean hasHands(LivingEntity self) { return self instanceof Player; }
+    /** Whether {@code self} can hold, place and break: a player can, a mob cannot. */
+    public static boolean hasHands(LivingEntity self) { return self instanceof Player; }
+
+    /** The refusal a verb that needs hands answers a body without them. */
+    public static String handlessMessage(String verb) { return verb + " needs hands, and this body has none"; }
 
     public static Order<GatherContracts.Mined> mine(MineParams p, LivingEntity self) {
         if (!hasHands(self)) return handless("mine", self);

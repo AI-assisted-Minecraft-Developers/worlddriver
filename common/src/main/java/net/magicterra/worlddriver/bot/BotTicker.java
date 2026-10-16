@@ -56,6 +56,7 @@ public final class BotTicker {
                 ACTIVE.remove(d);
                 // Nothing ticks its task again, so the action a caller waits on ends here.
                 ActionRegistry.GLOBAL.cancelBot(d.id(), Responses.CancelReason.BOT_REMOVED);
+                d.entityRemoved();
                 continue;
             }
             try {

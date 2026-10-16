@@ -38,10 +38,18 @@ public interface Bot {
      */
     default void crashed(Throwable t) {}
 
-    /** {@code player:<name>} or {@code npc:<name>}. */
+    /** {@link BotRegistry} let the bot go: hand the entity back to whatever ran it before. A player
+     *  bot has nothing to hand back. */
+    default void release() {}
+
+    /** {@link BotTicker} dropped the bot because its entity was removed. A player keeps its name,
+     *  since the same player object can come back into the world. */
+    default void entityRemoved() {}
+
+    /** {@code player:<name>}, {@code mob:<name>}, {@code entity:<uuid>} or the testmod's {@code npc:<name>}. */
     String id();
 
-    /** {@code player} or {@code npc}. */
+    /** {@code player}, {@code mob} or {@code npc}. */
     String kind();
 
     /** The {@link Body} its processes drive; its capabilities ({@link Body#equipment()}, {@link Body#attack()}, ...) are what the hand verbs act through. */

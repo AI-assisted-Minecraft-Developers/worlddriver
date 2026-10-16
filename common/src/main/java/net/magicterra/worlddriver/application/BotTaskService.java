@@ -232,6 +232,9 @@ final class BotTaskService implements BotTaskApi {
         ClearAreaGeometry.Cells fixedBox = box;
         String fillId = fill, filterFrom = only;
         return actions.start(p.bot(), p.awaitMs(), ctx, body -> {
+            if (!VerbOrders.hasHands(body)) {
+                return new BodyTaskStarter.Refuse<>(RefusalReason.UNSUPPORTED_CAPABILITY, VerbOrders.handlessMessage("clearArea"));
+            }
             ClearAreaGeometry.Cells cells = fixedBox;
             Optional<WidthBias> used = Optional.empty();
             if (p.target() instanceof Tunnel t) {
