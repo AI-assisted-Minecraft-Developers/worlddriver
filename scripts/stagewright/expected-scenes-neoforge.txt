@@ -616,6 +616,9 @@ wd.bodyRoutesStartProcessesByName
 wd.mobZombieWalksByEntityRefAndIsReleased
 wd.mobWolfAdoptedByCommandWalks
 wd.mobRemovedEndsItsAction
+# A taken-over mob's reflexes: it steps off magma with no order, and counts as threats only what hunts it.
+wd.mobStepsOffMagmaUnordered
+wd.mobSeesOnlyWhatHuntsIt
 # mc.query q=blocks holds its radius budget and reads only chunks that are already loaded.
 wd.queryBlocksStaysInLoadedChunks
 # The client scan names the chunks ClientLevel has not received, so the mc.query client fallback can refuse them.

@@ -12,6 +12,8 @@ import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.MobBot;
+import net.magicterra.worlddriver.bot.world.ThreatScanner;
+import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
@@ -51,7 +53,77 @@ public final class WorldDriverMobScenes implements SceneProvider {
         return List.of(
                 Scene.of("wd.mobZombieWalksByEntityRefAndIsReleased", 600, WorldDriverMobScenes::zombieByEntityRef),
                 Scene.of("wd.mobWolfAdoptedByCommandWalks", 600, WorldDriverMobScenes::wolfByCommand),
-                Scene.of("wd.mobRemovedEndsItsAction", 400, WorldDriverMobScenes::removedEndsItsAction));
+                Scene.of("wd.mobRemovedEndsItsAction", 400, WorldDriverMobScenes::removedEndsItsAction),
+                Scene.of("wd.mobStepsOffMagmaUnordered", 300, WorldDriverMobScenes::stepsOffMagmaUnordered),
+                Scene.of("wd.mobSeesOnlyWhatHuntsIt", 300, WorldDriverMobScenes::seesOnlyWhatHuntsIt));
+    }
+
+    /**
+     * An adopted wolf with no order, standing on a magma block: the contact-damage reflex walks it off.
+     * Not invulnerable here, since the reflex fires on the damage.
+     */
+    private static void stepsOffMagmaUnordered(SceneContext ctx) {
+        BlockPos o = ctx.origin().above(20);
+        Mob wolf = stage(ctx, o, EntityType.WOLF);
+        BehaviorConfig.contactDamageEscape = true;
+        String ref = MobBot.KIND + ":scene-magma";
+        ctx.cleanup(() -> BotRegistry.unregister(ref));
+
+        ctx.await(() -> settled(wolf)).within(SETTLE_TICKS).then(() -> {
+            int ok = command(ctx.server(), "worlddriver mob " + wolf.getUUID() + " scene-magma");
+            if (ok != 1) { ctx.fail("/worlddriver mob did not adopt the wolf: result=" + ok); return; }
+            // Laid after the takeover, so it is the bot and not the wolf's own AI that leaves it.
+            wolf.setInvulnerable(false);
+            ctx.level().setBlockAndUpdate(o.below(), Blocks.MAGMA_BLOCK.defaultBlockState());
+            ctx.await(() -> !wolf.blockPosition().equals(o)).within(100).then(() -> {
+                ctx.record("left", wolf.blockPosition().toShortString() + " hp=" + wolf.getHealth());
+                ctx.check(wolf.isAlive() && !wolf.getBlockStateOn().is(Blocks.MAGMA_BLOCK))
+                        .as("the idle wolf steps off the magma alive: at " + wolf.blockPosition().toShortString() + ", hp=" + wolf.getHealth())
+                        .isTrue();
+            });
+        });
+    }
+
+    /**
+     * An adopted wolf beside two zombies with their AI off: one has the wolf as its target, the other
+     * has none. The wolf's threat scan lists the first and not the second.
+     */
+    private static void seesOnlyWhatHuntsIt(SceneContext ctx) {
+        BlockPos o = ctx.origin().above(20);
+        Mob wolf = stage(ctx, o, EntityType.WOLF);
+        Mob hunter = spawnStill(ctx, EntityType.ZOMBIE, o.offset(4, 0, -2));
+        Mob idle = spawnStill(ctx, EntityType.ZOMBIE, o.offset(4, 0, 2));
+        String ref = MobBot.KIND + ":scene-prey";
+        ctx.cleanup(() -> BotRegistry.unregister(ref));
+
+        // The zombies have no AI, so they never update onGround; being ticked is enough for them.
+        ctx.await(() -> settled(wolf) && hunter.tickCount > 5 && idle.tickCount > 5).within(SETTLE_TICKS).then(() -> {
+            hunter.setTarget(wolf);
+            int ok = command(ctx.server(), "worlddriver mob " + wolf.getUUID() + " scene-prey");
+            if (ok != 1 || !(BotRegistry.get(ref) instanceof MobBot bot)) { ctx.fail("/worlddriver mob did not adopt the wolf: result=" + ok); return; }
+            int at = ctx.ticks();
+            ctx.await(() -> ctx.ticks() - at >= 3).within(20).then(() -> {
+                List<Integer> seen = bot.botState().threats.current().threats().stream().map(ThreatScanner.Threat::id).toList();
+                ctx.record("threats", seen + " hunter=" + hunter.getId() + " idle=" + idle.getId());
+                ctx.check(seen.contains(hunter.getId()) && !seen.contains(idle.getId()))
+                        .as("the wolf's threats are the zombie hunting it and not the idle one: " + seen
+                                + ", hunter=" + hunter.getId() + ", idle=" + idle.getId())
+                        .isTrue();
+            });
+        });
+    }
+
+    /** An invulnerable mob of {@code type} with its AI off, standing at {@code foot}. */
+    private static Mob spawnStill(SceneContext ctx, EntityType<? extends Mob> type, BlockPos foot) {
+        Mob mob = type.create(ctx.level());
+        if (mob == null) throw new IllegalStateException(type + " created no entity");
+        mob.moveTo(foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5, 90f, 0f);
+        mob.setInvulnerable(true);
+        mob.setPersistenceRequired();
+        mob.setNoAi(true);
+        ctx.level().addFreshEntity(mob);
+        ctx.cleanup(mob::discard);
+        return mob;
     }
 
     private static void zombieByEntityRef(SceneContext ctx) {
