@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot;
 
 import java.util.concurrent.CopyOnWriteArrayList;
+import net.magicterra.worlddriver.api.action.ActionRegistry;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
 
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.minecraft.world.entity.LivingEntity;
@@ -9,8 +11,9 @@ import net.minecraft.world.entity.LivingEntity;
  * Phase 2 registry: the server-tick driver of every registered {@link Bot}. The platform calls
  * {@link #tickAll()} once per server tick (from {@code ServerTickEvent.Post}). A bot stays on the
  * list when its task ends — an idle bot's reflexes keep it alive — and leaves it when it is
- * {@link #unregister}ed, when its entity has been removed from the world, or when its tick throws,
- * so a single faulty agent can never wedge the whole server tick.
+ * {@link #unregister}ed, when its entity has been removed from the world (its action ends as
+ * {@code body_removed}), or when its tick throws, so a single faulty agent can never wedge the
+ * whole server tick.
  *
  * <p>This is the seam that makes agent driving headless: the same Walker loop
  * the arenas exercise now runs autonomously on the dedicated-server tick, with
@@ -51,6 +54,8 @@ public final class BotTicker {
             LivingEntity e = d.entity();
             if (e == null || e.isRemoved()) {
                 ACTIVE.remove(d);
+                // Nothing ticks its task again, so the action a caller waits on ends here.
+                ActionRegistry.GLOBAL.cancelBody(d.id(), Responses.CancelReason.BODY_REMOVED);
                 continue;
             }
             try {
