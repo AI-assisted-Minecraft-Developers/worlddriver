@@ -117,6 +117,9 @@ public final class McpServer implements Closeable {
         // More threads than both caps together, so a request past a cap still gets a
         // thread to be told it is busy. Only a burst past threads + queue is dropped
         // without an answer, which is the HTTP server's own behaviour on rejection.
+        // Platform threads, unlike the RPC workers: the JDK HTTP server writes a response
+        // inside a synchronized block, and on JDK 21 a virtual thread blocked there pins its
+        // carrier, so a few slow readers would stall every other virtual thread in the JVM.
         int threads = McpLimits.MCP_MAX_IN_FLIGHT + McpLimits.MCP_MAX_EVENT_STREAMS + 8;
         this.executor = new ThreadPoolExecutor(threads, threads, 60L, TimeUnit.SECONDS,
                 new ArrayBlockingQueue<>(64), Thread.ofPlatform().name("agent-mcp-worker").daemon().factory());

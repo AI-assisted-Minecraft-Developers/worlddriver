@@ -59,11 +59,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -121,10 +122,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class RpcServer implements Closeable {
     private final EventLoopGroup boss = new NioEventLoopGroup(1, daemonFactory("agent-rpc-boss"));
     private final EventLoopGroup worker = new NioEventLoopGroup(0, daemonFactory("agent-rpc-io"));
-    /** No queue: a request either gets a thread now or is refused with a busy error, which
+    /** A virtual thread per request: a worker spends most of its life parked on a game-thread hop,
+     *  and a parked virtual thread holds no OS thread. Nothing it blocks on sits inside a monitor —
+     *  the hops park on a future, and a Netty write off the event loop only enqueues — so it does
+     *  not pin its carrier. */
+    private final ExecutorService routeThreads = Executors.newThreadPerTaskExecutor(
+            Thread.ofVirtual().name("agent-rpc-handler-", 1).factory());
+    private final Semaphore routeSlots = new Semaphore(TransportLimits.RPC_MAX_WORKERS);
+    /** No queue: a request either gets a worker now or is refused with a busy error, which
      *  a client can act on; a queued one would just time out later. */
-    private final ExecutorService routeExec = new ThreadPoolExecutor(0, TransportLimits.RPC_MAX_WORKERS,
-            60L, TimeUnit.SECONDS, new SynchronousQueue<>(), daemonFactory("agent-rpc-handler"));
+    private final Executor routeExec = task -> {
+        if (!routeSlots.tryAcquire()) throw new RejectedExecutionException("no free RPC worker");
+        try {
+            routeThreads.execute(() -> {
+                try { task.run(); } finally { routeSlots.release(); }
+            });
+        } catch (RejectedExecutionException e) {
+            routeSlots.release();
+            throw e;
+        }
+    };
     private final Channel serverChannel;
     private final int port;
 
@@ -230,7 +247,7 @@ public final class RpcServer implements Closeable {
     private void shutdown() {
         boss.shutdownGracefully();
         worker.shutdownGracefully();
-        routeExec.shutdown();
+        routeThreads.shutdown();
     }
 
     private static ThreadFactory daemonFactory(String prefix) {
@@ -294,10 +311,10 @@ public final class RpcServer implements Closeable {
 
     private static final class FrameHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
         private final ApiRegistry api;
-        private final ExecutorService routeExec;
+        private final Executor routeExec;
         private final ChannelGroup subscribers;
 
-        FrameHandler(ApiRegistry api, ExecutorService routeExec, ChannelGroup subscribers) {
+        FrameHandler(ApiRegistry api, Executor routeExec, ChannelGroup subscribers) {
             this.api = api;
             this.routeExec = routeExec;
             this.subscribers = subscribers;

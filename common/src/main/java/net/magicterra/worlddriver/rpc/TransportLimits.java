@@ -35,7 +35,7 @@ public final class TransportLimits {
      */
     public static final int RPC_MAX_IN_FLIGHT_PER_CONNECTION = 16;
 
-    /** Worker threads the WebSocket server runs requests on, across all connections. */
+    /** Requests the WebSocket server runs at once, each on a virtual thread, across all connections. */
     public static final int RPC_MAX_WORKERS = 64;
 
     /**
