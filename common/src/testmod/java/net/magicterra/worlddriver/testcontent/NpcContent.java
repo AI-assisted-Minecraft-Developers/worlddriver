@@ -35,10 +35,28 @@ public final class NpcContent implements TestContent {
                     .noSave()
                     .build("driven_piglin"));
 
+    /** {@code worlddriver:casting_mob}: a stand-in for a modded mob that casts its own move control. */
+    public static final RegistrySupplier<EntityType<CastingMob>> CASTING_MOB =
+            ENTITY_TYPES.register("casting_mob", () -> EntityType.Builder.<CastingMob>of(CastingMob::new, MobCategory.CREATURE)
+                    .sized(0.6F, 1.8F)
+                    .clientTrackingRange(8)
+                    .noSave()
+                    .build("casting_mob"));
+
+    /** {@code worlddriver:self_moving_mob}: a stand-in for a modded mob whose own travel ignores input. */
+    public static final RegistrySupplier<EntityType<SelfMovingMob>> SELF_MOVING_MOB =
+            ENTITY_TYPES.register("self_moving_mob", () -> EntityType.Builder.<SelfMovingMob>of(SelfMovingMob::new, MobCategory.CREATURE)
+                    .sized(0.6F, 1.8F)
+                    .clientTrackingRange(8)
+                    .noSave()
+                    .build("self_moving_mob"));
+
     @Override
     public void register() {
         ENTITY_TYPES.register();
         EntityAttributeRegistry.register(DRIVEN_PIGLIN, Piglin::createAttributes);
+        EntityAttributeRegistry.register(CASTING_MOB, CastingMob::createAttributes);
+        EntityAttributeRegistry.register(SELF_MOVING_MOB, SelfMovingMob::createAttributes);
         // A method reference to a separate class, as MarkerContent does, so the dedicated server
         // never links a renderer.
         EnvExecutor.runInEnv(Env.CLIENT, () -> NpcContentClient::init);

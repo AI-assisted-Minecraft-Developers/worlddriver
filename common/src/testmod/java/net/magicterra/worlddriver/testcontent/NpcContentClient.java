@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.testcontent;
 import dev.architectury.registry.client.level.entity.EntityRendererRegistry;
 import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
+import net.minecraft.client.renderer.entity.NoopRenderer;
 import net.minecraft.client.renderer.entity.PiglinRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Mob;
@@ -13,6 +14,9 @@ public final class NpcContentClient {
 
     public static void init() {
         EntityRendererRegistry.register(NpcContent.DRIVEN_PIGLIN, Renderer::new);
+        // The stand-ins for modded mobs are only ever measured, never looked at.
+        EntityRendererRegistry.register(NpcContent.CASTING_MOB, NoopRenderer::new);
+        EntityRendererRegistry.register(NpcContent.SELF_MOVING_MOB, NoopRenderer::new);
     }
 
     /**

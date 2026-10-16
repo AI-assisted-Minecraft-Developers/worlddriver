@@ -17,6 +17,8 @@ import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
+import net.magicterra.worlddriver.testcontent.CastingMob;
+import net.magicterra.worlddriver.testcontent.NpcContent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -55,7 +57,99 @@ public final class WorldDriverMobScenes implements SceneProvider {
                 Scene.of("wd.mobWolfAdoptedByCommandWalks", 600, WorldDriverMobScenes::wolfByCommand),
                 Scene.of("wd.mobRemovedEndsItsAction", 400, WorldDriverMobScenes::removedEndsItsAction),
                 Scene.of("wd.mobStepsOffMagmaUnordered", 300, WorldDriverMobScenes::stepsOffMagmaUnordered),
-                Scene.of("wd.mobSeesOnlyWhatHuntsIt", 300, WorldDriverMobScenes::seesOnlyWhatHuntsIt));
+                Scene.of("wd.mobSeesOnlyWhatHuntsIt", 300, WorldDriverMobScenes::seesOnlyWhatHuntsIt),
+                Scene.of("wd.mobThatCastsItsOwnControlWalks", 600, WorldDriverMobScenes::castsItsOwnControlWalks),
+                Scene.of("wd.mobThatIgnoresInputFailsUnresponsive", 400, WorldDriverMobScenes::ignoresInputFailsUnresponsive),
+                Scene.of("wd.mobUndrivableIsRefused", 300, WorldDriverMobScenes::undrivableIsRefused));
+    }
+
+    /**
+     * A stand-in for a modded mob whose own tick casts its move control to its own class walks to a
+     * goal: the driver writes into the mob's AI step and leaves that control in place, so the cast holds
+     * and the mob's own tick keeps running.
+     */
+    private static void castsItsOwnControlWalks(SceneContext ctx) {
+        ApiRegistry api = WorldDriverCommon.registry();
+        if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
+        BlockPos o = ctx.origin().above(20);
+        BlockPos goal = o.offset(COURSE, 0, 0);
+        CastingMob mob = (CastingMob) stage(ctx, o, NpcContent.CASTING_MOB.get());
+        String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
+        ctx.cleanup(() -> BotRegistry.unregister(ref));
+
+        ctx.await(() -> settled(mob)).within(SETTLE_TICKS).then(() -> {
+            int pulsesBefore = ((CastingMob.OwnMoveControl) mob.getMoveControl()).pulses();
+            Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(goal)));
+            ctx.record("goto", String.valueOf(go));
+            if (actionId(go) == null) { ctx.fail("a goto naming the stand-in by entity ref did not start: " + go); return; }
+            Bot bot = BotRegistry.get(ref);
+            ctx.await(() -> !bot.busy()).within(400).then(() -> {
+                BlockPos stoppedAt = mob.blockPosition();
+                Map<?, ?> action = read(api, actionId(go));
+                int pulses = ((CastingMob.OwnMoveControl) mob.getMoveControl()).pulses() - pulsesBefore;
+                ctx.record("arrived", stoppedAt.toShortString() + " pulses=" + pulses + " " + action);
+                ctx.check(stoppedAt.closerThan(goal, 1.5) && "succeeded".equals(action.get("state")) && pulses > 0)
+                        .as("the stand-in walks to the goal with its own control still in place and its own tick still "
+                                + "casting it: stopped at " + stoppedAt.toShortString() + ", pulses=" + pulses + ", " + action)
+                        .isTrue();
+            });
+        });
+    }
+
+    /** A stand-in for a modded mob whose own travel reads no input: its goto fails as unresponsive. */
+    private static void ignoresInputFailsUnresponsive(SceneContext ctx) {
+        ApiRegistry api = WorldDriverCommon.registry();
+        if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
+        BlockPos o = ctx.origin().above(20);
+        Mob mob = stage(ctx, o, NpcContent.SELF_MOVING_MOB.get());
+        String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
+        ctx.cleanup(() -> BotRegistry.unregister(ref));
+
+        ctx.await(() -> settled(mob)).within(SETTLE_TICKS).then(() -> {
+            Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(o.offset(COURSE, 0, 0))));
+            ctx.record("goto", String.valueOf(go));
+            if (actionId(go) == null) { ctx.fail("a goto naming the stand-in by entity ref did not start: " + go); return; }
+            ctx.await(() -> !"running".equals(read(api, actionId(go)).get("state"))).within(200).then(() -> {
+                Map<?, ?> action = read(api, actionId(go));
+                ctx.record("ended", mob.blockPosition().toShortString() + " " + action);
+                ctx.check("failed".equals(action.get("state")) && String.valueOf(action).contains("unresponsive")
+                                && mob.blockPosition().closerThan(o, 1.5))
+                        .as("the stand-in never moves, and its goto fails as unresponsive instead of running to its deadline: "
+                                + mob.blockPosition().toShortString() + ", " + action)
+                        .isTrue();
+            });
+        });
+    }
+
+    /**
+     * A type listed in {@code undrivableMobs}, and a mob with no AI, are refused by an order naming
+     * them and by {@code /worlddriver mob}, and neither is taken over.
+     */
+    private static void undrivableIsRefused(SceneContext ctx) {
+        ApiRegistry api = WorldDriverCommon.registry();
+        if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
+        BlockPos o = ctx.origin().above(20);
+        Mob listed = stage(ctx, o, EntityType.WOLF);
+        Mob noAi = spawnStill(ctx, EntityType.ZOMBIE, o.offset(0, 0, 2));
+        var before = BotConfig.undrivableMobs;
+        ctx.cleanup(() -> BotConfig.undrivableMobs = before);
+        BotConfig.undrivableMobs = java.util.Set.of("minecraft:wolf");
+
+        ctx.await(() -> settled(listed) && noAi.tickCount > 5).within(SETTLE_TICKS).then(() -> {
+            Map<String, Object> listedGo = call(api, "mc.bot.goto", Map.of("bot", BotRegistry.ENTITY_PREFIX + listed.getUUID(),
+                    "target", at(o.offset(COURSE, 0, 0))));
+            Map<String, Object> noAiGo = call(api, "mc.bot.goto", Map.of("bot", BotRegistry.ENTITY_PREFIX + noAi.getUUID(),
+                    "target", at(o.offset(COURSE, 0, 2))));
+            int cmd = command(ctx.server(), "worlddriver mob " + listed.getUUID() + " scene-listed");
+            ctx.record("refusals", listedGo + " / " + noAiGo + " / command=" + cmd);
+            ctx.check(refusedAs(listedGo, "bot_unavailable") && String.valueOf(listedGo).contains("undrivableMobs")
+                            && refusedAs(noAiGo, "bot_unavailable") && String.valueOf(noAiGo).contains("NoAI")
+                            && cmd == 0 && BotRegistry.get(MobBot.KIND + ":scene-listed") == null
+                            && !listed.goalSelector.getAvailableGoals().isEmpty())
+                    .as("the listed wolf and the zombie with no AI are refused, say why, and keep their own goals: "
+                            + listedGo + " / " + noAiGo + " / command=" + cmd)
+                    .isTrue();
+        });
     }
 
     /**
