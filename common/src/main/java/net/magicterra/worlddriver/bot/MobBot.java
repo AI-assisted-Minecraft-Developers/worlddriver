@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot;
 
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
+import net.magicterra.worlddriver.config.BotConfig;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.magicterra.worlddriver.game.body.MobBody;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -16,11 +18,16 @@ import net.minecraft.world.level.Level;
  * goals taken off and no driver just stands there.
  *
  * <p>A mob has no hands, so the verbs that need them refuse it; the walk and the movement processes
- * run as they do for a player, at the mob's own speed.
+ * run as they do for a player, at the mob's own speed. A mob whose own movement ignores the input
+ * ends the task it was on with {@link #UNRESPONSIVE}.
  */
 public final class MobBot extends ServerBot {
 
     public static final String KIND = "mob";
+
+    /** The error a task ends with when held input moved the mob nowhere. */
+    public static final String UNRESPONSIVE = "unresponsive: this mob does not move on the bot's input; "
+            + "its own movement code ignores it";
 
     private final MobBody body;
     private final String id;
@@ -29,6 +36,14 @@ public final class MobBot extends ServerBot {
         super(body.entity());
         this.body = body;
         this.id = id;
+    }
+
+    /** Why {@code mob} cannot be taken over, or null when it can. */
+    public static String refusal(Mob mob) {
+        if (!MobBody.drivable(mob)) return "it has no AI (NoAI), so it never runs the step the bot's input goes through";
+        String type = BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).toString();
+        if (BotConfig.undrivableMobs.contains(type)) return type + " is listed in the undrivableMobs setting";
+        return null;
     }
 
     /** Take {@code mob} over and address it as {@code id}. Register it with {@link BotRegistry} and {@link BotTicker}. */
@@ -42,11 +57,14 @@ public final class MobBot extends ServerBot {
     @Override public Mob entity() { return body.entity(); }
 
     /** The mob moves in its own AI step next tick; this hands it the input. */
-    @Override protected void step() { body.apply(); }
+    @Override protected void step() {
+        body.apply();
+        if (body.takeUnresponsive()) failTask(UNRESPONSIVE);
+    }
 
-    /** A strafing mob is too slow for parkour gaps, so it plans none. */
+    /** A mob walks at its own pace, too slow for any parkour gap, so it plans none. */
     @Override protected LevelWorldView view(Level level, LivingEntity entity) {
-        return LevelWorldView.forStrafingMob(level, entity);
+        return LevelWorldView.forMob(level, entity);
     }
 
     /** Off the tick list, goals back on: the mob runs itself again. */

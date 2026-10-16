@@ -41,3 +41,6 @@ accessible	field	net/minecraft/client/KeyMapping	clickCount	I
 # offers the selectors to subclasses only.
 accessible	field	net/minecraft/world/entity/Mob	goalSelector	Lnet/minecraft/world/entity/ai/goal/GoalSelector;
 accessible	field	net/minecraft/world/entity/Mob	targetSelector	Lnet/minecraft/world/entity/ai/goal/GoalSelector;
+# A driven mob whose own control is a smooth swimmer's moves at that control's speed factors.
+accessible	field	net/minecraft/world/entity/ai/control/SmoothSwimmingMoveControl	inWaterSpeedModifier	F
+accessible	field	net/minecraft/world/entity/ai/control/SmoothSwimmingMoveControl	outsideWaterSpeedModifier	F

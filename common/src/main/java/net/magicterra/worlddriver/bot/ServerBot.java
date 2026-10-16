@@ -92,6 +92,14 @@ public abstract class ServerBot implements Bot {
         last = Walker.Step.FAILED;
     }
 
+    /** End the task with {@code error}, its action failing with it, and leave the bot registered. */
+    protected void failTask(String error) {
+        if (activeKind() == null) return;
+        brain.failTask(error);
+        finished = true;
+        last = Walker.Step.FAILED;
+    }
+
     /** The kind of task the bot is on, or null when it has none or has finished: the held process's kind. */
     public String activeKind() {
         if (finished || !tasked) return null;

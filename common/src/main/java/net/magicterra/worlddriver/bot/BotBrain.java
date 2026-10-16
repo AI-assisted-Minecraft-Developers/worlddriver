@@ -567,6 +567,12 @@ public final class BotBrain {
         scheduler.cancelAllEpisodes(body, error);
     }
 
+    /** The user task cannot go on: it ends with {@code error} and its action fails with it. The reflexes
+     *  and any fight are left as they are. */
+    public void failTask(String error) {
+        userTask.cancel(error, h -> h.fail(error));
+    }
+
     /** The body left its world. Whatever the bot was doing there ends now rather than resuming in
      *  the next world, which would act on a world the caller never asked about. */
     public void onDisconnect(Body body) {

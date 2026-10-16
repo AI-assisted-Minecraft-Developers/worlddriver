@@ -69,9 +69,9 @@ public final class LevelWorldView implements StateWorldView {
         return new LevelWorldView(level, body, body instanceof Player p ? p : null, true);
     }
 
-    /** {@link #forBody} for a mob driven through its own move control, which strafes at a quarter of
-     *  its movement speed: too slow for any parkour gap, so a search plans none. */
-    public static LevelWorldView forStrafingMob(Level level, LivingEntity mob) {
+    /** {@link #forBody} for a driven mob, which moves at its own walking pace: a zombie at about half a
+     *  walking player's, too slow for any parkour gap, so a search plans none. */
+    public static LevelWorldView forMob(Level level, LivingEntity mob) {
         return new LevelWorldView(level, mob, null, false);
     }
 

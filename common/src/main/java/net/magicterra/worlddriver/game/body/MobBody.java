@@ -4,50 +4,94 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.control.SmoothSwimmingMoveControl;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.GoalSelector;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.ai.memory.MemoryStatus;
+import net.minecraft.world.entity.animal.Squid;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * A {@link Body} over any vanilla {@link Mob}, driven through the mob's own move and jump controls,
- * so its speed, step height and physics stay vanilla.
+ * A {@link Body} over any {@link Mob}, vanilla or modded, moved by its own physics.
  *
  * <p><b>Taking the mob over.</b> {@link #adopt} takes the goals off both of its selectors and keeps
  * them, drops its path and its target, and marks it persistent; {@link #release} puts the goals back
  * at their priorities. Turning the selectors' control flags off would not hold: vanilla turns MOVE,
  * LOOK and JUMP back on every five ticks, and a goal with no flags (a zombie breaking a door) runs
- * anyway. {@code setNoAi} is no use either, since it stops the mob's physics too. A goal added while
- * the mob is held comes off on the next {@link #apply}, and a mob run by a brain rather than goals has
- * its walk target erased every tick. Persistence stays set after release: vanilla has no way to unset it.
+ * anyway. {@code setNoAi} is no use either, since it stops the mob's physics too, which is also why
+ * a mob that already has no AI cannot be adopted. A goal added while the mob is held comes off on the
+ * next {@link #apply}. A mob run by a brain has the memories that move it erased every tick, or set
+ * where setting is what keeps it still (a frog's long-jump cooldown). Persistence stays set after
+ * release: vanilla has no way to unset it.
  *
- * <p><b>Steering.</b> {@code MoveControl.strafe} replaces sideways or backward input with straight
- * ahead whenever the cell it probes is not plain walkable ground, which is every ledge, step-up, slab
- * and water edge. So the input is turned into a heading: the mob faces where the input points and
- * strafes straight ahead. A strafe moves at a quarter of the mob's movement speed per unit of input,
- * which puts a zombie at about half a walking player's pace.
+ * <p><b>Steering.</b> The bot's input is written by {@code MobMixin} inside the mob's own AI step,
+ * right after its own move control has run and before {@code travel} reads it: the mob faces the
+ * heading the input points along, its forward input is the input's magnitude, and its vertical input
+ * rises or sinks it in water. Its own control still runs first, so whatever that control does every
+ * tick regardless of orders stays, such as the lift that keeps a swimmer from sinking. At full input
+ * the speed is what the mob's own control would set at a speed modifier of 1: the movement attribute,
+ * times the in-water or out-of-water factor when the control is a smooth swimmer's.
+ *
+ * <p>A squid's own movement ignores input altogether, so it is moved by its velocity instead.
  *
  * <p><b>Timing.</b> The input is written after the bot's tick and read in the mob's own AI step on the
  * next server tick, one tick later than a player body's.
  *
+ * <p><b>A mob that does not listen.</b> A modded mob may move by code of its own that reads no input.
+ * Input held for {@link #UNRESPONSIVE_TICKS} ticks that moves it nowhere, against no wall, marks it
+ * {@link #takeUnresponsive unresponsive}.
+ *
  * <p>No hands, no bag, no menus: every optional capability keeps {@link Body}'s empty default.
  */
 public final class MobBody implements Body {
+
+    /** Implemented on every {@link Mob} by {@code MobMixin}: the body driving it, or null. */
+    public interface Driven {
+        MobBody worlddriver$body();
+        void worlddriver$body(MobBody body);
+    }
+
+    /** Ticks of held input that must move the mob before it counts as not listening. */
+    static final int UNRESPONSIVE_TICKS = 40;
+    /** Below this much horizontal travel over {@link #UNRESPONSIVE_TICKS}, held input moved it nowhere. */
+    private static final double UNRESPONSIVE_DISTANCE = 0.25;
+    /** A squid's speed at full input, in blocks per tick: about its own stroke's average. */
+    private static final double SQUID_SPEED = 0.1;
+
     private record Held(GoalSelector from, int priority, Goal goal) {}
 
     private final Mob mob;
     private final List<Held> held = new ArrayList<>();
+    /** The control's speed factors when it is a smooth swimmer's; 1 otherwise. */
+    private final float inWaterFactor, outOfWaterFactor;
     private float left, forward;
     private boolean jump, sneak;
+    private float heading, magnitude;
     private boolean aimed;
     private float aimYaw, aimPitch;
     private boolean released;
+    private Vec3 pushStart;
+    private int pushTicks;
+    private boolean pushBlocked, unresponsive;
 
-    private MobBody(Mob mob) { this.mob = mob; }
+    private MobBody(Mob mob) {
+        this.mob = mob;
+        if (mob.getMoveControl() instanceof SmoothSwimmingMoveControl smooth) {
+            inWaterFactor = smooth.inWaterSpeedModifier;
+            outOfWaterFactor = smooth.outsideWaterSpeedModifier;
+        } else {
+            inWaterFactor = outOfWaterFactor = 1f;
+        }
+    }
+
+    /** Whether {@code mob} can be driven at all: one without AI never runs the step the input goes through. */
+    public static boolean drivable(Mob mob) { return !mob.isNoAi(); }
 
     /** Take {@code mob} over: its goals come off, its path and target are dropped, and it stops despawning. */
     public static MobBody adopt(Mob mob) {
@@ -56,6 +100,7 @@ public final class MobBody implements Body {
         mob.setTarget(null);
         b.hold();
         mob.stopInPlace();
+        ((Driven) mob).worlddriver$body(b);
         return b;
     }
 
@@ -101,34 +146,103 @@ public final class MobBody implements Body {
     @Override public boolean dbgJumping() { return jump; }
     @Override public boolean dbgSneak() { return sneak; }
 
-    /** Once per bot tick, after the brain: keep the mob held and hand this tick's input to its controls. */
+    /**
+     * Once per bot tick, after the brain: keep the mob held, and turn this tick's input into the heading
+     * and magnitude {@link #drive} hands over in the mob's next AI step.
+     */
     public void apply() {
         if (released) return;
         hold();
         mob.getNavigation().stop();
-        mob.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        double magnitude = Math.hypot(left, forward);
+        var brain = mob.getBrain();
+        brain.eraseMemory(MemoryModuleType.WALK_TARGET);
+        brain.eraseMemory(MemoryModuleType.ATTACK_TARGET);
+        brain.eraseMemory(MemoryModuleType.PLAY_DEAD_TICKS);                 // an axolotl's 200-tick freeze
+        if (brain.checkMemory(MemoryModuleType.LONG_JUMP_COOLDOWN_TICKS, MemoryStatus.REGISTERED))
+            brain.setMemory(MemoryModuleType.LONG_JUMP_COOLDOWN_TICKS, 100); // a frog's leap sets its own velocity
+        magnitude = (float) Math.min(1.0, Math.hypot(left, forward));
         if (magnitude > 1e-4) {
             // Where Entity.moveRelative would send (left, forward) at the current yaw, as a heading.
             double yaw = Math.toRadians(mob.getYRot());
             double dx = left * Math.cos(yaw) - forward * Math.sin(yaw);
             double dz = forward * Math.cos(yaw) + left * Math.sin(yaw);
-            float heading = (float) Math.toDegrees(Math.atan2(-dx, dz));
-            mob.setYRot(heading);
-            mob.setYBodyRot(heading);
-            mob.getMoveControl().strafe((float) Math.min(1.0, magnitude), 0);
+            heading = (float) Math.toDegrees(Math.atan2(-dx, dz));
+        } else {
+            magnitude = 0;
         }
         if (jump) mob.getJumpControl().jump();
         aimed = false;
+        watchResponse();
+    }
+
+    /** In the mob's own AI step, after its move control: overwrite what that control left with the bot's input. */
+    public void drive() {
+        if (released) return;
+        boolean water = mob.isInWater();
+        if (mob instanceof Squid squid) {
+            driveSquid(squid, water);
+            return;
+        }
+        float speed = (float) mob.getAttributeValue(Attributes.MOVEMENT_SPEED);
+        if (magnitude > 0) {
+            mob.setYRot(heading);
+            mob.setYBodyRot(heading);
+            // setSpeed also writes the forward input, so it goes first.
+            mob.setSpeed(speed * (water ? inWaterFactor : outOfWaterFactor));
+            mob.setZza(speed * magnitude);
+        } else {
+            mob.setSpeed(0);
+        }
+        mob.setXxa(0);
+        mob.setYya(water ? (jump ? speed : sneak ? -speed : 0) : 0);
+    }
+
+    private void driveSquid(Squid squid, boolean water) {
+        squid.setMovementVector(0, 0, 0);
+        if (!water) return;
+        double rad = Math.toRadians(heading);
+        double h = SQUID_SPEED * magnitude;
+        double v = jump ? SQUID_SPEED / 2 : sneak ? -SQUID_SPEED / 2 : 0;
+        squid.setDeltaMovement(-Math.sin(rad) * h, v, Math.cos(rad) * h);
+    }
+
+    /**
+     * Whether held input has moved the mob nowhere, against no wall, for {@link #UNRESPONSIVE_TICKS}
+     * ticks since the last time this was asked; asking clears it.
+     */
+    public boolean takeUnresponsive() {
+        boolean was = unresponsive;
+        unresponsive = false;
+        return was;
+    }
+
+    private void watchResponse() {
+        if (magnitude < 0.5f || mob.isPassenger()) { pushStart = null; return; }
+        if (pushStart == null) {
+            pushStart = mob.position();
+            pushTicks = 0;
+            pushBlocked = false;
+        }
+        pushBlocked |= mob.horizontalCollision;
+        if (++pushTicks < UNRESPONSIVE_TICKS) return;
+        Vec3 now = mob.position();
+        double moved = Math.hypot(now.x - pushStart.x, now.z - pushStart.z);
+        if (moved < UNRESPONSIVE_DISTANCE && !pushBlocked) unresponsive = true;
+        pushStart = null;
     }
 
     /** Hand the mob back: its goals return at their priorities and it stops where it is. */
     public void release() {
         if (released) return;
         released = true;
+        ((Driven) mob).worlddriver$body(null);
         for (Held h : held) h.from().addGoal(h.priority(), h.goal());
         held.clear();
+        if (mob instanceof Squid squid) squid.setMovementVector(0, 0, 0);
         mob.stopInPlace();
+        mob.setSpeed(0);
+        mob.setXxa(0);
+        mob.setYya(0);
         mob.setSprinting(false);
         mob.setShiftKeyDown(false);
         mob.setJumping(false);

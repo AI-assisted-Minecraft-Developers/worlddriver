@@ -69,6 +69,10 @@ public final class BotConfig {
      *  everything. Whole-list replace; pass [] to clear. Persisted across relaunch. */
     public static volatile Set<String> mutedEvents = Set.of();
 
+    /** Entity type ids the bot stack never takes over: an order or {@code /worlddriver mob} naming one
+     *  is refused. The way out for a modded mob that misbehaves when driven. Whole-list replace. */
+    public static volatile Set<String> undrivableMobs = Set.of();
+
     /** Baritone {@code autoTool} analogue — when on, the bot swaps to the
      *  best hotbar tool whenever the player crosshair points at a breakable
      *  block (and no process or chain drives the bot). Default off so

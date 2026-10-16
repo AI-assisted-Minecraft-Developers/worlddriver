@@ -267,7 +267,7 @@ public interface WorldView {
     default Set<Locomotion.Mode> moveModes() { return Locomotion.WALK_AND_SWIM; }
 
     /** Whether the entity runs at a player's sprint, which every parkour gap is measured for. A
-     *  driven mob strafes at about half a walking player's pace and falls short of them. */
+     *  driven mob walks at its own pace, a zombie's about half a walking player's, and falls short of them. */
     default boolean sprintJumps() { return true; }
 
     /**
