@@ -18,7 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as the client's bot does. A scene that relied on the old freeze to finish a jump onto a ledge now runs
   on the walker setting the product ships with, which holds the last step until the bot is standing.
 - **The server's bot list drops a bot whose player is gone or whose tick throws,** and its count of
-  active bots counts the ones with a task, not every registered one.
+  active bots counts the ones with a task, not every registered one. An action running on a bot whose
+  player is gone ends as `body_removed`, where it used to stay running until the caller's deadline.
 - **On the client, `threat.appeared` now comes before `player.hurt` in the same tick.** The threat scan
   moved into the bot's own tick, which runs before the hurt detector. Server bots do not publish these
   events yet: the event stream has no field saying which bot an event belongs to.
