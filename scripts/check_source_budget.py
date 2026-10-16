@@ -5,8 +5,8 @@ Run from the repo root (exit 1 on violation):
 
     python3 scripts/check_source_budget.py       # 'python' on the Windows checkout
 
-FILE budget (3000 lines)
-------------------------
+FILE budget (3000 lines, comment-only lines not counted)
+--------------------------------------------------------
 Walker.java grew to 5849 lines before being split into the WalkerTick* phase classes
 (task#94). The cap keeps the next monolith from re-forming silently.
 
@@ -30,9 +30,13 @@ from GRANDFATHERED is progress that cannot silently regress. Update an entry DOW
 when you shrink a method. Adding a new entry, or raising an existing one, should be a
 deliberate reviewed commit — not a reflex to make the gate quiet.
 
-Measurement is brace balance from a signature line to its closing brace, so it counts
-exactly what a reader has to hold in their head: comments and blanks included. String
-literals, char literals and comments are blanked before brace counting.
+Measurement is brace balance from a signature line to its closing brace. String literals,
+char literals and comments are blanked before brace counting.
+
+What counts, for both budgets: every line except one that holds only a comment. Blank lines
+and code with a trailing comment count. Until 2026-10-17 comments counted too, and a file at
+the cap paid for its explanations — Walker.java stood at 2999 of 3000 lines with half of them
+comment, so any fix to it started by deleting the reasons the code is shaped the way it is.
 
 Excluded from the METHOD budget only: the testmod scene sources. Arena bodies are long
 by nature and their real problem is duplicated scaffolding, not control-flow depth.
@@ -54,21 +58,15 @@ SRC_ROOTS = [
 
 METHOD_EXEMPT_DIRS = ("common/src/testmod",)
 
-# "File.java::method" -> max allowed lines. Measured 2026-07-26; all of these predate the
-# gate. The five WalkerTick* entries are the original ~4650-line tick method, redistributed
+# "File.java::method" -> max allowed lines, comment-only lines not counted. Re-measured
+# 2026-10-17 when comments stopped counting; the entries that fell under METHOD_LIMIT left the
+# list then. The WalkerTick* entries are the original ~4650-line tick method, redistributed
 # rather than decomposed — they are the backlog this list exists to shrink.
 GRANDFATHERED = {
-    "WalkerTickDrive.java::run": 1262,
-    "WalkerTickClimb.java::run": 1008,
-    "WalkerTickAim.java::run": 851,
-    "WalkerTickProgress.java::run": 709,
-    "WalkerTickStallDetect.java::run": 389,
-    "WalkerTickSearch.java::run": 278,
-    "WalkerTickPrelude.java::run": 245,
-    "ElytraProcess.java::tick": 228,
-    "WalkerTickEdgeGuards.java::run": 241,
-    "WalkerTickRepath.java::run": 177,
-    "Walker.java::adoptPath": 206,
+    "WalkerTickDrive.java::run": 519,
+    "WalkerTickClimb.java::run": 471,
+    "WalkerTickAim.java::run": 347,
+    "WalkerTickProgress.java::run": 305,
 }
 
 # A member declaration that opens a body. Deliberately conservative: it must begin with a
@@ -129,10 +127,29 @@ def _strip(line, in_block):
     return "".join(out), in_block
 
 
-def methods(path):
-    """Yield (name, start_line, length) for every method body in a Java file."""
+def read_lines(path):
     with open(path, encoding="utf-8", errors="replace") as f:
-        lines = f.read().split("\n")
+        return f.read().split("\n")
+
+
+def counted(lines):
+    """Per line, whether it counts toward a budget: every line but one that holds only a comment.
+
+    Code with a trailing comment counts, and so does a blank line. A comment is what a reader is
+    told about the code, not more code to hold, and charging for it made the files at the cap pay
+    for their explanations: a fix to one of them began by deleting the reasons it was written so.
+    """
+    out, in_block = [], False
+    for raw in lines:
+        code, in_block = _strip(raw, in_block)
+        out.append(not raw.strip() or bool(code.strip()))
+    return out
+
+
+def methods(path):
+    """Yield (name, start_line, length) for every method body in a Java file; length as counted()."""
+    lines = read_lines(path)
+    counts = counted(lines)
     depth, start, name, in_block = 0, None, None, False
     for i, raw in enumerate(lines):
         code, in_block = _strip(raw, in_block)
@@ -144,7 +161,7 @@ def methods(path):
                 name, start = m.group(1), i
         new_depth = depth + code.count("{") - code.count("}")
         if start is not None and new_depth <= 1 and i > start:
-            yield name, start + 1, i - start + 1
+            yield name, start + 1, sum(counts[start:i + 1])
             start, name = None, None
         depth = new_depth
 
@@ -164,8 +181,7 @@ def main():
                 path = os.path.join(dirpath, fn)
                 rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
 
-                with open(path, "rb") as f:
-                    n = sum(1 for _ in f)
+                n = sum(counted(read_lines(path)))
                 if n > LIMIT:
                     file_violations.append((n, rel))
 
@@ -188,7 +204,7 @@ def main():
     failed = False
     if file_violations:
         failed = True
-        print("source-budget gate FAILED: files over %d lines:" % LIMIT)
+        print("source-budget gate FAILED: files over %d lines (comment-only lines not counted):" % LIMIT)
         for n, rel in sorted(file_violations, reverse=True):
             print("  %6d  %s" % (n, rel))
         print("Split the file (see the WalkerTick* mechanical phase split for the pattern).")
@@ -209,7 +225,8 @@ def main():
 
     if failed:
         return 1
-    print("source-budget gate OK: no Java source over %d lines, no method over budget" % LIMIT)
+    print("source-budget gate OK: no Java source over %d lines, no method over budget "
+          "(comment-only lines not counted)" % LIMIT)
     return 0
 
 

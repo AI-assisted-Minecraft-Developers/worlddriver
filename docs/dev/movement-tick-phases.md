@@ -13,12 +13,12 @@ the walker's place in the wider subsystem is not already familiar.
 `scripts/check_source_budget.py` caps two units of hand-written Java. A file may not
 exceed its line limit, and a method may not exceed its line limit unless it appears on the
 script's grandfather list, in which case the recorded length is a ceiling it may shrink
-below but never rise above. Read the script for the current numbers rather than trusting a
-figure quoted anywhere else.
+below but never rise above. Both count every line except one that holds only a comment. Read
+the script for the current numbers rather than trusting a figure quoted anywhere else.
 
 The file cap came first and measured the wrong unit. Splitting the walker satisfied it by
 moving text: the enormous method survived, redistributed across new files. The method cap
-exists because of that, and five `WalkerTick*` entries on the grandfather list are the
+exists because of that, and the `WalkerTick*` entries on the grandfather list are the
 backlog it was written to shrink. Deleting an entry from that list is progress that cannot
 silently regress; adding one, or raising one, should be a deliberate reviewed change.
 

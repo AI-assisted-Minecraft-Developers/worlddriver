@@ -85,7 +85,7 @@ and a green result means nothing. The details are in [`docs/dev/testing.md`](doc
 `check_source_budget.py` as well.
 
 ```bash
-python3 scripts/check_source_budget.py   # no Java source file over 3000 lines
+python3 scripts/check_source_budget.py   # no Java source file over 3000 lines, comment-only lines not counted
 python3 scripts/check_scene_arena.py     # a scene's terrain fits its force-loaded arena
 python3 scripts/check_remap_safety.py    # no new reflection on a Mojang-mapped member
 python3 scripts/check_log_contract.py    # the log formats the analysis tools parse still match

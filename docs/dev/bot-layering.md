@@ -301,13 +301,12 @@ flag in the same change.**
 
 `scripts/check_source_budget.py` caps two things, and both apply here: no hand-written
 Java file may exceed the file limit, and no method may exceed the method limit unless it
-is on the script's grandfather list, in which case it may shrink but never grow. Read the
-script for the current numbers. `Walker.java` sits close to the
-file cap, so adding to it means extracting first; shaving comments to buy a few lines
-trades readability for a number the check cannot tell apart from real work.
+is on the script's grandfather list, in which case it may shrink but never grow. Lines that
+hold only a comment do not count, so explaining code costs nothing against either limit.
+Read the script for the current numbers.
 
 The `WalkerTick*` phase classes are the reference pattern for carving up a large
-sequential method. Five of them are on the grandfather list precisely because that split
+sequential method. Four of them are on the grandfather list precisely because that split
 moved text without decomposing the method — which is why the method budget exists at all.
 
 `FocusPolicy` and `MouseYield` (in `game/ui/`) govern how the bot shares keyboard and mouse
