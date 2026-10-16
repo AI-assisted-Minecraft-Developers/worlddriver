@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.application;
 
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.game.DriverEvent;
 import net.magicterra.worlddriver.api.game.DriverHost;
@@ -16,6 +17,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import java.util.*;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -127,15 +129,15 @@ public final class DriverApplication implements DriverHost {
     /**
      * Write a list of cells into the attached server's overworld on the server
      * thread. Public seam for the path-replay debug tool ({@code mc.debug.replay}),
-     * which restores a recorded block envelope before re-executing a plan. Returns
-     * the number of cells written. Throws if no server is attached.
+     * which restores a recorded block envelope before re-executing a plan. Completes
+     * with the number of cells written. Throws if no server is attached.
      */
-    public int restoreCellsOnServer(List<WorldCell> cells) {
+    public CompletionStage<Integer> restoreCellsOnServer(List<WorldCell> cells, CallContext ctx) {
         ServerLevel level = level();
-        return onServerThread(() -> {
+        return requireServerHop().submit(() -> {
             WorldService.restoreCells(level, cells);
             return cells.size();
-        });
+        }, ctx);
     }
 
     public void detachServer() {

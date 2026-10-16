@@ -16,7 +16,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.game.ClientHop;
 import net.magicterra.worlddriver.game.ui.ClientThread;
 
@@ -41,73 +44,85 @@ public final class ClientKeybinds {
     /** How long a click waits for the tick that carries its release before reporting it undelivered. */
     private static final long CLICK_RELEASE_MS = 2_000;
 
-    public static ClientReply keybind(KeybindParams p) {
-        final String want = p.name().map(String::trim).orElse("");
-        final KeyAction act = p.action();
-        final KeyMapping[] held = new KeyMapping[1];
-        ClientReply out = ClientHop.call(() -> {
-            ScreenContext.require(p.contextId());
-            KeyMapping[] all = Minecraft.getInstance().options.keyMappings;
-            if (want.isEmpty()) return list(all);
-            List<KeyMapping> hits = resolve(all, want);
-            if (hits.isEmpty()) {
-                return new Refused(ClientRefusal.NO_TARGET, "no key mapping matches '" + want
-                        + "' — call this with no name to list every mapping");
-            }
-            if (hits.size() > 1) {
-                return new Refused(ClientRefusal.AMBIGUOUS,
-                        "'" + want + "' matches " + hits.size() + " mappings: " + names(hits));
-            }
-            KeyMapping km = hits.get(0);
-            if (act == KeyAction.RELEASE) {
-                String raw = fireRaw(km, false);
-                // Unconditionally, unlike the press: vanilla's release does the same thing, and a
-                // mapping left down walks the player into whatever runs next.
+    /** What a press or a release left: the reply, and for a click's press the mapping its release lets go of. */
+    private record Pressed(ClientReply reply, KeyMapping held) {}
+
+    /**
+     * A list, a press or a release, on the client thread; a click's release follows at the next client
+     * tick, and no thread is held between the two. Same reason as {@code mc.client.input.key}'s click: a
+     * keystroke spans ticks, and the mapping's owner only gets its turn on a tick boundary. Holding it
+     * down until then is what makes a click of a movement binding move anything.
+     */
+    public static CompletionStage<ClientReply> keybind(KeybindParams p, CallContext ctx) {
+        return ClientHop.hop().submit(() -> press(p), ctx).thenCompose(pr -> {
+            if (!(pr.reply() instanceof KeybindDriven pressed) || pr.held() == null) return CompletableFuture.completedFuture(pr.reply());
+            KeyMapping km = pr.held();
+            // The screen as of the release tick, not of the press: the press is what opens one, and
+            // that is the tick it becomes visible on.
+            return ClientThread.nextTick(() -> {
                 km.setDown(false);
-                return reply(km, act, km.clickCount, true, raw);
-            }
-            // Count the click BEFORE the event, then take one back if vanilla counted one too.
-            //
-            // A press is both things for vanilla: the key goes down AND a click is counted, and
-            // driving only one of them works for half the bindings in a pack. Vanilla's keyPress
-            // does both before it fires the loader's key event, so letting it do the counting
-            // looked right — until a real ALT+Y binding came back with zero clicks pending: the
-            // lookup that keyPress counts through is indexed by modifier, and clearing the
-            // binding's modifier for the event does not reindex it. An event-driven mod did not
-            // care; one that polls consumeClick() would have seen nothing. So the click is ours
-            // and it is in place before any handler runs; if vanilla managed to add its own, the
-            // count is one too high afterwards and gives it back.
-            // clickCount is private in vanilla, opened by worlddriver.accesswidener.
-            int before = km.clickCount;
-            km.setDown(true);
-            km.clickCount = before + 1;
-            String raw = fireRaw(km, true);
-            if (km.clickCount >= before + 2) km.clickCount--;
-            held[0] = km;
-            return reply(km, act, km.clickCount, false, raw);
+                fireRaw(km, false);
+                return new String[] {screenName(), ScreenContext.current()};
+            }, CLICK_RELEASE_MS).thenApply(after -> released(pressed, after));
         });
-        if (act != KeyAction.CLICK || !(out instanceof KeybindDriven pressed) || held[0] == null) return out;
-        // Same reason as mc.client.input.key's click: a keystroke spans ticks, and the mapping's
-        // owner only gets its turn on a tick boundary. Holding it down until then is what makes a
-        // click of a movement binding move anything.
-        final KeyMapping km = held[0];
-        // The screen as of the release tick, not of the press: the press is what opens one, and
-        // that is the tick it becomes visible on.
-        String[] after = ClientThread.runNextTick(() -> {
+    }
+
+    /** On the client thread. */
+    private static Pressed press(KeybindParams p) {
+        String want = p.name().map(String::trim).orElse("");
+        KeyAction act = p.action();
+        ScreenContext.require(p.contextId());
+        KeyMapping[] all = Minecraft.getInstance().options.keyMappings;
+        if (want.isEmpty()) return new Pressed(list(all), null);
+        List<KeyMapping> hits = resolve(all, want);
+        if (hits.isEmpty()) {
+            return new Pressed(new Refused(ClientRefusal.NO_TARGET, "no key mapping matches '" + want
+                    + "' — call this with no name to list every mapping"), null);
+        }
+        if (hits.size() > 1) {
+            return new Pressed(new Refused(ClientRefusal.AMBIGUOUS,
+                    "'" + want + "' matches " + hits.size() + " mappings: " + names(hits)), null);
+        }
+        KeyMapping km = hits.get(0);
+        if (act == KeyAction.RELEASE) {
+            String raw = fireRaw(km, false);
+            // Unconditionally, unlike the press: vanilla's release does the same thing, and a
+            // mapping left down walks the player into whatever runs next.
             km.setDown(false);
-            fireRaw(km, false);
-            return new String[] {screenName(), ScreenContext.current()};
-        }, CLICK_RELEASE_MS);
+            return new Pressed(reply(km, act, km.clickCount, true, raw), null);
+        }
+        // Count the click BEFORE the event, then take one back if vanilla counted one too.
+        //
+        // A press is both things for vanilla: the key goes down AND a click is counted, and
+        // driving only one of them works for half the bindings in a pack. Vanilla's keyPress
+        // does both before it fires the loader's key event, so letting it do the counting
+        // looked right — until a real ALT+Y binding came back with zero clicks pending: the
+        // lookup that keyPress counts through is indexed by modifier, and clearing the
+        // binding's modifier for the event does not reindex it. An event-driven mod did not
+        // care; one that polls consumeClick() would have seen nothing. So the click is ours
+        // and it is in place before any handler runs; if vanilla managed to add its own, the
+        // count is one too high afterwards and gives it back.
+        // clickCount is private in vanilla, opened by worlddriver.accesswidener.
+        int before = km.clickCount;
+        km.setDown(true);
+        km.clickCount = before + 1;
+        String raw = fireRaw(km, true);
+        if (km.clickCount >= before + 2) km.clickCount--;
+        return new Pressed(reply(km, act, km.clickCount, false, raw), km);
+    }
+
+    /** A click's reply from its press and the screen after its release; {@code after} null when the release tick never came. */
+    private static ClientReply released(KeybindDriven pressed, String[] after) {
         if (after == null) {
             return new KeybindDriven(pressed.name(), pressed.title(), pressed.key(), pressed.boundTo(), pressed.category(),
-                    pressed.down(), act, pressed.clicks(), false, pressed.rawEvent(), pressed.windowActive(),
+                    pressed.down(), KeyAction.CLICK, pressed.clicks(), false, pressed.rawEvent(), pressed.windowActive(),
                     pressed.mouseGrabbed(), pressed.screenAfter(),
                     Optional.of("the client did not tick within " + CLICK_RELEASE_MS
                             + " ms, so the binding is still down — send action release once it ticks again"),
                     pressed.contextId());
         }
         return new KeybindDriven(pressed.name(), pressed.title(), pressed.key(), pressed.boundTo(), pressed.category(),
-                pressed.down(), act, pressed.clicks(), true, pressed.rawEvent(), pressed.windowActive(),
+                pressed.down(), KeyAction.CLICK, pressed.clicks(), true, pressed.rawEvent(), pressed.windowActive(),
                 pressed.mouseGrabbed(), after[0], Optional.empty(), after[1]);
     }
 

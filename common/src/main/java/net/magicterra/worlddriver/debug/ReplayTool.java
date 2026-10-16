@@ -33,6 +33,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Stream;
 
@@ -104,11 +105,10 @@ final class ReplayTool {
                         + "(goalDesc=" + a.header().goalDesc() + "); replay it with replan: false");
             }
             BlockPos start = new BlockPos(hs[0], hs[1], hs[2]);
-            int restored = prepare(api, cells, start, ctx);
-            return bot.clientHop().submit(() -> {
+            return prepare(api, cells, start, ctx).thenCompose(restored -> bot.clientHop().submit(() -> {
                 ReplayInstaller.startReplayReplan(bot.brain(), start, goal);
                 return new Replanned(file, goal.toString(), a.envelope().size(), restored, fidelity);
-            }, ctx);
+            }, ctx));
         }
 
         // Concatenate the plan across all segments, deduping the shared boundary node and re-aligning edges so
@@ -139,23 +139,25 @@ final class ReplayTool {
         int[] hStart = a.header().start();
         BlockPos start = hStart != null ? new BlockPos(hStart[0], hStart[1], hStart[2]) : startFoot;
         Goal endGoal = new Goal.Block(plan.get(plan.size() - 1));
-        int restored = prepare(api, cells, start, ctx);
-        return bot.clientHop().submit(() -> {
+        return prepare(api, cells, start, ctx).thenCompose(restored -> bot.clientHop().submit(() -> {
             ReplayInstaller.startReplay(bot.brain(), plan, edges, start, endGoal, startFoot, file);
             return new Replayed(file, a.segments().size(), plan.size(), restored, fidelity);
-        }, ctx);
+        }, ctx));
     }
 
-    /** The server's half: restore the envelope and teleport to the start's block centre. Off the game threads. */
-    private static int prepare(ApiRegistry api, List<WorldCell> cells, BlockPos start, CallContext ctx) {
-        int restored = cells.isEmpty() ? 0 : WorldDriverCommon.host().restoreCellsOnServer(cells);
+    /** The server's half: restore the envelope and teleport to the start's block centre; completes with the cells restored. */
+    private static CompletionStage<Integer> prepare(ApiRegistry api, List<WorldCell> cells, BlockPos start, CallContext ctx) {
+        CompletionStage<Integer> restored = cells.isEmpty() ? CompletableFuture.completedFuture(0)
+                : WorldDriverCommon.host().restoreCellsOnServer(cells, ctx);
         String tp = String.format(Locale.ROOT, "tp %.1f %d %.1f", start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
-        try {
-            ApiRegistry.await(api.dispatch("mc.action.runCommand", Map.of("cmd", tp), ctx), ctx.remainingMillis());
-        } catch (RuntimeException noServer) {
-            // No server to command: the client places its player at the start anyway.
-        }
-        return restored;
+        return restored.thenCompose(n -> {
+            // No server to command, or the command failed: the client places its player at the start anyway.
+            try {
+                return api.dispatch("mc.action.runCommand", Map.of("cmd", tp), ctx).handle((r, t) -> n);
+            } catch (RuntimeException noServer) {
+                return CompletableFuture.completedFuture(n);
+            }
+        });
     }
 
     /** A schema-v2 block-state SNBT as a {@link BlockState}, or null when absent (v1) or unparseable. */

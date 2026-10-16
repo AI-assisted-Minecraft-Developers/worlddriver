@@ -1,5 +1,11 @@
 package net.magicterra.worlddriver.game.ui;
 
+import java.util.Queue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
  * How many frames the client has drawn, and a way to wait for the next one.
  *
@@ -22,43 +28,33 @@ package net.magicterra.worlddriver.game.ui;
 public final class FrameClock {
     private FrameClock() {}
 
-    private static final Object DRAWN_LOCK = new Object();
-    private static long drawn;
+    private static final AtomicLong DRAWN = new AtomicLong();
+    private static final Queue<CompletableFuture<Long>> WAITERS = new ConcurrentLinkedQueue<>();
 
     /** Called at the end of every rendered frame; see {@code GameRendererMixin}. */
     public static void frameDrawn() {
-        synchronized (DRAWN_LOCK) {
-            drawn++;
-            DRAWN_LOCK.notifyAll();
-        }
+        long now = DRAWN.incrementAndGet();
+        CompletableFuture<Long> w;
+        while ((w = WAITERS.poll()) != null) w.complete(now);
     }
 
     public static long drawn() {
-        synchronized (DRAWN_LOCK) { return drawn; }
+        return DRAWN.get();
     }
 
     /**
-     * Blocks until a frame is drawn after {@code from}, or {@code timeoutMs} passes; returns the
-     * count reached either way, so {@code result > from} is the test for "a fresh frame exists".
-     *
-     * <p>Must not be called from the client thread — that is the thread that would draw the frame,
-     * so waiting on it waits forever. The caller checks; this cannot check for itself without
-     * reaching into Minecraft from a class that otherwise needs nothing from it.
+     * Completes once a frame is drawn after {@code from}, or {@code timeoutMs} passes, with the count
+     * reached either way, so {@code result > from} is the test for "a fresh frame exists". Holds no
+     * thread, so it is safe on the client thread too, where it simply completes after this frame.
      */
-    public static long awaitAfter(long from, long timeoutMs) {
-        long deadline = System.currentTimeMillis() + timeoutMs;
-        synchronized (DRAWN_LOCK) {
-            while (drawn <= from) {
-                long left = deadline - System.currentTimeMillis();
-                if (left <= 0) break;
-                try {
-                    DRAWN_LOCK.wait(left);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-            return drawn;
-        }
+    public static CompletableFuture<Long> after(long from, long timeoutMs) {
+        CompletableFuture<Long> f = new CompletableFuture<>();
+        WAITERS.add(f);
+        // A frame drawn between the caller reading `from` and the add above polled nothing for us.
+        if (DRAWN.get() > from) f.complete(DRAWN.get());
+        CompletableFuture.delayedExecutor(timeoutMs, TimeUnit.MILLISECONDS).execute(() -> {
+            if (f.complete(DRAWN.get())) WAITERS.remove(f);
+        });
+        return f;
     }
 }

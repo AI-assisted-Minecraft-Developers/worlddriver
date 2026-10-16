@@ -2,6 +2,9 @@ package net.magicterra.worlddriver.application.client;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletionStage;
+
+import net.magicterra.worlddriver.api.call.CallContext;
 
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockScan;
@@ -68,9 +71,9 @@ public final class ClientDriverApiImpl implements ClientDriverApi {
 
     @Override public ClientReply slider(SliderParams p) { return ClientInput.slider(p); }
 
-    @Override public ClientReply key(KeyParams p) { return ClientInput.key(p); }
+    @Override public CompletionStage<ClientReply> key(KeyParams p, CallContext ctx) { return ClientInput.key(p, ctx); }
 
-    @Override public ClientReply keybind(KeybindParams p) { return ClientKeybinds.keybind(p); }
+    @Override public CompletionStage<ClientReply> keybind(KeybindParams p, CallContext ctx) { return ClientKeybinds.keybind(p, ctx); }
 
     @Override public MenuContainer menu() { return ClientObserve.menu(); }
 
@@ -80,7 +83,7 @@ public final class ClientDriverApiImpl implements ClientDriverApi {
 
     @Override public OverlaysCleared overlays(OverlaysParams p) { return ClientChat.overlays(p); }
 
-    @Override public Screenshot screenshot(ScreenshotParams p) { return Screenshots.screenshot(p); }
+    @Override public CompletionStage<Screenshot> screenshot(ScreenshotParams p, CallContext ctx) { return Screenshots.screenshot(p, ctx); }
 
     @Override public ClientPlayer player() { return ClientObserve.player(); }
 

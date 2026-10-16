@@ -35,6 +35,8 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.player.LocalPlayer;
 
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 
 import net.magicterra.worlddriver.game.ClientHop;
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
@@ -47,6 +49,7 @@ import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.components.events.ContainerEventHandler;
 import net.magicterra.worlddriver.game.ui.ClientThread;
+import net.magicterra.worlddriver.api.call.CallContext;
 
 /**
  * Input synthesis for {@code mc.client.screen.close} and {@code mc.client.input.*}
@@ -352,41 +355,56 @@ public final class ClientInput {
         return s == null ? "none" : s.getClass().getSimpleName();
     }
 
-    public static ClientReply key(KeyParams p) {
+    /**
+     * A key event. A press or a release runs on the client thread; a click's release follows at the
+     * next client tick, and no thread is held between the two.
+     *
+     * <p>A real keystroke spans ticks, and a click that collapses into one does not act like one: the
+     * press can open or close a screen, so the release belongs to whatever is open AFTER it, and vanilla
+     * only consumes a keybind's click on a tick boundary. So the release is routed again from what is
+     * open then.
+     */
+    public static CompletionStage<ClientReply> key(KeyParams p, CallContext ctx) {
         String kn = p.key().trim().toUpperCase(Locale.ROOT);
         int code = glfwKeyCode(kn);
         if (code < 0) throw ApiException.invalidParam("/key", ApiIssue.Code.INVALID_VALUE, "unknown key name: " + p.key());
         int mods = modifierBits(p.modifiers());
         int scan = org.lwjgl.glfw.GLFW.glfwGetKeyScancode(code);
-        boolean down = p.action() != KeyAction.RELEASE;
-        ClientReply first = ClientHop.call(() -> {
-            ScreenContext.require(p.contextId());
-            Minecraft mc = Minecraft.getInstance();
-            if (mc.screen == null) {
-                if (p.route() == KeyRoute.SCREEN) {
-                    return new Refused(ClientRefusal.NO_SCREEN, "route screen was asked for, but no screen is open");
-                }
-                // Between worlds there is neither a screen nor a player; the event would reach
-                // nothing, and claiming it was delivered would be false.
-                if (mc.player == null) {
-                    return new Refused(ClientRefusal.NO_PLAYER,
-                            "no screen open and no player to receive the key — open a screen or join a world first");
-                }
-            }
-            Half h = deliver(code, scan, p.route(), down, mods);
-            Optional<Boolean> handled = Optional.ofNullable(h.handled());
-            return new KeySent(kn, code, p.action(), p.route(), p.modifiers(), h.via(), down && h.delivered(),
-                    !down && h.delivered(), down ? handled : Optional.empty(), down ? Optional.empty() : handled,
-                    Optional.empty(), screenName(), Optional.empty(), ScreenContext.current());
+        CompletableFuture<ClientReply> first = ClientHop.hop().submit(() -> firstHalf(p, kn, code, scan, mods), ctx);
+        if (p.action() != KeyAction.CLICK) return first;
+        return first.thenCompose(f -> {
+            if (!(f instanceof KeySent pressed)) return CompletableFuture.completedFuture(f);
+            return ClientThread.nextTick(
+                    () -> new Tail(deliver(code, scan, p.route(), false, mods), screenName(), ScreenContext.current()),
+                    CLICK_RELEASE_MS).thenApply(rel -> clicked(p, kn, code, pressed, rel));
         });
-        if (p.action() != KeyAction.CLICK || !(first instanceof KeySent pressed)) return first;
-        // A real keystroke spans ticks, and a click that collapses into one does not act like one:
-        // the press can open or close a screen, so the release belongs to whatever is open AFTER
-        // it, and vanilla only consumes a keybind's click on a tick boundary. So release on the
-        // next client tick, routed again from what is open then.
-        Tail rel = ClientThread.runNextTick(
-                () -> new Tail(deliver(code, scan, p.route(), false, mods), screenName(), ScreenContext.current()),
-                CLICK_RELEASE_MS);
+    }
+
+    /** On the client thread: a press, a release, or a click's press. */
+    private static ClientReply firstHalf(KeyParams p, String kn, int code, int scan, int mods) {
+        boolean down = p.action() != KeyAction.RELEASE;
+        ScreenContext.require(p.contextId());
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.screen == null) {
+            if (p.route() == KeyRoute.SCREEN) {
+                return new Refused(ClientRefusal.NO_SCREEN, "route screen was asked for, but no screen is open");
+            }
+            // Between worlds there is neither a screen nor a player; the event would reach
+            // nothing, and claiming it was delivered would be false.
+            if (mc.player == null) {
+                return new Refused(ClientRefusal.NO_PLAYER,
+                        "no screen open and no player to receive the key — open a screen or join a world first");
+            }
+        }
+        Half h = deliver(code, scan, p.route(), down, mods);
+        Optional<Boolean> handled = Optional.ofNullable(h.handled());
+        return new KeySent(kn, code, p.action(), p.route(), p.modifiers(), h.via(), down && h.delivered(),
+                !down && h.delivered(), down ? handled : Optional.empty(), down ? Optional.empty() : handled,
+                Optional.empty(), screenName(), Optional.empty(), ScreenContext.current());
+    }
+
+    /** A click's reply from its press and its release; {@code rel} null when the release tick never came. */
+    private static ClientReply clicked(KeyParams p, String kn, int code, KeySent pressed, Tail rel) {
         if (rel == null) {
             return new KeySent(kn, code, p.action(), p.route(), p.modifiers(), pressed.via(), pressed.pressed(), false,
                     pressed.pressHandled(), Optional.empty(), Optional.empty(), pressed.screenAfter(),

@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import net.magicterra.worlddriver.application.client.ClientDriverApi;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.call.CancellationToken;
 import net.magicterra.worlddriver.api.call.WaitPermits;
@@ -215,12 +216,16 @@ public final class WaitService implements WaitApi {
         return run(WaitContracts.WORLD_READY, "worldReady", p.background(), p.timeoutMs(), ctx, (budget, cancelled) -> {
             long t0 = System.nanoTime();
             AtomicReference<Map<String, Object>> last = new AtomicReference<>();
+            // Each probe hops onto the client thread without holding the poller's thread: a client still
+            // loading a world can take seconds to drain its task queue.
             return Polling.until(budget, p.pollMs(), cancelled, () -> {
-                Map<String, Object> info = DriverApplication.requireClient().screenInfo();
-                last.set(info);
-                boolean ready = Boolean.TRUE.equals(info.get("worldOpen")) && Boolean.TRUE.equals(info.get("hasPlayer"));
-                return CompletableFuture.completedFuture(ready
-                        ? Optional.of(new WorldReady(true, msSince(t0), infoOf(info))) : Optional.empty());
+                ClientDriverApi c = DriverApplication.requireClient();
+                CallContext probe = CallContext.withBudget(POLL_BUDGET_MS, cancelled, CallContext.SHARED_WAITS);
+                return c.hop().submit(c::screenInfo, probe).thenApply(info -> {
+                    last.set(info);
+                    boolean ready = Boolean.TRUE.equals(info.get("worldOpen")) && Boolean.TRUE.equals(info.get("hasPlayer"));
+                    return ready ? Optional.<Outcome>of(new WorldReady(true, msSince(t0), infoOf(info))) : Optional.<Outcome>empty();
+                });
             }, () -> new WorldReady(false, msSince(t0), infoOf(last.get())));
         });
     }

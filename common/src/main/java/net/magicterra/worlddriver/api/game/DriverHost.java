@@ -1,7 +1,9 @@
 package net.magicterra.worlddriver.api.game;
 
 import java.util.List;
+import java.util.concurrent.CompletionStage;
 
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.registry.EventFeed;
 import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.minecraft.core.BlockPos;
@@ -18,5 +20,6 @@ public interface DriverHost extends EventFeed {
     void clearEvents();
     /** Append an event; {@code data} is its payload as a value tree, {@link JsonValue#NULL} for none. */
     void emitExternal(String type, BlockPos pos, JsonValue data);
-    int restoreCellsOnServer(List<WorldCell> cells);
+    /** Writes {@code cells} on the server thread; completes with how many, holding no thread meanwhile. */
+    CompletionStage<Integer> restoreCellsOnServer(List<WorldCell> cells, CallContext ctx);
 }

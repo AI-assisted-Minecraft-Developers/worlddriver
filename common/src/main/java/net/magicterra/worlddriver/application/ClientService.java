@@ -6,8 +6,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.api.registry.ApiHandlers;
@@ -31,14 +29,9 @@ import net.magicterra.worlddriver.application.client.ClientHooks;
 /**
  * {@code mc.client.*} beyond the screen and input, which are {@link ScreenService}. Each hops onto the client
  * thread and runs there; a JVM with no client answers capability_unavailable. The calls that wait for client
- * ticks, a frame or later chat hold a wait permit and a thread of {@link #WAITS} instead of their caller, and
- * are refused on a game thread.
+ * ticks or a frame hold a wait permit until they finish, but no thread, and are refused on a game thread.
  */
 final class ClientService implements ClientApi {
-    /** Where the waiting calls sit out their wait; their number is bounded by the wait permits they hold. */
-    private static final ExecutorService WAITS = Executors.newCachedThreadPool(
-            Thread.ofPlatform().name("worlddriver-client-wait").daemon().factory());
-
     ClientService() {}
 
     List<ApiMethod<?, ?>> methods() {
@@ -88,7 +81,7 @@ final class ClientService implements ClientApi {
 
     @Override
     public CompletionStage<ClientContracts.Screenshot> screenshot(ClientContracts.ScreenshotParams p, CallContext ctx) {
-        return waiting(ctx, "a screenshot", c -> () -> c.screenshot(p));
+        return waiting(ctx, "a screenshot", c -> c.screenshot(p, ctx));
     }
 
     private static ClientDriverApi client() {
@@ -105,16 +98,23 @@ final class ClientService implements ClientApi {
         return c.hop().submit(body.apply(c), ctx);
     }
 
-    /** Runs a task that waits on a thread of its own, holding one of the caller's wait permits meanwhile. */
+    /** Starts a call that hops onto the client thread by itself. */
+    static <T> CompletionStage<T> withClient(java.util.function.Function<ClientDriverApi, CompletionStage<T>> body) {
+        return body.apply(client());
+    }
+
+    /**
+     * Starts a call that finishes after client ticks or a frame, holding one of the caller's wait permits
+     * until its stage completes. No thread is held; the permit bounds how many such stages are pending.
+     */
     static <T> CompletionStage<T> waiting(CallContext ctx, String what,
-                                          java.util.function.Function<ClientDriverApi, Supplier<T>> body) {
+                                          java.util.function.Function<ClientDriverApi, CompletionStage<T>> body) {
         ClientDriverApi c = client();
         ctx.requireBlockingAllowed(what);
         WaitPermits.Lease lease = ctx.waits().tryAcquire();
         if (lease == null) throw ApiException.of(ApiError.Code.SERVER_BUSY, "server busy: every wait slot is in use; retry");
-        Supplier<T> task = body.apply(c);
         try {
-            return CompletableFuture.supplyAsync(task, WAITS).whenComplete((r, t) -> lease.close());
+            return body.apply(c).whenComplete((r, t) -> lease.close());
         } catch (RuntimeException e) {
             lease.close();
             throw e;

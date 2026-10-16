@@ -29,6 +29,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 
 import static net.magicterra.worlddriver.application.ClientService.onClient;
 import static net.magicterra.worlddriver.application.ClientService.waiting;
+import static net.magicterra.worlddriver.application.ClientService.withClient;
 
 /**
  * {@code mc.client.screen.*}, {@code mc.client.input.*} and {@code mc.observe.container}. Each hops onto the
@@ -98,13 +99,13 @@ final class ScreenService implements ScreenApi {
     @Override
     public CompletionStage<ClientReply> key(ScreenContracts.KeyParams p, CallContext ctx) {
         return p.action() == KeyAction.CLICK
-                ? waiting(ctx, "a key click", c -> () -> c.key(p)) : onClient(ctx, c -> () -> c.key(p));
+                ? waiting(ctx, "a key click", c -> c.key(p, ctx)) : withClient(c -> c.key(p, ctx));
     }
 
     @Override
     public CompletionStage<ClientReply> keybind(ScreenContracts.KeybindParams p, CallContext ctx) {
         return p.action() == KeyAction.CLICK && p.name().isPresent()
-                ? waiting(ctx, "a keybind click", c -> () -> c.keybind(p)) : onClient(ctx, c -> () -> c.keybind(p));
+                ? waiting(ctx, "a keybind click", c -> c.keybind(p, ctx)) : withClient(c -> c.keybind(p, ctx));
     }
 
     @Override

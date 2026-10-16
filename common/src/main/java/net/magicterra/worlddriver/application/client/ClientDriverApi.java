@@ -4,7 +4,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletionStage;
 
+import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.BlockScan;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ChatHistory;
@@ -43,8 +45,9 @@ import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.TypeParams;
  *
  * <p>Each method may be called from any thread: the ones that read or write the client
  * run their body on the client thread themselves. {@link #key}, {@link #keybind} and
- * {@link #screenshot} may hold their caller for client ticks or a fresh frame, so they are
- * for a thread that may wait. A write given a
+ * {@link #screenshot} finish after a client tick or a fresh frame, so they answer a stage
+ * and hold no thread meanwhile; like any hop that does not return at once, they refuse a
+ * game-thread caller. A write given a
  * {@code contextId} checks it on the client thread immediately before acting.
  *
  * <p>The few methods still answering a Map serve methods outside the client group
@@ -86,11 +89,11 @@ public interface ClientDriverApi {
     /** Reads every slider, or sets one. */
     ClientReply slider(SliderParams p);
 
-    /** A key event; a click holds the caller until the next client tick carries the release. */
-    ClientReply key(KeyParams p);
+    /** A key event; a click's stage completes when the next client tick has carried the release. */
+    CompletionStage<ClientReply> key(KeyParams p, CallContext ctx);
 
-    /** A key mapping by name; a click holds the caller until the next client tick. */
-    ClientReply keybind(KeybindParams p);
+    /** A key mapping by name; a click's stage completes at the next client tick. */
+    CompletionStage<ClientReply> keybind(KeybindParams p, CallContext ctx);
 
     /** The container menu open on this client, with the screen context it belongs to. */
     MenuContainer menu();
@@ -114,8 +117,8 @@ public interface ClientDriverApi {
 
     OverlaysCleared overlays(OverlaysParams p);
 
-    /** Holds the caller for a frame drawn after the request, unless called on the client thread. */
-    Screenshot screenshot(ScreenshotParams p);
+    /** A capture of a frame drawn after the request; the encode runs off the client thread. */
+    CompletionStage<Screenshot> screenshot(ScreenshotParams p, CallContext ctx);
 
     /** This client's player, as the client predicts it. */
     ClientPlayer player();
