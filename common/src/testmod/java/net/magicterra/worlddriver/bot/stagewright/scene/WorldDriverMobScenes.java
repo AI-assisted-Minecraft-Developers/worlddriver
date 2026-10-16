@@ -364,7 +364,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
     }
 
     /** The mob has been ticked and stands on the course. */
-    private static boolean settled(Mob mob) { return mob.tickCount > 5 && mob.onGround(); }
+    static boolean settled(Mob mob) { return mob.tickCount > 5 && mob.onGround(); }
 
     /** The command's result, or -1 when it does not parse. */
     private static int command(MinecraftServer server, String line) {
@@ -376,16 +376,16 @@ public final class WorldDriverMobScenes implements SceneProvider {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> call(ApiRegistry api, String method, Map<String, Object> params) {
+    static Map<String, Object> call(ApiRegistry api, String method, Map<String, Object> params) {
         return (Map<String, Object>) api.route(method, params);
     }
 
-    private static Map<String, Object> at(BlockPos p) {
+    static Map<String, Object> at(BlockPos p) {
         return Map.of("kind", "position", "pos", Map.of("x", p.getX(), "y", p.getY(), "z", p.getZ()));
     }
 
     /** The id of the action an accepted reply started, or null when it was refused. */
-    private static String actionId(Map<String, Object> reply) {
+    static String actionId(Map<String, Object> reply) {
         return "accepted".equals(reply.get("outcome")) && reply.get("action") instanceof Map<?, ?> a
                 ? String.valueOf(a.get("actionId")) : null;
     }
@@ -395,7 +395,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
     }
 
     /** The action as {@code mc.wait.result} reads it now. */
-    private static Map<?, ?> read(ApiRegistry api, String actionId) {
+    static Map<?, ?> read(ApiRegistry api, String actionId) {
         if (actionId == null) return Map.of();
         return call(api, "mc.wait.result", Map.of("kind", "action", "actionId", actionId)).get("action") instanceof Map<?, ?> a ? a : Map.of();
     }
@@ -408,7 +408,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
         return Map.of();
     }
 
-    private static void fill(ServerLevel level, BlockPos a, BlockPos b, BlockState state) {
+    static void fill(ServerLevel level, BlockPos a, BlockPos b, BlockState state) {
         for (BlockPos p : BlockPos.betweenClosed(a, b)) level.setBlockAndUpdate(p, state);
     }
 }

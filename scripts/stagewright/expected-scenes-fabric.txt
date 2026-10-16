@@ -623,6 +623,18 @@ wd.mobSeesOnlyWhatHuntsIt
 wd.mobThatCastsItsOwnControlWalks
 wd.mobThatIgnoresInputFailsUnresponsive
 wd.mobUndrivableIsRefused
+# Water mobs: the ones that only swim cross a tank under a wall, and fail a goal on land in the water;
+# the ones that also walk cross a course with a pool in it.
+wd.mobCodSwimsUnderAWall
+wd.mobDolphinSwimsUnderAWall
+wd.mobGuardianSwimsUnderAWall
+wd.mobSquidSwimsUnderAWall
+wd.mobTadpoleSwimsUnderAWall
+wd.mobFishWithALandGoalFailsInWater
+wd.mobAxolotlWalksAndSwims
+wd.mobTurtleWalksAndSwims
+wd.mobFrogWalksAndSwims
+wd.mobDrownedWalksAndSwims
 # mc.query q=blocks holds its radius budget and reads only chunks that are already loaded.
 wd.queryBlocksStaysInLoadedChunks
 # The client scan names the chunks ClientLevel has not received, so the mc.query client fallback can refuse them.
