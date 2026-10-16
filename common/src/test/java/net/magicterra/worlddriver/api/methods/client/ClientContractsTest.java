@@ -80,6 +80,19 @@ class ClientContractsTest {
     }
 
     @Test
+    void aTreeNodeIsNamedByItsRefAndPointsAtItsHoldersRef() {
+        ScreenContracts.WidgetNode slot = new ScreenContracts.WidgetNode(41, Optional.of(40), 1, "Slot", Optional.of(0),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+        ScreenContracts.ScreenTree tree = new ScreenContracts.ScreenTree("x-1", true, Optional.of("InventoryScreen"),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                List.of(slot));
+        assertEquals("{\"contextId\":\"x-1\",\"hasScreen\":true,\"type\":\"InventoryScreen\","
+                        + "\"nodes\":[{\"ref\":41,\"parent\":40,\"depth\":1,\"type\":\"Slot\",\"index\":0}]}",
+                JsonCodec.encode(ScreenContracts.SCREEN_TREE.encode(tree)));
+    }
+
+    @Test
     void writesAnswerDoneOrRefused() {
         assertEquals("{\"outcome\":\"done\",\"handled\":true,\"contextId\":\"x-1\"}",
                 encode(ScreenContracts.CLICK, new ClientContracts.Clicked(true, Optional.empty(), Optional.empty(), "x-1")));

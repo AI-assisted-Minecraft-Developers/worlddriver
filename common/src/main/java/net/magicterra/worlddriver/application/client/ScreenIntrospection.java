@@ -20,9 +20,13 @@ import net.minecraft.world.item.ItemStack;
 import com.google.common.collect.MapMaker;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import net.magicterra.worlddriver.game.ClientHop;
 import net.minecraft.network.chat.Component;
@@ -63,11 +67,9 @@ public final class ScreenIntrospection {
      */
     static Aim aim(int ref) {
         ScreenTree tree = screenTree();
-        List<WidgetNode> nodes = tree.nodes();
-        WidgetNode hit = null;
-        for (WidgetNode n : nodes) {
-            if (n.ref().isPresent() && n.ref().get() == ref) { hit = n; break; }
-        }
+        Map<Integer, WidgetNode> byRef = new HashMap<>();
+        for (WidgetNode n : tree.nodes()) byRef.put(n.ref(), n);
+        WidgetNode hit = byRef.get(ref);
         if (hit == null) {
             return refused("ref " + ref + " is not on the open screen: it closed, rebuilt its widgets, or the ref came "
                     + "from another screen. Read screen.tree again");
@@ -79,14 +81,14 @@ public final class ScreenIntrospection {
         if (x < 0 || y < 0 || x >= tree.width().orElse(0) || y >= tree.height().orElse(0)) {
             return refused("ref " + ref + " lies outside the screen, at " + x + "," + y);
         }
-        for (Optional<Integer> up = hit.parent(); up.isPresent(); up = nodes.get(up.get()).parent()) {
-            WidgetNode holder = nodes.get(up.get());
+        for (WidgetNode holder = byRef.get(hit.parent().orElse(-1)); holder != null;
+             holder = byRef.get(holder.parent().orElse(-1))) {
             if (Boolean.FALSE.equals(holder.visible().orElse(true))) {
-                return refused("ref " + ref + " sits in " + holder.type() + " (ref " + holder.ref().orElse(-1) + "), which is hidden");
+                return refused("ref " + ref + " sits in " + holder.type() + " (ref " + holder.ref() + "), which is hidden");
             }
             if (holder.box().isPresent() && !inside(holder.box().get(), x, y)) {
                 return refused("ref " + ref + " lies outside the visible part of " + holder.type()
-                        + " (ref " + holder.ref().orElse(-1) + "), scrolled out of view");
+                        + " (ref " + holder.ref() + "), scrolled out of view");
             }
         }
         return new Aim(x, y, Optional.empty());
@@ -158,7 +160,7 @@ public final class ScreenIntrospection {
                 return new ScreenTree(context, false, Optional.empty(), Optional.empty(), Optional.empty(),
                         Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), List.of());
             }
-            Nodes nodes = new Nodes();
+            Nodes nodes = new Nodes(s);
             Optional<String> error = Optional.empty();
             // A screen belongs to whatever mod drew it, and a widget that throws from getMessage
             // or getNarration used to take the whole answer with it — the caller got an empty
@@ -196,12 +198,24 @@ public final class ScreenIntrospection {
     /**
      * The tree flattened depth first, a node before the nodes it holds. A node is filled in place while
      * its children are added after it, so each is a mutable row until {@link #build}.
+     *
+     * <p>Each object is listed once. A node is named by its object's ref, so an object a mod hangs under
+     * two holders would otherwise be two nodes with one name, and its children's parent would mean
+     * either; the second sighting is dropped instead. The same rule ends the walk of a holder that
+     * contains itself, or the screen, which would otherwise recurse until the stack ran out.
      */
     private static final class Nodes {
         private final List<Node> all = new ArrayList<>();
+        private final Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
 
-        Node add(Integer parent, int depth, String type) {
-            Node n = new Node(all.size(), parent, depth, type);
+        Nodes(Screen screen) {
+            seen.add(screen);
+        }
+
+        /** A node for {@code target}, or null when this walk has listed it already. */
+        Node add(Object target, Integer parent, int depth, String type) {
+            if (!seen.add(target)) return null;
+            Node n = new Node(refOf(target), parent, depth, type);
             all.add(n);
             return n;
         }
@@ -214,25 +228,25 @@ public final class ScreenIntrospection {
     }
 
     private static final class Node {
-        final int id;
+        final int ref;
         final Integer parent;
         final int depth;
         final String type;
-        Integer ref, index;
+        Integer index;
         Box box;
         Boolean visible, active, focused, selected;
         String message, key, value, error;
         SlotItem item;
 
-        Node(int id, Integer parent, int depth, String type) {
-            this.id = id;
+        Node(int ref, Integer parent, int depth, String type) {
+            this.ref = ref;
             this.parent = parent;
             this.depth = depth;
             this.type = type;
         }
 
         WidgetNode freeze() {
-            return new WidgetNode(id, Optional.ofNullable(ref), Optional.ofNullable(parent), depth, type, Optional.ofNullable(index),
+            return new WidgetNode(ref, Optional.ofNullable(parent), depth, type, Optional.ofNullable(index),
                     Optional.ofNullable(box), Optional.ofNullable(visible), Optional.ofNullable(active),
                     Optional.ofNullable(focused), Optional.ofNullable(selected), Optional.ofNullable(message),
                     Optional.ofNullable(key), Optional.ofNullable(value), Optional.ofNullable(item),
@@ -243,8 +257,8 @@ public final class ScreenIntrospection {
     private static void walk(GuiEventListener node, Integer parent, int depth, Nodes out) {
         if (!(node instanceof ContainerEventHandler ceh)) return;
         for (GuiEventListener child : ceh.children()) {
-            Node n = out.add(parent, depth, child.getClass().getSimpleName());
-            n.ref = refOf(child);
+            Node n = out.add(child, parent, depth, child.getClass().getSimpleName());
+            if (n == null) continue;
             // Per child, so a third-party widget that throws costs its own subtree and no more.
             try {
                 describe(child, n, out);
@@ -285,7 +299,7 @@ public final class ScreenIntrospection {
             listEntries(list, n, out);
             return;
         }
-        walk(child, n.id, n.depth + 1, out);
+        walk(child, n.ref, n.depth + 1, out);
     }
 
     /** Project per-row bbox + display label for AbstractSelectionList entries.
@@ -310,8 +324,8 @@ public final class ScreenIntrospection {
         Object selected = list.getSelected();
         for (int i = 0; i < children.size(); i++) {
             Object entry = children.get(i);
-            Node n = out.add(owner.id, owner.depth + 1, entry.getClass().getSimpleName());
-            n.ref = refOf(entry);
+            Node n = out.add(entry, owner.ref, owner.depth + 1, entry.getClass().getSimpleName());
+            if (n == null) continue;
             n.index = i;
             n.box = new Box(rowLeft, list.getRowTop(i), rowWidth, itemHeight - 4);
             if (entry == selected) n.selected = true;
@@ -320,7 +334,7 @@ public final class ScreenIntrospection {
             // (ContainerObjectSelectionList.Entry, KeyBindsList's rows, the options rows), and
             // projecting only its bbox is why a key-binds screen came back as a stack of nameless
             // Entry nodes with no way to tell one binding's row from another's.
-            if (entry instanceof GuiEventListener gel) walk(gel, n.id, n.depth + 1, out);
+            if (entry instanceof GuiEventListener gel) walk(gel, n.ref, n.depth + 1, out);
         }
     }
 
@@ -404,15 +418,17 @@ public final class ScreenIntrospection {
         // them straight to mc.client.input.click without doing arithmetic.
         // Both protected in vanilla, opened by worlddriver.accesswidener.
         int leftPos = acs.leftPos, topPos = acs.topPos;
-        Node holder = out.add(null, 0, "ContainerSlots");
+        // The holder is named by the menu: it lives exactly as long as these slots do.
+        Node holder = out.add(menu, null, 0, "ContainerSlots");
+        if (holder == null) return;
         for (int i = 0; i < menu.slots.size(); i++) {
-            Node n = out.add(holder.id, 1, "Slot");
+            Slot slot = menu.slots.get(i);
+            Node n = out.add(slot, holder.ref, 1, "Slot");
+            if (n == null) continue;
             n.index = i;
             // Per slot, for the same reason as the widget walk: a modded slot that throws from
             // isActive or getItem should cost its own row, not the screen's whole slot list.
             try {
-                Slot slot = menu.slots.get(i);
-                n.ref = refOf(slot);
                 n.box = new Box(leftPos + slot.x, topPos + slot.y, 16, 16);   // vanilla slot icon is 16×16
                 n.active = slot.isActive();
                 ItemStack stk = slot.getItem();

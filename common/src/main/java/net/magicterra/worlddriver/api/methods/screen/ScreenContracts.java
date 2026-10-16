@@ -87,11 +87,11 @@ public final class ScreenContracts {
     public record SlotItem(String id, int count) {}
 
     /**
-     * One widget, list row or menu slot. {@code parent} is the id of the node holding it, absent at the top;
-     * {@code index} is a row's place in its list or a slot's index in the menu, which slotClick takes.
-     * {@code ref} names the widget object itself, so it outlives the read that handed it out.
+     * One widget, list row or menu slot. {@code ref} names the object itself, so it outlives the read that
+     * handed it out; {@code parent} is the ref of the node holding it, absent at the top. {@code index} is a
+     * row's place in its list or a slot's index in the menu, which slotClick takes.
      */
-    public record WidgetNode(int id, Optional<Integer> ref, Optional<Integer> parent, int depth, String type, Optional<Integer> index,
+    public record WidgetNode(int ref, Optional<Integer> parent, int depth, String type, Optional<Integer> index,
                              Optional<Box> box, Optional<Boolean> visible, Optional<Boolean> active, Optional<Boolean> focused,
                              Optional<Boolean> selected, Optional<String> message, Optional<String> key, Optional<String> value,
                              Optional<SlotItem> item, Optional<String> error) {}
@@ -113,12 +113,11 @@ public final class ScreenContracts {
             SlotItem::new);
 
     private static final RecordType<WidgetNode> WIDGET_NODE = ApiTypes.record("WidgetNode",
-            ApiField.field("id", COUNT).describe("Its place in nodes.").required().forGetter(WidgetNode::id),
             ApiField.field("ref", COUNT)
                     .describe("What input.click's ref takes. The same for this widget, row or slot in every read while "
-                            + "it lives, never reused; a rebuilt screen's widgets get new ones. Absent on ContainerSlots.")
-                    .optional().forGetter(WidgetNode::ref),
-            ApiField.field("parent", COUNT).describe("The id of the node holding it; absent at the top.")
+                            + "it lives, never reused; a rebuilt screen's widgets get new ones.")
+                    .required().forGetter(WidgetNode::ref),
+            ApiField.field("parent", COUNT).describe("The ref of the node holding it; absent at the top.")
                     .optional().forGetter(WidgetNode::parent),
             ApiField.field("depth", COUNT).describe("0 at the top.").required().forGetter(WidgetNode::depth),
             ApiField.field("type", ApiTypes.string())
