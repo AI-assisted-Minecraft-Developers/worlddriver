@@ -425,7 +425,11 @@ public final class PathFinder {
         // where their own estimate IS the ground metric. -1 = use the h fallback.
         private final BlockPos escapeTarget;
         private final double escapeSafeMaxD2;
+        /** A start in water that the search must get out of. Never for a body that only swims: water is
+         *  where it lives, so the ashore triage, the surface-only commits and the depth bias stay off. */
         private final boolean startInWater;
+        /** The body only swims ({@link MoveCatalog#waterBound}). */
+        private final boolean livesInWater;
         private final Node startNode;
         /** Move-set pruned to the catalog entries that can fire under this search's
          *  world/config constants (see {@link Move#availableInSearch}). Built once
@@ -489,7 +493,8 @@ public final class PathFinder {
         private Search(BlockPos start, Goal goal, boolean suppressPlace, SearchProfile profile,
                        SearchScope scope, boolean sightDropped) {
             this.start = start;
-            this.startInWater = world.isWater(start);
+            this.livesInWater = MoveCatalog.waterBound(world.moveModes());
+            this.startInWater = world.isWater(start) && !livesInWater;
             this.goal = goal;
             this.suppressPlace = suppressPlace;
             this.profile = profile == null ? SearchProfile.NONE : profile;
@@ -549,7 +554,8 @@ public final class PathFinder {
             // reality that holds for a dive intent too). Dropping a non-negative
             // g-side tax keeps every edge cost ≥ its base, so the heuristic (which
             // never counted taxes) stays an underestimate — admissibility holds.
-            diveRelief = this.capability.allowsOptIn(Capability.DIVE);
+            // A body that only swims lives in water, so water is its medium on every search, not an opt-in.
+            diveRelief = this.capability.allowsOptIn(Capability.DIVE) || livesInWater;
             world.diveSearch(diveRelief);   // a dive keeps the submerged cells as nodes (WorldView#surfaceWaterNodes)
             if (!diveRelief) tax("descend", (f, t, e, g, w) -> descendTax(f, t, e));
             if (!diveRelief) tax("waterCell", (f, t, e, g, w) -> waterCellTax(t));
@@ -714,7 +720,7 @@ public final class PathFinder {
             // Anti-basin-dive: an XZ goal's estimate ignores Y, so descending reads
             // as free progress and the search dives into a dead-end low valley. Charge
             // descent below this search's start (asymmetric — climbing stays free).
-            if (tuning.depthPenalty() > 0) {
+            if (tuning.depthPenalty() > 0 && !livesInWater) {
                 int below = start.getY() - PlanningConfig.pathfinderDepthSlack - p.getY();
                 if (below > 0) h += tuning.depthPenalty() * below;
             }
