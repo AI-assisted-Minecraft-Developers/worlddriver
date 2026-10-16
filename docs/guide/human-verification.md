@@ -356,6 +356,36 @@ Accept the result when:
 - an axolotl, a turtle or a frog walks to the pool's edge, swims across on the surface and walks out on
   the other side; an axolotl walks slowly on land, not faster than a player.
 
+### A flying mob
+
+Build a closed stone room about ten blocks long and eight high, with a wall across the middle that
+stops three blocks short of the ceiling. Put a parrot at one end, take it over as `bird`, and send it to
+the floor at the far end, then to a point in the open air outside:
+
+```
+/summon minecraft:parrot ~2 ~ ~
+/worlddriver mob @e[type=minecraft:parrot,limit=1,sort=nearest] bird
+```
+
+```bash
+# first the floor at the far end of the room, then a point in the open air six blocks up
+$RPC mc.bot.goto '{"bot":"mob:bird","target":{"kind":"position","pos":{"x":X,"y":Y,"z":Z}},"awaitMs":30000}'
+$RPC mc.bot.goto '{"bot":"mob:bird","target":{"kind":"position","pos":{"x":X,"y":Y,"z":Z}},"awaitMs":30000}'
+```
+
+Accept the result when:
+
+- the parrot flies up to the gap under the ceiling, over the wall and down to the floor at the far end,
+  flapping the whole way and never walking;
+- at the point in the open air it stops and stays there, not dropping to the ground, until you run
+  `/worlddriver mob release mob:bird`, after which it flies off or lands as a parrot does;
+- a bee, an allay, a bat, a vex, a phantom and a blaze do the same; a vex does not pass through the
+  wall even though it could;
+- a ghast in a large room only goes through an opening at least five blocks wide and high, and goes
+  round to one if the direct hole is smaller;
+- `/worlddriver mob` on a wither or an ender dragon is refused with a message saying why, and it carries
+  on by itself.
+
 ### A mob that cannot be driven
 
 ```bash

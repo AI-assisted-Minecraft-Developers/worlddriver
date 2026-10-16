@@ -210,9 +210,12 @@ climbs at the pace it chases at, never takes a parkour jump, and reacts one tick
 Reading `mc.bot.status` or cancelling never takes a mob over; only an order does.
 
 A mob that only swims (a fish, dolphin, guardian, squid or tadpole) moves in three dimensions and
-never leaves the water: a goal on land fails as `no route closer to the goal through water`. One that
-does not respond to input, as some mods' mobs do, ends its order as `unresponsive` after two seconds.
-The `undrivableMobs` setting lists entity types that may not be taken over; a mob with no AI never can.
+never leaves the water: a goal on land fails as `no route closer to the goal through water`. A flying
+mob (a parrot, bee, allay, bat, vex, phantom, blaze or ghast) flies the whole way, never landing to
+walk, and holds its spot in the air while it has no order. A large one, such as a ghast, is only sent
+through openings it fits. One that does not respond to input, as some mods' mobs do, ends its order as
+`unresponsive` after two seconds. The `undrivableMobs` setting lists entity types that may not be taken
+over; a mob with no AI, a wither and an ender dragon never can.
 
 The hand verbs (`lookAt`, `holdItem`, `useItem`, `attackEntity`, `equip`) act within the call
 and answer `{outcome: 'done', …}` with what came of it, or `{outcome: 'refused', reason, message}`

@@ -32,6 +32,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   water for two seconds fails as `out of water`. An axolotl, turtle, frog or drowned walks and swims.
   How a mob moves is read from its navigation, so a modded mob that reuses a vanilla navigation is
   treated the same way.
+- **Flying mobs can be driven too.** A parrot, bee, allay, bat, vex, phantom, blaze or ghast flies in
+  three dimensions through air only, up over what is in its way and down to a goal on the ground; a
+  parrot, a bee, an allay or a blaze never lands to walk. It moves at about its own pace, slower where
+  its own is too fast to follow a path (a vex, a phantom), and while it has no order it holds its spot
+  in the air until it is released. A flyer that ends up in water for two seconds fails as `fell into
+  water`. A mob that only swims or flies is now planned with its whole body, so a ghast or an elder
+  guardian is never sent through a hole it does not fit. A wither and an ender dragon are refused: a
+  wither's other heads shoot and it breaks blocks by itself, and an ender dragon never runs the step
+  the input goes through.
 - **A mob that does not respond to input ends its order as `unresponsive`** after two seconds of held
   input that moved it nowhere and was not blocked by a wall, instead of running to the caller's
   deadline. A mod's mob that moves by code of its own is the usual case.

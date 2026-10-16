@@ -187,14 +187,17 @@ the shared constants plus the `ALL` list assembled from its subclasses. Prefer a
 `CostModifier` over a new hard constraint: a tax steers the search, while a hard limit can
 make a region unreachable and turn a slow path into no path.
 
-Every move also names the way of moving it starts in — walking or swimming today — and
+Every move also names the way of moving it starts in — walking or swimming in `ALL` — and
 `MoveCatalog` partitions `ALL` by that answer. A search takes the catalogs of the modes the
 controlled entity has (`WorldView.moveModes()`, read from its `Locomotion`), in `ALL`'s
 order, because the search breaks ties by insertion. A player walks and swims, so its
-catalog is all of `ALL`. A body that swims and does not walk gets `WaterSwim.ALL` instead:
-strokes to any of the 26 neighbours through water only, kept out of `ALL`. Its search drops the
-"get out of the water" handling a player's needs, and `Walker` hands its ticks to `WalkerSwim`,
-which follows the nodes in three dimensions. Flying and riding have no moves yet.
+catalog is all of `ALL`. A body that lives in one medium — it flies, or it swims and does not
+walk (`MoveCatalog.medium`) — gets `MediumMove.FLY` or `MediumMove.SWIM` instead: strokes to any
+of the 26 neighbours through that medium only, kept out of `ALL`. A stroke checks every cell the
+body's box covers on the way (`WorldView.bodyWidth()` and `bodyHeight()`), so a large body is never
+planned through a hole it does not fit. Its search drops the "get out of the water" handling and the
+depth penalty a player's needs, and `Walker` hands its ticks to `WalkerMedium`, which follows the
+nodes in three dimensions. Riding has no moves yet.
 
 ## The `Body` seam
 

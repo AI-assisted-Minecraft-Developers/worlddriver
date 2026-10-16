@@ -135,14 +135,31 @@ tick, one tick later than a player's, and a mob's searches still plan no parkour
 
 How a mob moves is read from its navigation first, its class second: water-bound navigation means it
 only swims, amphibious navigation means it walks and swims, flying navigation means it flies. A modded
-mob nearly always reuses a vanilla navigation while its class may extend anything. A body that only
-swims plans with water-only strokes, never leaves the water, and is walked by `WalkerSwim`, a separate
-executor that follows the nodes in three dimensions; the player walker's phases are a player's walk,
-full of surfacing, hopping and landing that a fish never does.
+mob nearly always reuses a vanilla navigation while its class may extend anything. The ghast, the
+phantom, the vex, the bat and the blaze keep a ground navigation they never use, so their class says
+they fly. A body that only swims, or that flies at all, lives in one medium: it plans with strokes
+through that medium only (`MediumMove`), never leaves it, and is walked by `WalkerMedium`, a separate
+executor that follows the nodes in three dimensions. The player walker's phases are a player's walk,
+full of surfacing, hopping and landing that a fish or a bird never does. A parrot, a bee or an allay
+could land and walk, but only flies: flying is faster and one catalog keeps the plan simple. Every
+stroke checks every cell the body's box covers on the way, so a ghast (four blocks wide) or an elder
+guardian (two) is never planned through a hole it does not fit.
+
+A flyer is moved by its velocity rather than its input. In the air vanilla accelerates a mob by a fixed
+0.02 a tick per unit of input whatever its speed, so a bat or a blaze could not climb against gravity
+at all; a phantom's and a bat's own movement code rewrite their velocity every tick before the input is
+read; and a vex moves straight through blocks by its velocity alone. Each tick the velocity is turned
+from the last tick's actual travel toward the one asked for, by at most a fifth of the mob's cruising
+speed, so it speeds up, turns and stops over a few ticks. The cruising speed is about the mob's own,
+held down where its own is too fast to follow a path cell by cell (a phantom cruises at 1.3 blocks a
+tick). With no input a flyer holds the spot where the input stopped, so it hovers after arriving and
+while it waits for an order, until it is released.
 
 A modded mob may move by code of its own that reads no input. Input held for 40 ticks that moves it
 nowhere, against no wall, ends its order as `unresponsive` instead of letting it run to its deadline.
-A type listed in the `undrivableMobs` setting, and any mob with no AI, is refused outright.
+A type listed in the `undrivableMobs` setting, and any mob with no AI, is refused outright. So are the
+wither, whose other two heads shoot and which breaks blocks by itself, and the ender dragon, which
+flies by its own phases and never runs the AI step the input goes through.
 
 A mob is taken over by the first order that names it as `entity:<uuid>`, or by
 `/worlddriver mob <entity> <name>`; it is handed back, goals restored, by

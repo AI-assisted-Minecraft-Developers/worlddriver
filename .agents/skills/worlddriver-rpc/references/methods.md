@@ -280,8 +280,11 @@ action ends `cancelled` with reason `bot_removed`. It walks, swims and climbs at
 plans no parkour gaps, and moves one tick after the order a player would have moved on. One that only
 swims (water-bound navigation, or a vanilla water animal) plans through water only: a goal out of the
 water fails `no route closer to the goal through water`, and 40 ticks out of the water fails `out of
-water`. Input held 40 ticks that moves a mob nowhere, against no wall, fails the action `unresponsive`.
-A mob with no AI, or of a type in `undrivableMobs`, is refused `bot_unavailable`. On another bot the hand verbs refuse out of reach where the
+water`. One that flies (flying navigation, or a vanilla flyer: parrot, bee, allay, bat, vex, phantom,
+blaze, ghast) plans through air only and never lands; with no order it hovers where it stopped; 40 ticks
+in water fails `fell into water`. A swimmer's or flyer's route only passes openings its whole box fits.
+Input held 40 ticks that moves a mob nowhere, against no wall, fails the action `unresponsive`.
+A mob with no AI, of a type in `undrivableMobs`, a wither or an ender dragon, is refused `bot_unavailable`. On another bot the hand verbs refuse out of reach where the
 client's click is silently ignored, `useItem` on an entity answers `menu` instead of `screen`, and
 `combat`'s `force` lifts nothing.
 
