@@ -425,10 +425,13 @@ public final class PathFinder {
         // where their own estimate IS the ground metric. -1 = use the h fallback.
         private final BlockPos escapeTarget;
         private final double escapeSafeMaxD2;
-        /** A start in water that the search must get out of. Never for a body that only swims: water is
-         *  where it lives, so the ashore triage, the surface-only commits and the depth bias stay off. */
+        /** A start in water that the search must get out of. Never for a body that lives in water or air:
+         *  the ashore triage, the surface-only commits and the depth bias are a walker's. */
         private final boolean startInWater;
-        /** The body only swims ({@link MoveCatalog#waterBound}). */
+        /** The body moves freely through one medium, water or air ({@link MoveCatalog#medium}), so
+         *  going down is no dive into a valley. */
+        private final boolean livesInMedium;
+        /** That medium is water. */
         private final boolean livesInWater;
         private final Node startNode;
         /** Move-set pruned to the catalog entries that can fire under this search's
@@ -493,8 +496,10 @@ public final class PathFinder {
         private Search(BlockPos start, Goal goal, boolean suppressPlace, SearchProfile profile,
                        SearchScope scope, boolean sightDropped) {
             this.start = start;
-            this.livesInWater = MoveCatalog.waterBound(world.moveModes());
-            this.startInWater = world.isWater(start) && !livesInWater;
+            var medium = MoveCatalog.medium(world.moveModes());
+            this.livesInMedium = medium != null;
+            this.livesInWater = medium == net.magicterra.worlddriver.bot.rules.moves.MediumMove.Medium.WATER;
+            this.startInWater = world.isWater(start) && !livesInMedium;
             this.goal = goal;
             this.suppressPlace = suppressPlace;
             this.profile = profile == null ? SearchProfile.NONE : profile;
@@ -720,7 +725,7 @@ public final class PathFinder {
             // Anti-basin-dive: an XZ goal's estimate ignores Y, so descending reads
             // as free progress and the search dives into a dead-end low valley. Charge
             // descent below this search's start (asymmetric — climbing stays free).
-            if (tuning.depthPenalty() > 0 && !livesInWater) {
+            if (tuning.depthPenalty() > 0 && !livesInMedium) {
                 int below = start.getY() - PlanningConfig.pathfinderDepthSlack - p.getY();
                 if (below > 0) h += tuning.depthPenalty() * below;
             }

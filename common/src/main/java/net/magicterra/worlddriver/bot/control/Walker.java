@@ -1481,7 +1481,7 @@ public final class Walker {
         body = a.entity();
         equipment = a.equipment().orElse(WalkerNoHands.INSTANCE);
         blocks = a.blockInteraction().orElse(WalkerNoHands.INSTANCE);
-        if (net.magicterra.worlddriver.bot.rules.MoveCatalog.waterBound(world.moveModes())) return (swim == null ? swim = new WalkerSwim(this) : swim).tick(a, world);
+        if ((medium = WalkerMedium.forBody(this, medium, world)) != null) return medium.tick(a, world);
         // Single-exit wrapper: tickInner() has dozens of early returns (pillar, dig, escape,
         // stepUp...), so a safety invariant appended to its tail only covers SOME ticks — the
         // gap #53 death strode over a well mouth from a branch that never reached it. Run the
@@ -2238,7 +2238,7 @@ public final class Walker {
      *  the tick never reached the drive tail (early-return branch) — which is itself
      *  the answer a pinned-bot autopsy is after. Reset each tick in the prelude. */
     public String driveTag;
-    private WalkerSwim swim;   // the walk of a water-bound body; see WalkerSwim
+    private WalkerMedium medium;   // the walk of a body living in water or air; see WalkerMedium
 
     /** Stride floor-guard (gap #53, the 2026-07-12 survival death; #51's stair-side void is
      *  the same invariant): while GROUNDED and dry, project the bot's actual horizontal

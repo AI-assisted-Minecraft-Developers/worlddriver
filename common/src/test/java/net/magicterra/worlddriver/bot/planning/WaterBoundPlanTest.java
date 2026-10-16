@@ -25,7 +25,7 @@ class WaterBoundPlanTest {
     /** Stone everywhere; water in a shaft at x=0 from y=Y down to Y-6, then a tunnel east to x=8 and north to z=6. */
     private static GridWorldView flooded() {
         GridWorldView w = new GridWorldView(-4, Y - 10, -4, 20, 16, 16)
-                .withPlace(false).withModes(EnumSet.of(Locomotion.Mode.SWIM));
+                .withPlace(false).withModes(EnumSet.of(Locomotion.Mode.SWIM)).withBody(0.5, 0.3);   // a cod
         w.fill(-3, Y - 9, -3, 14, Y + 4, 12, GridWorldView.SOLID);
         w.fill(0, Y - 6, 0, 0, Y, 0, GridWorldView.WATER);
         w.fill(0, Y - 6, 0, 8, Y - 6, 0, GridWorldView.WATER);

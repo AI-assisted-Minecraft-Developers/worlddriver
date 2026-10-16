@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import net.magicterra.worlddriver.bot.rules.moves.WaterSwim;
+import net.magicterra.worlddriver.bot.rules.moves.MediumMove;
 import net.magicterra.worlddriver.game.body.Locomotion;
 
 /**
@@ -14,8 +14,8 @@ import net.magicterra.worlddriver.game.body.Locomotion;
  *
  * <p>Every {@link Move} names its {@link Move#mode()}, so the catalogs are {@link Move#ALL} partitioned
  * by that answer. A player walks and swims, so its catalog is all of {@link Move#ALL}, in its order —
- * the order is kept because a search breaks ties by insertion. Flying and riding have no moves yet;
- * a body that only flies gets an empty catalog and finds no route rather than a walking one.
+ * the order is kept because a search breaks ties by insertion. A body that lives in one medium, water
+ * or air, gets that medium's {@link MediumMove} strokes instead; riding has no moves yet.
  */
 public final class MoveCatalog {
 
@@ -23,24 +23,30 @@ public final class MoveCatalog {
 
     private MoveCatalog() {}
 
-    /** The moves performed in {@code mode}. */
+    /** The moves of {@link Move#ALL} performed in {@code mode}. */
     public static List<Move> of(Locomotion.Mode mode) { return BY_MODE.get(mode); }
 
     /**
-     * The moves of every mode in {@code modes}, in {@link Move#ALL}'s order. A body that swims and does
-     * not walk lives in water, and gets {@link WaterSwim}'s strokes instead: the swim moves in
-     * {@link Move#ALL} are a walking body's, which floats at the surface and climbs out.
+     * The moves of every mode in {@code modes}, in {@link Move#ALL}'s order — or, for a body that lives
+     * in one {@link #medium}, that medium's strokes: the swim moves in {@link Move#ALL} are a walking
+     * body's, which floats at the surface and climbs out, and a flyer that could also land only flies.
      */
     public static List<Move> forModes(Set<Locomotion.Mode> modes) {
-        if (waterBound(modes)) return WaterSwim.ALL;
+        MediumMove.Medium medium = medium(modes);
+        if (medium != null) return medium == MediumMove.Medium.AIR ? MediumMove.FLY : MediumMove.SWIM;
         List<Move> out = new ArrayList<>(Move.ALL.size());
         for (Move m : Move.ALL) if (modes.contains(m.mode())) out.add(m);
         return out;
     }
 
-    /** Whether a body with {@code modes} lives in water: it swims and does not walk. */
-    public static boolean waterBound(Set<Locomotion.Mode> modes) {
-        return modes.contains(Locomotion.Mode.SWIM) && !modes.contains(Locomotion.Mode.WALK);
+    /**
+     * The one medium a body with {@code modes} moves freely through, or null for a body that walks:
+     * air for one that flies, water for one that swims and does not walk.
+     */
+    public static MediumMove.Medium medium(Set<Locomotion.Mode> modes) {
+        if (modes.contains(Locomotion.Mode.FLY)) return MediumMove.Medium.AIR;
+        if (modes.contains(Locomotion.Mode.SWIM) && !modes.contains(Locomotion.Mode.WALK)) return MediumMove.Medium.WATER;
+        return null;
     }
 
     private static Map<Locomotion.Mode, List<Move>> partition() {
