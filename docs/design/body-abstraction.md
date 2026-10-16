@@ -162,8 +162,9 @@ types, so a client call and a call for a server-side bot construct the same proc
 The first version ran the scheduler's reflex layer — automatic eating, automatic swimming, suffocation
 escape — only on the client's player, and gave a server-side player and a mob a single user-task chain.
 That was lifted on 2026-10-16: every server bot now runs the same `BotBrain` as the client, reflexes
-included, and keeps running them while idle. The reflexes that need hands or a player (eating, the
-contact and lava escapes) still do nothing on a mob.
+included, and keeps running them while idle. On a mob the movement reflexes run as they do on a
+player; the ones that need hands (eating, auto-fight, the dusk shelter) do nothing, and its threat
+scan counts only what has it as a target.
 
 The server-side player is a public extension point, not an internal detail. It stays in the released jar
 together with its command surface, so a third-party mod can drive one, and renaming or splitting it is

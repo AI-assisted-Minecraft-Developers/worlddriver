@@ -23,7 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   idle or not, until `/worlddriver mob release <bot>` hands it back or the entity is gone. It walks,
   swims and climbs at a quarter of its movement speed, never plans a parkour gap, and moves one tick
   after an order. It has no hands: `mine`, `clearArea`, the build verbs and the hand verbs are refused
-  as `unsupported_capability`. No new method was added; the `bot` parameter reaches it.
+  as `unsupported_capability`. No new method was added; the `bot` parameter reaches it. It steps out
+  of cactus and away from lava like a player, and treats as a threat only a mob that is hunting it
+  or has just hit it; auto-fight and the dusk shelter leave it alone.
 - **A server bot now has the same reflexes as the client's bot, switched on by the same settings.**
   Each `/worlddriver server` bot runs its own `BotBrain`, the decision stack the client's bot runs:
   eating, healing, shield, totem, gear and tool choice, swimming up, the water-bucket clutch, breaking

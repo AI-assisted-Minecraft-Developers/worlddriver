@@ -403,7 +403,8 @@ and `wd.mobWolfAdoptedByCommandWalks` assert arrival only, for the reasons below
 | Timing | moves in the tick the input is written | reads the input in its own AI step on the next server tick, one tick late | `Accepted` |
 | Its own AI | — | every goal taken off both selectors, the brain's walk target erased each tick; restored at their priorities on release | `Accepted` |
 | Hands, bag, menus | present | absent; the hand verbs and the processes that need them are refused `unsupported_capability` before they start | `Accepted` |
-| Threats and hunger | scanned and read | the threat scan finds nothing, food reads as zero, and the contact and lava escapes do nothing, since all three read a player | `Open` |
+| Threats | every hostile mob in range, and the last attacker | only a mob whose target it is, and the last attacker: hostiles do not hunt each other, so a zombie that fled every zombie would flee nothing | `Accepted` |
+| Reflexes | all of them | the movement ones (contact and lava escape, drowning, dodging, retreat) run; the ones that need hands do not bid at all, so auto-fight and the dusk shelter never take the channel from an order | `Accepted` |
 | Despawning | — | marked persistent on takeover, and still persistent after release | `Accepted` |
 
 ## Related documents
