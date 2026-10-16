@@ -12,6 +12,8 @@ import net.magicterra.worlddriver.api.call.ApiTimers;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.call.RunContext;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts;
 import net.magicterra.worlddriver.api.methods.script.ScriptContracts.Issue;
@@ -28,6 +30,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
@@ -51,9 +54,16 @@ public final class ScriptEvaluator {
     private static final long WATCHDOG_GRACE_MS = 250;
     /** Encoding a result can run the script's own getters, so it is budgeted too. */
     private static final long ENVELOPE_BUDGET_MS = 1000;
+    /**
+     * Runs alive at once, across the JVM, nested ones included. Each holds a thread of its own until it
+     * returns, and a run answers its caller before that, so no request quota bounds them: without this,
+     * one connection sending eval after eval would keep opening threads.
+     */
+    public static final int MAX_RUNS = 32;
 
     private final ApiRegistry api;
     private final ExecutorService executor;
+    private final Semaphore runs = new Semaphore(MAX_RUNS);
 
     public ScriptEvaluator(ApiRegistry api) {
         this.api = api;
@@ -74,8 +84,18 @@ public final class ScriptEvaluator {
         return start(source, budgetMs, ctx, true);
     }
 
+    /**
+     * Refused with {@code server_busy} before anything runs when {@link #MAX_RUNS} runs are alive; a run
+     * this would have owned is ended at once. A nested run is refused the same way rather than waiting,
+     * since the runs holding every slot may be the ones waiting for it.
+     */
     private CompletionStage<Outcome> start(String source, int budgetMs, CallContext caller, boolean owns) {
         RunContext run = caller.run().orElseThrow();
+        if (!runs.tryAcquire()) {
+            if (owns) run.stop();
+            throw ApiException.of(ApiError.Code.SERVER_BUSY, "server busy: " + MAX_RUNS
+                    + " scripts are already running; wait for one to end before starting another");
+        }
         long start = System.nanoTime();
         long own = start + TimeUnit.MILLISECONDS.toNanos(budgetMs);
         long deadline = own - caller.deadlineNanos() < 0 ? own : caller.deadlineNanos();
@@ -83,7 +103,18 @@ public final class ScriptEvaluator {
         BooleanSupplier stopped = () -> run.stopped().isCancelled() || caller.requestCancelled().isCancelled();
 
         CompletableFuture<Outcome> out = new CompletableFuture<>();
-        Future<?> worker = executor.submit(() -> out.complete(runOnce(source, ctx, stopped, start)));
+        // The slot goes back when the thread does, not when the caller is answered: a run past its
+        // budget still holds its thread until the interrupt reaches it.
+        Future<?> worker;
+        try {
+            worker = executor.submit(() -> {
+                try { out.complete(runOnce(source, ctx, stopped, start)); }
+                finally { runs.release(); }
+            });
+        } catch (RuntimeException e) {
+            runs.release();
+            throw e;
+        }
         long waitMs = TimeUnit.NANOSECONDS.toMillis(deadline - start) + WATCHDOG_GRACE_MS;
         // The timer only hands the work on: stopping a run cancels actions, which is no job for the timer thread.
         ApiTimers.schedule(() -> executor.execute(() -> {

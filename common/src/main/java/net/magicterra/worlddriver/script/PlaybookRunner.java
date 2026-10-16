@@ -82,9 +82,9 @@ public final class PlaybookRunner {
         Playbook p = new Playbook(s.name(), RunContext.start("playbook-" + s.name()));
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(s.budgetMs());
         CallContext own = new CallContext(deadline, CancellationToken.NEVER, Optional.of(p.run), CallContext.SHARED_WAITS, true);
-        current = p;
         evaluator.runOwned(full, s.budgetMs(), own).whenComplete((o, t) -> p.outcome = o != null ? o
                 : ScriptEvaluator.failed(p.run, t));
+        current = p;   // only once it started: a run refused as busy is no playbook to report
         return new PlaybookStarted(s.name(), p.run.runId());
     }
 
