@@ -36,3 +36,8 @@ accessible	field	net/minecraft/client/gui/components/AbstractSelectionList	itemH
 accessible	field	net/minecraft/client/gui/screens/inventory/AbstractContainerScreen	leftPos	I
 accessible	field	net/minecraft/client/gui/screens/inventory/AbstractContainerScreen	topPos	I
 accessible	field	net/minecraft/client/KeyMapping	clickCount	I
+
+# A driven mob's goals are taken off it and put back on release (game/body/MobBody); vanilla
+# offers the selectors to subclasses only.
+accessible	field	net/minecraft/world/entity/Mob	goalSelector	Lnet/minecraft/world/entity/ai/goal/GoalSelector;
+accessible	field	net/minecraft/world/entity/Mob	targetSelector	Lnet/minecraft/world/entity/ai/goal/GoalSelector;
