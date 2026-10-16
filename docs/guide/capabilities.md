@@ -152,21 +152,28 @@ error.
 | Method | What it does | Notable parameters |
 |---|---|---|
 | `mc.client.screen.info` | A cheap probe of the current screen: whether a screen, world or player exists, the screen type and title, and `windowActive` / `mouseGrabbed`. Call it first as an availability check. | none |
-| `mc.client.screen.tree` | Walks the screen's widget tree and returns positions and labels, plus the label's translation key when it has one, so a script can find a vanilla button whatever the player's language. The canonical way to pick a click target without taking a screenshot, and it works for self-drawn modded screens. It reports structure, not paint. | none |
+| `mc.client.screen.tree` | Walks the screen's widget tree and returns positions and labels, plus the label's translation key when it has one, so a script can find a vanilla button whatever the player's language. Each widget, list row and slot carries a `ref`, which stays the same across reads for as long as that widget exists. The canonical way to pick a click target without taking a screenshot, and it works for self-drawn modded screens. It reports structure, not paint. | none |
 | `mc.client.screen.close` | Pops the current screen and names the one it closed. | `contextId` |
-| `mc.client.input.click` | Clicks at logical screen coordinates. | `x`, `y`, `button`, `contextId` |
-| `mc.client.input.slotClick` | Clicks a slot in the open container menu with an explicit click type — the only way to get shift-click, Q-drop, number-key swap, middle-click or double-click without spoofing keyboard modifiers. | `slot`, `button`, `type` (`pickup`, `quickMove`, `throw`, `swap`, `clone`, `pickupAll`, `quickCraft`), `contextId` |
+| `mc.client.input.click` | Clicks a widget by its `ref` from `screen.tree`, at the centre of where that widget is now, or clicks at logical screen coordinates. A ref whose widget is gone, hidden or scrolled out of view is refused rather than clicking whatever is there now. | `ref` or `x` and `y`, `button`, `returnTree`, `contextId` |
+| `mc.client.input.slotClick` | Clicks a slot in the open container menu with an explicit click type — the only way to get shift-click, Q-drop, number-key swap, middle-click or double-click without spoofing keyboard modifiers. | `slot`, `button`, `type` (`pickup`, `quickMove`, `throw`, `swap`, `clone`, `pickupAll`, `quickCraft`), `returnTree`, `contextId` |
 | `mc.client.input.mouseMove` | Moves the cursor and updates the mouse handler, so hover effects fire. Useful to park the cursor before a screenshot. | `x`, `y` |
 | `mc.client.input.typeText` | Types a string into the focused widget, one code point at a time. Appends at the cursor. | `text` |
 | `mc.client.input.replaceText` | Overwrites a text box's entire contents atomically, which `typeText` cannot do. | `text`, `match` |
 | `mc.client.input.slider` | Reads every slider on screen, or sets one to a fraction, firing the vanilla apply hooks so the option commits. | `match`, `index`, `fraction` |
-| `mc.client.input.key` | Synthesises a keyboard event and routes it as a real keystroke would be routed. To open the inventory or the pause menu, send `E` or `ESCAPE`. | `key`, `action` (`press`, `release`, `click`), `route` (`auto`, `keybind`, `screen`), `modifiers` |
-| `mc.client.input.keybind` | Drives a key mapping by name. Use this rather than `input.key` whenever the binding carries a modifier, because such a binding asks the real keyboard and a synthesised modifier press does not appear there. Omit `name` to list every mapping. | `name`, `action` |
+| `mc.client.input.key` | Synthesises a keyboard event and routes it as a real keystroke would be routed. To open the inventory or the pause menu, send `E` or `ESCAPE`. | `key`, `action` (`press`, `release`, `click`), `route` (`auto`, `keybind`, `screen`), `modifiers`, `returnTree` |
+| `mc.client.input.keybind` | Drives a key mapping by name. Use this rather than `input.key` whenever the binding carries a modifier, because such a binding asks the real keyboard and a synthesised modifier press does not appear there. Omit `name` to list every mapping. | `name`, `action`, `returnTree` |
 | `mc.client.input.setHotbarSlot` | Selects the held hotbar slot, so a later attack or use resolves against the new item. | `slot` (0–8) |
 | `mc.client.chat.send` | Sends chat or a command exactly as pressing T, typing and pressing Enter would. With `awaitReplyMs`, also returns the chat lines that arrived after the send, as `later`. Those are a later observation, not the reply: nothing ties a line to this send. | `text`, `awaitReplyMs` |
 | `mc.client.chat.history` | Reads the client's chat scrollback, captured at the packet layer, newest first. This is how command feedback becomes visible to an agent. | `limit` (max 256), `sinceSeq` |
 | `mc.client.overlays` | Dismisses the tutorial steps and clears the toast queue, both by default. Idempotent. | `tutorial`, `toasts` |
 | `mc.client.screenshot` | Captures the framebuffer, with optional downscale and JPEG transcoding. Waits for a frame drawn after the request, so what you just did is in the picture. | `maxWidth`, `maxHeight`, `format`, `quality` |
+
+`returnTree` on `click`, `slotClick`, `key` and `keybind` saves the `screen.tree` call after
+the input. The reply then says `treeChanged`, and when it is true carries the tree as it was
+right after the input: a new screen, a rebuilt one, or a widget on the same screen that changed.
+Two things cannot be in it. A screen the server opens in reply to the click arrives later, and
+so do the items the server puts in a container's slots. For those, wait with
+`mc.wait.condition` instead.
 
 Two boundaries are worth knowing. `chat.send` and `chat.history` see only lines that
 crossed the packet layer, so feedback a client renders locally never appears there. And
