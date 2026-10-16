@@ -89,7 +89,11 @@ public final class VerbOrders {
         return new Refuse<>(RefusalReason.UNSUPPORTED_CAPABILITY, handlessMessage(verb));
     }
 
-    /** Whether {@code self} can hold, place and break: a player can, a mob cannot. */
+    /**
+     * Whether {@code self} can hold, place and break: a player can, a mob cannot. Asked of the entity
+     * because a planner is handed the entity, not its {@code Body}; every body that exists has hands
+     * exactly when it is a player, and a body that broke that rule would need this to read capabilities.
+     */
     public static boolean hasHands(LivingEntity self) { return self instanceof Player; }
 
     /** The refusal a verb that needs hands answers a body without them. */
