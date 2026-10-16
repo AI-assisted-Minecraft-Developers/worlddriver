@@ -206,8 +206,13 @@ as `unsupported_capability`.
 server, and it answers to `mob:<name>`. From then on its own behaviour is off, it no longer
 despawns, and its reflexes run whether or not it has an order, until
 `/worlddriver mob release <bot>` hands it back or it dies or is removed. A mob walks, swims and
-climbs at its own speed, never takes a parkour jump, and reacts one tick later than a player.
+climbs at the pace it chases at, never takes a parkour jump, and reacts one tick later than a player.
 Reading `mc.bot.status` or cancelling never takes a mob over; only an order does.
+
+A mob that only swims (a fish, dolphin, guardian, squid or tadpole) moves in three dimensions and
+never leaves the water: a goal on land fails as `no route closer to the goal through water`. One that
+does not respond to input, as some mods' mobs do, ends its order as `unresponsive` after two seconds.
+The `undrivableMobs` setting lists entity types that may not be taken over; a mob with no AI never can.
 
 The hand verbs (`lookAt`, `holdItem`, `useItem`, `attackEntity`, `equip`) act within the call
 and answer `{outcome: 'done', …}` with what came of it, or `{outcome: 'refused', reason, message}`

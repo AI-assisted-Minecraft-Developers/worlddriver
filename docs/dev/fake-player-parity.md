@@ -391,14 +391,18 @@ never leave their staging area.
 
 #### A vanilla mob
 
-`MobBody` cannot swap a mob's controls the way the test piglin does, so it steers through
-them, and that costs more than the piglin's rows above. `wd.mobZombieWalksByEntityRefAndIsReleased`
-and `wd.mobWolfAdoptedByCommandWalks` assert arrival only, for the reasons below.
+`MobBody` cannot swap a mob's controls the way the test piglin does, so `MobMixin` writes the input
+into the mob's own AI step, after its move control, and that costs more than the piglin's rows above.
+The `wd.mob*` scenes assert arrival only, for the reasons below.
 
 | Behaviour | A player | A vanilla mob | Status |
 |---|---|---|---|
-| Locomotion channel | writes impulse, jump and sneak | turns the input into a heading, faces it, and has `MoveControl.strafe` move it straight ahead; `JumpControl.jump` for the jump | `Accepted` |
-| Speed | the player's walking speed, sprint on top | a quarter of the mob's movement attribute: a zombie at about 0.58 of a walking player, a wolf at 0.75; sprinting adds the same 30% it adds to a player, since vanilla puts that modifier on any living entity | `Accepted` |
+| Locomotion channel | writes impulse, jump and sneak | after its own move control: faces the input's heading, forward input is the input's size, vertical input in water; `JumpControl.jump` for the jump, except in water for a mob that only swims | `Accepted` |
+| Speed | the player's walking speed, sprint on top | what its own move control sets at a speed modifier of 1, the pace it chases at: on the 10-cell course a zombie takes about 59 ticks, a wolf 39. An axolotl gets its brain's largest modifier instead (0.15 on land, 0.6 in water), a squid a fixed 0.1 cells a tick. Sprinting adds the same 30% it adds to a player, since vanilla puts that modifier on any living entity | `Accepted` |
+| Fish, dolphin, guardian, squid, tadpole | — | swim only: water-only strokes, never planned out of the water, walked by `WalkerSwim` in three dimensions; a goal out of the water fails `no route closer to the goal through water`, and 40 ticks out of the water fails the order | `Accepted` |
+| Axolotl, turtle, frog, drowned | — | walk and swim, through the player walker: across a pool they swim on the surface the way a player does | `Accepted` |
+| A mob that ignores input | — | 40 ticks of held input that move it nowhere, against no wall, end the order as `unresponsive` | `Accepted` |
+| Refused mobs | — | one with no AI, or of a type in `undrivableMobs`, is refused by orders and by `/worlddriver mob` | `Accepted` |
 | Parkour gaps | planned when the sprint jump clears them | never planned: the world view says it cannot sprint-jump | `Accepted` |
 | Timing | moves in the tick the input is written | reads the input in its own AI step on the next server tick, one tick late | `Accepted` |
 | Its own AI | — | every goal taken off both selectors, the brain's walk target erased each tick; restored at their priorities on release | `Accepted` |

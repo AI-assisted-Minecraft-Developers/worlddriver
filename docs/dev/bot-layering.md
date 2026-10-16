@@ -191,7 +191,10 @@ Every move also names the way of moving it starts in — walking or swimming tod
 `MoveCatalog` partitions `ALL` by that answer. A search takes the catalogs of the modes the
 controlled entity has (`WorldView.moveModes()`, read from its `Locomotion`), in `ALL`'s
 order, because the search breaks ties by insertion. A player walks and swims, so its
-catalog is all of `ALL`. Flying and riding have no moves yet.
+catalog is all of `ALL`. A body that swims and does not walk gets `WaterSwim.ALL` instead:
+strokes to any of the 26 neighbours through water only, kept out of `ALL`. Its search drops the
+"get out of the water" handling a player's needs, and `Walker` hands its ticks to `WalkerSwim`,
+which follows the nodes in three dimensions. Flying and riding have no moves yet.
 
 ## The `Body` seam
 
@@ -214,15 +217,16 @@ readings.
 
 How the entity moves — its size, how high it steps and jumps, its speeds and which of
 walking, swimming and flying it has — is `Locomotion`, read off the entity's attributes
-rather than written down per kind.
+rather than written down per kind. For a mob, which modes it has is read from its navigation
+first (water-bound, amphibious, flying) and its vanilla base class second.
 
 `ClientPlayerBody` and `ServerPlayerBody` implement every capability, so a caller holding
 either concrete type is unchanged. That is what lets one process run on a client player and
 headless on a server tick, and what the test scenes' driven-mob `Body` plugs into. The
 server-side players come from `JoinedPlayers`: a `ServerPlayer` that has joined through the
-player list, with a connection that goes nowhere. `MobBody` drives any vanilla `Mob` through
-the mob's own move and jump controls with its goals taken off, and implements no optional
-capability.
+player list, with a connection that goes nowhere. `MobBody` drives any vanilla `Mob` with its
+goals taken off: `MobMixin` writes the input into the mob's own AI step after its move control,
+and the body implements no optional capability.
 
 ### Naming a bot
 

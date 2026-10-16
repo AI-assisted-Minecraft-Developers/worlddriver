@@ -115,17 +115,34 @@ subclass: the brain runs in an overridable method, and the move, jump and look c
 protected fields that the driveable piglin swaps in its constructor for versions that do nothing while
 driven.
 
-Driving an unmodified vanilla mob turned out not to need a mixin either. `MobBody` takes every goal
-off the mob's two goal selectors and keeps them with their priorities, which stops the mob's own AI
-without stopping its physics (`setNoAi` would stop both); turning the selectors' control flags off
-would not hold, because vanilla turns them back on every few ticks. A mob run by a brain instead of
-goals has its walk target erased every tick. The bot's input then goes through the mob's own move
-and jump controls: the input is turned into a heading, the mob faces it, and `MoveControl.strafe`
-moves it straight ahead. Straight ahead, because `strafe` swaps any sideways or backward input for
-forward whenever the next cell is not plain ground. So the mob keeps its own speed and step height.
-Two costs come with that: a strafe moves at a quarter of the mob's movement speed per unit of
-input, which is too slow for a parkour gap, so a mob's searches plan none; and the input is read in
-the mob's own AI step on the next tick, one tick later than a player's.
+Stopping an unmodified vanilla mob's own AI needs no mixin. `MobBody` takes every goal off the mob's
+two goal selectors and keeps them with their priorities, which stops the mob's own AI without stopping
+its physics (`setNoAi` would stop both); turning the selectors' control flags off would not hold,
+because vanilla turns them back on every few ticks. A mob run by a brain instead of goals has its walk
+target erased every tick.
+
+Steering it does use one. `MobMixin` writes the bot's input inside `Mob.serverAiStep`, right after the
+mob's own move control has run and before `travel` reads it: the mob faces the input's heading, its
+forward input is the input's size, and in water its vertical input rises or sinks it. The mob's own
+move control is left in place rather than swapped for one of ours, because a modded mob may cast
+`getMoveControl()` to its own class, and an exception in an entity's tick stops the server. Its own
+control still runs first, so whatever it does every tick regardless of orders stays, such as the lift
+that keeps a swimmer from sinking. At full input the speed is what that control would set at a speed
+modifier of 1, so a zombie or a wolf walks at the pace it chases at. Two exceptions: a squid ignores
+input and is moved by its velocity, and an axolotl, whose movement attribute is sized for its brain's
+small modifiers, gets the largest of those. The input is read in the mob's own AI step on the next
+tick, one tick later than a player's, and a mob's searches still plan no parkour gap.
+
+How a mob moves is read from its navigation first, its class second: water-bound navigation means it
+only swims, amphibious navigation means it walks and swims, flying navigation means it flies. A modded
+mob nearly always reuses a vanilla navigation while its class may extend anything. A body that only
+swims plans with water-only strokes, never leaves the water, and is walked by `WalkerSwim`, a separate
+executor that follows the nodes in three dimensions; the player walker's phases are a player's walk,
+full of surfacing, hopping and landing that a fish never does.
+
+A modded mob may move by code of its own that reads no input. Input held for 40 ticks that moves it
+nowhere, against no wall, ends its order as `unresponsive` instead of letting it run to its deadline.
+A type listed in the `undrivableMobs` setting, and any mob with no AI, is refused outright.
 
 A mob is taken over by the first order that names it as `entity:<uuid>`, or by
 `/worlddriver mob <entity> <name>`; it is handed back, goals restored, by

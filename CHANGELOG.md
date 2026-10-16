@@ -21,11 +21,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   takes it over under that id, and `/worlddriver mob <entity> <name>` takes it over as `mob:<name>`.
   Taken over, the mob's own behaviour is off, it stops despawning, and it runs the bot's reflexes,
   idle or not, until `/worlddriver mob release <bot>` hands it back or the entity is gone. It walks,
-  swims and climbs at a quarter of its movement speed, never plans a parkour gap, and moves one tick
+  swims and climbs at the pace it chases at in vanilla, never plans a parkour gap, and moves one tick
   after an order. It has no hands: `mine`, `clearArea`, the build verbs and the hand verbs are refused
   as `unsupported_capability`. No new method was added; the `bot` parameter reaches it. It steps out
   of cactus and away from lava like a player, and treats as a threat only a mob that is hunting it
   or has just hit it; auto-fight and the dusk shelter leave it alone.
+- **Water mobs can be driven too.** A fish, dolphin, guardian, squid or tadpole swims in three
+  dimensions, diving under what is in its way, and never plans a step out of the water: an order to a
+  place on land fails as `no route closer to the goal through water`, and one that leaves it out of the
+  water for two seconds fails as `out of water`. An axolotl, turtle, frog or drowned walks and swims.
+  How a mob moves is read from its navigation, so a modded mob that reuses a vanilla navigation is
+  treated the same way.
+- **A mob that does not respond to input ends its order as `unresponsive`** after two seconds of held
+  input that moved it nowhere and was not blocked by a wall, instead of running to the caller's
+  deadline. A mod's mob that moves by code of its own is the usual case.
+- **New setting `undrivableMobs`:** entity type ids, such as `minecraft:wolf`, that orders and
+  `/worlddriver mob` refuse to take over. A mob with no AI is always refused, since it never runs the
+  step the input goes through.
 - **A server bot now has the same reflexes as the client's bot, switched on by the same settings.**
   Each `/worlddriver server` bot runs its own `BotBrain`, the decision stack the client's bot runs:
   eating, healing, shield, totem, gear and tool choice, swimming up, the water-bucket clutch, breaking

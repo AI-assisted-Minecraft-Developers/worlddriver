@@ -329,3 +329,39 @@ Accept the result when:
 - after `release` it goes back to its own behaviour within a few seconds (it wanders, a zombie
   comes for you again) and `mc.bot.status` no longer lists it;
 - if you kill it while it walks, the `goto` ends as `cancelled` with reason `bot_removed`.
+
+### A water mob
+
+Build a pool at least three deep with a wall across the middle that leaves one gap near the bottom,
+put a cod in it, take the cod over as `fish`, and send it to the far side:
+
+```
+/summon minecraft:cod ~2 ~-1 ~
+/worlddriver mob @e[type=minecraft:cod,limit=1,sort=nearest] fish
+```
+
+```bash
+# first a water cell on the far side of the wall, then a cell on the bank beside the pool
+$RPC mc.bot.goto '{"bot":"mob:fish","target":{"kind":"position","pos":{"x":X,"y":Y,"z":Z}},"awaitMs":30000}'
+$RPC mc.bot.goto '{"bot":"mob:fish","target":{"kind":"position","pos":{"x":X,"y":Y,"z":Z}},"awaitMs":30000}'
+```
+
+Accept the result when:
+
+- the cod turns toward the gap, dives through it and comes up on the far side, staying in the water;
+- the second order, to a place on the bank, ends as `failed` with `no route closer to the goal through
+  water`, and the cod is still in the pool;
+- a dolphin, a guardian, a squid and a tadpole do the same; a squid moves at a slow even speed rather
+  than in its usual pulses;
+- an axolotl, a turtle or a frog walks to the pool's edge, swims across on the surface and walks out on
+  the other side; an axolotl walks slowly on land, not faster than a player.
+
+### A mob that cannot be driven
+
+```bash
+$RPC mc.bot.setting '{"op":"patch","values":{"undrivableMobs":["minecraft:wolf"]}}'
+```
+
+Accept the result when `/worlddriver mob` on a wolf, and an order naming a wolf as `entity:<uuid>`,
+are both refused with a message naming the `undrivableMobs` setting, and the wolf keeps wandering. A
+mob summoned with `{NoAI:1b}` is refused the same way, with a message saying it has no AI.

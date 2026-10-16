@@ -276,8 +276,12 @@ A vanilla mob becomes a bot two ways: an order (not `status` or `cancel`) naming
 of a loaded mob takes it over under that id, and the server command `/worlddriver mob <entity> <name>`
 takes it over as `mob:<name>`. Taken over, its own AI is off and its reflexes run, idle or not, until
 `/worlddriver mob release <bot>` gives the AI back or the entity is gone; a removed mob's running
-action ends `cancelled` with reason `bot_removed`. It walks, swims and climbs at its own speed, plans
-no parkour gaps, and moves one tick after the order a player would have moved on. On another bot the hand verbs refuse out of reach where the
+action ends `cancelled` with reason `bot_removed`. It walks, swims and climbs at the pace it chases at,
+plans no parkour gaps, and moves one tick after the order a player would have moved on. One that only
+swims (water-bound navigation, or a vanilla water animal) plans through water only: a goal out of the
+water fails `no route closer to the goal through water`, and 40 ticks out of the water fails `out of
+water`. Input held 40 ticks that moves a mob nowhere, against no wall, fails the action `unresponsive`.
+A mob with no AI, or of a type in `undrivableMobs`, is refused `bot_unavailable`. On another bot the hand verbs refuse out of reach where the
 client's click is silently ignored, `useItem` on an entity answers `menu` instead of `screen`, and
 `combat`'s `force` lifts nothing.
 
