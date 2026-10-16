@@ -11,10 +11,16 @@ import net.minecraft.world.entity.ai.goal.GoalSelector;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.MemoryStatus;
+import net.minecraft.world.entity.ambient.Bat;
 import net.minecraft.world.entity.animal.Squid;
+import net.minecraft.world.entity.animal.allay.Allay;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
 import net.minecraft.world.entity.boss.wither.WitherBoss;
+import net.minecraft.world.entity.monster.Blaze;
+import net.minecraft.world.entity.monster.Ghast;
+import net.minecraft.world.entity.monster.Phantom;
+import net.minecraft.world.entity.monster.Vex;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -44,6 +50,16 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p>A squid's own movement ignores input altogether, so it is moved by its velocity instead.
  *
+ * <p><b>Flying.</b> A mob that flies is moved by its velocity too, for one reason per kind: in the air
+ * a mob's input accelerates it by a fixed 0.02 a tick whatever its speed, so a bat or a blaze cannot
+ * climb against gravity at all; a phantom's and a bat's own movement code overwrite their velocity
+ * every tick before the input is read; a vex moves straight through blocks by its velocity alone.
+ * The velocity written each tick is the last tick's actual travel turned toward where the input points,
+ * by at most a fifth of the mob's {@link #flightSpeed cruising speed}, so it speeds up, turns and stops
+ * over a few ticks as a flyer does. Gravity and drag only touch what is left after the move, and the
+ * next tick starts again from the travel itself. Up and down are the jump and sneak inputs. With no
+ * input it holds the spot where the input stopped, so a driven flyer hovers until its next order.
+ *
  * <p><b>Timing.</b> The input is written after the bot's tick and read in the mob's own AI step on the
  * next server tick, one tick later than a player body's.
  *
@@ -69,6 +85,17 @@ public final class MobBody implements Body {
     private static final double SQUID_SPEED = 0.1;
     /** The largest speed modifiers an axolotl's own brain uses, out of water and in it. */
     private static final float AXOLOTL_LAND_MODIFIER = 0.15f, AXOLOTL_WATER_MODIFIER = 0.6f;
+    /** Ticks a flyer takes to reach its cruising speed from rest, or to stop from it. */
+    private static final int FLIGHT_ACCEL_TICKS = 5;
+    /**
+     * How far a flyer's vertical speed carries it once the input lets go, in ticks of that speed: it
+     * slows evenly to rest over {@link #FLIGHT_ACCEL_TICKS} ticks.
+     */
+    public static final double FLIGHT_COAST_TICKS = (FLIGHT_ACCEL_TICKS + 1) / 2.0;
+    /** A hovering flyer's speed back toward its spot, per block it has drifted from it. */
+    private static final double HOVER_GAIN = 0.2;
+    /** A travel longer than this since the last tick was a teleport, not flight. */
+    private static final double FLIGHT_JUMP = 2.0;
 
     private record Held(GoalSelector from, int priority, Goal goal) {}
 
@@ -78,6 +105,11 @@ public final class MobBody implements Body {
     private final float inWaterFactor, outOfWaterFactor;
     /** No walking mode: it rises in water by its vertical input alone. */
     private final boolean swimsOnly;
+    /** It flies: moved by its velocity, at {@link #flightSpeed} blocks a tick at full input. */
+    private final boolean flies;
+    private final double flightSpeed;
+    /** Where the flyer was at its last AI step, and the spot it holds while it has no input. */
+    private Vec3 flightLast, hoverAt;
     private float left, forward;
     private boolean jump, sneak;
     private float heading, magnitude;
@@ -101,7 +133,10 @@ public final class MobBody implements Body {
         } else {
             inWaterFactor = outOfWaterFactor = 1f;
         }
-        swimsOnly = !Locomotion.modesOf(mob).contains(Locomotion.Mode.WALK);
+        var modes = Locomotion.modesOf(mob);
+        swimsOnly = !modes.contains(Locomotion.Mode.WALK) && modes.contains(Locomotion.Mode.SWIM);
+        flies = modes.contains(Locomotion.Mode.FLY);
+        flightSpeed = flies ? flightSpeed(mob) : 0;
     }
 
     /**
@@ -115,6 +150,24 @@ public final class MobBody implements Body {
         if (mob instanceof EnderDragon) return "an ender dragon flies by its own phases and never runs the step the bot's input goes through";
         if (mob instanceof WitherBoss) return "a wither's other heads shoot and it breaks blocks by itself, which the bot's input cannot stop";
         return null;
+    }
+
+    /**
+     * A flyer's cruising speed in blocks a tick: about its own, held down where its own is too fast to
+     * follow a path cell by cell. A parrot or a bee, and a modded flyer, go as fast as their flying-speed
+     * attribute takes them at full input in vanilla; an allay's travel scales that attribute twice.
+     */
+    private static double flightSpeed(Mob mob) {
+        if (mob instanceof Allay) return 0.11;
+        if (mob instanceof Ghast) return 0.25;      // vanilla pulses about 0.28
+        if (mob instanceof Phantom) return 0.3;     // vanilla cruises at 1.3 and cannot slow below 0.15
+        if (mob instanceof Vex) return 0.3;         // vanilla 0.56
+        if (mob instanceof Bat) return 0.25;        // vanilla 0.28 on each axis
+        if (mob instanceof Blaze) return 0.11;      // its own rise and slow fall
+        double attr = mob.getAttributes().hasAttribute(Attributes.FLYING_SPEED)
+                ? mob.getAttributeValue(Attributes.FLYING_SPEED) : 0;
+        // In the air: 0.02 per unit of input, times 0.98 forward, against 0.91 drag.
+        return attr > 0 ? Math.clamp(attr * 0.02 * 0.98 / 0.09, 0.05, 0.4) : 0.1;
     }
 
     /** Take {@code mob} over: its goals come off, its path and target are dropped, and it stops despawning. */
@@ -195,8 +248,9 @@ public final class MobBody implements Body {
             magnitude = 0;
         }
         // In water a jump also lifts by vanilla's own swim-up on top of the vertical input, so a body
-        // that only swims would rise twice as hard as it sinks and hover over every node below it.
-        if (jump && !(swimsOnly && mob.isInWater())) mob.getJumpControl().jump();
+        // that only swims would rise twice as hard as it sinks and hover over every node below it. A
+        // flyer's jump is its climb, and a real one would set its velocity after drive wrote it.
+        if (jump && !flies && !(swimsOnly && mob.isInWater())) mob.getJumpControl().jump();
         aimed = false;
         watchResponse();
     }
@@ -207,6 +261,10 @@ public final class MobBody implements Body {
         boolean water = mob.isInWater();
         if (mob instanceof Squid squid) {
             driveSquid(squid, water);
+            return;
+        }
+        if (flies) {
+            driveFlight();
             return;
         }
         float speed = (float) mob.getAttributeValue(Attributes.MOVEMENT_SPEED);
@@ -230,6 +288,45 @@ public final class MobBody implements Body {
         double h = SQUID_SPEED * magnitude;
         double v = jump ? SQUID_SPEED / 2 : sneak ? -SQUID_SPEED / 2 : 0;
         squid.setDeltaMovement(-Math.sin(rad) * h, v, Math.cos(rad) * h);
+    }
+
+    /**
+     * Turn the last tick's travel toward the velocity the input asks for, by at most a fifth of the
+     * cruising speed, and write it as this tick's velocity. The input zeroed, travel adds nothing of its
+     * own, so what is written is what the mob moves this tick, short of what it bumps into.
+     */
+    private void driveFlight() {
+        // A resting bat is pinned under its ceiling after travel; its own step may have just set it.
+        if (mob instanceof Bat bat) bat.setResting(false);
+        Vec3 pos = mob.position();
+        Vec3 last = flightLast;
+        flightLast = pos;
+        Vec3 now = last == null || pos.distanceToSqr(last) > FLIGHT_JUMP * FLIGHT_JUMP
+                ? mob.getDeltaMovement() : pos.subtract(last);
+        double v = flightSpeed;
+        Vec3 want;
+        if (magnitude > 0 || jump || sneak) {
+            hoverAt = null;
+            double rad = Math.toRadians(heading);
+            double h = v * magnitude;
+            want = new Vec3(-Math.sin(rad) * h, jump ? v : sneak ? -v : 0, Math.cos(rad) * h);
+            if (magnitude > 0) {
+                mob.setYRot(heading);
+                mob.setYBodyRot(heading);
+            }
+        } else {
+            if (hoverAt == null) hoverAt = pos;
+            want = hoverAt.subtract(pos).scale(HOVER_GAIN);
+            if (want.lengthSqr() > v * v) want = want.normalize().scale(v);
+        }
+        Vec3 turn = want.subtract(now);
+        double most = v / FLIGHT_ACCEL_TICKS;
+        if (turn.lengthSqr() > most * most) turn = turn.normalize().scale(most);
+        mob.setDeltaMovement(now.add(turn));
+        mob.setSpeed(0);
+        mob.setXxa(0);
+        mob.setYya(0);
+        mob.setZza(0);
     }
 
     /**

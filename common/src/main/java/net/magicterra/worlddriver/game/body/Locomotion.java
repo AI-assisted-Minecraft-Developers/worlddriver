@@ -15,8 +15,11 @@ import net.minecraft.world.entity.ai.navigation.AmphibiousPathNavigation;
 import net.minecraft.world.entity.ai.navigation.FlyingPathNavigation;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.ai.navigation.WaterBoundPathNavigation;
+import net.minecraft.world.entity.ambient.Bat;
 import net.minecraft.world.entity.animal.FlyingAnimal;
 import net.minecraft.world.entity.animal.WaterAnimal;
+import net.minecraft.world.entity.monster.Blaze;
+import net.minecraft.world.entity.monster.Vex;
 
 /**
  * How an entity moves: its size, how high it steps and jumps, how fast it goes in each medium, and
@@ -64,12 +67,14 @@ public record Locomotion(double width, double height, int stepUpBlocks, int jump
     }
 
     /**
-     * A fish only swims; a parrot, a bee or a ghast flies and may land; everything else walks and swims.
+     * A fish only swims; a parrot, a bee or a blaze flies and may land; a ghast, a phantom, a vex or a
+     * bat only flies; everything else walks and swims.
      *
      * <p>A mob's navigation says it first, because a modded mob nearly always reuses a vanilla one
      * while its class may extend anything: water-bound only swims, amphibious walks and swims, flying
-     * flies. The vanilla base class decides when the navigation is none of those — a squid keeps a
-     * ground navigation it never follows.
+     * flies. The vanilla class decides when the navigation is none of those — a squid keeps a ground
+     * navigation it never follows, and so do the ghast, the phantom, the vex, the bat and the blaze,
+     * which all fly by code of their own.
      */
     static Set<Mode> modesOf(Entity e) {
         if (e instanceof Mob mob) {
@@ -79,7 +84,8 @@ public record Locomotion(double width, double height, int stepUpBlocks, int jump
             if (nav instanceof FlyingPathNavigation) return EnumSet.of(Mode.WALK, Mode.FLY);
         }
         if (e instanceof WaterAnimal) return EnumSet.of(Mode.SWIM);
-        if (e instanceof FlyingAnimal || e instanceof FlyingMob) return EnumSet.of(Mode.WALK, Mode.FLY);
+        if (e instanceof FlyingMob || e instanceof Vex || e instanceof Bat) return EnumSet.of(Mode.FLY);
+        if (e instanceof FlyingAnimal || e instanceof Blaze) return EnumSet.of(Mode.WALK, Mode.FLY);
         return WALK_AND_SWIM;
     }
 
