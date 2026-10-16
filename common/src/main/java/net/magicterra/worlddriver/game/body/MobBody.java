@@ -12,6 +12,7 @@ import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.entity.animal.Squid;
+import net.minecraft.world.entity.animal.axolotl.Axolotl;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -36,7 +37,8 @@ import net.minecraft.world.phys.Vec3;
  * rises or sinks it in water. Its own control still runs first, so whatever that control does every
  * tick regardless of orders stays, such as the lift that keeps a swimmer from sinking. At full input
  * the speed is what the mob's own control would set at a speed modifier of 1: the movement attribute,
- * times the in-water or out-of-water factor when the control is a smooth swimmer's.
+ * times the in-water or out-of-water factor when the control is a smooth swimmer's. An axolotl's
+ * attribute is sized for its brain's small modifiers, so it gets the largest of those instead of 1.
  *
  * <p>A squid's own movement ignores input altogether, so it is moved by its velocity instead.
  *
@@ -63,6 +65,8 @@ public final class MobBody implements Body {
     private static final double UNRESPONSIVE_DISTANCE = 0.25;
     /** A squid's speed at full input, in blocks per tick: about its own stroke's average. */
     private static final double SQUID_SPEED = 0.1;
+    /** The largest speed modifiers an axolotl's own brain uses, out of water and in it. */
+    private static final float AXOLOTL_LAND_MODIFIER = 0.15f, AXOLOTL_WATER_MODIFIER = 0.6f;
 
     private record Held(GoalSelector from, int priority, Goal goal) {}
 
@@ -84,7 +88,12 @@ public final class MobBody implements Body {
 
     private MobBody(Mob mob) {
         this.mob = mob;
-        if (mob.getMoveControl() instanceof SmoothSwimmingMoveControl smooth) {
+        if (mob instanceof Axolotl && mob.getMoveControl() instanceof SmoothSwimmingMoveControl smooth) {
+            // Its movement attribute is 1, sized for the small modifiers its brain passes: never above
+            // 0.15 on land or 0.6 in water (AxolotlAi). At a modifier of 1 it would run six times its pace.
+            inWaterFactor = smooth.inWaterSpeedModifier * AXOLOTL_WATER_MODIFIER;
+            outOfWaterFactor = smooth.outsideWaterSpeedModifier * AXOLOTL_LAND_MODIFIER;
+        } else if (mob.getMoveControl() instanceof SmoothSwimmingMoveControl smooth) {
             inWaterFactor = smooth.inWaterSpeedModifier;
             outOfWaterFactor = smooth.outsideWaterSpeedModifier;
         } else {
