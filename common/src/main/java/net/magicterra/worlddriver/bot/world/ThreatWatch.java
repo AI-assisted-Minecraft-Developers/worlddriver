@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.phys.Vec3;
 
@@ -29,7 +29,7 @@ public final class ThreatWatch {
      * projectiles among them: the client passes its render list, so a projectile already has a
      * previous position by the time it enters the scan radius.
      */
-    public void refresh(Player self, Iterable<? extends Entity> loaded) {
+    public void refresh(LivingEntity self, Iterable<? extends Entity> loaded) {
         if (self == null) { clear(); return; }
         // Roll the position history forward BEFORE computing the scan, so the scan reads a
         // full-tick velocity rather than a ~0 delta.

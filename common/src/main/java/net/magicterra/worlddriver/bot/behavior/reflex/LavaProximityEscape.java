@@ -6,7 +6,7 @@ import net.magicterra.worlddriver.game.body.BotUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.Vec3;
@@ -49,8 +49,9 @@ public final class LavaProximityEscape {
 
     /** @return true if it drove the escape this tick (keys are ours). */
     public boolean tick(Body body) {
-        Player p = body.asPlayer();
-        if (p == null || !BehaviorConfig.lavaProximityEscape) {
+        // Everything read and set here is a LivingEntity's, so a mob walks away from lava too.
+        LivingEntity p = body.entity();
+        if (!BehaviorConfig.lavaProximityEscape) {
             reset("off");
             return false;
         }
@@ -123,7 +124,7 @@ public final class LavaProximityEscape {
     /** Nearest FLOWING lava cell in the foot 8-neighbourhood or the ring one
      *  below it (the front eats the floor level first). The own/below cells
      *  count regardless of source-ness — standing on or in any lava is hot. */
-    private static BlockPos nearestThreat(Level lvl, Player p) {
+    private static BlockPos nearestThreat(Level lvl, LivingEntity p) {
         BlockPos foot = p.blockPosition();
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;

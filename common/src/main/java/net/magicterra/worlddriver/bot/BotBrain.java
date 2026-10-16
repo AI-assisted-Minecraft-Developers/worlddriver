@@ -229,7 +229,7 @@ public final class BotBrain {
      *  the use-key arbiter (shield) all read it. {@code loaded} is every entity the host can see,
      *  projectiles among them. Then {@code threat.appeared} when the top threat changed. */
     public void refreshThreats(Body body, Iterable<? extends Entity> loaded) {
-        state.threats.refresh(body.entity() instanceof Player p ? p : null, loaded);
+        state.threats.refresh(body.entity(), loaded);
         perceptionEvents.threats(state.threats.current());
     }
 

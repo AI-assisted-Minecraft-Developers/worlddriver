@@ -5,6 +5,7 @@ import static net.magicterra.worlddriver.game.observe.RegistryIds.typeId;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.entity.monster.Creeper;
@@ -84,13 +85,13 @@ public final class ThreatScanner {
     private static final int PROJECTILE_LOOKAHEAD = 30;
 
     /** Convenience overload at the default radius — the server combat loop path. */
-    public static Scan compute(Level lvl, Player player) {
+    public static Scan compute(Level lvl, LivingEntity player) {
         return compute(lvl, player, DEFAULT_RADIUS);
     }
 
-    /** {@link #compute(Level, Player, int, Map)} with every projectile's velocity read off the entity,
+    /** {@link #compute(Level, LivingEntity, int, Map)} with every projectile's velocity read off the entity,
      *  which is right on a server and ~0 on a client. */
-    public static Scan compute(Level lvl, Player player, int radius) {
+    public static Scan compute(Level lvl, LivingEntity player, int radius) {
         return compute(lvl, player, radius, Map.of());
     }
 
@@ -100,9 +101,14 @@ public final class ThreatScanner {
      *  server combat loop (over a FakePlayer) reads the same scored picture.
      *  {@code projVel} is the velocity a {@link ThreatWatch} derived for each projectile it
      *  has seen before, by entity id; one missing from it falls back to its own
-     *  {@code getDeltaMovement()}. */
-    public static Scan compute(Level lvl, Player player, int radius, Map<Integer, Vec3> projVel) {
+     *  {@code getDeltaMovement()}.
+     *
+     *  <p>Over a player every {@link Enemy} is a threat, since every one of them hunts players. Over a
+     *  mob only a mob that has it as its target is: hostiles do not hunt each other, so a driven zombie
+     *  that fled every zombie in sight would be fleeing nothing. Either way the last attacker counts. */
+    public static Scan compute(Level lvl, LivingEntity player, int radius, Map<Integer, Vec3> projVel) {
         if (lvl == null || player == null) return EMPTY;
+        boolean isPlayer = player instanceof Player;
         double px = player.getX(), py = player.getY(), pz = player.getZ();
         AABB box = new AABB(px - radius, py - radius, pz - radius, px + radius, py + radius, pz + radius);
         Vec3 myEye = player.getEyePosition();
@@ -135,7 +141,8 @@ public final class ThreatScanner {
             // and a dead mob is no threat — exclude it so reflexes and the combat
             // loop (and mc.observe.threats) see a cleared field the moment it dies.
             boolean attackedMe = e.getId() == attackerId;
-            if ((!(e instanceof Enemy) && !attackedMe) || !(e instanceof LivingEntity) || !e.isAlive()) continue;
+            boolean hunts = isPlayer ? e instanceof Enemy : e instanceof Mob m && m.getTarget() == player;
+            if ((!hunts && !attackedMe) || !(e instanceof LivingEntity) || !e.isAlive()) continue;
 
             double dist = Math.sqrt(e.distanceToSqr(px, py, pz));
             boolean canSee = lineOfSight(lvl, e, myEye);

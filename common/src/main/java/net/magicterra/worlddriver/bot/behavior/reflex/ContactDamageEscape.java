@@ -7,7 +7,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -58,8 +58,8 @@ public final class ContactDamageEscape {
 
     /** @return true if it drove the escape this tick (keys are ours). */
     public boolean tick(Body body) {
-        Player p = body.asPlayer();
-        if (p == null) { reset(body, "level-gone"); return false; }
+        // Everything read and set here is a LivingEntity's, so a mob steps out of a cactus too.
+        LivingEntity p = body.entity();
         Level level = p.level();
         DamageSource src = p.getLastDamageSource();
         String msgId = src != null ? src.getMsgId() : null;
@@ -120,7 +120,7 @@ public final class ContactDamageEscape {
      *  cell and the cell below it (magma / fire carpet), plus the 8 horizontal
      *  neighbours at foot and head height (a 0.6-wide hull can graze a diagonal
      *  cactus at a hugged corner). */
-    private static BlockPos nearestHazard(Level lvl, Player p) {
+    private static BlockPos nearestHazard(Level lvl, LivingEntity p) {
         BlockPos foot = p.blockPosition();
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
