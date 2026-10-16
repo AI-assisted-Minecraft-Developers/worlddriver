@@ -70,6 +70,8 @@ public final class MobBody implements Body {
     private final List<Held> held = new ArrayList<>();
     /** The control's speed factors when it is a smooth swimmer's; 1 otherwise. */
     private final float inWaterFactor, outOfWaterFactor;
+    /** No walking mode: it rises in water by its vertical input alone. */
+    private final boolean swimsOnly;
     private float left, forward;
     private boolean jump, sneak;
     private float heading, magnitude;
@@ -88,6 +90,7 @@ public final class MobBody implements Body {
         } else {
             inWaterFactor = outOfWaterFactor = 1f;
         }
+        swimsOnly = !Locomotion.modesOf(mob).contains(Locomotion.Mode.WALK);
     }
 
     /** Whether {@code mob} can be driven at all: one without AI never runs the step the input goes through. */
@@ -170,7 +173,9 @@ public final class MobBody implements Body {
         } else {
             magnitude = 0;
         }
-        if (jump) mob.getJumpControl().jump();
+        // In water a jump also lifts by vanilla's own swim-up on top of the vertical input, so a body
+        // that only swims would rise twice as hard as it sinks and hover over every node below it.
+        if (jump && !(swimsOnly && mob.isInWater())) mob.getJumpControl().jump();
         aimed = false;
         watchResponse();
     }
