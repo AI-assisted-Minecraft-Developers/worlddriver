@@ -611,6 +611,11 @@ wd.npcRefusesWorkThatNeedsHands
 wd.bodyRoutesWalkAPlayerAndAnNpcByName
 # The verbs that start a process or use the hands, ordered to a server-side player and an NPC by name.
 wd.bodyRoutesStartProcessesByName
+# Vanilla mobs driven by the bot stack: adopted by an entity ref or the mob command, walked, refused
+# the verbs that need hands, released, and ended as bot_removed when the entity goes.
+wd.mobZombieWalksByEntityRefAndIsReleased
+wd.mobWolfAdoptedByCommandWalks
+wd.mobRemovedEndsItsAction
 # mc.query q=blocks holds its radius budget and reads only chunks that are already loaded.
 wd.queryBlocksStaysInLoadedChunks
 # The client scan names the chunks ClientLevel has not received, so the mc.query client fallback can refuse them.

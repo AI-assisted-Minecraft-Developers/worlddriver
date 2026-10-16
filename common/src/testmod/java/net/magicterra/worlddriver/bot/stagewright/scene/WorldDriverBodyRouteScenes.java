@@ -26,7 +26,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * The {@code mc.bot.*} verbs on bots named by {@code body}, called through {@code ApiRegistry.route}
+ * The {@code mc.bot.*} verbs on bots named by {@code bot}, called through {@code ApiRegistry.route}
  * the way every transport calls it. A server-side player and an NPC are registered on a flat stone
  * course and addressed by name:
  *
@@ -107,9 +107,9 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         NpcBot npc = b.npc();
 
         Map<String, Object> listed = call(api, "mc.bot.status", Map.of());
-        ctx.record("status.bodies", String.valueOf(listed.get("bots")));
+        ctx.record("status.bots", String.valueOf(listed.get("bots")));
         ctx.check(ids(listed).containsAll(List.of(player.id(), npc.id())))
-                .as("status.bodies lists both registered bots: " + listed.get("bots")).isTrue();
+                .as("status.bots lists both registered bots: " + listed.get("bots")).isTrue();
 
         Map<String, Object> waypoint = call(api, "mc.bot.goto", Map.of("bot", npc.id(),
                 "target", Map.of("kind", "waypoint", "name", "home")));
@@ -266,7 +266,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         return slot instanceof Map<?, ?> m && "arrived".equals(m.get("endReason"));
     }
 
-    /** One bot's {@code status}, as {@code mc.bot.status{body}} answers it. */
+    /** One bot's {@code status}, as {@code mc.bot.status{bot}} answers it. */
     private static Map<?, ?> botStatus(ApiRegistry api, String id) {
         return call(api, "mc.bot.status", Map.of("bot", id)).get("status") instanceof Map<?, ?> s ? s : Map.of();
     }
