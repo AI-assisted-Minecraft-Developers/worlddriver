@@ -89,8 +89,9 @@ public final class ScreenContracts {
     /**
      * One widget, list row or menu slot. {@code parent} is the id of the node holding it, absent at the top;
      * {@code index} is a row's place in its list or a slot's index in the menu, which slotClick takes.
+     * {@code ref} names the widget object itself, so it outlives the read that handed it out.
      */
-    public record WidgetNode(int id, Optional<Integer> parent, int depth, String type, Optional<Integer> index,
+    public record WidgetNode(int id, Optional<Integer> ref, Optional<Integer> parent, int depth, String type, Optional<Integer> index,
                              Optional<Box> box, Optional<Boolean> visible, Optional<Boolean> active, Optional<Boolean> focused,
                              Optional<Boolean> selected, Optional<String> message, Optional<String> key, Optional<String> value,
                              Optional<SlotItem> item, Optional<String> error) {}
@@ -113,6 +114,10 @@ public final class ScreenContracts {
 
     private static final RecordType<WidgetNode> WIDGET_NODE = ApiTypes.record("WidgetNode",
             ApiField.field("id", COUNT).describe("Its place in nodes.").required().forGetter(WidgetNode::id),
+            ApiField.field("ref", COUNT)
+                    .describe("What input.click's ref takes. The same for this widget, row or slot in every read while "
+                            + "it lives, never reused; a rebuilt screen's widgets get new ones. Absent on ContainerSlots.")
+                    .optional().forGetter(WidgetNode::ref),
             ApiField.field("parent", COUNT).describe("The id of the node holding it; absent at the top.")
                     .optional().forGetter(WidgetNode::parent),
             ApiField.field("depth", COUNT).describe("0 at the top.").required().forGetter(WidgetNode::depth),
@@ -182,6 +187,25 @@ public final class ScreenContracts {
                 .required().forGetter(getter);
     }
 
+    private static <O> ApiField<O, Boolean> returnTreeParam(java.util.function.Function<O, Boolean> getter) {
+        return ApiField.field("returnTree", ApiTypes.bool())
+                .describe("Also answer treeChanged, and when it is true the screen.tree read right after the input. "
+                        + "Not in it: a screen the server opens in reply, and slots the server fills later.")
+                .defaulted(false).forGetter(getter);
+    }
+
+    private static <O> ApiField<O, Optional<Boolean>> treeChangedAfter(java.util.function.Function<O, Optional<Boolean>> getter) {
+        return ApiField.field("treeChanged", ApiTypes.bool())
+                .describe("With returnTree: the screen's tree differs from just before the input.")
+                .optional().forGetter(getter);
+    }
+
+    private static <O> ApiField<O, Optional<ScreenTree>> treeAfter(java.util.function.Function<O, Optional<ScreenTree>> getter) {
+        return ApiField.field("tree", SCREEN_TREE)
+                .describe("With returnTree, when treeChanged: the tree after the input; hasScreen false when it closed the screen.")
+                .optional().forGetter(getter);
+    }
+
     public static final MethodSpec<CloseParams, Closed> CLOSE = MethodSpec.of("mc.client.screen.close",
                     ApiTypes.record("ScreenCloseParams", contextParam(CloseParams::contextId), CloseParams::new),
                     ApiTypes.record("ScreenClosed",
@@ -194,24 +218,41 @@ public final class ScreenContracts {
 
     // ------------------------------------------------------------------ input.click / mouseMove
 
-    public record ClickParams(double x, double y, int button, Optional<String> contextId) {}
+    public record ClickParams(Optional<Integer> ref, Optional<Double> x, Optional<Double> y, int button, boolean returnTree,
+                              Optional<String> contextId) {}
 
     public static final MethodSpec<ClickParams, ClientReply> CLICK = MethodSpec.of("mc.client.input.click",
                     ApiTypes.record("ClickParams",
-                            ApiField.field("x", ApiTypes.number()).describe("GUI coordinates, as screen.tree gives them.")
-                                    .required().forGetter(ClickParams::x),
-                            ApiField.field("y", ApiTypes.number()).required().forGetter(ClickParams::y),
+                            ApiField.field("ref", COUNT).describe("A node's ref from screen.tree: clicks the centre of its box as it is now.")
+                                    .optional().forGetter(ClickParams::ref),
+                            ApiField.field("x", ApiTypes.number()).describe("Without ref: GUI coordinates, as screen.tree gives them.")
+                                    .optional().forGetter(ClickParams::x),
+                            ApiField.field("y", ApiTypes.number()).optional().forGetter(ClickParams::y),
                             ApiField.field("button", ApiTypes.integer(0, 2)).describe("0 left, 1 right, 2 middle.")
                                     .defaulted(0).forGetter(ClickParams::button),
+                            returnTreeParam(ClickParams::returnTree),
                             contextParam(ClickParams::contextId),
-                            ClickParams::new),
+                            ClickParams::new)
+                            .checked((p, at) -> {
+                                boolean point = p.x().isPresent() || p.y().isPresent();
+                                if (p.ref().isPresent() && point) {
+                                    at.field("ref").fail(ApiIssue.Code.INVALID_VALUE, "click a ref or a point, not both");
+                                } else if (p.ref().isEmpty() && (p.x().isEmpty() || p.y().isEmpty())) {
+                                    at.field(p.x().isEmpty() ? "x" : "y").fail(ApiIssue.Code.INVALID_VALUE,
+                                            "give ref, or both x and y");
+                                }
+                            }),
                     ClientContracts.reply("Click", Clicked.class, ApiTypes.record(null,
                             ApiField.field("handled", ApiTypes.bool()).describe("A widget took it; false is empty space.")
                                     .required().forGetter(Clicked::handled),
+                            treeChangedAfter(Clicked::treeChanged),
+                            treeAfter(Clicked::tree),
                             contextAfter(Clicked::contextId),
                             Clicked::new)),
-                    "Click the open screen at GUI coordinates: hover there, press, release. Refused as no_screen "
-                            + "when none is open.")
+                    "Click the open screen: hover, press, release, all on one frame. Name the target by a ref from "
+                            + "screen.tree, which clicks where that widget is now, or by GUI coordinates. Refused as "
+                            + "no_screen when none is open, and as no_target when the ref is no longer on the screen, "
+                            + "is hidden, or lies outside the visible part of what holds it.")
             .effects(MethodSpec.Effect.CLIENT_INPUT);
 
     public record MoveParams(double x, double y) {}
@@ -245,7 +286,7 @@ public final class ScreenContracts {
         @Override public String wireName() { return wire; }
     }
 
-    public record SlotClickParams(int slot, int button, ClickKind type, Optional<String> contextId) {}
+    public record SlotClickParams(int slot, int button, ClickKind type, boolean returnTree, Optional<String> contextId) {}
 
     private static final ApiType<ClickKind> CLICK_KIND = ApiTypes.enumOf("ClickKind", ClickKind.class);
 
@@ -257,12 +298,15 @@ public final class ScreenContracts {
                                     .describe("0 left, 1 right, 2 middle; for swap, the hotbar slot 0-8 to swap with.")
                                     .defaulted(0).forGetter(SlotClickParams::button),
                             ApiField.field("type", CLICK_KIND).defaulted(ClickKind.PICKUP).forGetter(SlotClickParams::type),
+                            returnTreeParam(SlotClickParams::returnTree),
                             contextParam(SlotClickParams::contextId),
                             SlotClickParams::new),
                     ClientContracts.reply("SlotClick", SlotClicked.class, ApiTypes.record(null,
                             ApiField.field("slot", COUNT).required().forGetter(SlotClicked::slot),
                             ApiField.field("button", ApiTypes.integer(0, 8)).required().forGetter(SlotClicked::button),
                             ApiField.field("type", CLICK_KIND).required().forGetter(SlotClicked::type),
+                            treeChangedAfter(SlotClicked::treeChanged),
+                            treeAfter(SlotClicked::tree),
                             contextAfter(SlotClicked::contextId),
                             SlotClicked::new)),
                     "Click a slot of the open container menu with an explicit click type, sent to the server as a "
@@ -409,7 +453,8 @@ public final class ScreenContracts {
         @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
     }
 
-    public record KeyParams(String key, KeyAction action, KeyRoute route, List<Modifier> modifiers, Optional<String> contextId) {}
+    public record KeyParams(String key, KeyAction action, KeyRoute route, List<Modifier> modifiers, boolean returnTree,
+                            Optional<String> contextId) {}
 
     private static final ApiType<KeyAction> KEY_ACTION = ApiTypes.enumOf("KeyAction", KeyAction.class);
     private static final ApiType<KeyRoute> KEY_ROUTE = ApiTypes.enumOf("KeyRoute", KeyRoute.class);
@@ -428,6 +473,7 @@ public final class ScreenContracts {
                             ApiField.field("modifiers", MODIFIERS)
                                     .describe("Modifier bits for a SCREEN shortcut. A modified key BINDING needs input.keybind.")
                                     .defaulted(List.of()).forGetter(KeyParams::modifiers),
+                            returnTreeParam(KeyParams::returnTree),
                             contextParam(KeyParams::contextId),
                             KeyParams::new),
                     ClientContracts.reply("Key", KeySent.class, ApiTypes.record(null,
@@ -452,6 +498,8 @@ public final class ScreenContracts {
                             ApiField.field("releaseNote", ApiTypes.string())
                                     .describe("The client did not tick in time: the key is still down; send release.")
                                     .optional().forGetter(KeySent::releaseNote),
+                            treeChangedAfter(KeySent::treeChanged),
+                            treeAfter(KeySent::tree),
                             contextAfter(KeySent::contextId),
                             KeySent::new)),
                     "Send a keyboard event. click (the default) presses now and releases on the NEXT client tick, "
@@ -463,7 +511,7 @@ public final class ScreenContracts {
             .effects(MethodSpec.Effect.CLIENT_INPUT)
             .mayWait();
 
-    public record KeybindParams(Optional<String> name, KeyAction action, Optional<String> contextId) {}
+    public record KeybindParams(Optional<String> name, KeyAction action, boolean returnTree, Optional<String> contextId) {}
 
     /** One key mapping; {@code key} is the bound key's id and {@code boundTo} what the controls screen shows. */
     public record Keybinding(String name, String title, String key, String boundTo, boolean bound, String category,
@@ -476,6 +524,7 @@ public final class ScreenContracts {
                                     .describe("A mapping id (key.inventory) or part of an id or title. Omitted: list every mapping.")
                                     .optional().forGetter(KeybindParams::name),
                             ApiField.field("action", KEY_ACTION).defaulted(KeyAction.CLICK).forGetter(KeybindParams::action),
+                            returnTreeParam(KeybindParams::returnTree),
                             contextParam(KeybindParams::contextId),
                             KeybindParams::new),
                     ApiTypes.taggedUnion("KeybindResponse", "outcome",
@@ -509,6 +558,8 @@ public final class ScreenContracts {
                                     ApiField.field("mouseGrabbed", ApiTypes.bool()).required().forGetter(KeybindDriven::mouseGrabbed),
                                     ApiField.field("screenAfter", ApiTypes.string()).required().forGetter(KeybindDriven::screenAfter),
                                     ApiField.field("releaseNote", ApiTypes.string()).optional().forGetter(KeybindDriven::releaseNote),
+                                    treeChangedAfter(KeybindDriven::treeChanged),
+                                    treeAfter(KeybindDriven::tree),
                                     contextAfter(KeybindDriven::contextId),
                                     KeybindDriven::new)),
                             ClientContracts.refusedVariant()),

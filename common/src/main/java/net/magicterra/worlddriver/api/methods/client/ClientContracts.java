@@ -54,12 +54,15 @@ public final class ClientContracts {
     public record Refused(ClientRefusal reason, String message) implements ClientReply {}
 
     // The screen verbs' answers. A sealed interface's variants must share its package, so they are declared
-    // here; ScreenContracts still defines how each is written.
+    // here; ScreenContracts still defines how each is written. treeChanged and tree are returnTree's: absent
+    // unless it was asked, and tree only when treeChanged.
 
     /** {@code handled}: a widget took the click; false means empty space. */
-    public record Clicked(boolean handled, String contextId) implements ClientReply {}
+    public record Clicked(boolean handled, Optional<Boolean> treeChanged, Optional<ScreenContracts.ScreenTree> tree,
+                          String contextId) implements ClientReply {}
 
-    public record SlotClicked(int slot, int button, ScreenContracts.ClickKind type, String contextId) implements ClientReply {}
+    public record SlotClicked(int slot, int button, ScreenContracts.ClickKind type, Optional<Boolean> treeChanged,
+                              Optional<ScreenContracts.ScreenTree> tree, String contextId) implements ClientReply {}
 
     public record HotbarSelected(int slot, int previous, String contextId) implements ClientReply {}
 
@@ -81,7 +84,8 @@ public final class ClientContracts {
                           List<ScreenContracts.Modifier> modifiers, ScreenContracts.KeyVia via,
                           boolean pressed, boolean released, Optional<Boolean> pressHandled,
                           Optional<Boolean> releaseHandled, Optional<ScreenContracts.KeyVia> releaseVia, String screenAfter,
-                          Optional<String> releaseNote, String contextId) implements ClientReply {}
+                          Optional<String> releaseNote, Optional<Boolean> treeChanged,
+                          Optional<ScreenContracts.ScreenTree> tree, String contextId) implements ClientReply {}
 
     public record KeybindsListed(List<ScreenContracts.Keybinding> keybinds) implements ClientReply {}
 
@@ -92,7 +96,8 @@ public final class ClientContracts {
     public record KeybindDriven(String name, String title, String key, String boundTo, String category, boolean down,
                                 ScreenContracts.KeyAction action, int clicks, boolean released, String rawEvent,
                                 boolean windowActive, boolean mouseGrabbed, String screenAfter,
-                                Optional<String> releaseNote, String contextId)
+                                Optional<String> releaseNote, Optional<Boolean> treeChanged,
+                                Optional<ScreenContracts.ScreenTree> tree, String contextId)
             implements ClientReply {}
 
     /**

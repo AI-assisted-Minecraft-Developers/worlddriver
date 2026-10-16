@@ -318,6 +318,24 @@ public final class ApiTypes {
                         (K) a[10], (L) a[11], (M) a[12], (N) a[13], (O) a[14], (P) a[15]));
     }
 
+    /** DataFixerUpper's functions stop at sixteen arguments. */
+    @FunctionalInterface
+    public interface Function17<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R> {
+        R apply(A a, B b, C c, D d, E e, F f, G g, H h, I i, J j, K k, L l, M m, N n, O o, P p, Q q);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <R, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q> RecordType<R> record(String name,
+            ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4, ApiField<R, E> f5,
+            ApiField<R, F> f6, ApiField<R, G> f7, ApiField<R, H> f8, ApiField<R, I> f9, ApiField<R, J> f10,
+            ApiField<R, K> f11, ApiField<R, L> f12, ApiField<R, M> f13, ApiField<R, N> f14, ApiField<R, O> f15,
+            ApiField<R, P> f16, ApiField<R, Q> f17,
+            Function17<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R> constructor) {
+        return new RecordType<>(name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17),
+                a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3], (E) a[4], (F) a[5], (G) a[6], (H) a[7], (I) a[8], (J) a[9],
+                        (K) a[10], (L) a[11], (M) a[12], (N) a[13], (O) a[14], (P) a[15], (Q) a[16]));
+    }
+
     // ------------------------------------------------------------------ unions
 
     /** One variant of a {@link #taggedUnion}. */

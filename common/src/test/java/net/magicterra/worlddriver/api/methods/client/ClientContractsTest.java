@@ -67,9 +67,24 @@ class ClientContractsTest {
     }
 
     @Test
+    void aClickNamesARefOrAPointAndNeverBoth() {
+        ScreenContracts.ClickParams byRef = decode(ScreenContracts.CLICK.input(), "{\"ref\":12}");
+        assertEquals(Optional.of(12), byRef.ref());
+        assertEquals(false, byRef.returnTree());
+        ScreenContracts.ClickParams byPoint = decode(ScreenContracts.CLICK.input(), "{\"x\":10,\"y\":20,\"returnTree\":true}");
+        assertEquals(Optional.of(10.0), byPoint.x());
+        assertEquals(true, byPoint.returnTree());
+        assertEquals("/ref", issue(ScreenContracts.CLICK.input(), "{\"ref\":1,\"x\":10,\"y\":20}").path());
+        assertEquals("/y", issue(ScreenContracts.CLICK.input(), "{\"x\":10}").path());
+        assertEquals("/x", issue(ScreenContracts.CLICK.input(), "{}").path());
+    }
+
+    @Test
     void writesAnswerDoneOrRefused() {
         assertEquals("{\"outcome\":\"done\",\"handled\":true,\"contextId\":\"x-1\"}",
-                encode(ScreenContracts.CLICK, new ClientContracts.Clicked(true, "x-1")));
+                encode(ScreenContracts.CLICK, new ClientContracts.Clicked(true, Optional.empty(), Optional.empty(), "x-1")));
+        assertEquals("{\"outcome\":\"done\",\"handled\":true,\"treeChanged\":false,\"contextId\":\"x-1\"}",
+                encode(ScreenContracts.CLICK, new ClientContracts.Clicked(true, Optional.of(false), Optional.empty(), "x-1")));
         assertEquals("{\"outcome\":\"refused\",\"reason\":\"no_screen\",\"message\":\"no screen is open\"}",
                 encode(ScreenContracts.CLICK, new Refused(ClientRefusal.NO_SCREEN, "no screen is open")));
     }

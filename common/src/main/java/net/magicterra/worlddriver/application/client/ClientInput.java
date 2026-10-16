@@ -18,6 +18,7 @@ import net.magicterra.worlddriver.api.methods.client.ClientContracts.KeySent;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.KeyVia;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.Modifier;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.MoveParams;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenTree;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.Moved;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ReplaceParams;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.Replaced;
@@ -83,15 +84,29 @@ public final class ClientInput {
             ScreenContext.require(p.contextId());
             Screen s = Minecraft.getInstance().screen;
             if (s == null) return noScreen();
+            double x, y;
+            if (p.ref().isPresent()) {
+                // Aimed now, not when the caller read the tree: the widget may have moved since, and
+                // the click goes through the screen at that point exactly as a human's would.
+                ScreenIntrospection.Aim aim = ScreenIntrospection.aim(p.ref().get());
+                if (aim.refusal().isPresent()) return new Refused(ClientRefusal.NO_TARGET, aim.refusal().get());
+                x = aim.x();
+                y = aim.y();
+            } else {
+                x = p.x().orElseThrow();
+                y = p.y().orElseThrow();
+            }
+            ScreenTree before = ScreenIntrospection.before(p.returnTree());
             // Fire mouseMoved first so HoverButton/Tooltip widgets register the
             // cursor over the target before the click lands — otherwise widgets
             // that toggle on hover (e.g. AbstractSelectionList row highlight)
             // miss the state transition and the click looks like it landed on a
             // non-active widget.
-            s.mouseMoved(p.x(), p.y());
-            boolean handled = s.mouseClicked(p.x(), p.y(), p.button());
-            s.mouseReleased(p.x(), p.y(), p.button());
-            return new Clicked(handled, ScreenContext.current());
+            s.mouseMoved(x, y);
+            boolean handled = s.mouseClicked(x, y, p.button());
+            s.mouseReleased(x, y, p.button());
+            ScreenIntrospection.After after = ScreenIntrospection.after(before);
+            return new Clicked(handled, after.changed(), after.tree(), ScreenContext.current());
         });
     }
 
@@ -117,11 +132,13 @@ public final class ClientInput {
                 return new Refused(ClientRefusal.NO_TARGET,
                         "slot " + p.slot() + " is past the menu's last slot " + (menu.slots.size() - 1));
             }
+            ScreenTree before = ScreenIntrospection.before(p.returnTree());
             // Same path AbstractContainerScreen.slotClicked takes — routes
             // through MultiPlayerGameMode so the server sees a real
             // ServerboundContainerClickPacket and the menu state stays in sync.
             mc.gameMode.handleInventoryMouseClick(menu.containerId, p.slot(), p.button(), clickType, mc.player);
-            return new SlotClicked(p.slot(), p.button(), p.type(), ScreenContext.current());
+            ScreenIntrospection.After after = ScreenIntrospection.after(before);
+            return new SlotClicked(p.slot(), p.button(), p.type(), after.changed(), after.tree(), ScreenContext.current());
         });
     }
 
@@ -338,8 +355,8 @@ public final class ClientInput {
      */
     private record Half(KeyVia via, boolean delivered, Boolean handled) {}
 
-    /** That half, plus the screen standing open once it had landed and its context. */
-    private record Tail(Half half, String screenAfter, String contextId) {}
+    /** That half, plus the screen standing open once it had landed, its context, and returnTree's answer. */
+    private record Tail(Half half, String screenAfter, String contextId, ScreenIntrospection.After after) {}
 
     /**
      * The screen open right now, or {@code none}.
@@ -370,37 +387,46 @@ public final class ClientInput {
         if (code < 0) throw ApiException.invalidParam("/key", ApiIssue.Code.INVALID_VALUE, "unknown key name: " + p.key());
         int mods = modifierBits(p.modifiers());
         int scan = org.lwjgl.glfw.GLFW.glfwGetKeyScancode(code);
-        CompletableFuture<ClientReply> first = ClientHop.hop().submit(() -> firstHalf(p, kn, code, scan, mods), ctx);
-        if (p.action() != KeyAction.CLICK) return first;
+        CompletableFuture<First> first = ClientHop.hop().submit(() -> firstHalf(p, kn, code, scan, mods), ctx);
+        if (p.action() != KeyAction.CLICK) return first.thenApply(First::reply);
         return first.thenCompose(f -> {
-            if (!(f instanceof KeySent pressed)) return CompletableFuture.completedFuture(f);
+            if (!(f.reply() instanceof KeySent pressed)) return CompletableFuture.completedFuture(f.reply());
+            // returnTree compares against the tree before the press: the click is the press and the release.
             return ClientThread.nextTick(
-                    () -> new Tail(deliver(code, scan, p.route(), false, mods), screenName(), ScreenContext.current()),
+                    () -> new Tail(deliver(code, scan, p.route(), false, mods), screenName(), ScreenContext.current(),
+                            ScreenIntrospection.after(f.before())),
                     CLICK_RELEASE_MS).thenApply(rel -> clicked(p, kn, code, pressed, rel));
         });
     }
 
+    /** The first half's reply, and for a click the tree before it that returnTree compares the release against. */
+    private record First(ClientReply reply, ScreenTree before) {}
+
     /** On the client thread: a press, a release, or a click's press. */
-    private static ClientReply firstHalf(KeyParams p, String kn, int code, int scan, int mods) {
+    private static First firstHalf(KeyParams p, String kn, int code, int scan, int mods) {
         boolean down = p.action() != KeyAction.RELEASE;
         ScreenContext.require(p.contextId());
         Minecraft mc = Minecraft.getInstance();
         if (mc.screen == null) {
             if (p.route() == KeyRoute.SCREEN) {
-                return new Refused(ClientRefusal.NO_SCREEN, "route screen was asked for, but no screen is open");
+                return new First(new Refused(ClientRefusal.NO_SCREEN, "route screen was asked for, but no screen is open"), null);
             }
             // Between worlds there is neither a screen nor a player; the event would reach
             // nothing, and claiming it was delivered would be false.
             if (mc.player == null) {
-                return new Refused(ClientRefusal.NO_PLAYER,
-                        "no screen open and no player to receive the key — open a screen or join a world first");
+                return new First(new Refused(ClientRefusal.NO_PLAYER,
+                        "no screen open and no player to receive the key — open a screen or join a world first"), null);
             }
         }
+        ScreenTree before = ScreenIntrospection.before(p.returnTree());
         Half h = deliver(code, scan, p.route(), down, mods);
         Optional<Boolean> handled = Optional.ofNullable(h.handled());
-        return new KeySent(kn, code, p.action(), p.route(), p.modifiers(), h.via(), down && h.delivered(),
+        ScreenIntrospection.After after = p.action() == KeyAction.CLICK ? ScreenIntrospection.After.NONE
+                : ScreenIntrospection.after(before);
+        return new First(new KeySent(kn, code, p.action(), p.route(), p.modifiers(), h.via(), down && h.delivered(),
                 !down && h.delivered(), down ? handled : Optional.empty(), down ? Optional.empty() : handled,
-                Optional.empty(), screenName(), Optional.empty(), ScreenContext.current());
+                Optional.empty(), screenName(), Optional.empty(), after.changed(), after.tree(), ScreenContext.current()),
+                before);
     }
 
     /** A click's reply from its press and its release; {@code rel} null when the release tick never came. */
@@ -410,14 +436,14 @@ public final class ClientInput {
                     pressed.pressHandled(), Optional.empty(), Optional.empty(), pressed.screenAfter(),
                     Optional.of("the client did not tick within " + CLICK_RELEASE_MS
                             + " ms, so the key is still down — send action release once it ticks again"),
-                    pressed.contextId());
+                    Optional.empty(), Optional.empty(), pressed.contextId());
         }
         // The press can move the screen out from under the release; say so, because the caller's
         // next read of screen.info is explained by it.
         Optional<KeyVia> releaseVia = rel.half().via() == pressed.via() ? Optional.empty() : Optional.of(rel.half().via());
         return new KeySent(kn, code, p.action(), p.route(), p.modifiers(), pressed.via(), pressed.pressed(),
                 rel.half().delivered(), pressed.pressHandled(), Optional.ofNullable(rel.half().handled()), releaseVia,
-                rel.screenAfter(), Optional.empty(), rel.contextId());
+                rel.screenAfter(), Optional.empty(), rel.after().changed(), rel.after().tree(), rel.contextId());
     }
 
     /**

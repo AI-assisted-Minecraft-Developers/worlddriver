@@ -8,6 +8,7 @@ import net.magicterra.worlddriver.api.methods.client.ClientContracts.Refused;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.KeyAction;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.KeybindParams;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.Keybinding;
+import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenTree;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.language.I18n;
@@ -44,8 +45,11 @@ public final class ClientKeybinds {
     /** How long a click waits for the tick that carries its release before reporting it undelivered. */
     private static final long CLICK_RELEASE_MS = 2_000;
 
-    /** What a press or a release left: the reply, and for a click's press the mapping its release lets go of. */
-    private record Pressed(ClientReply reply, KeyMapping held) {}
+    /**
+     * What a press or a release left: the reply, and for a click's press the mapping its release lets go of
+     * and the tree before the press, which returnTree compares the release against.
+     */
+    private record Pressed(ClientReply reply, KeyMapping held, ScreenTree before) {}
 
     /**
      * A list, a press or a release, on the client thread; a click's release follows at the next client
@@ -62,8 +66,8 @@ public final class ClientKeybinds {
             return ClientThread.nextTick(() -> {
                 km.setDown(false);
                 fireRaw(km, false);
-                return new String[] {screenName(), ScreenContext.current()};
-            }, CLICK_RELEASE_MS).thenApply(after -> released(pressed, after));
+                return new Release(screenName(), ScreenContext.current(), ScreenIntrospection.after(pr.before()));
+            }, CLICK_RELEASE_MS).thenApply(rel -> released(pressed, rel));
         });
     }
 
@@ -73,23 +77,24 @@ public final class ClientKeybinds {
         KeyAction act = p.action();
         ScreenContext.require(p.contextId());
         KeyMapping[] all = Minecraft.getInstance().options.keyMappings;
-        if (want.isEmpty()) return new Pressed(list(all), null);
+        if (want.isEmpty()) return new Pressed(list(all), null, null);
         List<KeyMapping> hits = resolve(all, want);
         if (hits.isEmpty()) {
             return new Pressed(new Refused(ClientRefusal.NO_TARGET, "no key mapping matches '" + want
-                    + "' — call this with no name to list every mapping"), null);
+                    + "' — call this with no name to list every mapping"), null, null);
         }
         if (hits.size() > 1) {
             return new Pressed(new Refused(ClientRefusal.AMBIGUOUS,
-                    "'" + want + "' matches " + hits.size() + " mappings: " + names(hits)), null);
+                    "'" + want + "' matches " + hits.size() + " mappings: " + names(hits)), null, null);
         }
         KeyMapping km = hits.get(0);
+        ScreenTree before = ScreenIntrospection.before(p.returnTree());
         if (act == KeyAction.RELEASE) {
             String raw = fireRaw(km, false);
             // Unconditionally, unlike the press: vanilla's release does the same thing, and a
             // mapping left down walks the player into whatever runs next.
             km.setDown(false);
-            return new Pressed(reply(km, act, km.clickCount, true, raw), null);
+            return new Pressed(reply(km, act, km.clickCount, true, raw, ScreenIntrospection.after(before)), null, null);
         }
         // Count the click BEFORE the event, then take one back if vanilla counted one too.
         //
@@ -103,27 +108,32 @@ public final class ClientKeybinds {
         // and it is in place before any handler runs; if vanilla managed to add its own, the
         // count is one too high afterwards and gives it back.
         // clickCount is private in vanilla, opened by worlddriver.accesswidener.
-        int before = km.clickCount;
+        int clicksBefore = km.clickCount;
         km.setDown(true);
-        km.clickCount = before + 1;
+        km.clickCount = clicksBefore + 1;
         String raw = fireRaw(km, true);
-        if (km.clickCount >= before + 2) km.clickCount--;
-        return new Pressed(reply(km, act, km.clickCount, false, raw), km);
+        if (km.clickCount >= clicksBefore + 2) km.clickCount--;
+        if (act == KeyAction.CLICK) return new Pressed(reply(km, act, km.clickCount, false, raw, ScreenIntrospection.After.NONE), km, before);
+        return new Pressed(reply(km, act, km.clickCount, false, raw, ScreenIntrospection.after(before)), null, null);
     }
 
-    /** A click's reply from its press and the screen after its release; {@code after} null when the release tick never came. */
-    private static ClientReply released(KeybindDriven pressed, String[] after) {
-        if (after == null) {
+    /** The screen as of a click's release tick, and returnTree's answer then. */
+    private record Release(String screenAfter, String contextId, ScreenIntrospection.After after) {}
+
+    /** A click's reply from its press and its release; {@code rel} null when the release tick never came. */
+    private static ClientReply released(KeybindDriven pressed, Release rel) {
+        if (rel == null) {
             return new KeybindDriven(pressed.name(), pressed.title(), pressed.key(), pressed.boundTo(), pressed.category(),
                     pressed.down(), KeyAction.CLICK, pressed.clicks(), false, pressed.rawEvent(), pressed.windowActive(),
                     pressed.mouseGrabbed(), pressed.screenAfter(),
                     Optional.of("the client did not tick within " + CLICK_RELEASE_MS
                             + " ms, so the binding is still down — send action release once it ticks again"),
-                    pressed.contextId());
+                    Optional.empty(), Optional.empty(), pressed.contextId());
         }
         return new KeybindDriven(pressed.name(), pressed.title(), pressed.key(), pressed.boundTo(), pressed.category(),
                 pressed.down(), KeyAction.CLICK, pressed.clicks(), true, pressed.rawEvent(), pressed.windowActive(),
-                pressed.mouseGrabbed(), after[0], Optional.empty(), after[1]);
+                pressed.mouseGrabbed(), rel.screenAfter(), Optional.empty(), rel.after().changed(), rel.after().tree(),
+                rel.contextId());
     }
 
     private static String screenName() {
@@ -160,7 +170,8 @@ public final class ClientKeybinds {
                 !km.isUnbound(), km.getCategory(), km.isDown());
     }
 
-    private static KeybindDriven reply(KeyMapping km, KeyAction act, int clicks, boolean released, String raw) {
+    private static KeybindDriven reply(KeyMapping km, KeyAction act, int clicks, boolean released, String raw,
+                                       ScreenIntrospection.After after) {
         Minecraft mc = Minecraft.getInstance();
         // windowActive/mouseGrabbed: the two gates a mod's key handler is most likely to put in front
         // of itself, reported so a caller whose keystroke vanished can tell "the mod refused it" from
@@ -170,7 +181,8 @@ public final class ClientKeybinds {
         // a key sent at a screen nobody knows is open comes back undelivered and reads like a broken verb.
         return new KeybindDriven(km.getName(), title(km), km.saveString(), km.getTranslatedKeyMessage().getString(),
                 km.getCategory(), km.isDown(), act, clicks, released, raw, mc.isWindowActive(),
-                mc.mouseHandler.isMouseGrabbed(), screenName(), Optional.empty(), ScreenContext.current());
+                mc.mouseHandler.isMouseGrabbed(), screenName(), Optional.empty(), after.changed(), after.tree(),
+                ScreenContext.current());
     }
 
     /**

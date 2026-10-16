@@ -150,6 +150,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.clientResetClearsEntry", 300, WorldDriverCoreScenes::clientResetClearsEntry),
                 Scene.of("wd.clientResetReleasesKeys", 300, WorldDriverCoreScenes::clientResetReleasesKeys),
                 Scene.of("wd.clientKeybindOpensABinding", 300, WorldDriverCoreScenes::clientKeybindOpensABinding),
+                Scene.of("wd.clientClickByRef", 400, WorldDriverCoreScenes::clientClickByRef),
                 Scene.of("wd.hurtCarriesItsSource", 300, WorldDriverCoreScenes::hurtCarriesItsSource),
                 Scene.of("wd.clientPlayerInWorld", 200, WorldDriverCoreScenes::clientPlayerInWorld));
     }
@@ -1917,6 +1918,86 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                             .as("key.inventory still down after the click, read back from the listing")
                             .isEqualTo(false));
         });
+    }
+
+    /**
+     * {@code mc.client.input.click} by a ref from a tree, and {@code returnTree}.
+     *
+     * <p>The survival inventory's recipe-book button, because clicking it moves it: the screen shifts
+     * right to make room for the book and the button with it. So the ref is shown to follow the widget
+     * rather than the place it was read at — the second click aims where the button is now — and the
+     * tree that comes back with the first click is shown to be the one after it. Then the screen is
+     * reopened, which builds a new button, and the old ref must be refused rather than land on it.
+     */
+    private static void clientClickByRef(SceneContext ctx) {
+        if (ctx.server().isDedicatedServer())
+            ctx.skip("mc.client.input.click is client-only — only an integrated server has a client here");
+        ctx.cleanup(() -> SceneCalls.send("mc.client.screen.close", Map.of()));
+        // Survival for the same reason as wd.clientKeybindOpensABinding: the mode picks the screen.
+        ServerPlayer player = ctx.playerHere();
+        GameType was = player.gameMode.getGameModeForPlayer();
+        ctx.cleanup(() -> player.setGameMode(was));
+        player.setGameMode(GameType.SURVIVAL);
+
+        askByName(ctx, "close", "mc.client.screen.close", Map.of(), closed ->
+                SceneCalls.askUntilByName(ctx, "clientMode", "mc.client.player", Map.of(),
+                        p -> "survival".equals(p.get("gameMode")), 100, p ->
+                                askByName(ctx, "open", "mc.client.input.keybind",
+                                        Map.of("name", "key.inventory", "returnTree", true),
+                                        opened -> clickTheBookButton(ctx, opened))));
+    }
+
+    private static void clickTheBookButton(SceneContext ctx, Map<?, ?> opened) {
+        ctx.expect(opened.get("treeChanged")).as("opening the inventory changed the tree").isEqualTo(true);
+        Map<?, ?> tree = opened.get("tree") instanceof Map<?, ?> t ? t : Map.of();
+        ctx.expect(tree.get("type")).as("the tree that came back is the screen the keystroke opened")
+                .isEqualTo("InventoryScreen");
+        Map<?, ?> button = nodeOfType(tree, "ImageButton");
+        if (button == null) {
+            ctx.fail("no ImageButton (the recipe-book toggle) in the inventory's tree: " + tree.get("nodes"));
+            return;
+        }
+        Object ref = button.get("ref");
+        Object xBefore = boxX(button);
+        ctx.record("button", "ref " + ref + " at x=" + xBefore);
+        askByName(ctx, "toggle", "mc.client.input.click", Map.of("ref", ref, "returnTree", true), toggled -> {
+            ctx.expect(toggled.get("outcome")).as("a click by ref").isEqualTo("done");
+            ctx.expect(toggled.get("handled")).as("the button took the click").isEqualTo(true);
+            ctx.expect(toggled.get("treeChanged")).as("opening the book changed the tree").isEqualTo(true);
+            Map<?, ?> moved = nodeWithRef(toggled.get("tree") instanceof Map<?, ?> t ? t : Map.of(), ref);
+            ctx.expect(moved == null ? "absent" : "present").as("the same ref in the tree after the click").isEqualTo("present");
+            ctx.expect(moved == null ? xBefore : boxX(moved)).as("the button's x after the book opened")
+                    .isNotEqualTo(xBefore);
+            // Aimed where the button is now, not where the first tree put it: a click at the old
+            // point would miss it, and the book would stay open.
+            askByName(ctx, "toggleBack", "mc.client.input.click", Map.of("ref", ref), back -> {
+                ctx.expect(back.get("handled")).as("the moved button took the second click too").isEqualTo(true);
+                ctx.expect(back.containsKey("treeChanged")).as("treeChanged without returnTree").isEqualTo(false);
+                askByName(ctx, "close2", "mc.client.screen.close", Map.of(), c ->
+                        askByName(ctx, "reopen", "mc.client.input.keybind", Map.of("name", "key.inventory"), r ->
+                                askByName(ctx, "stale", "mc.client.input.click", Map.of("ref", ref), stale -> {
+                                    ctx.expect(stale.get("outcome")).as("a ref from a screen since rebuilt")
+                                            .isEqualTo("refused");
+                                    ctx.expect(stale.get("reason")).as("why").isEqualTo("no_target");
+                                })));
+            });
+        });
+    }
+
+    private static Map<?, ?> nodeOfType(Map<?, ?> tree, String type) {
+        if (tree.get("nodes") instanceof List<?> l)
+            for (Object o : l) if (o instanceof Map<?, ?> n && type.equals(n.get("type"))) return n;
+        return null;
+    }
+
+    private static Map<?, ?> nodeWithRef(Map<?, ?> tree, Object ref) {
+        if (tree.get("nodes") instanceof List<?> l)
+            for (Object o : l) if (o instanceof Map<?, ?> n && ref != null && String.valueOf(ref).equals(String.valueOf(n.get("ref")))) return n;
+        return null;
+    }
+
+    private static Object boxX(Map<?, ?> node) {
+        return node.get("box") instanceof Map<?, ?> b && b.get("x") instanceof Number n ? n.intValue() : "no box";
     }
 
     /** What {@code mc.client.input.keybind}'s listing says about one mapping's {@code down}. */

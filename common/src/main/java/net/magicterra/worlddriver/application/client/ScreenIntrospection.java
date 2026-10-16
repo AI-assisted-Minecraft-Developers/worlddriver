@@ -17,8 +17,11 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
+import com.google.common.collect.MapMaker;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import net.magicterra.worlddriver.game.ClientHop;
@@ -30,11 +33,94 @@ import net.minecraft.client.gui.components.EditBox;
 import net.magicterra.worlddriver.game.ui.DeathCause;
 
 /**
- * Screen / widget-tree introspection for {@code mc.client.screen.*}. Stateless;
- * extracted from {@code ClientDriverApiImpl}.
+ * Screen / widget-tree introspection for {@code mc.client.screen.*}, and the refs that let a click name a
+ * node of a tree it read earlier.
  */
 public final class ScreenIntrospection {
     private ScreenIntrospection() {}
+
+    /**
+     * Each widget, list row and slot object's ref, handed out the first time a walk meets it. A node id is
+     * only a place in one read's list and shifts as soon as a widget is added above it; the ref is bound to
+     * the object, so a click by ref lands on the widget the caller saw or is refused, never on its
+     * neighbour. Weak and by identity: a closed screen's widgets are not kept, and a widget's own equals
+     * plays no part. Client thread only, like the walk.
+     */
+    private static final Map<Object, Integer> REFS = new MapMaker().weakKeys().makeMap();
+    private static int nextRef = 1;
+
+    private static int refOf(Object o) {
+        return REFS.computeIfAbsent(o, k -> nextRef++);
+    }
+
+    /** Where a click on a ref lands: the centre of its box as it is now, or why it cannot be clicked. */
+    record Aim(double x, double y, Optional<String> refusal) {}
+
+    /**
+     * Aims at {@code ref} on the open screen. Refused when the ref is not on it any more, is hidden, has no
+     * box, or its centre lies outside the screen or outside the box of anything holding it — a list row
+     * scrolled out of its list, where a click would land on whatever is drawn there instead. Client thread.
+     */
+    static Aim aim(int ref) {
+        ScreenTree tree = screenTree();
+        List<WidgetNode> nodes = tree.nodes();
+        WidgetNode hit = null;
+        for (WidgetNode n : nodes) {
+            if (n.ref().isPresent() && n.ref().get() == ref) { hit = n; break; }
+        }
+        if (hit == null) {
+            return refused("ref " + ref + " is not on the open screen: it closed, rebuilt its widgets, or the ref came "
+                    + "from another screen. Read screen.tree again");
+        }
+        if (Boolean.FALSE.equals(hit.visible().orElse(true))) return refused("ref " + ref + " is hidden");
+        if (hit.box().isEmpty()) return refused("ref " + ref + " (" + hit.type() + ") has no box to click");
+        Box b = hit.box().get();
+        double x = b.x() + b.width() / 2.0, y = b.y() + b.height() / 2.0;
+        if (x < 0 || y < 0 || x >= tree.width().orElse(0) || y >= tree.height().orElse(0)) {
+            return refused("ref " + ref + " lies outside the screen, at " + x + "," + y);
+        }
+        for (Optional<Integer> up = hit.parent(); up.isPresent(); up = nodes.get(up.get()).parent()) {
+            WidgetNode holder = nodes.get(up.get());
+            if (Boolean.FALSE.equals(holder.visible().orElse(true))) {
+                return refused("ref " + ref + " sits in " + holder.type() + " (ref " + holder.ref().orElse(-1) + "), which is hidden");
+            }
+            if (holder.box().isPresent() && !inside(holder.box().get(), x, y)) {
+                return refused("ref " + ref + " lies outside the visible part of " + holder.type()
+                        + " (ref " + holder.ref().orElse(-1) + "), scrolled out of view");
+            }
+        }
+        return new Aim(x, y, Optional.empty());
+    }
+
+    private static Aim refused(String why) {
+        return new Aim(0, 0, Optional.of(why));
+    }
+
+    private static boolean inside(Box b, double x, double y) {
+        return x >= b.x() && y >= b.y() && x < b.x() + b.width() && y < b.y() + b.height();
+    }
+
+    /** What returnTree adds to a reply. */
+    record After(Optional<Boolean> changed, Optional<ScreenTree> tree) {
+        static final After NONE = new After(Optional.empty(), Optional.empty());
+    }
+
+    /** returnTree's reading just before the input, or null when it was not asked. Client thread. */
+    static ScreenTree before(boolean returnTree) {
+        return returnTree ? screenTree() : null;
+    }
+
+    /**
+     * returnTree's answer: whether the tree now differs from {@code before}, and the tree when it does. The
+     * whole tree is compared, contextId included, so a new screen, a rebuilt one and a toggled widget on the
+     * same one all count. Client thread.
+     */
+    static After after(ScreenTree before) {
+        if (before == null) return After.NONE;
+        ScreenTree now = screenTree();
+        boolean changed = !now.equals(before);
+        return new After(Optional.of(changed), changed ? Optional.of(now) : Optional.empty());
+    }
 
     public static ScreenInfo screenInfo() {
         return ClientHop.call(() -> {
@@ -132,7 +218,7 @@ public final class ScreenIntrospection {
         final Integer parent;
         final int depth;
         final String type;
-        Integer index;
+        Integer ref, index;
         Box box;
         Boolean visible, active, focused, selected;
         String message, key, value, error;
@@ -146,7 +232,7 @@ public final class ScreenIntrospection {
         }
 
         WidgetNode freeze() {
-            return new WidgetNode(id, Optional.ofNullable(parent), depth, type, Optional.ofNullable(index),
+            return new WidgetNode(id, Optional.ofNullable(ref), Optional.ofNullable(parent), depth, type, Optional.ofNullable(index),
                     Optional.ofNullable(box), Optional.ofNullable(visible), Optional.ofNullable(active),
                     Optional.ofNullable(focused), Optional.ofNullable(selected), Optional.ofNullable(message),
                     Optional.ofNullable(key), Optional.ofNullable(value), Optional.ofNullable(item),
@@ -158,6 +244,7 @@ public final class ScreenIntrospection {
         if (!(node instanceof ContainerEventHandler ceh)) return;
         for (GuiEventListener child : ceh.children()) {
             Node n = out.add(parent, depth, child.getClass().getSimpleName());
+            n.ref = refOf(child);
             // Per child, so a third-party widget that throws costs its own subtree and no more.
             try {
                 describe(child, n, out);
@@ -224,6 +311,7 @@ public final class ScreenIntrospection {
         for (int i = 0; i < children.size(); i++) {
             Object entry = children.get(i);
             Node n = out.add(owner.id, owner.depth + 1, entry.getClass().getSimpleName());
+            n.ref = refOf(entry);
             n.index = i;
             n.box = new Box(rowLeft, list.getRowTop(i), rowWidth, itemHeight - 4);
             if (entry == selected) n.selected = true;
@@ -324,6 +412,7 @@ public final class ScreenIntrospection {
             // isActive or getItem should cost its own row, not the screen's whole slot list.
             try {
                 Slot slot = menu.slots.get(i);
+                n.ref = refOf(slot);
                 n.box = new Box(leftPos + slot.x, topPos + slot.y, 16, 16);   // vanilla slot icon is 16×16
                 n.active = slot.isActive();
                 ItemStack stk = slot.getItem();
