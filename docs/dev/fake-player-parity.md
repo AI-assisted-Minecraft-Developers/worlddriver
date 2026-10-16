@@ -398,7 +398,7 @@ and `wd.mobWolfAdoptedByCommandWalks` assert arrival only, for the reasons below
 | Behaviour | A player | A vanilla mob | Status |
 |---|---|---|---|
 | Locomotion channel | writes impulse, jump and sneak | turns the input into a heading, faces it, and has `MoveControl.strafe` move it straight ahead; `JumpControl.jump` for the jump | `Accepted` |
-| Speed | the player's walking speed, sprint on top | a quarter of the mob's movement attribute: a zombie at about 0.58 of a walking player, a wolf at 0.75; sprinting changes nothing | `Accepted` |
+| Speed | the player's walking speed, sprint on top | a quarter of the mob's movement attribute: a zombie at about 0.58 of a walking player, a wolf at 0.75; sprinting adds the same 30% it adds to a player, since vanilla puts that modifier on any living entity | `Accepted` |
 | Parkour gaps | planned when the sprint jump clears them | never planned: the world view says it cannot sprint-jump | `Accepted` |
 | Timing | moves in the tick the input is written | reads the input in its own AI step on the next server tick, one tick late | `Accepted` |
 | Its own AI | — | every goal taken off both selectors, the brain's walk target erased each tick; restored at their priorities on release | `Accepted` |
