@@ -77,7 +77,9 @@ public final class WorldDriverMobScenes implements SceneProvider {
                     .as("the adopted zombie has its goals taken off and stops despawning: goals=" + zombie.goalSelector.getAvailableGoals().size()
                             + " targets=" + zombie.targetSelector.getAvailableGoals().size())
                     .isTrue();
-            Map<?, ?> listed = botEntry(call(api, "mc.bot.status", Map.of()), ref);
+            // Named, because a status without one also reads the client's own player where there is a
+            // client, and that read cannot be made from the server thread.
+            Map<?, ?> listed = botEntry(call(api, "mc.bot.status", Map.of("bot", ref)), ref);
             ctx.record("status", String.valueOf(listed));
             ctx.check("mob".equals(listed.get("kind"))).as("status lists the zombie under its ref as a mob: " + listed).isTrue();
 
