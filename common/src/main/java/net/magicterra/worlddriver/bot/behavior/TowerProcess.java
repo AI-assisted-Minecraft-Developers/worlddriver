@@ -148,8 +148,8 @@ public final class TowerProcess implements BotProcess {
             // A tower that was never needed and a tower that built must not read alike. They did:
             // both said `done (placed=N)`, so a rung whose bot was already above its target printed
             // the same row as one that climbed there, and four such rows on ladder rung 20 hid the
-            // fact that the tower had never once been exercised. BotApiImpl already refuses this
-            // argument ("target Y must be > current feet Y"); the constructor cannot, because
+            // fact that the tower had never once been exercised. VerbOrders.construct already refuses
+            // this argument ("targetY … is not above the feet"); the constructor cannot, because
             // startFeetY is not known until the first tick — so the honest place to say it is here.
             st.builder.lastError = placed == 0 && startFeetY >= targetY
                     ? "not needed (feetY=" + feetY + " already ≥ targetY=" + targetY + ")"

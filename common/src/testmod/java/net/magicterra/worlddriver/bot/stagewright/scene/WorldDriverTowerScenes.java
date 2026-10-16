@@ -84,8 +84,8 @@ import net.minecraft.world.phys.AABB;
  *       green.</b> Ordering a tower to the cell the bot already occupies, or to one below it,
  *       exits on {@code TowerProcess:104} with {@code "done (placed=0, feetY=…)"} — the SAME verdict
  *       shape a finished tower reports. A caller cannot tell "never needed to build" from "finished building", which is
- *       exactly the ambiguity the client entry point refuses to create: {@code BotApiImpl} rejects
- *       {@code finalTargetY <= startY} with {@code "target Y must be > current feet Y"} before it
+ *       exactly the ambiguity the verb refuses to create: {@code VerbOrders.construct} rejects
+ *       {@code targetY <= startY} with {@code "targetY … is not above the feet"} before it
  *       ever constructs the process. The constructor has no such guard, and every server-side
  *       caller in the tree — including this file — goes through the constructor. The positive half
  *       of the arm (nothing placed, done on the first tick) is green today and is kept as the
@@ -327,7 +327,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * record every reading it produced.
      *
      * <p>The process is constructed directly, the way {@code JourneyEndRungs.smashCrystal} does,
-     * NOT through {@code BotApiImpl}: the API layer holds guards the constructor does not (see the
+     * NOT through the verb ({@code VerbOrders.construct}): the API layer holds guards the constructor does not (see the
      * class javadoc on arm 4), and routing through it would test the guards instead of the process.
      *
      * @param columnCells how many cells of the START column to read back afterwards — the reading
@@ -652,8 +652,8 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      *       verdict of a tower that <i>built</i>, so a caller receiving it cannot distinguish
      *       "never needed to build" from "finished building" — and the distinction is exactly what it needs in order to
      *       decide whether to retry, to give up, or to carry on. The client entry point already
-     *       refuses to create the ambiguity: {@code BotApiImpl} rejects {@code finalTargetY <=
-     *       startY} with {@code "target Y (…) must be > current feet Y (…)"} before constructing
+     *       refuses to create the ambiguity: {@code VerbOrders.construct} rejects {@code targetY <=
+     *       startY} with {@code "targetY … is not above the feet (y …)"} before constructing
      *       anything. The constructor has no such guard, and every server-side caller in the tree —
      *       {@code JourneyEndRungs}, {@code JourneyShaft}, {@code wd.serverTowersOutOfADeepShaft},
      *       this file — goes through the constructor.</li>
@@ -716,8 +716,8 @@ public final class WorldDriverTowerScenes implements SceneProvider {
                 .as(arm + " C: WARNING: RED BY DESIGN — \"never needed to build\" and \"finished building\""
                         + " must not produce the same result message [" + order
                         + "]: got »" + r.lastError + "«, and 'done (placed=…' is what a tower that"
-                        + " actually built reports. BotApiImpl already refuses this argument"
-                        + " ('target Y must be > current feet Y'); the constructor every server-side"
+                        + " actually built reports. VerbOrders.construct already refuses this argument"
+                        + " ('targetY … is not above the feet'); the constructor every server-side"
                         + " caller uses does not. Fix the verdict, not this line").isTrue();
     }
 

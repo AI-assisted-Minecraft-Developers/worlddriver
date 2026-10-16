@@ -16,7 +16,7 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  *
  * Volatile to make cross-thread writes (RPC handler thread → client tick thread)
  * visible without synchronization. Range bounds are enforced in
- * {@link BotApiImpl#setting} so this class doesn't need its own validation.
+ * {@link SettingsRegistry} so this class doesn't need its own validation.
  */
 public final class BotConfig {
     private BotConfig() {}

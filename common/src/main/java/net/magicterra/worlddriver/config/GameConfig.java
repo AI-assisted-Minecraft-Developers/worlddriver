@@ -58,7 +58,7 @@ public final class GameConfig {
     public static volatile boolean mouseYieldHud = true;
 
     /** Extra block ids the pathfinder treats as hazardous (in addition to the
-     *  built-in HAZARD_BLOCKS set in BotApiImpl). Mutable via
+     *  built-in {@code BotUtil.HAZARD_BLOCKS}). Mutable via
      *  {@code mc.bot.setting{blocksToAvoid:[id,...]}}. Read on every WorldView
      *  query so changes apply immediately. Stored as an immutable Set; writers
      *  replace the whole reference. */

@@ -11,7 +11,7 @@ import java.util.function.Supplier;
  * it happened</b>.
  *
  * <p>This exists because the question "did a drowning reflex ever drive?" was asked of
- * {@code BotApiImpl.armedReflexes()}, which enumerates six COMBAT flags and says nothing about
+ * {@code JourneyRig.armedReflexes()}, which enumerates six COMBAT flags and says nothing about
  * drowning at all. Its silence was read as an answer. Both drown paths default on and
  * {@code DrownEscapeChain} is registered in the very scheduler {@link JourneyRig} drives through, so
  * "never ticked" is excluded by code — but that argument is about REGISTRATION, and the reading that
