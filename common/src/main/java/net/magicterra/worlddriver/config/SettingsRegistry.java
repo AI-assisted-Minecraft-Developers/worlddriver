@@ -81,7 +81,7 @@ public final class SettingsRegistry {
     }
 
     /** How {@code SettingsCommand} reads and writes a hand-listed key's live value. */
-    public enum Read { CONFIG_FIELD, BOT_PAUSED, HAZARD_LIST, WHITELIST_LIST, MUTED_LIST, AVOID_POINTS }
+    public enum Read { CONFIG_FIELD, BOT_PAUSED, HAZARD_LIST, WHITELIST_LIST, MUTED_LIST, UNDRIVABLE_LIST, AVOID_POINTS }
 
     /** One hand-listed key: its wire name, how to read its value, and the backing field (if any). */
     record Hand(String key, Read read, String field) {}
@@ -270,6 +270,7 @@ public final class SettingsRegistry {
         hand("blocksToAvoid", Read.HAZARD_LIST, "extraHazardBlocks"),
         hand("buildBlockWhitelist", Read.WHITELIST_LIST, "buildBlockWhitelist"),
         hand("mutedEvents", Read.MUTED_LIST, "mutedEvents"),
+        hand("undrivableMobs", Read.UNDRIVABLE_LIST, "undrivableMobs"),
         field("pathfinder.avoidZonePenalty", "avoidZonePenalty"),
         hand("avoidPoints", Read.AVOID_POINTS, null)
     );
@@ -320,7 +321,7 @@ public final class SettingsRegistry {
     private static Type handType(Hand h) {
         return switch (h.read()) {
             case BOT_PAUSED -> Type.BOOLEAN;
-            case HAZARD_LIST, WHITELIST_LIST, MUTED_LIST -> Type.STRING_LIST;
+            case HAZARD_LIST, WHITELIST_LIST, MUTED_LIST, UNDRIVABLE_LIST -> Type.STRING_LIST;
             case AVOID_POINTS -> Type.POINT_LIST;
             case CONFIG_FIELD -> typeOf(CONFIG_FIELDS.get(h.field()).getType());
         };

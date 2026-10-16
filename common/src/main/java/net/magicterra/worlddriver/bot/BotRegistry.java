@@ -65,25 +65,42 @@ public final class BotRegistry {
      * The bot an order names. {@code entity:<uuid>} answers with the bot already driving that entity,
      * or adopts the loaded mob with that UUID as a {@link MobBot} registered under the ref; a status
      * read or a cancel uses {@link #get} instead, so only an order takes a mob over. Null when nothing
-     * answers. Server thread only.
+     * answers, {@link #unresolved} says why. Server thread only.
      */
     public static Bot resolve(String id, MinecraftServer server) {
         Bot named = get(id);
         if (named != null || server == null || !id.startsWith(ENTITY_PREFIX)) return named;
-        UUID uuid;
-        try { uuid = UUID.fromString(id.substring(ENTITY_PREFIX.length())); }
-        catch (IllegalArgumentException notAUuid) { return null; }
+        UUID uuid = entityUuid(id);
+        if (uuid == null) return null;
         for (Bot b : all()) {
             LivingEntity e = b.entity();
             if (e != null && uuid.equals(e.getUUID())) return b;
         }
+        Mob mob = loadedMob(uuid, server);
+        if (mob == null || MobBot.refusal(mob) != null) return null;
+        MobBot bot = MobBot.adopt(mob, id);
+        register(bot);
+        BotTicker.register(bot);
+        return bot;
+    }
+
+    /** Why {@link #resolve} answered null for {@code id}, for the caller's refusal. */
+    public static String unresolved(String id, MinecraftServer server) {
+        UUID uuid = id.startsWith(ENTITY_PREFIX) ? entityUuid(id) : null;
+        Mob mob = uuid == null || server == null ? null : loadedMob(uuid, server);
+        if (mob != null && MobBot.refusal(mob) != null) return id + " cannot be driven: " + MobBot.refusal(mob);
+        if (uuid != null) return "no loaded mob has the UUID in " + id;
+        return "no bot named " + id + "; mc.bot.status lists the bots";
+    }
+
+    private static UUID entityUuid(String id) {
+        try { return UUID.fromString(id.substring(ENTITY_PREFIX.length())); }
+        catch (IllegalArgumentException notAUuid) { return null; }
+    }
+
+    private static Mob loadedMob(UUID uuid, MinecraftServer server) {
         for (ServerLevel level : server.getAllLevels()) {
-            if (level.getEntity(uuid) instanceof Mob mob && mob.isAlive()) {
-                MobBot bot = MobBot.adopt(mob, id);
-                register(bot);
-                BotTicker.register(bot);
-                return bot;
-            }
+            if (level.getEntity(uuid) instanceof Mob mob && mob.isAlive()) return mob;
         }
         return null;
     }

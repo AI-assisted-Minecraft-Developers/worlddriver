@@ -122,6 +122,8 @@ public final class SettingsContracts {
             case "blocksToAvoid", "buildBlockWhitelist" -> ApiTypes.list(
                     ApiTypes.pattern("[a-z0-9_.-]+:[a-z0-9/._-]+", "a block id such as minecraft:powder_snow"), 256);
             case "mutedEvents" -> ApiTypes.list(ApiTypes.string(1, 64), 64);
+            case "undrivableMobs" -> ApiTypes.list(
+                    ApiTypes.pattern("[a-z0-9_.-]+:[a-z0-9/._-]+", "an entity type id such as minecraft:squid"), 256);
             case "avoidPoints" -> ApiTypes.list(AVOID_POINT, 64);
             default -> switch (kind) {
                 case BOOLEAN -> ApiTypes.bool();

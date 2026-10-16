@@ -400,7 +400,7 @@ pathfinderBridgeCost[0,1000], pathfinderPillarCost, pathfinderThinObstacleHeight
 smoothLookDegPerTick[1,180], walker.yawHysteresisDeg[0,30]`.
 
 **Other** — `autoBackfillBlock:id`, `blocksToAvoid:[id]`, `buildBlockWhitelist:[id]`,
-`mutedEvents:[type]`, `avoidPoints:[{x,y,z,radius?}]`; `debugFly:bool` (apply-only
+`mutedEvents:[type]`, `undrivableMobs:[entity type id]`, `avoidPoints:[{x,y,z,radius?}]`; `debugFly:bool` (apply-only
 creative-flight test toggle, no snapshot field).
 
 ## mc.script.eval / mc.skill

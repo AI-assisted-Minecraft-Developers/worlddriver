@@ -83,6 +83,11 @@ public final class BotCommand {
             src.sendFailure(Component.literal("worlddriver mob: " + e.getName().getString() + " is not a mob"));
             return 0;
         }
+        String refusal = MobBot.refusal(mob);
+        if (refusal != null) {
+            src.sendFailure(Component.literal("worlddriver mob: cannot drive this mob: " + refusal));
+            return 0;
+        }
         if (BotRegistry.get(id) != null) {
             src.sendFailure(Component.literal("worlddriver mob: a bot named " + id + " already exists"));
             return 0;

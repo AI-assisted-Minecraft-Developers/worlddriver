@@ -41,6 +41,7 @@ public final class SettingsCommand {
             case HAZARD_LIST -> List.copyOf(GameConfig.extraHazardBlocks);
             case WHITELIST_LIST -> List.copyOf(GameConfig.buildBlockWhitelist);
             case MUTED_LIST -> List.copyOf(BotConfig.mutedEvents);
+            case UNDRIVABLE_LIST -> List.copyOf(BotConfig.undrivableMobs);
             case AVOID_POINTS -> {
                 List<AvoidPoint> out = new ArrayList<>();
                 for (double[] z : WorldConfig.avoidZones) {
@@ -83,6 +84,15 @@ public final class SettingsCommand {
                         if (!isBlock((String) ids.get(j))) issues.add(notABlock(at + "/" + j, (String) ids.get(j)));
                     }
                 }
+                case "undrivableMobs" -> {
+                    List<?> ids = (List<?>) u.value();
+                    for (int j = 0; j < ids.size(); j++) {
+                        String id = (String) ids.get(j);
+                        if (!RegistryIds.registered(BuiltInRegistries.ENTITY_TYPE, id)) {
+                            issues.add(new ApiIssue(at + "/" + j, ApiIssue.Code.INVALID_VALUE, "no entity type is registered as " + id));
+                        }
+                    }
+                }
                 default -> { }
             }
         }
@@ -109,6 +119,7 @@ public final class SettingsCommand {
                 case HAZARD_LIST -> GameConfig.extraHazardBlocks = Set.copyOf((List<String>) v);
                 case WHITELIST_LIST -> GameConfig.buildBlockWhitelist = Set.copyOf((List<String>) v);
                 case MUTED_LIST -> BotConfig.mutedEvents = Set.copyOf(new LinkedHashSet<>((List<String>) v));
+                case UNDRIVABLE_LIST -> BotConfig.undrivableMobs = Set.copyOf((List<String>) v);
                 case AVOID_POINTS -> {
                     List<AvoidPoint> points = (List<AvoidPoint>) v;
                     double[][] zones = new double[points.size()][];

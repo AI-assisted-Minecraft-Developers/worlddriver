@@ -170,10 +170,10 @@ class SettingsDocsDefaultsTest {
     /**
      * The rows this test cannot check, derived rather than listed.
      *
-     * <p>They are the hand-listed keys whose {@code Read} is not {@code CONFIG_FIELD}: the four
+     * <p>They are the hand-listed keys whose {@code Read} is not {@code CONFIG_FIELD}: the five
      * collection settings and the paused flag. None has a single primitive initialiser to
-     * compare against — {@code blocksToAvoid}, {@code buildBlockWhitelist}, {@code mutedEvents}
-     * and {@code avoidPoints} are lists whose documented "default" describes emptiness, and
+     * compare against — {@code blocksToAvoid}, {@code buildBlockWhitelist}, {@code mutedEvents},
+     * {@code undrivableMobs} and {@code avoidPoints} are lists whose documented "default" describes emptiness, and
      * {@code paused} is live process state. The set is computed from {@code Read} so that a new
      * collection setting joins it automatically; only a change in WHICH settings lack a
      * primitive field turns this red, which is when somebody should think.
@@ -186,7 +186,7 @@ class SettingsDocsDefaultsTest {
         }
         assertEquals(
                 new TreeSet<>(Set.of("avoidPoints", "blocksToAvoid", "buildBlockWhitelist",
-                        "mutedEvents", "paused")),
+                        "mutedEvents", "paused", "undrivableMobs")),
                 uncheckable,
                 "the set of settings with no primitive backing field changed. If a new one "
                 + "appeared, decide whether its documented default is checkable some other way "

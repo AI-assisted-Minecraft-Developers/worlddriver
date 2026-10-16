@@ -510,6 +510,9 @@ public final class SettingsDocs {
             "[type,...] — event types to SUPPRESS from the live push channel (e.g. " +
             "[\"item.pickup\",\"chat.message\"]). ALL events push by default; muted ones still record + " +
             "are pullable via mc.wait.event. Whole-list replace; [] un-mutes everything"),
+        e("undrivableMobs",
+            "[id,...] — entity type ids the bot stack never takes over: an order naming entity:<uuid> " +
+            "of one, or /worlddriver mob on one, is refused. Whole-list replace; [] clears"),
         e("avoidPoints",
             "[{x,y,z,radius?},...] — AGENT-marked danger zones to route AROUND (radius default 8); " +
             "the planner adds avoidZonePenalty ramping to 0 at the radius so it DETOURS. Use it to " +

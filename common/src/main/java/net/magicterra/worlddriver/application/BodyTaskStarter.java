@@ -144,9 +144,7 @@ final class BodyTaskStarter {
         return hop.submit(() -> {
             actions.requireGeneration(ActionHandle.Scope.SERVER, generation);
             Bot host = BotRegistry.resolve(body, server);
-            if (host == null) {
-                return new Refused<R>(RefusalReason.BOT_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots");
-            }
+            if (host == null) return new Refused<R>(RefusalReason.BOT_UNAVAILABLE, BotRegistry.unresolved(body, server));
             Map<String, Object> refusal = host.refusal();
             if (refusal != null) return new Refused<R>(RefusalReason.BOT_UNAVAILABLE, String.valueOf(refusal.get("error")));
             return admitAndStart(host.id(), ActionHandle.Scope.SERVER, ctx, planner.plan(host.entity()), (process, h) -> {
@@ -187,7 +185,7 @@ final class BodyTaskStarter {
         }
         return hop.submit(() -> {
             Bot host = BotRegistry.resolve(body, app.server());
-            if (host == null) return refuse.apply(RefusalReason.BOT_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots");
+            if (host == null) return refuse.apply(RefusalReason.BOT_UNAVAILABLE, BotRegistry.unresolved(body, app.server()));
             Map<String, Object> refusal = host.refusal();
             if (refusal != null) return refuse.apply(RefusalReason.BOT_UNAVAILABLE, String.valueOf(refusal.get("error")));
             ActionRegistry.Denied busy = actions.claim(host.id(), ctx.run());
