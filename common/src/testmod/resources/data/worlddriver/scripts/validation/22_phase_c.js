@@ -29,7 +29,7 @@ if (!clientAvailable()) {
         var s = Driver.bot.status({}).status;
         // lastPath is only present after a goto/mine/etc has actually run A*. Don't
         // require it — but if present, must have the documented fields.
-        t.assertEqual(s.body, "self", "self's status");
+        t.assertEqual(s.bot, "self", "self's status");
         t.assertTrue(typeof s.reflexes.paused === "boolean", "paused present");
         t.assertTrue("goto" in s.slots, "goto slot present");
         if (s.reflexes.lastPath) {

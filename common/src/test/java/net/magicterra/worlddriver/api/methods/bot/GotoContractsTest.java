@@ -35,7 +35,7 @@ class GotoContractsTest {
     @Test
     void aPositionTakesItsDefaults() {
         Params p = decode("{\"target\":" + POS + "}");
-        assertEquals("self", p.body());
+        assertEquals("self", p.bot());
         Position t = assertInstanceOf(Position.class, p.target().orElseThrow());
         assertEquals(0, t.near());
         assertEquals(GoalMode.IN, t.goalMode());

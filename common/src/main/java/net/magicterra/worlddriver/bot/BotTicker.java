@@ -12,7 +12,7 @@ import net.minecraft.world.entity.LivingEntity;
  * {@link #tickAll()} once per server tick (from {@code ServerTickEvent.Post}). A bot stays on the
  * list when its task ends — an idle bot's reflexes keep it alive — and leaves it when it is
  * {@link #unregister}ed, when its entity has been removed from the world (its action ends as
- * {@code body_removed}), or when its tick throws, so a single faulty agent can never wedge the
+ * {@code bot_removed}), or when its tick throws, so a single faulty agent can never wedge the
  * whole server tick.
  *
  * <p>This is the seam that makes agent driving headless: the same Walker loop
@@ -55,7 +55,7 @@ public final class BotTicker {
             if (e == null || e.isRemoved()) {
                 ACTIVE.remove(d);
                 // Nothing ticks its task again, so the action a caller waits on ends here.
-                ActionRegistry.GLOBAL.cancelBody(d.id(), Responses.CancelReason.BODY_REMOVED);
+                ActionRegistry.GLOBAL.cancelBot(d.id(), Responses.CancelReason.BOT_REMOVED);
                 continue;
             }
             try {

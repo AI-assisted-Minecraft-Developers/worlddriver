@@ -135,7 +135,7 @@ public final class ClientBot implements BotApi {
 
     @Override public Map<String, Object> status() { return brain.status(); }
 
-    @Override public ControlContracts.BodyStatus bodyStatus() { return brain.bodyStatus(BotRegistry.SELF); }
+    @Override public ControlContracts.BotStatus botStatus() { return brain.botStatus(BotRegistry.SELF); }
 
     @Override public List<String> cancel(String which) {
         return onClient(() -> brain.cancel(body(), which));

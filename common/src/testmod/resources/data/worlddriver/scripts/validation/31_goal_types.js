@@ -55,21 +55,21 @@ if (!clientAvailable()) {
 
     ScriptTest.run("31_goal_types: an axis goal starts a walk", function(t) {
         var r = Driver.bot.goto({ target: { kind: "axis" } });
-        if (r.outcome === "refused") { t.assertEqual(r.reason, "body_unavailable", "only an unavailable body refuses"); return; }
+        if (r.outcome === "refused") { t.assertEqual(r.reason, "bot_unavailable", "only an unavailable body refuses"); return; }
         t.assertEqual(r.action.state === "running" || r.action.state === "succeeded", true, "state " + r.action.state);
         Driver.invoke("mc.bot.cancel", {});
     });
 
     ScriptTest.run("31_goal_types: goalMode 'adjacent' is accepted for a positional target", function(t) {
         var r = Driver.bot.goto({ target: { kind: "position", pos: { x: 0, y: 64, z: 0 }, goalMode: "adjacent" } });
-        if (r.outcome === "refused") { t.assertEqual(r.reason, "body_unavailable", "only an unavailable body refuses"); return; }
+        if (r.outcome === "refused") { t.assertEqual(r.reason, "bot_unavailable", "only an unavailable body refuses"); return; }
         t.assertEqual(r.outcome, "accepted", "outcome");
         Driver.invoke("mc.bot.cancel", {});
     });
 
     ScriptTest.run("31_goal_types: a heading starts a walk with no endpoint", function(t) {
         var r = Driver.bot.goto({ target: { kind: "heading", direction: "north" } });
-        if (r.outcome === "refused") { t.assertEqual(r.reason, "body_unavailable", "only an unavailable body refuses"); return; }
+        if (r.outcome === "refused") { t.assertEqual(r.reason, "bot_unavailable", "only an unavailable body refuses"); return; }
         t.assertEqual(r.outcome, "accepted", "outcome");
         Driver.invoke("mc.bot.cancel", {});
     });

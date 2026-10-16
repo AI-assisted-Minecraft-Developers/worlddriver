@@ -9,7 +9,7 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.api.methods.control.ControlApi;
-import net.magicterra.worlddriver.api.methods.control.ControlContracts.BodyStatus;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.BotStatus;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.CancelParams;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.ProcessEnd;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.StatusParams;
@@ -216,14 +216,14 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
                 var control = ControlApi.of(api());
                 ask(ctx, "cancel", control.cancel(CancelParams.process("sleep")), stopped -> helm.sync(5, () ->
                         ask(ctx, "afterCancel.status", control.status(StatusParams.self()), reply -> {
-                    Optional<BodyStatus> status = reply instanceof Status s ? s.status() : Optional.empty();
+                    Optional<BotStatus> status = reply instanceof Status s ? s.status() : Optional.empty();
                     Map<?, ?> go = helm.slot("goto");
                     ctx.check(Boolean.FALSE.equals(go.get("active")))
                             .as("A: after the sleep task is cancelled, the goto slot is no longer active: " + go).isTrue();
-                    Optional<String> active = status.flatMap(BodyStatus::activeProcess);
+                    Optional<String> active = status.flatMap(BotStatus::activeProcess);
                     ctx.check(status.isPresent() && active.isEmpty())
                             .as("B: the user task slot is empty: activeProcess=" + active + " in " + reply).isTrue();
-                    Optional<ProcessEnd> end = status.flatMap(BodyStatus::lastProcessEnd);
+                    Optional<ProcessEnd> end = status.flatMap(BotStatus::lastProcessEnd);
                     ctx.check(end.map(e -> e.kind().equals("sleep")).orElse(false))
                             .as("C: the most recent process end is recorded as sleep: " + end).isTrue();
                 })));

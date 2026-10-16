@@ -33,7 +33,7 @@ class BotTickerTest {
         BotTicker.tickAll();
 
         assertFalse(BotTicker.isRegistered(gone));
-        assertEquals(CancelReason.BODY_REMOVED, assertInstanceOf(Cancelled.class, action.snapshot()).reason());
+        assertEquals(CancelReason.BOT_REMOVED, assertInstanceOf(Cancelled.class, action.snapshot()).reason());
     }
 
     /** A bot whose entity is already gone: every call but {@link #entity} and {@link #id} is unreachable. */

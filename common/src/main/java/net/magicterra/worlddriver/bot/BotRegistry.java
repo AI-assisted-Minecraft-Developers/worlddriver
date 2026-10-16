@@ -35,11 +35,11 @@ public final class BotRegistry {
         synchronized (HOSTS) { return HOSTS.putIfAbsent(host.id(), host) == null; }
     }
 
-    /** Removes {@code id}; an action still running on it ends as {@code body_removed}, since nothing can address it now. */
+    /** Removes {@code id}; an action still running on it ends as {@code bot_removed}, since nothing can address it now. */
     public static void unregister(String id) {
         boolean removed;
         synchronized (HOSTS) { removed = HOSTS.remove(id) != null; }
-        if (removed) ActionRegistry.GLOBAL.cancelBody(id, Responses.CancelReason.BODY_REMOVED);
+        if (removed) ActionRegistry.GLOBAL.cancelBot(id, Responses.CancelReason.BOT_REMOVED);
     }
 
     /** The host registered under {@code id}, or null. */
@@ -63,7 +63,7 @@ public final class BotRegistry {
 
     /** The refusal for an id nothing is registered under. */
     public static Map<String, Object> unknown(String id) {
-        return Bot.refuse(Readiness.Reason.UNKNOWN_BODY,
+        return Bot.refuse(Readiness.Reason.UNKNOWN_BOT,
                 "no bot named '" + id + "'; mc.bot.status lists the bots");
     }
 }

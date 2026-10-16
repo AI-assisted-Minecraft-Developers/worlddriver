@@ -237,7 +237,7 @@ so every method synchronizes on the map; iteration is in registration order, whi
 order `mc.bot.status` lists bots in. The registry empties when the server stops, since
 every bot wraps an entity of that server.
 
-The `mc.bot.*` verbs that drive a bot take a `body` parameter; `equip`, `setting`,
+The `mc.bot.*` verbs that drive a bot take a `bot` parameter; `equip`, `setting`,
 `waypoint` and `playbook` stay with the client. Anything other than `self` goes to
 `application/BodyRoutes`, which hops to the server thread and refuses in `Readiness` terms
 judged on the entity. A process verb's parameters are read by `bot/VerbOrders`, the same

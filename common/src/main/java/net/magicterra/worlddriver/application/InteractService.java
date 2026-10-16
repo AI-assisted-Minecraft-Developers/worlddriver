@@ -42,7 +42,7 @@ final class InteractService implements InteractApi {
 
     @Override
     public CompletionStage<ImmediateResponse> attackEntity(InteractContracts.AttackParams p, CallContext ctx) {
-        return actions.within(p.body(), ctx, Refused::new,
+        return actions.within(p.bot(), ctx, Refused::new,
                 (bot, self) -> bot.attackEntity(p), host -> BodyInteractions.attackEntity(host, p));
     }
 
@@ -55,20 +55,20 @@ final class InteractService implements InteractApi {
     @Override
     public CompletionStage<ActionResponse<Looked>> lookAt(LookParams p, CallContext ctx) {
         if (GameConfig.smoothLook) {
-            return actions.start(p.body(), p.awaitMs(), ctx, body -> {
+            return actions.start(p.bot(), p.awaitMs(), ctx, body -> {
                 float[] aim = BodyInteractions.aim(body, p);
                 BlockPos track = p.pos().map(Positions::blockPos).orElse(null);
                 return BodyTaskStarter.Start.reporting(VerbOrders.look(track, aim[0], aim[1]), new Looked(aim[0], aim[1]));
             });
         }
-        return actions.within(p.body(), ctx, Refused::new,
+        return actions.within(p.bot(), ctx, Refused::new,
                 (bot, self) -> BodyInteractions.turn(self, p), host -> BodyInteractions.turn(host.entity(), p));
     }
 
     @Override
     public CompletionStage<ImmediateResponse> holdItem(InteractContracts.HoldParams p, CallContext ctx) {
         BotTaskService.requireRegistered(BuiltInRegistries.ITEM, "item", "/item", p.item());
-        return actions.within(p.body(), ctx, Refused::new, (bot, self) -> bot.holdItem(p), host -> BodyInteractions.holdItem(host, p));
+        return actions.within(p.bot(), ctx, Refused::new, (bot, self) -> bot.holdItem(p), host -> BodyInteractions.holdItem(host, p));
     }
 
     /**
@@ -77,9 +77,9 @@ final class InteractService implements InteractApi {
      */
     @Override
     public CompletionStage<ImmediateResponse> useItem(InteractContracts.UseParams p, CallContext ctx) {
-        CompletionStage<ImmediateResponse> used = actions.within(p.body(), ctx, Refused::new,
+        CompletionStage<ImmediateResponse> used = actions.within(p.bot(), ctx, Refused::new,
                 (bot, self) -> bot.useItem(p), host -> BodyInteractions.useItem(host, p));
-        if (!BotRegistry.isSelf(p.body())) return used;
+        if (!BotRegistry.isSelf(p.bot())) return used;
         return used.thenCompose(r -> r instanceof Used u && u.on() instanceof OnEntity before
                 ? settle(BotHooks.impl(), u, before, 0, ctx) : CompletableFuture.completedFuture(r));
     }

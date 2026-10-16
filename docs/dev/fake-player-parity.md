@@ -57,7 +57,7 @@ false on it.
 `ServerPlayerBody.step()` refuses to pump such a bot with an `IllegalStateException`: its
 own connection already ticks it, and pumping would tick it twice.
 
-**How a bot is addressed.** Every `mc.bot.*` verb takes an optional `body` parameter.
+**How a bot is addressed.** Every `mc.bot.*` verb takes an optional `bot` parameter.
 Absent, blank or `self` routes the call to the client's own `BotApi`, exactly as before the
 parameter existed; any other value names an entry in `BotRegistry` and routes to
 `BodyRoutes`, which never touches the client bot. On a dedicated server that is the only

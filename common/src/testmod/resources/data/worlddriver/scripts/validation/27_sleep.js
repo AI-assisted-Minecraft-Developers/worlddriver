@@ -21,7 +21,7 @@ function errorOf(call) {
 function startedOrUnavailable(t, r) {
     if (!clientAvailable() || r.outcome === "refused") {
         t.assertEqual(r.outcome, "refused", "outcome");
-        t.assertEqual(r.reason, "body_unavailable", "only an unavailable body may refuse: " + r.message);
+        t.assertEqual(r.reason, "bot_unavailable", "only an unavailable body may refuse: " + r.message);
         return;
     }
     t.assertEqual(r.outcome, "accepted", "outcome");

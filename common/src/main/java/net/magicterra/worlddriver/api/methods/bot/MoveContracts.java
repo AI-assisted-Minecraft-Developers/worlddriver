@@ -31,7 +31,7 @@ public final class MoveContracts {
     /** A player by name, case-sensitive. */
     public record QuarryPlayer(String name) implements Quarry {}
 
-    public record FollowParams(String body, Quarry target, int radius, int maxIdleTicks, int giveUpTicks,
+    public record FollowParams(String bot, Quarry target, int radius, int maxIdleTicks, int giveUpTicks,
                                Optional<Route> route, int awaitMs) {}
 
     public record Followed(Quarry target, int radius) {}
@@ -45,7 +45,7 @@ public final class MoveContracts {
                     QuarryPlayer::new)));
 
     public static final ApiType<FollowParams> FOLLOW_PARAMS = ApiTypes.record("FollowParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(FollowParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(FollowParams::bot),
             ApiField.field("target", QUARRY).required().forGetter(FollowParams::target),
             ApiField.field("radius", ApiTypes.integer(1, 16)).describe("Standoff distance.").defaulted(3)
                     .forGetter(FollowParams::radius),
@@ -86,12 +86,12 @@ public final class MoveContracts {
 
     // ------------------------------------------------------------------ explore
 
-    public record ExploreParams(String body, int centerX, int centerZ, int maxChunks, int awaitMs) {}
+    public record ExploreParams(String bot, int centerX, int centerZ, int maxChunks, int awaitMs) {}
 
     public record Explored(int centerX, int centerZ, int maxChunks, int visited) {}
 
     public static final ApiType<ExploreParams> EXPLORE_PARAMS = ApiTypes.record("ExploreParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(ExploreParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(ExploreParams::bot),
             ApiField.field("centerX", ApiTypes.integer()).required().forGetter(ExploreParams::centerX),
             ApiField.field("centerZ", ApiTypes.integer()).required().forGetter(ExploreParams::centerZ),
             ApiField.field("maxChunks", ApiTypes.integer(1, 64)).describe("Chunks to visit before succeeding.")
@@ -116,13 +116,13 @@ public final class MoveContracts {
 
     // ------------------------------------------------------------------ runAway
 
-    public record RunAwayParams(String body, Optional<BlockPosition> from, int minDist, int awaitMs) {}
+    public record RunAwayParams(String bot, Optional<BlockPosition> from, int minDist, int awaitMs) {}
 
     /** {@code at}: the cell it stopped in. */
     public record RanAway(BlockPosition from, int minDist, BlockPosition at) {}
 
     public static final ApiType<RunAwayParams> RUN_AWAY_PARAMS = ApiTypes.record("RunAwayParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(RunAwayParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(RunAwayParams::bot),
             ApiField.field("from", CommonTypes.BLOCK_POSITION).describe("Omitted: where the body stands.")
                     .optional().forGetter(RunAwayParams::from),
             ApiField.field("minDist", ApiTypes.integer(4, 64)).defaulted(16).forGetter(RunAwayParams::minDist),
@@ -144,12 +144,12 @@ public final class MoveContracts {
 
     // ------------------------------------------------------------------ sleep
 
-    public record SleepParams(String body, Optional<BlockPosition> pos, int radius, int awaitMs) {}
+    public record SleepParams(String bot, Optional<BlockPosition> pos, int radius, int awaitMs) {}
 
     public record Slept(BlockPosition bed) {}
 
     public static final ApiType<SleepParams> SLEEP_PARAMS = ApiTypes.record("SleepParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(SleepParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(SleepParams::bot),
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).describe("A bed to use instead of searching.")
                     .optional().forGetter(SleepParams::pos),
             ApiField.field("radius", ApiTypes.integer(1, 64)).describe("Search radius around the body.")
@@ -185,14 +185,14 @@ public final class MoveContracts {
         }
     }
 
-    public record ElytraParams(String body, Optional<BlockPosition> pos, Optional<Double> yaw, Optional<Double> pitch,
+    public record ElytraParams(String bot, Optional<BlockPosition> pos, Optional<Double> yaw, Optional<Double> pitch,
                                Optional<Boolean> reactive, Optional<Boolean> fireworks, int fireworkEveryTicks,
                                Optional<Integer> ticks, double stopXZDist, boolean groundFallback, int near, int awaitMs) {}
 
     public record Flown(FlightMode mode, boolean fireworks) {}
 
     public static final ApiType<ElytraParams> ELYTRA_PARAMS = ApiTypes.record("ElytraFlyParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(ElytraParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(ElytraParams::bot),
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).describe("Where to fly. Omitted: glide on the current heading.")
                     .optional().forGetter(ElytraParams::pos),
             ApiField.field("yaw", ApiTypes.number(-360, 360)).describe("Initial heading. Omitted: the current look.")

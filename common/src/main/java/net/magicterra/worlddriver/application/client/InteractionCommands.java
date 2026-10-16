@@ -46,7 +46,7 @@ final class InteractionCommands {
         Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, params.item()).orElseThrow();
         return new ClientPlayerBody(mc).holdItemOrEmptyHand(item)
                 ? new Responses.Held(RegistryIds.itemId(mc.player.getMainHandItem()))
-                : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, Equipment.cannotHold(item, params.body()));
+                : new Refused<>(RefusalReason.INVALID_WORLD_TARGET, Equipment.cannotHold(item, params.bot()));
     }
 
     public static ImmediateResponse useItem(InteractContracts.UseParams p) {

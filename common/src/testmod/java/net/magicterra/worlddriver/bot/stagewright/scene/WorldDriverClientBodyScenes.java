@@ -31,7 +31,7 @@ import static net.magicterra.worlddriver.bot.stagewright.scene.SceneCalls.ask;
 /**
  * The precondition in front of every verb that moves or acts through the player ({@code Readiness}),
  * on the client's real player:
- * a dead player is refused as {@code body_unavailable} instead of accepted,
+ * a dead player is refused as {@code bot_unavailable} instead of accepted,
  * a read ({@code mc.bot.status}) still answers, and the same order is taken again once the player
  * has respawned. The lab world found this the hard way — a player that died on joining sat on its
  * death screen while every {@code goto} reported it had started.
@@ -91,8 +91,8 @@ public final class WorldDriverClientBodyScenes implements SceneProvider {
             cancel(ctx, "alive.cancel", alive);
             body.kill();
             ctx.await(body::isDeadOrDying).within(60).then(() -> helm.sync(15, () -> walkTo(ctx, "dead.goto", start, dead -> {
-                ctx.check(dead instanceof Refused<?> r && r.reason() == RefusalReason.BODY_UNAVAILABLE && r.message().contains("dead"))
-                        .as("B: after death, goto is refused as body_unavailable, saying the player is dead: " + dead).isTrue();
+                ctx.check(dead instanceof Refused<?> r && r.reason() == RefusalReason.BOT_UNAVAILABLE && r.message().contains("dead"))
+                        .as("B: after death, goto is refused as bot_unavailable, saying the player is dead: " + dead).isTrue();
                 ctx.check(!(dead instanceof Accepted)).as("C: the refused request did not start: " + dead).isTrue();
                 ask(ctx, "dead.status", ControlApi.of(api()).status(StatusParams.self()), status -> {
                     ctx.check(status instanceof Status s && s.status().isPresent())

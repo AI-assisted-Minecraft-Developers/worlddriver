@@ -75,7 +75,7 @@ if (!clientAvailable()) {
     ScriptTest.run("42_combat: self is unavailable on a dedicated server", function(t) {
         var r = Driver.bot.combat({});
         t.assertEqual(r.outcome, "refused", "outcome");
-        t.assertEqual(r.reason, "body_unavailable", "reason");
+        t.assertEqual(r.reason, "bot_unavailable", "reason");
     });
 } else {
 

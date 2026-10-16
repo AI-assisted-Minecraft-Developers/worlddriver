@@ -269,7 +269,7 @@ at a time per server.
 ## Drive a bot by name
 
 A server can hold bots besides your own player, and the `mc.bot.*` verbs that drive a bot reach
-them by name through the `body` parameter. Spawn one, find it, send it somewhere, stop it:
+them by name through the `bot` parameter. Spawn one, find it, send it somewhere, stop it:
 
 ```
 /worlddriver server spawn alex
@@ -277,19 +277,19 @@ them by name through the `body` parameter. Spawn one, find it, send it somewhere
 
 ```bash
 RPC="uv run --with websockets .agents/skills/worlddriver-rpc/rpc.py --port $(cat fabric/run-dogfood/worlddriver-rpc.port)"
-$RPC mc.bot.status '{}'                                      # bodies: [{id:"player:alex", kind, entityId, pos, busy}]
-$RPC mc.bot.goto '{"body":"player:alex","target":{"kind":"position","pos":{"x":100010,"y":200,"z":100000}},"awaitMs":30000}'
-$RPC mc.bot.status '{"body":"player:alex"}'                  # status: its busy flag and slots
-$RPC mc.bot.runAway '{"body":"player:alex","minDist":8}'
-$RPC mc.bot.cancel '{"body":"player:alex","process":"runAway"}'
+$RPC mc.bot.status '{}'                                      # bots: [{id:"player:alex", kind, entityId, pos, busy}]
+$RPC mc.bot.goto '{"bot":"player:alex","target":{"kind":"position","pos":{"x":100010,"y":200,"z":100000}},"awaitMs":30000}'
+$RPC mc.bot.status '{"bot":"player:alex"}'                   # status: its busy flag and slots
+$RPC mc.bot.runAway '{"bot":"player:alex","minDist":8}'
+$RPC mc.bot.cancel '{"bot":"player:alex","process":"runAway"}'
 ```
 
 Accept the result when the reply names the bot, the bot you are watching in the world is
 the one that moves, `status` for that bot shows the slot go active and then idle, and your
-own player does not move. A name nobody spawned is refused as `body_unavailable` by every
-verb, and so is a bot whose chunk is not loaded by `goto`, `runAway` and the other actions. Another bot has no reflexes: it will not
-eat, flee or fight back unless told to. `/worlddriver server clear` removes it and forgets
-the name.
+own player does not move. A name nobody spawned is refused as `bot_unavailable` by every
+verb, and so is a bot whose chunk is not loaded by `goto`, `runAway` and the other actions. Another
+player bot has the same reflexes as your own player, under the same settings, and keeps them while
+it is idle. `/worlddriver server clear` removes it and forgets the name.
 
 Bots named `npc:<name>` exist only while a test scene holds one, and there is no command
 to spawn one. They have no hands, so `holdItem`, `useItem`, `attackEntity` and any task that

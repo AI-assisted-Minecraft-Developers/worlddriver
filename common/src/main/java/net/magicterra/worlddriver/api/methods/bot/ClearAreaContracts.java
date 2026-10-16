@@ -49,7 +49,7 @@ public final class ClearAreaContracts {
     public record Fill(String block) implements Edit {}
     public record Replace(String from, String to) implements Edit {}
 
-    public record Params(String body, Region target, Edit edit, int awaitMs) {}
+    public record Params(String bot, Region target, Edit edit, int awaitMs) {}
 
     /** The box actually worked, and for a horizontal tunnel the bias it was cut with. */
     public record Summary(BlockPosition from, BlockPosition to, Optional<WidthBias> widthBias) {}
@@ -102,7 +102,7 @@ public final class ClearAreaContracts {
                     Replace::new)));
 
     public static final ApiType<Params> PARAMS = ApiTypes.record("ClearAreaParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(Params::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(Params::bot),
             ApiField.field("target", REGION).required().forGetter(Params::target),
             ApiField.field("edit", EDIT).defaulted(new Clear()).forGetter(Params::edit),
             ApiField.field("awaitMs", Responses.AWAIT_MS).defaulted(0).forGetter(Params::awaitMs),

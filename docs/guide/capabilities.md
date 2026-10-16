@@ -192,13 +192,14 @@ executes the plan tick by tick, a scheduler that runs one user task at a time wi
 that can pre-empt it, and a per-verb process for each thing it can be asked to do.
 
 **Which bot, and therefore where it works.** By default the verbs drive `self`, the local
-client's player, which makes them client-only. Most of them also take a `body` parameter
+client's player, which makes them client-only. Most of them also take a `bot` parameter
 naming a bot from `mc.bot.status`; with a bot other than `self`, the call goes down a
 path that names no client class at all, which is why the same verbs answer for server-side
 players on a dedicated server. `mc.bot.status` itself works everywhere. The exceptions —
-`equip`, `setting`, `waypoint` and `playbook` — take no `body` and are client-only. A bot
-that is not your own player has no reflexes, and a bot that is not a player entity has no
-hands, so a task or a hand verb that needs them is refused as `unsupported_capability`.
+`equip`, `setting`, `waypoint` and `playbook` — take no `bot` and are client-only. A
+server-side player has the same reflexes as your own, switched on by the same settings. A bot
+that is not a player entity has no hands, so a task or a hand verb that needs them is refused
+as `unsupported_capability`.
 
 The hand verbs (`lookAt`, `holdItem`, `useItem`, `attackEntity`, `equip`) act within the call
 and answer `{outcome: 'done', …}` with what came of it, or `{outcome: 'refused', reason, message}`
@@ -315,8 +316,8 @@ is off.
 
 | Method | What it does | Notable parameters |
 |---|---|---|
-| `mc.bot.status` | The list of addressable bots, and one body's `status`: every process slot, how its last task ended, and — for your own player — its reflexes. Available on a dedicated server; an unknown body is refused as `body_unavailable`. | `body` |
-| `mc.bot.cancel` | Cancels one action by `actionId`, or a body's processes by `process`, releasing the held inputs; `cancelled` lists what it actually stopped, empty when nothing matched. `all` is a best-effort broadcast. | `actionId`, or `process` and `body` |
+| `mc.bot.status` | The list of addressable bots under `bots`, and one bot's `status`: every process slot, how its last task ended, and — for your own player — its reflexes. Available on a dedicated server; an unknown bot is refused as `bot_unavailable`. | `bot` |
+| `mc.bot.cancel` | Cancels one action by `actionId`, or a bot's processes by `process`, releasing the held inputs; `cancelled` lists what it actually stopped, empty when nothing matched. `all` is a best-effort broadcast. | `actionId`, or `process` and `bot` |
 | `mc.bot.setting` | Reads, patches or applies the tuning and toggle surface, chosen by `op`. | See below |
 
 ### Running a long verb
@@ -346,7 +347,7 @@ there (`"done (placed=12, skipped=0)"`, `"not needed (…)"`), and so does the a
 says why it stopped — a give-up (a goto that ended short of its goal, a build that skipped
 blocks, a follow that could not close in), an exception, or a cancel. A goto with `invert` or a
 strict `direction` has no goal to reach, so it is done when it stops. The auto-backfill is not a
-user task and leaves `lastProcessEnd` as it was. A named bot's status (`body: "player:…"` or
+user task and leaves `lastProcessEnd` as it was. A named bot's status (`bot: "player:…"` or
 `"npc:…"`) carries its own `lastProcessEnd` in the same shape. `reflexes.lastPath` holds the
 statistics of the most recent search — how many nodes were expanded, how long it took, and
 whether the goal was reached — which is the first thing to read when the answer to "why is

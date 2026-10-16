@@ -74,7 +74,7 @@ class ServerThreadGuardTest {
     void anAwaitMsOrderIsRefusedBeforeItStarts() {
         ApiRegistry api = new DriverApplication().registry();
         assertRefusedFast("awaitMs", () -> api.route("mc.bot.explore",
-                Map.of("centerX", 0, "centerZ", 0, "body", "npc:ghost", "awaitMs", 5000)));
+                Map.of("centerX", 0, "centerZ", 0, "bot", "npc:ghost", "awaitMs", 5000)));
     }
 
     @Test

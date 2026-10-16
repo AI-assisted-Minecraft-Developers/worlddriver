@@ -15,8 +15,8 @@ import net.magicterra.worlddriver.api.action.ActionRegistry;
 import net.magicterra.worlddriver.api.methods.control.ControlApi;
 import net.magicterra.worlddriver.api.methods.control.ControlApiBinding;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
-import net.magicterra.worlddriver.api.methods.control.ControlContracts.BodyStatus;
-import net.magicterra.worlddriver.api.methods.control.ControlContracts.BodySummary;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.BotStatus;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.BotSummary;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ActionSnapshot;
 import net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
@@ -62,7 +62,7 @@ final class ControlService implements ControlApi {
             boolean stopped = h != null && h.requestCancel(CancelReason.REQUESTED);
             return done(new Stopped(stopped ? List.of(id) : List.of(), Optional.of(h == null ? before : h.snapshot())));
         }
-        String body = p.body().orElse(BotRegistry.SELF);
+        String body = p.bot().orElse(BotRegistry.SELF);
         String which = p.process().orElse("all");
         if (BotRegistry.isSelf(body)) {
             BotApi bot = BotHooks.impl();
@@ -82,21 +82,21 @@ final class ControlService implements ControlApi {
 
     @Override
     public CompletionStage<ImmediateResponse> status(ControlContracts.StatusParams p, CallContext ctx) {
-        String body = p.body().orElse(null);
+        String body = p.bot().orElse(null);
         if (body == null || BotRegistry.isSelf(body)) {
             BotApi bot = BotHooks.impl();
             if (bot == null) {
                 return body == null ? bodies(ctx).<ImmediateResponse>thenApply(b -> new Status(b, Optional.empty())) : refused(NO_CLIENT);
             }
             return bodies(ctx).thenCompose(b -> bot.clientHop().<ImmediateResponse>submit(
-                    () -> new Status(b, Optional.of(bot.bodyStatus())), ctx));
+                    () -> new Status(b, Optional.of(bot.botStatus())), ctx));
         }
         ServerThreadHop hop = app.serverHop();
         if (hop == null) return refused(body + " is unavailable: no server is attached");
         return hop.<ImmediateResponse>submit(() -> {
             Bot host = BotRegistry.get(body);
             if (host == null) return unknown(body);
-            BodyStatus s = new BodyStatus(host.id(), host.busy(), Optional.ofNullable(host.botState().activeName()),
+            BotStatus s = new BotStatus(host.id(), host.busy(), Optional.ofNullable(host.botState().activeName()),
                     StatusView.end(host.lastProcessEnd()), StatusView.slots(host.botState()), Optional.empty());
             return new Status(summaries(), Optional.of(s));
         }, ctx);
@@ -106,34 +106,34 @@ final class ControlService implements ControlApi {
      * The registered bots, in registration order, read on the server thread. Nothing registered answers
      * without a hop, which matters on a client joined to a remote server: there is no server thread there.
      */
-    private CompletionStage<List<BodySummary>> bodies(CallContext ctx) {
+    private CompletionStage<List<BotSummary>> bodies(CallContext ctx) {
         ServerThreadHop hop = app.serverHop();
         if (BotRegistry.all().isEmpty() || hop == null) return CompletableFuture.completedFuture(List.of());
         return hop.submit(ControlService::summaries, ctx);
     }
 
     /** Server thread. */
-    private static List<BodySummary> summaries() {
-        List<BodySummary> out = new ArrayList<>();
+    private static List<BotSummary> summaries() {
+        List<BotSummary> out = new ArrayList<>();
         for (Bot h : BotRegistry.all()) {
             LivingEntity e = h.entity();
             boolean present = e != null && !e.isRemoved();
             BlockPos at = present ? e.blockPosition() : null;
-            out.add(new BodySummary(h.id(), h.kind(), present ? Optional.of(e.getId()) : Optional.empty(),
+            out.add(new BotSummary(h.id(), h.kind(), present ? Optional.of(e.getId()) : Optional.empty(),
                     present ? Optional.of(Positions.position(at)) : Optional.empty(), h.busy()));
         }
         return out;
     }
 
     private static final String NO_CLIENT = "self is this client's own player, and there is no client here "
-            + "(a dedicated server); name a bot with body: player:<name> or npc:<name>";
+            + "(a dedicated server); name a bot with bot: player:<name>, mob:<name> or entity:<uuid>";
 
     private static ImmediateResponse unknown(String body) {
-        return new Refused<>(RefusalReason.BODY_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots");
+        return new Refused<>(RefusalReason.BOT_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots");
     }
 
     private static CompletionStage<ImmediateResponse> refused(String message) {
-        return done(new Refused<>(RefusalReason.BODY_UNAVAILABLE, message));
+        return done(new Refused<>(RefusalReason.BOT_UNAVAILABLE, message));
     }
 
     private static CompletionStage<ImmediateResponse> done(ImmediateResponse r) {

@@ -145,8 +145,8 @@ class ActionRegistryTest {
     @Test
     void removingABodyEndsOnlyItsActions() {
         ActionHandle a = handle("player:a", null), b = handle("player:b", null);
-        registry.cancelBody("player:a", CancelReason.BODY_REMOVED);
-        assertEquals(CancelReason.BODY_REMOVED, assertInstanceOf(Cancelled.class, a.snapshot()).reason());
+        registry.cancelBot("player:a", CancelReason.BOT_REMOVED);
+        assertEquals(CancelReason.BOT_REMOVED, assertInstanceOf(Cancelled.class, a.snapshot()).reason());
         assertInstanceOf(Running.class, b.snapshot());
     }
 }

@@ -60,14 +60,14 @@ if (!clientAvailable()) {
     ScriptTest.run("17_goto_selectors: refusals skipped (no client player — dedicated server)", function(t) {
         var r = Driver.bot.goto({ target: { kind: "axis" } });
         t.assertEqual(r.outcome, "refused", "outcome");
-        t.assertEqual(r.reason, "body_unavailable", "reason");
+        t.assertEqual(r.reason, "bot_unavailable", "reason");
     });
 } else {
 
     ScriptTest.run("17_goto_selectors: a missing waypoint is refused as an invalid world target", function(t) {
         var r = Driver.bot.goto({ target: { kind: "waypoint", name: "no-such-waypoint" } });
         t.assertEqual(r.outcome, "refused", "outcome");
-        if (r.reason === "body_unavailable") return;
+        if (r.reason === "bot_unavailable") return;
         t.assertEqual(r.reason, "invalid_world_target", "reason");
         t.assertTrue(r.message.indexOf("waypoint") >= 0, "message names the waypoint: " + r.message);
     });
@@ -75,7 +75,7 @@ if (!clientAvailable()) {
     ScriptTest.run("17_goto_selectors: a nonexistent entity id is refused as an invalid world target", function(t) {
         var r = Driver.bot.goto({ target: { kind: "entity", entityId: 1073741824 } });
         t.assertEqual(r.outcome, "refused", "outcome");
-        if (r.reason === "body_unavailable") return;
+        if (r.reason === "bot_unavailable") return;
         t.assertEqual(r.reason, "invalid_world_target", "reason");
         t.assertTrue(r.message.indexOf("entity") >= 0, "message names the entity: " + r.message);
     });

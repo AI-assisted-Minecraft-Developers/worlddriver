@@ -69,7 +69,7 @@ public interface BotApi {
     Map<String, Object> status();
 
     /** {@code mc.bot.status} for this client's player. Client thread. */
-    net.magicterra.worlddriver.api.methods.control.ControlContracts.BodyStatus bodyStatus();
+    net.magicterra.worlddriver.api.methods.control.ControlContracts.BotStatus botStatus();
 
     /** Whether every process is held still: the {@code paused} setting. */
     boolean paused();

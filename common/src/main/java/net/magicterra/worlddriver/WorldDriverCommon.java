@@ -258,7 +258,7 @@ public final class WorldDriverCommon {
      */
     public static void onServerStopping() {
         // Every action here, the client player's included when this is its integrated server, loses
-        // its world now; mark that before the hosts go, so body_removed does not claim the cause.
+        // its world now; mark that before the hosts go, so bot_removed does not claim the cause.
         net.magicterra.worlddriver.api.action.ActionRegistry.GLOBAL.cancelAll(
                 net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason.WORLD_CLOSED);
         // Every addressable bot player wraps an entity of the stopping server.

@@ -17,7 +17,7 @@ public final class ActionTickets {
         return switch (why) {
             case REQUESTED -> CancelReason.REQUESTED;
             case WORLD_CLOSED -> CancelReason.WORLD_CLOSED;
-            case BODY_REMOVED -> CancelReason.BODY_REMOVED;
+            case BOT_REMOVED -> CancelReason.BOT_REMOVED;
             case TEST_RESET -> CancelReason.TEST_RESET;
             case CONNECTION_CLOSED -> CancelReason.CONNECTION_CLOSED;
         };

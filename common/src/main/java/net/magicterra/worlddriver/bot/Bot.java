@@ -85,7 +85,7 @@ public interface Bot {
     default Map<String, Object> refusal() {
         LivingEntity e = entity();
         // A removed entity that was not killed has most often gone to disk with its chunk; the id
-        // still names it, so this is not unknown_body.
+        // still names it, so this is not unknown_bot.
         if (e == null || (e.isRemoved() && e.getRemovalReason() != Entity.RemovalReason.KILLED)) {
             return refuse(Readiness.Reason.CHUNK_UNLOADED, "bot " + id() + " is not in a loaded chunk");
         }

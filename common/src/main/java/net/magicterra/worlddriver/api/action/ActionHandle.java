@@ -19,12 +19,12 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.Superseded;
  * One accepted action: its identity, and its state, which moves from running to one terminal state
  * exactly once. The executor that holds the process (the client's user task chain, a server driver's
  * held process) writes the ending; everyone else only reads. The first ending wins and later ones are
- * ignored, which is what lets an ending with a precise cause (the body died) come before the generic
+ * ignored, which is what lets an ending with a precise cause (the bot died) come before the generic
  * cancel that follows it.
  */
 public final class ActionHandle {
 
-    /** Where the action's body lives, which decides which ending closes it. */
+    /** Where the action's bot lives, which decides which ending closes it. */
     public enum Scope {
         /** This client's own player: ends with the client's connection. */
         CLIENT,
@@ -34,7 +34,7 @@ public final class ActionHandle {
 
     private final ActionRegistry registry;
     private final String id;
-    private final String body;
+    private final String bot;
     private final Scope scope;
     private final String runId;
     private final Supplier<?> result;
@@ -42,20 +42,20 @@ public final class ActionHandle {
     private final CompletableFuture<ActionSnapshot<Object>> ended = new CompletableFuture<>();
     private volatile long endedAtMs;
 
-    ActionHandle(ActionRegistry registry, String id, String body, Scope scope, String runId, Supplier<?> result) {
+    ActionHandle(ActionRegistry registry, String id, String bot, Scope scope, String runId, Supplier<?> result) {
         this.registry = registry;
         this.id = id;
-        this.body = body;
+        this.bot = bot;
         this.scope = scope;
         this.runId = runId;
         this.result = result;
-        this.state = new AtomicReference<>(new Running<>(id, body));
+        this.state = new AtomicReference<>(new Running<>(id, bot));
     }
 
     public String id() { return id; }
 
-    /** The body ref the action was started on, as given; never resolved again. */
-    public String body() { return body; }
+    /** The bot ref the action was started on, as given; never resolved again. */
+    public String bot() { return bot; }
 
     public Scope scope() { return scope; }
 
@@ -88,15 +88,15 @@ public final class ActionHandle {
     }
 
     /** The executor confirmed the goal and reports {@code result}, which must be of the started summary's kind. */
-    public boolean succeed(Object result) { return end(new Succeeded<>(id, body, result)); }
+    public boolean succeed(Object result) { return end(new Succeeded<>(id, bot, result)); }
 
-    /** The process gave up, threw, or the body died. */
+    /** The process gave up, threw, or the bot died. */
     public boolean fail(String message) {
-        return end(new Failed<>(id, body, FailureReason.PROCESS_FAILED, message == null ? "failed" : message));
+        return end(new Failed<>(id, bot, FailureReason.PROCESS_FAILED, message == null ? "failed" : message));
     }
 
     /** The executor stopped the process for {@code reason}. */
-    public boolean cancelled(CancelReason reason) { return end(new Cancelled<>(id, body, reason)); }
+    public boolean cancelled(CancelReason reason) { return end(new Cancelled<>(id, bot, reason)); }
 
     /**
      * Someone other than the executor ends the action: the record says {@code reason} at once, and the
@@ -121,9 +121,9 @@ public final class ActionHandle {
      */
     public void bindStopper(java.util.function.Consumer<CancelReason> stopper) { this.stopper = stopper; }
 
-    /** Another explicit action took the same body's slot. */
+    /** Another explicit action took the same bot's slot. */
     public boolean supersede(String replacementActionId) {
-        return end(new Superseded<>(id, body, replacementActionId));
+        return end(new Superseded<>(id, bot, replacementActionId));
     }
 
     private boolean end(ActionSnapshot<Object> terminal) {
@@ -135,5 +135,5 @@ public final class ActionHandle {
         return true;
     }
 
-    @Override public String toString() { return "action " + id + " on " + body + ": " + state.get(); }
+    @Override public String toString() { return "action " + id + " on " + bot + ": " + state.get(); }
 }

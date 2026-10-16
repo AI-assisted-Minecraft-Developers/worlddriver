@@ -107,20 +107,20 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         NpcBot npc = b.npc();
 
         Map<String, Object> listed = call(api, "mc.bot.status", Map.of());
-        ctx.record("status.bodies", String.valueOf(listed.get("bodies")));
+        ctx.record("status.bodies", String.valueOf(listed.get("bots")));
         ctx.check(ids(listed).containsAll(List.of(player.id(), npc.id())))
-                .as("status.bodies lists both registered bots: " + listed.get("bodies")).isTrue();
+                .as("status.bodies lists both registered bots: " + listed.get("bots")).isTrue();
 
-        Map<String, Object> waypoint = call(api, "mc.bot.goto", Map.of("body", npc.id(),
+        Map<String, Object> waypoint = call(api, "mc.bot.goto", Map.of("bot", npc.id(),
                 "target", Map.of("kind", "waypoint", "name", "home")));
-        Map<String, Object> tool = call(api, "mc.bot.goto", Map.of("body", npc.id(), "target", at(npcGoal),
+        Map<String, Object> tool = call(api, "mc.bot.goto", Map.of("bot", npc.id(), "target", at(npcGoal),
                 "route", Map.of("requireTool", "minecraft:iron_pickaxe")));
         ctx.record("npc.refused", waypoint + " / " + tool);
         ctx.check(refusedAs(waypoint, "unsupported_capability") && refusedAs(tool, "unsupported_capability") && !npc.busy())
                 .as("the NPC refuses the waypoint and requireTool orders and does not start: " + waypoint + " / " + tool).isTrue();
 
-        Map<String, Object> playerGo = call(api, "mc.bot.goto", Map.of("body", player.id(), "target", at(playerGoal)));
-        Map<String, Object> npcGo = call(api, "mc.bot.goto", Map.of("body", npc.id(), "target", at(npcGoal)));
+        Map<String, Object> playerGo = call(api, "mc.bot.goto", Map.of("bot", player.id(), "target", at(playerGoal)));
+        Map<String, Object> npcGo = call(api, "mc.bot.goto", Map.of("bot", npc.id(), "target", at(npcGoal)));
         ctx.record("goto", playerGo + " / " + npcGo);
         if (actionId(playerGo) == null || actionId(npcGo) == null) {
             ctx.fail("a goto addressed by name did not start: player=" + playerGo + " npc=" + npcGo);
@@ -129,8 +129,8 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
 
         ctx.await(() -> !player.busy() && !npc.busy()).within(400).then(() -> {
             BlockPos playerAt = b.driver().fakePlayer().blockPosition(), npcAt = b.npcBody().entity().blockPosition();
-            Object playerSlot = slots(bodyStatus(api, player.id())).get("goto");
-            Object npcSlot = slots(bodyStatus(api, npc.id())).get("goto");
+            Object playerSlot = slots(botStatus(api, player.id())).get("goto");
+            Object npcSlot = slots(botStatus(api, npc.id())).get("goto");
             Map<?, ?> playerAction = read(api, actionId(playerGo)), npcAction = read(api, actionId(npcGo));
             ctx.record("player.goto", playerSlot + " " + playerAction);
             ctx.record("npc.goto", npcSlot + " " + npcAction);
@@ -139,9 +139,9 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
             ctx.check(npcAt.closerThan(npcGoal, 1.5) && endedArrived(npcSlot) && "succeeded".equals(npcAction.get("state")))
                     .as("the NPC, addressed by name, walks to the goal and the order ends as arrived: stopped at " + npcAt.toShortString() + ", " + npcSlot).isTrue();
 
-            Map<String, Object> back = call(api, "mc.bot.goto", Map.of("body", npc.id(), "target", at(npcStart)));
-            Map<String, Object> cancelled = call(api, "mc.bot.cancel", Map.of("body", npc.id(), "process", "goto"));
-            Map<?, ?> after = bodyStatus(api, npc.id());
+            Map<String, Object> back = call(api, "mc.bot.goto", Map.of("bot", npc.id(), "target", at(npcStart)));
+            Map<String, Object> cancelled = call(api, "mc.bot.cancel", Map.of("bot", npc.id(), "process", "goto"));
+            Map<?, ?> after = botStatus(api, npc.id());
             Map<?, ?> backAction = read(api, actionId(back));
             ctx.record("npc.cancel", back + " / " + cancelled + " / busy=" + after.get("busy") + " / " + backAction);
             ctx.check(List.of("goto").equals(cancelled.get("cancelled")) && Boolean.FALSE.equals(after.get("busy"))
@@ -152,7 +152,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
 
             // route.mode fly on another bot is elytraFly's order; the NPC wears no elytra, so it walks,
             // and the trip's result says so.
-            Map<String, Object> fly = call(api, "mc.bot.goto", Map.of("body", npc.id(), "target", at(npcStart),
+            Map<String, Object> fly = call(api, "mc.bot.goto", Map.of("bot", npc.id(), "target", at(npcStart),
                     "route", Map.of("mode", List.of("fly"))));
             ctx.record("npc.fly", String.valueOf(fly));
             if (actionId(fly) == null) {
@@ -182,7 +182,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
 
         String empty;
         try {
-            empty = "accepted " + call(api, "mc.bot.mine", Map.of("body", player.id(), "blocks", List.of()));
+            empty = "accepted " + call(api, "mc.bot.mine", Map.of("bot", player.id(), "blocks", List.of()));
         } catch (ApiException e) {
             empty = e.error().issues().isEmpty() ? e.getMessage() : e.error().issues().get(0).path();
         }
@@ -194,29 +194,29 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         // hands to hold, use or swing with, and says so before anything happens.
         b.driver().fakePlayer().getInventory().items.set(5,
                 new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.STONE, 4));
-        Map<String, Object> hold = call(api, "mc.bot.holdItem", Map.of("body", player.id(), "item", "minecraft:stone"));
-        Map<String, Object> look = call(api, "mc.bot.lookAt", Map.of("body", player.id(), "yaw", 90, "pitch", 10));
+        Map<String, Object> hold = call(api, "mc.bot.holdItem", Map.of("bot", player.id(), "item", "minecraft:stone"));
+        Map<String, Object> look = call(api, "mc.bot.lookAt", Map.of("bot", player.id(), "yaw", 90, "pitch", 10));
         float yaw = b.driver().fakePlayer().getYRot();
         ctx.record("player.hands", hold + " / " + look + " / yRot=" + yaw);
         ctx.check("done".equals(hold.get("outcome")) && "minecraft:stone".equals(hold.get("held"))
                         && "done".equals(look.get("outcome")) && Math.abs(yaw - 90f) < 0.01f)
                 .as("the server-side player, addressed by name, holds the stone and turns to yaw 90: " + hold + " / " + look + " / yRot=" + yaw).isTrue();
-        Map<String, Object> npcHold = call(api, "mc.bot.holdItem", Map.of("body", npc.id(), "item", "minecraft:stone"));
-        Map<String, Object> npcUse = call(api, "mc.bot.useItem", Map.of("body", npc.id()));
-        Map<String, Object> npcHit = call(api, "mc.bot.attackEntity", Map.of("body", npc.id(),
+        Map<String, Object> npcHold = call(api, "mc.bot.holdItem", Map.of("bot", npc.id(), "item", "minecraft:stone"));
+        Map<String, Object> npcUse = call(api, "mc.bot.useItem", Map.of("bot", npc.id()));
+        Map<String, Object> npcHit = call(api, "mc.bot.attackEntity", Map.of("bot", npc.id(),
                 "entityId", b.driver().fakePlayer().getId()));
         ctx.record("npc.hands", npcHold + " / " + npcUse + " / " + npcHit);
         ctx.check(List.of(npcHold, npcUse, npcHit).stream().allMatch(r -> refusedAs(r, "unsupported_capability")))
                 .as("the NPC has no hands, so holdItem/useItem/attackEntity are refused: " + npcHold + " / " + npcUse + " / " + npcHit)
                 .isTrue();
 
-        Map<String, Object> mine = call(api, "mc.bot.mine", Map.of("body", npc.id(), "blocks", List.of("minecraft:stone"),
+        Map<String, Object> mine = call(api, "mc.bot.mine", Map.of("bot", npc.id(), "blocks", List.of("minecraft:stone"),
                 "radius", 4));
         ctx.record("npc.mine", String.valueOf(mine));
         ctx.check(refusedAs(mine, "unsupported_capability") && !npc.busy())
                 .as("the NPC has no hands, so mine is refused before anything starts: " + mine).isTrue();
 
-        Map<String, Object> run = call(api, "mc.bot.runAway", Map.of("body", player.id(), "from", pos(playerStart),
+        Map<String, Object> run = call(api, "mc.bot.runAway", Map.of("bot", player.id(), "from", pos(playerStart),
                 "minDist", RUN_AWAY));
         ctx.record("player.runAwayOrder", String.valueOf(run));
         String runId = actionId(run);
@@ -230,7 +230,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
             double away = Math.sqrt(Math.pow(at.getX() - playerStart.getX(), 2) + Math.pow(at.getZ() - playerStart.getZ(), 2));
             Map<?, ?> action = read(api, runId);
             ctx.record("player.runAway", at.toShortString() + " away=" + away + " action=" + action);
-            ctx.check(away >= RUN_AWAY - 1 && "succeeded".equals(action.get("state")) && player.id().equals(action.get("body")))
+            ctx.check(away >= RUN_AWAY - 1 && "succeeded".equals(action.get("state")) && player.id().equals(action.get("bot")))
                     .as("the server-side player, addressed by name, runs at least " + (RUN_AWAY - 1) + " blocks away and its "
                             + "action succeeds: stopped at " + at.toShortString() + ", " + away + " from the start, " + action).isTrue();
         });
@@ -267,8 +267,8 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
     }
 
     /** One bot's {@code status}, as {@code mc.bot.status{body}} answers it. */
-    private static Map<?, ?> bodyStatus(ApiRegistry api, String id) {
-        return call(api, "mc.bot.status", Map.of("body", id)).get("status") instanceof Map<?, ?> s ? s : Map.of();
+    private static Map<?, ?> botStatus(ApiRegistry api, String id) {
+        return call(api, "mc.bot.status", Map.of("bot", id)).get("status") instanceof Map<?, ?> s ? s : Map.of();
     }
 
     private static Map<?, ?> slots(Map<?, ?> status) {
@@ -277,7 +277,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
 
     private static List<Object> ids(Map<String, Object> status) {
         List<Object> out = new ArrayList<>();
-        if (status.get("bodies") instanceof List<?> bodies) {
+        if (status.get("bots") instanceof List<?> bodies) {
             for (Object o : bodies) if (o instanceof Map<?, ?> m) out.add(m.get("id"));
         }
         return out;

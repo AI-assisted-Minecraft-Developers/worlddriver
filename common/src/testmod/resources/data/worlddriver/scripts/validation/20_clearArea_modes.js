@@ -90,21 +90,21 @@ if (!clientAvailable()) {
         // self means this client's player; a dedicated server has none and refuses it.
         var r = Driver.bot.clearArea({ target: { kind: "tunnel", distance: 1 } });
         t.assertEqual(r.outcome, "refused", "outcome");
-        t.assertEqual(r.reason, "body_unavailable", "reason");
+        t.assertEqual(r.reason, "bot_unavailable", "reason");
     });
 } else {
 
     ScriptTest.run("20_clearArea_modes: a tunnel is accepted, readable by id, and cancellable", function(t) {
         var r = Driver.bot.clearArea({ target: { kind: "tunnel", direction: "north", distance: 3 } });
         if (r.outcome === "refused") {
-            t.assertEqual(r.reason, "body_unavailable", "only an unavailable body may refuse: " + r.message);
+            t.assertEqual(r.reason, "bot_unavailable", "only an unavailable body may refuse: " + r.message);
             return;
         }
         t.assertEqual(r.outcome, "accepted", "outcome");
         t.assertEqual(r.waitTimedOut, false, "awaitMs 0 never times out");
         var id = r.action.actionId;
         t.assertTrue(typeof id === "string" && id.length > 0, "actionId");
-        t.assertEqual(r.action.body, "self", "body");
+        t.assertEqual(r.action.bot, "self", "body");
 
         var read = Driver.invoke("mc.wait.result", { kind: "action", actionId: id });
         t.assertEqual(read.kind, "action", "kind");

@@ -75,7 +75,7 @@ ScriptTest.run("26_schematic_loader: a one-block schematic starts an action, or 
         palette: ["minecraft:stone"], data: [[0, 0, 0, 0]] } });
     if (!clientAvailable() || r.outcome === "refused") {
         t.assertEqual(r.outcome, "refused", "outcome");
-        t.assertEqual(r.reason, "body_unavailable", "only an unavailable body may refuse: " + r.message);
+        t.assertEqual(r.reason, "bot_unavailable", "only an unavailable body may refuse: " + r.message);
         return;
     }
     t.assertEqual(r.outcome, "accepted", "outcome");

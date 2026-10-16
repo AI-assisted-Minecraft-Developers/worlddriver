@@ -36,7 +36,7 @@ class ClearAreaContractsTest {
     @Test
     void omittedFieldsTakeTheirDefaults() {
         Params p = decode("{\"target\":{\"kind\":\"tunnel\",\"distance\":12}}");
-        assertEquals("self", p.body());
+        assertEquals("self", p.bot());
         assertEquals(0, p.awaitMs());
         assertInstanceOf(ClearAreaContracts.Clear.class, p.edit());
         Tunnel t = assertInstanceOf(Tunnel.class, p.target());
@@ -86,9 +86,19 @@ class ClearAreaContractsTest {
     }
 
     @Test
-    void aBodyRefIsChecked() {
-        assertEquals("/body", issues("{\"body\":\"player:\",\"target\":{\"kind\":\"tunnel\",\"distance\":1}}").get(0).path());
-        assertEquals("npc:x", decode("{\"body\":\"npc:x\",\"target\":{\"kind\":\"tunnel\",\"distance\":1}}").body());
+    void aBotRefIsChecked() {
+        String tunnel = ",\"target\":{\"kind\":\"tunnel\",\"distance\":1}}";
+        assertEquals("/bot", issues("{\"bot\":\"player:\"" + tunnel).get(0).path());
+        assertEquals("npc:x", decode("{\"bot\":\"npc:x\"" + tunnel).bot());
+        assertEquals("mob:x", decode("{\"bot\":\"mob:x\"" + tunnel).bot());
+        String uuid = "entity:0a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d";
+        assertEquals(uuid, decode("{\"bot\":\"" + uuid + "\"" + tunnel).bot());
+        assertEquals("/bot", issues("{\"bot\":\"entity:zombie\"" + tunnel).get(0).path());
+    }
+
+    @Test
+    void theOldBodyKeyIsNoLongerAccepted() {
+        assertEquals("/body", issues("{\"body\":\"npc:x\",\"target\":{\"kind\":\"tunnel\",\"distance\":1}}").get(0).path());
     }
 
     @Test
@@ -101,8 +111,8 @@ class ClearAreaContractsTest {
         assertEquals("succeeded", action.get("state"));
         assertEquals("clearArea", ((Map<?, ?>) action.get("result")).get("kind"));
 
-        Map<?, ?> refused = (Map<?, ?>) ClearAreaContracts.RESPONSE.encode(new Refused<>(RefusalReason.BODY_UNAVAILABLE, "gone"));
-        assertEquals(Map.of("outcome", "refused", "reason", "body_unavailable", "message", "gone"), refused);
+        Map<?, ?> refused = (Map<?, ?>) ClearAreaContracts.RESPONSE.encode(new Refused<>(RefusalReason.BOT_UNAVAILABLE, "gone"));
+        assertEquals(Map.of("outcome", "refused", "reason", "bot_unavailable", "message", "gone"), refused);
     }
 
     @Test

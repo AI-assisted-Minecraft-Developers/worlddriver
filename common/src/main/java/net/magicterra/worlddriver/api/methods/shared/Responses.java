@@ -24,10 +24,10 @@ public final class Responses {
 
     /** Why a valid request started nothing. */
     public enum RefusalReason implements WireName {
-        BODY_UNAVAILABLE("body_unavailable"),
+        BOT_UNAVAILABLE("bot_unavailable"),
         UNSUPPORTED_CAPABILITY("unsupported_capability"),
         INVALID_WORLD_TARGET("invalid_world_target"),
-        /** The body is held by another script run. */
+        /** The bot is held by another script run. */
         BUSY("busy"),
         /** As many actions are running as the server admits. */
         ACTION_LIMIT("action_limit");
@@ -49,9 +49,9 @@ public final class Responses {
         /** {@code mc.bot.cancel}, or the script run that started it was stopped. */
         REQUESTED("requested"),
         WORLD_CLOSED("world_closed"),
-        BODY_REMOVED("body_removed"),
+        BOT_REMOVED("bot_removed"),
         TEST_RESET("test_reset"),
-        /** The game client left the server the body was in. */
+        /** The game client left the server the bot was in. */
         CONNECTION_CLOSED("connection_closed");
 
         private final String wire;
@@ -59,18 +59,18 @@ public final class Responses {
         @Override public String wireName() { return wire; }
     }
 
-    /** One action at one moment. {@code body} is the ref it was started on, never re-resolved. */
+    /** One action at one moment. {@code bot} is the ref it was started on, never re-resolved. */
     public sealed interface ActionSnapshot<R> permits Running, Succeeded, Failed, Cancelled, Superseded {
         String actionId();
-        String body();
+        String bot();
         default boolean terminal() { return !(this instanceof Running<R>); }
     }
 
-    public record Running<R>(String actionId, String body) implements ActionSnapshot<R> {}
-    public record Succeeded<R>(String actionId, String body, R result) implements ActionSnapshot<R> {}
-    public record Failed<R>(String actionId, String body, FailureReason reason, String message) implements ActionSnapshot<R> {}
-    public record Cancelled<R>(String actionId, String body, CancelReason reason) implements ActionSnapshot<R> {}
-    public record Superseded<R>(String actionId, String body, String replacementActionId) implements ActionSnapshot<R> {}
+    public record Running<R>(String actionId, String bot) implements ActionSnapshot<R> {}
+    public record Succeeded<R>(String actionId, String bot, R result) implements ActionSnapshot<R> {}
+    public record Failed<R>(String actionId, String bot, FailureReason reason, String message) implements ActionSnapshot<R> {}
+    public record Cancelled<R>(String actionId, String bot, CancelReason reason) implements ActionSnapshot<R> {}
+    public record Superseded<R>(String actionId, String bot, String replacementActionId) implements ActionSnapshot<R> {}
 
     /**
      * A method may answer some requests at once instead of starting an action (goto's {@code plan: 'score'}),
@@ -117,19 +117,21 @@ public final class Responses {
      */
     public record Stopped(List<String> cancelled, Optional<ActionSnapshot<Object>> action) implements ImmediateResponse {}
 
-    /** {@code mc.bot.status}: {@code status} is the asked body; absent when no body was named and there is no client. */
-    public record Status(List<ControlContracts.BodySummary> bodies, Optional<ControlContracts.BodyStatus> status)
+    /** {@code mc.bot.status}: {@code status} is the asked bot; absent when no bot was named and there is no client. */
+    public record Status(List<ControlContracts.BotSummary> bots, Optional<ControlContracts.BotStatus> status)
             implements ImmediateResponse {}
 
-    /** The body ref of this client's own player, every body parameter's default. */
+    /** The bot ref of this client's own player, every bot parameter's default. */
     public static final String SELF = "self";
 
-    /** {@code self}, {@code player:<name>} or {@code npc:<name>}. */
-    public static final ApiType<String> BODY_REF = ApiTypes.pattern("self|(player|npc):[^\\s:]+",
-                    "self, player:<name> or npc:<name>; a name has no whitespace or colon")
+    /** {@code self}, {@code player:<name>}, {@code mob:<name>}, {@code npc:<name>} or {@code entity:<uuid>}. */
+    public static final ApiType<String> BOT_REF = ApiTypes.pattern(
+                    "self|(player|mob|npc):[^\\s:]+|entity:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+                    "self, player:<name>, mob:<name>, npc:<name> or entity:<uuid>; a name has no whitespace or colon")
             .maxLength(128)
-            .tsAlias("BodyRef", "'self' | `player:${string}` | `npc:${string}`")
-            .describe("self (this client's own player), player:<name> or npc:<name>.");
+            .tsAlias("BotRef", "'self' | `player:${string}` | `mob:${string}` | `npc:${string}` | `entity:${string}`")
+            .describe("self (this client's own player), player:<name>, mob:<name>, npc:<name>, or entity:<uuid>, which"
+                    + " takes over that mob on its first order.");
 
     public static final ApiType<String> ACTION_ID = ApiTypes.string(1, 64)
             .describe("Opaque; do not take it apart.");
@@ -148,27 +150,27 @@ public final class Responses {
     public static <R> UnionType<ActionSnapshot<R>> snapshot(String name, ApiType<R> result) {
         RecordType<Running<R>> running = ApiTypes.record(null,
                 ApiField.field("actionId", ACTION_ID).required().forGetter(Running<R>::actionId),
-                ApiField.field("body", BODY_REF).required().forGetter(Running<R>::body),
+                ApiField.field("bot", BOT_REF).required().forGetter(Running<R>::bot),
                 Running::new);
         RecordType<Succeeded<R>> succeeded = ApiTypes.record(null,
                 ApiField.field("actionId", ACTION_ID).required().forGetter(Succeeded<R>::actionId),
-                ApiField.field("body", BODY_REF).required().forGetter(Succeeded<R>::body),
+                ApiField.field("bot", BOT_REF).required().forGetter(Succeeded<R>::bot),
                 ApiField.field("result", result).required().forGetter(Succeeded<R>::result),
                 Succeeded::new);
         RecordType<Failed<R>> failed = ApiTypes.record(null,
                 ApiField.field("actionId", ACTION_ID).required().forGetter(Failed<R>::actionId),
-                ApiField.field("body", BODY_REF).required().forGetter(Failed<R>::body),
+                ApiField.field("bot", BOT_REF).required().forGetter(Failed<R>::bot),
                 ApiField.field("reason", FAILURE_REASON).required().forGetter(Failed<R>::reason),
                 ApiField.field("message", ApiTypes.string()).required().forGetter(Failed<R>::message),
                 Failed::new);
         RecordType<Cancelled<R>> cancelled = ApiTypes.record(null,
                 ApiField.field("actionId", ACTION_ID).required().forGetter(Cancelled<R>::actionId),
-                ApiField.field("body", BODY_REF).required().forGetter(Cancelled<R>::body),
+                ApiField.field("bot", BOT_REF).required().forGetter(Cancelled<R>::bot),
                 ApiField.field("reason", CANCEL_REASON).required().forGetter(Cancelled<R>::reason),
                 Cancelled::new);
         RecordType<Superseded<R>> superseded = ApiTypes.record(null,
                 ApiField.field("actionId", ACTION_ID).required().forGetter(Superseded<R>::actionId),
-                ApiField.field("body", BODY_REF).required().forGetter(Superseded<R>::body),
+                ApiField.field("bot", BOT_REF).required().forGetter(Superseded<R>::bot),
                 ApiField.field("replacementActionId", ACTION_ID).required().forGetter(Superseded<R>::replacementActionId),
                 Superseded::new);
         return ApiTypes.taggedUnion(name + "Action", "state",

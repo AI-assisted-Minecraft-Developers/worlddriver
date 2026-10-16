@@ -43,7 +43,7 @@ public final class Readiness {
          *  controlled player is only known at tick time. */
         public static final String NO_HANDS = "no_hands";
         /** A {@code body} param names no registered bot player. */
-        public static final String UNKNOWN_BODY = "unknown_body";
+        public static final String UNKNOWN_BOT = "unknown_bot";
         private Reason() { }
     }
 

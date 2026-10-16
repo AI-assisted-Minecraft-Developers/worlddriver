@@ -40,7 +40,7 @@ if (!clientAvailable()) {
     ScriptTest.run("16_attack_entity: self is unavailable on a dedicated server", function(t) {
         var r = Driver.bot.attackEntity({ entityId: 1 });
         t.assertEqual(r.outcome, "refused", "outcome");
-        t.assertEqual(r.reason, "body_unavailable", "reason");
+        t.assertEqual(r.reason, "bot_unavailable", "reason");
     });
 } else {
     ScriptTest.run("16_attack_entity: an entity that does not exist is refused", function(t) {

@@ -3,7 +3,7 @@
 > This design has been implemented. `Body` is in `game/body/` and its registry in
 > `bot/`, the two shipped implementations are `ClientPlayerBody` and
 > `ServerPlayerBody`, the testmod adds `LivingBody` and a driveable piglin, and the
-> `mc.bot.*` verbs that drive a bot accept a `body` parameter.
+> `mc.bot.*` verbs that drive a bot accept a `bot` parameter (called `body` until 2026-10-16).
 
 ## The problem
 
@@ -125,7 +125,7 @@ chunk unloads or it dies mid-journey.
 which keeps the existing client path exactly as it was. A server player registers as
 `player:<name>`, and the testmod registers mobs as `npc:<name>`.
 
-The `mc.bot.*` verbs that drive a bot take an optional `body` parameter rather than gaining a parallel
+The `mc.bot.*` verbs that drive a bot take an optional `bot` parameter rather than gaining a parallel
 set of verbs, because every verb's schema is sent in every prompt to every model client and a second
 verb family would double that cost for nothing. Status always lists the bots.
 
@@ -165,7 +165,7 @@ shim is a failed scene, not a caught null.
 - `bot/BotRegistry.java` and `Bot.java` — naming and the per-bot process slot.
 - `game/body/ClientPlayerBody.java` — the client implementation.
 - `game/body/ServerPlayerBody.java` and the joined-player pump beside it — the server implementation.
-- `application/BodyRoutes.java` and `application/BodyInteractions.java` — how the `body` parameter reaches a process and
+- `application/BodyRoutes.java` and `application/BodyInteractions.java` — how the `bot` parameter reaches a process and
   how hand operations are performed for a non-client player.
 - `bot/VerbOrders.java` — the shared parameter parsing.
 - `common/src/testmod/java/.../stagewright/LivingBody.java` and

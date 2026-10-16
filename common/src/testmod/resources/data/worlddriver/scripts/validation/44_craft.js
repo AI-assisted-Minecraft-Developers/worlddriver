@@ -73,7 +73,7 @@ if (!clientAvailable()) {
     ScriptTest.run("44_craft: self is unavailable on a dedicated server", function(t) {
         var r = Driver.bot.craft({ item: "minecraft:crafting_table" });
         t.assertEqual(r.outcome, "refused", "outcome");
-        t.assertEqual(r.reason, "body_unavailable", "reason");
+        t.assertEqual(r.reason, "bot_unavailable", "reason");
     });
 } else {
 

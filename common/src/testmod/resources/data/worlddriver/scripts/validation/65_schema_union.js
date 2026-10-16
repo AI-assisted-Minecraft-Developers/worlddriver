@@ -16,14 +16,14 @@ var NOBODY = "npc:nobody_65";
 
 ScriptTest.run("65_schema_union: combat.target takes an entity id or an entity type, by kind", function(t) {
     [ { kind: "entity", entityId: 3298 }, { kind: "entityType", type: "minecraft:zombie" } ].forEach(function(target) {
-        var r = Driver.bot.combat({ body: NOBODY, mode: "kill", target: target });
-        t.assertEqual(r.reason, "body_unavailable", target.kind + " decodes and reaches the body: " + JSON.stringify(r));
+        var r = Driver.bot.combat({ bot: NOBODY, mode: "kill", target: target });
+        t.assertEqual(r.reason, "bot_unavailable", target.kind + " decodes and reaches the body: " + JSON.stringify(r));
     });
 });
 
 ScriptTest.run("65_schema_union: combat.target is not a bare number, string or array", function(t) {
     [ 3298, "minecraft:zombie", [1, 2, 3] ].forEach(function(target) {
-        var p = issuePath(function() { Driver.bot.combat({ body: NOBODY, mode: "kill", target: target }); });
+        var p = issuePath(function() { Driver.bot.combat({ bot: NOBODY, mode: "kill", target: target }); });
         t.assertEqual(p, "/target", JSON.stringify(target) + " path");
     });
 });
@@ -64,7 +64,7 @@ ScriptTest.run("65_schema_union: goto route.leash anchor needs its kind", functi
 
 ScriptTest.run("65_schema_union: follow route.sight takes a list of observers", function(t) {
     var p = issuePath(function() {
-        Driver.invoke("mc.bot.follow", { body: NOBODY, target: { kind: "player", name: "nobody_65" },
+        Driver.invoke("mc.bot.follow", { bot: NOBODY, target: { kind: "player", name: "nobody_65" },
             route: { sight: { observers: ["minecraft:skeleton"] } } });
     });
     t.assertTrue(p === null || p.indexOf("/route") !== 0, "observers must decode, got issue at " + p);

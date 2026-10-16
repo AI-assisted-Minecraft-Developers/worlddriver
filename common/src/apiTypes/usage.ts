@@ -4,7 +4,7 @@
 /// <reference path="../../build/generated/worlddriver-api/driver-function.d.ts" />
 
 const reply = Driver.bot.clearArea({
-    body: 'player:builder',
+    bot: 'player:builder',
     target: { kind: 'tunnel', direction: 'forward', distance: 12, width: 1, height: 2 },
     awaitMs: 2500,
 });
@@ -61,8 +61,11 @@ Driver.bot.goto({ target: { kind: 'axis' }, plan: true });
 Driver.bot.clearArea({ target: { kind: 'tunnel', distance: '12' } });
 // @ts-expect-error another variant's field
 driver('mc.bot.clearArea', { target: { kind: 'tunnel', distance: 12, from: { x: 1, y: 2, z: 3 } } });
-// @ts-expect-error not a body ref
-Driver.bot.clearArea({ body: 'builder', target: { kind: 'tunnel', distance: 1 } });
+// @ts-expect-error not a bot ref
+Driver.bot.clearArea({ bot: 'builder', target: { kind: 'tunnel', distance: 1 } });
+// @ts-expect-error the old name of the bot ref
+Driver.bot.clearArea({ body: 'player:builder', target: { kind: 'tunnel', distance: 1 } });
+Driver.bot.clearArea({ bot: 'mob:wolf', target: { kind: 'tunnel', distance: 1 } });
 // @ts-expect-error the target is required
 Driver.bot.clearArea({});
 // @ts-expect-error no such method

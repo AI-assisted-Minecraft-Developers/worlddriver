@@ -62,10 +62,10 @@ ScriptTest.run("23_phase_d: a valid field starts an action, or self is unavailab
     var r = Driver.bot.farm({ from: { x: 0, y: 64, z: 0 }, to: { x: 4, y: 64, z: 4 } });
     if (!clientAvailable() || r.outcome === "refused") {
         t.assertEqual(r.outcome, "refused", "outcome");
-        t.assertEqual(r.reason, "body_unavailable", "only an unavailable body may refuse: " + r.message);
+        t.assertEqual(r.reason, "bot_unavailable", "only an unavailable body may refuse: " + r.message);
         return;
     }
     t.assertEqual(r.outcome, "accepted", "outcome");
-    t.assertEqual(r.action.body, "self", "body");
+    t.assertEqual(r.action.bot, "self", "body");
     Driver.invoke("mc.bot.cancel", { process: "builder" });
 });

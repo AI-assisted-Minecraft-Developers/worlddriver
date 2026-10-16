@@ -77,7 +77,7 @@ final class BodyTaskStarter {
     record Refuse<R>(RefusalReason reason, String message) implements Plan<R> {}
 
     private static final String NO_CLIENT = "self is this client's own player, and there is no client here "
-            + "(a dedicated server); name a bot with body: player:<name> or npc:<name>";
+            + "(a dedicated server); name a bot with bot: player:<name>, mob:<name> or entity:<uuid>";
 
     /** Margin kept off the caller's deadline so the answer is written before the caller gives up. */
     private static final long REPLY_MARGIN_MS = 250;
@@ -115,7 +115,7 @@ final class BodyTaskStarter {
 
     private <R> CompletionStage<ActionResponse<R>> startOnSelf(CallContext ctx, Planner<R> planner) {
         BotApi bot = BotHooks.impl();
-        if (bot == null) return refused(RefusalReason.BODY_UNAVAILABLE, NO_CLIENT);
+        if (bot == null) return refused(RefusalReason.BOT_UNAVAILABLE, NO_CLIENT);
         long generation = actions.generation(ActionHandle.Scope.CLIENT);
         ServerThreadHop hop = bot.clientHop();
         Executor client = bot.clientExecutor();
@@ -124,7 +124,7 @@ final class BodyTaskStarter {
             Map<String, Object> refusal = bot.bodyRefusal();
             LivingEntity self = bot.selfEntity();
             if (refusal != null || self == null) {
-                return new Refused<R>(RefusalReason.BODY_UNAVAILABLE, refusal == null ? "self has no player"
+                return new Refused<R>(RefusalReason.BOT_UNAVAILABLE, refusal == null ? "self has no player"
                         : String.valueOf(refusal.get("error")));
             }
             return admitAndStart(BotRegistry.SELF, ActionHandle.Scope.CLIENT, ctx, planner.plan(self), (process, h) -> {
@@ -138,17 +138,17 @@ final class BodyTaskStarter {
         ServerThreadHop hop = app.serverHop();
         var server = app.server();
         if (hop == null || server == null) {
-            return refused(RefusalReason.BODY_UNAVAILABLE, body + " is unavailable: no server is attached");
+            return refused(RefusalReason.BOT_UNAVAILABLE, body + " is unavailable: no server is attached");
         }
         long generation = actions.generation(ActionHandle.Scope.SERVER);
         return hop.submit(() -> {
             actions.requireGeneration(ActionHandle.Scope.SERVER, generation);
             Bot host = BotRegistry.get(body);
             if (host == null) {
-                return new Refused<R>(RefusalReason.BODY_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots");
+                return new Refused<R>(RefusalReason.BOT_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots");
             }
             Map<String, Object> refusal = host.refusal();
-            if (refusal != null) return new Refused<R>(RefusalReason.BODY_UNAVAILABLE, String.valueOf(refusal.get("error")));
+            if (refusal != null) return new Refused<R>(RefusalReason.BOT_UNAVAILABLE, String.valueOf(refusal.get("error")));
             return admitAndStart(host.id(), ActionHandle.Scope.SERVER, ctx, planner.plan(host.entity()), (process, h) -> {
                 h.bindStopper(why -> {
                     try { server.execute(() -> host.cancelAction(h, "cancelled: " + why.wireName())); }
@@ -168,12 +168,12 @@ final class BodyTaskStarter {
                                   BiFunction<BotApi, LivingEntity, T> onSelf, Function<Bot, T> onHost) {
         if (BotRegistry.isSelf(body)) {
             BotApi bot = BotHooks.impl();
-            if (bot == null) return CompletableFuture.completedFuture(refuse.apply(RefusalReason.BODY_UNAVAILABLE, NO_CLIENT));
+            if (bot == null) return CompletableFuture.completedFuture(refuse.apply(RefusalReason.BOT_UNAVAILABLE, NO_CLIENT));
             return bot.clientHop().submit(() -> {
                 Map<String, Object> refusal = bot.bodyRefusal();
                 LivingEntity self = bot.selfEntity();
                 if (refusal != null || self == null) {
-                    return refuse.apply(RefusalReason.BODY_UNAVAILABLE, refusal == null ? "self has no player"
+                    return refuse.apply(RefusalReason.BOT_UNAVAILABLE, refusal == null ? "self has no player"
                             : String.valueOf(refusal.get("error")));
                 }
                 ActionRegistry.Denied busy = actions.claim(BotRegistry.SELF, ctx.run());
@@ -182,14 +182,14 @@ final class BodyTaskStarter {
         }
         ServerThreadHop hop = app.serverHop();
         if (hop == null) {
-            return CompletableFuture.completedFuture(refuse.apply(RefusalReason.BODY_UNAVAILABLE,
+            return CompletableFuture.completedFuture(refuse.apply(RefusalReason.BOT_UNAVAILABLE,
                     body + " is unavailable: no server is attached"));
         }
         return hop.submit(() -> {
             Bot host = BotRegistry.get(body);
-            if (host == null) return refuse.apply(RefusalReason.BODY_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots");
+            if (host == null) return refuse.apply(RefusalReason.BOT_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots");
             Map<String, Object> refusal = host.refusal();
-            if (refusal != null) return refuse.apply(RefusalReason.BODY_UNAVAILABLE, String.valueOf(refusal.get("error")));
+            if (refusal != null) return refuse.apply(RefusalReason.BOT_UNAVAILABLE, String.valueOf(refusal.get("error")));
             ActionRegistry.Denied busy = actions.claim(host.id(), ctx.run());
             return busy != null ? refuse.apply(busy.reason(), busy.message()) : onHost.apply(host);
         }, ctx);

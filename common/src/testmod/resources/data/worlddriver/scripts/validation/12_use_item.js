@@ -33,7 +33,7 @@ if (!clientAvailable()) {
     ScriptTest.run("12_use_item: self is unavailable on a dedicated server", function(t) {
         var r = Driver.bot.useItem({});
         t.assertEqual(r.outcome, "refused", "outcome");
-        t.assertEqual(r.reason, "body_unavailable", "reason");
+        t.assertEqual(r.reason, "bot_unavailable", "reason");
     });
 } else {
 

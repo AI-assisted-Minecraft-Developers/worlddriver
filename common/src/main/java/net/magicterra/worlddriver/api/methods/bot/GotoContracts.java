@@ -68,7 +68,7 @@ public final class GotoContracts {
     /** The nearest world axis or diagonal at the axisHeight setting's Y. */
     public record Axis() implements Target {}
 
-    public record Params(String body, Optional<Target> target, boolean invert, Optional<Route> route,
+    public record Params(String bot, Optional<Target> target, boolean invert, Optional<Route> route,
                          Optional<PlanMode> plan, boolean includePath, Optional<String> planId, int awaitMs) {
 
         /** Walk self to exactly {@code pos}, every other field at its default. */
@@ -90,7 +90,7 @@ public final class GotoContracts {
 
         /** This request, answered after waiting up to {@code ms} for the walk to end. */
         public Params awaiting(int ms) {
-            return new Params(body, target, invert, route, plan, includePath, planId, ms);
+            return new Params(bot, target, invert, route, plan, includePath, planId, ms);
         }
     }
 
@@ -190,7 +190,7 @@ public final class GotoContracts {
     public static final ApiType<PlanMode> PLAN_MODE = ApiTypes.enumOf("PlanMode", PlanMode.class);
 
     public static final RecordType<Params> PARAMS = ApiTypes.record("GotoParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(Params::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(Params::bot),
             ApiField.field("target", TARGET).describe("Required unless planId or plan: 'score'.")
                     .optional().forGetter(Params::target),
             ApiField.field("invert", ApiTypes.bool()).describe("Flee the target instead of reaching it.")

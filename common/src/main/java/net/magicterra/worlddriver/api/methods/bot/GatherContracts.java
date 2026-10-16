@@ -21,13 +21,13 @@ public final class GatherContracts {
 
     // ------------------------------------------------------------------ mine
 
-    public record MineParams(String body, List<String> blocks, int quantity, int radius, int awaitMs) {}
+    public record MineParams(String bot, List<String> blocks, int quantity, int radius, int awaitMs) {}
 
     /** {@code broken} counts blocks destroyed, not items picked up. */
     public record Mined(List<String> blocks, int quantity, int radius, int broken) {}
 
     public static final ApiType<MineParams> MINE_PARAMS = ApiTypes.record("MineParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(MineParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(MineParams::bot),
             ApiField.field("blocks", ApiTypes.list(CommonTypes.BLOCK_OR_TAG, 1, 64))
                     .describe("Block ids or #tags to mine, e.g. ['minecraft:iron_ore', '#minecraft:logs'].")
                     .required().forGetter(MineParams::blocks),
@@ -57,13 +57,13 @@ public final class GatherContracts {
 
     // ------------------------------------------------------------------ craft
 
-    public record CraftParams(String body, String item, int count, int awaitMs) {}
+    public record CraftParams(String bot, String item, int count, int awaitMs) {}
 
     /** {@code crafted}: items the crafting steps produced, intermediate ones included. */
     public record Crafted(String item, int count, int crafted) {}
 
     public static final ApiType<CraftParams> CRAFT_PARAMS = ApiTypes.record("CraftParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(CraftParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(CraftParams::bot),
             ApiField.field("item", CommonTypes.RESOURCE_ID).describe("The item to end up with, e.g. minecraft:wooden_pickaxe.")
                     .required().forGetter(CraftParams::item),
             ApiField.field("count", ApiTypes.integer(1, 256)).defaulted(1).forGetter(CraftParams::count),
@@ -88,13 +88,13 @@ public final class GatherContracts {
 
     // ------------------------------------------------------------------ smelt
 
-    public record SmeltParams(String body, String item, int count, Optional<String> fuel, int awaitMs) {}
+    public record SmeltParams(String bot, String item, int count, Optional<String> fuel, int awaitMs) {}
 
     /** {@code fuel}: what was loaded, absent when the furnace never got any. */
     public record Smelted(String item, int count, Optional<String> fuel) {}
 
     public static final ApiType<SmeltParams> SMELT_PARAMS = ApiTypes.record("SmeltParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(SmeltParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(SmeltParams::bot),
             ApiField.field("item", CommonTypes.RESOURCE_ID).describe("The ingredient, e.g. minecraft:raw_iron.")
                     .required().forGetter(SmeltParams::item),
             ApiField.field("count", ApiTypes.integer(1, 256)).describe("Capped at what the inventory holds.")
@@ -132,7 +132,7 @@ public final class GatherContracts {
         @Override public String wireName() { return id; }
     }
 
-    public record FarmParams(String body, BlockPosition from, BlockPosition to, List<Crop> crops, boolean replant,
+    public record FarmParams(String bot, BlockPosition from, BlockPosition to, List<Crop> crops, boolean replant,
                              int awaitMs) {}
 
     public record Farmed(BlockPosition from, BlockPosition to, List<Crop> crops, boolean replant, int harvested,
@@ -141,7 +141,7 @@ public final class GatherContracts {
     public static final ApiType<Crop> CROP = ApiTypes.enumOf("Crop", Crop.class);
 
     public static final ApiType<FarmParams> FARM_PARAMS = ApiTypes.record("FarmParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(FarmParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(FarmParams::bot),
             ApiField.field("from", CommonTypes.BLOCK_POSITION).required().forGetter(FarmParams::from),
             ApiField.field("to", CommonTypes.BLOCK_POSITION).required().forGetter(FarmParams::to),
             ApiField.field("crops", ApiTypes.list(CROP, 1, 4)).defaulted(List.of(Crop.values()))

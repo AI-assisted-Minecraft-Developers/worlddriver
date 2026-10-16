@@ -99,9 +99,9 @@ effects. `mc.system.version` works on both sides, so a `version` that answers an
 `screen.info` that errors is a dedicated server.
 
 **What still works.** `mc.bot.status` answers on a dedicated server, listing the bot players
-the server holds. Most `mc.bot.*` verbs also take a `body` parameter, and when it names a bot
+the server holds. Most `mc.bot.*` verbs also take a `bot` parameter, and when it names a bot
 other than `self` they take a code path that names no client class, so they drive server-side
-players there. See [Capabilities](capabilities.md) for which verbs take `body` and which do not.
+players there. See [Capabilities](capabilities.md) for which verbs take `bot` and which do not.
 
 ## The bot accepts a command and does not move
 
@@ -109,7 +109,7 @@ players there. See [Capabilities](capabilities.md) for which verbs take `body` a
 
 Start by separating this from the case where the call *did* tell you. A bot that cannot act
 right now refuses before the verb runs, and the reply is `{outcome: "refused", reason:
-"body_unavailable", message}`, the `message` saying why (no player, still loading, dead,
+"bot_unavailable", message}`, the `message` saying why (no player, still loading, dead,
 paused, asleep, chunk not loaded) and what to do about it. If the call was accepted, none of
 those applied.
 

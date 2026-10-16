@@ -37,7 +37,7 @@ public final class CombatContracts {
     /** The nearest entity of this type. */
     public record FoeType(String type) implements Foe {}
 
-    public record Params(String body, Mode mode, Optional<Foe> target, boolean force, int awaitMs) {}
+    public record Params(String bot, Mode mode, Optional<Foe> target, boolean force, int awaitMs) {}
 
     public record Fought(Mode mode, Optional<Foe> target) {}
 
@@ -52,7 +52,7 @@ public final class CombatContracts {
                     FoeType::new)));
 
     public static final ApiType<Params> PARAMS = ApiTypes.record("CombatParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(Params::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(Params::bot),
             ApiField.field("mode", MODE).defaulted(Mode.ENGAGE).forGetter(Params::mode),
             ApiField.field("target", FOE).describe("kill only, and required there.").optional().forGetter(Params::target),
             ApiField.field("force", ApiTypes.bool())

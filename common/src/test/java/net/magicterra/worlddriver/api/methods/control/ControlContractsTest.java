@@ -11,7 +11,7 @@ import java.util.Optional;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
-import net.magicterra.worlddriver.api.methods.control.ControlContracts.BodyStatus;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.BotStatus;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.Slot;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.Slots;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
@@ -33,10 +33,10 @@ class ControlContractsTest {
     }
 
     @Test
-    void aCancelStopsAnActionOrABodysProcessesNotBoth() {
+    void aCancelStopsAnActionOrABotsProcessesNotBoth() {
         ControlContracts.CancelParams all = decode(ControlContracts.CANCEL_PARAMS, "{}");
-        assertTrue(all.actionId().isEmpty() && all.body().isEmpty() && all.process().isEmpty());
-        assertEquals("/body", issue(ControlContracts.CANCEL_PARAMS, "{\"actionId\":\"a1\",\"body\":\"self\"}").path());
+        assertTrue(all.actionId().isEmpty() && all.bot().isEmpty() && all.process().isEmpty());
+        assertEquals("/bot", issue(ControlContracts.CANCEL_PARAMS, "{\"actionId\":\"a1\",\"bot\":\"self\"}").path());
         assertEquals("/process", issue(ControlContracts.CANCEL_PARAMS, "{\"actionId\":\"a1\",\"process\":\"goto\"}").path());
     }
 
@@ -55,8 +55,8 @@ class ControlContractsTest {
                 Optional.of(1_700_000_000_000L), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         Slots slots = new Slots(walking, idle, idle, idle, idle, idle, idle, idle, idle, idle, idle, idle, idle, idle, idle);
         String json = JsonCodec.encode(ControlContracts.STATUS.output().encode(new Responses.Status(List.of(),
-                Optional.of(new BodyStatus("npc:a", true, Optional.of("goto"), Optional.empty(), slots, Optional.empty())))));
-        assertTrue(json.startsWith("{\"outcome\":\"done\",\"bodies\":[],\"status\":{\"body\":\"npc:a\",\"busy\":true,"
+                Optional.of(new BotStatus("npc:a", true, Optional.of("goto"), Optional.empty(), slots, Optional.empty())))));
+        assertTrue(json.startsWith("{\"outcome\":\"done\",\"bots\":[],\"status\":{\"bot\":\"npc:a\",\"busy\":true,"
                 + "\"activeProcess\":\"goto\",\"slots\":{\"goto\":{\"active\":true,\"goal\":\"GoalBlock\","
                 + "\"target\":{\"x\":1,\"y\":2,\"z\":3},\"pathLen\":9,\"pathStep\":4,\"startedAtMs\":1700000000000},"
                 + "\"mine\":{\"active\":false,\"pathLen\":0,\"pathStep\":0},"), json);

@@ -23,8 +23,8 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
  * {@link #KEEP_ENDED_MS}, whichever runs out first, so a caller that reconnects can still read how an
  * action ended. Nothing survives a restart.
  *
- * <p>It also keeps which script run holds which body: a run's first action on a body makes the body
- * the run's until the run has ended and none of its actions on the body is still running. A start
+ * <p>It also keeps which script run holds which bot: a run's first action on a bot makes the bot
+ * the run's until the run has ended and none of its actions on the bot is still running. A start
  * from anyone else is refused as {@code busy} in that time.
  *
  * <p>All state is guarded by this object's monitor; nothing is called out while holding it.
@@ -51,42 +51,42 @@ public final class ActionRegistry {
     public record Denied(RefusalReason reason, String message) implements Admission {}
 
     /**
-     * Accept an action on {@code body} for {@code run} (empty: no script run), whose success will report
+     * Accept an action on {@code bot} for {@code run} (empty: no script run), whose success will report
      * what {@code result} reads then; null for work that ends itself with an explicit result. Call it on
      * the thread that is about to install the process, after everything that can refuse the request has
      * passed, and install at once: a handle that is admitted and never installed stays running until
      * something cancels it.
      */
-    public Admission admit(String body, ActionHandle.Scope scope, Optional<RunContext> run, Supplier<?> result) {
+    public Admission admit(String bot, ActionHandle.Scope scope, Optional<RunContext> run, Supplier<?> result) {
         RunContext caller = requireRunning(run);
         ActionHandle handle;
         boolean watch;
         synchronized (this) {
-            Denied busy = busy(body, caller);
+            Denied busy = busy(bot, caller);
             if (busy != null) return busy;
             if (active.size() >= MAX_ACTIVE) {
                 return new Denied(RefusalReason.ACTION_LIMIT, MAX_ACTIVE + " actions are running; wait for one to end or cancel one");
             }
             String id = "a" + epoch + "-" + seq.incrementAndGet();
-            handle = new ActionHandle(this, id, body, scope, caller == null ? null : caller.runId(), result);
+            handle = new ActionHandle(this, id, bot, scope, caller == null ? null : caller.runId(), result);
             active.put(id, handle);
-            watch = own(body, caller);
+            watch = own(bot, caller);
         }
         if (watch) watch(caller);
         return new Admitted(handle);
     }
 
     /**
-     * For a write that ends within the call (holding an item, one click): null when {@code body} is free for
+     * For a write that ends within the call (holding an item, one click): null when {@code bot} is free for
      * {@code run}, which then holds it as a first write does; otherwise why not.
      */
-    public Denied claim(String body, Optional<RunContext> run) {
+    public Denied claim(String bot, Optional<RunContext> run) {
         RunContext caller = requireRunning(run);
         boolean watch;
         synchronized (this) {
-            Denied busy = busy(body, caller);
+            Denied busy = busy(bot, caller);
             if (busy != null) return busy;
-            watch = own(body, caller);
+            watch = own(bot, caller);
         }
         if (watch) watch(caller);
         return null;
@@ -102,20 +102,20 @@ public final class ActionRegistry {
     }
 
     /** Monitor held. */
-    private Denied busy(String body, RunContext caller) {
-        RunContext owner = owners.get(body);
-        if (owner != null && !holds(owner, body)) {
-            owners.remove(body);
+    private Denied busy(String bot, RunContext caller) {
+        RunContext owner = owners.get(bot);
+        if (owner != null && !holds(owner, bot)) {
+            owners.remove(bot);
             owner = null;
         }
         return owner != null && owner != caller
-                ? new Denied(RefusalReason.BUSY, body + " is held by " + owner + " until its actions end") : null;
+                ? new Denied(RefusalReason.BUSY, bot + " is held by " + owner + " until its actions end") : null;
     }
 
-    /** Monitor held: {@code caller} holds {@code body}; true when its run is new here and needs {@link #watch}. */
-    private boolean own(String body, RunContext caller) {
+    /** Monitor held: {@code caller} holds {@code bot}; true when its run is new here and needs {@link #watch}. */
+    private boolean own(String bot, RunContext caller) {
         if (caller == null) return false;
-        owners.put(body, caller);
+        owners.put(bot, caller);
         return watchedRuns.putIfAbsent(caller.runId(), caller) == null;
     }
 
@@ -124,11 +124,11 @@ public final class ActionRegistry {
         caller.ended().onCancel(() -> forgetRunIfIdle(caller));
     }
 
-    /** Whether {@code run} still holds {@code body}: it has not ended, or one of its actions there runs. Monitor held. */
-    private boolean holds(RunContext run, String body) {
+    /** Whether {@code run} still holds {@code bot}: it has not ended, or one of its actions there runs. Monitor held. */
+    private boolean holds(RunContext run, String bot) {
         if (!run.ended().isCancelled()) return true;
         for (ActionHandle h : active.values()) {
-            if (body.equals(h.body()) && run.runId().equals(h.runId())) return true;
+            if (bot.equals(h.bot()) && run.runId().equals(h.runId())) return true;
         }
         return false;
     }
@@ -202,7 +202,7 @@ public final class ActionRegistry {
     /**
      * Which world or connection {@code scope} is on, as a number that changes whenever it closes. A
      * request reads it when it arrives and the game thread compares before it starts anything, so a
-     * request queued behind a world change cannot act on the next world's body.
+     * request queued behind a world change cannot act on the next world's bot.
      */
     public long generation(ActionHandle.Scope scope) { return generations[scope.ordinal()].get(); }
 
@@ -215,9 +215,9 @@ public final class ActionRegistry {
         }
     }
 
-    /** End every running action on {@code body}: it is no longer addressable. */
-    public void cancelBody(String body, CancelReason reason) {
-        for (ActionHandle h : running(a -> body.equals(a.body()))) h.requestCancel(reason);
+    /** End every running action on {@code bot}: it is no longer addressable. */
+    public void cancelBot(String bot, CancelReason reason) {
+        for (ActionHandle h : running(a -> bot.equals(a.bot()))) h.requestCancel(reason);
     }
 
     private void endRun(String runId, CancelReason reason) {

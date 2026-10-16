@@ -36,7 +36,7 @@ public final class BuildContracts {
     /** Sponge {@code .schem} v1–v3 bytes, gzipped or raw; block states and block entities are dropped. */
     public record Sponge(String base64) implements Schematic {}
 
-    public record BuildParams(String body, BlockPosition origin, Schematic schematic, int awaitMs) {}
+    public record BuildParams(String bot, BlockPosition origin, Schematic schematic, int awaitMs) {}
 
     public record Size(int w, int h, int d) {}
 
@@ -78,7 +78,7 @@ public final class BuildContracts {
                     Sponge::new)));
 
     public static final ApiType<BuildParams> BUILD_PARAMS = ApiTypes.record("BuildParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(BuildParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(BuildParams::bot),
             ApiField.field("origin", CommonTypes.BLOCK_POSITION).describe("Where offset 0,0,0 goes.")
                     .required().forGetter(BuildParams::origin),
             ApiField.field("schematic", SCHEMATIC).required().forGetter(BuildParams::schematic),
@@ -129,7 +129,7 @@ public final class BuildContracts {
 
     public record Bridge(BridgeDirection direction, int distance, Optional<String> block) implements Construction {}
 
-    public record ConstructParams(String body, Construction structure, int awaitMs) {}
+    public record ConstructParams(String bot, Construction structure, int awaitMs) {}
 
     public sealed interface Constructed permits Towered, Bridged {}
     public record Towered(int startY, int targetY, Optional<String> block, int placed) implements Constructed {}
@@ -165,7 +165,7 @@ public final class BuildContracts {
                     Bridge::new)));
 
     public static final ApiType<ConstructParams> CONSTRUCT_PARAMS = ApiTypes.record("ConstructParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(ConstructParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(ConstructParams::bot),
             ApiField.field("structure", CONSTRUCTION)
                     .describe("tower: pillar straight up. bridge: sneak forward placing a block under each step.")
                     .required().forGetter(ConstructParams::structure),
@@ -197,13 +197,13 @@ public final class BuildContracts {
 
     // ------------------------------------------------------------------ bunker
 
-    public record BunkerParams(String body, Optional<Integer> depth, int awaitMs) {}
+    public record BunkerParams(String bot, Optional<Integer> depth, int awaitMs) {}
 
     /** {@code sealed}: the roof was plugged; a bunker that dug but could not seal ends as failed. */
     public record Bunkered(int depth, boolean sealed) {}
 
     public static final ApiType<BunkerParams> BUNKER_PARAMS = ApiTypes.record("BunkerParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(BunkerParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(BunkerParams::bot),
             ApiField.field("depth", ApiTypes.integer(1, 5)).describe("Blocks to dig down. Omitted: the bunkerDepth setting.")
                     .optional().forGetter(BunkerParams::depth),
             ApiField.field("awaitMs", Responses.AWAIT_MS).defaulted(0).forGetter(BunkerParams::awaitMs),
@@ -230,13 +230,13 @@ public final class BuildContracts {
         @Override public String wireName() { return name().toLowerCase(Locale.ROOT); }
     }
 
-    public record EscapeParams(String body, Optional<Integer> targetY, int awaitMs) {}
+    public record EscapeParams(String bot, Optional<Integer> targetY, int awaitMs) {}
 
     /** {@code y}: the feet Y it ended at. */
     public record Escaped(Vertical direction, int targetY, int y) {}
 
     public static final ApiType<EscapeParams> ESCAPE_PARAMS = ApiTypes.record("EscapeParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(EscapeParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(EscapeParams::bot),
             ApiField.field("targetY", ApiTypes.integer(-4096, 4096))
                     .describe("Feet Y to reach. Below the feet digs a stair down instead. Omitted: 32 above the feet; "
                             + "open sky ends a climb sooner.")

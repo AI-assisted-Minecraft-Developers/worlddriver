@@ -62,7 +62,7 @@ class BodyTaskContractsTest {
         GatherContracts.MineParams p = decode(GatherContracts.MINE_PARAMS, "{\"blocks\":[\"#minecraft:logs\",\"minecraft:stone\"]}");
         assertEquals(1, p.quantity());
         assertEquals(16, p.radius());
-        assertEquals("self", p.body());
+        assertEquals("self", p.bot());
         assertEquals("/blocks", issue(GatherContracts.MINE_PARAMS, "{\"blocks\":[]}").path());
         assertEquals("/quantity", issue(GatherContracts.MINE_PARAMS, "{\"blocks\":[\"minecraft:stone\"],\"quantity\":0}").path());
     }

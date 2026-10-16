@@ -19,15 +19,15 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.Status;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Stopped;
 import net.magicterra.worlddriver.api.methods.wait.WaitContracts;
 
-/** Reading and stopping what the bodies do: {@code mc.bot.status}, {@code mc.bot.cancel} and {@code mc.bot.waypoint}. */
+/** Reading and stopping what the bots do: {@code mc.bot.status}, {@code mc.bot.cancel} and {@code mc.bot.waypoint}. */
 public final class ControlContracts {
     private ControlContracts() {}
 
     // ------------------------------------------------------------------ cancel
 
-    public record CancelParams(Optional<String> actionId, Optional<String> body, Optional<String> process) {
+    public record CancelParams(Optional<String> actionId, Optional<String> bot, Optional<String> process) {
 
-        /** Cancel the action {@code actionId}, on whichever body runs it. */
+        /** Cancel the action {@code actionId}, on whichever bot runs it. */
         public static CancelParams action(String actionId) {
             return new CancelParams(Optional.of(actionId), Optional.empty(), Optional.empty());
         }
@@ -46,10 +46,10 @@ public final class ControlContracts {
     private static final ApiType<String> PROCESS_NAME = ApiTypes.pattern("[A-Za-z]{1,32}", "a process or chain name");
 
     public static final ApiType<CancelParams> CANCEL_PARAMS = ApiTypes.record("CancelParams",
-            ApiField.field("actionId", Responses.ACTION_ID).describe("Cancel this action, on whichever body runs it.")
+            ApiField.field("actionId", Responses.ACTION_ID).describe("Cancel this action, on whichever bot runs it.")
                     .optional().forGetter(CancelParams::actionId),
-            ApiField.field("body", Responses.BODY_REF).describe("Without actionId: whose processes. Omitted: self.")
-                    .optional().forGetter(CancelParams::body),
+            ApiField.field("bot", Responses.BOT_REF).describe("Without actionId: whose processes. Omitted: self.")
+                    .optional().forGetter(CancelParams::bot),
             ApiField.field("process", PROCESS_NAME)
                     .describe("Without actionId: all (the default), a process kind (goto, mine, …) or a reflex chain "
                             + "(combat, bunker, retreat, …).")
@@ -57,7 +57,7 @@ public final class ControlContracts {
             CancelParams::new)
             .checked((p, at) -> {
                 if (p.actionId().isEmpty()) return;
-                if (p.body().isPresent()) at.field("body").fail(ApiIssue.Code.INVALID_VALUE, "an action names its own body");
+                if (p.bot().isPresent()) at.field("bot").fail(ApiIssue.Code.INVALID_VALUE, "an action names its own bot");
                 if (p.process().isPresent()) at.field("process").fail(ApiIssue.Code.INVALID_VALUE, "cancel an action or processes, not both");
             });
 
@@ -67,14 +67,14 @@ public final class ControlContracts {
                                     .forGetter(Stopped::cancelled),
                             ApiField.field("action", WaitContracts.ANY_ACTION).optional().forGetter(Stopped::action),
                             Stopped::new)),
-                    "Stop an action by its actionId, which ends it cancelled with reason requested, or a body's processes "
+                    "Stop an action by its actionId, which ends it cancelled with reason requested, or a bot's processes "
                             + "by name; all also releases the held inputs and stands every reflex chain down. Works on a "
-                            + "body that cannot act. An unknown or expired actionId is action_not_found.")
+                            + "bot that cannot act. An unknown or expired actionId is action_not_found.")
             .effects(MethodSpec.Effect.BODY_TASK);
 
     // ------------------------------------------------------------------ status
 
-    public record StatusParams(Optional<String> body) {
+    public record StatusParams(Optional<String> bot) {
 
         /** Self's status, with the registered bots listed. */
         public static StatusParams self() { return new StatusParams(Optional.empty()); }
@@ -105,14 +105,14 @@ public final class ControlContracts {
                            boolean userTaskSuspended, Map<String, ChainState> chains, Optional<PathStats> lastPath,
                            String clutch, CombatTally combat) {}
 
-    public record BodyStatus(String body, boolean busy, Optional<String> activeProcess, Optional<ProcessEnd> lastProcessEnd,
+    public record BotStatus(String bot, boolean busy, Optional<String> activeProcess, Optional<ProcessEnd> lastProcessEnd,
                              Slots slots, Optional<Reflexes> reflexes) {}
 
-    public record BodySummary(String id, String kind, Optional<Integer> entityId, Optional<BlockPosition> pos, boolean busy) {}
+    public record BotSummary(String id, String kind, Optional<Integer> entityId, Optional<BlockPosition> pos, boolean busy) {}
 
     public static final ApiType<StatusParams> STATUS_PARAMS = ApiTypes.record("StatusParams",
-            ApiField.field("body", Responses.BODY_REF).describe("Omitted: self when there is a client; the bodies list either way.")
-                    .optional().forGetter(StatusParams::body),
+            ApiField.field("bot", Responses.BOT_REF).describe("Omitted: self when there is a client; the bots list either way.")
+                    .optional().forGetter(StatusParams::bot),
             StatusParams::new);
 
     private static final ApiType<Slot> SLOT = ApiTypes.record("ProcessSlot",
@@ -192,33 +192,33 @@ public final class ControlContracts {
                     CombatTally::new)).describe("This engagement's counts.").required().forGetter(Reflexes::combat),
             Reflexes::new);
 
-    private static final ApiType<BodyStatus> BODY_STATUS = ApiTypes.record("BodyStatus",
-            ApiField.field("body", Responses.BODY_REF).required().forGetter(BodyStatus::body),
-            ApiField.field("busy", ApiTypes.bool()).describe("A task holds it.").required().forGetter(BodyStatus::busy),
-            ApiField.field("activeProcess", ApiTypes.string()).optional().forGetter(BodyStatus::activeProcess),
-            ApiField.field("lastProcessEnd", PROCESS_END).optional().forGetter(BodyStatus::lastProcessEnd),
-            ApiField.field("slots", SLOTS).required().forGetter(BodyStatus::slots),
-            ApiField.field("reflexes", REFLEXES).describe("self only.").optional().forGetter(BodyStatus::reflexes),
-            BodyStatus::new);
+    private static final ApiType<BotStatus> BOT_STATUS = ApiTypes.record("BotStatus",
+            ApiField.field("bot", Responses.BOT_REF).required().forGetter(BotStatus::bot),
+            ApiField.field("busy", ApiTypes.bool()).describe("A task holds it.").required().forGetter(BotStatus::busy),
+            ApiField.field("activeProcess", ApiTypes.string()).optional().forGetter(BotStatus::activeProcess),
+            ApiField.field("lastProcessEnd", PROCESS_END).optional().forGetter(BotStatus::lastProcessEnd),
+            ApiField.field("slots", SLOTS).required().forGetter(BotStatus::slots),
+            ApiField.field("reflexes", REFLEXES).describe("self only.").optional().forGetter(BotStatus::reflexes),
+            BotStatus::new);
 
-    private static final ApiType<BodySummary> BODY_SUMMARY = ApiTypes.record("BodySummary",
-            ApiField.field("id", Responses.BODY_REF).required().forGetter(BodySummary::id),
-            ApiField.field("kind", ApiTypes.string()).required().forGetter(BodySummary::kind),
+    private static final ApiType<BotSummary> BOT_SUMMARY = ApiTypes.record("BotSummary",
+            ApiField.field("id", Responses.BOT_REF).required().forGetter(BotSummary::id),
+            ApiField.field("kind", ApiTypes.string()).required().forGetter(BotSummary::kind),
             ApiField.field("entityId", CommonTypes.ENTITY_ID).describe("Absent when its entity is gone.")
-                    .optional().forGetter(BodySummary::entityId),
-            ApiField.field("pos", CommonTypes.BLOCK_POSITION).optional().forGetter(BodySummary::pos),
-            ApiField.field("busy", ApiTypes.bool()).required().forGetter(BodySummary::busy),
-            BodySummary::new);
+                    .optional().forGetter(BotSummary::entityId),
+            ApiField.field("pos", CommonTypes.BLOCK_POSITION).optional().forGetter(BotSummary::pos),
+            ApiField.field("busy", ApiTypes.bool()).required().forGetter(BotSummary::busy),
+            BotSummary::new);
 
     public static final MethodSpec<StatusParams, ImmediateResponse> STATUS = MethodSpec.of("mc.bot.status", STATUS_PARAMS,
                     Responses.immediate("Status", Status.class, ApiTypes.record(null,
-                            ApiField.field("bodies", ApiTypes.list(BODY_SUMMARY, 256))
-                                    .describe("The registered bots, server-side players and NPCs; self is not among them.")
-                                    .required().forGetter(Status::bodies),
-                            ApiField.field("status", BODY_STATUS).optional().forGetter(Status::status),
+                            ApiField.field("bots", ApiTypes.list(BOT_SUMMARY, 256))
+                                    .describe("The registered bots, server-side players and mobs; self is not among them.")
+                                    .required().forGetter(Status::bots),
+                            ApiField.field("status", BOT_STATUS).optional().forGetter(Status::status),
                             Status::new)),
-                    "Every process slot of one body, with how its last task ended, plus the list of addressable bots. "
-                            + "Works where nothing else does: a dead or paused body, and a dedicated server.")
+                    "Every process slot of one bot, with how its last task ended, plus the list of addressable bots. "
+                            + "Works where nothing else does: a dead or paused bot, and a dedicated server.")
             .effects(MethodSpec.Effect.SNAPSHOT_READ)
             .asPollable();
 

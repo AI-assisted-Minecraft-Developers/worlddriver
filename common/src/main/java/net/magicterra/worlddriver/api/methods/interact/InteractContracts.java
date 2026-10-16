@@ -52,14 +52,14 @@ public final class InteractContracts {
 
     // ------------------------------------------------------------------ lookAt
 
-    public record LookParams(String body, Optional<BlockPosition> pos, Optional<Double> yaw, Optional<Double> pitch,
+    public record LookParams(String bot, Optional<BlockPosition> pos, Optional<Double> yaw, Optional<Double> pitch,
                              int awaitMs) {}
 
     /** The aim a smooth look reached, as its action's result. */
     public record Looked(double yaw, double pitch) {}
 
     public static final ApiType<LookParams> LOOK_PARAMS = ApiTypes.record("LookAtParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(LookParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(LookParams::bot),
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).describe("Face the middle of this block.")
                     .optional().forGetter(LookParams::pos),
             ApiField.field("yaw", ApiTypes.number(-360, 360)).describe("With pitch, instead of pos.")
@@ -102,10 +102,10 @@ public final class InteractContracts {
 
     // ------------------------------------------------------------------ holdItem
 
-    public record HoldParams(String body, String item) {}
+    public record HoldParams(String bot, String item) {}
 
     public static final ApiType<HoldParams> HOLD_PARAMS = ApiTypes.record("HoldItemParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(HoldParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(HoldParams::bot),
             ApiField.field("item", CommonTypes.RESOURCE_ID).required().forGetter(HoldParams::item),
             HoldParams::new);
 
@@ -121,7 +121,7 @@ public final class InteractContracts {
 
     // ------------------------------------------------------------------ useItem
 
-    public record UseParams(String body, Optional<BlockPosition> pos, Optional<Integer> entityId, Optional<Face> face,
+    public record UseParams(String bot, Optional<BlockPosition> pos, Optional<Integer> entityId, Optional<Face> face,
                             Hand hand, boolean lookAt, boolean sneak) {}
 
     /** What the item was used on. */
@@ -136,7 +136,7 @@ public final class InteractContracts {
                            Optional<String> menu) implements UsedOn {}
 
     public static final ApiType<UseParams> USE_PARAMS = ApiTypes.record("UseItemParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(UseParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(UseParams::bot),
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).describe("Use on this block's face. Omit pos and entityId to use in the air.")
                     .optional().forGetter(UseParams::pos),
             ApiField.field("entityId", CommonTypes.ENTITY_ID).describe("Use on this entity: mount, trade, shear, feed.")
@@ -191,10 +191,10 @@ public final class InteractContracts {
 
     // ------------------------------------------------------------------ attackEntity
 
-    public record AttackParams(String body, int entityId) {}
+    public record AttackParams(String bot, int entityId) {}
 
     public static final ApiType<AttackParams> ATTACK_PARAMS = ApiTypes.record("AttackEntityParams",
-            ApiField.field("body", Responses.BODY_REF).defaulted("self").forGetter(AttackParams::body),
+            ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(AttackParams::bot),
             ApiField.field("entityId", CommonTypes.ENTITY_ID).required().forGetter(AttackParams::entityId),
             AttackParams::new);
 

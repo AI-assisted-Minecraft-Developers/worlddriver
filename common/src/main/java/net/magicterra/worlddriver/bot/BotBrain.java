@@ -738,7 +738,7 @@ public final class BotBrain {
         return snap;
     }
 
-    public ControlContracts.BodyStatus bodyStatus(String id) {
+    public ControlContracts.BotStatus botStatus(String id) {
         BotProcess c = userTask.process();
         Map<String, ControlContracts.ChainState> chains = new LinkedHashMap<>();
         Map<String, Float> prios = scheduler.lastPriorities();
@@ -757,7 +757,7 @@ public final class BotBrain {
                 Optional.ofNullable(scheduler.currentName()), c != null && scheduler.current() != userTask, chains, lastPath,
                 String.valueOf(clutch.phase()),
                 new ControlContracts.CombatTally(state.combatSwings, state.combatWellTimed, state.combatCrits, state.combatKills));
-        return new ControlContracts.BodyStatus(id, c != null,
+        return new ControlContracts.BotStatus(id, c != null,
                 c == null ? Optional.empty() : Optional.of(c.kind()), StatusView.end(userTask.lastEnd()),
                 StatusView.slots(state), Optional.of(reflexes));
     }

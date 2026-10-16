@@ -22,5 +22,5 @@ public interface Ticket {
     boolean supersede(String replacementId);
 
     /** Why a running action was cancelled. */
-    enum Stop { REQUESTED, WORLD_CLOSED, BODY_REMOVED, TEST_RESET, CONNECTION_CLOSED }
+    enum Stop { REQUESTED, WORLD_CLOSED, BOT_REMOVED, TEST_RESET, CONNECTION_CLOSED }
 }
