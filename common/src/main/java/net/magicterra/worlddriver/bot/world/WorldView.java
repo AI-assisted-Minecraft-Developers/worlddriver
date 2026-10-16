@@ -266,6 +266,10 @@ public interface WorldView {
      *  Default an on-foot player's: walking and swimming. */
     default Set<Locomotion.Mode> moveModes() { return Locomotion.WALK_AND_SWIM; }
 
+    /** The moving body's width and height, for the moves that check every cell its box covers. A player's by default. */
+    default double bodyWidth() { return 0.6; }
+    default double bodyHeight() { return 1.8; }
+
     /** Whether the entity runs at a player's sprint, which every parkour gap is measured for. A
      *  driven mob walks at its own pace, a zombie's about half a walking player's, and falls short of them. */
     default boolean sprintJumps() { return true; }

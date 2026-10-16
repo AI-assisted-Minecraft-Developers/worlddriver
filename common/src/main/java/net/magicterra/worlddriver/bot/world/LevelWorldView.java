@@ -200,5 +200,9 @@ public final class LevelWorldView implements StateWorldView {
 
     @Override public Set<Locomotion.Mode> moveModes() { return Locomotion.of(body).modes(); }
 
+    @Override public double bodyWidth() { return body.getBbWidth(); }
+
+    @Override public double bodyHeight() { return body.getBbHeight(); }
+
     @Override public boolean sprintJumps() { return sprintJumps; }
 }

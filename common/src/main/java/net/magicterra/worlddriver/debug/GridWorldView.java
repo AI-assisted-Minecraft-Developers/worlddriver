@@ -39,6 +39,11 @@ public final class GridWorldView implements WorldView {
     /** Plan for a body with these ways of moving; a player's by default. Returns this for chaining. */
     public GridWorldView withModes(Set<Locomotion.Mode> modes) { this.modes = Set.copyOf(modes); return this; }
 
+    private double width = 0.6, height = 1.8;
+
+    /** Plan for a body this wide and tall; a player's by default. Returns this for chaining. */
+    public GridWorldView withBody(double width, double height) { this.width = width; this.height = height; return this; }
+
     /** Grid spanning [x0,x0+sx) × [y0,y0+sy) × [z0,z0+sz), all AIR initially. */
     public GridWorldView(int x0, int y0, int z0, int sx, int sy, int sz) {
         this.x0 = x0; this.y0 = y0; this.z0 = z0;
@@ -80,5 +85,7 @@ public final class GridWorldView implements WorldView {
     @Override public boolean canPlace()               { return place; }
     @Override public int placeableBlockCount()        { return place ? 4096 : 0; }
     @Override public Set<Locomotion.Mode> moveModes() { return modes; }
+    @Override public double bodyWidth()               { return width; }
+    @Override public double bodyHeight()              { return height; }
 }
 
