@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for the client's next tick or its next frame, and neither do `mc.wait.worldReady` between probes
   or `mc.debug.replay` while the blocks are restored. A screenshot's image is now encoded off the
   client thread, so a large capture no longer costs the game a frame. Replies are unchanged.
+- **Breaking: `mc.client.screen.tree` nodes no longer have an `id`, and `parent` is now the holder's
+  `ref`.** The `id` was only a node's place in `nodes`, which the list order already gives. A
+  `ContainerSlots` node now has a `ref` too, so every node has one. An object a mod lists under two
+  holders appears once, under the first.
 - **`mc.client.input.click` can name its target by `ref`.** Every node of `mc.client.screen.tree`
   now has a `ref` that stays the same across reads for as long as that widget, list row or slot
   exists, and is never handed to another. A click by `ref` aims at the centre of where the widget is
