@@ -198,27 +198,27 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         for (; t < n && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
-            if (!walkedBestEffort) walkedBestEffort = walker.progressProbe().contains(" bestEffort");
+            if (!walkedBestEffort) walkedBestEffort = walker.inspect().progressProbe().contains(" bestEffort");
             minY = Math.min(minY, fp.getY());
             maxX = Math.max(maxX, fp.getX() - ctx.origin().getX());
             var vel = fp.getDeltaMovement();
-            String probe = walker.tickProbe();
+            String probe = walker.inspect().tickProbe();
             String pid = probe.length() >= 5 ? probe.substring(0, 5) : probe;
             if (!pid.equals(lastPid) || t < 12) {
                 lastPid = pid;
                 if (journey.size() < 52)
                     journey.add("t" + t + "@" + String.format("(%.1f,%.1f)",
                             fp.getX() - ctx.origin().getX(), fp.getZ() - ctx.origin().getZ())
-                            + (journey.size() < 16 ? " " + walker.planProbe() : " " + probe));
+                            + (journey.size() < 16 ? " " + walker.inspect().planProbe() : " " + probe));
             }
             trail.addLast(String.format("t=%d p=(%.2f,%.2f,%.2f) v=(%.3f,%.3f,%.3f) yaw=%.0f g=%b sn=%b sp=%b hc=%b jt=%s",
                     t, fp.getX() - ctx.origin().getX(), fp.getY() - ctx.origin().getY(),
                     fp.getZ() - ctx.origin().getZ(), vel.x, vel.y, vel.z,
                     fp.getYRot(), fp.onGround(), fp.isShiftKeyDown(), fp.isSprinting(),
                     fp.horizontalCollision,
-                    walker.jumpTag == null ? "-" : walker.jumpTag)
-                    + " as=" + (walker.aimTag == null ? "-" : walker.aimTag)
-                    + " dr=[" + (walker.driveTag == null ? "EARLY-RETURN" : walker.driveTag) + "]"
+                    walker.inspect().jumpTag() == null ? "-" : walker.inspect().jumpTag())
+                    + " as=" + (walker.inspect().aimTag() == null ? "-" : walker.inspect().aimTag())
+                    + " dr=[" + (walker.inspect().driveTag() == null ? "EARLY-RETURN" : walker.inspect().driveTag()) + "]"
                     + " " + probe);
             if (trail.size() > 16) trail.removeFirst();
             int ic = bagCount(fp);
@@ -227,7 +227,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                     invEvents.add("t" + t + "Δ" + (ic - invCount) + "@" + String.format("(%.1f,%.1f,%.1f)",
                             fp.getX() - ctx.origin().getX(), fp.getY() - ctx.origin().getY(),
                             fp.getZ() - ctx.origin().getZ())
-                            + " jt=" + (walker.jumpTag == null ? "-" : walker.jumpTag) + " " + probe);
+                            + " jt=" + (walker.inspect().jumpTag() == null ? "-" : walker.inspect().jumpTag()) + " " + probe);
                 invCount = ic;
             }
             if (Math.abs(fp.getX() - spx) < 0.01 && Math.abs(fp.getZ() - spz) < 0.01) staticTicks++;
@@ -237,8 +237,8 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
             if (breach == null && fp.getY() < guardAbs) {
                 breach = "breach@t=" + t + " pos=(" + String.format("%.1f,%.1f,%.1f",
                         fp.getX() - ctx.origin().getX(), fp.getY() - ctx.origin().getY(),
-                        fp.getZ() - ctx.origin().getZ()) + ")rel " + walker.progressProbe()
-                        + " ;; " + walker.planProbe()
+                        fp.getZ() - ctx.origin().getZ()) + ")rel " + walker.inspect().progressProbe()
+                        + " ;; " + walker.inspect().planProbe()
                         + " ;; shed-window: " + String.join(" ;; ", trail);
             }
         }
@@ -259,14 +259,14 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         double floorAbs = ctx.origin().getY() + lowestStandY - 0.5;
         if (r.minY() < floorAbs)
             ctx.fail(scene + ": the bot dropped below the deck (minY=" + r.minY() + " < " + floorAbs
-                    + ") — fell off the bridge | " + r.breach() + " | final " + r.walker().progressProbe());
+                    + ") — fell off the bridge | " + r.breach() + " | final " + r.walker().inspect().progressProbe());
     }
 
     private static void assertArrived(SceneContext ctx, String scene, Run r, BlockPos goal) {
         if (!atGoal(ctx, r, goal))
             ctx.fail(scene + ": did not arrive: step=" + r.step() + " ticks=" + r.ticks()
-                    + " pos=" + r.fp().position() + " goal=" + goal + " | " + r.walker().progressProbe()
-                    + " | " + r.walker().planProbe() + " ;; pin-window: " + r.pinWindow()
+                    + " pos=" + r.fp().position() + " goal=" + goal + " | " + r.walker().inspect().progressProbe()
+                    + " | " + r.walker().inspect().planProbe() + " ;; pin-window: " + r.pinWindow()
                     + " ;; journey: " + r.journey());
     }
 
@@ -280,11 +280,11 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         if (r.maxX() < barrierX - 4)
             ctx.fail(scene + ": never approached the barrier (maxX=" + r.maxX() + " < " + (barrierX - 4)
                     + ") — expected to advance to the farthest reachable point | end=" + r.step()
-                    + "@t" + r.ticks() + " | " + r.walker().progressProbe()
+                    + "@t" + r.ticks() + " | " + r.walker().inspect().progressProbe()
                     + " ;; journey: " + r.journey());
         if (r.maxX() > barrierX + 1.0)
             ctx.fail(scene + ": crossed the sealed barrier (maxX=" + r.maxX() + " > " + (barrierX + 1)
-                    + ") | " + r.walker().progressProbe());
+                    + ") | " + r.walker().inspect().progressProbe());
     }
 
     /** Standard course frame: start pad (centre x=-2), 1-wide deck x=0..len, end pad
@@ -601,7 +601,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                 ctx.fail(name + ": crossed a lethal gap with no fall-break available");
             if (r.maxX() < 8)
                 ctx.fail(name + ": never approached the lip (maxX=" + r.maxX()
-                        + ") | " + r.walker().progressProbe());
+                        + ") | " + r.walker().inspect().progressProbe());
         }
     }
 

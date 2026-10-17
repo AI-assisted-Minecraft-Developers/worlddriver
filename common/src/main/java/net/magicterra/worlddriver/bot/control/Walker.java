@@ -49,7 +49,10 @@ public final class Walker implements Locomotor {
 
     /** This walker's own event counts (searches, recovery hops, digs) — see {@link WalkerTallies}. */
     final WalkerTallies tallies = new WalkerTallies();
-    public WalkerTallies tallies() { return tallies; }
+
+    private final WalkerInspector inspector = new WalkerInspector(this);
+    /** The readings a diagnosis wants: the plan, the step, the per-tick tags. */
+    public WalkerInspector inspect() { return inspector; }
 
     /** The telemetry of the body this walker last ticked; a private sink until the first tick. */
     WalkerTelemetry tel = new WalkerTelemetry();
@@ -124,8 +127,8 @@ public final class Walker implements Locomotor {
     boolean goalSnapChecked;   // one-shot per goal: snap an unstandable Goal.Block target to the nearest standable cell (see snapGoalToStandable) — needs a live WorldView so it runs on the first tick, not at start
     List<BlockPos> path;
     List<Move.Edge> edges;   // aligned with path; edges.get(i) enters path.get(i)
-    /** The A* result before stringPull, as a tally — see {@link #rawPlanTally()}. */
-    private String rawPlan;
+    /** The A* result before stringPull, as a tally — see {@link WalkerInspector#rawPlanTally()}. */
+    String rawPlan;
     /** The first parkour takeoff this walk ever made — see WalkerTickDrive's latch. */
     String parkourTakeoff;
     int step;
@@ -579,144 +582,6 @@ public final class Walker implements Locomotor {
 
     @Override public WalkResult result() { return result; }
 
-    /** The water climb-out's place-futility ledger, for scenes that assert on the FALLBACK rather
-     *  than on the climb: {@code > PILLAR_FUTILE_TICKS} is what hands the bank over to the dig.
-     *  Exposed because the counter is the subject — a scene that could only watch the bot would
-     *  have to distinguish "never gave up" from "gave up and the dig also failed", which look the
-     *  same from outside. */
-    public int pillarNoPlaceTicks() { return waterClimb.pillarNoPlaceTicks; }
-
-    /** The verdict that ledger feeds: has the climb-out place been futile long enough to hand this
-     *  bank to the dig? Exposed instead of the raw threshold so {@link WalkerConstants} stays
-     *  package-private — a scene needs the DECISION, not the number behind it. Transient by
-     *  nature: the tick it goes true, the takeover releases and zeroes the counter, so a scene
-     *  must sample it per tick rather than read it at the end. */
-    public boolean pillarPlaceFutile() { return waterClimb.pillarNoPlaceTicks > PILLAR_FUTILE_TICKS; }
-
-    /** Is the climb-out takeover still holding the bot? Exposed because {@link #pillarNoPlaceTicks}
-     *  reading zero is AMBIGUOUS on its own: the ledger is zeroed both by a landing (the thing a
-     *  scene wants to prove) and by every bail path (WalkerTickClimb releases and resets). A scene
-     *  asserting "a real place cleared the counter" has to be able to say the takeover was still
-     *  engaged when it read the zero, or a bail one tick earlier answers its question for it. */
-    public boolean pillarEngaged() { return waterClimb.pillaring; }
-
-    /** Read-only one-line probe of the follow state (step pointer, carrot node,
-     *  best-effort/burst/churn/escalation counters) for test-scene diagnostics —
-     *  the package-private fields are invisible to testmod scene classes and the
-     *  log stream drops lines under load, so failures embed this in ctx.fail. */
-    public String progressProbe() {
-        BlockPos wp = path != null && step < path.size() ? path.get(step) : null;
-        return (path == null ? "path=null" : "step=" + step + "/" + path.size()
-                + " wp=" + (wp == null ? "-" : wp.getX() + "," + wp.getY() + "," + wp.getZ())
-                + (seg.pathBestEffort ? " bestEffort" : ""))
-                + " unstuck=" + unstuck.burstTicks + " churnEsc=" + churn.escapes
-                + " escal=" + (escal.armed() ? "ON" : "off")
-                + " noStep=" + stepProg.noStepProgressTicks
-                + " digFloat=" + waterClimb.digFloatTicks + " gaveUp=" + waterClimb.pillarGaveUp;
-    }
-
-    /** Ultra-compact per-tick probe for scene kinematics trails: plan identity tag (the
-     *  list's identityHashCode mod 1000, so a trail exposes PLAN SWAPS mid-window — the
-     *  breach-time {@link #planProbe} is post-facto and fatal windows often straddle a
-     *  repath), step pointer, and the current waypoint. */
-    public String tickProbe() {
-        if (path == null) return "p#---";
-        BlockPos wp = step < path.size() ? path.get(step) : null;
-        return "p#" + String.format("%03d", Math.floorMod(System.identityHashCode(path), 1000))
-                + " s" + step + "/" + path.size()
-                + (wp == null ? "" : " w" + wp.getX() + "," + wp.getY() + "," + wp.getZ())
-                + " st" + stuckTicks + "/" + physStall.stallTicks;
-    }
-
-    /** Read-only compact dump of the CURRENT plan (nodes + move labels) for the same
-     *  post-mortem channel as {@link #progressProbe}: "which edge flung the bot" is
-     *  unanswerable from the step pointer alone once the plan has been replaced, and
-     *  the [walker] path log line is droppable under end-of-suite load. */
-    public String planProbe() {
-        if (path == null) return "plan=null";
-        StringBuilder sb = new StringBuilder("plan=").append(step).append('/').append(path.size());
-        for (int i = 0; i < path.size(); i++) {
-            BlockPos n = path.get(i);
-            sb.append(' ').append(i).append(':')
-              .append(n.getX()).append(',').append(n.getY()).append(',').append(n.getZ());
-            if (edges != null && i < edges.size() && edges.get(i) != null)
-                sb.append('[').append(edges.get(i).move).append(']');
-        }
-        return sb.toString();
-    }
-
-    /**
-     * {@link #planProbe}'s companion, read against the WORLD instead of against itself: for every
-     * node of the CURRENT plan, the three cells that node's own geometry occupies — the node cell
-     * ({@code cell}, where the feet go), its support ({@code support} = {@code below}) and its head
-     * ({@code head} = {@code above}) — each as {@code solid}/{@code open} (the {@code blocksMotion}
-     * predicate {@code ServerWorldView.isSolid} steers by) plus the block.
-     *
-     * <p><b>Why the coordinates must come from the plan and not from a scene's arithmetic.</b> A
-     * scene that hand-derives cells from its own arena origin audits the cells its AUTHOR expects
-     * the bot to use. {@code wd.buriedOre}'s fixed staircase audit did exactly that and read seven
-     * cells all at {@code z=cz}, while the node the bot could not reach sat at {@code z=cz−1}: the
-     * reading was complete, consistent, and blind to the one column that mattered. Nodes come from
-     * {@link #path}, so the audit follows the plan wherever the planner actually put it.
-     *
-     * <p><b>The three outcomes this separates, for a bot stalled before node {@code i}:</b>
-     * <ol>
-     *   <li>{@code cell=solid} — the plan wants the feet INSIDE a solid cell and the entering edge is
-     *       not a break move ({@code [stepUp]}, not {@code [stairUpBreak]}): a planning-side account.
-     *       The node is not enterable by any execution, so no executor fix can reach it.</li>
-     *   <li>{@code cell=open} and {@code support=solid} — the node is legal and standable; the bot
-     *       simply fails to GET there: an execution-side account (for the trail this was written
-     *       from, the one-cell lateral move in {@code z}). Look at the drive/jump gates, not at the
-     *       planner.</li>
-     *   <li>{@code support=open} — nothing under the node's feet, so the bot could not stand there
-     *       even if it arrived: planning-side again, but a DIFFERENT mechanism from (1) — an edge
-     *       whose floor the plan assumed, or whose floor a later break removed.</li>
-     * </ol>
-     * {@code head=solid} on a node the bot must stand in is a fourth, weaker signal (the head cell
-     * is occupied) and is printed rather than judged.
-     *
-     * <p>A plan that is absent must not read like a probe that never ran: {@code nodes=none(plan=null)}
-     * and {@code nodes=none(plan empty)} are distinct strings, and both are distinct from the absence of
-     * the fragment. Callers embed this in {@code ctx.fail} for the same reason as
-     * {@link #progressProbe} — the log stream drops lines under end-of-suite load, {@code
-     * results.jsonl} does not.
-     *
-     * <p>Read-only: takes a {@link BlockGetter}, touches no walker state, and must stay that way.
-     * It also must be called BEFORE any scene cleanup — a cleanup that fills the arena with AIR
-     * makes every node read {@code open} and the audit becomes a very convincing lie.
-     */
-    public String planCellAudit(BlockGetter lvl) {
-        if (lvl == null) return "nodes=none(level=null)";
-        if (path == null) return "nodes=none(plan=null)";
-        if (path.isEmpty()) return "nodes=none(plan empty)";
-        StringBuilder sb = new StringBuilder("nodeCount=").append(path.size()).append(" step=").append(step);
-        for (int i = 0; i < path.size(); i++) {
-            BlockPos n = path.get(i);
-            sb.append(" node").append(i).append('=')
-              .append(n.getX()).append(',').append(n.getY()).append(',').append(n.getZ());
-            String mv = (edges != null && i < edges.size() && edges.get(i) != null)
-                    ? String.valueOf(edges.get(i).move) : "no edge";
-            sb.append('[').append(mv).append(']');
-            appendCell(sb, lvl, " cell=", n);
-            appendCell(sb, lvl, " support=", n.below());
-            appendCell(sb, lvl, " head=", n.above());
-        }
-        return sb.toString();
-    }
-
-    private static void appendCell(StringBuilder sb, BlockGetter lvl, String label, BlockPos p) {
-        // A post-mortem must not MAKE world. On a ServerLevel, getBlockState on an unloaded chunk
-        // loads/generates it on the calling thread — a probe that hangs the gate run it was added
-        // to diagnose. Plan nodes are normally inside the arena the search just walked, but this
-        // is a public probe over an arbitrary plan, so "unloaded" is a legal reading and a stall is not.
-        if (lvl instanceof net.minecraft.world.level.LevelReader lr && !lr.hasChunkAt(p)) {
-            sb.append(label).append("unloaded");
-            return;
-        }
-        BlockState st = lvl.getBlockState(p);
-        sb.append(label).append(st.blocksMotion() ? "solid" : "open").append(st.getBlock());
-    }
-
     /**
      * Re-aim an in-progress pursuit at a quarry that moved, WITHOUT telling the walker this is
      * a new journey. {@link #start} clears the futile-search governor, which is right for a
@@ -924,104 +789,11 @@ public final class Walker implements Locomotor {
      * <p><b>The last node is the goal only when the search reached it.</b>
      * {@code seg.pathBestEffort = !res.goalReached()} — a best-effort partial ends at the closest
      * node A* could get to, which for a bot on a small island is its own edge. So "the last node
-     * of the path" and "the destination" are different questions and {@link #planTally()} answers
+     * of the path" and "the destination" are different questions and {@link WalkerInspector#planTally()} answers
      * the first one.
      */
     @Override public int pathLen() { return path == null ? 0 : path.size(); }
     @Override public int pathStep() { return step; }
-
-    /**
-     * What the world looks like UNDER the plan, sampled along it — the reading that separates a
-     * broken support check from a world that was never there to check.
-     *
-     * <p>Both produce the same plan. A {@code stepUp}/{@code walk} chain laid across empty space is
-     * what you get when the support predicate forgot to ask, AND what you get when the predicate
-     * asked correctly and an ungenerated chunk answered "passable" — and the two want opposite fixes
-     * (fix the predicate vs. load before planning / treat unknown as impassable). {@code isKnown} is
-     * the only thing that tells them apart, so it is sampled beside every cell.
-     *
-     * <p>Reported in {@link WorldView}'s own vocabulary rather than as block names, deliberately: the
-     * planner never sees a {@code BlockState}, so a row naming one would describe a world the
-     * decision under investigation did not consult.
-     */
-    public String planTerrain(WorldView w) {
-        if (path == null || path.isEmpty() || w == null) return "no path";
-        StringBuilder sb = new StringBuilder();
-        int n = path.size();
-        int stride = Math.max(1, (n - 1) / 4);
-        for (int i = 0; i < n; i += stride) {
-            if (sb.length() > 0) sb.append(' ');
-            sb.append(sample(w, i));
-        }
-        if ((n - 1) % stride != 0) sb.append(' ').append(sample(w, n - 1));
-        return sb.toString();
-    }
-
-    private String sample(WorldView w, int i) {
-        BlockPos c = path.get(i);
-        BlockPos under = c.below();
-        return "[" + i + "]" + c.toShortString()
-                + " cell=" + (w.isSolid(c) ? "solid" : w.isWater(c) ? "water" : "open")
-                + " below=" + (w.isSolid(under) ? "solid" : w.isWater(under) ? "water" : "open")
-                + " known=" + w.isKnown(c) + "/" + w.isKnown(under);
-    }
-
-    /**
-     * The shape of the whole current plan, for a caller that can only otherwise see the ONE move
-     * entering the current node.
-     *
-     * <p>Reports the last node, whether the search actually reached the goal, and a count of every
-     * move name in the path. That last part is what separates "the planner routed a bridge and the
-     * bot never executed it" from "the planner never planned one" — two diagnoses that
-     * {@link #pathMove()} alone reports identically whenever the step pointer happens to sit on a
-     * walk.
-     *
-     * <p><b>A move count is not a block count, and the gap is large.</b> {@link #adoptPath} runs
-     * {@code PathSmoothing.stringPull} before the path is ever driven, and that collapses a whole run
-     * of flat same-Y {@code walk}/{@code diag} edges into ONE edge spanning the straight line between
-     * its endpoints; only vertical, parkour, climb, break and place edges survive as hard waypoints.
-     * So {@code walk×7} may be seven cells or seventy. Measured 2026-08-17: {@code {walk=7,
-     * parkour3=1, stepUp=8}} — 18 cells if every move were one cell — spanned x 98→51, forty-seven
-     * blocks. Nothing was inconsistent; the eight {@code stepUp} and one {@code parkour3} are
-     * per-cell waypoints and the seven smoothed walks carried the remaining thirty-six.
-     *
-     * <p>That is the third reading in this family to be mistaken for a distance, after
-     * {@link #pathLen()} (nodes, not blocks) and {@link #pathMove()} (one edge, not the plan). The
-     * rule they share: <b>ask what a path reading counts before dividing by it.</b>
-     */
-    public String planTally() {
-        return tallyOf(path, edges) + " reachesGoal=" + !seg.pathBestEffort;
-    }
-
-    private static String tallyOf(List<BlockPos> nodes, List<Move.Edge> es) {
-        if (nodes == null || nodes.isEmpty()) return "no path";
-        java.util.Map<String, Integer> byMove = new java.util.LinkedHashMap<>();
-        if (es != null)
-            for (Move.Edge e : es)
-                if (e != null && e.move != null) byMove.merge(e.move, 1, Integer::sum);
-        return "nodes=" + nodes.size() + " (" + (nodes.size() - 1) + " moves)"
-                + " lastNode=" + nodes.get(nodes.size() - 1).toShortString()
-                + " moveCounts " + (byMove.isEmpty() ? "{}" : byMove.toString());
-    }
-
-    /**
-     * The plan as A* returned it, before {@code stringPull} — the pre-image {@link #planTally()}
-     * describes the optimised version of.
-     *
-     * <p><b>Two different faults produce the same smoothed path and need opposite fixes.</b> Either
-     * A* itself routed an edge across ground that is not there — then the defect is in that move's
-     * feasibility check — or A* laid a correct cell-by-cell run and the string-pull joined two of its
-     * nodes with a straight line nobody re-verified, which would make the optimiser the thing that
-     * broke an invariant its own input satisfied. Without this row the smoothed path is the only
-     * evidence and it cannot tell them apart.
-     */
-    public String rawPlanTally() { return rawPlan == null ? "none" : rawPlan; }
-
-    /** What the first parkour leap of this walk was launched with. {@code Parkour3} is costed as the
-     *  <b>sprint-jump maximum</b>, so {@code sprinting=false} at takeoff means the executor attempted
-     *  a leap the planner priced for a run-up it was not allowed to take. Deliberately not read from
-     *  {@code onGround}: this bot's is wrong in both directions. */
-    public String parkourTakeoff() { return parkourTakeoff == null ? "none" : parkourTakeoff; }
 
     /** Latch the FIRST parkour takeoff of this walk. The sprint decision is taken a tick before the
      *  jump, so {@code isSprinting()} here is the state the leap actually launches with. Only the
@@ -1082,92 +854,12 @@ public final class Walker implements Locomotor {
     private StringBuilder parkourTakeoffBuf;
 
     /** String-pull the search result, keeping a tally of what it looked like BEFORE — see
-     *  {@link #rawPlanTally()}. The latch lives here rather than at the call site so
+     *  {@link WalkerInspector#rawPlanTally()}. The latch lives here rather than at the call site so
      *  {@code adoptPath} does not grow: it is already grandfathered at its line budget. */
     private SmoothResult smoothAndRemember(WorldView world, PathFinder.Result res,
                                            List<net.magicterra.worlddriver.bot.rules.CostModifier> bias) {
-        rawPlan = tallyOf(res.path(), res.edges());
+        rawPlan = WalkerInspector.tallyOf(res.path(), res.edges());
         return stringPull(world, res.path(), res.edges(), bias);
-    }
-
-    /**
-     * Every cell the plan's straight lines actually cross, for the first few segments — the reading
-     * that node samples structurally cannot give.
-     *
-     * <p>{@link #planTerrain} samples NODES, and after smoothing consecutive nodes can be nine blocks
-     * apart. Measured 2026-08-17: node [0] {@code 100,49,0} and node [4] {@code 91,50,0} both sat on
-     * solid ground with their chunks loaded, and the bot began falling at {@code 96,46,0} — inside
-     * the span between them, where nothing had been sampled. A reading that only looks where the plan
-     * stops cannot see what the plan crosses.
-     *
-     * <p>Reports each segment's cell count and lists the cells whose support is missing, so a healthy
-     * segment is still visible ({@code gaps=none}) rather than merely absent — an all-clear that is
-     * only ever printed by silence cannot be told from a check that never ran.
-     *
-     * <h2>Which path this samples, and what a gap does and does not mean</h2>
-     *
-     * <b>The CURRENT adopted path</b> — {@link #path}, the same list {@link #planTally()} and
-     * {@link #planTerrain} read, in the same statement. There is no second copy: all three are called
-     * from one string concatenation in {@code IntentProcess}, so "the emitted plan is all clear" and
-     * "the adopted plan has gaps" are statements about the same nodes and the contradiction between
-     * them is real rather than an artefact of comparing two plans.
-     *
-     * <p><b>But an unsupported cell is only a defect under an edge that walks.</b> This method judges
-     * support cell by cell, and a {@code parkour3} or a {@code fall} is supposed to cross thin air;
-     * that is what it is for. A row reading {@code gaps=2} under a jump edge names a fault that does
-     * not exist, and such rows have misled diagnosis before. The move entering each segment is
-     * therefore printed beside it, and the gap count must never be read without it.
-     */
-    public String planSpans(WorldView w, int segments) {
-        if (path == null || path.size() < 2 || w == null) return "no path";
-        StringBuilder sb = new StringBuilder();
-        int last = Math.min(segments, path.size() - 1);
-        for (int i = 0; i < last; i++) {
-            BlockPos a = path.get(i), b = path.get(i + 1);
-            int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
-            StringBuilder holes = new StringBuilder();
-            int nHoles = 0;
-            for (int s = 0; s <= steps; s++) {
-                double t = steps == 0 ? 0 : (double) s / steps;
-                BlockPos c = new BlockPos(
-                        (int) Math.round(a.getX() + (b.getX() - a.getX()) * t),
-                        (int) Math.round(a.getY() + (b.getY() - a.getY()) * t),
-                        (int) Math.round(a.getZ() + (b.getZ() - a.getZ()) * t));
-                if (w.isSolid(c.below())) continue;
-                nHoles++;
-                if (nHoles <= 6) holes.append(nHoles == 1 ? "" : ",").append(c.toShortString())
-                        .append(w.isKnown(c.below()) ? "" : "(unloaded)");
-            }
-            Move.Edge into = edgeAt(i + 1);
-            String move = into == null || into.move == null ? "?" : into.move;
-            sb.append(i == 0 ? "" : " ").append("segment").append(i).append(' ')
-              .append(a.toShortString()).append("→").append(b.toShortString())
-              .append(" move=").append(move)
-              .append(" cells=").append(steps + 1).append(' ')
-              .append(nHoles == 0 ? "gaps=none"
-                      : "gaps=" + nHoles + "[" + holes + "]"
-                        // A jump is SUPPOSED to cross thin air. Saying so here, beside the count, is
-                        // what keeps the row from naming a fault that does not exist.
-                        + (move.startsWith("parkour") || move.startsWith("fall")
-                                ? " (a jump edge; crossing open air is its purpose, not a defect)" : ""));
-        }
-        return sb.toString();
-    }
-    /** Node the step-pointer currently targets (null when no path / consumed). Test seam. */
-    public BlockPos pathNode() { return (path != null && step >= 0 && step < path.size()) ? path.get(step) : null; }
-
-    /**
-     * Name of the move that ENTERS {@link #pathNode()} — {@code walk}, {@code stepDown},
-     * {@code fall7}, {@code diagDown}… (null when there is no such edge).
-     *
-     * <p>The node alone cannot say whether a drop was planned. Every {@code Fall} edge carries its
-     * height in its own name, so this is the one reading that separates "the plan was to drop N"
-     * from "the bot left a plan that never contained a drop at all" — and those two want opposite
-     * fixes (a planner budget vs. an executor that overshot).
-     */
-    public String pathMove() {
-        Move.Edge e = edgeAt(step);
-        return e == null ? null : e.move;
     }
 
     /** TEST SEAM — run {@link #adoptPath} with an explicit {@code foot} so a harness can exercise the
@@ -1604,11 +1296,6 @@ public final class Walker implements Locomotor {
         return voidBeside(world, BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ()));
     }
 
-    /** The footing guard's own threshold, for scenes that must stage a bot it actually looks at.
-     *  An accessor rather than a copied literal: a rig that assumes 0.18 stops being a test of this
-     *  guard the day the guard changes its mind. */
-    public static double footingMin() { return FOOTING_MIN; }
-
     /** The bar over a bottomless column: 5/6 of the 0.36 sole, against 1/2 beside an ordinary drop.
      *  Not "be careful" as a number — it is the smallest reading that still leaves the bot a whole
      *  half-cell of margin on every axis, and the void gives no second attempt. */
@@ -2011,16 +1698,16 @@ public final class Walker implements Locomotor {
      *  reset each tick in the prelude: fall post-mortems keep needing "who launched the
      *  fatal arc?" (bridge battery: three different launchers over three rounds), and the
      *  aggregated drive jump erases the answer by the time the bot is airborne. */
-    public String jumpTag;
+    String jumpTag;
 
     /** This tick's aim-tree owner ({@code aimSrc}) — same telemetry channel as
-     *  {@link #jumpTag}: wedge post-mortems need "who owned the heading". */
-    public String aimTag;
+     *  {@link WalkerInspector#jumpTag}: wedge post-mortems need "who owned the heading". */
+    String aimTag;
 
     /** This tick's drive command (target yaw + impulse) as a compact string; null when
      *  the tick never reached the drive tail (early-return branch) — which is itself
      *  the answer a pinned-bot autopsy is after. Reset each tick in the prelude. */
-    public String driveTag;
+    String driveTag;
     private WalkerMedium medium;   // the walk of a body living in water or air; see WalkerMedium
 
     /** Stride floor-guard (gap #53, the 2026-07-12 survival death; #51's stair-side void is

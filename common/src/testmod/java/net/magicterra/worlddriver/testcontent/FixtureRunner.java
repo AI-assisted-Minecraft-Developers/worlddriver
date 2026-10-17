@@ -61,7 +61,7 @@ import net.magicterra.worlddriver.bot.stagewright.NpcBot;
  * is legal on every topology, so a file whose {@code body} is {@code npc} or {@code npc:<name>} runs
  * on one, and so does an in-place run that asks for it.
  *
- * <p>Counts come off the process's own {@link Walker#tallies()} — the walker the task actually
+ * <p>Counts come off the process's own {@link WalkerInspector#tallies()} — the walker the task actually
  * ran, on whichever helm — never off the JVM-wide statics, so two bots in one process cannot
  * pollute each other's numbers. A task whose process has no walker (escape, elytra) contributes
  * nothing and the auto lines say so.
@@ -378,7 +378,7 @@ public final class FixtureRunner {
                 helm.caughtUp(() -> {
                     ticks += waited[0];
                     if (walker != null) {
-                        WalkerTallies t = walker.tallies();
+                        WalkerTallies t = walker.inspect().tallies();
                         searches += t.searches;
                         hops += t.recoveryHops;
                         digs += t.digs;

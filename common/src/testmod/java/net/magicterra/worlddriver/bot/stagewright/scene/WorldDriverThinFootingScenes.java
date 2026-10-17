@@ -15,6 +15,7 @@ import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerGeometry;
+import net.magicterra.worlddriver.bot.control.WalkerInspector;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -177,7 +178,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
         double sole = WalkerGeometry.soleOnSolid(w, fp);
         double nudge = 0.5;
-        for (int i = 0; i < 40 && sole >= Walker.footingMin(); i++) {
+        for (int i = 0; i < 40 && sole >= WalkerInspector.footingMin(); i++) {
             nudge += 0.02;
             fp.setPos(cx + nudge, standY, cz + 0.5);
             sole = WalkerGeometry.soleOnSolid(w, fp);
@@ -187,8 +188,8 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 + landing.getY() + "," + landing.getZ() + " | " + VOID_DEPTH
                 + " clear cells under it, catch floor y=" + (deckY - VOID_DEPTH));
         ctx.record("staged", String.format(Locale.ROOT, "bot x=%.2f sole=%.4f (threshold %s)",
-                nudge, sole, Walker.footingMin()));
-        if (sole >= Walker.footingMin()) {
+                nudge, sole, WalkerInspector.footingMin()));
+        if (sole >= WalkerInspector.footingMin()) {
             ctx.fail("THE RIG, not the subject: could not stage a stand under the footing threshold"
                     + " (sole=" + sole + ")");
             return;
@@ -238,7 +239,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
             double sn = WalkerGeometry.soleOnSolid(w, fp);
             BlockPos fc = BlockPos.containing(fp.getX(), fp.getY() + 0.05, fp.getZ());
             if (ControlConfig.lethalEdgeBrake && !fp.isInWater() && sn > 0.0
-                    && sn < Walker.footingMin() && WalkerGeometry.lethalDropAdjacent(w, fp, fc))
+                    && sn < WalkerInspector.footingMin() && WalkerGeometry.lethalDropAdjacent(w, fp, fc))
                 fireable++;
             if (t < 8) soles.append(String.format(Locale.ROOT, " t%d=%.3f", t, sn));
             s = walker.tick(av, w);

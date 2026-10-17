@@ -457,7 +457,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                 av.step();
                 fp.setPos(poseX, poseY, poseZ);     // re-assert after physics too
                 fp.setDeltaMovement(0, 0, 0);
-                BlockPos pn = walker.pathNode();
+                BlockPos pn = walker.inspect().pathNode();
                 if (pn != null && pn.equals(node)) {
                     double dx = (node.getX() + 0.5) - poseX;
                     double dz = (node.getZ() + 0.5) - poseZ;

@@ -67,7 +67,7 @@ public final class MineProcess implements BotProcess {
     // (~25 fps for seconds after every block break) and delayed the
     // blacklist — see WalkerSettings.withSearchBudget.
     private final Walker walker = new Walker(WalkerSettings.named("mine").withSearchBudget(8_000, 400));
-    /** The approach walker, for its {@link Walker#tallies()} (the collect walker's are not summed). */
+    /** The approach walker, for its {@link WalkerInspector#tallies()} (the collect walker's are not summed). */
     public Walker walker() { return walker; }
     private final Set<BlockPos> blacklist = new HashSet<>();
     private int broken;
@@ -1218,7 +1218,7 @@ public final class MineProcess implements BotProcess {
      * ("no reachable target") for every way the approach can end — the pre-filter never handing over
      * a goal, the walk failing, the walk arriving somewhere that is not the stand. The walker has
      * carried the readings that separate those for a while ({@link Walker#result()},
-     * {@link Walker#progressProbe()}, {@link Walker#planProbe()}) and their javadoc says they exist
+     * {@link WalkerInspector#progressProbe()}, {@link WalkerInspector#planProbe()}) and their javadoc says they exist
      * to be embedded in a failure — but they are package-private-adjacent state on a private field,
      * so no scene could reach them and {@code wd.buriedOre} has been failing on the bare abort text.
      *
@@ -1234,13 +1234,13 @@ public final class MineProcess implements BotProcess {
                 + " finalDist=" + String.format(java.util.Locale.ROOT, "%.3f", walker.result().finalDist())
                 + " goalSnapped=" + walker.result().goalSnapped()
                 + " walkerErr=" + walker.result().reason()
-                + " | " + walker.progressProbe()
-                + " | " + walker.planProbe();
+                + " | " + walker.inspect().progressProbe()
+                + " | " + walker.inspect().planProbe();
     }
 
     /**
      * {@link #approachProbe}'s world-side companion: the same plan, but every node read against the
-     * blocks that are actually there — see {@link Walker#planCellAudit} for what the three cells per
+     * blocks that are actually there — see {@link WalkerInspector#planCellAudit} for what the three cells per
      * node separate (plan wants the feet in stone / node is legal but unreachable / node has no
      * floor).
      *
@@ -1250,7 +1250,7 @@ public final class MineProcess implements BotProcess {
      * plan without being able to steer it.
      */
     public String approachPlanAudit(BlockGetter lvl) {
-        return walker.planCellAudit(lvl);
+        return walker.inspect().planCellAudit(lvl);
     }
 
     /** A reachable mining target: the block + adjacent stand position + face direction.

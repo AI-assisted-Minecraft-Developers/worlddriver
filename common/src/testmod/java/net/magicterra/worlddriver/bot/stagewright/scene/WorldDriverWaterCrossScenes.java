@@ -391,7 +391,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             for (int t = 0; t < 200 && s == Locomotor.Status.MOVING; t++) {
                 s = walker.tick(av, w);
                 av.step();
-                BlockPos pn = walker.pathNode();
+                BlockPos pn = walker.inspect().pathNode();
                 if (pn != null && pn.equals(node)) {
                     double dx = (node.getX() + 0.5) - fp.getX();
                     double dz = (node.getZ() + 0.5) - fp.getZ();
@@ -1109,11 +1109,11 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         Walker wOn = new Walker();
         boolean acceptOn = wOn.adoptForTest(w, cont, contEdges, foot);
         WorldDriverCommon.LOG.info("[wd.deepWaterFloatBeeline] ON accept={} step={} node={} (expect true: clear-LOS open-water bee-line)",
-                acceptOn, wOn.pathStep(), wOn.pathNode());
+                acceptOn, wOn.pathStep(), wOn.inspect().pathNode());
         if (!acceptOn)
             ctx.fail("deepWaterFloatBeeline: with walkerDeepWaterFloatBeeline ON the anchor-gate "
                     + "STILL rejected the clear-LOS open-water continuation — the bee-line exemption did not fire.");
-        BlockPos drive = wOn.pathNode();
+        BlockPos drive = wOn.inspect().pathNode();
         if (drive == null || drive.getX() <= foot.getX())
             ctx.fail("deepWaterFloatBeeline: after accepting, the step does not drive EAST toward "
                     + "the far node (step node=" + drive + ", foot=" + foot + ") — the accepted segment must carry the bot "

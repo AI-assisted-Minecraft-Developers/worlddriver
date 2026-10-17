@@ -1355,7 +1355,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
-            if (walker.pillarPlaceFutile()) sawFutile = true;
+            if (walker.inspect().pillarPlaceFutile()) sawFutile = true;
             // TWO PHASES, and the order is the whole staging. Let the bot swim and bob FREELY
             // until the takeover actually engages — its entry gate wants a bob-stall below a bank
             // it cannot mount, and a bot held still never accumulates one. Only then start
@@ -1380,7 +1380,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 bandLow = Math.min(bandLow, fp.getY() - top.getY());
                 bandHigh = Math.max(bandHigh, fp.getY() - top.getY());
             }
-            maxNoPlace = Math.max(maxNoPlace, walker.pillarNoPlaceTicks());
+            maxNoPlace = Math.max(maxNoPlace, walker.inspect().pillarNoPlaceTicks());
         }
         int engages = tel.waterPillarEngages - engages0;
 
@@ -1394,7 +1394,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.record("band.feetAboveFillCell", String.format("[%.3f, %.3f]", bandLow, bandHigh)
                 + " (old crest gate 0.9 / vanilla acceptance line 1.0)");
         ctx.record("walk.end", s + " (used " + t + "/400 ticks)");
-        ctx.record("walk.probe", walker.progressProbe());
+        ctx.record("walk.probe", walker.inspect().progressProbe());
 
         // VACUITY, and this one is load-bearing: with the defect present the counter is 0 because
         // every click zeroes it, and with the takeover never engaged it is 0 because the branch
@@ -1403,7 +1403,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         if (engages == 0)
             ctx.fail("pillarLedger: the water climb-out takeover never engaged — this run never reached"
                     + " the code under test, so a counter of 0 indicates a faulty test setup, not a ledger"
-                    + " defect. probe=" + walker.progressProbe());
+                    + " defect. probe=" + walker.inspect().progressProbe());
         if (pinnedAt != null && w.isSolid(pinnedAt))
             ctx.fail("pillarLedger: the pinned cell " + pinnedAt.toShortString() + " became solid — a"
                     + " height of 0.95 should have been refused by Level#isUnobstructed, so the test setup"
@@ -1553,12 +1553,12 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 // of it. Also record whether the takeover was still engaged at that moment: every
                 // bail path zeroes the same counter, so a bare 0 does not name its own cause.
                 if (fillPending && ledgerAfterFill < 0) {
-                    ledgerAfterFill = walker.pillarNoPlaceTicks();
-                    engagedAtRead = walker.pillarEngaged();
+                    ledgerAfterFill = walker.inspect().pillarNoPlaceTicks();
+                    engagedAtRead = walker.inspect().pillarEngaged();
                     fillPending = false;
                 }
                 if (top != null && !wasSolidBefore && w.isSolid(top) && ledgerAtFill < 0) {
-                    ledgerAtFill = walker.pillarNoPlaceTicks();
+                    ledgerAtFill = walker.inspect().pillarNoPlaceTicks();
                     fillPending = true;
                 }
             }
@@ -1574,11 +1574,11 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.record("ledger.takeoverEngagedAtRead", engagedAtRead);
         ctx.record("feet.cellYRange", footLow > footHigh ? "never pinned" : "[" + footLow + ", " + footHigh + "]");
         ctx.record("walk.end", s + " (used " + t + "/60 ticks)");
-        ctx.record("walk.probe", walker.progressProbe());
+        ctx.record("walk.probe", walker.inspect().progressProbe());
 
         if (engages == 0)
             ctx.fail("pillarLedgerReal: the takeover never engaged — the test setup is wrong, and none of the"
-                    + " rows below describe the subject under test. probe=" + walker.progressProbe());
+                    + " rows below describe the subject under test. probe=" + walker.inspect().progressProbe());
         // THE SELF-PROOF, and it must come first: without an observed fill, "the ledger stayed at 0"
         // is satisfied by a run in which nothing whatsoever happened.
         if (filled == 0 || ledgerAfterFill < 0)

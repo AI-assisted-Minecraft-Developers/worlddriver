@@ -221,7 +221,7 @@ public final class BotState {
          * returns — pillar, dig, escape, step-up — and the drive TAIL, where the lethal-edge
          * sneak-pin and the sprint/jump decision live, runs only on the ticks that reach it. So
          * "the bot was not sneaking beside a lava drop" has two completely different causes: the
-         * pin evaluated false, or the tick never got to the pin. {@code Walker.driveTag} already
+         * pin evaluated false, or the tick never got to the pin. {@code WalkerInspector.driveTag} already
          * distinguishes them (it is null on an early return) and nothing outside the walker could
          * read it — the journey's crossing runs its own {@code IntentProcess} walker, not the
          * driver's.
@@ -253,7 +253,7 @@ public final class BotState {
          * the run it describes has ended.
          */
         public volatile String firstPlan;
-        /** The first parkour leap's takeoff state — see Walker.parkourTakeoff(). Kept across
+        /** The first parkour leap's takeoff state — see WalkerInspector.parkourTakeoff(). Kept across
          *  reset() like lastError: it is read after the run it describes has ended. */
         public volatile String parkourTakeoff;
 

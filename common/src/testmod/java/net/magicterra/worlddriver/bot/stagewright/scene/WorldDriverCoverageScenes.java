@@ -376,7 +376,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
      *  that is COMPLETELY sealed except its west mouth — no around-route exists — so the
      *  horizon-committed search drives the bot in and it churns at the dead end until the
      *  anti-churn escape fires (blacklist charge + sticky escalation, observed via
-     *  {@link Walker#progressProbe}). Once TWO churn windows have fired (charge widened,
+     *  {@link WalkerInspector#progressProbe}). Once TWO churn windows have fired (charge widened,
      *  escalation re-armed), the east wall is OPENED and the run must still end ARRIVED
      *  through it. The mutation gate is deliberate: three self-escape geometries (v3-v6)
      *  were each defeated by the stack itself — an around-corridor within ~3 blocks of
@@ -459,7 +459,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 enteredPocket = true;
             // The churn counter is package-private; the probe string is the sensor.
             java.util.regex.Matcher m = java.util.regex.Pattern.compile("churnEsc=(\\d+)")
-                    .matcher(walker.progressProbe());
+                    .matcher(walker.inspect().progressProbe());
             if (m.find()) churnSeen = Math.max(churnSeen, Integer.parseInt(m.group(1)));
             if (!released && churnSeen >= 2) {
                 // Two churn windows fired (charge widened + escalation re-armed) — open
@@ -472,7 +472,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             }
             if (t % 100 == 0)
                 trace.append(String.format(java.util.Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
-                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, walker.progressProbe()));
+                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, walker.inspect().progressProbe()));
         }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
@@ -556,7 +556,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             av.step();
             if (t % 60 == 0)
                 trace.append(String.format(java.util.Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
-                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, walker.progressProbe()));
+                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, walker.inspect().progressProbe()));
         }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
@@ -631,7 +631,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             av.step();
             if (t % 100 == 0)
                 trace.append(String.format(java.util.Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
-                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, walker.progressProbe()));
+                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, walker.inspect().progressProbe()));
         }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
@@ -972,9 +972,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // pointer at all? adoptPath starts at step 1, so this reads "the pointer is on the pillarUp
         // edge" directly rather than inferring it from the plan's shape. Three runs died upstream of every other
         // guard because nothing asked this one question.
-        if (!"pillarUp".equals(walker.pathMove()))
-            ctx.fail("surfacePillar: after adopt the pointer is on " + walker.pathMove() + ", not pillarUp; "
-                    + "the subject under test left the pointer before a single tick ran. probe=" + walker.progressProbe());
+        if (!"pillarUp".equals(walker.inspect().pathMove()))
+            ctx.fail("surfacePillar: after adopt the pointer is on " + walker.inspect().pathMove() + ", not pillarUp; "
+                    + "the subject under test left the pointer before a single tick ran. probe=" + walker.inspect().progressProbe());
 
         final double startY = fp.getY();
         double maxY = startY;
@@ -995,11 +995,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             // and a tick that executes an edge and then consumes its node leaves the pointer past it —
             // so a post-tick-only sample can miss an edge that was run and immediately consumed. The
             // question is "was pillarUp the edge this tick was about to run", and only this side answers it.
-            if ("pillarUp".equals(walker.pathMove())) ranPillarUp = true;
+            if ("pillarUp".equals(walker.inspect().pathMove())) ranPillarUp = true;
             s = walker.tick(av, w);
             av.step();
             maxY = Math.max(maxY, fp.getY());
-            if ("pillarUp".equals(walker.pathMove())) ranPillarUp = true;
+            if ("pillarUp".equals(walker.inspect().pathMove())) ranPillarUp = true;
             // blocksMotion, not !isAir: the support cell STARTS as water, so "not air" is true
             // from the first tick and would report a placement that never happened.
             if (level.getBlockState(support).blocksMotion()) placed = true;
@@ -1041,8 +1041,8 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // The plan the walker ENDED with, next to the one this scene handed it. A swap is the single
         // most likely way this arena stops being about its subject, and inferring it from a terminal
         // class took a full gate run; these two print it.
-        ctx.record("walk.finalPlan", walker.planTally());
-        ctx.record("walk.progressProbe", walker.progressProbe());
+        ctx.record("walk.finalPlan", walker.inspect().planTally());
+        ctx.record("walk.progressProbe", walker.inspect().progressProbe());
 
         // THE FOURTH VACUITY GATE, and the one the first design was missing. The three above check
         // the WORLD; none of them checks that the SUBJECT ran. Handing the walker a goal makes it

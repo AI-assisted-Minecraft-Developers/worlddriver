@@ -1408,7 +1408,7 @@ final class WalkerTickDrive {
                     : stepUpFreeze && p.onGround() ? "stepUpFreeze" : levelRiserJump ? "levelRiser"
                     : wiggle ? "wiggle" : swimUp ? "swimUp" : swimColumn ? "swimColumn" : deepWaterRise ? "deepWaterRise" : "other";
         }
-        if (parkourEdge) wk.noteParkourTakeoff(world, a, p, jump, foot);  wk.avatarJump(a, jump);  // latch: Walker.parkourTakeoff()
+        if (parkourEdge) wk.noteParkourTakeoff(world, a, p, jump, foot);  wk.avatarJump(a, jump);  // latch: WalkerInspector.parkourTakeoff()
         // Sprint in water ONLY on a FLAT crossing (flatWaterWalk: wp.y==foot.y). The
         // prone swim pose that sprint+forward forces is exactly what a wide open-ocean
         // crossing needs (vanilla's fast swim) — WITHOUT it the bot treads upright in

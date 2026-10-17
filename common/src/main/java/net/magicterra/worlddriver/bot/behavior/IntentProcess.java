@@ -53,7 +53,7 @@ public final class IntentProcess implements BotProcess {
 
     private final Intent intent;
     private final Walker walker;
-    /** The walker driving this intent, for its {@link Walker#tallies()}: a scene that holds the
+    /** The walker driving this intent, for its {@link WalkerInspector#tallies()}: a scene that holds the
      *  process reads the counts of the player it handed the process to, on either helm. */
     public Walker walker() { return walker; }
     /** Which of {@link Intent#targets()} the walker is on. The waypoints ({@code route.via}) come
@@ -92,11 +92,11 @@ public final class IntentProcess implements BotProcess {
     private void judgeSearch(BlockPos foot) {
         if (events == null) return;
         events.tick();
-        int n = walker.tallies().searches;
+        int n = walker.inspect().tallies().searches;
         if (n == searchesJudged) return;
         searchesJudged = n;
-        PathFinder.Result res = walker.tallies().lastResult;
-        PathFinder.Search search = walker.tallies().lastSearch;
+        PathFinder.Result res = walker.inspect().tallies().lastResult;
+        PathFinder.Search search = walker.inspect().tallies().lastSearch;
         events.onSearch(res, intent.targets().get(leg), foot, leg, risk,
                 search == null ? null : () -> search.taxTotals(res));
     }
@@ -166,25 +166,25 @@ public final class IntentProcess implements BotProcess {
         // records the plan the run started from rather than the one it died in.
         if (st.mc_goto.firstPlan == null && walker.pathLen() > 0) {
             st.mc_goto.firstPlan = "bot at " + (body == null ? "?" : body.blockPosition().toShortString())
-                    + " firstMove=" + walker.pathMove()
-                    + " firstNode=" + (walker.pathNode() == null ? "?" : walker.pathNode().toShortString())
-                    + "; smoothed: " + walker.planTally()
-                    + "; before smoothing: " + walker.rawPlanTally()
-                    + "; terrain along the path: " + walker.planTerrain(w)
-                    + "; cell by cell: " + walker.planSpans(w, 4)
+                    + " firstMove=" + walker.inspect().pathMove()
+                    + " firstNode=" + (walker.inspect().pathNode() == null ? "?" : walker.inspect().pathNode().toShortString())
+                    + "; smoothed: " + walker.inspect().planTally()
+                    + "; before smoothing: " + walker.inspect().rawPlanTally()
+                    + "; terrain along the path: " + walker.inspect().planTerrain(w)
+                    + "; cell by cell: " + walker.inspect().planSpans(w, 4)
                     + "; smoothing self-audit: "
                     + net.magicterra.worlddriver.bot.control.PathSmoothing.smoothingAudit();
         }
         // Published from the SAME tick as the two counters above, so a reader cannot pair a step
         // index with a node the walker had already moved past. See BotState.ProcessSlot.pathNode.
-        st.mc_goto.pathNode = walker.pathNode();
-        st.mc_goto.pathMove = walker.pathMove();
+        st.mc_goto.pathNode = walker.inspect().pathNode();
+        st.mc_goto.pathMove = walker.inspect().pathMove();
         // Same tick, same reason (see BotState.ProcessSlot.driveTag): whether this tick reached the
         // drive tail at all is what separates "the edge guard said no" from "the edge guard never
         // ran", and only the walker knows.
-        if (walker.parkourTakeoff() != "none") st.mc_goto.parkourTakeoff = walker.parkourTakeoff();
-        st.mc_goto.driveTag = walker.driveTag;
-        st.mc_goto.jumpTag = walker.jumpTag;
+        if (walker.inspect().parkourTakeoff() != "none") st.mc_goto.parkourTakeoff = walker.inspect().parkourTakeoff();
+        st.mc_goto.driveTag = walker.inspect().driveTag();
+        st.mc_goto.jumpTag = walker.inspect().jumpTag();
         if (s == Locomotor.Status.MOVING) return false;
         // A waypoint reached: on to the next goal. start resets the walker's path and every
         // per-goal latch, so the next segment plans afresh from where the bot stands; the search

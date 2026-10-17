@@ -329,9 +329,9 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
             av.step();
             double h = Math.hypot(fp.getDeltaMovement().x, fp.getDeltaMovement().z);
             minY = Math.min(minY, fp.getY());
-            if (firstPlan == null && walker.pathLen() > 0) firstPlan = walker.planTally();
+            if (firstPlan == null && walker.pathLen() > 0) firstPlan = walker.inspect().planTally();
             if (tLip < 0 && Mth.floor(fp.getX()) <= cx) tLip = t;
-            if (gapMove == null && fp.getX() < cx) gapMove = String.valueOf(walker.pathMove());
+            if (gapMove == null && fp.getX() < cx) gapMove = String.valueOf(walker.inspect().pathMove());
             if (takeoffTick < 0 && fp.getY() > standY + 0.05) {
                 takeoffTick = t; takeoffX = prevX; takeoffHBefore = prevH; takeoffHAfter = h;
             }
@@ -362,11 +362,11 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
                 "before %.4f -> after %.4f (a sprint-jump shows about 0.35; a x0.91 ratio is pure "
                 + "air decay, i.e. no impulse at all)", takeoffHBefore, takeoffHAfter));
         ctx.record("takeoff.tick", takeoffTick);
-        ctx.record("takeoff.walker", walker.parkourTakeoff());
+        ctx.record("takeoff.walker", walker.inspect().parkourTakeoff());
         ctx.record("gap.move", gapMove == null ? "never got past the lip" : gapMove);
         ctx.record("gap.solidCells", gapSolidCells(level, cx, cz, padY, halfW));
         ctx.record("plan.first", firstPlan == null ? "none - the run never held a path" : firstPlan);
-        ctx.record("plan.last", walker.planTally());
+        ctx.record("plan.last", walker.inspect().planTally());
         ctx.record("place.tally", av.placeTally());
         ctx.record("place.spent", spent + " cobblestone (started with " + cobbleBefore + ")");
         ctx.record("canPlace", w.canPlace());
@@ -515,7 +515,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
     }
 
     /** Node count, goal-reached, cost and the move histogram — the same shape
-     *  {@code Walker#planTally} prints, for a result that never reaches a Walker. */
+     *  {@code WalkerInspector#planTally} prints, for a result that never reaches a Walker. */
     private static String planShape(PathFinder.Result res) {
         java.util.Map<String, Integer> byMove = new java.util.TreeMap<>();
         for (Move.Edge e : res.edges())

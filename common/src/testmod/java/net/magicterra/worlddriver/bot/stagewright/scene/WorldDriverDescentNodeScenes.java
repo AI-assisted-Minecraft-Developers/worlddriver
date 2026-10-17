@@ -341,7 +341,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         boolean lava = false;
         for (; t < DRIVE_TICKS; t++) {
             walker.tick(av, w);
-            if (walker.pathNode() == null) { noPlan++; longest = Math.max(longest, ++run); } else run = 0;
+            if (walker.inspect().pathNode() == null) { noPlan++; longest = Math.max(longest, ++run); } else run = 0;
             av.step();
             minY = Math.min(minY, fp.getY());
             if (fp.isInLava()) { lava = true; break; }
@@ -523,7 +523,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         int t = 0, noPlan = 0;
         for (; t < STAIR_TICKS; t++) {
             walker.tick(av, w);
-            if (walker.pathNode() == null) noPlan++;
+            if (walker.inspect().pathNode() == null) noPlan++;
             av.step();
             if (fp.blockPosition().getX() >= bottom.getX() && fp.getY() <= bottom.getY() + 0.5) break;
         }
@@ -870,11 +870,11 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         StringBuilder trace = new StringBuilder();
         for (; t < DOOR_TICKS; t++) {
             walker.tick(av, w);
-            if (walker.pathNode() == null) noPlan++;
+            if (walker.inspect().pathNode() == null) noPlan++;
             if (t < TRACE_TICKS)
                 trace.append(t == 0 ? "" : " ").append(t).append(':').append(cell(fp.blockPosition()))
                      .append(" step").append(walker.pathStep()).append('/').append(walker.pathLen())
-                     .append(" node").append(walker.pathNode() == null ? "none" : cell(walker.pathNode()))
+                     .append(" node").append(walker.inspect().pathNode() == null ? "none" : cell(walker.inspect().pathNode()))
                      .append(" held").append(tel.descentHolds - holds0);
             av.step();
             minY = Math.min(minY, fp.getY());
