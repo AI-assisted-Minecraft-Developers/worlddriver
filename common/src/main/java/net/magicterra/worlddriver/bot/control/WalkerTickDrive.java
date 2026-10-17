@@ -1085,9 +1085,9 @@ final class WalkerTickDrive {
             if (wpHazard) {
                 // UNCONDITIONAL — see announceLavaBrake below for why this one is not throttled.
                 LOG.info("[walker] path-hazard brake: waypoint {} column now hazardous "
-                        + "(flowed in after plan) → forceRepath", wp.toShortString());
+                        + "(flowed in after plan) → replan", wp.toShortString());
                 a.releaseInputs();
-                wk.forceRepath();
+                wk.replan();
                 return Walker.Step.WALKING;
             }
         }
@@ -1861,12 +1861,12 @@ final class WalkerTickDrive {
                 edge.move, node, foot, p.getX(), p.getY(), p.getZ(), wk.searchGov.deadZoneRepeats);
         if (ControlConfig.walkerAscendDeadZoneCap <= 0
                 || wk.searchGov.deadZoneRepeats < ControlConfig.walkerAscendDeadZoneCap) return null;
-        wk.lastError = "ascent dead-zone " + wk.searchGov.deadZoneRepeats
+        wk.error = "ascent dead-zone " + wk.searchGov.deadZoneRepeats
                 + " times from the same cell — the search keeps returning " + edge.move
                 + " to " + node + " and the executor keeps refusing it (foot=" + foot
                 + "); the plan is fine and the bot cannot perform it";
         return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH,
-                wk.lastError, "failed:" + wk.lastError, p.blockPosition());
+                wk.error, "failed:" + wk.error, p.blockPosition());
     }
 
     /**

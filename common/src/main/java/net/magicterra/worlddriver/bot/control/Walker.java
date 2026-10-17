@@ -37,8 +37,9 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
 import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
 
-public final class Walker {
-    public enum Step { WALKING, ARRIVED, FAILED }
+public final class Walker implements Locomotor {
+    /** What a tick phase decided; {@link #tick} turns it into a {@link Locomotor.Status}. */
+    enum Step { WALKING, ARRIVED, FAILED }
     // Water-bucket (MLG) fall handling lives in the always-on {@link
     // ClutchController} the bot ticks, so an unplanned fall self-rescues
     // whether or not a Walker is driving. The Walker only SIGNALS a planned fall
@@ -53,48 +54,31 @@ public final class Walker {
     /** The telemetry of the body this walker last ticked; a private sink until the first tick. */
     WalkerTelemetry tel = new WalkerTelemetry();
 
-    /** gap#72-④: the chain/verb this walker moves for (e.g. "mine", "retreat",
-     *  "goto") — threaded into every {@link PathFinder} it launches so latest.log's
-     *  search-begin lines are attributable. "?" = an untagged caller (test rigs,
-     *  direct arena walkers). Telemetry only; never read by planning/steering.
-     *  <p>Who owns this Walker's searches, for telemetry. Defaults to a name that at least says WHAT
-     *  it is: a thread dump reading {@code owner=?} cost a round of this investigation, because "?"
-     *  reads as "not a Walker's" when it actually means "a Walker nobody named". Scenes that drive
-     *  the bot directly never call {@link #setOwner}, so this default is what they get. */
-    String owner = "walker.unnamed";
+    /** The chain or verb this walker moves for — see {@link WalkerSettings#owner}. */
+    final String owner;
 
-    public Walker() {}
-    /** gap#72-④: construct pre-tagged — the one-expression form for the processes'
-     *  {@code private final Walker walker = new Walker("mine")} field initializers. */
-    public Walker(String owner) { setOwner(owner); }
-    public void setOwner(String owner) { if (owner != null && !owner.isEmpty()) this.owner = owner; }
+    public Walker() { this(WalkerSettings.DEFAULT); }
+
+    public Walker(WalkerSettings settings) {
+        this.owner = settings.owner();
+        this.searchMaxNodes = settings.searchMaxNodes();
+        this.searchMaxMs = settings.searchMaxMs();
+        useProfile(settings.profile());
+    }
 
     Goal goal;
     /** Per-intent search profile (bias + capability + constraints) forwarded to
      *  every PathFinder this Walker builds (A4a bias-only; A2a full profile).
      *  {@link SearchProfile#NONE} = plain navigation; IntentProcess sets it from the Intent. */
     SearchProfile profile = SearchProfile.NONE;
-    /** Cached from {@link #profile} in {@link #setSearchProfile}: does the current profile carry a
+    /** Cached from {@link #profile} in {@link #useProfile}: does the current profile carry a
      *  {@link NoBreak} (a per-goto {@code forbidDig})? Cached so the execution-layer dig gate
      *  ({@link #mayBreak}) is a field read, not a per-tick constraint scan at every fallback site. */
     boolean profileForbidsBreak = false;
 
-    /** Optional per-Walker deep-search budget (nodes, ms); -1 = the global
-     *  {@link PlanningConfig#pathfinderMaxNodes}/{@link PlanningConfig#pathfinderMaxMs}.
-     *  For owners whose goals are always NEAR (mine's approach stands sit within
-     *  its ≤64-block scan): an ore stand embedded in a wall is proven unreachable
-     *  after a few thousand expansions, and grinding the full 50k/2s budget per
-     *  candidate is pure waste — sliced at {@link ControlConfig#pathfinderIdleSliceMs}
-     *  it also chops the client to ~25 fps for seconds right after each block
-     *  break (a visible hitch after every mined block). The real gate for hopeless stands is the
-     *  mine process's 100t no-approach blacklist; a small budget just reaches it
-     *  sooner. Long-haul navigation (goto/escape) keeps the full defaults. */
-    int searchMaxNodes = -1;
-    long searchMaxMs = -1;
-    public void setSearchBudget(int nodes, long ms) {
-        this.searchMaxNodes = nodes;
-        this.searchMaxMs = ms;
-    }
+    /** Deep-search budget (nodes, ms); -1 = the configured one. See {@link WalkerSettings#withSearchBudget}. */
+    final int searchMaxNodes;
+    final long searchMaxMs;
 
     /** Single construction point for this Walker's deep-search PathFinders so the
      *  per-Walker budget override, tuning and scope source apply to every search launch site
@@ -110,8 +94,8 @@ public final class Walker {
     Equipment equipment = WalkerNoHands.INSTANCE;
     BlockInteraction blocks = WalkerNoHands.INSTANCE;
 
-    /** Set the per-intent search profile for subsequent searches. Null → {@link SearchProfile#NONE}. */
-    public void setSearchProfile(SearchProfile p) {
+    /** Search with {@code p} from now on. Null → {@link SearchProfile#NONE}. */
+    private void useProfile(SearchProfile p) {
         this.profile = (p == null) ? SearchProfile.NONE : p;
         boolean forbids = false;
         for (Constraint c : this.profile.constraints()) if (c instanceof NoBreak) { forbids = true; break; }
@@ -137,7 +121,7 @@ public final class Walker {
     int finalNodeHold;
     Object finalNodeHoldPath;
     int finalNodeHoldStep = -1;
-    boolean goalSnapChecked;   // one-shot per goal: snap an unstandable Goal.Block target to the nearest standable cell (see snapGoalToStandable) — needs a live WorldView so it runs on the first tick, not at setGoal
+    boolean goalSnapChecked;   // one-shot per goal: snap an unstandable Goal.Block target to the nearest standable cell (see snapGoalToStandable) — needs a live WorldView so it runs on the first tick, not at start
     List<BlockPos> path;
     List<Move.Edge> edges;   // aligned with path; edges.get(i) enters path.get(i)
     /** The A* result before stringPull, as a tally — see {@link #rawPlanTally()}. */
@@ -374,7 +358,7 @@ public final class Walker {
     }
     boolean descending;       // ending creative flight; wait to land before pathing
     /** Water anti-spin governor (task#96 step B9): consumed by the search/stall gates.
-     *  {@link GoalSpin#resetForNewGoal()} (setGoal only) clears the baselines;
+     *  {@link GoalSpin#resetForNewGoal()} (start only) clears the baselines;
      *  goalSpin.churnResets deliberately PERSISTS across goals (fresh-baseline grants are a
      *  per-bot budget, not per-journey — do NOT add it to the reset). */
     final GoalSpin goalSpin = new GoalSpin();
@@ -391,7 +375,7 @@ public final class Walker {
     }
     /** Land boxed-pocket churn window (task#96 step B4), owned by WalkerTickStallDetect;
      *  Walker's carrot logic reads hColRamTicks (walkerCarrotHColShrink).
-     *  {@link BoxedChurn#resetForNewGoal()} runs in setGoal only (forceRepath never
+     *  {@link BoxedChurn#resetForNewGoal()} runs in start only (replan never
      *  cleared this window); hColRamTicks has NO reset site anywhere — it self-zeroes
      *  on every collision-free tick. The water anti-spin's goalSpin.churnResets stays a loose
      *  field (cross-goal persistence — see its doc). */
@@ -433,7 +417,7 @@ public final class Walker {
      *  per-tick updater); their verdicts feed StallDetect's wedge/ram folds and the
      *  aim/drive stall gates, and WalkerTickPrelude forwards noStepProgressTicks to the
      *  expectation alarms. {@link StepProgress#restartWindows()} is the journey reset
-     *  (setGoal + forceRepath — exactly the five fields both cleared); adoptPath and
+     *  (start + replan — exactly the five fields both cleared); adoptPath and
      *  beginScriptedFollow keep their DIFFERENT partial restarts as direct writes
      *  (adoptPath re-bases stuckStepHigh to step-1, not -1). The dwell/orbit counters
      *  self-manage on step/path change inside WalkerTickProgress. */
@@ -554,10 +538,10 @@ public final class Walker {
     /** Anti-stuck forced displacement (task#96 step B): the wedge-repath counter anchored
      *  at lastWedgeFoot (WalkerTickRepath is the ONLY setter of the anchor) and the
      *  displacement burst it fires (burst driven by WalkerTickRepath; also armed directly
-     *  by WalkerTickStallDetect's riser-shove). Deliberately NOT touched by forceRepath:
+     *  by WalkerTickStallDetect's riser-shove). Deliberately NOT touched by replan:
      *  the wedge memory must survive a process resume, else a resume loop at the same
      *  wedge never escalates to the burst. {@link Unstuck#resetForNewGoal()} runs in
-     *  setGoal only (burstYaw is scratch — read only while burstTicks>0);
+     *  start only (burstYaw is scratch — read only while burstTicks>0);
      *  {@link Unstuck#dropWedgeAnchor()} is the full anchor drop (progressive-stub
      *  adoption, post-burst displacement) — WalkerTickClimb's dig-start clear is a
      *  PARTIAL one (count only, anchor retained) and stays a direct field write. */
@@ -584,29 +568,16 @@ public final class Walker {
     int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
     int dbgTicksOnStep = 0;   // walkerDebug: ticks spent on the current step
     boolean replayMode;   // executing a fixed archived plan: no repath/quick-start/splice/anti-stuck repath
-    public String lastError;
-    /** gap#68-R2 honest terminal report: why the last tick() returned ARRIVED/FAILED,
-     *  whether the (possibly snapped-away-from) goal was ACTUALLY reached at the foot,
-     *  and the heuristic distance left. Written once at every terminal() call site;
-     *  read by IntentProcess to stamp the status slot. Volatile: status threads read. */
-    public volatile String lastEndReason;
-    public volatile boolean lastGoalReached;
-    public volatile double lastFinalDist;
+    /** Why the walk failed, or why a branch last threw the route away; the failing branch's text is
+     *  what {@link #result()} reports. */
+    String error;
+    /** How the last walk ended, written once by {@link #terminalReport}. Volatile: status threads read. */
+    private volatile WalkResult result = WalkResult.NONE;
     /** True once snapGoalToStandable() rewrote the requested Goal.Block to a nearby
      *  standable cell — arrival then means "arrived NEAR", not "arrived AT". */
     boolean goalSnapped;
 
-    /** {@link #goalSnapped} for the post-mortem channel. Package-private fields are invisible to
-     *  testmod scene classes, and this bit is half of what "the walker arrived and the ore is still
-     *  there" means: a snapped goal says the cell the process asked for was not the cell the walker
-     *  drove at, so the two can be judged separately. */
-    public boolean goalSnapped() { return goalSnapped; }
-
-    /** Why the step {@link #tick} just returned fell short of the goal, or null when it did not. */
-    public String shortfall(Step s) {
-        return WalkVerdict.shortfall(s, lastError, lastGoalReached, lastEndReason, lastFinalDist,
-                goal != null && goal.open());
-    }
+    @Override public WalkResult result() { return result; }
 
     /** The water climb-out's place-futility ledger, for scenes that assert on the FALLBACK rather
      *  than on the climb: {@code > PILLAR_FUTILE_TICKS} is what hands the bank over to the dig.
@@ -748,13 +719,13 @@ public final class Walker {
 
     /**
      * Re-aim an in-progress pursuit at a quarry that moved, WITHOUT telling the walker this is
-     * a new journey. {@link #setGoal} clears the futile-search governor, which is right for a
+     * a new journey. {@link #start} clears the futile-search governor, which is right for a
      * fresh goto and wrong for a chase: a caller that re-goals every time its quarry changes
      * block zeroes the counter faster than the counter can reach its cap, so the guard that
      * exists to stop a bot burning a full A* per tick toward something it cannot reach never
      * fires. Measured on a chase of a descending goal: 240 ticks produced 240 full searches and
      * a counter that never passed 1. Everything else about the goal genuinely IS new, so this
-     * is {@code setGoal} plus the six fields that describe "how this pursuit has been going"
+     * is {@code start} plus the six fields that describe "how this pursuit has been going"
      * rather than "which cell we want" — including the backoff, since taking away an armed
      * cooldown is the same leak one cap below.
      *
@@ -763,7 +734,7 @@ public final class Walker {
      * leaves a chase that never lands one — never counted, never routed. A continuation from the
      * segment end goes, since the path it would extend is cleared.
      */
-    public void retargetGoal(Goal g) {
+    @Override public void retarget(Goal g) {
         double bestDist = searchGov.futileBestDist;
         BlockPos bestFoot = searchGov.futileFoot;
         Goal yardstick = searchGov.futileGoal;
@@ -771,7 +742,7 @@ public final class Walker {
         int searches = searchGov.futileSearches;
         int backoff = searchGov.searchBackoffTicks;
         PathFinder.Search running = seg.searchFromEnd ? null : seg.activeSearch;
-        setGoal(g);
+        start(g);
         searchGov.futileBestDist = bestDist;
         searchGov.futileFoot = bestFoot;
         searchGov.futileGoal = yardstick;
@@ -781,11 +752,11 @@ public final class Walker {
         seg.activeSearch = running;
     }
 
-    public void setGoal(Goal g) {
+    @Override public void start(Goal g) {
         this.goal = g;
         this.goalSnapChecked = false;
         this.goalSnapped = false;
-        this.lastEndReason = null;
+        this.result = WalkResult.NONE;
         this.path = null;
         this.edges = null;
         this.step = 0;
@@ -812,7 +783,7 @@ public final class Walker {
         this.guardPlugCell = null;                          // plug arming is per-journey; a stale
         this.guardPlugFires = 0;                            // cell must not pre-arm the next goal
         this.replayMode = false;
-        this.lastError = null;
+        this.error = null;
     }
 
     /**
@@ -881,7 +852,7 @@ public final class Walker {
      *  being preempted by a higher-priority chain — during the suspension the bot
      *  may have been knocked back or the terrain changed, so reusing the stale
      *  path would walk into a wall. See ProcessScheduler / UserTaskChain.onResume. */
-    public void forceRepath() {
+    @Override public void replan() {
         this.path = null;
         this.edges = null;
         this.step = 0;
@@ -893,7 +864,7 @@ public final class Walker {
         this.stepProg.restartWindows();
         this.aimSmooth.reset();
         this.searchGov.quickCooldown = 0;
-        // Clear the water-climb-out / descent state too (setGoal resets these): a
+        // Clear the water-climb-out / descent state too (start resets these): a
         // resume mid water-climb otherwise carries a stale window base-Y / armed
         // stall, so the next tick either fires a spurious foothold-place takeover
         // (stall already past threshold) or suppresses a legitimate stall.
@@ -907,18 +878,23 @@ public final class Walker {
         this.escal.disarm();
     }
 
+    @Override public void replan(SearchProfile profile) {
+        useProfile(profile);
+        replan();
+    }
+
     /** Replay a fixed archived plan. Caller has already teleported the bot to the plan
      *  start and restored the block envelope. Disables A* entirely — the plan executes
      *  with real physics; a wedge is recorded, not re-planned. */
-    public void beginReplay(WorldView world, List<BlockPos> plan, List<Move.Edge> planEdges, Goal endGoal, BlockPos startFoot) {
-        setGoal(endGoal);
+    public void replay(WorldView world, List<BlockPos> plan, List<Move.Edge> planEdges, Goal endGoal, BlockPos startFoot) {
+        start(endGoal);
         this.replayMode = true;
         adoptPath(new PathFinder.Result(plan, planEdges, true, 0, 0L, 0.0), world, startFoot);
     }
 
     /**
      * TEST SEAM — adopt a hand-built plan with the LIVE recovery/repath machinery left ON
-     * (unlike {@link #beginReplay}, which sets {@code replayMode} and disables A*), then
+     * (unlike {@link #replay}, which sets {@code replayMode} and disables A*), then
      * point {@code step} at an arbitrary mid-plan node. The harness uses this to force the
      * exact step-pointer-mismatch STATE the live wedge lands in — bot grounded N blocks off a
      * descend node — INDEPENDENT of how the bot drifted there live (which a momentum overshoot
@@ -928,7 +904,7 @@ public final class Walker {
      * NOT fast-forward/re-anchor the step it just set. Not wired to any transport; test-only.
      */
     public void beginScriptedFollow(WorldView world, List<BlockPos> plan, List<Move.Edge> planEdges, Goal endGoal, int startStep) {
-        setGoal(endGoal);
+        start(endGoal);
         this.replayMode = false;
         adoptPath(new PathFinder.Result(plan, planEdges, false, 0, 0L, 0.0), world, null);
         this.step = Math.max(0, Math.min(startStep, (path == null ? 1 : path.size())));
@@ -951,8 +927,8 @@ public final class Walker {
      * of the path" and "the destination" are different questions and {@link #planTally()} answers
      * the first one.
      */
-    public int pathLen() { return path == null ? 0 : path.size(); }
-    public int pathStep() { return step; }
+    @Override public int pathLen() { return path == null ? 0 : path.size(); }
+    @Override public int pathStep() { return step; }
 
     /**
      * What the world looks like UNDER the plan, sampled along it — the reading that separates a
@@ -1207,7 +1183,7 @@ public final class Walker {
      *  plan BEST-EFFORT, and a best-effort segment is one the walker is entitled to replace: it kicks
      *  off a continuation search, adopts the result, and the synthetic edges are gone. That is how
      *  {@code wd.surfacePillarPointerNeedsItsSupport} lost its subject on tick ONE — its terminal read
-     *  {@code path-consumed}, a class {@link #classifyArrival} can only return once
+     *  {@code path-consumed}, a class {@link WalkVerdict#classifyArrival} can only return once
      *  {@code seg.pathBestEffort} is false, and {@link #adoptPath} is its only writer. A synthetic plan
      *  whose last node IS the goal has to say so, or it does not survive its own first tick. */
     public boolean adoptForTest(WorldView world, List<BlockPos> plan, List<Move.Edge> planEdges,
@@ -1418,12 +1394,22 @@ public final class Walker {
      *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */
     static void avatarForward(Body a, boolean v) { a.commandForward(v ? 1f : 0f); }
 
-    public Step tick(Body a, WorldView world) {
+    @Override public Status tick(Body a, WorldView world) {
         body = a.entity();
         if (body != null) tel = WalkerTelemetry.of(body);
         equipment = a.equipment().orElse(WalkerNoHands.INSTANCE);
         blocks = a.blockInteraction().orElse(WalkerNoHands.INSTANCE);
-        if ((medium = WalkerMedium.forBody(this, medium, world)) != null) return medium.tick(a, world);
+        if (goal == null) {
+            result = new WalkResult(Status.FAILED, "no goal: the walk was never started, or was cancelled",
+                    "failed:no goal", false, -1, false);
+            return Status.FAILED;
+        }
+        Step s = (medium = WalkerMedium.forBody(this, medium, world)) != null ? medium.tick(a, world) : walk(a, world);
+        return s == Step.WALKING ? Status.MOVING : result.status();
+    }
+
+    /** One tick of a body that walks: the phases, then the safety tail that every exit runs. */
+    private Step walk(Body a, WorldView world) {
         // Single-exit wrapper: tickInner() has dozens of early returns (pillar, dig, escape,
         // stepUp...), so a safety invariant appended to its tail only covers SOME ticks — the
         // gap #53 death strode over a well mouth from a branch that never reached it. Run the
@@ -2218,39 +2204,27 @@ public final class Walker {
         return r;
     }
 
-    /** Fire onTerminal and return the step verdict in one place, so every terminal
-     *  return site stays a one-liner. */
-    Step terminal(Step s, PathTrace.Outcome outcome, String reason) {
+    /**
+     * End the walk: stamp {@link #result} and fire the route trace's terminal, so every terminal
+     * return site stays a one-liner. {@code foot} may be null (no player) → conservatively not reached.
+     */
+    Step terminalReport(Step s, PathTrace.Outcome outcome, String reason, String endReason, BlockPos foot) {
+        boolean reached = foot != null && goal != null && !goalSnapped && goal.reached(foot);
+        double dist = (foot != null && goal != null) ? goal.estimate(foot) : -1;
+        result = WalkVerdict.of(s == Step.FAILED, reason, reached, endReason, dist, goalSnapped,
+                goal != null && goal.open());
         PathTraceHolder.SINK.onTerminal(outcome, reason);
         return s;
     }
 
-    /** Pure classification of a generic ARRIVED exit (static & matrix-testable).
-     *  Public like the sibling {@code RetreatChain.shouldEnter}/{@code shouldRelease}
-     *  static gates — the neoforge matrix gametest calls it cross-package/cross-module. */
-    public static String classifyArrival(boolean bestEffort, boolean reachedFoot, boolean snapped) {
-        if (snapped && reachedFoot) return WalkVerdict.GOAL_SNAPPED;
-        if (reachedFoot) return "arrived";
-        return bestEffort ? "best-effort-consumed" : "path-consumed";
-    }
-
-    /** terminal() + honest report stamp. foot may be null (no player) → conservative false. */
-    Step terminalReport(Step s, PathTrace.Outcome outcome, String reason,
-                                String endReason, BlockPos foot) {
-        lastEndReason = endReason;
-        lastGoalReached = foot != null && goal != null && !goalSnapped && goal.reached(foot);
-        lastFinalDist = (foot != null && goal != null) ? goal.estimate(foot) : -1;
-        return terminal(s, outcome, reason);
-    }
-
-    /** Externally cancelled (mc.bot.cancel / superseded by a new goto) before a
-     *  natural terminal. Fire onTerminal(CANCELLED) so per-session trace observers
-     *  finalize the partial run (e.g. a path archive is flushed for a wedge the
-     *  agent cancelled out of). A no-op for the recorders if no session is open
-     *  (they guard on sessionOpen), so a double-fire after a natural terminal is
-     *  harmless. */
-    public void abort(String reason) {
+    /** Stopped from outside before the walk ended (mc.bot.cancel, superseded by a new goto, the bot
+     *  left the dimension). Fires the trace's CANCELLED terminal so per-session observers finalize
+     *  the partial run (a path archive is flushed for a wedge the agent cancelled out of) — a no-op
+     *  for the recorders if no session is open, so a cancel after a natural end is harmless — then
+     *  drops the goal and everything about the walk. */
+    @Override public void cancel(String reason) {
         PathTraceHolder.SINK.onTerminal(PathTrace.Outcome.CANCELLED, reason);
+        start(null);
     }
 
     /** At a loaded-chunk frontier the (stale) eager continuation from seg.commitEnd —

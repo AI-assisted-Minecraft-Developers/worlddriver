@@ -10,7 +10,9 @@ import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
@@ -147,19 +149,19 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(buried));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(buried));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int arrivedTick = -1;
-        for (int t = 0; t < 300 && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < 300 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
-            if (s == Walker.Step.ARRIVED) { arrivedTick = t; break; }
+            if (s.ended()) { arrivedTick = t; break; }
         }
         double dGoal = Math.hypot(fp.getX() - (cx + 10 + 0.5), fp.getZ() - (cz + 0.5));
         WorldDriverCommon.LOG.info("[wd.goalSnapBuried] step={} pos=({},{},{}) arrivedTick={} dToBuried={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), arrivedTick, String.format("%.1f", dGoal));
         // Snap → ARRIVED at a standable cell adjacent to the buried pillar (within snap radius 6 + slack).
-        if (s != Walker.Step.ARRIVED)
+        if (!s.ended())
             ctx.fail("goalSnapBuried: bot never arrived at a buried/unstandable goal"
                     + " (snap failed): step=" + s + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")");
         if (dGoal > 7.0)
@@ -383,10 +385,10 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     new Move.Edge(goalN, 10, List.of(), List.of(), "walk"));
             // beginReplay: pin the scripted plan with replayMode → the safety repath is DISABLED, so the OFF
             // run's wedge is a TRUE permanent stall (no A* escape muddies the A/B).
-            walker.beginReplay(w, plan, planEdges, goal, approach);
+            walker.replay(w, plan, planEdges, goal, approach);
 
-            Walker.Step s = Walker.Step.WALKING;
-            for (int t = 0; t < 200 && s == Walker.Step.WALKING; t++) {
+            Locomotor.Status s = Locomotor.Status.MOVING;
+            for (int t = 0; t < 200 && s == Locomotor.Status.MOVING; t++) {
                 s = walker.tick(av, w);
                 av.step();
                 BlockPos pn = walker.pathNode();
@@ -500,7 +502,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         fp.setDeltaMovement(-0.10, 0, 0);        // residual west approach momentum → press into the head-wall
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
+        Walker walker = new Walker(WalkerSettings.DEFAULT.withProfile(profile));
         BlockPos approach = new BlockPos(cx + 1, waterY, cz);
         List<BlockPos> plan = List.of(approach, node, cont, goalN);
         List<Move.Edge> planEdges = List.of(
@@ -508,10 +510,9 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                 new Move.Edge(node,  10, List.of(), List.of(), "stepDown"),
                 new Move.Edge(cont,  10, List.of(), List.of(), "walk"),
                 new Move.Edge(goalN, 10, List.of(), List.of(), "walk"));
-        walker.beginReplay(w, plan, planEdges, goal, approach);
-        walker.setSearchProfile(profile);        // AFTER beginReplay so it isn't reset
-        Walker.Step s = Walker.Step.WALKING;
-        for (int t = 0; t < 120 && s == Walker.Step.WALKING; t++) {
+        walker.replay(w, plan, planEdges, goal, approach);
+        Locomotor.Status s = Locomotor.Status.MOVING;
+        for (int t = 0; t < 120 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
         }
@@ -623,11 +624,11 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         fp.getInventory().clearContent();
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(goal);
-        Walker.Step st = Walker.Step.WALKING;
+        walker.start(goal);
+        Locomotor.Status st = Locomotor.Status.MOVING;
         int submergedTicks = 0;
         double maxX = fp.getX();
-        for (int t = 0; t < 1200 && st == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < 1200 && st == Locomotor.Status.MOVING; t++) {
             st = walker.tick(av, w);
             av.step();
             maxX = Math.max(maxX, fp.getX());

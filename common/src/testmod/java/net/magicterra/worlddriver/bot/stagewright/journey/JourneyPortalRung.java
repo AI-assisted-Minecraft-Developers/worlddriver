@@ -855,7 +855,7 @@ public final class JourneyPortalRung {
      * instead of saying so.
      *
      * <p><b>The bot stands in the corridor first.</b> {@code PlayerBot.mine} is
-     * {@code walker.setGoal(Near(cell, 2))} with breaking on, and a walker asked to get near a cell
+     * {@code walker.start(Near(cell, 2))} with breaking on, and a walker asked to get near a cell
      * in a wall will happily tunnel through the wall — which here is the mould. That is what the same
      * run did: it ended at {@code -10,59,34}, and {@code -10,59,34} is not a corridor cell at all, it
      * is an <b>interior cell of the portal's own doorway</b>, three of which the save shows opened.

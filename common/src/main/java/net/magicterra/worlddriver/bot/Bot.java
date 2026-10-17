@@ -5,7 +5,7 @@ import java.util.Map;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.magicterra.worlddriver.game.body.Body;
@@ -26,7 +26,7 @@ import net.magicterra.worlddriver.bot.behavior.Readiness;
 public interface Bot {
 
     /** One server tick of driving. */
-    Walker.Step tick();
+    Locomotor.Status tick();
 
     /** Whether the task it was last given has ended. A finished bot stays on {@link BotTicker}'s
      *  list and keeps ticking. */

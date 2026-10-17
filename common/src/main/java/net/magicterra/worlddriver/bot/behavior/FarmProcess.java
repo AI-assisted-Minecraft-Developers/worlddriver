@@ -5,7 +5,9 @@ import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -41,7 +43,7 @@ public final class FarmProcess implements BotProcess {
     private final BlockPos minP, maxP;     // every cell, Y included, is rescanned per search; VerbOrders.farm caps the count
     private final Set<String> crops;
     private final boolean replant;
-    private final Walker walker = new Walker("farm");
+    private final Walker walker = new Walker(WalkerSettings.named("farm"));
     private final Set<BlockPos> blacklist = new HashSet<>();
     private final int totalEstimate;
 
@@ -104,21 +106,21 @@ public final class FarmProcess implements BotProcess {
                 currentCropId = BuiltInRegistries.BLOCK.getKey(
                         lvl.getBlockState(currentTarget).getBlock()).toString();
                 st.builder.target = currentTarget;
-                walker.setGoal(new Goal.Block(found[1]));
+                walker.start(new Goal.Block(found[1]));
                 phase = Phase.GOING;
             }
             case GOING -> {
-                Walker.Step s = walker.tick(a, w);
+                Locomotor.Status s = walker.tick(a, w);
                 st.builder.pathLen = walker.pathLen();
                 st.builder.pathStep = walker.pathStep();
-                if (s == Walker.Step.FAILED) {
+                if (s == Locomotor.Status.FAILED) {
                     skipped++;
                     blacklist.add(currentTarget);
                     currentTarget = null;
                     phase = Phase.SEARCH;
                     return false;
                 }
-                if (s == Walker.Step.ARRIVED) {
+                if (s.ended()) {
                     // Crop may have despawned/been griefed during walk.
                     if (!stillMature(lvl, currentTarget)) {
                         blacklist.add(currentTarget);

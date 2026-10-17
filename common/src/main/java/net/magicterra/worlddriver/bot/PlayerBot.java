@@ -3,7 +3,9 @@ package net.magicterra.worlddriver.bot;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.Body;
@@ -47,7 +49,7 @@ public class PlayerBot extends ServerBot {
     /** The name it is addressed by, or null until {@link #named} gives it one. */
     private volatile String name;
     /** The walker the bare {@link #gotoGoal}/{@link #mine} tasks drive; processes own their own. */
-    private final Walker walker = new Walker("server");
+    private final Walker walker = new Walker(WalkerSettings.named("server"));
 
     public PlayerBot(ServerPlayerBody avatar) {
         super(avatar.fakePlayer());
@@ -74,7 +76,7 @@ public class PlayerBot extends ServerBot {
      */
     public PlayerBot gotoGoal(Goal goal) {
         runProcess(new WalkerTask("goto", null));
-        walker.setGoal(goal);
+        walker.start(goal);
         return this;
     }
 
@@ -95,7 +97,7 @@ public class PlayerBot extends ServerBot {
      */
     public PlayerBot mine(BlockPos target) {
         runProcess(new WalkerTask("mine", target.immutable()));
-        walker.setGoal(new Goal.Near(target, 2));
+        walker.start(new Goal.Near(target, 2));
         return this;
     }
 
@@ -126,7 +128,7 @@ public class PlayerBot extends ServerBot {
 
     /** {@link #gotoGoal} and {@link #mine} on the bare walker, held as a process so the reflex
      *  chains preempt it as they preempt any task. Claims no status slot, as the bare tasks never
-     *  did; {@link #lastStep()} carries the walker's own verdict. */
+     *  did; {@link #lastStatus()} carries the walker's own verdict. */
     private final class WalkerTask implements BotProcess {
         private final String kind;
         /** Non-null for a mine: navigate near, then break it. */
@@ -141,21 +143,21 @@ public class PlayerBot extends ServerBot {
         @Override public String kind() { return kind; }
         @Override public void attach(BotState st) {}
         @Override public String failure() { return failure; }
-        @Override public void onResume() { walker.forceRepath(); }
+        @Override public void onResume() { walker.replan(); }
 
         @Override public boolean tick(Body a, WorldView w, BotState st) {
-            Walker.Step s = walker.tick(a, w);
+            Locomotor.Status s = walker.tick(a, w);
             if (target == null) {
                 last = s;
-                if (s == Walker.Step.WALKING) return false;
-                if (s != Walker.Step.ARRIVED) failure = "walker " + s;
+                if (s == Locomotor.Status.MOVING) return false;
+                if (s == Locomotor.Status.FAILED) failure = "walker failed: " + walker.result().reason();
                 return true;
             }
             if (!w.isSolid(target)) {            // already broken (or arrived + broke last tick)
-                last = Walker.Step.ARRIVED;
+                last = Locomotor.Status.REACHED;
                 return true;
             }
-            if (s == Walker.Step.WALKING) {
+            if (s == Locomotor.Status.MOVING) {
                 last = s;
                 return false;
             }
@@ -163,8 +165,8 @@ public class PlayerBot extends ServerBot {
             avatar.selectTool(target);
             avatar.aimAtBlock(target);
             avatar.breakHold(true);
-            last = w.isSolid(target) ? Walker.Step.WALKING : Walker.Step.ARRIVED;
-            return last == Walker.Step.ARRIVED;
+            last = w.isSolid(target) ? Locomotor.Status.MOVING : Locomotor.Status.REACHED;
+            return last == Locomotor.Status.REACHED;
         }
     }
 }

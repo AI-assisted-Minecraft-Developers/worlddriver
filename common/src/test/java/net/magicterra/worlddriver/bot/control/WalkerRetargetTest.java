@@ -23,35 +23,35 @@ class WalkerRetargetTest {
         return new PathFinder(w).newSearch(new BlockPos(0, 64, 0), new Goal.Near(new BlockPos(5, 64, 0), 1));
     }
 
-    private final Walker walker = new Walker("follow");
+    private final Walker walker = new Walker(WalkerSettings.named("follow"));
 
     @Test
     void aChaseReAimKeepsTheSearchRunningFromTheFeet() {
-        walker.setGoal(new Goal.Near(new BlockPos(5, 64, 0), 1));
+        walker.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
         PathFinder.Search s = footSearch();
         walker.seg.activeSearch = s;
 
-        walker.retargetGoal(new Goal.Near(new BlockPos(6, 64, 0), 1));
+        walker.retarget(new Goal.Near(new BlockPos(6, 64, 0), 1));
         assertSame(s, walker.seg.activeSearch, "the search toward the quarry's last cell must be allowed to land");
     }
 
     @Test
     void aContinuationFromTheSegmentEndGoesWithThePathItWouldExtend() {
-        walker.setGoal(new Goal.Near(new BlockPos(5, 64, 0), 1));
+        walker.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
         walker.seg.activeSearch = footSearch();
         walker.seg.searchFromEnd = true;
         walker.seg.commitEnd = new BlockPos(3, 64, 0);
 
-        walker.retargetGoal(new Goal.Near(new BlockPos(6, 64, 0), 1));
+        walker.retarget(new Goal.Near(new BlockPos(6, 64, 0), 1));
         assertNull(walker.seg.activeSearch, "the re-aim clears the path, so there is nothing left to splice onto");
     }
 
     @Test
     void aNewGoalStillDropsTheSearch() {
-        walker.setGoal(new Goal.Near(new BlockPos(5, 64, 0), 1));
+        walker.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
         walker.seg.activeSearch = footSearch();
 
-        walker.setGoal(new Goal.Near(new BlockPos(6, 64, 0), 1));
+        walker.start(new Goal.Near(new BlockPos(6, 64, 0), 1));
         assertNull(walker.seg.activeSearch);
     }
 }

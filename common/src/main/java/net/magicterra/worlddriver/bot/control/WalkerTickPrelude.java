@@ -125,7 +125,7 @@ final class WalkerTickPrelude {
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         LivingEntity p = a.entity();
-        if (p == null) { wk.lastError = "player vanished"; return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.ERROR, wk.lastError, "failed:" + wk.lastError, null); }
+        if (p == null) { wk.error = "player vanished"; return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.ERROR, wk.error, "failed:" + wk.error, null); }
         wk.guardParkourTick = false;
         wk.jumpTag = null;
         wk.aimTag = null;
@@ -235,7 +235,7 @@ final class WalkerTickPrelude {
                 && !world.canStandAt(foot) && world.canStandAt(foot.below()))
             searchFoot = foot.below();
         wk.sampleTick(p);
-        // One-shot goal snap (needs a live WorldView, so here not in setGoal): a random
+        // One-shot goal snap (needs a live WorldView, so here not in start): a random
         // long-distance goto whose exact target block is UNSTANDABLE — buried in terrain,
         // a sub-stand 1-tall pocket, or under a ceiling — makes A* never accept any node
         // as the goal (goalReached stays false), so it exhausts its whole node budget every
@@ -274,7 +274,7 @@ final class WalkerTickPrelude {
                     && ("pillarUp".equals(ce.move) || ce.move.startsWith("parkourPlace")
                         || ce.move.startsWith("parkourDescend"));
             if (!midAirEdge) return wk.terminalReport(Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null,
-                    Walker.classifyArrival(wk.seg.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
+                    WalkVerdict.classifyArrival(wk.seg.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
         }
 
         expireDigClaim(wk, a, world, p);

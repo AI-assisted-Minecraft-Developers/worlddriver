@@ -1749,7 +1749,7 @@ public final class JourneyEndRungs {
      * both — so a crystal walk and a march segment can be compared without first asking which counter each used.
      *
      * <p><b>{@code end}/{@code err} are the walker's own words</b>: {@code IntentProcess} copies
-     * {@code Walker.lastEndReason} into {@code mc_goto.endReason} and {@code Walker.lastError} into
+     * {@code Walker.result().endReason()} into {@code mc_goto.endReason} and {@code Walker.result().reason()} into
      * {@code mc_goto.lastError} at every terminal exit, and both survive {@code reset()} precisely so
      * they can be read afterwards. Nothing here invents a verdict word of its own.
      */

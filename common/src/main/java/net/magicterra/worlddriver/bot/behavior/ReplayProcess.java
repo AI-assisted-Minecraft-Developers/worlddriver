@@ -3,7 +3,9 @@ package net.magicterra.worlddriver.bot.behavior;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -25,7 +27,7 @@ import java.util.List;
  */
 public final class ReplayProcess implements BotProcess {
 
-    private final Walker walker = new Walker("replay");
+    private final Walker walker = new Walker(WalkerSettings.named("replay"));
     private final List<BlockPos> plan;
     private final List<Move.Edge> edges;
     private final Goal endGoal;
@@ -37,7 +39,7 @@ public final class ReplayProcess implements BotProcess {
         this.edges = edges;
         this.endGoal = endGoal;
         this.startFoot = startFoot;
-        walker.setGoal(endGoal);
+        walker.start(endGoal);
     }
 
     @Override public String kind() { return "replay"; }
@@ -54,16 +56,16 @@ public final class ReplayProcess implements BotProcess {
         if (!begun) {
             // Adopt the fixed plan on the first tick — the WorldView is live here,
             // exactly as adoptPath expects (it must be called from the tick thread).
-            walker.beginReplay(w, plan, edges, endGoal, startFoot);
+            walker.replay(w, plan, edges, endGoal, startFoot);
             begun = true;
         }
-        Walker.Step s = walker.tick(a, w);
+        Locomotor.Status s = walker.tick(a, w);
         st.mc_goto.pathLen = walker.pathLen();
         st.mc_goto.pathStep = walker.pathStep();
-        if (s == Walker.Step.WALKING) return false;
-        if (s == Walker.Step.FAILED) st.mc_goto.lastError = walker.lastError;
+        if (s == Locomotor.Status.MOVING) return false;
+        if (s == Locomotor.Status.FAILED) st.mc_goto.lastError = walker.result().reason();
         st.mc_goto.reset();
-        failure = walker.shortfall(s);
+        failure = walker.result().reason();
         return true;
     }
 

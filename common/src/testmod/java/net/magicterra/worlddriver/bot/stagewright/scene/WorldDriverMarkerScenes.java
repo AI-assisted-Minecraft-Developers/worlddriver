@@ -8,6 +8,7 @@ import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
@@ -95,10 +96,10 @@ public final class WorldDriverMarkerScenes implements SceneProvider {
         fp.getInventory().clearContent();
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step step = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status step = Locomotor.Status.MOVING;
         int ticks = 0;
-        for (; ticks < 200 && step == Walker.Step.WALKING; ticks++) { step = walker.tick(av, w); av.step(); }
+        for (; ticks < 200 && step == Locomotor.Status.MOVING; ticks++) { step = walker.tick(av, w); av.step(); }
         double dx = Math.abs(fp.getX() - (cx + 5.5)), dz = Math.abs(fp.getZ() - (cz + 0.5));
         ctx.record("walk","step=" + step + " ticks=" + ticks + " pos=" + String.format("%.2f %.2f %.2f", fp.getX(), fp.getY(), fp.getZ()));
         ctx.check(dx < 1.5 && dz < 1.5).as("G: the real Walker passes through the marker wall and reaches the goal").isTrue();

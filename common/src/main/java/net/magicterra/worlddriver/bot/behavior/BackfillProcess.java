@@ -6,7 +6,9 @@ import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -37,7 +39,7 @@ public final class BackfillProcess implements BotProcess {
             new SearchProfile(List.of(), CapabilityProfile.ALL, List.of(new NoBreak()));
 
     private final BackfillTracker tracker;
-    private final Walker walker = new Walker("backfill");
+    private final Walker walker = new Walker(WalkerSettings.named("backfill").withProfile(NO_DIG));
     private final Set<BlockPos> failed = new HashSet<>();
     private String failure;
 
@@ -51,7 +53,6 @@ public final class BackfillProcess implements BotProcess {
 
     public BackfillProcess(BackfillTracker tracker) {
         this.tracker = tracker;
-        walker.setSearchProfile(NO_DIG);
     }
 
     public String kind() { return "builder"; }
@@ -99,21 +100,21 @@ public final class BackfillProcess implements BotProcess {
                 currentStand = pl.stand;
                 currentFace = pl.face;
                 st.builder.target = currentBlock;
-                walker.setGoal(new Goal.Block(currentStand));
+                walker.start(new Goal.Block(currentStand));
                 phase = Phase.GOING;
             }
             case GOING -> {
-                Walker.Step s = walker.tick(a, w);
+                Locomotor.Status s = walker.tick(a, w);
                 st.builder.pathLen = walker.pathLen();
                 st.builder.pathStep = walker.pathStep();
-                if (s == Walker.Step.FAILED) {
+                if (s == Locomotor.Status.FAILED) {
                     failed.add(currentBlock);
                     tracker.remove(currentBlock);
                     currentBlock = null;
                     phase = Phase.NEXT;
                     return false;
                 }
-                if (s == Walker.Step.ARRIVED) {
+                if (s.ended()) {
                     aimAtSupportFace(p, currentBlock, currentFace);
                     placeTicks = 0;
                     phase = Phase.PLACING;

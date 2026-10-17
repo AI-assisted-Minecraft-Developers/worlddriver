@@ -4,7 +4,7 @@ import java.util.Map;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.server.level.ServerLevel;
@@ -35,7 +35,7 @@ public abstract class ServerBot implements Bot {
     /** Events go nowhere yet: the agent's stream carries no bot id, so a server bot's
      *  {@code threat.appeared} would read as the client player's. */
     protected final BotBrain brain;
-    protected volatile Walker.Step last = Walker.Step.WALKING;
+    protected volatile Locomotor.Status last = Locomotor.Status.MOVING;
     private volatile boolean finished;
     /**
      * Whether an entry point has given the bot a task. A bot is registered before any order, and it
@@ -73,7 +73,7 @@ public abstract class ServerBot implements Bot {
         brain.startAction(p, action);
         finished = false;
         tasked = true;
-        last = Walker.Step.WALKING;
+        last = Locomotor.Status.MOVING;
         return this;
     }
 
@@ -81,7 +81,7 @@ public abstract class ServerBot implements Bot {
     @Override public boolean cancelAction(ActionHandle action, String reason) {
         if (!brain.cancelAction(body(), action, reason)) return false;
         finished = true;
-        last = Walker.Step.FAILED;
+        last = Locomotor.Status.FAILED;
         return true;
     }
 
@@ -89,7 +89,7 @@ public abstract class ServerBot implements Bot {
     @Override public void crashed(Throwable t) {
         brain.crashed(body(), t.getClass().getSimpleName() + ": " + t.getMessage());
         finished = true;
-        last = Walker.Step.FAILED;
+        last = Locomotor.Status.FAILED;
     }
 
     /** End the task with {@code error}, its action failing with it, and leave the bot registered. */
@@ -97,7 +97,7 @@ public abstract class ServerBot implements Bot {
         if (activeKind() == null) return;
         brain.failTask(error);
         finished = true;
-        last = Walker.Step.FAILED;
+        last = Locomotor.Status.FAILED;
     }
 
     /** The kind of task the bot is on, or null when it has none or has finished: the held process's kind. */
@@ -128,7 +128,7 @@ public abstract class ServerBot implements Bot {
         if (kind == null || !("all".equals(process) || kind.equals(process))) return null;
         brain.cancel(body(), "all".equals(process) ? "all" : kind);
         finished = true;
-        last = Walker.Step.FAILED;
+        last = Locomotor.Status.FAILED;
         return kind;
     }
 
@@ -144,9 +144,9 @@ public abstract class ServerBot implements Bot {
         return current;
     }
 
-    public Walker.Step lastStep() { return last; }
-    /** The last ending of a process this bot ran, with its own verdict. {@link #lastStep()} says
-     *  ARRIVED for any process that stopped by itself, so this is what says whether it did the job. */
+    public Locomotor.Status lastStatus() { return last; }
+    /** The last ending of a process this bot ran, with its own verdict. {@link #lastStatus()} says
+     *  REACHED for any process that stopped by itself, so this is what says whether it did the job. */
     @Override public Map<String, Object> lastProcessEnd() { return brain.lastProcessEnd(); }
     @Override public boolean finished() { return finished; }
     @Override public BotState botState() { return brain.state; }
@@ -157,7 +157,7 @@ public abstract class ServerBot implements Bot {
      * level, then the reflexes and the scheduler — and the body's step. Runs on a finished bot
      * too: an idle bot still floats when it drowns and steps out of a cactus.
      */
-    @Override public Walker.Step tick() {
+    @Override public Locomotor.Status tick() {
         Body body = body();
         brain.perceive(body);
         if (brain.clutch(body)) {
@@ -169,7 +169,7 @@ public abstract class ServerBot implements Bot {
         step();
         if (tasked && !finished && brain.userProcess() == null) {
             finished = true;
-            if (last == Walker.Step.WALKING) last = Walker.Step.ARRIVED;
+            if (last == Locomotor.Status.MOVING) last = Locomotor.Status.REACHED;
         }
         return last;
     }

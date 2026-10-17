@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **One bot's escalated search no longer reaches other searches.** A walker stuck behind a steep
   barrier widens its own searches for a while; it also used to switch on the same widening for
   every search started without a bot, such as a route preview, until it lapsed.
+- **A walk now ends as reached, gave up or failed.** A walk that stopped short of its goal (a
+  give-up after churning, at a chunk frontier, or at the end of a best-effort route) used to end
+  the same way as one that arrived, and each caller had to test the goal again to tell them apart.
+  `/worlddriver server status` prints `status=` instead of `step=`, with `MOVING`,
+  `REACHED`, `GAVE_UP` or `FAILED`, and a bare goto that fails now says why.
 
 ## 2026-10-17
 

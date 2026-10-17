@@ -8,7 +8,9 @@ import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.ProfileRisk;
 import net.magicterra.worlddriver.bot.rules.RiskAt;
 import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
@@ -50,7 +52,7 @@ public final class IntentProcess implements BotProcess {
     public static final String DIMENSION_CHANGED = "dimension-changed";
 
     private final Intent intent;
-    private final Walker walker = new Walker("goto");
+    private final Walker walker;
     /** The walker driving this intent, for its {@link Walker#tallies()}: a scene that holds the
      *  process reads the counts of the player it handed the process to, on either helm. */
     public Walker walker() { return walker; }
@@ -77,8 +79,8 @@ public final class IntentProcess implements BotProcess {
 
     public IntentProcess(Intent intent, RouteEvents.Emitter emitter) {
         this.intent = intent;
-        walker.setGoal(intent.targets().get(0));
-        walker.setSearchProfile(intent.searchProfile());
+        this.walker = new Walker(WalkerSettings.named("goto").withProfile(intent.searchProfile()));
+        walker.start(intent.targets().get(0));
         boolean conditions = !intent.bias().isEmpty() || !intent.constraints().isEmpty();
         boolean sight = intent.bias().stream().anyMatch(m -> m instanceof SightExposure)
                 || intent.constraints().stream().anyMatch(c -> c instanceof SightExposure);
@@ -148,14 +150,13 @@ public final class IntentProcess implements BotProcess {
                         LOG.info("[IntentProcess] anchor re-solve: {} -> {} (was {}), repath",
                                 el.entity(), ab.toShortString(), lastAnchor == null ? "first" : lastAnchor.toShortString());
                         lastAnchor = ab;
-                        walker.setSearchProfile(profileWith(el, ab));
-                        walker.forceRepath();
+                        walker.replan(profileWith(el, ab));
                     }
                 }
                 // anchor==null → stale lastAnchor keeps governing; tolerated, not fatal.
             }
         }
-        Walker.Step s = walker.tick(a, w);
+        Locomotor.Status s = walker.tick(a, w);
         judgeSearch(body == null ? null : body.blockPosition());
         st.mc_goto.pathLen = walker.pathLen();
         st.mc_goto.pathStep = walker.pathStep();
@@ -184,26 +185,26 @@ public final class IntentProcess implements BotProcess {
         if (walker.parkourTakeoff() != "none") st.mc_goto.parkourTakeoff = walker.parkourTakeoff();
         st.mc_goto.driveTag = walker.driveTag;
         st.mc_goto.jumpTag = walker.jumpTag;
-        if (s == Walker.Step.WALKING) return false;
-        // A waypoint reached: on to the next goal. setGoal resets the walker's path and every
+        if (s == Locomotor.Status.MOVING) return false;
+        // A waypoint reached: on to the next goal. start resets the walker's path and every
         // per-goal latch, so the next segment plans afresh from where the bot stands; the search
         // profile (the route's conditions) carries over untouched. A segment that fell short ends
         // the whole intent, a give-up that stopped as ARRIVED included — a waypoint the bot did not
         // reach is the caller's condition unmet, not a detour to take silently.
-        String shortfall = walker.shortfall(s);
+        String shortfall = walker.result().reason();
         int last = intent.targets().size() - 1;
         if (shortfall == null && leg < last) {
             leg++;
             LOG.info("[IntentProcess] via {} reached, segment {}/{} → {}",
                     intent.targets().get(leg - 1), leg + 1, intent.targets().size(), intent.targets().get(leg));
-            walker.setGoal(intent.targets().get(leg));
+            walker.start(intent.targets().get(leg));
             st.mc_goto.goal = intent.targets().get(leg).toString();
             return false;
         }
-        if (s == Walker.Step.FAILED) st.mc_goto.lastError = walker.lastError;
-        st.mc_goto.goalReached = walker.lastGoalReached;
-        st.mc_goto.endReason = walker.lastEndReason;
-        st.mc_goto.finalDist = walker.lastFinalDist;
+        if (s == Locomotor.Status.FAILED) st.mc_goto.lastError = walker.result().reason();
+        st.mc_goto.goalReached = walker.result().goalReached();
+        st.mc_goto.endReason = walker.result().endReason();
+        st.mc_goto.finalDist = walker.result().finalDist();
         st.mc_goto.reset();
         failure = shortfall == null || leg == last ? shortfall
                 : "waypoint " + (leg + 1) + " of " + last + ": " + shortfall;
@@ -247,7 +248,7 @@ public final class IntentProcess implements BotProcess {
     private boolean crossedOut(BotState st, ResourceKey<Level> here) {
         // Fire the pathfinder's terminal so an in-flight path archive is flushed for the partial run,
         // exactly as an external cancel does. Without it the trace for this run is never closed.
-        walker.abort(DIMENSION_CHANGED);
+        walker.cancel(DIMENSION_CHANGED);
         st.mc_goto.goalReached = false;
         st.mc_goto.endReason = DIMENSION_CHANGED;
         st.mc_goto.lastError = "goal was set in " + plannedIn.location()
@@ -264,12 +265,12 @@ public final class IntentProcess implements BotProcess {
 
     /** Resumed after preemption — discard the stale path and repath from where the
      *  bot ended up (it may have been knocked back while suspended). */
-    @Override public void onResume() { walker.forceRepath(); }
+    @Override public void onResume() { walker.replan(); }
 
     /** Cancelled before arriving (mc.bot.cancel / superseded): fire the Walker's
      *  pathfinder terminal so an in-progress path archive is flushed for the
      *  partial run. */
-    @Override public void onCancelled(String reason) { walker.abort(reason); }
+    @Override public void onCancelled(String reason) { walker.cancel(reason); }
 
     /** Rebuild the search profile with a leash modifier/constraint at the anchor's
      *  CURRENT cell centre — the only mutable seam of the dynamic anchor. */

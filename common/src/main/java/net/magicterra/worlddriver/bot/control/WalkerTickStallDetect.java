@@ -77,8 +77,8 @@ final class WalkerTickStallDetect {
             // breakTimeoutTicks wedge watchdog, and the fact that each completed break lifts
             // Y toward the goal → bestDistToGoal drops → totalTicks resets on the next step.
         } else if (++wk.totalTicks > ControlConfig.walkerTotalTickBudget) {
-            wk.lastError = "no progress for " + ControlConfig.walkerTotalTickBudget + " ticks (best dist=" + Math.round(wk.goalSpin.bestDistToGoal) + ")";
-            return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.STUCK, wk.lastError, "failed:" + wk.lastError, p.blockPosition());
+            wk.error = "no progress for " + ControlConfig.walkerTotalTickBudget + " ticks (best dist=" + Math.round(wk.goalSpin.bestDistToGoal) + ")";
+            return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.STUCK, wk.error, "failed:" + wk.error, p.blockPosition());
         }
 
         // Re-searching toward a FAR goal mid-segment returns a DIVERGENT best-effort

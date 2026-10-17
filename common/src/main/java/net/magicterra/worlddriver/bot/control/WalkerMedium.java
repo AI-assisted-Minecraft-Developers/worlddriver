@@ -127,7 +127,7 @@ final class WalkerMedium {
 
     /** Run or start the search; null once a path is adopted, else the step to return this tick. */
     private Walker.Step plan(Body a, WorldView world, Goal goal, BlockPos foot) {
-        if (search != null && searchGoal != goal) search = null;   // setGoal mid-search: that search answers the old goal
+        if (search != null && searchGoal != goal) search = null;   // start mid-search: that search answers the old goal
         if (search == null) { search = wk.newPathFinder(world).newSearch(foot, goal); searchGoal = goal; }
         if (!search.advance(ControlConfig.pathfinderSliceMs)) {
             hold(a);
@@ -158,7 +158,7 @@ final class WalkerMedium {
     /** The path is spent: arrived, or a best-effort segment ended and the next one is planned from here. */
     private Walker.Step segmentEnd(Body a, Goal goal, BlockPos foot) {
         if (!wk.seg.pathBestEffort) {
-            String why = Walker.classifyArrival(false, goal.reached(foot), false);
+            String why = WalkVerdict.classifyArrival(false, goal.reached(foot), false);
             return end(a, Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null, why, foot);
         }
         wk.path = null;
@@ -195,7 +195,7 @@ final class WalkerMedium {
     }
 
     private Walker.Step fail(Body a, String error, BlockPos foot) {
-        wk.lastError = error;
+        wk.error = error;
         return end(a, Walker.Step.FAILED, PathTrace.Outcome.STUCK, error, "failed:" + error, foot);
     }
 

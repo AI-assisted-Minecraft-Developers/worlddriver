@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.reflex.AntiSuffocateGate;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkVerdict;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BunkerProcess;
 import net.magicterra.worlddriver.bot.behavior.RunAwayProcess;
@@ -443,11 +444,11 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
     // Call sites pass specific labels such as goal-snapped or frontier-giveup themselves; this
     // function covers only the three generic exit states.
     static void walkerTerminalReportMatrix(BiConsumer<Boolean, String> check) {
-        check.accept("arrived".equals(Walker.classifyArrival(false, true,  false)), "full path + reached = arrived");
-        check.accept("arrived".equals(Walker.classifyArrival(true,  true,  false)), "best-effort + reached = arrived");
-        check.accept("path-consumed".equals(Walker.classifyArrival(false, false, false)), "full path + NOT reached = path-consumed");
-        check.accept("best-effort-consumed".equals(Walker.classifyArrival(true, false, false)), "best-effort + NOT reached = best-effort-consumed");
-        check.accept("goal-snapped".equals(Walker.classifyArrival(false, true,  true)),  "snapped goal reached = goal-snapped");
+        check.accept("arrived".equals(WalkVerdict.classifyArrival(false, true,  false)), "full path + reached = arrived");
+        check.accept("arrived".equals(WalkVerdict.classifyArrival(true,  true,  false)), "best-effort + reached = arrived");
+        check.accept("path-consumed".equals(WalkVerdict.classifyArrival(false, false, false)), "full path + NOT reached = path-consumed");
+        check.accept("best-effort-consumed".equals(WalkVerdict.classifyArrival(true, false, false)), "best-effort + NOT reached = best-effort-consumed");
+        check.accept("goal-snapped".equals(WalkVerdict.classifyArrival(false, true,  true)),  "snapped goal reached = goal-snapped");
     }
 
     private static void walkerTerminalReportMatrixScene(SceneContext ctx) {

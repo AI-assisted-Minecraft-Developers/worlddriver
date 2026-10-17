@@ -85,8 +85,8 @@ final class JourneyLeg {
      * <h2>{@code end=null} is a reading, and printing it as "null" throws it away</h2>
      *
      * {@code IntentProcess.attach} nulls {@code endReason}, and the only writes to it are on the
-     * terminal exits: {@code tick} returns early on {@code Step.WALKING} and stamps
-     * {@code walker.lastEndReason} only once the step is no longer WALKING (plus
+     * terminal exits: {@code tick} returns early on {@code Status.MOVING} and stamps
+     * {@code walker.result().endReason()} only once the step is no longer MOVING (plus
      * {@code crossedOut}'s {@code DIMENSION_CHANGED}). So {@code endReason == null} does not mean
      * "not found"; it means exactly "the process was still walking when this walk was stopped",
      * i.e. something OUTSIDE the process ended it, which in this suite is the {@code settle} budget

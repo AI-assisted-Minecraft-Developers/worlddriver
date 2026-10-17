@@ -11,6 +11,7 @@ import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
@@ -316,14 +317,14 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
 
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         double minY = fp.getY(), prevX = fp.getX(), prevH = 0.0;
         double takeoffX = Double.NaN, takeoffHBefore = Double.NaN, takeoffHAfter = Double.NaN;
         int takeoffTick = -1, tLip = -1, tDeck = -1, tFell = -1, t = 0;
         String gapMove = null, firstPlan = null;
-        for (; t < 400 && s == Walker.Step.WALKING; t++) {
+        for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             double h = Math.hypot(fp.getDeltaMovement().x, fp.getDeltaMovement().z);

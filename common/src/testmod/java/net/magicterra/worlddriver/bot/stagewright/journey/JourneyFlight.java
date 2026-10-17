@@ -309,9 +309,9 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
 
         // The tick the walk was decided on, whatever the verdict.
         //
-        // NOT PlayerBot.lastStep(). On the runProcess path that field is set to ARRIVED for
-        // ANY process that reports done — a walk that ended `no path (expanded=1)` prints ARRIVED
-        // there, so reading it would print `step=ARRIVED … immersed in lava`, which reads as
+        // NOT PlayerBot.lastStatus(). On the runProcess path that field is set to REACHED for
+        // ANY process that reports done — a walk that ended `no path (expanded=1)` prints REACHED
+        // there, so reading it would print `status=REACHED … immersed in lava`, which reads as
         // "the walker believed it had arrived, in lava" and is simply false. The
         // process's own honest verdict is the goto slot's, so that is what this asks.
         if (finishedAt == null && rig.body().finished()) {

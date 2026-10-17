@@ -3,7 +3,9 @@ package net.magicterra.worlddriver.bot.behavior;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 
@@ -19,7 +21,7 @@ public final class RunAwayProcess implements BotProcess {
      *  stomped a user flee's status and left it stuck active forever. Null = the
      *  user-verb default ({@code state.runAway}). */
     private final BotState.ProcessSlot reportSlot;
-    private final Walker walker = new Walker();
+    private final Walker walker;
 
     public RunAwayProcess(BlockPos from, int minDist) { this(from, minDist, null); }
 
@@ -30,8 +32,8 @@ public final class RunAwayProcess implements BotProcess {
         // gap#72-④ owner tag: an explicit slot means the RetreatChain reflex owns this
         // flee (see reportSlot's javadoc) — attribute its searches to the chain, not
         // the user verb, so latest.log distinguishes "I told it to flee" from "it fled".
-        walker.setOwner(slot != null ? "retreat" : "runAway");
-        walker.setGoal(new Goal.RunAway(from, minDist));
+        this.walker = new Walker(WalkerSettings.named(slot != null ? "retreat" : "runAway"));
+        walker.start(new Goal.RunAway(from, minDist));
     }
 
     /** The slot to report into — the explicit one, or {@code state.runAway} by default. */
@@ -57,13 +59,13 @@ public final class RunAwayProcess implements BotProcess {
         // both drive this process. Cleared at the start of each bot tick.
         w.signals().fleeing = true;
         BotState.ProcessSlot s = slot(st);
-        Walker.Step step = walker.tick(a, w);
+        Locomotor.Status step = walker.tick(a, w);
         s.pathLen = walker.pathLen();
         s.pathStep = walker.pathStep();
-        if (step == Walker.Step.WALKING) return false;
-        if (step == Walker.Step.FAILED) s.lastError = walker.lastError;
+        if (step == Locomotor.Status.MOVING) return false;
+        if (step == Locomotor.Status.FAILED) s.lastError = walker.result().reason();
         s.reset();
-        failure = walker.shortfall(step);
+        failure = walker.result().reason();
         return true;
     }
 

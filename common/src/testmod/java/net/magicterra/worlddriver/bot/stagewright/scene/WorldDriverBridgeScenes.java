@@ -7,6 +7,7 @@ import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
@@ -142,7 +143,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         return av;
     }
 
-    private record Run(Walker.Step step, int ticks, double minY, double maxX,
+    private record Run(Locomotor.Status step, int ticks, double minY, double maxX,
                        Walker walker, ServerPlayer fp, String breach, String journey,
                        String pinWindow, String invEvents, boolean walkedBestEffort) {}
 
@@ -162,8 +163,8 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         ServerPlayer fp = av.fakePlayer();
         LevelWorldView w = new LevelWorldView(ctx.level(), fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         double minY = fp.getY();
         double maxX = fp.getX() - ctx.origin().getX();
         double guardAbs = ctx.origin().getY() + guardStandY - 0.5;
@@ -194,7 +195,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         int invCount = bagCount(fp);
         boolean walkedBestEffort = false;
         int t = 0;
-        for (; t < n && s == Walker.Step.WALKING; t++) {
+        for (; t < n && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             if (!walkedBestEffort) walkedBestEffort = walker.progressProbe().contains(" bestEffort");

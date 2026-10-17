@@ -9,7 +9,9 @@ import net.magicterra.worlddriver.bot.world.ThreatScanner;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.Attack;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
@@ -82,7 +84,7 @@ public final class CombatProcess implements BotProcess {
     private final Integer targetId;     // KILL by entity id (nullable)
     private final String targetType;    // KILL by entity type id (nullable)
 
-    private final Walker walker = new Walker("combat");
+    private final Walker walker = new Walker(WalkerSettings.named("combat"));
     private Integer lockedId;
     private boolean lockWasAlive;       // last-seen liveness of the locked target
     private int lostTicks;              // consecutive ticks the locked target was unseen
@@ -296,18 +298,18 @@ public final class CombatProcess implements BotProcess {
         int radius = Math.max(1, (int) Math.floor(BehaviorConfig.combatReach));
         // A DIFFERENT ENTITY IS A DIFFERENT PURSUIT, and this is the only place that knows it —
         // the walker sees cells, not quarries. Getting this wrong is worse than the bug below it:
-        // a futile latch earned chasing an unreachable blaze would ride retargetGoal into the walk
+        // a futile latch earned chasing an unreachable blaze would ride retarget into the walk
         // toward a zombie the bot could plainly reach, and nothing would ever start a search
         // again (the tick budget can't save it either — every re-goal clears totalTicks, so it
         // never fills). Silent freeze, no terminal, no log.
         boolean newQuarry = lastQuarryId != target.getId();
         if (newQuarry || lastGoalBlock == null || !lastGoalBlock.equals(tb)) {
-            // Same quarry, new cell: retargetGoal, NOT setGoal. A flying quarry changes block every
-            // couple of ticks, and setGoal clears the futile-search governor each time — so a bot
+            // Same quarry, new cell: retarget, NOT start. A flying quarry changes block every
+            // couple of ticks, and start clears the futile-search governor each time — so a bot
             // chasing something it can never reach runs one full A* per tick forever (measured:
             // 240 ticks, 240 searches, counter never past 1 against a cap of 5).
             Goal.Near g = new Goal.Near(tb, radius);
-            if (newQuarry) walker.setGoal(g); else walker.retargetGoal(g);
+            if (newQuarry) walker.start(g); else walker.retarget(g);
             lastGoalBlock = tb;
             lastQuarryId = target.getId();
         }
@@ -384,15 +386,15 @@ public final class CombatProcess implements BotProcess {
         if (collectTicks == 1) st.combat.goal = "combat collect-drops";
         BlockPos ib = nearest.blockPosition();
         if (lastGoalBlock == null || !lastGoalBlock.equals(ib)) {
-            walker.setGoal(new Goal.Near(ib, 1));
+            walker.start(new Goal.Near(ib, 1));
             lastGoalBlock = ib;
             lastQuarryId = -1;          // the quarry is dead; the next approach starts a new pursuit
         }
-        Walker.Step s = walker.tick(a, w);
-        if (s != Walker.Step.WALKING) {
+        Locomotor.Status s = walker.tick(a, w);
+        if (s != Locomotor.Status.MOVING) {
             // The walker parked in a terminal (ARRIVED path-consumed short of the
             // stack / FAILED) while the drop still exists: without a reset it
-            // no-ops every subsequent tick (setGoal is the only thing that clears
+            // no-ops every subsequent tick (start is the only thing that clears
             // a terminal — measured live in the t0 diag round: sweepTicks=101,
             // 0.8 blocks moved, lastStep=ARRIVED). Same idiom as FollowProcess:
             // drop the goal so next tick re-goals at the CURRENT nearest drop

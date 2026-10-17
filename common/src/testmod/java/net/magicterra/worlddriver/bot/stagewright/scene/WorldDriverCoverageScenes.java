@@ -9,6 +9,7 @@ import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
 import net.magicterra.worlddriver.bot.control.WalkerExpectAlarms;
@@ -109,10 +110,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
-        for (; t < 400 && s == Walker.Step.WALKING; t++) { s = walker.tick(av, w); av.step(); }
+        for (; t < 400 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                 && fp.getY() >= standY + 1 - 0.4;
@@ -163,12 +164,12 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         int firedBefore = WalkerExpectAlarms.FIRED.get();
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         boolean capped = false;
         boolean lifted = false;
-        for (; t < 600 && s == Walker.Step.WALKING; t++) {
+        for (; t < 600 && s == Locomotor.Status.MOVING; t++) {
             if (!capped && fp.getX() > cx - 1.5) {
                 // Route committed, bot closing on the riser — cap the launch cells so the
                 // step-up jump cannot rise (ceiling right above head across the approach).
@@ -194,7 +195,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 s, t, fired, capped, lifted, reached);
         if (fired == 0)
             ctx.fail("expectAlarmBlockedJump: no alarm fired under a jump-capping ceiling: t=" + t + " step=" + s
-                    + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason
+                    + " lastError=" + walker.result().reason() + " endReason=" + walker.result().endReason()
                     + " lastStats=" + WalkerTelemetry.of(fp).lastStats + " capped=" + capped
                     + " pos=" + fp.position());
         if (!reached)
@@ -246,15 +247,15 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         // FakePlayer air does NOT tick (damage-immune family, #47/#55) — drive the air
         // simulation manually per tick, the same idiom as wd.drownEscapePreempt: −1/tick
         // with eyes under, +4/tick (cap 300) at the surface.
         int airSim = 40;
         int minAir = airSim, maxAir = airSim;
         int t = 0;
-        for (; t < 400 && s == Walker.Step.WALKING; t++) {
+        for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             airSim = fp.isEyeInFluid(FluidTags.WATER)
@@ -271,7 +272,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             ctx.fail("drownEscapeSurface: avatar drowned (minAir=" + minAir + ", alive=" + fp.isAlive() + ")");
         if (maxAir < 200)
             ctx.fail("drownEscapeSurface: air never recovered (maxAir=" + maxAir + "): t=" + t + " step=" + s
-                    + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason
+                    + " lastError=" + walker.result().reason() + " endReason=" + walker.result().endReason()
                     + " pos=" + fp.position() + " eyeInWater=" + fp.isEyeInFluid(FluidTags.WATER)
                     + " blockAtFeet=" + level.getBlockState(fp.blockPosition())
                     + " blockAtEye=" + level.getBlockState(BlockPos.containing(fp.getEyePosition())));
@@ -311,10 +312,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
-        for (; t < 600 && s == Walker.Step.WALKING; t++) { s = walker.tick(av, w); av.step(); }
+        for (; t < 600 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
         WorldDriverCommon.LOG.warn("[wd.bestEffortSpliceCourse] step={} ticks={} pos={}", s, t, fp.position());
@@ -354,10 +355,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
-        for (; t < 400 && s == Walker.Step.WALKING; t++) { s = walker.tick(av, w); av.step(); }
+        for (; t < 400 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                 && fp.getY() >= standY + 4 - 0.4;
@@ -444,14 +445,14 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         boolean enteredPocket = false;
         boolean released = false;
         int churnSeen = 0;
         StringBuilder trace = new StringBuilder();
-        for (; t < 1400 && s == Walker.Step.WALKING; t++) {
+        for (; t < 1400 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             if (fp.getX() > cx + 1 && Math.abs(fp.getZ() - (cz + 0.5)) < 2.5)
@@ -480,18 +481,18 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         if (!enteredPocket)
             ctx.fail("boxedChurnEscalate: rig broken — the horizon-committed search never entered the pocket: "
                     + "origin=" + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
-                    + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason
+                    + " lastError=" + walker.result().reason() + " endReason=" + walker.result().endReason()
                     + " lastStats=" + WalkerTelemetry.of(fp).lastStats + " trace=" + trace);
         if (churnSeen < 2)
             ctx.fail("boxedChurnEscalate: churn escape fired " + churnSeen + "×(<2) in a sealed pocket: "
                     + "origin=" + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
-                    + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason
+                    + " lastError=" + walker.result().reason() + " endReason=" + walker.result().endReason()
                     + " lastStats=" + WalkerTelemetry.of(fp).lastStats + " trace=" + trace);
         if (!reached)
             ctx.fail("boxedChurnEscalate: walker never finished after the wall release: churnSeen=" + churnSeen
                     + " released=" + released + " origin=" + cx + "," + cz + " step=" + s + " t=" + t
-                    + " pos=" + fp.position() + " lastError=" + walker.lastError
-                    + " endReason=" + walker.lastEndReason + " trace=" + trace);
+                    + " pos=" + fp.position() + " lastError=" + walker.result().reason()
+                    + " endReason=" + walker.result().endReason() + " trace=" + trace);
     }
 
     /** Progressive quick-start stub (Walker.tryQuickStart + the tryLandBeeline REJECT
@@ -542,11 +543,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         StringBuilder trace = new StringBuilder();
-        for (; t < 600 && s == Walker.Step.WALKING; t++) {
+        for (; t < 600 && s == Locomotor.Status.MOVING; t++) {
             // The pre-path quick-start branch runs while the big search is in flight; 40
             // pinned ticks are ample for it (stub adoption is tick-1). Then restore the
             // slice budgets so the big search can actually LAND and supersede the stub.
@@ -563,7 +564,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         if (!reached)
             ctx.fail("quickStartStub: sliced-search course failed (quick-start/beeline pre-path family): origin="
                     + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
-                    + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason
+                    + " lastError=" + walker.result().reason() + " endReason=" + walker.result().endReason()
                     + " lastStats=" + WalkerTelemetry.of(fp).lastStats + " trace=" + trace);
     }
 
@@ -605,12 +606,12 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         boolean cut = false;
         StringBuilder trace = new StringBuilder();
-        for (; t < budget && s == Walker.Step.WALKING; t++) {
+        for (; t < budget && s == Locomotor.Status.MOVING; t++) {
             if (!cut && fp.getY() >= standY + 1.5 && fp.getX() > cx + 0.5
                     && fp.getZ() < cz + 2.5) {
                 // Mid-climb — cut the full-width stairs out from under the bot (its feet
@@ -637,12 +638,12 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 && fp.getY() >= standY + 3 - 0.4;
         if (!cut)
             return "rig broken — the bot never climbed the narrow stairs (no cut): step=" + s
-                    + " t=" + t + " pos=" + fp.position() + " lastError=" + walker.lastError
-                    + " endReason=" + walker.lastEndReason + " trace=" + trace;
+                    + " t=" + t + " pos=" + fp.position() + " lastError=" + walker.result().reason()
+                    + " endReason=" + walker.result().endReason() + " trace=" + trace;
         if (!reached)
             return "no recovery to the side staircase after the slide-back: step=" + s
-                    + " t=" + t + " pos=" + fp.position() + " lastError=" + walker.lastError
-                    + " endReason=" + walker.lastEndReason + " lastStats=" + WalkerTelemetry.of(fp).lastStats
+                    + " t=" + t + " pos=" + fp.position() + " lastError=" + walker.result().reason()
+                    + " endReason=" + walker.result().endReason() + " lastStats=" + WalkerTelemetry.of(fp).lastStats
                     + " trace=" + trace;
         WorldDriverCommon.LOG.warn("[ad.slideBackCourse] step={} ticks={} pos={}", s, t, fp.position());
         return null;
@@ -697,11 +698,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         boolean filled = false;
-        for (; t < budget && s == Walker.Step.WALKING; t++) {
+        for (; t < budget && s == Locomotor.Status.MOVING; t++) {
             if (!filled && fp.getX() >= cx - 1.6 && fp.getX() < cx - 0.4) {
                 // Bot on the west rim, route committed through the trench — fill it flush.
                 for (int dz = -3; dz <= 3; dz++) {
@@ -720,11 +721,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
         if (!filled)
             return "rig broken — the bot never reached the west rim (no fill): step=" + s + " t=" + t
-                    + " pos=" + fp.position() + " lastError=" + walker.lastError
-                    + " endReason=" + walker.lastEndReason + " lastStats=" + WalkerTelemetry.of(fp).lastStats;
+                    + " pos=" + fp.position() + " lastError=" + walker.result().reason()
+                    + " endReason=" + walker.result().endReason() + " lastStats=" + WalkerTelemetry.of(fp).lastStats;
         if (!reached)
             return "no recovery off the buried node: step=" + s + " t=" + t + " pos=" + fp.position()
-                    + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason;
+                    + " lastError=" + walker.result().reason() + " endReason=" + walker.result().endReason();
         WorldDriverCommon.LOG.warn("[ad.pitFillCourse] step={} ticks={} pos={}", s, t, fp.position());
         return null;
     }
@@ -795,12 +796,12 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         boolean capped = false;
         int cappedTicks = 0;
-        for (; t < 700 && s == Walker.Step.WALKING; t++) {
+        for (; t < 700 && s == Locomotor.Status.MOVING; t++) {
             if (!capped && fp.getX() > cx - 1.5) {
                 for (int dz = -5; dz <= 5; dz++)
                     for (int dx = -1; dx <= 0; dx++)
@@ -827,7 +828,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         if (!reached)
             ctx.fail("stepUpBackoffCeiling: walker never finished after the ceiling lifted: step=" + s
                     + " t=" + t + " cappedTicks=" + cappedTicks + " pos=" + fp.position()
-                    + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason);
+                    + " lastError=" + walker.result().reason() + " endReason=" + walker.result().endReason());
     }
 
     /**
@@ -949,7 +950,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         List<Move.Edge> edges = sp.edges();
 
         Walker walker = new Walker();
-        // GOAL FIRST, then adopt. {@code setGoal} nulls path and edges (Walker:783-785), so adopting
+        // GOAL FIRST, then adopt. {@code start} nulls path and edges (Walker:783-785), so adopting
         // before it hands the walker a plan and then throws that plan away. And ticking with NO goal
         // is not an option either: the per-tick decisions dereference {@code wk.goal} unguarded, so
         // the first version of this scene died on tick one with an NPE and never reached a single
@@ -957,7 +958,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // The goal is the CREST, not dest. Goal.Block.reached is exact cell equality, so a goal of
         // dest would terminate the run on the very tick the player first rises clear of the support —
         // the one tick the placement becomes legal — and WalkerTickClimb would never get to run it.
-        walker.setGoal(new Goal.Block(crest));
+        walker.start(new Goal.Block(crest));
         // goalReached=TRUE, and it is not cosmetic: the 4-arg seam says best-effort, a best-effort
         // segment is one the walker may replace, and on the first run it did — inside tick ONE it ran
         // a continuation search, adopted a real path and threw the synthetic pillarUp edge away. The
@@ -987,9 +988,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // the advance, it just hides it from a post-hoc read of the world.
         boolean pointerPastUnplaced = false;
         int maxStep = walker.pathStep();
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
-        for (; t < 200 && s == Walker.Step.WALKING; t++) {
+        for (; t < 200 && s == Locomotor.Status.MOVING; t++) {
             // BEFORE the tick as well as after: pathMove() reads the edge at the CURRENT step pointer,
             // and a tick that executes an edge and then consumes its node leaves the pointer past it —
             // so a post-tick-only sample can miss an edge that was run and immediately consumed. The
@@ -1035,8 +1036,8 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // An outcome without its reason is not an instrument: an outcome of "ARRIVED, 1/200 ticks"
         // names neither the goal snap nor the repath. lastEndReason is written at every terminal()
         // call site and carries the arrival CLASS, goalSnapped included.
-        ctx.record("walk.endReason", String.valueOf(walker.lastEndReason));
-        ctx.record("walk.goalSnapped", walker.goalSnapped());
+        ctx.record("walk.endReason", String.valueOf(walker.result().endReason()));
+        ctx.record("walk.goalSnapped", walker.result().goalSnapped());
         // The plan the walker ENDED with, next to the one this scene handed it. A swap is the single
         // most likely way this arena stops being about its subject, and inferring it from a terminal
         // class took a full gate run; these two print it.
@@ -1052,7 +1053,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // least two very different explanations — a repath swapped the edge, or the goal was snapped
         // off the cell before tick one — and the guard below cannot tell them apart. This one reads
         // the snap bit directly, so it must come first.
-        if (walker.goalSnapped())
+        if (walker.result().goalSnapped())
             ctx.fail("surfacePillar: snapGoalToStandable moved the goal from " + dest.toShortString()
                     + " to a different cell, so the walker is not driving toward the cell under test and every row below "
                     + "describes a different move. This step's destination is unstandable by construction (the support "

@@ -44,6 +44,7 @@ import net.magicterra.worlddriver.debug.PathArchiveRecorder;
 import net.magicterra.worlddriver.debug.PinchArena;
 import net.magicterra.worlddriver.game.ui.InputReleaseGate;
 import net.magicterra.worlddriver.game.ui.MouseYieldGate;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.planning.MultiTrace;
@@ -1335,9 +1336,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
-        for (int t = 0; t < 1000 && s == Walker.Step.WALKING; t++) { s = walker.tick(av, w); av.step(); }
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
+        for (int t = 0; t < 1000 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
         WorldDriverCommon.LOG.info("[wd.pathArchiveCapture] terminal step={} pos=({},{},{})",
                 s, fp.getX(), fp.getY(), fp.getZ());
 
@@ -1397,9 +1398,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
-        for (int t = 0; t < 1000 && s == Walker.Step.WALKING; t++) { s = walker.tick(av, w); av.step(); }
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
+        for (int t = 0; t < 1000 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
         WorldDriverCommon.LOG.info("[wd.replayRoundTrip] record terminal step={} arrival={}", s, fp.blockPosition());
 
         // ---- await plan archive write, then rebuild + replay + await replay-run write. ----
@@ -1458,11 +1459,11 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             archive.armReplay(plan, Path.of(planPath).getFileName().toString(), rfp.getId());
 
             Walker replay = new Walker();
-            replay.beginReplay(rw, plan, edges, new Goal.Block(lastNode), startFoot);
-            Walker.Step rs = Walker.Step.WALKING;
+            replay.replay(rw, plan, edges, new Goal.Block(lastNode), startFoot);
+            Locomotor.Status rs = Locomotor.Status.MOVING;
             int maxTicks = 1500;
             int rt = 0;
-            for (; rt < maxTicks && rs == Walker.Step.WALKING; rt++) { rs = replay.tick(rav, rw); rav.step(); }
+            for (; rt < maxTicks && rs == Locomotor.Status.MOVING; rt++) { rs = replay.tick(rav, rw); rav.step(); }
             BlockPos replayArrival = rfp.blockPosition();
             WorldDriverCommon.LOG.info("[wd.replayRoundTrip] replay terminal step={} ticks={} arrival={}",
                     rs, rt, replayArrival);

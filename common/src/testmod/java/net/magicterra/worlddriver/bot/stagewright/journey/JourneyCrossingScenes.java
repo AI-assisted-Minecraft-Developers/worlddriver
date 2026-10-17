@@ -398,7 +398,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
 
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(ctx.rel(TRENCH_EDGE - 6, TRENCH_DECK + 1, TRENCH_CELLS - 2)));
+        walker.start(new Goal.Block(ctx.rel(TRENCH_EDGE - 6, TRENCH_DECK + 1, TRENCH_CELLS - 2)));
         WalkerTelemetry tel = WalkerTelemetry.of(fp);
         int before = tel.guardForcedRepaths;
         double z0 = fp.getZ();
@@ -655,7 +655,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ServerPlayer fp = av.fakePlayer();
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(ctx.rel(0, DECK + 1, SHELF_CELLS + 3)));
+        walker.start(new Goal.Block(ctx.rel(0, DECK + 1, SHELF_CELLS + 3)));
         for (int t = 0; t < WALK_TICKS; t++) {
             walker.tick(av, w);
             aim(fp);
@@ -731,7 +731,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ServerPlayer fp = av.fakePlayer();
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(ctx.rel(0, BAY_BED + 1, SHELF_CELLS + 3)));
+        walker.start(new Goal.Block(ctx.rel(0, BAY_BED + 1, SHELF_CELLS + 3)));
 
         double startZ = fp.getZ(), farZ = fp.getZ();
         double prevSole = 0;

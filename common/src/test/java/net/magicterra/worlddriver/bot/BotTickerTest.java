@@ -12,7 +12,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Cancelled;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BotState;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.world.entity.LivingEntity;
 import org.junit.jupiter.api.AfterEach;
@@ -38,7 +38,7 @@ class BotTickerTest {
 
     /** A bot whose entity is already gone: every call but {@link #entity} and {@link #id} is unreachable. */
     private record EntitylessBot(String id) implements Bot {
-        @Override public Walker.Step tick() { throw new AssertionError("ticked a bot with no entity"); }
+        @Override public Locomotor.Status tick() { throw new AssertionError("ticked a bot with no entity"); }
         @Override public boolean finished() { return false; }
         @Override public String kind() { return "test"; }
         @Override public Body body() { return null; }

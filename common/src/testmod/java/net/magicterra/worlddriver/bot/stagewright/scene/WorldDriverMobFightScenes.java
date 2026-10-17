@@ -7,6 +7,7 @@ import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
 import net.magicterra.worlddriver.bot.behavior.CombatProcess;
@@ -348,7 +349,7 @@ public final class WorldDriverMobFightScenes {
         // gate demonstrably fails has never been able to say which door. Reading the code turns up
         // two candidate doors — bucket 5 (no path while stuck-penalties are live, so the gate never
         // judged the search at all) and bucket 7 (CombatProcess re-goals on every blaze block-move,
-        // Walker.setGoal wipes searchGov, and a null futileFoot reads as "the bot moved") — and
+        // Walker.start wipes searchGov, and a null futileFoot reads as "the bot moved") — and
         // code alone cannot choose between them. This census chooses.
         //
         // ANSWERED 2026-08-25, AND BY NEITHER CANDIDATE — the door is bucket 9, "seeded after a
@@ -356,9 +357,9 @@ public final class WorldDriverMobFightScenes {
         // fourteen are healthy runs, because the fall is rare and the runs that had it died before
         // finish(). It came from wd.serverFutileGateUnderACreepingGoal, which stages the same reset
         // loop deliberately and so reports every run. Same unreachable goal, one variable:
-        //   creepRetarget (no setGoal)  6 searches, counted 5  -> gate FIRES at t=89
-        //   creepSetGoal  (setGoal)   240 searches, counted 120, SEEDED-AFTER-RESET 120 -> never fires
-        // setGoal wipes searchGov, the next search is a seed, a seed is not judged, and a target
+        //   creepRetarget (no start)  6 searches, counted 5  -> gate FIRES at t=89
+        //   creepSetGoal  (start)   240 searches, counted 120, SEEDED-AFTER-RESET 120 -> never fires
+        // start wipes searchGov, the next search is a seed, a seed is not judged, and a target
         // that moves every tick means every other search is a seed. The gate's criterion (five
         // CONSECUTIVE searches without progress) and the case it exists for (a moving target, so a
         // reset every tick) are mutually exclusive. Filed as J74; the fix is engine-side and queued.
@@ -438,7 +439,7 @@ public final class WorldDriverMobFightScenes {
      * "no route progress" row to explain why. Two candidate doors survive a code read and cannot be
      * told apart by one: the gate may never have judged those searches at all (bucket 5), or the
      * counter may have been wiped from OUTSIDE — {@code CombatProcess.approach} re-goals whenever the
-     * target changes block, {@code Walker.setGoal} is the only caller of {@code searchGov.reset()},
+     * target changes block, {@code Walker.start} is the only caller of {@code searchGov.reset()},
      * and a reset leaves {@code futileFoot} null, which the next judged search reads as "the bot
      * moved" (bucket 7).
      *
@@ -452,14 +453,14 @@ public final class WorldDriverMobFightScenes {
      * <p><b>What it measured, before the fix.</b> {@code still} took 9 searches in 240 ticks;
      * {@code creep} took 240 — one full search every tick — with bucket 6 ("got closer") reading
      * exactly 120, the re-goal count, 1:1. Neither door in the paragraph above was the one: the
-     * counter was wiped by {@code setGoal}, whose {@code reset()} leaves the baseline at
+     * counter was wiped by {@code start}, whose {@code reset()} leaves the baseline at
      * {@code +INFINITY}, so the next judged search was trivially "closer" than infinity. Under the
      * measurement the counter never passed 1 against a cap of 5.
      *
      * <p><b>Four arms.</b> {@code still} holds the goal fixed — the gate left alone. {@code creepSetGoal}
-     * is the recorded baseline, still calling {@code setGoal} on each change, because that contract is
+     * is the recorded baseline, still calling {@code start} on each change, because that contract is
      * still live for callers that need a terminal cleared. {@code creepRetarget} calls
-     * {@code retargetGoal} — {@code CombatProcess.approach}'s idiom after the fix, at the blaze's exact
+     * {@code retarget} — {@code CombatProcess.approach}'s idiom after the fix, at the blaze's exact
      * descent rate. {@code chase} is the reverse: a quarry the bot CAN reach, re-goaled at the same
      * rate, where the guard must stay silent.
      *
@@ -515,8 +516,8 @@ public final class WorldDriverMobFightScenes {
         ctx.record("gate.creepSetGoal", setGoalArm.line());
         ctx.record("gate.creepRetarget", retargetArm.line());
         ctx.record("gate.chase", chase.line());
-        ctx.passNote("unreachable goal: fixed / lowered one block every 2 ticks (setGoal baseline vs"
-                + " retargetGoal); plus a reachable-chase counter-check. Gate outcomes are in gate.*");
+        ctx.passNote("unreachable goal: fixed / lowered one block every 2 ticks (start baseline vs"
+                + " retarget); plus a reachable-chase counter-check. Gate outcomes are in gate.*");
 
         // A census that silently counts nothing reads exactly like a gate that judged everything and
         // let it pass, so prove the channel spoke before reading anything else out of it.
@@ -556,8 +557,8 @@ public final class WorldDriverMobFightScenes {
      * never start a search again. The tick budget cannot save it either — every re-goal clears
      * {@code totalTicks}, so it never fills. Silent freeze, no terminal, no log.
      *
-     * <p>What holds the two apart is that {@code setGoal} means "new journey" and clears everything,
-     * while {@code retargetGoal} means "same journey, the cell moved". The caller decides which,
+     * <p>What holds the two apart is that {@code start} means "new journey" and clears everything,
+     * while {@code retarget} means "same journey, the cell moved". The caller decides which,
      * because only the caller knows whether the quarry is the same entity. This arm asserts the
      * engine half of that contract: latch, DON'T move the bot, then set a genuinely new goal within
      * easy reach — searches must resume and the bot must go.
@@ -567,21 +568,21 @@ public final class WorldDriverMobFightScenes {
         fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
         Walker walker = new Walker();
         BlockPos target = high;
-        walker.setGoal(new Goal.Near(target, 2));
+        walker.start(new Goal.Near(target, 2));
         boolean latched = false;
         for (int t = 0; t < ARM_TICKS && !latched; t++) {
             if (t > 0 && t % 2 == 0) {
                 target = target.below();
-                walker.retargetGoal(new Goal.Near(target, 2));
+                walker.retarget(new Goal.Near(target, 2));
             }
             walker.tick(av, w);
-            if (walker.lastError != null && walker.lastError.startsWith("no route progress")) latched = true;
+            if (walker.result().reason() != null && walker.result().reason().startsWith("no route progress")) latched = true;
             av.step();
         }
         BlockPos stuckAt = fp.blockPosition();
         long[] before = futileSnapshot(fp);
-        walker.setGoal(new Goal.Near(new BlockPos(cx + 4, floorY + 1, cz), 1));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Near(new BlockPos(cx + 4, floorY + 1, cz), 1));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < ARM_TICKS; t++) {
             s = walker.tick(av, w);
             av.step();
@@ -625,17 +626,17 @@ public final class WorldDriverMobFightScenes {
         fp.setPos(cx - 4.5, floorY + 1, cz + 0.5);
         long[] before = futileSnapshot(fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Near(new BlockPos(cx + 4, floorY + 1, cz), 1));
+        walker.start(new Goal.Near(new BlockPos(cx + 4, floorY + 1, cz), 1));
         int regoals = 1;
         boolean noRoute = false;
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < ARM_TICKS; t++) {
             if (t > 0 && t % 20 == 0) {                 // the quarry strolls back along the floor
-                walker.retargetGoal(new Goal.Near(new BlockPos(cx + 4 - (t / 20) % 9, floorY + 1, cz), 1));
+                walker.retarget(new Goal.Near(new BlockPos(cx + 4 - (t / 20) % 9, floorY + 1, cz), 1));
                 regoals++;
             }
             s = walker.tick(av, w);
-            if (walker.lastError != null && walker.lastError.startsWith("no route progress")) noRoute = true;
+            if (walker.result().reason() != null && walker.result().reason().startsWith("no route progress")) noRoute = true;
             av.step();
         }
         BlockPos end = fp.blockPosition();
@@ -674,8 +675,8 @@ public final class WorldDriverMobFightScenes {
      * which is what makes the difference between their census rows readable.
      *
      * <p>{@code retarget} picks WHICH re-goal call the arm makes. Both shapes stay measured: the
-     * {@code setGoal} arm is the recorded baseline (240 searches out of 240 ticks) and its contract
-     * is still live elsewhere — {@code CombatProcess.collectSweep} relies on {@code setGoal} clearing
+     * {@code start} arm is the recorded baseline (240 searches out of 240 ticks) and its contract
+     * is still live elsewhere — {@code CombatProcess.collectSweep} relies on {@code start} clearing
      * a terminal — so it is a control arm, not a defect left in place.
      *
      * <p><b>The loop deliberately ignores the walker's return value</b>, exactly as {@code approach}
@@ -691,24 +692,24 @@ public final class WorldDriverMobFightScenes {
         long[] before = futileSnapshot(fp);
         Walker walker = new Walker();
         BlockPos target = high;
-        walker.setGoal(new Goal.Near(target, 2));      // the first order is a new journey in every arm
+        walker.start(new Goal.Near(target, 2));      // the first order is a new journey in every arm
         int regoals = 1;
         int firstTerminal = -1;
         String firstError = null;
         boolean noRoute = false;
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < ARM_TICKS; t++) {
             if (regoalEvery > 0 && t > 0 && t % regoalEvery == 0) {
                 target = target.below();
                 Goal.Near g = new Goal.Near(target, 2);
-                if (retarget) walker.retargetGoal(g); else walker.setGoal(g);
+                if (retarget) walker.retarget(g); else walker.start(g);
                 regoals++;
             }
             s = walker.tick(av, w);
-            if (walker.lastError != null && walker.lastError.startsWith("no route progress")) noRoute = true;
-            if (s != Walker.Step.WALKING && firstTerminal < 0) {
+            if (walker.result().reason() != null && walker.result().reason().startsWith("no route progress")) noRoute = true;
+            if (s != Locomotor.Status.MOVING && firstTerminal < 0) {
                 firstTerminal = t;
-                firstError = walker.lastError;
+                firstError = walker.result().reason();
             }
             av.step();
         }

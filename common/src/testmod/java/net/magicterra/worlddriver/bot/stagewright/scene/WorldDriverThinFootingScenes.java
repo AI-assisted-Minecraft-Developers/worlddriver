@@ -12,6 +12,7 @@ import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerGeometry;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
@@ -227,13 +228,13 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 + (slot <= 8 ? "hotbar" : "backpack") + "), holdPlaceable=" + av.holdPlaceable());
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(landing.above()));
+        walker.start(new Goal.Block(landing.above()));
         double minY = fp.getY();
         int t = 0;
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int fireable = 0;                 // ticks on which the guard's whole predicate held
         StringBuilder soles = new StringBuilder();
-        for (; t < 400 && s == Walker.Step.WALKING; t++) {
+        for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
             double sn = WalkerGeometry.soleOnSolid(w, fp);
             BlockPos fc = BlockPos.containing(fp.getX(), fp.getY() + 0.05, fp.getZ());
             if (ControlConfig.lethalEdgeBrake && !fp.isInWater() && sn > 0.0
@@ -368,12 +369,12 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         final int planner = w.placeableBlockCount();
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(new BlockPos(cx, standY, cz + farStart + farCells - 1)));
+        walker.start(new Goal.Block(new BlockPos(cx, standY, cz + farStart + farCells - 1)));
         double minY = fp.getY();
         double farZ = fp.getZ();
         int t = 0;
-        Walker.Step s = Walker.Step.WALKING;
-        for (; t < 500 && s == Walker.Step.WALKING; t++) {
+        Locomotor.Status s = Locomotor.Status.MOVING;
+        for (; t < 500 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             minY = Math.min(minY, fp.getY());
@@ -509,13 +510,13 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         // A goal well past the deck's end, so the walk has every reason to keep going and the only
         // thing that can stop it at the head is the guard.
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(
+        walker.start(new Goal.Block(
                 new BlockPos(cx + lateral, standY, cz + deckCells + 6)));
         double minY = fp.getY();
         double farZ = fp.getZ();
         int t = 0;
-        Walker.Step s = Walker.Step.WALKING;
-        for (; t < 400 && s == Walker.Step.WALKING; t++) {
+        Locomotor.Status s = Locomotor.Status.MOVING;
+        for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             minY = Math.min(minY, fp.getY());
@@ -920,7 +921,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                     + fp.getY() + " after " + SETTLE_TICKS + " idle ticks)");
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(ctx.rel(0, SHELF + 1, SHELF_CELLS - 1)));
+        walker.start(new Goal.Block(ctx.rel(0, SHELF + 1, SHELF_CELLS - 1)));
         double minY = fp.getY(), farZ = fp.getZ();
         boolean inLava = false;
         int pinned = 0, t = 0;
@@ -1266,7 +1267,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                     + fp.getY() + " after " + SETTLE_TICKS + " idle ticks)");
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(ctx.rel(0, RIM_DECK + 1, 18)));
+        walker.start(new Goal.Block(ctx.rel(0, RIM_DECK + 1, 18)));
         double minY = fp.getY(), farZ = fp.getZ(), pinZ = Double.NaN, farAfterPin = 0.0;
         boolean inLava = false;
         int pinned = 0, run = 0, longest = 0, t = 0;

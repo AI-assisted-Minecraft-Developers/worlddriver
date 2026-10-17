@@ -77,7 +77,7 @@ single ladder run passes.
 
 ### The futile-search governor cannot fire against a moving target
 
-`Walker.setGoal` clears the governor, and the first search after a reset is seeded rather than
+`Walker.start` clears the governor, and the first search after a reset is seeded rather than
 judged, so it never enters the consecutive count. A combat process re-issues the goal each time the
 target moves, so half of every search population is seeding and the streak never reaches its
 threshold. The criterion and the situation it guards against are mutually exclusive. Candidates, in

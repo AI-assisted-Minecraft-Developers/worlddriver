@@ -6,7 +6,9 @@ import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -32,7 +34,7 @@ public final class BboxFillProcess implements BotProcess {
     private final BlockPos maxP;
     private final String fillId;        // null = no placement
     private final String filterFromId;  // null = any non-air; else only this id
-    private final Walker walker = new Walker("fill");
+    private final Walker walker = new Walker(WalkerSettings.named("fill"));
     private final Set<BlockPos> blacklist = new HashSet<>();
     private final Set<BlockPos> done = new HashSet<>();
     private final int totalEstimate;
@@ -92,21 +94,21 @@ public final class BboxFillProcess implements BotProcess {
                 }
                 currentTarget = found[0];
                 st.builder.target = currentTarget;
-                walker.setGoal(new Goal.Block(found[1]));
+                walker.start(new Goal.Block(found[1]));
                 phase = Phase.GOING;
             }
             case GOING -> {
-                Walker.Step s = walker.tick(a, w);
+                Locomotor.Status s = walker.tick(a, w);
                 st.builder.pathLen = walker.pathLen();
                 st.builder.pathStep = walker.pathStep();
-                if (s == Walker.Step.FAILED) {
+                if (s == Locomotor.Status.FAILED) {
                     skipped++;
                     blacklist.add(currentTarget);
                     currentTarget = null;
                     phase = Phase.SEARCH;
                     return false;
                 }
-                if (s == Walker.Step.ARRIVED) {
+                if (s.ended()) {
                     // If the cell is already empty (someone else broke it
                     // during walk, or filterFromId mode picked something
                     // that's still air-passable), skip the break.

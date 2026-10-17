@@ -333,7 +333,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
                     + " is not the real ladder's stance of standing on a single corner (requires 0 < sole < 0.36)");
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.XZ(foot.getX() + GOAL_DX, foot.getZ() + GOAL_DZ, GOAL_R));
+        walker.start(new Goal.XZ(foot.getX() + GOAL_DX, foot.getZ() + GOAL_DZ, GOAL_R));
         final WalkerTelemetry tel = WalkerTelemetry.of(fp);
         long holds0 = tel.descentHolds;
         double minY = fp.getY();
@@ -517,7 +517,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
 
         Walker walker = new Walker();
         BlockPos bottom = ctx.rel(STAIR_STEPS, STAIR_TOP - STAIR_STEPS + 1, 0);
-        walker.setGoal(new Goal.Block(bottom));
+        walker.start(new Goal.Block(bottom));
         final WalkerTelemetry tel = WalkerTelemetry.of(fp);
         long holds0 = tel.descentHolds;
         int t = 0, noPlan = 0;
@@ -856,7 +856,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
                     + " so this arena is not measuring that cell");
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(step));
+        walker.start(new Goal.Block(step));
         final WalkerTelemetry tel = WalkerTelemetry.of(fp);
         long holds0 = tel.descentHolds;
         double minY = fp.getY();
@@ -890,7 +890,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
                         + " pathLength=" + st.pathLen());
         double moved = Math.hypot(fp.getX() - x0, fp.getZ() - z0);
         long holds = tel.descentHolds - holds0;
-        String end = walker.lastEndReason;
+        String end = walker.result().endReason();
         String ended = String.format(Locale.ROOT,
                 "walkerDescentNodeHold=%s -> %d ticks, bot=(%.2f,%.2f,%.2f) cell=%s, lowest y=%.2f (perch y=%d),"
                 + " moved %.2f blocks, without a plan %d/%d ticks, end=%s, step advances held %d times%s",

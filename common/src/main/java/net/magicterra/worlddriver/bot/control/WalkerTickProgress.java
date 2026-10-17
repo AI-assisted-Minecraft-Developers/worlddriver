@@ -1187,7 +1187,7 @@ final class WalkerTickProgress {
                 // A path that actually reaches the goal (or we ended up standing in
                 // the goal cell): the journey is done.
                 return wk.terminalReport(Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null,
-                        Walker.classifyArrival(wk.seg.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
+                        WalkVerdict.classifyArrival(wk.seg.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
             }
             // Best-effort segment consumed but the goal is still ahead. DON'T give
             // up — this is the long-distance splice point. Adopt the continuation

@@ -174,8 +174,8 @@ public final class BotCommand {
         }
         var fp = current.fakePlayer();
         src.sendSuccess(() -> Component.literal(String.format(
-                "worlddriver server: pos=%.1f %.1f %.1f step=%s finished=%s active=%d",
-                fp.getX(), fp.getY(), fp.getZ(), current.lastStep(), current.finished(),
+                "worlddriver server: pos=%.1f %.1f %.1f status=%s finished=%s active=%d",
+                fp.getX(), fp.getY(), fp.getZ(), current.lastStatus(), current.finished(),
                 BotTicker.activeCount())), false);
         return 1;
     }

@@ -9,6 +9,7 @@ import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
 import net.magicterra.worlddriver.bot.rules.moves.Fall;
@@ -275,18 +276,18 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
         // This avatar's own counters, so another scene climbing out of water cannot move them.
         final WalkerTelemetry tel = WalkerTelemetry.of(fp);
         final int engages0 = tel.waterPillarEngages;
         final int bails0 = tel.waterPillarCeilingBails;
 
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
         boolean everDry = false;
         int bobTicks = 0;                 // ticks stuck in-water below the wall top
-        for (int t = 0; t < 800 && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < 800 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             maxY = Math.max(maxY, fp.getY());
@@ -530,20 +531,20 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                     + " vacuous (a wall-press fix would pass this falsely). Check the geometry.");
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
         int pocketTicks = 0;                 // ticks in-water in the pocket below the vine = the bug
         boolean everInPocket = false;
         int budget = 220;
-        for (int t = 0; t < budget && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < budget && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             maxY = Math.max(maxY, fp.getY());
             if (fp.isInWater() && fp.getY() < vineBaseY) { pocketTicks++; everInPocket = true; }
         }
-        boolean arrived = s == Walker.Step.ARRIVED;
+        boolean arrived = s.ended();
         boolean onPlateau = arrived || (fp.getZ() > plateauZ - 0.5 && fp.getY() >= plateauTop - 0.4);
         boolean climbedTop = maxY >= vineTopY - 1;
         WorldDriverCommon.LOG.info("[wd.vineOverWaterClimb] step={} pos=({},{},{}) maxY={} arrived={} onPlateau={} climbedTop={} everInPocket={} pocketTicks={}",
@@ -630,12 +631,12 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
         int t = 0;
-        for (; t < 9000 && s == Walker.Step.WALKING; t++) {
+        for (; t < 9000 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             maxY = Math.max(maxY, fp.getY());
@@ -720,12 +721,12 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
         int bobTicks = 0;                  // ticks floating below the bank top
-        for (int tt = 0; tt < 800 && s == Walker.Step.WALKING; tt++) {
+        for (int tt = 0; tt < 800 && s == Locomotor.Status.MOVING; tt++) {
             s = walker.tick(av, w);
             av.step();
             maxY = Math.max(maxY, fp.getY());
@@ -843,12 +844,12 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         double maxX = fp.getX();
         int wallPressTicks = 0;     // in-water ticks spent pressed against the SHEER face
-        for (int t = 0; t < 1500 && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < 1500 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             maxX = Math.max(maxX, fp.getX());
@@ -942,10 +943,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         // (b) Integration: the floating Walker crosses the deep channel and climbs out.
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         double maxX = fp.getX();
-        for (int t = 0; t < 2000 && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < 2000 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             maxX = Math.max(maxX, fp.getX());
@@ -1028,16 +1029,16 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         // Block-less, the +2 bank is a dig for both the server-side and the client player now that
         // the planner no longer swims into the air cell above the surface; 200 ticks (10 s) still
         // fails loudly on a bob-stall regression. The bot arrives airborne off the last dug step, so the walk is followed for
         // a few settle ticks after ARRIVED before its landing is judged.
         int ashoreTick = -1;
         int settle = 0;
-        for (int t = 0; t < 200 && (s == Walker.Step.WALKING || (s == Walker.Step.ARRIVED && settle++ < 20)); t++) {
-            if (s == Walker.Step.WALKING) s = walker.tick(av, w);
+        for (int t = 0; t < 200 && (s == Locomotor.Status.MOVING || (s.ended() && settle++ < 20)); t++) {
+            if (s == Locomotor.Status.MOVING) s = walker.tick(av, w);
             av.step();
             if (ashoreTick < 0 && !fp.isInWater() && fp.onGround()
                     && fp.getX() >= cx + span - 0.5 && fp.getY() >= bankTop + 1 - 0.4) {
@@ -1123,10 +1124,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int ashoreTick = -1;
-        for (int t = 0; t < 400 && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             if (ashoreTick < 0 && !fp.isInWater() && fp.onGround() && fp.getY() >= bankTop + 1 - 0.4
@@ -1193,10 +1194,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(goal);
-        Walker.Step s = Walker.Step.WALKING;
+        walker.start(goal);
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int reachedTick = -1;
-        for (int t = 0; t < 500 && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < 500 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             if (Math.floor(fp.getX()) == cx + 11 && Math.floor(fp.getZ()) == cz) { reachedTick = t; break; }
@@ -1205,7 +1206,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         WorldDriverCommon.LOG.info("[wd.waterFarAimBankCorner] step={} pos=({},{},{}) reachedTick={} dGoal={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), reachedTick, String.format("%.1f", dGoal));
         // Round the wall via the gap → reach the east goal column.
-        if (reachedTick < 0 && s != Walker.Step.ARRIVED)
+        if (reachedTick < 0 && !s.ended())
             ctx.fail("waterFarAimBankCorner: bot failed to round the divider to the goal"
                     + " (far-aim rammed the wall through-LOS?): dGoal=" + dGoal + " pos=(" + fp.getX() + ","
                     + fp.getY() + "," + fp.getZ() + ") step=" + s);
@@ -1334,7 +1335,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
         final WalkerTelemetry tel = WalkerTelemetry.of(fp);
         final int engages0 = tel.waterPillarEngages;
         // Without this the scene cannot tell its own two failure modes apart. "The cell never turned
@@ -1349,9 +1350,9 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         boolean pinning = false;
         BlockPos pinnedAt = null;
         double bandLow = Double.MAX_VALUE, bandHigh = -Double.MAX_VALUE;
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
-        for (; t < 400 && s == Walker.Step.WALKING; t++) {
+        for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             if (walker.pillarPlaceFutile()) sawFutile = true;
@@ -1498,7 +1499,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
         final WalkerTelemetry tel = WalkerTelemetry.of(fp);
         final int engages0 = tel.waterPillarEngages;
         final int clicks0 = tel.waterPillarPlaceCalls;
@@ -1515,13 +1516,13 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         boolean engagedAtRead = false;
         int footLow = Integer.MAX_VALUE, footHigh = Integer.MIN_VALUE;
         java.util.Set<BlockPos> wasWater = new java.util.HashSet<>();
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         // 60, not 400. Once the run is long enough for the ledger to climb past the futility line
         // on its own, "it never declared futility" stops being evidence about the FILL and becomes
         // evidence about the budget. This scene asks one question — does a landing zero the
         // counter — so it runs just past the landing and stops.
-        for (; t < 60 && s == Walker.Step.WALKING; t++) {
+        for (; t < 60 && s == Locomotor.Status.MOVING; t++) {
             BlockPos top = topWater(w, cx, cz + 1, floorY, surface);
             boolean wasSolidBefore = top == null || w.isSolid(top);
             if (top != null) wasWater.add(top);

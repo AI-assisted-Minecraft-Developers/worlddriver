@@ -20,6 +20,7 @@ import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.bot.control.AscendMovement;
 import net.magicterra.worlddriver.bot.control.MovementContext;
 import net.magicterra.worlddriver.bot.control.MovementStatus;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.Move;
@@ -347,10 +348,10 @@ public final class WorldDriverScenes implements SceneProvider {
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
         long allocBefore = MovementContext.ALLOC_COUNT;
-        Walker.Step s = Walker.Step.WALKING;
-        for (int t = 0; t < 500 && s == Walker.Step.WALKING; t++) { s = walker.tick(av, w); av.step(); }
+        Locomotor.Status s = Locomotor.Status.MOVING;
+        for (int t = 0; t < 500 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
         boolean reachedTop = fp.getX() > ascEndX && fp.getY() >= topSurf + 1 - 0.4;
         long allocated = MovementContext.ALLOC_COUNT - allocBefore;
         WorldDriverCommon.LOG.info("[wd.ascendMovementNoop] step={} pos=({},{},{}) reachedTop={} ctxAllocated={}",
@@ -475,13 +476,13 @@ public final class WorldDriverScenes implements SceneProvider {
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
         // Measure horizontal (diagonal) progress + sprint% while ON the slope (x >= cx).
         double startX = Double.NaN, startZ = 0, endX = 0, endZ = 0;
         int ascTicks = 0, ascSprint = 0, ascHcol = 0;
-        Walker.Step s = Walker.Step.WALKING;
-        for (int t = 0; t < 900 && s == Walker.Step.WALKING; t++) {
+        Locomotor.Status s = Locomotor.Status.MOVING;
+        for (int t = 0; t < 900 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             if (fp.getX() >= cx) {
@@ -620,7 +621,7 @@ public final class WorldDriverScenes implements SceneProvider {
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
         double prevYaw = Double.NaN, sumAbsDyaw = 0, maxDyaw = 0;
         int onSlope = 0, reversals = 0;
@@ -633,8 +634,8 @@ public final class WorldDriverScenes implements SceneProvider {
         double prevX = fp.getX(), prevZ = fp.getZ();
         int backSteps = 0;
         double worstBack = 0;
-        Walker.Step s = Walker.Step.WALKING;
-        for (int t = 0; t < 700 && s == Walker.Step.WALKING; t++) {
+        Locomotor.Status s = Locomotor.Status.MOVING;
+        for (int t = 0; t < 700 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             double ddx = fp.getX() - prevX, ddz = fp.getZ() - prevZ;
@@ -753,12 +754,12 @@ public final class WorldDriverScenes implements SceneProvider {
         fp.getInventory().selected = 0;
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.YLevel(targetY));
+        walker.start(new Goal.YLevel(targetY));
 
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
         double worstBackslide = 0;
-        for (int t = 0; t < 4000 && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < 4000 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w);
             av.step();
             maxY = Math.max(maxY, fp.getY());
@@ -1119,7 +1120,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * the A3a dynamic {@link EntityLeash} anchor gate: the SERVER runs a real
      * {@link IntentProcess} whose leash centres on an {@code entity:'armor_stand'}
      * anchor, proving the whole re-solve chain (find → dirty → rebuild profile →
-     * forceRepath), not just the static leash math. This is the THIRD driver-class
+     * replan), not just the static leash math. This is the THIRD driver-class
      * scene (dogfood wave 2b) and the last driver-family arena; it follows the driver
      * porting pattern established by {@code wd.gearScope} and {@code wd.buriedOre}
      * (see the class javadoc: {@link PlayerBot#createIsolated} not

@@ -968,7 +968,7 @@ public final class JourneyRampScenes implements SceneProvider {
             ctx.fail("THE RIG, not the subject: the bot did not land in the start cell "
                     + entry.toShortString() + " but in " + fp.blockPosition().toShortString());
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(landing));
+        walker.start(new Goal.Block(landing));
         LevelWorldView view = new LevelWorldView(level, fp);
         BlockPos best = fp.blockPosition();
         for (int t = 0; t < WALK_TICKS && !fp.blockPosition().equals(landing); t++) {

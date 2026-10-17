@@ -102,15 +102,15 @@ final class WalkerTickSearch {
             wk.searchGov.futileGoal = wk.goal;
             wk.searchGov.futileLatchFoot = null;
         } else if (++wk.searchGov.futileSearches >= ControlConfig.walkerFutileSearchCap) {
-            wk.lastError = "no route progress after " + wk.searchGov.futileSearches
+            wk.error = "no route progress after " + wk.searchGov.futileSearches
                     + " consecutive searches — goal unreachable from here (best dist="
                     + Math.round(wk.goalSpin.bestDistToGoal) + ")";
             // Latch on the foot, not on the goal: this terminal costs a full A* every tick it is
             // re-reported, and a caller that ignores the return value (or re-goals at a moving
             // quarry) would otherwise pay it forever.
             wk.searchGov.futileLatchFoot = foot;
-            return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH, wk.lastError,
-                    "failed:" + wk.lastError, p.blockPosition());
+            return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH, wk.error,
+                    "failed:" + wk.error, p.blockPosition());
         } else {
             // Cool down before the next kickoff so the wait between futile cycles stops burning
             // full search budgets (4→8→16→32-tick backoff).
@@ -361,8 +361,8 @@ final class WalkerTickSearch {
                     p.setSprinting(false);
                     return Walker.Step.WALKING;
                 }
-                wk.lastError = "no path (expanded=" + res.expanded() + ")";
-                return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH, wk.lastError, "failed:" + wk.lastError, p.blockPosition());
+                wk.error = "no path (expanded=" + res.expanded() + ")";
+                return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH, wk.error, "failed:" + wk.error, p.blockPosition());
             }
             // else: search failed but we still have the previous path — keep it.
         }

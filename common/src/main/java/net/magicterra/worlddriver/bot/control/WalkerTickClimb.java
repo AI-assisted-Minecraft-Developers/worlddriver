@@ -558,7 +558,7 @@ final class WalkerTickClimb {
         BreakFeasibility.poison(b, BREATH_POISON_TTL_MS);
         if (GameConfig.walkerDebug)
             LOG.info("[walker] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
-        wk.lastError = "breath-infeasible dig at " + b;
+        wk.error = "breath-infeasible dig at " + b;
         wk.path = null;
         return true;
     }
@@ -1225,7 +1225,7 @@ final class WalkerTickClimb {
             if (++wk.actionTicks > ControlConfig.breakTimeoutTicks) {
                 wk.blocks.breakHold(false);
                 wk.avatarJump(a, false);
-                wk.lastError = "pillar stalled at " + wk.path.get(wk.step);
+                wk.error = "pillar stalled at " + wk.path.get(wk.step);
                 wk.path = null;
                 return Walker.Step.WALKING;
             }
@@ -1290,7 +1290,7 @@ final class WalkerTickClimb {
                 return Walker.Step.WALKING;
             }
             if (!wk.equipment.holdPlaceable()) {
-                wk.lastError = "pillar: no placeable block in hotbar";
+                wk.error = "pillar: no placeable block in hotbar";
                 wk.path = null;
                 return Walker.Step.WALKING;
             }
@@ -1344,7 +1344,7 @@ final class WalkerTickClimb {
             wk.totalTicks = 0;
             wk.stuckTicks = 0;       // owns this cell while leaping — not "stuck"
             if (++wk.actionTicks > ControlConfig.breakTimeoutTicks) {
-                wk.lastError = "parkour-place stalled at " + dest;
+                wk.error = "parkour-place stalled at " + dest;
                 wk.path = null;
                 return Walker.Step.WALKING;
             }
@@ -1419,7 +1419,7 @@ final class WalkerTickClimb {
                 // Lag or an unexpected obstruction — drop the path and let
                 // the next tick repath from the current position.
                 wk.blocks.breakHold(false);
-                wk.lastError = "break/place stalled at " + wk.path.get(wk.step);
+                wk.error = "break/place stalled at " + wk.path.get(wk.step);
                 wk.path = null;
                 return Walker.Step.WALKING;
             }

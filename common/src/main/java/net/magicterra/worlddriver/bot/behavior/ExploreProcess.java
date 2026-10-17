@@ -3,7 +3,9 @@ package net.magicterra.worlddriver.bot.behavior;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
@@ -18,7 +20,7 @@ public final class ExploreProcess implements BotProcess {
     private final int centerChunkX, centerChunkZ;
     private final int maxChunks;
     private final Set<Long> visited = new HashSet<>();
-    private final Walker walker = new Walker("explore");
+    private final Walker walker = new Walker(WalkerSettings.named("explore"));
     private int visitedCount;
     private BlockPos currentChunkCenter;
     private int currentChunkX, currentChunkZ;
@@ -64,16 +66,16 @@ public final class ExploreProcess implements BotProcess {
             currentChunkX = (int) (next >> 32);
             currentChunkZ = (int) (long) next;
             currentChunkCenter = new BlockPos(currentChunkX * 16 + 8, (int) Math.floor(p.getY()), currentChunkZ * 16 + 8);
-            walker.setGoal(new Goal.XZ(currentChunkCenter.getX(), currentChunkCenter.getZ()));
+            walker.start(new Goal.XZ(currentChunkCenter.getX(), currentChunkCenter.getZ()));
             st.explore.target = currentChunkCenter;
         }
-        Walker.Step s = walker.tick(a, w);
+        Locomotor.Status s = walker.tick(a, w);
         st.explore.pathLen = walker.pathLen();
         st.explore.pathStep = walker.pathStep();
-        if (s != Walker.Step.WALKING) {
+        if (s != Locomotor.Status.MOVING) {
             visited.add(chunkKey(currentChunkX, currentChunkZ));
             visitedCount++;
-            if (walker.shortfall(s) != null) missed++;
+            if (walker.result().reason() != null) missed++;
             currentChunkCenter = null;
         }
         return false;

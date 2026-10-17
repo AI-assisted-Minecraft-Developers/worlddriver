@@ -3,9 +3,9 @@ package net.magicterra.worlddriver.bot.control;
 import java.util.Locale;
 
 /**
- * Whether a walk that stopped did what it was asked. The walker ends its give-ups (churn, frontier,
- * a consumed best-effort path) with {@link Walker.Step#ARRIVED}, so the step alone reads them as
- * success; the goal test at the foot is what tells them apart.
+ * Whether a walk that stopped did what it was asked. The walker's give-ups (churn, frontier, a
+ * consumed best-effort path) end through the same branch as an arrival; the goal test at the foot is
+ * what tells {@link Locomotor.Status#REACHED} from {@link Locomotor.Status#GAVE_UP}.
  */
 public final class WalkVerdict {
 
@@ -15,18 +15,33 @@ public final class WalkVerdict {
 
     private WalkVerdict() {}
 
+    /** The {@code endReason} of a walk whose route ran out. Pure, so a scene can check it alone. */
+    public static String classifyArrival(boolean bestEffort, boolean reachedFoot, boolean snapped) {
+        if (snapped && reachedFoot) return GOAL_SNAPPED;
+        if (reachedFoot) return "arrived";
+        return bestEffort ? "best-effort-consumed" : "path-consumed";
+    }
+
     /**
-     * Why the walk fell short, or null when it did not.
+     * How a walk ended.
      *
+     * @param failed    the walk failed rather than ran out of route
+     * @param error     why it failed; ignored for a walk that did not
      * @param finalDist the goal's {@code estimate} at the foot, in path-cost units of 10 per block;
      *                  negative when there was no foot to measure from
+     * @param openGoal  the goal has no cell to reach (an exploration), so ending is reaching it
      */
-    public static String shortfall(Walker.Step s, String error, boolean goalReached, String endReason,
-                                   double finalDist, boolean openGoal) {
-        if (s == Walker.Step.FAILED) return error != null ? error : "walk failed";
-        if (s != Walker.Step.ARRIVED || goalReached || openGoal || GOAL_SNAPPED.equals(endReason)) return null;
-        if (finalDist < 0) return "goal not reached (" + endReason + ")";
-        return String.format(Locale.ROOT, "goal not reached (%s, about %.1f blocks short)",
-                endReason, finalDist / 10.0);
+    static WalkResult of(boolean failed, String error, boolean goalReached, String endReason,
+                         double finalDist, boolean goalSnapped, boolean openGoal) {
+        if (failed) {
+            return new WalkResult(Locomotor.Status.FAILED, error != null ? error : "walk failed", endReason,
+                    goalReached, finalDist, goalSnapped);
+        }
+        if (goalReached || openGoal || GOAL_SNAPPED.equals(endReason)) {
+            return new WalkResult(Locomotor.Status.REACHED, null, endReason, goalReached, finalDist, goalSnapped);
+        }
+        String shortBy = finalDist < 0 ? "goal not reached (" + endReason + ")"
+                : String.format(Locale.ROOT, "goal not reached (%s, about %.1f blocks short)", endReason, finalDist / 10.0);
+        return new WalkResult(Locomotor.Status.GAVE_UP, shortBy, endReason, goalReached, finalDist, goalSnapped);
     }
 }

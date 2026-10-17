@@ -9,7 +9,9 @@ import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.world.LogWaiver;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -59,17 +61,14 @@ public final class MineProcess implements BotProcess {
     private final List<Predicate<BlockState>> targetMatchers;
     private final int desiredQty;
     private final int searchRadius;
-    private final Walker walker = new Walker("mine");
+    // Approach stands live within the ≤64-block scan; embedded/unreachable
+    // candidates must price out fast (the 100t no-approach blacklist is the
+    // real gate). Full 50k/2s deep searches here only chopped the client
+    // (~25 fps for seconds after every block break) and delayed the
+    // blacklist — see WalkerSettings.withSearchBudget.
+    private final Walker walker = new Walker(WalkerSettings.named("mine").withSearchBudget(8_000, 400));
     /** The approach walker, for its {@link Walker#tallies()} (the collect walker's are not summed). */
     public Walker walker() { return walker; }
-    {
-        // Approach stands live within the ≤64-block scan; embedded/unreachable
-        // candidates must price out fast (the 100t no-approach blacklist is the
-        // real gate). Full 50k/2s deep searches here only chopped the client
-        // (~25 fps for seconds after every block break) and delayed the
-        // blacklist — see Walker.setSearchBudget.
-        walker.setSearchBudget(8_000, 400);
-    }
     private final Set<BlockPos> blacklist = new HashSet<>();
     private int broken;
     // When the last SEARCH returned no usable target ONLY because every in-range
@@ -164,8 +163,8 @@ public final class MineProcess implements BotProcess {
     // magnet vacuum the drops. Capped to avoid backtracking forever.
     private final Deque<BlockPos> recentBreaks = new ArrayDeque<>();
     private int collectTicks;
-    private final Walker collectWalker = new Walker("mine.collect");
-    { collectWalker.setSearchBudget(8_000, 400); }   // drops are even nearer
+    private final Walker collectWalker =   // drops are even nearer
+            new Walker(WalkerSettings.named("mine.collect").withSearchBudget(8_000, 400));
     private BlockPos currentCollectGoal;
     /** Drop cells the collect walker reported FAILED on. findCollectGoal returns the NEAREST
      *  drop, so without a skip list a single unreachable one is handed back every tick and
@@ -173,7 +172,7 @@ public final class MineProcess implements BotProcess {
     private final Set<BlockPos> unreachableDrops = new HashSet<>();
     /** What the collect walker last said. Read only by {@link #finish} — a terminal verdict that
      *  cannot name the sweep's own behaviour makes the reader guess between three bugs. */
-    private Walker.Step lastCollectStep;
+    private Locomotor.Status lastCollectStep;
     /** Re-plans spent on the current collect goal after an ARRIVED that was not at it. */
     private int collectRepaths;
     private static final int COLLECT_MAX_REPATHS = 3;
@@ -318,7 +317,7 @@ public final class MineProcess implements BotProcess {
                 currentFace = t.face;
                 currentTargetClearing = t.clearing();
                 st.mine.target = currentTarget;
-                walker.setGoal(new Goal.Block(t.stand));
+                walker.start(new Goal.Block(t.stand));
                 phase = Phase.GOING;
                 goingBestDist = Double.MAX_VALUE;      // arm the no-progress watchdog
                 goingStallTicks = 0;
@@ -341,10 +340,10 @@ public final class MineProcess implements BotProcess {
                     phase = Phase.BREAKING;
                     return false;
                 }
-                Walker.Step s = walker.tick(a, w);
+                Locomotor.Status s = walker.tick(a, w);
                 st.mine.pathLen = walker.pathLen();
                 st.mine.pathStep = walker.pathStep();
-                if (s == Walker.Step.FAILED) {
+                if (s == Locomotor.Status.FAILED) {
                     // The stand exists geometrically but the bot can't WALK to it.
                     // For a leaf-encased canopy log this is the common case: the only
                     // stand findReachStand finds has a clear LOS that slips past an
@@ -366,7 +365,7 @@ public final class MineProcess implements BotProcess {
                             currentFace = clear.face();
                             currentTargetClearing = true;
                             st.mine.target = currentTarget;
-                            walker.setGoal(new Goal.Block(clear.stand()));
+                            walker.start(new Goal.Block(clear.stand()));
                             phase = Phase.GOING;
                             goingBestDist = Double.MAX_VALUE;   // re-arm for the new (clearing) stand
                             goingStallTicks = 0;
@@ -376,7 +375,7 @@ public final class MineProcess implements BotProcess {
                     retireTarget("the walker reported FAILED and there are no obstructing leaves to clear");
                     return false;
                 }
-                if (s == Walker.Step.ARRIVED) {
+                if (s.ended()) {
                     equipment.selectTool(currentTarget);
                     a.aimAtBlock(currentTarget);
                     breakingTicks = 0;
@@ -564,9 +563,9 @@ public final class MineProcess implements BotProcess {
                     // opinions. What would settle it is one reading, taken on the COMBAT sweep:
                     // eye-to-item distance on the tick the walker reports its terminal, against
                     // the ~1.4 magnet radius. Until someone takes it, fix one, look at the other.
-                    collectWalker.setGoal(new Goal.Block(goal));
+                    collectWalker.start(new Goal.Block(goal));
                 }
-                Walker.Step step = collectWalker.tick(a, w);
+                Locomotor.Status step = collectWalker.tick(a, w);
                 lastCollectStep = step;
                 // Two ways this drop is not going to happen, and both used to be silently ignored:
                 // the walker says it cannot path there, or it says it has ARRIVED and the item is
@@ -575,7 +574,7 @@ public final class MineProcess implements BotProcess {
                 // findCollectGoal hands back the same nearest drop every tick, so ONE dead drop
                 // used to shadow every reachable one behind it: three ores mined, three drops on
                 // the ground, an empty bag and no error.
-                boolean cannotPath = step == Walker.Step.FAILED;
+                boolean cannotPath = step == Locomotor.Status.FAILED;
                 // ARRIVED does not mean "at the goal". The walker reports it when the path it
                 // computed runs out, and when A* cannot reach the goal it returns a best-effort
                 // partial path — so a sweep can report success standing four blocks from the drop
@@ -586,18 +585,18 @@ public final class MineProcess implements BotProcess {
                 // times: the world changes while a mine runs — blocks fall, the bot's own shaft
                 // opens routes — and the second search often reaches what the first could not.
                 // Only after those are spent is the drop genuinely out of reach.
-                boolean arrivedShort = step == Walker.Step.ARRIVED
+                boolean arrivedShort = step.ended()
                         && !p.blockPosition().equals(goal)
                         && collectRepaths < COLLECT_MAX_REPATHS;
                 if (arrivedShort) {
                     collectRepaths++;
-                    currentCollectGoal = null;      // forces a fresh setGoal, hence a fresh search
+                    currentCollectGoal = null;      // forces a fresh start, hence a fresh search
                     collectStuckTicks = 0;
                     st.mine.target = goal;
                     return false;
                 }
                 boolean stuck = cannotPath
-                        || (step == Walker.Step.ARRIVED && ++collectStuckTicks > COLLECT_STUCK_TICKS);
+                        || (step.ended() && ++collectStuckTicks > COLLECT_STUCK_TICKS);
                 if (stuck) {
                     collectRepaths = 0;
                     // Which of the two retired it, counted rather than guessed. "The walker refuses
@@ -1218,8 +1217,7 @@ public final class MineProcess implements BotProcess {
      * <p>{@code st.mine.lastError} is this process's generic abort text and says the same thing
      * ("no reachable target") for every way the approach can end — the pre-filter never handing over
      * a goal, the walk failing, the walk arriving somewhere that is not the stand. The walker has
-     * carried the readings that separate those for a while ({@link Walker#lastEndReason},
-     * {@link Walker#lastGoalReached}, {@link Walker#lastFinalDist}, {@link Walker#goalSnapped()},
+     * carried the readings that separate those for a while ({@link Walker#result()},
      * {@link Walker#progressProbe()}, {@link Walker#planProbe()}) and their javadoc says they exist
      * to be embedded in a failure — but they are package-private-adjacent state on a private field,
      * so no scene could reach them and {@code wd.buriedOre} has been failing on the bare abort text.
@@ -1231,11 +1229,11 @@ public final class MineProcess implements BotProcess {
     public String approachProbe() {
         return "phase=" + phase + " broken=" + broken + "/" + desiredQty
                 + " target=" + currentTarget + " stand=" + currentStand
-                + " endReason=" + walker.lastEndReason
-                + " goalReached=" + walker.lastGoalReached
-                + " finalDist=" + String.format(java.util.Locale.ROOT, "%.3f", walker.lastFinalDist)
-                + " goalSnapped=" + walker.goalSnapped()
-                + " walkerErr=" + walker.lastError
+                + " endReason=" + walker.result().endReason()
+                + " goalReached=" + walker.result().goalReached()
+                + " finalDist=" + String.format(java.util.Locale.ROOT, "%.3f", walker.result().finalDist())
+                + " goalSnapped=" + walker.result().goalSnapped()
+                + " walkerErr=" + walker.result().reason()
                 + " | " + walker.progressProbe()
                 + " | " + walker.planProbe();
     }

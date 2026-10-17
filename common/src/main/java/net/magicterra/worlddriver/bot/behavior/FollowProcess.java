@@ -3,7 +3,9 @@ package net.magicterra.worlddriver.bot.behavior;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -30,7 +32,7 @@ public final class FollowProcess implements BotProcess {
     public static final int DEFAULT_GIVE_UP_TICKS = 600;
     private final int giveUpTicks;
     private final Chase chase;
-    private final Walker walker = new Walker("follow");
+    private final Walker walker;
     private int idleTicks;
     private int consecutiveFails;
     private BlockPos lastTargetBlock;
@@ -50,7 +52,8 @@ public final class FollowProcess implements BotProcess {
         this.maxIdleTicks = maxIdleTicks;
         this.giveUpTicks = giveUpTicks;
         this.chase = new Chase(giveUpTicks);
-        walker.setSearchProfile(profile == null ? SearchProfile.NONE : profile);
+        this.walker = new Walker(WalkerSettings.named("follow")
+                .withProfile(profile == null ? SearchProfile.NONE : profile));
     }
 
     public String kind() { return "follow"; }
@@ -90,21 +93,21 @@ public final class FollowProcess implements BotProcess {
             (int) Math.floor(target.getZ()));
         regoal(target.getId(), tBlock);
         st.follow.target = tBlock;
-        Walker.Step s = walker.tick(a, w);
+        Locomotor.Status s = walker.tick(a, w);
         st.follow.pathLen = walker.pathLen();
         st.follow.pathStep = walker.pathStep();
-        if (chase.tick(s == Walker.Step.ARRIVED, Math.sqrt(target.distanceToSqr(p)))) {
+        if (chase.tick(s.ended(), Math.sqrt(target.distanceToSqr(p)))) {
             return giveUp(st, String.format(Locale.ROOT,
                     "unreachable: no closer than %.1f blocks in %d ticks", chase.closest(), giveUpTicks));
         }
-        if (s == Walker.Step.FAILED) {
+        if (s == Locomotor.Status.FAILED) {
             consecutiveFails++;
             if (consecutiveFails >= MAX_CONSECUTIVE_FAILS) {
-                return giveUp(st, "unreachable (" + consecutiveFails + " failed replans): " + walker.lastError);
+                return giveUp(st, "unreachable (" + consecutiveFails + " failed replans): " + walker.result().reason());
             }
             // Force a fresh A* on the next tick rather than re-walking the dead path.
             lastTargetBlock = null;
-        } else if (s == Walker.Step.ARRIVED) {
+        } else if (s.ended()) {
             // Within `radius`: stop walking and watch the target so the
             // camera tracks it (a tracking shot). The Walker owns yaw while
             // moving; here, idle, we point at the entity. smoothAngle pans
@@ -134,7 +137,7 @@ public final class FollowProcess implements BotProcess {
 
     /**
      * Aim the walker at the target's cell. The same entity in a new cell is the same pursuit, so it
-     * gets {@link Walker#retargetGoal}: {@code setGoal} zeroes the futile-search counter, and a target
+     * gets {@link Walker#retarget}: {@code start} zeroes the futile-search counter, and a target
      * that keeps moving would then never let an unreachable follow trip the cap. Only a different
      * entity starts over.
      */
@@ -143,10 +146,10 @@ public final class FollowProcess implements BotProcess {
         if (!newTarget && tBlock.equals(lastTargetBlock)) return;
         Goal g = new Goal.Near(tBlock, radius);
         if (newTarget) {
-            walker.setGoal(g);
+            walker.start(g);
             chase.restart();
         } else {
-            walker.retargetGoal(g);
+            walker.retarget(g);
         }
         lastTargetBlock = tBlock;
         lastTargetId = targetId;

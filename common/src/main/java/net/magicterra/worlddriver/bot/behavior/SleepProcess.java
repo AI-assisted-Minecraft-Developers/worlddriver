@@ -4,7 +4,9 @@ import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -24,7 +26,7 @@ public final class SleepProcess implements BotProcess {
 
     private final BlockPos explicit;
     private final int searchRadius;
-    private final Walker walker = new Walker("sleep");
+    private final Walker walker = new Walker(WalkerSettings.named("sleep"));
 
     private BlockPos bedPos;
     private int useTicks;
@@ -66,20 +68,20 @@ public final class SleepProcess implements BotProcess {
                 }
                 bedPos = found;
                 st.mc_goto.target = bedPos;
-                walker.setGoal(new Goal.Near(bedPos, 2));
+                walker.start(new Goal.Near(bedPos, 2));
                 phase = Phase.GOING;
             }
             case GOING -> {
-                Walker.Step s = walker.tick(a, w);
+                Locomotor.Status s = walker.tick(a, w);
                 st.mc_goto.pathLen = walker.pathLen();
                 st.mc_goto.pathStep = walker.pathStep();
-                if (s == Walker.Step.FAILED) {
+                if (s == Locomotor.Status.FAILED) {
                     return giveUp(st, "no path to bed @" + bedPos);
                 }
-                if (s == Walker.Step.ARRIVED) {
+                if (s.ended()) {
                     // A give-up also stops as ARRIVED. The bed may still be in reach from there, so
                     // click anyway, but a click that never lands is then the approach's fault.
-                    approachShortfall = walker.shortfall(s);
+                    approachShortfall = walker.result().reason();
                     a.releaseInputs();
                     useTicks = 0;
                     sinceLastClick = CLICK_INTERVAL_TICKS;  // click immediately on first USE tick

@@ -391,7 +391,7 @@ public final class FixtureRunner {
                     // that stopped a cell short reads arrived=true with the walker saying why it stopped.
                     ctx.record(tag, how + ", at " + where + (where.equals(endedAt) ? "" : " (" + endedAt + " as it ended)")
                             + (goal == null ? "" : ", arrived=" + arrived)
-                            + (walker == null ? "" : ", walker ended " + walker.lastEndReason));
+                            + (walker == null ? "" : ", walker ended " + walker.result().endReason()));
                     // What the fixture's config reads when the task ends, not when it was applied.
                     if (!f.config().isEmpty()) {
                         Map<String, Object> now = new LinkedHashMap<>();

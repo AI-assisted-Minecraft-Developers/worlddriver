@@ -354,14 +354,14 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 && Math.abs(fp.getZ() - (cz + 9 + 0.5)) < 1.5
                 && fp.getY() >= floorY + 2 - 0.4;
         WorldDriverCommon.LOG.info("[wd.serverDriver] step={} pos=({},{},{}) finished={} active={} reached={}",
-                driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
+                driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), reached);
         if (!driver.finished() || BotTicker.activeCount() != 0)
             ctx.fail("server driver did not finish and go idle: finished="
                     + driver.finished() + " active=" + BotTicker.activeCount());
         if (!reached)
             ctx.fail("server-driven agent did not reach the goal: pos=("
-                    + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + driver.lastStep());
+                    + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + driver.lastStatus());
     }
 
     // ==================================================================================
@@ -402,7 +402,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         boolean mined = level.getBlockState(target).isAir();
         ServerPlayer fp = driver.fakePlayer();
         WorldDriverCommon.LOG.info("[wd.serverMine] step={} pos=({},{},{}) finished={} active={} mined={}",
-                driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
+                driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), mined);
         if (!mined)
             ctx.fail("server agent did not mine the target (still " + level.getBlockState(target) + ")");
@@ -450,7 +450,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         boolean reached = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (cz + 9 + 0.5)) < 1.5;
         WorldDriverCommon.LOG.info("[wd.serverProcess] step={} pos=({},{},{}) finished={} active={} reached={}",
-                driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
+                driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), reached);
         if (!driver.finished() || BotTicker.activeCount() != 0)
             ctx.fail("server IntentProcess did not finish+unregister: finished="
@@ -501,7 +501,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         double dist = Math.sqrt(dx * dx + dz * dz);
         boolean fled = dist >= minDist - 0.5;
         WorldDriverCommon.LOG.info("[wd.serverFlee] step={} pos=({},{},{}) dist={} finished={} active={} fled={}",
-                driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(), dist,
+                driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(), dist,
                 driver.finished(), BotTicker.activeCount(), fled);
         if (!fled)
             ctx.fail("server RunAwayProcess did not reach min flee distance: dist="
@@ -564,7 +564,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         for (BlockPos t : targets) if (!level.getBlockState(t).isAir()) remaining++;
         ServerPlayer fp = driver.fakePlayer();
         WorldDriverCommon.LOG.info("[wd.serverMineProcess] step={} pos=({},{},{}) finished={} active={} remaining={}/3",
-                driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
+                driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), remaining);
         if (remaining != 0)
             ctx.fail("server MineProcess left " + remaining + "/3 target stone unmined");
@@ -706,7 +706,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                             + " bot@" + (at.getX() - cx) + "," + (at.getY() - floorY)
                             + "," + (at.getZ() - cz)
                             + " onGround=" + fp.onGround()
-                            + " lastStep=" + driver.lastStep() + "]";
+                            + " lastStep=" + driver.lastStatus() + "]";
                     ctx.expect(brokeFirst)
                             .as("the block under the bot broke — if this is false the descent was"
                                     + " never even attempted and the rest of the message is noise" + diag)
@@ -872,7 +872,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     + " climbed=" + (at.getY() - startY)
                     + " bot@" + (at.getX() - cx) + "," + (at.getY() - floorY) + "," + (at.getZ() - cz)
                     + " cobble=" + fp.getInventory().countItem(Items.COBBLESTONE)
-                    + " lastStep=" + driver.lastStep()
+                    + " lastStep=" + driver.lastStatus()
                     + " path=" + driver.botState().mc_goto.pathStep
                     + "/" + driver.botState().mc_goto.pathLen
                     + " endReason=" + driver.botState().mc_goto.endReason + "]";
@@ -1080,7 +1080,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     + "," + (pitBottom.getZ() - cz)
                     + " bot@" + (at.getX() - cx) + "," + (at.getY() - floorY) + "," + (at.getZ() - cz)
                     + " dist=" + String.format("%.1f", away)
-                    + " lastStep=" + driver.lastStep()
+                    + " lastStep=" + driver.lastStatus()
                     + " pathStep=" + driver.botState().mc_goto.pathStep
                     + "/" + driver.botState().mc_goto.pathLen
                     + " endReason=" + driver.botState().mc_goto.endReason
@@ -1197,7 +1197,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     + " endReason=" + driver.botState().mine.endReason
                     + " bot@" + (fp.blockPosition().getX() - cx) + "," + (fp.blockPosition().getY() - floorY)
                     + "," + (fp.blockPosition().getZ() - cz)
-                    + " lastStep=" + driver.lastStep()
+                    + " lastStep=" + driver.lastStatus()
                     + " collectPath=" + driver.botState().mine.pathStep + "/" + driver.botState().mine.pathLen
                     + where + "]";
             int standing = 0;
@@ -1358,7 +1358,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                           + (level.getBlockState(plugHead).isAir() ? 0 : 1);
         boolean reached = Math.abs(fp.getZ() - (cz + 4 + 0.5)) < 1.5 && fp.getY() >= floorY + 1 - 0.4;
         WorldDriverCommon.LOG.info("[wd.serverWalkerDeepslateNoTool] endTick={} step={} pos=({},{},{}) finished={} active={} reached={} plugRemaining={}/2",
-                endTick, driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
+                endTick, driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), reached, plugRemaining);
         // Real guard: the bot must BREAK THROUGH the bare-hand deepslate plug and REACH
         // the goal. A reset-stall regression (dig never completes) would leave the plug
@@ -1366,7 +1366,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         // bare active==0 check would not (it stays green even on a FAIL-at-budget).
         if (!reached || plugRemaining != 0)
             ctx.fail("Walker did not clear bare-hand deepslate to the goal: reached="
-                    + reached + " plugRemaining=" + plugRemaining + "/2 step=" + driver.lastStep()
+                    + reached + " plugRemaining=" + plugRemaining + "/2 step=" + driver.lastStatus()
                     + " endTick=" + endTick + " z=" + fp.getZ());
     }
 
@@ -1460,12 +1460,12 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             int plugA = (level.getBlockState(plugFoot).isAir() ? 0 : 1) + (level.getBlockState(plugHead).isAir() ? 0 : 1);
             boolean gotPastA = fpA.getZ() > cz + plugDz + 1.0;   // past the plug = tunnelled through
             WorldDriverCommon.LOG.info("[wd.serverForbidDigWall] A(forbidDig) endTick={} step={} pos=({},{},{}) gotPast={} plugRemaining={}/2",
-                    endA, driverA.lastStep(), fpA.getX(), fpA.getY(), fpA.getZ(), gotPastA, plugA);
+                    endA, driverA.lastStatus(), fpA.getX(), fpA.getY(), fpA.getZ(), gotPastA, plugA);
             BotTicker.clear();
             fpA.discard();                                  // so the pinned FakePlayer can't linger into Phase B
             if (plugA != 2 || gotPastA) {
                 ctx.fail("forbidDig LEAK: executor dig fallback punched the wall despite NoBreak — "
-                        + "plugRemaining=" + plugA + "/2 (want 2) gotPast=" + gotPastA + " (want false) step=" + driverA.lastStep()
+                        + "plugRemaining=" + plugA + "/2 (want 2) gotPast=" + gotPastA + " (want false) step=" + driverA.lastStatus()
                         + " z=" + fpA.getZ());
                 return;
             }
@@ -1487,10 +1487,10 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             int plugB = (level.getBlockState(plugFoot).isAir() ? 0 : 1) + (level.getBlockState(plugHead).isAir() ? 0 : 1);
             boolean reachedB = Math.abs(fpB.getX() - (cx + 0.5)) < 1.5 && Math.abs(fpB.getZ() - (cz + standDz + 0.5)) < 2.0;
             WorldDriverCommon.LOG.info("[wd.serverForbidDigWall] B(precision) endTick={} step={} pos=({},{},{}) reached={} plugRemaining={}/2",
-                    endB, driverB.lastStep(), fpB.getX(), fpB.getY(), fpB.getZ(), reachedB, plugB);
+                    endB, driverB.lastStatus(), fpB.getX(), fpB.getY(), fpB.getZ(), reachedB, plugB);
             if (!reachedB || plugB != 0)
                 ctx.fail("precision guard: without forbidDig the bot must dig through and reach the stand — "
-                        + "reached=" + reachedB + " (want true) plugRemaining=" + plugB + "/2 (want 0) step=" + driverB.lastStep()
+                        + "reached=" + reachedB + " (want true) plugRemaining=" + plugB + "/2 (want 0) step=" + driverB.lastStatus()
                         + " z=" + fpB.getZ());
         });
     }
@@ -1544,7 +1544,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         boolean p2 = level.getBlockState(t2).is(Blocks.COBBLESTONE);
         ServerPlayer fp = driver.fakePlayer();
         WorldDriverCommon.LOG.info("[wd.serverBuild] step={} pos=({},{},{}) finished={} active={} placed1={} placed2={}",
-                driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
+                driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), p1, p2);
         if (!p1 || !p2)
             ctx.fail("server BuildProcess failed to place both cobble: t1="
@@ -1787,7 +1787,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             boolean dead = !zombie.isAlive();
             ServerPlayer fp = driver.fakePlayer();
             WorldDriverCommon.LOG.info("[wd.serverCombat] step={} pos=({},{},{}) zHp={} dead={} finished={} active={}",
-                    driver.lastStep(), fp.getX(), fp.getY(), fp.getZ(),
+                    driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                     zombie.getHealth(), dead, driver.finished(), BotTicker.activeCount());
             if (!dead)
                 ctx.fail("server CombatProcess did not kill the zombie: hp=" + zombie.getHealth());
@@ -1886,7 +1886,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     + " sweepTicks=" + (killedAt >= 0 ? endedAt - killedAt : -1)
                     + " killX=" + killX + " endPos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
                     + ") dropAlive=" + drop.isAlive()
-                    + " lastStep=" + driver.lastStep()
+                    + " lastStep=" + driver.lastStatus()
                     + " goal=" + driver.botState().combat.goal + "]";
             if (!dead)
                 ctx.fail("collectDrops rig: zombie not killed: hp=" + zombie.getHealth() + diag);

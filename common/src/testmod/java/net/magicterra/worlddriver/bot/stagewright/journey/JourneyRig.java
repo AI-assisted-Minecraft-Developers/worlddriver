@@ -2162,7 +2162,7 @@ public final class JourneyRig {
         // not a fix, and nothing here should be cited as having unblocked a rung.
         //
         // ⚠️ AND IT DOES NOT REACH EVERY SEARCH. These two fields are read by `PathFinder`'s
-        // BotConfig-defaulting constructors only. `Walker.setSearchBudget(nodes, ms)` overrides them
+        // BotConfig-defaulting constructors only. `WalkerSettings.withSearchBudget(nodes, ms)` overrides them
         // per walker, and `Walker.newPathFinder` prefers that override unconditionally whenever it is
         // positive — so a process that sets one never sees this. `MineProcess` does, in an instance
         // initialiser (8000/400, for its own documented reason: deep searches chopped the client's

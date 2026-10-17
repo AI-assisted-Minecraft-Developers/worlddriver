@@ -6,7 +6,7 @@ import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.bot.ActionTickets;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.Bot;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.arbitration.HeldProcess;
 import net.magicterra.worlddriver.bot.BotTicker;
@@ -82,21 +82,21 @@ public final class NpcBot implements Bot {
         return p.kind();
     }
 
-    @Override public Walker.Step tick() {
+    @Override public Locomotor.Status tick() {
         BotProcess p = held.process();
-        if (finished || p == null) return Walker.Step.ARRIVED;
+        if (finished || p == null) return Locomotor.Status.REACHED;
         Map<String, Object> gone = refusal();
         if (gone != null) {
             // Dead or unloaded is the task failing, not anyone cancelling it.
             String why = String.valueOf(gone.get("reason"));
             held.cancel(why, h -> h.fail(String.valueOf(gone.get("error"))));
             finished = true;
-            return Walker.Step.FAILED;
+            return Locomotor.Status.FAILED;
         }
         boolean done = p.tick(body, view(), botState);
         body.step();
         if (done) { held.finished(); finished = true; }
-        return done ? Walker.Step.ARRIVED : Walker.Step.WALKING;
+        return done ? Locomotor.Status.REACHED : Locomotor.Status.MOVING;
     }
 
     @Override public boolean finished() { return finished; }

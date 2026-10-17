@@ -5,7 +5,9 @@ import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -32,7 +34,7 @@ public final class BuildProcess implements BotProcess {
 
     private final BlockPos origin;
     private final Schematic schematic;
-    private final Walker walker = new Walker("build");
+    private final Walker walker = new Walker(WalkerSettings.named("build"));
     private int idx;
     private int placed;
     private int skipped;
@@ -109,21 +111,21 @@ public final class BuildProcess implements BotProcess {
                 currentStand = pl.stand;
                 currentFace = pl.face;
                 st.builder.target = currentBlock;
-                walker.setGoal(new Goal.Block(currentStand));
+                walker.start(new Goal.Block(currentStand));
                 phase = Phase.GOING;
             }
             case GOING -> {
-                Walker.Step s = walker.tick(a, w);
+                Locomotor.Status s = walker.tick(a, w);
                 st.builder.pathLen = walker.pathLen();
                 st.builder.pathStep = walker.pathStep();
-                if (s == Walker.Step.FAILED) {
+                if (s == Locomotor.Status.FAILED) {
                     failedIdx.add(idx);
                     skipped++;
                     idx++;
                     phase = Phase.NEXT;
                     return false;
                 }
-                if (s == Walker.Step.ARRIVED) {
+                if (s.ended()) {
                     if (!HeldItem.holdById(equipment, schematic.entries.get(idx).blockId)) {
                         failedIdx.add(idx);
                         skipped++;

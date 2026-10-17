@@ -16,7 +16,9 @@ import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerSettings;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BridgeProcess;
 import net.magicterra.worlddriver.bot.behavior.CombatProcess;
@@ -224,9 +226,9 @@ public final class WorldDriverNpcScenes implements SceneProvider {
                              Predicate<LivingEntity> arrived) {
         LivingEntity e = body.entity();
         for (int i = 0; i < SETTLE_STEPS; i++) step.run();
-        Walker walker = new Walker("scene");
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
+        Walker walker = new Walker(WalkerSettings.named("scene"));
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
         double minY = e.getY();
         boolean at = false;
         int t = 0;

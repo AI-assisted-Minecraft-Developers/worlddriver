@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
+import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.rules.moves.PillarUp;
@@ -161,9 +162,9 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                     + neighbourLeaf + " to toBreak (got " + (pe == null ? "null" : pe.toBreak) + ")");
 
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
-        Walker.Step s = Walker.Step.WALKING;
-        for (int t = 0; t < 400 && s == Walker.Step.WALKING; t++) { s = walker.tick(av, w); av.step(); }
+        walker.start(new Goal.Block(goal));
+        Locomotor.Status s = Locomotor.Status.MOVING;
+        for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
         boolean reached = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (cz + 0.5)) < 1.5
                 && fp.getY() >= standY + 3 - 0.4;
@@ -210,11 +211,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         fp.getInventory().selected = 0;
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
-        for (int t = 0; t < 600 && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < 600 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w); av.step();
             maxY = Math.max(maxY, fp.getY());
         }
@@ -261,10 +262,10 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         fp.getInventory().selected = 0;
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
-        Walker.Step s = Walker.Step.WALKING;
-        for (int t = 0; t < 600 && s == Walker.Step.WALKING; t++) { s = walker.tick(av, w); av.step(); }
+        Locomotor.Status s = Locomotor.Status.MOVING;
+        for (int t = 0; t < 600 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
         boolean crossed = fp.getZ() > cz + 3 - 0.5 && fp.getY() >= standY - 0.4;
         WorldDriverCommon.LOG.info("[wd.bridgeGap] step={} pos=({},{},{}) crossed={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), crossed);
@@ -306,11 +307,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         double minY = fp.getY();
-        for (int t = 0; t < 300 && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < 300 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w); av.step();
             minY = Math.min(minY, fp.getY());
         }
@@ -363,12 +364,12 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         double px = fp.getX(), pz = fp.getZ();
         int noProgress = 0, maxNoProgress = 0;
-        for (int t = 0; t < 700 && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < 700 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w); av.step();
             double dx = fp.getX() - px, dz = fp.getZ() - pz;
             if (dx * dx + dz * dz < 0.0025) noProgress++;   // <0.05 b/tick horizontally
@@ -446,10 +447,10 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                     new Move.Edge(node, 10, List.of(), List.of(), "stepUp"),
                     new Move.Edge(cont, 10, List.of(), List.of(), "diagUp"),
                     new Move.Edge(goalN, 10, List.of(), List.of(), "walk"));
-            walker.beginReplay(w, plan, planEdges, goal, node);
+            walker.replay(w, plan, planEdges, goal, node);
 
-            Walker.Step s = Walker.Step.WALKING;
-            for (int t = 0; t < 200 && s == Walker.Step.WALKING; t++) {
+            Locomotor.Status s = Locomotor.Status.MOVING;
+            for (int t = 0; t < 200 && s == Locomotor.Status.MOVING; t++) {
                 fp.setPos(poseX, poseY, poseZ);
                 fp.setDeltaMovement(0, 0, 0);
                 s = walker.tick(av, w);
@@ -517,11 +518,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         double minY = fp.getY();
-        for (int t = 0; t < 400 && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w); av.step();
             minY = Math.min(minY, fp.getY());
         }
@@ -583,13 +584,13 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
         int flatTicks = 0, ascTicks = 0;
         double flatStartX = Double.NaN, flatEndX = 0, ascStartX = Double.NaN, ascEndXObs = 0;
         int flatSprint = 0, ascSprint = 0, flatHcol = 0, ascHcol = 0;
-        Walker.Step s = Walker.Step.WALKING;
-        for (int t = 0; t < 500 && s == Walker.Step.WALKING; t++) {
+        Locomotor.Status s = Locomotor.Status.MOVING;
+        for (int t = 0; t < 500 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w); av.step();
             double x = fp.getX();
             boolean spr = fp.isSprinting(), hc = fp.horizontalCollision;
@@ -655,14 +656,14 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
         double prevX = fp.getX(), prevZ = fp.getZ();
         int backSteps = 0, moved = 0;
         double worstBack = 0, landX = 0;
         boolean pastLip = false;
-        Walker.Step s = Walker.Step.WALKING;
-        for (int t = 0; t < 400 && s == Walker.Step.WALKING; t++) {
+        Locomotor.Status s = Locomotor.Status.MOVING;
+        for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w); av.step();
             double ddx = fp.getX() - prevX, ddz = fp.getZ() - prevZ;
             if (!pastLip && fp.getX() > cx + RUN && fp.getY() < H - 1.5) {
@@ -759,11 +760,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(goal));
+        walker.start(new Goal.Block(goal));
 
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         int crossTick = -1;
-        for (int t = 0; t < 400 && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w); av.step();
             if (crossTick < 0 && fp.getX() > cx + 5 && fp.getY() <= baseY + 1.4) crossTick = t;
         }
@@ -808,12 +809,12 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         fp.getInventory().clearContent();   // BARE HANDS — 150t/stone is the whole point
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
-        walker.setGoal(new Goal.Block(new BlockPos(cx + 2, base + 1, cz)));
+        walker.start(new Goal.Block(new BlockPos(cx + 2, base + 1, cz)));
 
-        Walker.Step s = Walker.Step.WALKING;
+        Locomotor.Status s = Locomotor.Status.MOVING;
         boolean prevHeld = false;
         int heldTicks = 0, dropsWhileSolid = 0;
-        for (int t = 0; t < 1500 && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < 1500 && s == Locomotor.Status.MOVING; t++) {
             s = walker.tick(av, w); av.step();
             boolean held = av.breakHeld();
             boolean wallSolid = level.getBlockState(wallFeet).isSolid() || level.getBlockState(wallHead).isSolid();

@@ -32,7 +32,7 @@ final class SearchGovernors {
     int searchBackoffTicks;                             // no new search kickoff while >0
     /** The foot the futile cap latched on, or null when the cap has not been reached.
      *
-     *  <p>{@code Walker.terminal()} stores nothing, so the counter IS the terminal: once it is
+     *  <p>A walk that ended FAILED keeps its goal, so the counter IS the terminal: once it is
      *  at the cap, every later tick runs a full A* only to increment past the cap and re-report
      *  the same failure. Worse, the cap branch returns BEFORE the backoff is armed, so that
      *  repeat costs a whole search budget per tick. Unlatching is a property of the BOT's
