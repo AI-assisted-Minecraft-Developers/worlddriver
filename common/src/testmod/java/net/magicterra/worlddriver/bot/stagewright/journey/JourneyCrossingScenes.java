@@ -12,6 +12,7 @@ import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
 import net.magicterra.worlddriver.bot.control.WalkerGeometry;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
@@ -398,7 +399,8 @@ public final class JourneyCrossingScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(ctx.rel(TRENCH_EDGE - 6, TRENCH_DECK + 1, TRENCH_CELLS - 2)));
-        int before = Walker.guardForcedRepaths;
+        WalkerTelemetry tel = WalkerTelemetry.of(fp);
+        int before = tel.guardForcedRepaths;
         double z0 = fp.getZ();
         int pinned = 0, t = 0;
         for (; t < PIN_TICKS; t++) {
@@ -410,11 +412,11 @@ public final class JourneyCrossingScenes implements SceneProvider {
             av.commandJump(false);
             if (av.dbgSneak()) pinned++;
             av.step();
-            if (Walker.guardForcedRepaths - before >= 2) break;   // two is enough to read the line
+            if (tel.guardForcedRepaths - before >= 2) break;   // two is enough to read the line
         }
-        int repaths = Walker.guardForcedRepaths - before;
-        int cells = cellsIn(Walker.lastGuardRepath);
-        ctx.record(arm + ".lastLine", repaths == 0 ? "(no forced repath)" : Walker.lastGuardRepath);
+        int repaths = tel.guardForcedRepaths - before;
+        int cells = cellsIn(tel.lastGuardRepath);
+        ctx.record(arm + ".lastLine", repaths == 0 ? "(no forced repath)" : tel.lastGuardRepath);
         return new Pin(t, repaths, cells, pinned, Math.abs(fp.getZ() - z0));
     }
 
@@ -423,7 +425,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * read at all.
      *
      * <p><b>Parsed rather than recomputed, on purpose:</b> this arm's whole claim is that the LINE
-     * separates a rim walk from a livelock, so reading {@code Walker.guardStreakCells} directly
+     * separates a rim walk from a livelock, so reading the walker's {@code guardStreakCells} directly
      * would assert something no reader ever sees and leave the sentence itself untested.
      *
      * <p><b>⚠️ That couples this scene to the WORDING of a log line, and the coupling has already

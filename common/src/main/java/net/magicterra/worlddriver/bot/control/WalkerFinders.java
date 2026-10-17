@@ -28,9 +28,11 @@ final class WalkerFinders {
         return scoped(wk, pf).withOwner(wk.owner);
     }
 
-    /** The quick-start finder: a small node cap, one call. */
+    /** The quick-start finder: a small node cap, one call, on the same escalation as the deep one. */
     static PathFinder quick(Walker wk, WorldView world, long maxMs) {
-        return scoped(wk, new PathFinder(world, ControlConfig.pathfinderQuickNodes, maxMs, wk.profile)).withOwner(wk.owner);
+        PathFinder pf = new PathFinder(world, ControlConfig.pathfinderQuickNodes, maxMs, wk.profile)
+                .withTuning(PathTuning.escalatedWhen(wk.escal::armed));
+        return scoped(wk, pf).withOwner(wk.owner);
     }
 
     /**

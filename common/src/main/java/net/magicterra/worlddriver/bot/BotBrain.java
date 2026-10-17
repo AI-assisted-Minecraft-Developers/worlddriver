@@ -57,6 +57,7 @@ import net.magicterra.worlddriver.bot.behavior.reflex.LavaProximityEscape;
 import net.magicterra.worlddriver.bot.control.ClutchController;
 import net.magicterra.worlddriver.bot.control.Walker;
 import net.magicterra.worlddriver.bot.control.WalkerPlanAdoption;
+import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
 import net.magicterra.worlddriver.bot.planning.ScopeSource;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
@@ -197,10 +198,21 @@ public final class BotBrain {
     /** Push an event to the agent, on the stream the bot's own events use. */
     public void emit(String type, BlockPos pos, Map<String, Object> data) { events.emit(type, pos, data); }
 
+    /** What the walkers driving this bot's body have done; null until the first tick with a body. */
+    private volatile WalkerTelemetry walkerTelemetry;
+
+    /** The last deep search a walker on this bot finished, or null. */
+    private WalkerTelemetry.PathStats lastPathStats() {
+        WalkerTelemetry t = walkerTelemetry;
+        return t == null ? null : t.lastStats;
+    }
+
     // === the tick ===========================================================
 
     /** Phase one: the world model and its edge events, then a slice of any route preview in progress. */
     public void perceive(Body body) {
+        LivingEntity self = body.entity();
+        if (self != null) walkerTelemetry = WalkerTelemetry.of(self);
         // Update the perception blackboard every tick so mc.client.scene always
         // serves the freshest snapshot.
         worldModel.update(body, world.get());
@@ -706,10 +718,10 @@ public final class BotBrain {
         snap.put("activeChain", scheduler.currentName());
         snap.put("userTaskSuspended", c != null && scheduler.current() != userTask);
         snap.put("chainPriorities", scheduler.lastPriorities());
-        // Pathfinder stats from the most recent A* run (any process). Useful
+        // Pathfinder stats from this bot's most recent A* run (any process). Useful
         // for debugging "why can't the bot get there" — exposes expansion
         // count, wall-clock ms, whether the goal was reached vs. fallback.
-        Walker.PathStats ps = Walker.lastStats;
+        WalkerTelemetry.PathStats ps = lastPathStats();
         if (ps != null) {
             Map<String, Object> lp = new LinkedHashMap<>();
             lp.put("expanded", ps.expanded());
@@ -754,7 +766,7 @@ public final class BotBrain {
             chains.put(ch.name(), new ControlContracts.ChainState(pr == null ? 0 : pr, Optional.ofNullable(ch.episodePhase()),
                     bail == null ? Optional.empty() : Optional.of(new ControlContracts.Bail(bail.reason(), bail.ticksLeft()))));
         }
-        Walker.PathStats ps = Walker.lastStats;
+        WalkerTelemetry.PathStats ps = lastPathStats();
         Optional<ControlContracts.PathStats> lastPath = ps == null ? Optional.empty()
                 : Optional.of(new ControlContracts.PathStats(ps.expanded(), ps.ms(), ps.goalReached(), ps.finalCost(), ps.pathLen(),
                         ps.sightBudgetExhausted(), ps.snapshotTruncated()));

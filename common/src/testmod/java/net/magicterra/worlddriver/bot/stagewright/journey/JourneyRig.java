@@ -23,6 +23,7 @@ import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.magicterra.worlddriver.game.body.JoinedPlayers;
 import net.magicterra.worlddriver.bot.BotTicker;
+import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.core.BlockPos;
@@ -454,6 +455,13 @@ public final class JourneyRig {
 
     /** The run's bot, or null before SPAWN has made one. */
     public static PlayerBot bodyOrNull() { return driver; }
+
+    /** What the walkers driving the run's bot have done, or null before SPAWN has made one. A rig built
+     *  before the bot exists reads its baseline as zero, which is right: that body has done nothing yet. */
+    static WalkerTelemetry walkerTelemetry() {
+        PlayerBot d = driver;
+        return d == null ? null : WalkerTelemetry.of(d.fakePlayer());
+    }
 
     /** The run's bot, failing the scene when there is none — every stage above SPAWN needs it. */
     public PlayerBot body() {
@@ -1424,9 +1432,9 @@ public final class JourneyRig {
                 + " @ " + fp.level().dimension().location()
                 + "; process running at exit=" + (drivingWhenLost == null ? "not recorded" : drivingWhenLost)
                 + "; walker activity on the last supported tick (⚠️ updated only on walker ticks, may be from another task)="
-                + net.magicterra.worlddriver.bot.control.Walker.lastSupportedTrace
+                + WalkerTelemetry.of(fp).lastSupportedTrace
                 + "; walker activity on the tick of departure="
-                + net.magicterra.worlddriver.bot.control.Walker.lastTickTrace
+                + WalkerTelemetry.of(fp).lastTickTrace
                 + "; last on the ground=" + (lastGrounded == null ? "never stood firmly during this task"
                         : lastGrounded.getX() + "," + lastGrounded.getY() + "," + lastGrounded.getZ()
                           + " (" + sinceGrounded + " ticks earlier — that cell is the one to inspect)")
@@ -1762,20 +1770,21 @@ public final class JourneyRig {
      * <p><b>All-zero has two readings and the line says so.</b> Either the guard was never called
      * on this run, or the walker ticked so little that it never got the chance; the sum IS the
      * number of ticks it ran over, so a zero sum is the second and a zero in one bucket with a
-     * non-zero sum is a real share. Naming the buckets from {@link Walker#STRIDE_SKIP_REASONS}
+     * non-zero sum is a real share. Naming the buckets from {@link WalkerTelemetry#STRIDE_SKIP_REASONS}
      * rather than by index keeps this row and the code filling it from drifting apart.
      */
     private String strideGuardLine() {
+        WalkerTelemetry t = walkerTelemetry();
         long sum = 0;
         StringBuilder sb = new StringBuilder();
-        String[] names = net.magicterra.worlddriver.bot.control.Walker.STRIDE_SKIP_REASONS;
+        String[] names = WalkerTelemetry.STRIDE_SKIP_REASONS;
         for (int i = 0; i < names.length; i++) {
-            long v = net.magicterra.worlddriver.bot.control.Walker.strideGuardSkips.get(i);
+            long v = t == null ? 0 : t.strideGuardSkips.get(i);
             sum += v;
             sb.append(i == 0 ? "" : ", ").append(names[i]).append('=').append(v);
         }
         return "stride guard fired "
-                + net.magicterra.worlddriver.bot.control.Walker.strideGuardFires
+                + (t == null ? 0 : t.strideGuardFires)
                 + " times over the run; did not fire for " + sum + " ticks"
                 + (sum == 0 ? " (total 0 — the guard was never called on this run, so the problem is not inside"
                               + " the guard; check first whether the walker ticked)" : ", by reason: " + sb);
@@ -1784,7 +1793,7 @@ public final class JourneyRig {
     /**
      * The futile-search gate's nine buckets for THIS rung — a delta, unlike {@link #strideGuardLine}.
      *
-     * <p>The counters are one static array for the whole JVM and every rung of a run shares it, so a
+     * <p>The counters belong to the run's bot and every rung of a run shares it, so a
      * cumulative reading on rung 9 would be rungs 1–9 added together and no rung's row could be read
      * on its own. One rig per rung ({@code enter} builds exactly one) makes the rig's own birth the
      * right baseline. {@link JourneyFlight} takes its stride deltas the same way.
@@ -1798,9 +1807,10 @@ public final class JourneyRig {
     private final long[] futileAtStart = futileSnapshot();
 
     private static long[] futileSnapshot() {
-        long[] v = new long[net.magicterra.worlddriver.bot.control.Walker.FUTILE_GATE_BUCKETS.length];
+        WalkerTelemetry t = walkerTelemetry();
+        long[] v = new long[WalkerTelemetry.FUTILE_GATE_BUCKETS.length];
         for (int i = 0; i < v.length; i++)
-            v[i] = net.magicterra.worlddriver.bot.control.Walker.futileGateBuckets.get(i);
+            v[i] = t == null ? 0 : t.futileGateBuckets.get(i);
         return v;
     }
 
@@ -1898,11 +1908,12 @@ public final class JourneyRig {
     /** This rung's share of the futile gate, bucket by bucket. Buckets 0-5 are searches the gate
      *  never judged; 6-8 are what it did with the ones it judged. */
     private String futileGateLine() {
+        long[] now = futileSnapshot();
         long sum = 0;
         StringBuilder sb = new StringBuilder();
-        String[] names = net.magicterra.worlddriver.bot.control.Walker.FUTILE_GATE_BUCKETS;
+        String[] names = WalkerTelemetry.FUTILE_GATE_BUCKETS;
         for (int i = 0; i < names.length; i++) {
-            long v = net.magicterra.worlddriver.bot.control.Walker.futileGateBuckets.get(i) - futileAtStart[i];
+            long v = now[i] - futileAtStart[i];
             sum += v;
             sb.append(i == 0 ? "" : ", ").append(names[i]).append('=').append(v);
         }

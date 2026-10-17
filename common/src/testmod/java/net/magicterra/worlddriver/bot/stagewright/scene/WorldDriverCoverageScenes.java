@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
 import net.magicterra.worlddriver.bot.control.WalkerExpectAlarms;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
@@ -194,7 +195,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         if (fired == 0)
             ctx.fail("expectAlarmBlockedJump: no alarm fired under a jump-capping ceiling: t=" + t + " step=" + s
                     + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason
-                    + " lastStats=" + Walker.lastStats + " capped=" + capped
+                    + " lastStats=" + WalkerTelemetry.of(fp).lastStats + " capped=" + capped
                     + " pos=" + fp.position());
         if (!reached)
             ctx.fail("expectAlarmBlockedJump: walker never finished after the ceiling lifted: step="
@@ -480,12 +481,12 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             ctx.fail("boxedChurnEscalate: rig broken — the horizon-committed search never entered the pocket: "
                     + "origin=" + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
                     + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason
-                    + " lastStats=" + Walker.lastStats + " trace=" + trace);
+                    + " lastStats=" + WalkerTelemetry.of(fp).lastStats + " trace=" + trace);
         if (churnSeen < 2)
             ctx.fail("boxedChurnEscalate: churn escape fired " + churnSeen + "×(<2) in a sealed pocket: "
                     + "origin=" + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
                     + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason
-                    + " lastStats=" + Walker.lastStats + " trace=" + trace);
+                    + " lastStats=" + WalkerTelemetry.of(fp).lastStats + " trace=" + trace);
         if (!reached)
             ctx.fail("boxedChurnEscalate: walker never finished after the wall release: churnSeen=" + churnSeen
                     + " released=" + released + " origin=" + cx + "," + cz + " step=" + s + " t=" + t
@@ -563,7 +564,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             ctx.fail("quickStartStub: sliced-search course failed (quick-start/beeline pre-path family): origin="
                     + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
                     + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason
-                    + " lastStats=" + Walker.lastStats + " trace=" + trace);
+                    + " lastStats=" + WalkerTelemetry.of(fp).lastStats + " trace=" + trace);
     }
 
     /** Shared slide-back rig: the bot climbs a committed narrow staircase (dz −1..1);
@@ -641,7 +642,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         if (!reached)
             return "no recovery to the side staircase after the slide-back: step=" + s
                     + " t=" + t + " pos=" + fp.position() + " lastError=" + walker.lastError
-                    + " endReason=" + walker.lastEndReason + " lastStats=" + Walker.lastStats
+                    + " endReason=" + walker.lastEndReason + " lastStats=" + WalkerTelemetry.of(fp).lastStats
                     + " trace=" + trace;
         WorldDriverCommon.LOG.warn("[ad.slideBackCourse] step={} ticks={} pos={}", s, t, fp.position());
         return null;
@@ -720,7 +721,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         if (!filled)
             return "rig broken — the bot never reached the west rim (no fill): step=" + s + " t=" + t
                     + " pos=" + fp.position() + " lastError=" + walker.lastError
-                    + " endReason=" + walker.lastEndReason + " lastStats=" + Walker.lastStats;
+                    + " endReason=" + walker.lastEndReason + " lastStats=" + WalkerTelemetry.of(fp).lastStats;
         if (!reached)
             return "no recovery off the buried node: step=" + s + " t=" + t + " pos=" + fp.position()
                     + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason;

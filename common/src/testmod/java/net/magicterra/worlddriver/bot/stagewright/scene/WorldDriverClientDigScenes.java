@@ -14,6 +14,7 @@ import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -140,12 +141,13 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
         ControlConfig.walkerOrbitBreaksAimLag = true;
         ControlConfig.walkerSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
-        Walker.lastStats = null;
+        final WalkerTelemetry clientTel = WalkerTelemetry.of(body.getUUID(), true);   // the client bot of this player
+        clientTel.lastStats = null;
         helm.sync(30, () -> {
             ctx.record("start.afterSync", helm.where());
             final int[] arrivedTick = { -1 };
             final int[] legTicks = { 0 };
-            final Walker.PathStats[] seen = { null };
+            final WalkerTelemetry.PathStats[] seen = { null };
             final int[] searches = { 0 };
             final long[] expanded = { 0 };
             final long[] ms = { 0 };
@@ -153,7 +155,7 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
             ClientHelm.TickWatcher watch = t -> {
                 legTicks[0] = t;
                 if (arrivedTick[0] < 0 && body.onGround() && helm.flatDistance(goal) <= 1.0) arrivedTick[0] = t;
-                Walker.PathStats st = Walker.lastStats;
+                WalkerTelemetry.PathStats st = clientTel.lastStats;
                 if (st != null && st != seen[0]) {
                     seen[0] = st;
                     searches[0]++;

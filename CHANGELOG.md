@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-10-18
+
+- **`mc.bot.status` reports the bot's own last search in `lastPath`.** It used to be the last
+  search any bot in the game had finished, so with a client bot and a server bot both walking, each
+  could show the other's. The walker counters the test scenes read are kept per player the same way.
+- **One bot's escalated search no longer reaches other searches.** A walker stuck behind a steep
+  barrier widens its own searches for a while; it also used to switch on the same widening for
+  every search started without a bot, such as a route preview, until it lapsed.
+
 ## 2026-10-17
 
 - **At most 32 scripts run at once.** `mc.script.eval`, `mc.skill` and `mc.bot.playbook` past that

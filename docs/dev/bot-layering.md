@@ -145,11 +145,12 @@ says it is digging or cruising underwater, a flee process says it is fleeing, th
 plan a clutch. The bot clears it every tick, once the clutch has taken last tick's plan and
 before the scheduler runs. These used to be static flags, which every bot in the JVM shared.
 
-**Its static counters are monotone and never reset.** `Walker.lastStats` and counters such
-as `descentHolds` accumulate for the life of the process; a caller that wants a window
-takes a difference. They exist so a test can tell "the guard cost nothing" apart from "the
-guard never ran" — two readings that look identical from outside and call for opposite
-conclusions.
+**Its counters belong to the body and are never reset.** `WalkerTelemetry.of(body)` holds
+`lastStats`, `descentHolds` and the guard counters for every walker that drove that player,
+the client copy apart from the server's; a caller that wants a window takes a difference.
+They exist so a test can tell "the guard cost nothing" apart from "the guard never ran" —
+two readings that look identical from outside and call for opposite conclusions. They used
+to be statics, so two bots in one JVM added into each other's numbers.
 
 The walker's per-tick work is split into `WalkerTick*` phase classes.
 [`movement-tick-phases.md`](movement-tick-phases.md) covers that decomposition and the

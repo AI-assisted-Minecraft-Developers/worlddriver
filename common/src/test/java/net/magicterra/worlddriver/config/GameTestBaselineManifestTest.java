@@ -271,8 +271,8 @@ class GameTestBaselineManifestTest {
         assertEquals(Set.of(), unrecorded,
                 "a field on the settings surface has no compiled default, so it is invisible to "
                 + "the universe above and could ship ON without ever being classified. Either it "
-                + "is genuine per-tick runtime state (annotate it @RuntimeState, which takes it "
-                + "off the surface and out of persistence), or it is configuration and should be persistable, or "
+                + "is per-tick runtime state (which belongs with the bot that rewrites it, not in a "
+                + "config class), or it is configuration and should be persistable, or "
                 + "it was moved out of its config class's own declaration — see this test's javadoc: "
                 + "getFields() follows a superclass, getDeclaredFields() does not, so a split that "
                 + "moves fields to a parent keeps them in the settings schema while dropping them "

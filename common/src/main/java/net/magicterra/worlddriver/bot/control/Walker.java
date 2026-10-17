@@ -46,31 +46,12 @@ public final class Walker {
     // step-off keys (walk-speed, no sprint) so the bot drops near-vertically.
     // Other tuning lives in BotConfig (mutable via mc.bot.setting).
 
-    /** Snapshot of the most recent {@code findPath()} result across ALL
-     *  Walkers (volatile so cross-thread reads in {@code mc.bot.status} are
-     *  consistent). Surfaced under {@code status.lastPath} for debugging
-     *  pathing failures — Baritone exposes the same via {@code path}/{@code stats}. */
-    public record PathStats(int expanded, long ms, boolean goalReached, double finalCost, int pathLen,
-                            boolean sightBudgetExhausted, boolean snapshotTruncated) {
-        public PathStats(int expanded, long ms, boolean goalReached, double finalCost, int pathLen) {
-            this(expanded, ms, goalReached, finalCost, pathLen, false, false);
-        }
-    }
-    public static volatile PathStats lastStats;
-
     /** This walker's own event counts (searches, recovery hops, digs) — see {@link WalkerTallies}. */
     final WalkerTallies tallies = new WalkerTallies();
     public WalkerTallies tallies() { return tallies; }
 
-    /** How many times {@code WalkerTickProgress}'s unwalked-descent refusal has held the step pointer
-     *  on a node below the bot's feet, process-wide. Monotone, never reset by the walker — a caller
-     *  that wants a window takes the difference, the way {@link #lastStats} is read.
-     *
-     *  <p>Exists so a scene can tell "the hold cost nothing" from "the hold never ran", which are the
-     *  same reading from outside and want opposite conclusions: a negative control over an ordinary
-     *  staircase passes identically whether the guard is doing its job cheaply or is inert, and a
-     *  guard that is inert on every descent this suite stages is a guard the suite cannot judge. */
-    public static volatile long descentHolds;
+    /** The telemetry of the body this walker last ticked; a private sink until the first tick. */
+    WalkerTelemetry tel = new WalkerTelemetry();
 
     /** gap#72-④: the chain/verb this walker moves for (e.g. "mine", "retreat",
      *  "goto") — threaded into every {@link PathFinder} it launches so latest.log's
@@ -430,13 +411,14 @@ public final class Walker {
     /** Sticky steep-barrier escalation clock (task#96 step B4): tick is the monotonic
      *  per-walker tick counter (incremented by WalkerTickPrelude, NEVER reset — the
      *  sticky timer compares against it); armed by the churn window (WalkerTickStallDetect)
-     *  and the proactive pinch check ({@link #maybeArmPinchEscalation}); read each tick by
-     *  WalkerTickPrelude to publish PlanningConfig.pathfinderBoxedEscalate. Both journey resets
+     *  and the proactive pinch check ({@link #maybeArmPinchEscalation}); read live by this
+     *  walker's finders through {@link WalkerFinders}. Both journey resets
      *  {@link EscalationClock#disarm()} so the escalation never leaks into the next goto. */
     final EscalationClock escal = new EscalationClock();
     static final class EscalationClock {
         long tick;             // monotonic per-tick counter (drives the sticky boxed-escalation timer)
         long untilTick;        // escalation armed until this tick (sticky so a few net-progress windows mid-climb don't drop it)
+        boolean wasArmed;      // armed on the previous tick, so the debug line marks the edge only
         boolean armed() {
             return tick < untilTick;
         }
@@ -824,7 +806,6 @@ public final class Walker {
         this.searchGov.reset();
         this.churn.resetForNewGoal();
         this.escal.disarm();
-        PlanningConfig.pathfinderBoxedEscalate = false;          // never leak the steep-barrier escalation into the next goto
         this.stepProg.restartWindows();
         this.aimSmooth.reset();
         this.unstuck.resetForNewGoal();
@@ -924,7 +905,6 @@ public final class Walker {
         this.pillarRecover.reset();
         this.descending = false;
         this.escal.disarm();
-        PlanningConfig.pathfinderBoxedEscalate = false;          // never leak the steep-barrier escalation across a forced repath
     }
 
     /** Replay a fixed archived plan. Caller has already teleported the bot to the plan
@@ -1381,8 +1361,8 @@ public final class Walker {
      */
     void noteStepAdvance(WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx,
                          String cause, double cur2, double nd2, boolean overshot) {
-        if (seenLegEpoch != legEpoch) {                 // a new walk: fresh budget, see #newLeg
-            seenLegEpoch = legEpoch;
+        if (seenLegEpoch != tel.legEpoch) {             // a new walk: fresh budget, see WalkerTelemetry#newLeg
+            seenLegEpoch = tel.legEpoch;
             stepAdvEvents = 0;
             stepAdvCapped = false;
         }
@@ -1395,7 +1375,7 @@ public final class Walker {
             return;
         }
         stepAdvEvents++;
-        stepAdvancesLogged++;
+        tel.stepAdvancesLogged++;
         LOG.info("[walker] step advance: seq={}/{} cause={} oldStep={} newStep={} w={} nx={} foot={} exact=({}) "
                         + "cur2={} nd2={} overshot={} |w.y-p.y|={} |nx.y-p.y|={} onGround={} soleOnSolid={} fallSpeed={}",
                 stepAdvEvents, STEP_ADV_EVENTS, cause, step, step + 1,
@@ -1426,52 +1406,13 @@ public final class Walker {
      * is about 460 KB for a whole crossing, which is a log a human opens. An uncapped advance log
      * over a wedged hop is how a 40-minute run becomes an unreadable one.
      */
-    private static final int STEP_ADV_EVENTS = 64;
+    static final int STEP_ADV_EVENTS = 64;
     private int stepAdvEvents;
-    /** The walk this walker last refreshed its advance budget for — see {@link #newLeg}. */
+    /** The walk this walker last refreshed its advance budget for — see {@link WalkerTelemetry#newLeg}. */
     private int seenLegEpoch = -1;
     /** One-shot latch for the "the cap swallowed an advance" line — see {@link #noteStepAdvance}. */
     private boolean stepAdvCapped;
 
-    /**
-     * Which walk the per-walk log budgets belong to, and the one call that starts a new one.
-     *
-     * <h2>One definition of "walk", not a second one</h2>
-     *
-     * A walker outlives every walk that uses it, so a per-walker budget is spent by whichever walk
-     * happens to run first. What the instruments mean by a walk is already defined — {@link
-     * net.magicterra.worlddriver.bot.stagewright.journey.JourneyFlight JourneyFlight} is constructed
-     * once per walk and takes its {@code guardForcedRepaths} delta from exactly that moment — so this
-     * is bumped from the same constructor rather than being given a notion of its own. Two
-     * definitions of one word is how the pin/streak confusion started, and it is not repeated here.
-     *
-     * <h2>Behaviour must not read this</h2>
-     *
-     * It gates a LOG BUDGET and nothing else, which is why a static is safe where {@link
-     * #lastTickTrace}'s note says one would not be: every walker in the JVM refreshing its logging
-     * allowance on a new walk is the intended effect, and no decision the bot makes can observe it.
-     */
-    public static volatile int legEpoch;
-
-    /** Start a new walk: every walker's per-walk log budget refreshes on its next line. */
-    public static void newLeg() { legEpoch++; }
-
-    /**
-     * Advance lines actually emitted, so a walk can report whether its own log is COMPLETE.
-     *
-     * <p>The budget above is worth nothing if a reader cannot tell "this hop advanced 61 times and
-     * all 61 are here" from "this hop advanced 300 times and you are looking at the first 64". The
-     * landing allowance taught the same lesson one commit ago from the other side: an instrument
-     * that costs nothing and an instrument that never ran are indistinguishable unless one of them
-     * says which. {@code JourneyFlight} prints this as a per-walk delta against
-     * {@link #STEP_ADV_EVENTS}.
-     */
-    public static volatile int stepAdvancesLogged;
-
-    /** The per-walk advance budget, for the instrument that reports how much of it a walk spent. An
-     *  accessor rather than a copied literal: a row that assumes 64 stops being a report about this
-     *  budget the day the budget changes. */
-    public static int stepAdvanceBudget() { return STEP_ADV_EVENTS; }
     static void avatarSneak(Body a, boolean v) { a.commandSneak(v); }
     /** Raw forward (keyUp equivalent) for the special branches that drive the impulse
      *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */
@@ -1479,6 +1420,7 @@ public final class Walker {
 
     public Step tick(Body a, WorldView world) {
         body = a.entity();
+        if (body != null) tel = WalkerTelemetry.of(body);
         equipment = a.equipment().orElse(WalkerNoHands.INSTANCE);
         blocks = a.blockInteraction().orElse(WalkerNoHands.INSTANCE);
         if ((medium = WalkerMedium.forBody(this, medium, world)) != null) return medium.tick(a, world);
@@ -1489,7 +1431,7 @@ public final class Walker {
         Step s = tickInner(a, world);
         WalkerTickDrive.settleDigKey(this, a);   // a walker-held attack key outlives its dig by DIG_KEY_RELEASE_TICKS only
         LivingEntity tp = a.entity();
-        lastTickTrace = "step=" + s + " jumpTag=" + (jumpTag == null ? "untagged" : jumpTag)
+        tel.lastTickTrace = "step=" + s + " jumpTag=" + (jumpTag == null ? "untagged" : jumpTag)
                 + (tp == null ? "" : " pos=" + String.format(java.util.Locale.ROOT, "%.2f,%.2f,%.2f",
                         tp.getX(), tp.getY(), tp.getZ())
                     + String.format(java.util.Locale.ROOT, " speedH=%.3f",
@@ -1498,7 +1440,7 @@ public final class Walker {
                         WalkerGeometry.soleOnSolid(world, tp)))
                 + " node=" + (path == null || step < 0 || step >= path.size()
                         ? "none" : path.get(step).toShortString());
-        if (tp != null && WalkerGeometry.soleOnSolid(world, tp) > 0.0) lastSupportedTrace = lastTickTrace;
+        if (tp != null && WalkerGeometry.soleOnSolid(world, tp) > 0.0) tel.lastSupportedTrace = tel.lastTickTrace;
         boolean fired = strideFloorGuard(a, world);
         boolean footing = footingGuard(a, world);
         // Pin HYSTERESIS: the guard's fire predicate needs translation (h ≥ 0.03), so the
@@ -1957,8 +1899,8 @@ public final class Walker {
                         : " (changed cells; for reference, not a criterion)");
 
         if (path != guardStreakPath) {
-            guardStreakRebases++;
-            if (guardStreakRebases <= GUARD_STREAK_EVENTS) {
+            tel.guardStreakRebases++;
+            if (tel.guardStreakRebases <= GUARD_STREAK_EVENTS) {
                 LOG.info("[walker] guard pin streak rebased: pinned {} ticks{} — another branch replaced "
                         + "the plan during the streak, so these {} ticks count against the old plan; the new "
                         + "plan has not been walked yet and is not discarded{}",
@@ -1972,17 +1914,18 @@ public final class Walker {
 
         int consumed = step - guardStreakStartStep;
         if (consumed > 0) {
-            guardKeptPlans++;
-            lastGuardKeep = "#" + guardKeptPlans + ": pinned " + guardPinStreak
+            int kept = ++tel.guardKeptPlans;
+            String keep = "#" + kept + ": pinned " + guardPinStreak
                     + " ticks, but the plan advanced " + consumed + " steps (node " + guardStreakStartStep
                     + " → " + step + ") — the bot is walking along the edge, not stuck, so the plan is kept"
                     + cells
                     + "; the plan has " + Math.max(0, path.size() - Math.max(step, 0))
                     + " nodes left, last node "
                     + (path.isEmpty() ? "none" : path.get(path.size() - 1).toShortString()) + where;
-            if (guardKeptPlans <= GUARD_STREAK_EVENTS) {
-                LOG.info("[walker] guard pin kept the plan: {}", lastGuardKeep);
-            } else if (guardKeptPlans == GUARD_STREAK_EVENTS + 1) {
+            tel.lastGuardKeep = keep;
+            if (kept <= GUARD_STREAK_EVENTS) {
+                LOG.info("[walker] guard pin kept the plan: {}", keep);
+            } else if (kept == GUARD_STREAK_EVENTS + 1) {
                 LOG.info("[walker] guard pin kept the plan: cap reached, later keeps are counted but not printed"
                         + " (read guardKeptPlans / lastGuardKeep)");
             }
@@ -1999,8 +1942,8 @@ public final class Walker {
             // by a fifth, and a before/after comparison of guardForcedRepaths silently compares two
             // different populations. safetyRepath already re-plans on a null path; nothing to do here
             // but let the clock start over.
-            guardPinnedWithNoPlan++;
-            if (guardPinnedWithNoPlan <= GUARD_STREAK_EVENTS) {
+            tel.guardPinnedWithNoPlan++;
+            if (tel.guardPinnedWithNoPlan <= GUARD_STREAK_EVENTS) {
                 LOG.info("[walker] guard pin with no plan: pinned {} ticks with no plan held the whole time{}"
                         + " — nothing to discard, so it is not counted as a discard{}", guardPinStreak, cells, where);
             }
@@ -2010,8 +1953,7 @@ public final class Walker {
             return;
         }
 
-        guardForcedRepaths++;
-        lastGuardRepath = "#" + guardForcedRepaths + ": pinned " + guardPinStreak
+        String repath = "#" + (++tel.guardForcedRepaths) + ": pinned " + guardPinStreak
                 + " ticks and the plan did not advance a single step (stopped at node " + guardStreakStartStep
                 + ") — stuck in place"
                 + cells
@@ -2019,145 +1961,24 @@ public final class Walker {
                 + " nodes left, last node "
                 + (path.isEmpty() ? "none" : path.get(path.size() - 1).toShortString())
                 + where;
-        LOG.info("[walker] guard pin forced a repath: {}", lastGuardRepath);
+        tel.lastGuardRepath = repath;
+        LOG.info("[walker] guard pin forced a repath: {}", repath);
         path = null;
         guardPinStreak = 0;
         guardStreakCells = 0;
         guardStreakCell = null;
     }
 
-    /** Per-JVM cap on how many kept/rebased streaks print in full; both keep counting past it. */
+    /** Per-body cap on how many kept/rebased streaks print in full; both keep counting past it. */
     private static final int GUARD_STREAK_EVENTS = 8;
 
-    /**
-     * What {@link #forcedRepathIfPinnedTooLong} decided, since this JVM started, and what the last
-     * decision of each kind looked like.
-     *
-     * <p>Write-only breadcrumbs on the same terms as {@link #lastTickTrace}: nothing branches on
-     * them, they are read by instruments that hold no Walker instance — chiefly {@code
-     * JourneyFlight}, which needs a per-walk delta and has no channel to the walker driving it.
-     *
-     * <p><b>Read them together, never {@code guardForcedRepaths} alone.</b> Before 2026-08-21 a
-     * pinned streak had exactly one outcome, so one counter said everything; now "never reached the
-     * threshold" and "reached it 45 times and kept the plan every time" are different runs that both
-     * report zero forced repaths. A walk that reports 0/0 was never pinned; 0/45 walked a rim.
-     *
-     * <p><b>And the old number was never one population to begin with.</b> Of the 45 discards in the
-     * run that motivated all this, 10 had no plan in hand at all (0 nodes left, no last node), 25
-     * dropped a 7-node scrap, and <b>3</b> dropped a complete route to the walk's goal — the three
-     * that actually cost the crossing. Splitting them into four counters is what makes 45 → N a
-     * comparison of the same thing twice instead of a headline.
-     */
-    public static volatile int guardForcedRepaths;
-    public static volatile String lastGuardRepath = "no forced repath yet";
-    public static volatile int guardKeptPlans;
-    public static volatile String lastGuardKeep = "no streak has reached the threshold while its plan was still advancing";
-    /** Streaks whose plan was replaced by some other branch mid-streak, so the pinned ticks were
-     *  evidence against a plan that no longer exists. Neither a discard nor a keep. */
-    public static volatile int guardStreakRebases;
-
-    /**
-     * The water climb-out pillar takeover, reported for the same reason the guard counters above
-     * are: an instrument holds no {@link Walker}, and the whole water-climb scene family records
-     * <b>zero</b> evidence — eleven scenes whose only published bit is their own colour.
-     *
-     * <p><b>Read the three together.</b> A takeover that never engages and one that engages and
-     * tops out well under its ceiling both leave {@link #waterPillarCeilingBails} at zero, and
-     * those are opposite findings: the first means the branch was never exercised at all — the
-     * scene proved nothing about it — and the second means it was exercised and stayed in bounds.
-     * {@link #waterPillarEngages} separates them, and {@link #waterPillarTopRise} says how close
-     * the run ever came to the ceiling, so "never fired" can be told from "never got near".
-     *
-     * <p>Written by {@code WalkerTickClimb.engagePillar} and the pillar branch beside it. This
-     * exists because a A/B over the whole suite could not see a bail that was
-     * <i>unconditionally false</i>: nothing changed colour, so nothing changed.
-     */
-    public static volatile int waterPillarEngages;
-    /** Times the climb-out actually clicked — {@code crestClearOf} passed and {@code BlockInteraction#place}
-     *  was called. The one bit neither the ledger nor the world can supply: a cell that stayed water
-     *  means "clicked and vanilla refused" and "never clicked at all" equally well, and those are
-     *  opposite findings about the crest gate. {@code wd.pillarLedgerCountsRefusedPlaces} ran a full
-     *  400 ticks against a threshold that made the second one true and reported the colour the first
-     *  one would have — read it together with whether the cell turned solid. */
-    public static volatile int waterPillarPlaceCalls;
-    /** Times the pillar exceeded its engage-anchored ceiling and bailed to the fallback actuators.
-     *  <b>Never read alone</b> — see {@link #waterPillarEngages}. */
-    public static volatile int waterPillarCeilingBails;
-    /** The greatest rise above the engage foot any pillar reached, in blocks. Distinguishes a bail
-     *  that never fired because the climb stayed low from one that could not fire at all. */
-    public static volatile int waterPillarTopRise;
-    /** Streaks that hit the threshold with no plan in hand. Not a discard — there was nothing to
-     *  discard — and counted apart so it stops inflating {@link #guardForcedRepaths}. */
-    public static volatile int guardPinnedWithNoPlan;
-
-    /** Names for {@link #strideGuardSkips}, in bucket order, so the instrument printing them and
-     *  the code filling them cannot drift apart. Declared FIRST because the array below is sized
-     *  from it: a bucket added to one and not the other then fails at the increment rather than
-     *  silently landing in a neighbour's tally. */
-    public static final String[] STRIDE_SKIP_REASONS = {
-            "off/parkour tick", "no player entity", "in water", "sole not on solid", "not translating h<0.03",
-            "stride cell impassable (it is ground)", "plan descends into that column",
-            "column floors out before the hazard"};
-
-    /**
-     * Why {@link #strideFloorGuard} said nothing this tick — one bucket per early return, plus the
-     * fires, so a silent guard can be told apart from an absent one.
-     *
-     * <p><b>The reading a burn post-mortem could not get.</b> That guard's fire line is
-     * unconditional and it is the right guard for "about to stride into lava", so "0 lines" looks
-     * like a verdict. It is not: it collapses every one of these states into one number. The 2026-08-23
-     * rehearsal walked into a source pool at −10,63,19 with the guard logging zero times, and
-     * nothing on disk could say whether the flag was off, the sole was airborne, the stride cell
-     * was solid ground, the plan had claimed that column, or the column really did floor out
-     * safely. Same disease as {@code guardForcedRepaths} before it was split four ways
-     * (see its javadoc above), and the same remedy: count the branches, not the outcome.
-     *
-     * <p>Exactly one bucket moves per tick — the method is a chain of early returns — so the sum is
-     * the tick count the guard ran over, and any single bucket's share is directly readable.
-     * Write-only breadcrumbs on the same terms as the counters above; nothing branches on them.
-     *
-     * <p>{@link java.util.concurrent.atomic.AtomicLongArray}, not a bare {@code long[]}: every
-     * counter around this one is {@code volatile} precisely because the instruments reading them
-     * hold no Walker and sit on another thread. A plain array's ELEMENTS carry no such guarantee,
-     * so "every bucket is zero" would have had a second reading — "the writes are not visible
-     * yet" — on the one occasion the row exists to settle. A reading that cannot distinguish its
-     * own staleness from its subject is not a reading.
-     */
-    public static final java.util.concurrent.atomic.AtomicLongArray strideGuardSkips =
-            new java.util.concurrent.atomic.AtomicLongArray(STRIDE_SKIP_REASONS.length);
-    /** Ticks {@link #strideFloorGuard} actually pinned. Read beside the skips, never alone. */
-    public static volatile int strideGuardFires;
-
-    /** Tally one skip bucket and report "the guard did not act" in a single expression, so every
-     *  early return in {@link #strideFloorGuard} stays a one-liner and none can be added without
-     *  naming which bucket it belongs to. */
-    private static boolean skipStride(int reason) {
-        strideGuardSkips.incrementAndGet(reason);
+    /** Tally one stride-guard skip bucket and report "the guard did not act" in a single expression,
+     *  so every early return in {@link #strideFloorGuard} stays a one-liner and none can be added
+     *  without naming which bucket it belongs to. */
+    private boolean skipStride(int reason) {
+        tel.strideGuardSkips.incrementAndGet(reason);
         return false;
     }
-
-    /**
-     * Why the futile-search gate did not count a completed search — one bucket per exclusion, plus
-     * the three ways it DID act. Same contract as {@link #strideGuardSkips}: exactly one bucket per
-     * completed search, first match in the gate's written order, so the sum is the number of
-     * searches the gate ran over and any bucket's share is directly readable.
-     *
-     * <p><b>Why counting was needed at all.</b> A run of 318 consecutive searches on one goal, over
-     * two minutes, never tripped a cap of 5 — so five exclusions were suspects and the log named
-     * none of them. It was settled that once from a DIFFERENT instrument's field (a {@code [place]}
-     * row's neighbour cell read {@code water} at the bot's own foot), which is luck, not method.
-     * Nothing here changes behaviour; the gate is unchanged and this only says what it did.
-     */
-    public static final java.util.concurrent.atomic.AtomicLongArray futileGateBuckets =
-            new java.util.concurrent.atomic.AtomicLongArray(10);
-    /** Names for {@link #futileGateBuckets}, in bucket order — buckets 0-5 are exclusions (the gate
-     *  never ran), 6-9 are what it did when it did run. Bucket 9 is split OUT of 6 rather than
-     *  folded into it: a first search after a reset has no baseline to beat, so counting it as
-     *  "got closer" made a reset look like progress the bot had earned. */
-    public static final String[] FUTILE_GATE_BUCKETS = {
-            "gate off(cap<=0)", "search reached the goal", "digging(breakHeld)", "water climb digging",
-            "foot cell is water(left to the water reversal loop)", "no path and blacklist not expired",
-            "reset:closer to goal", "reset:bot moved>2 cells", "counted", "seeded after reset(not judged)"};
 
     /** Remaining hold-tail ticks after the last guard fire (pin hysteresis). */
     int guardHoldTicks;
@@ -2205,30 +2026,6 @@ public final class Walker {
      *  fatal arc?" (bridge battery: three different launchers over three rounds), and the
      *  aggregated drive jump erases the answer by the time the bot is airborne. */
     public String jumpTag;
-
-    /**
-     * Write-only breadcrumb: what the walker was doing on its most recent tick, for readers that
-     * hold no Walker instance — chiefly the journey rig, which latches a fall long after the tick
-     * that caused it and until now could report only WHERE the bot last stood.
-     *
-     * <p>Four island-rim coordinates inside four blocks of each other survived five rounds of fixes
-     * because the reading had a place and no action: every round guessed a mechanism, gated a move
-     * family, and got another coordinate back. <b>Nothing branches on this.</b> It is read on the
-     * fall path and printed; behaviour must never consult it, which is what keeps a static safe
-     * here (a static another thread pathfinds against is how an A/B once measured nothing at all).
-     */
-    public static volatile String lastTickTrace = "no tick has run yet";
-
-    /**
-     * The last trace taken while the sole was still on something — the crime scene, as opposed to
-     * {@link #lastTickTrace}, which is wherever the bot had got to by the time anyone looked.
-     *
-     * <p>Both are needed and neither substitutes for the other. The final tick of a fall reports a
-     * bot at y=-64 chasing a node at y=-64: true, useless, and it reads like a planner defect when
-     * it is only the walker re-planning for a bot that is already there. The interesting tick is
-     * the last one with support, which is the one that decided.
-     */
-    public static volatile String lastSupportedTrace = "no supported tick yet";
 
     /** This tick's aim-tree owner ({@code aimSrc}) — same telemetry channel as
      *  {@link #jumpTag}: wedge post-mortems need "who owned the heading". */
@@ -2333,7 +2130,7 @@ public final class Walker {
             if (!world.isPassable(below) || world.isWater(below))
                 return skipStride(7);                           // a floor or a water landing → safe
         }
-        strideGuardFires++;
+        tel.strideGuardFires++;
         avatarSneak(a, true);
         a.commandJump(false);
         p.setSprinting(false);

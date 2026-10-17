@@ -7,10 +7,9 @@ import net.magicterra.worlddriver.config.PlanningConfig;
 /**
  * Where one {@link PathFinder} gets its three planner tunables — <b>read live, owned per bot</b>.
  *
- * <p>These used to be read straight off {@code BotConfig} inside the search loop, through
- * {@code pfHorizonBlocks() / pfSoftCommitNodes() / pfDepthPenalty()}. Those getters consult
- * {@code PlanningConfig.pathfinderBoxedEscalate}, which is per-bot, per-tick state that
- * {@code WalkerTickPrelude} writes on every walker tick — into a process-global. One JVM with two
+ * <p>These used to be read straight off {@code BotConfig} inside the search loop, through getters
+ * that consulted a {@code PlanningConfig.pathfinderBoxedEscalate} flag: per-bot, per-tick state that
+ * {@code WalkerTickPrelude} wrote on every walker tick — into a process-global. One JVM with two
  * bots in it therefore had them editing each other's planner, and that is not hypothetical: on the
  * integrated topology a client Walker churning on an unreachable goal held the flag true, so a
  * server-thread {@code HorizonArena.run(48)} planned with the horizon switched OFF and returned
@@ -38,17 +37,15 @@ public interface PathTuning {
     double depthPenalty();
 
     /**
-     * The legacy process-global source, for finders with no bot behind them (tools, arenas that
-     * genuinely want ambient settings, direct API callers).
-     *
-     * <p>Still live, and still shared — this is the compatibility path, not the good one. Anything
-     * that drives a bot should hand in {@link #escalatedWhen}; anything measuring the planner should
-     * hand in {@link #fixed}.
+     * The configured settings, never escalated, for finders with no bot behind them (tools, arenas
+     * that genuinely want ambient settings, direct API callers). Live, so a retuned setting reaches
+     * a search already running. Anything that drives a bot should hand in {@link #escalatedWhen};
+     * anything measuring the planner should hand in {@link #fixed}.
      */
     PathTuning GLOBAL = new PathTuning() {
-        @Override public int horizonBlocks()    { return PlanningConfig.pfHorizonBlocks(); }
-        @Override public int softCommitNodes()  { return PlanningConfig.pfSoftCommitNodes(); }
-        @Override public double depthPenalty()  { return PlanningConfig.pfDepthPenalty(); }
+        @Override public int horizonBlocks()    { return PlanningConfig.pathfinderHorizonBlocks; }
+        @Override public int softCommitNodes()  { return PlanningConfig.pathfinderSoftCommitNodes; }
+        @Override public double depthPenalty()  { return PlanningConfig.pathfinderDepthPenalty; }
         @Override public String toString()      { return "global"; }
     };
 

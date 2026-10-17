@@ -80,9 +80,9 @@ public final class HorizonArena {
         //
         // This used to write PlanningConfig.pathfinderHorizonBlocks / pathfinderSoftCommitNodes and put
         // them back in a finally. That is unsound the moment anything else in the JVM is planning,
-        // and it silently disconnected this arena's only variable: pfHorizonBlocks() returns 0
-        // whenever PlanningConfig.pathfinderBoxedEscalate is set, and a client Walker on another thread
-        // writes that flag every tick it runs. On integratedServerNeoforge, with the client bot
+        // and it silently disconnected this arena's only variable: the planner's horizon read 0
+        // whenever a process-global escalation flag was set, and a client Walker on another thread
+        // wrote that flag every tick it ran. On integratedServerNeoforge, with the client bot
         // churning on an unreachable goal, run(48) planned with the horizon OFF and returned numbers
         // byte-identical to run(0) — the scene measured nothing and still reported a colour.
         //

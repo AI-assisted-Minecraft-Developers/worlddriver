@@ -114,7 +114,7 @@ final class WalkerMedium {
         }
         String vertical = steer(a, p, tx, ty, tz);
         wk.driveTag = verb;
-        Walker.lastTickTrace = String.format(java.util.Locale.ROOT,
+        wk.tel.lastTickTrace = String.format(java.util.Locale.ROOT,
                 "%s step=%d/%d node=%s pos=%.2f,%.2f,%.2f vy=%.3f %s out=%d stalled=%d stalls=%d bestEffort=%b",
                 verb, wk.step, wk.path.size(), node.toShortString(), p.getX(), p.getY(), p.getZ(), p.getDeltaMovement().y,
                 vertical, outTicks, noProgressTicks, stalls, wk.seg.pathBestEffort);

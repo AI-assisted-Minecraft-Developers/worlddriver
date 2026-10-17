@@ -198,10 +198,6 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         GameConfig.walkerDebug = false;
-        // pfDepthPenalty() returns max(penalty, 25) when boxed-escalation is ON, which would clamp BOTH
-        // penalty=0 and penalty=6 to an identical 25 → false failure. Force it OFF so pfDepthPenalty()
-        // returns the raw penalty we set.
-        PlanningConfig.pathfinderBoxedEscalate = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // each search runs to completion (deterministic)
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxNodes = 1_000_000;

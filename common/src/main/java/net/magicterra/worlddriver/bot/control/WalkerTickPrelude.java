@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.bot.control;
 
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.rules.Move;
@@ -134,14 +133,14 @@ final class WalkerTickPrelude {
         // AvatarInput install (client) is handled inside the {@code Body} implementation.
 
         // Steep-barrier planner escalation: a confirmed boxed churn (below) arms a sticky
-        // timer; while it's live, route the planner's horizon/soft-commit/depth-penalty
-        // reads through their escalated values so A* commits a climb-OVER route instead of
+        // timer; while it's live, this walker's finders read the escalated horizon/soft-commit/
+        // depth-penalty (PathTuning.escalatedWhen) so A* commits a climb-OVER route instead of
         // re-committing a cheap shallow/cave segment. Off (back to configured defaults)
         // once the timer lapses, so easy-terrain searches are never slowed.
         wk.escal.tick++;
-        boolean wasEscalating = PlanningConfig.pathfinderBoxedEscalate;
+        boolean wasEscalating = wk.escal.wasArmed;
         boolean escalating = wk.escal.armed();
-        PlanningConfig.pathfinderBoxedEscalate = escalating;
+        wk.escal.wasArmed = escalating;
         if (escalating && !wasEscalating && GameConfig.walkerDebug)
             LOG.info("[walker] steep-barrier escalation ARMED (boxed churn) → horizon=0 depthPenalty>=25 softCommit>=35000 for {} ticks",
                     wk.escal.untilTick - wk.escal.tick);

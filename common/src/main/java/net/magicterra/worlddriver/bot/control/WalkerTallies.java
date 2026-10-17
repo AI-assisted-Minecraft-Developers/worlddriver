@@ -4,11 +4,10 @@ import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.minecraft.core.BlockPos;
 
 /**
- * Monotonic per-{@link Walker} event counts — a caller that wants a window takes the difference,
- * the way {@link Walker#lastStats} is read. Instance state on purpose: {@code strideGuardSkips},
- * {@code futileGateBuckets} and {@code lastStats} are JVM-wide statics, and with two bots in one
- * process nothing says whose they are. Written on the walker's tick thread, read from wherever a
- * scene runs, so the fields are volatile; a reader sees a value at most one tick stale.
+ * Monotonic per-{@link Walker} event counts — a caller that wants a window takes the difference.
+ * One walker's, where {@link WalkerTelemetry} is every walker that drove a body: a process reading
+ * what ITS walk did wants this one. Written on the walker's tick thread, read from wherever a scene
+ * runs, so the fields are volatile; a reader sees a value at most one tick stale.
  *
  * <ul>
  *   <li>{@link #searches} — deep searches that finished (a replan is one more of these);</li>

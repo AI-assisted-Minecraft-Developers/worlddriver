@@ -52,7 +52,7 @@ final class WalkerTickSearch {
         else if (world.isWater(foot)) bucket = 4;
         else if (!res.hasPath() && world.hasStuckPenalties()) bucket = 5;
         if (bucket < 0) return false;
-        Walker.futileGateBuckets.incrementAndGet(bucket);
+        wk.tel.futileGateBuckets.incrementAndGet(bucket);
         return true;
     }
 
@@ -94,7 +94,7 @@ final class WalkerTickSearch {
         boolean gotCloser = seeded
                 && wk.searchGov.futileGoal.estimate(foot) < wk.searchGov.futileBestDist - 0.5;
         boolean moved = wk.searchGov.futileFoot != null && wk.searchGov.futileFoot.distSqr(foot) > 4;
-        Walker.futileGateBuckets.incrementAndGet(!seeded ? 9 : gotCloser ? 6 : moved ? 7 : 8);
+        wk.tel.futileGateBuckets.incrementAndGet(!seeded ? 9 : gotCloser ? 6 : moved ? 7 : 8);
         if (!seeded || gotCloser || moved) {
             if (seeded) wk.searchGov.futileSearches = 0;
             wk.searchGov.futileBestDist = wk.goalSpin.bestDistToGoal;
@@ -160,7 +160,7 @@ final class WalkerTickSearch {
             wk.seg.activeSearch = null;
             boolean wasFromEnd = wk.seg.searchFromEnd;
             wk.seg.searchFromEnd = false;
-            Walker.lastStats = new Walker.PathStats(res.expanded(), res.ms(), res.goalReached(),
+            wk.tel.lastStats = new WalkerTelemetry.PathStats(res.expanded(), res.ms(), res.goalReached(),
                     res.finalCost(), res.path().size(), res.sightBudgetExhausted(), res.snapshotTruncated());
             wk.tallies.searches++;
             if (res.sightBudgetExhausted())

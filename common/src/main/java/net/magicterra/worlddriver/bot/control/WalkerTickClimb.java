@@ -167,7 +167,7 @@ final class WalkerTickClimb {
             wk.waterClimb.pillarNoPlaceTicks++;
         }
         if (!fcSolid && fcSupport && fcCleared) {     // feet cleared the cell
-            Walker.waterPillarPlaceCalls++;
+            wk.tel.waterPillarPlaceCalls++;
             wk.blocks.place(world::isSolid, fillCell);
             // Remember THIS cell, overwriting any older attempt: an earlier cell that filled late
             // must not be allowed to pay for the one being clicked now.
@@ -211,7 +211,7 @@ final class WalkerTickClimb {
      * fix — a future "just refresh it each tick" has to go through this name first.
      */
     private static void engagePillar(Walker wk, LivingEntity p, BlockPos foot, BlockPos cwp) {
-        Walker.waterPillarEngages++;
+        wk.tel.waterPillarEngages++;
         wk.waterClimb.colX = foot.getX();
         wk.waterClimb.colZ = foot.getZ();
         // Re-base the height ledger on THIS segment. A re-locked column that inherited the previous
@@ -268,8 +268,8 @@ final class WalkerTickClimb {
                 // engage latch was fixed, and the water-climb family records no evidence at all, so
                 // a guard that could not fire changed no colour and nothing in the suite could see
                 // it. Rise is kept so "never got near" differs from "never asked". See Walker.
-                if (tooHigh) Walker.waterPillarCeilingBails++;
-                Walker.waterPillarTopRise = Math.max(Walker.waterPillarTopRise,
+                if (tooHigh) wk.tel.waterPillarCeilingBails++;
+                wk.tel.waterPillarTopRise = Math.max(wk.tel.waterPillarTopRise,
                         foot.getY() - (wk.waterClimb.targetY - PILLAR_CEILING_RISE));
                 // Self-correction: the latch pins the bot to ONE locked column +
                 // heading, which goes stale two ways in a live crossing — (a) the bot
@@ -454,7 +454,7 @@ final class WalkerTickClimb {
                         if (GameConfig.walkerDebug)
                             LOG.info("[walker] climbout-place side foothold {},{},{} (one-deep water, bot afloat at y={})",
                                     side.getX(), side.getY(), side.getZ(), String.format("%.2f", p.getY()));
-                        Walker.waterPillarPlaceCalls++;
+                        wk.tel.waterPillarPlaceCalls++;
                         wk.blocks.place(world::isSolid, side);
                         wk.waterClimb.placeAttemptCell = side;
                         wk.waterClimb.placedRungs.add(side);

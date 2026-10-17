@@ -19,7 +19,7 @@ import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.bot.BotRegistry;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.minecraft.core.BlockPos;
@@ -152,7 +152,7 @@ public final class WorldDriverFlyingMobScenes implements SceneProvider {
                 highest[0] = Math.max(highest[0], mob.blockPosition().getY());
                 if (Math.abs(mob.blockPosition().getZ() - goal.getZ()) > Math.abs(widest[0] - goal.getZ())) widest[0] = mob.blockPosition().getZ();
                 if ((ctx.ticks() - start) % 5 == 0) {
-                    trail.addLast("t" + (ctx.ticks() - start) + ": " + Walker.lastTickTrace);
+                    trail.addLast("t" + (ctx.ticks() - start) + ": " + WalkerTelemetry.of(mob).lastTickTrace);
                     if (trail.size() > TRAIL) trail.removeFirst();
                 }
                 return !bot.busy() || ctx.ticks() - start >= DEADLINE;
@@ -195,7 +195,7 @@ public final class WorldDriverFlyingMobScenes implements SceneProvider {
                 Vec3 arrived = parrot.position();
                 ctx.record("arrived", arrived + " ticks=" + (ctx.ticks() - start) + " " + action);
                 if (!"succeeded".equals(action.get("state"))) {
-                    ctx.fail("the parrot did not get to " + goal.toShortString() + ": " + action + " trace=" + Walker.lastTickTrace);
+                    ctx.fail("the parrot did not get to " + goal.toShortString() + ": " + action + " trace=" + WalkerTelemetry.of(parrot).lastTickTrace);
                     return;
                 }
                 int held = ctx.ticks();

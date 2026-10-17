@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -227,23 +227,27 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
 
     private JourneyFlight(JourneyRig rig, BlockPos from, int goalX, int goalZ) {
         this.rig = rig;
+        this.tel = WalkerTelemetry.of(rig.player());
         this.from = from;
         this.goalX = goalX;
         this.goalZ = goalZ;
         this.legLength = (int) Math.round(Math.hypot(from.getX() - goalX, from.getZ() - goalZ));
-        this.repathsAtStart = Walker.guardForcedRepaths;
-        this.keptAtStart = Walker.guardKeptPlans;
-        this.advancesAtStart = Walker.stepAdvancesLogged;
-        this.strideFiresAtStart = Walker.strideGuardFires;
-        this.strideSkipsAtStart = new long[Walker.STRIDE_SKIP_REASONS.length];
+        this.repathsAtStart = tel.guardForcedRepaths;
+        this.keptAtStart = tel.guardKeptPlans;
+        this.advancesAtStart = tel.stepAdvancesLogged;
+        this.strideFiresAtStart = tel.strideGuardFires;
+        this.strideSkipsAtStart = new long[WalkerTelemetry.STRIDE_SKIP_REASONS.length];
         for (int i = 0; i < strideSkipsAtStart.length; i++)
-            strideSkipsAtStart[i] = Walker.strideGuardSkips.get(i);
-        // THE walk boundary, for everything that is budgeted per walk. Walker#newLeg's note says why
+            strideSkipsAtStart[i] = tel.strideGuardSkips.get(i);
+        // THE walk boundary, for everything that is budgeted per walk. WalkerTelemetry#legEpoch's note says why
         // it is taken from here and not given a definition of its own.
-        Walker.newLeg();
+        tel.newLeg();
     }
 
-    /** {@link Walker#strideGuardFires} and {@link Walker#strideGuardSkips} when this walk began.
+    /** What the walkers driving the rig's bot have done; every delta below is against this. */
+    private final WalkerTelemetry tel;
+
+    /** {@link WalkerTelemetry#strideGuardFires} and {@link WalkerTelemetry#strideGuardSkips} when this walk began.
      *
      *  <p>Reported only on a goto run that actually entered lava — see {@link #report()}. Elsewhere
      *  the distribution is just terrain, and a row printed on every run is a row nobody reads. On
@@ -252,7 +256,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private final int strideFiresAtStart;
     private final long[] strideSkipsAtStart;
 
-    /** {@link Walker#guardForcedRepaths} when this walk began, so the walk can report its own DELTA.
+    /** {@link WalkerTelemetry#guardForcedRepaths} when this walk began, so the walk can report its own DELTA.
      *
      *  <p>The one thing the walker does that used to leave no trace: a sustained guard pin throws
      *  the plan away. On the 2026-08-20 shuttle that made two opposite diagnoses fit every row —
@@ -260,13 +264,13 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      *  evidence map could not choose. A per-walk count, next to the moves the walk covered, can. */
     private final int repathsAtStart;
 
-    /** {@link Walker#guardKeptPlans} when this walk began. <b>Reported beside the discards and never
+    /** {@link WalkerTelemetry#guardKeptPlans} when this walk began. <b>Reported beside the discards and never
      *  instead of them</b>: since 2026-08-21 a pinned streak has two outcomes, so a walk that reports
      *  zero discards may have been pinned to the threshold dozens of times and kept its plan every
      *  time. 0/0 was never pinned; 0/45 walked a rim. One number can no longer say which. */
     private final int keptAtStart;
 
-    /** {@link Walker#stepAdvancesLogged} when this walk began — the denominator that says whether the
+    /** {@link WalkerTelemetry#stepAdvancesLogged} when this walk began — the denominator that says whether the
      *  advance log a reader is holding is the WHOLE walk or only its opening. */
     private final int advancesAtStart;
 
@@ -678,17 +682,17 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
                         + " run ended");
         // A run that walked 61 edges to a net −8 has either been given bad plans or has had good
         // ones taken away from it. This is the number that says which, and it is the run's own
-        // delta rather than the JVM total — see repathsAtStart.
+        // delta rather than the bot's total — see repathsAtStart.
         sb.append("; plan pointing furthest backwards ").append(backwards < 0 ? "not measured"
                 : String.format(Locale.ROOT, "%.2f blocks (%s)", backwards, backwardsAt));
-        int advances = Walker.stepAdvancesLogged - advancesAtStart;
+        int advances = tel.stepAdvancesLogged - advancesAtStart;
         sb.append("; step advances logged ").append(advances)
-          .append(advances >= Walker.stepAdvanceBudget()
+          .append(advances >= WalkerTelemetry.stepAdvanceBudget()
                   ? " (budget full, later advances were not logged; this run's step log is"
                     + " incomplete)"
                   : " (this run's step log is complete)");
-        int repaths = Walker.guardForcedRepaths - repathsAtStart;
-        int kept = Walker.guardKeptPlans - keptAtStart;
+        int repaths = tel.guardForcedRepaths - repathsAtStart;
+        int kept = tel.guardKeptPlans - keptAtStart;
         // BOTH, ALWAYS, and never the discard alone — see keptAtStart. "0 discards" also covers a
         // run pinned to the threshold every thirty ticks that kept its plan each time, not only a
         // pin that never reached its threshold, and those are opposite terrain reports.
@@ -700,7 +704,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
                   : repaths == 0
                   ? " (no plan was ever discarded; the bot was advancing each time the pin reached"
                     + " the threshold)"
-                  : ", last discard " + Walker.lastGuardRepath);
+                  : ", last discard " + tel.lastGuardRepath);
         sb.append("; at the moment the run ended: ").append(finishedAt == null
                 ? "nothing; this run was stopped when its tick budget ran out, the process did not"
                   + " finish on its own"
@@ -714,17 +718,17 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      *
      * <p>Deltas, not totals, for the reason {@link #repathsAtStart} spells out: a total answers
      * "did this ever happen on this run" when the question is "did it happen HERE". The buckets are
-     * named by {@link Walker#STRIDE_SKIP_REASONS} rather than by index, so a reader does not have to
+     * named by {@link WalkerTelemetry#STRIDE_SKIP_REASONS} rather than by index, so a reader does not have to
      * hold the order in their head and a bucket added later cannot silently shift the meaning of
      * this row.
      */
     private String strideGuardDelta() {
         StringBuilder sb = new StringBuilder("stride guard fired ")
-                .append(Walker.strideGuardFires - strideFiresAtStart)
+                .append(tel.strideGuardFires - strideFiresAtStart)
                 .append(" time(s) during this run; reasons it did not fire: ");
-        for (int i = 0; i < Walker.STRIDE_SKIP_REASONS.length; i++)
-            sb.append(i == 0 ? "" : ", ").append(Walker.STRIDE_SKIP_REASONS[i]).append('=')
-              .append(Walker.strideGuardSkips.get(i) - strideSkipsAtStart[i]);
+        for (int i = 0; i < WalkerTelemetry.STRIDE_SKIP_REASONS.length; i++)
+            sb.append(i == 0 ? "" : ", ").append(WalkerTelemetry.STRIDE_SKIP_REASONS[i]).append('=')
+              .append(tel.strideGuardSkips.get(i) - strideSkipsAtStart[i]);
         return sb.toString();
     }
 

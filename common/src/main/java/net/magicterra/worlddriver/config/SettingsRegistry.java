@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.RuntimeState;
 
 /**
  * Single source of truth for the {@code mc.bot.setting} key surface — #280 root fix.
@@ -335,8 +334,8 @@ public final class SettingsRegistry {
     }
 
     /**
-     * Public static volatile PRIMITIVE config fields in {@link BotConfig#publicFields()} order,
-     * less the {@link RuntimeState} ones. The ONE enumerator of the reflective keys, so a new flag
+     * Public static volatile PRIMITIVE config fields in {@link BotConfig#publicFields()} order.
+     * The ONE enumerator of the reflective keys, so a new flag
      * is readable, writable and in the contract at once, or not at all.
      */
     static List<Field> reflectivePrimitiveFields() {
@@ -345,7 +344,6 @@ public final class SettingsRegistry {
             int mods = f.getModifiers();
             if (!Modifier.isStatic(mods) || !Modifier.isVolatile(mods)) continue;
             if (!f.getType().isPrimitive()) continue;
-            if (f.isAnnotationPresent(RuntimeState.class)) continue;
             out.add(f);
         }
         return out;

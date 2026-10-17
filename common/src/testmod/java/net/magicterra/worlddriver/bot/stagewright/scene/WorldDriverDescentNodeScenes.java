@@ -12,6 +12,7 @@ import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
 import net.magicterra.worlddriver.bot.control.WalkerGeometry;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
@@ -333,7 +334,8 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
 
         Walker walker = new Walker();
         walker.setGoal(new Goal.XZ(foot.getX() + GOAL_DX, foot.getZ() + GOAL_DZ, GOAL_R));
-        long holds0 = Walker.descentHolds;
+        final WalkerTelemetry tel = WalkerTelemetry.of(fp);
+        long holds0 = tel.descentHolds;
         double minY = fp.getY();
         int noPlan = 0, run = 0, longest = 0, t = 0;
         boolean lava = false;
@@ -345,7 +347,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
             if (fp.isInLava()) { lava = true; break; }
         }
         double moved = Math.hypot(fp.getX() - x0, fp.getZ() - z0);
-        long holds = Walker.descentHolds - holds0;
+        long holds = tel.descentHolds - holds0;
         // DESCENDED, not "the foot cell changed": the perch is one cell wide, the block holding the
         // bot up is the cell west of it, and a bot that slides 0.30 blocks onto that block has
         // changed foot cell without going anywhere. Judging that would hand the control arm full
@@ -516,7 +518,8 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         Walker walker = new Walker();
         BlockPos bottom = ctx.rel(STAIR_STEPS, STAIR_TOP - STAIR_STEPS + 1, 0);
         walker.setGoal(new Goal.Block(bottom));
-        long holds0 = Walker.descentHolds;
+        final WalkerTelemetry tel = WalkerTelemetry.of(fp);
+        long holds0 = tel.descentHolds;
         int t = 0, noPlan = 0;
         for (; t < STAIR_TICKS; t++) {
             walker.tick(av, w);
@@ -525,7 +528,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
             if (fp.blockPosition().getX() >= bottom.getX() && fp.getY() <= bottom.getY() + 0.5) break;
         }
         int dropped = Math.max(0, top.getY() - (int) Math.floor(fp.getY()));
-        long holds = Walker.descentHolds - holds0;
+        long holds = tel.descentHolds - holds0;
         String ended = String.format(Locale.ROOT,
                 "walkerDescentNodeHold=%s -> %d ticks, bot=(%.2f,%.2f,%.2f), descended %d/%d steps,"
                 + " without a plan %d ticks, step advances held %d times",
@@ -697,7 +700,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      *       the block holding it up changed foot cell without going anywhere;</li>
      *   <li><b>the control must not</b>, and the rig hard-fails if it does. An arena whose pre-fix
      *       build walks in has not earned the right to report that the fixed one did;</li>
-     *   <li><b>the hold must be what did it</b> — {@code Walker.descentHolds} moved in the subject and
+     *   <li><b>the hold must be what did it</b> — {@code WalkerTelemetry.descentHolds} moved in the subject and
      *       not in the control, so "A got in" cannot be credited to something else that changed.</li>
      * </ol>
      *
@@ -854,7 +857,8 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
 
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(step));
-        long holds0 = Walker.descentHolds;
+        final WalkerTelemetry tel = WalkerTelemetry.of(fp);
+        long holds0 = tel.descentHolds;
         double minY = fp.getY();
         int t = 0, noPlan = 0;
         boolean onDoorstep = false;
@@ -871,7 +875,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
                 trace.append(t == 0 ? "" : " ").append(t).append(':').append(cell(fp.blockPosition()))
                      .append(" step").append(walker.pathStep()).append('/').append(walker.pathLen())
                      .append(" node").append(walker.pathNode() == null ? "none" : cell(walker.pathNode()))
-                     .append(" held").append(Walker.descentHolds - holds0);
+                     .append(" held").append(tel.descentHolds - holds0);
             av.step();
             minY = Math.min(minY, fp.getY());
             if (fp.blockPosition().equals(step)) { onDoorstep = true; t++; break; }
@@ -880,12 +884,12 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
             if (level.getBlockState(fp.blockPosition()).is(Blocks.NETHER_PORTAL)) { t++; break; }
         }
         ctx.record(arm + ".trace", trace.toString());
-        Walker.PathStats st = Walker.lastStats;
+        WalkerTelemetry.PathStats st = tel.lastStats;
         ctx.record(arm + ".lastSearch", st == null ? "no search in this drive left any statistics"
                 : "expanded=" + st.expanded() + " ms=" + st.ms() + " goalReached=" + st.goalReached()
                         + " pathLength=" + st.pathLen());
         double moved = Math.hypot(fp.getX() - x0, fp.getZ() - z0);
-        long holds = Walker.descentHolds - holds0;
+        long holds = tel.descentHolds - holds0;
         String end = walker.lastEndReason;
         String ended = String.format(Locale.ROOT,
                 "walkerDescentNodeHold=%s -> %d ticks, bot=(%.2f,%.2f,%.2f) cell=%s, lowest y=%.2f (perch y=%d),"

@@ -988,17 +988,17 @@ public final class JourneyLandingScenes implements SceneProvider {
 
         // DID THE GUARD THAT ALREADY EXISTS FIRE? `WalkerTickProgress.unwalkedDescentConsume` was
         // written for this exact shape — journey rung 13, a last node one row DOWN that the walker
-        // spends on the tick it adopts it — and it bumps `Walker.descentHolds` every time it holds.
+        // spends on the tick it adopts it — and it bumps the body's `WalkerTelemetry.descentHolds` every time it holds.
         // A counter is the honest instrument here: `walkerDebug` is behind a flag no gate turns on,
         // so its step-trace rows prove nothing about a run that did not set it, while a counter delta is a
         // state change that happened or did not.
-        long holdsBefore = net.magicterra.worlddriver.bot.control.Walker.descentHolds;
+        long holdsBefore = net.magicterra.worlddriver.bot.control.WalkerTelemetry.of(fp).descentHolds;
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
         JourneyStairwell.finishTheFlight(rig, "lip", ends, () -> {
             BlockPos got = fp.blockPosition();
             Object missed = rig.evidenceOf("lip.flightLastStepMissed");
             Object end = rig.evidenceOf("lip.flightLastStepEnd");
-            ctx.record("subject.descentHolds", (net.magicterra.worlddriver.bot.control.Walker.descentHolds
+            ctx.record("subject.descentHolds", (net.magicterra.worlddriver.bot.control.WalkerTelemetry.of(fp).descentHolds
                     - holdsBefore) + " (times the last-node hold branch fired; 0 = the guard is inert for this"
                     + " failure family, non-zero = it fired and the bot still did not descend; these are two"
                     + " entirely different paths)");

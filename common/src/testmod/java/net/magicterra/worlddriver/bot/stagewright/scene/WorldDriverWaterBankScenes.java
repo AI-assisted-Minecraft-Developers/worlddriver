@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
 import net.magicterra.worlddriver.bot.rules.moves.Fall;
 import net.magicterra.worlddriver.bot.rules.moves.FallIntoWater;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
@@ -276,11 +277,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(goal));
 
-        // DELTAS, taken here rather than read absolute: these are per-JVM counters and other
-        // scenes in the same run also climb out of water.
-        final int engages0 = Walker.waterPillarEngages;
-        final int bails0 = Walker.waterPillarCeilingBails;
-        Walker.waterPillarTopRise = 0;
+        // This avatar's own counters, so another scene climbing out of water cannot move them.
+        final WalkerTelemetry tel = WalkerTelemetry.of(fp);
+        final int engages0 = tel.waterPillarEngages;
+        final int bails0 = tel.waterPillarCeilingBails;
 
         Walker.Step s = Walker.Step.WALKING;
         double maxY = fp.getY();
@@ -302,8 +302,8 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // changes no colour, and colour was the only channel. Recorded on every run, PASS included —
         // a PASS prints no failure text, so this is the only place a reader can see whether the
         // pillar branch was even entered.
-        int engages = Walker.waterPillarEngages - engages0;
-        int bails = Walker.waterPillarCeilingBails - bails0;
+        int engages = tel.waterPillarEngages - engages0;
+        int bails = tel.waterPillarCeilingBails - bails0;
         ctx.record("pillar.engages", engages == 0
                 ? "0 — this run never took the pillar takeover path, so it measured nothing about that path"
                 : String.valueOf(engages));
@@ -313,8 +313,8 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 : bails + " times past the ceiling at +" + 5 + " above the feet at engage");
         ctx.record("pillar.topRise", engages == 0
                 ? "unavailable/same as above"
-                : Walker.waterPillarTopRise + " blocks ("
-                        + (5 - Walker.waterPillarTopRise) + " blocks short of the ceiling)");
+                : tel.waterPillarTopRise + " blocks ("
+                        + (5 - tel.waterPillarTopRise) + " blocks short of the ceiling)");
         if (!onPlateau)
             ctx.fail("buoyantWall: BUOYANT +5 wall: Walker failed to mount from water: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY
@@ -1335,12 +1335,13 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(goal));
-        final int engages0 = Walker.waterPillarEngages;
+        final WalkerTelemetry tel = WalkerTelemetry.of(fp);
+        final int engages0 = tel.waterPillarEngages;
         // Without this the scene cannot tell its own two failure modes apart. "The cell never turned
         // solid" is what a refused click leaves behind AND what no click at all leaves behind, and
         // this arena is built to assert the first. Under the 2026-08-24 unified threshold it was
         // silently the second for 400 ticks and still reported PASS.
-        final int clicks0 = Walker.waterPillarPlaceCalls;
+        final int clicks0 = tel.waterPillarPlaceCalls;
         int maxNoPlace = 0;
         // Sampled per tick, never at the end: the tick placeFutile goes true the takeover releases
         // and zeroes the counter (WalkerTickClimb:500-502), so a post-hoc read always sees 0.
@@ -1359,7 +1360,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             // it cannot mount, and a bot held still never accumulates one. Only then start
             // holding the band. Pinning from tick 0 is what made the first version of this scene
             // report engages=0.
-            if (!pinning && Walker.waterPillarEngages > engages0) pinning = true;
+            if (!pinning && tel.waterPillarEngages > engages0) pinning = true;
             if (!pinning) continue;
             // THE BAND. Hold the feet 0.95 above the top water cell's floor: past the 0.9 crest
             // gate, short of the 1.0 vanilla needs. Re-applied every tick because the climb-out
@@ -1380,10 +1381,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             }
             maxNoPlace = Math.max(maxNoPlace, walker.pillarNoPlaceTicks());
         }
-        int engages = Walker.waterPillarEngages - engages0;
+        int engages = tel.waterPillarEngages - engages0;
 
         ctx.record("gate.takeoverEngages", engages);
-        ctx.record("gate.placeClicksFired", Walker.waterPillarPlaceCalls - clicks0);
+        ctx.record("gate.placeClicksFired", tel.waterPillarPlaceCalls - clicks0);
         ctx.record("ledger.peakCount", maxNoPlace);
         ctx.record("ledger.everJudgedFutile", sawFutile);
         ctx.record("pillar.pinnedCell", pinnedAt == null ? "none (the water column was filled)" : pinnedAt.toShortString()
@@ -1421,7 +1422,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // in which the crest gate never opened: the cell stays water, the counter climbs, futility
         // fires. That is not this scene's subject — "a refused click is not progress" needs a click to have been
         // refused. It went unnoticed for one whole gate run, which is why it is a guard now.
-        if (Walker.waterPillarPlaceCalls - clicks0 == 0)
+        if (tel.waterPillarPlaceCalls - clicks0 == 0)
             ctx.fail("pillarLedger: no click fired during the whole run (the crest gate never opened) — the"
                     + " counter reaching " + maxNoPlace + " means \"nothing was clicked\", not \"clicks had no"
                     + " effect\". This run did not test the behaviour under test.");
@@ -1498,8 +1499,9 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         LevelWorldView w = new LevelWorldView(level, fp);
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(goal));
-        final int engages0 = Walker.waterPillarEngages;
-        final int clicks0 = Walker.waterPillarPlaceCalls;
+        final WalkerTelemetry tel = WalkerTelemetry.of(fp);
+        final int engages0 = tel.waterPillarEngages;
+        final int clicks0 = tel.waterPillarPlaceCalls;
         int filled = 0;
         boolean pinning = false;
         // The reading that decides this scene: what the ledger held on the tick AFTER a cell
@@ -1525,7 +1527,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             if (top != null) wasWater.add(top);
             s = walker.tick(av, w);
             av.step();
-            if (!pinning && Walker.waterPillarEngages > engages0) pinning = true;
+            if (!pinning && tel.waterPillarEngages > engages0) pinning = true;
             if (pinning) {
                 // A CONSTANT absolute height, and that is the point. Pinning relative to a moving
                 // top would let foot.getY() climb as cells fill, and the high-water half of the
@@ -1561,10 +1563,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             }
         }
         for (BlockPos c : wasWater) if (w.isSolid(c)) filled++;
-        int engages = Walker.waterPillarEngages - engages0;
+        int engages = tel.waterPillarEngages - engages0;
 
         ctx.record("gate.takeoverEngages", engages);
-        ctx.record("gate.placeClicksFired", Walker.waterPillarPlaceCalls - clicks0);
+        ctx.record("gate.placeClicksFired", tel.waterPillarPlaceCalls - clicks0);
         ctx.record("pillar.cellsActuallyFilled", filled + "/" + wasWater.size());
         ctx.record("ledger.onFillTick", ledgerAtFill < 0 ? "no fill observed" : String.valueOf(ledgerAtFill));
         ctx.record("ledger.afterFill", ledgerAfterFill < 0 ? "no fill observed" : String.valueOf(ledgerAfterFill));

@@ -359,16 +359,6 @@ public final class PlanningConfig {
      *  horizon, obstacles commit fast via this. */
     public static volatile int pathfinderSoftCommitNodes = 6000;
 
-    /** Steep-barrier escalation: armed by Walker when a boxed goal-reaching churn is
-     *  detected, so the planner suppresses the receding horizon, deepens the soft-commit,
-     *  and raises the depth penalty to find a climb-OVER route instead of re-committing a
-     *  cheap shallow/cave segment. Off by default → all searches behave exactly as before.
-     *  PURE RUNTIME STATE — must NOT be persisted (not in any config save/load list). */
-    @RuntimeState public static volatile boolean pathfinderBoxedEscalate = false;
-    public static int    pfHorizonBlocks()   { return pathfinderBoxedEscalate ? 0 : pathfinderHorizonBlocks; }
-    public static int    pfSoftCommitNodes() { return pathfinderBoxedEscalate ? Math.max(pathfinderSoftCommitNodes, 35000) : pathfinderSoftCommitNodes; }
-    public static double pfDepthPenalty()    { return pathfinderBoxedEscalate ? Math.max(pathfinderDepthPenalty, 25) : pathfinderDepthPenalty; }
-
     // Last, after every field above: see BotConfig.initialize.
     static { BotConfig.initialize(); }
 }

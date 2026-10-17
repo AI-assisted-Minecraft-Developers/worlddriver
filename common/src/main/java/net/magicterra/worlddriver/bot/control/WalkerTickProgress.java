@@ -416,7 +416,7 @@ final class WalkerTickProgress {
                 || (foot.getY() >= wk.path.get(0).getY()
                         && wk.stepProg.noStepProgressTicks == 0
                         && wk.goal != null && wk.goal.reached(w) && !wk.goal.reached(foot)));
-        if (held) Walker.descentHolds++;
+        if (held) wk.tel.descentHolds++;
         return held;
     }
 

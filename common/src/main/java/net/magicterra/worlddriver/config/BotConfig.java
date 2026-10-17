@@ -208,13 +208,10 @@ public final class BotConfig {
     }
 
     /** A static, non-final field of a scalar type (or the hazard-block Set) — the
-     *  set we round-trip. Arrays (avoidZones), {@link RuntimeState} fields (a saved
-     *  {@code pathfinderBoxedEscalate=true} would reload a search state nobody is in), and
-     *  anything else are excluded. */
+     *  set we round-trip. Arrays (avoidZones) and anything else are excluded. */
     private static boolean persistable(Field f) {
         int m = f.getModifiers();
         if (!Modifier.isStatic(m) || Modifier.isFinal(m)) return false;
-        if (f.isAnnotationPresent(RuntimeState.class)) return false;
         Class<?> t = f.getType();
         return t == boolean.class || t == int.class || t == long.class
                 || t == double.class || t == float.class

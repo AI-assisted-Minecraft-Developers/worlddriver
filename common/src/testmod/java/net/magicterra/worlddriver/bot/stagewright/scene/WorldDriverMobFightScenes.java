@@ -8,6 +8,7 @@ import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
 import net.magicterra.worlddriver.bot.behavior.CombatProcess;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.PlayerBot;
@@ -342,7 +343,7 @@ public final class WorldDriverMobFightScenes {
         // each burned ~64k nodes toward a goal 267 blocks straight up — with zero "no route
         // progress" rows to show for it.
         //
-        // Walker.futileGateBuckets already counts which of the gate's nine doors every search left
+        // WalkerTelemetry.futileGateBuckets already counts which of the gate's nine doors every search left
         // by, but it is read by the journey rig and by NOTHING else, so the one scene where the
         // gate demonstrably fails has never been able to say which door. Reading the code turns up
         // two candidate doors — bucket 5 (no path while stuck-penalties are live, so the gate never
@@ -369,7 +370,7 @@ public final class WorldDriverMobFightScenes {
         // That premise is no longer true — the creeping-goal scene is now that occasion, every run —
         // but the rim is still not the fix here, because it would alter the fight being measured.
         // noteTheFall() bounds the cost without touching the healthy arm; see the BlazeFightRun note.
-        final long[] futileAtStart = futileSnapshot();
+        final long[] futileAtStart = futileSnapshot(fp);
 
         // Round 1: open sky. Measured, not assumed — and it does NOT work.
         var openRun = new BlazeFightRun(ctx, level, driver, fp, cx, cz, floorY, 3_000, "open");
@@ -381,7 +382,7 @@ public final class WorldDriverMobFightScenes {
             // record(...) — which serialises ctx.records() into the results file — BEFORE
             // teardown(...) on every outcome, so a row written in a cleanup lands in the log and
             // in the ledger and is absent from the file the verdict is read from.
-            final long[] futileAfterOpen = futileSnapshot();
+            final long[] futileAfterOpen = futileSnapshot(fp);
             ctx.record("futileGate.open", futileGateLine(futileAtStart, futileAfterOpen));
             // Round 2: the same fight in a closed room. This is the hardcoded step, and it is what a
             // player does at a spawner: not a new engine verb, a different room.
@@ -400,7 +401,7 @@ public final class WorldDriverMobFightScenes {
             var roofedRun = new BlazeFightRun(ctx, level, driver, fp, cx, cz, floorY, 3_000, "roofed");
             ctx.await(roofedRun::pump).within(roofedRun.tickAllowance()).then(() -> {
                 var roofed = roofedRun.finish();
-                ctx.record("futileGate.roofed", futileGateLine(futileAfterOpen, futileSnapshot()));
+                ctx.record("futileGate.roofed", futileGateLine(futileAfterOpen, futileSnapshot(fp)));
 
                 ctx.record("body.invulnerable", "true — so this result shows only that the fight can be"
                         + " won, not that the bot would survive it");
@@ -578,14 +579,14 @@ public final class WorldDriverMobFightScenes {
             av.step();
         }
         BlockPos stuckAt = fp.blockPosition();
-        long[] before = futileSnapshot();
+        long[] before = futileSnapshot(fp);
         walker.setGoal(new Goal.Near(new BlockPos(cx + 4, floorY + 1, cz), 1));
         Walker.Step s = Walker.Step.WALKING;
         for (int t = 0; t < ARM_TICKS; t++) {
             s = walker.tick(av, w);
             av.step();
         }
-        long[] after = futileSnapshot();
+        long[] after = futileSnapshot(fp);
         BlockPos end = fp.blockPosition();
         long searches = searchSum(before, after);
         String line = "recover: phase 1 " + (latched ? "latched" : "WARNING: did not latch") + " (bot stopped at "
@@ -622,7 +623,7 @@ public final class WorldDriverMobFightScenes {
     private static ArmReading chaseArm(ServerPlayerBody av, ServerPlayer fp, LevelWorldView w,
                                        int cx, int floorY, int cz) {
         fp.setPos(cx - 4.5, floorY + 1, cz + 0.5);
-        long[] before = futileSnapshot();
+        long[] before = futileSnapshot(fp);
         Walker walker = new Walker();
         walker.setGoal(new Goal.Near(new BlockPos(cx + 4, floorY + 1, cz), 1));
         int regoals = 1;
@@ -638,7 +639,7 @@ public final class WorldDriverMobFightScenes {
             av.step();
         }
         BlockPos end = fp.blockPosition();
-        long[] after = futileSnapshot();
+        long[] after = futileSnapshot(fp);
         return new ArmReading("chase: ran the full " + ARM_TICKS + " ticks, set the goal " + regoals
                 + " times, walker ended in " + s
                 + ", bot at " + end.getX() + "," + end.getY() + "," + end.getZ()
@@ -687,7 +688,7 @@ public final class WorldDriverMobFightScenes {
                                        BlockPos high, int cx, int floorY, int cz,
                                        int regoalEvery, boolean retarget) {
         fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);     // every arm starts from the same cell
-        long[] before = futileSnapshot();
+        long[] before = futileSnapshot(fp);
         Walker walker = new Walker();
         BlockPos target = high;
         walker.setGoal(new Goal.Near(target, 2));      // the first order is a new journey in every arm
@@ -711,7 +712,7 @@ public final class WorldDriverMobFightScenes {
             }
             av.step();
         }
-        long[] after = futileSnapshot();
+        long[] after = futileSnapshot(fp);
         return new ArmReading(tag + ": ran the full " + ARM_TICKS + " ticks, set the goal " + regoals + " times, "
                 + (firstTerminal < 0 ? "no terminal state during the run"
                         : "first terminal state at t=" + firstTerminal + " (" + firstError + ")")
@@ -719,9 +720,10 @@ public final class WorldDriverMobFightScenes {
                 searchSum(before, after), noRoute);
     }
 
-    private static long[] futileSnapshot() {
-        long[] v = new long[Walker.FUTILE_GATE_BUCKETS.length];
-        for (int i = 0; i < v.length; i++) v[i] = Walker.futileGateBuckets.get(i);
+    private static long[] futileSnapshot(ServerPlayer fp) {
+        WalkerTelemetry t = WalkerTelemetry.of(fp);
+        long[] v = new long[WalkerTelemetry.FUTILE_GATE_BUCKETS.length];
+        for (int i = 0; i < v.length; i++) v[i] = t.futileGateBuckets.get(i);
         return v;
     }
 
@@ -729,7 +731,7 @@ public final class WorldDriverMobFightScenes {
      * One round's share of the futile-search gate, bucket by bucket.
      *
      * <p>Buckets 0-5 are searches the gate never judged; 6-8 are what it did with the ones it did.
-     * The counters are static and shared by every scene in the process, so only a DELTA between two
+     * The counters are the body's and outlive one round, so only a DELTA between two
      * snapshots means anything here.
      *
      * <p>A zero sum gets its own sentence rather than nine {@code =0}s. Nine zeros read exactly like
@@ -739,7 +741,7 @@ public final class WorldDriverMobFightScenes {
     private static String futileGateLine(long[] before, long[] after) {
         long sum = 0;
         StringBuilder sb = new StringBuilder();
-        String[] names = Walker.FUTILE_GATE_BUCKETS;
+        String[] names = WalkerTelemetry.FUTILE_GATE_BUCKETS;
         for (int i = 0; i < names.length; i++) {
             long v = after[i] - before[i];
             sum += v;
@@ -917,7 +919,7 @@ public final class WorldDriverMobFightScenes {
         private void noteTheFall() {
             fellAt = t;
             fellY = fp.getY();
-            futileAtFall = futileSnapshot();
+            futileAtFall = futileSnapshot(fp);
             sliceWas = ControlConfig.pathfinderSliceMs;
             maxWas = PlanningConfig.pathfinderMaxMs;
             // Production values, not this scene's MAX_VALUE/2. The probe below wants a bounded
@@ -941,7 +943,7 @@ public final class WorldDriverMobFightScenes {
             fallReported = true;
             ControlConfig.pathfinderSliceMs = sliceWas;
             PlanningConfig.pathfinderMaxMs = maxWas;
-            postFallCensus = futileGateLine(futileAtFall, futileSnapshot());
+            postFallCensus = futileGateLine(futileAtFall, futileSnapshot(fp));
             net.magicterra.worlddriver.WorldDriverCommon.LOG.warn(
                     "[blazefight] {} POST-FALL CENSUS over {} iterations — {}", tag, t - fellAt,
                     postFallCensus);
