@@ -2,6 +2,7 @@ plugins {
     id 'dev.architectury.loom' version '1.11-SNAPSHOT' apply false
     id 'architectury-plugin' version '3.4-SNAPSHOT'
     id 'com.gradleup.shadow' version '8.3.6' apply false
+    id 'com.github.node-gradle.node' version '7.1.0' apply false
     // First dogfood consumer of the stagewright gradle plugin (resolved from mavenLocal, wired in
     // settings.gradle). Registers one `stagewright<Topology>` task per entry in the block below,
     // each provisioning a clean run directory, running the loader subproject's own dogfood run task

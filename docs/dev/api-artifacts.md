@@ -44,8 +44,8 @@ A body-task method answers with `Responses.response(...)` and contributes its re
 
 `./gradlew :common:checkApiTypes` compiles `common/src/apiTypes/usage.ts` against the generated
 declarations with a pinned TypeScript. The file holds calls that must compile and calls marked
-`@ts-expect-error` that must not. It is not part of `check`, because it fetches TypeScript through
-`npx`. TypeScript cannot check everything the server does (an integer range, the full body-ref
+`@ts-expect-error` that must not. It runs as part of `check`; Gradle downloads a pinned Node for it,
+so none is needed on the PATH. TypeScript cannot check everything the server does (an integer range, the full body-ref
 syntax); those stay runtime checks.
 
 ## Methods registered at run time

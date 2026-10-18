@@ -160,15 +160,27 @@ def generateApiArtifacts = tasks.register('generateApiArtifacts', JavaExec) {
     argumentProviders.add({ [generatedApiDir.get().asFile.absolutePath] } as CommandLineArgumentProvider)
 }
 
-// Not part of `check`: it fetches a pinned TypeScript through npx.
-tasks.register('checkApiTypes', Exec) {
+// Gradle fetches a pinned Node, so the TypeScript check runs without one on the PATH.
+apply plugin: 'com.github.node-gradle.node'
+node {
+    download = true
+    version = '22.12.0'
+}
+
+def apiTypesChecked = layout.buildDirectory.file('checkApiTypes/ok')
+def checkApiTypes = tasks.register('checkApiTypes', com.github.gradle.node.npm.task.NpxTask) {
     group = 'verification'
     description = 'Type-checks src/apiTypes/usage.ts against the generated declarations with TypeScript 5.9.3.'
     dependsOn generateApiArtifacts
-    workingDir = projectDir
-    commandLine 'npx', '--yes', '--package=typescript@5.9.3', '--', 'tsc', '--noEmit', '--strict',
-            '--target', 'es2020', '--lib', 'es2020', 'src/apiTypes/usage.ts'
+    command = '--yes'
+    args = ['--package=typescript@5.9.3', '--', 'tsc', '--noEmit', '--strict',
+            '--target', 'es2020', '--lib', 'es2020', 'src/apiTypes/usage.ts']
+    inputs.dir(generatedApiDir)
+    inputs.file('src/apiTypes/usage.ts')
+    outputs.file(apiTypesChecked)
+    doLast { apiTypesChecked.get().asFile.text = 'ok' }
 }
+tasks.named('check') { dependsOn checkApiTypes }
 
 tasks.named('processResources') {
     dependsOn generateApiArtifacts
