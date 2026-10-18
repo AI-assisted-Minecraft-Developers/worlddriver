@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **Three settings accept wider values.** `pathfinder.sliceMs` and `pathfinder.idleSliceMs` may be
+  0, `navigator.repathEveryTicks` goes up to 1000000, so a trip can keep its first route, and
+  `pathfinder.maxNodes` goes down to 100. The scenes set these through the settings checks now and
+  needed them.
 - **The API is published on its own.** `net.magicterra:worlddriver-api` holds only the `api` and
   `protocol` classes and the generated declarations and schemas, so another mod compiles against
   the contracts without the rest of the driver; `check` fails if a class in it reaches outside.

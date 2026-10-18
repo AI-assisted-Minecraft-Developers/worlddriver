@@ -598,7 +598,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 
 | key | type | default | description |
 |---|---|---|---|
-| `navigator.repathEveryTicks` | integer 20–10000 | `200` | Lower=more responsive. |
+| `navigator.repathEveryTicks` | integer 20–1000000 | `200` | Lower=more responsive; a value past any trip's length keeps the first route. |
 | `navigator.totalTickBudget` | integer 200–36000 | `1200` | Fail after N no-progress ticks. |
 | `navigator.yawHysteresisDeg` | number 0–30 | `5` | Skip yaw write below this delta. |
 | `mine.searchVerticalRadius` | integer 1–32 | `8` | Vertical band of mine scan. |
@@ -731,10 +731,10 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `smoothLookDegPerTick` | number 1–180 | `20` | Turn rate when smoothLook on (20°/tick ≈ 400°/s) |
 | `riskBias` | `boolean` | `false` |  |
 | `riskBias.scale` | integer 0–400 | `15` | Max extra A* cost a risk-100 edge pays under riskBias (10 = one walk block) |
-| `pathfinder.maxNodes` | integer 1000–1000000 | `100000` | A* node budget. |
+| `pathfinder.maxNodes` | integer 100–1000000 | `100000` | A* node budget. |
 | `pathfinder.maxMs` | integer 100–30000 | `1500` | A* wall-clock budget, ms. |
-| `pathfinder.sliceMs` | integer 1–50 | `6` | Per-tick compute slice, ms, of a search while the bot walks. |
-| `pathfinder.idleSliceMs` | integer 1–50 | `30` | Per-tick compute slice, ms, while the bot stands waiting for a path. |
+| `pathfinder.sliceMs` | integer 0–50 | `6` | Per-tick compute slice, ms, of a search while the bot walks; 0 does the least work a tick can. |
+| `pathfinder.idleSliceMs` | integer 0–50 | `30` | Per-tick compute slice, ms, while the bot stands waiting for a path; 0 does the least work a tick can. |
 | `pathfinder.previewSliceMs` | integer 1–50 | `3` | Per-tick compute slice, ms, of a route PREVIEW (mc.bot.goto plan:true); thinner than sliceMs so a preview beside a walk does not steal the walk's frames. |
 | `sightRaysPerSearch` | integer 100–100000 | `4000` | Most line-of-sight rays one search may fire for route.sight; past it the search reruns without sight (lastPath.sightBudgetExhausted) |
 | `snapshotBoxMax` | integer 16–512 | `96` | Per-axis cap, blocks, on the box one search scans for entities (route.mobs / route.sight); a capped scope reports snapshotTruncated. |
@@ -2002,7 +2002,7 @@ type SettingKey = keyof SettingValues;
 type TunnelWidthBias = 'left' | 'right';
 interface AvoidPoint { x: number; y: number; z: number; radius?: number; }
 interface SettingValues {
-    /** Lower=more responsive. @default 200 */
+    /** Lower=more responsive; a value past any trip's length keeps the first route. @default 200 */
     'navigator.repathEveryTicks'?: number;
     /** Fail after N no-progress ticks. @default 1200 */
     'navigator.totalTickBudget'?: number;
@@ -2272,9 +2272,9 @@ interface SettingValues {
     'pathfinder.maxNodes'?: number;
     /** A* wall-clock budget, ms. @default 1500 */
     'pathfinder.maxMs'?: number;
-    /** Per-tick compute slice, ms, of a search while the bot walks. @default 6 */
+    /** Per-tick compute slice, ms, of a search while the bot walks; 0 does the least work a tick can. @default 6 */
     'pathfinder.sliceMs'?: number;
-    /** Per-tick compute slice, ms, while the bot stands waiting for a path. @default 30 */
+    /** Per-tick compute slice, ms, while the bot stands waiting for a path; 0 does the least work a tick can. @default 30 */
     'pathfinder.idleSliceMs'?: number;
     /** Per-tick compute slice, ms, of a route PREVIEW (mc.bot.goto plan:true); thinner than sliceMs so a preview beside a walk does not steal the walk's frames. @default 3 */
     'pathfinder.previewSliceMs'?: number;

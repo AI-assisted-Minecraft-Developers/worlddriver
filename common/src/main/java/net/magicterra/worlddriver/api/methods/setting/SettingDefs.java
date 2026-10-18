@@ -65,7 +65,8 @@ public final class SettingDefs {
     }
 
     private static void part1() {
-        def("navigator.repathEveryTicks", ApiTypes.integer(20, 10000), "Lower=more responsive.");
+        def("navigator.repathEveryTicks", ApiTypes.integer(20, 1_000_000),
+                "Lower=more responsive; a value past any trip's length keeps the first route.");
         def("navigator.totalTickBudget", ApiTypes.integer(200, 36000), "Fail after N no-progress ticks.");
         def("navigator.yawHysteresisDeg", ApiTypes.number(0, 30), "Skip yaw write below this delta.");
         def("mine.searchVerticalRadius", ApiTypes.integer(1, 32), "Vertical band of mine scan.");
@@ -471,15 +472,15 @@ public final class SettingDefs {
         def("riskBias", BOOL, null);
         def("riskBias.scale", ApiTypes.integer(0, 400),
                 "Max extra A* cost a risk-100 edge pays under riskBias (10 = one walk block)");
-        def("pathfinder.maxNodes", ApiTypes.integer(1000, 1000000), "A* node budget.");
+        def("pathfinder.maxNodes", ApiTypes.integer(100, 1000000), "A* node budget.");
         def("pathfinder.maxMs", ApiTypes.int64(100L, 30000L), "A* wall-clock budget, ms.");
     }
 
     private static void part4() {
-        def("pathfinder.sliceMs", ApiTypes.int64(1L, 50L),
-                "Per-tick compute slice, ms, of a search while the bot walks.");
-        def("pathfinder.idleSliceMs", ApiTypes.int64(1L, 50L),
-                "Per-tick compute slice, ms, while the bot stands waiting for a path.");
+        def("pathfinder.sliceMs", ApiTypes.int64(0L, 50L),
+                "Per-tick compute slice, ms, of a search while the bot walks; 0 does the least work a tick can.");
+        def("pathfinder.idleSliceMs", ApiTypes.int64(0L, 50L),
+                "Per-tick compute slice, ms, while the bot stands waiting for a path; 0 does the least work a tick can.");
         def("pathfinder.previewSliceMs", ApiTypes.int64(1L, 50L),
                 "Per-tick compute slice, ms, of a route PREVIEW (mc.bot.goto plan:true); thinner than sliceMs so " +
                 "a preview beside a walk does not steal the walk's frames.");
