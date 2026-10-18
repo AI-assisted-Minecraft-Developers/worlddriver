@@ -95,18 +95,18 @@ final class WalkerTickRepath {
             // ONLY when (re)starting the count; a bot that travels >2 blocks off the
             // anchor lands in the else branch, resets, and re-anchors — so only a bot
             // that genuinely stays within 2 blocks for 3 cooldowns (6 s) ever bursts.
-            if (wk.unstuck.lastWedgeFoot != null && foot.distSqr(wk.unstuck.lastWedgeFoot) <= 4) {
+            if (wk.recovery.lastWedgeFoot != null && foot.distSqr(wk.recovery.lastWedgeFoot) <= 4) {
                 // Count EVENTS, not ticks (40-tick cooldown): a trivial search
                 // completing same-tick makes every tick a safety repath while
                 // the bot is still accelerating from standstill — three such
                 // ticks (150 ms, 0.2 blocks of motion) are NOT three stuck
                 // loops. A genuinely wedged bot stays put well past 6 s.
-                if (wk.unstuck.countCooldown <= 0) {
-                    wk.unstuck.countCooldown = 40;
-                    if (++wk.unstuck.wedgeRepathsHere >= 3) {
+                if (wk.recovery.countCooldown <= 0) {
+                    wk.recovery.countCooldown = 40;
+                    if (++wk.recovery.wedgeRepathsHere >= 3) {
                         BlockPos bwp = (wk.route.path() != null && wk.route.step() < wk.route.path().size()) ? wk.route.path().get(wk.route.step()) : null;
                         wk.recovery.burst(Recovery.WEDGE_BURST_TICKS, p, bwp);
-                        wk.unstuck.dropWedgeAnchor();   // displaced → next wedge re-anchors fresh
+                        wk.recovery.dropWedgeAnchor();   // displaced → next wedge re-anchors fresh
                         if (GameConfig.walkerDebug)
                             LOG.info("[walker] anti-stuck: repeated safety repaths at {} → forced displacement burst", foot);
                     }
@@ -115,10 +115,10 @@ final class WalkerTickRepath {
                 // First wedge here, or the bot has TRAVELLED >2 blocks off the old
                 // anchor (genuine progress) — (re)anchor at the current foot and
                 // restart the count. This is the only place lastWedgeFoot is set to an
-                // ANCHOR; Unstuck.resetForNewGoal() and Unstuck.dropWedgeAnchor() both
+                // ANCHOR; Recovery.reset(GOAL) and Recovery.dropWedgeAnchor() both
                 // clear it to null, so a grep for writes returns three sites, not one.
-                wk.unstuck.wedgeRepathsHere = 0;
-                wk.unstuck.lastWedgeFoot = foot;
+                wk.recovery.wedgeRepathsHere = 0;
+                wk.recovery.lastWedgeFoot = foot;
             }
         }
         // Futile-cycle backoff (gap #49-③): while cooling down after a futile search,
@@ -243,7 +243,7 @@ final class WalkerTickRepath {
         // Soft+decaying → a sole route is still taken; gated to repeated
         // water wedges so it can't misfire on legitimate slow progress
         // (the foot must stay put across repaths to grow the counter).
-        int chargeR = world.isWater(foot) ? Math.min(wk.unstuck.wedgeRepathsHere, 2) : 0;
+        int chargeR = world.isWater(foot) ? Math.min(wk.recovery.wedgeRepathsHere, 2) : 0;
         for (int dx = -chargeR; dx <= chargeR; dx++)
             for (int dz = -chargeR; dz <= chargeR; dz++) {
                 BlockPos c = nose.offset(dx, 0, dz);

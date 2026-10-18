@@ -83,7 +83,7 @@ final class RouteDig implements Controller {
         if (edge == null) return "no edge";
         // While a fall-below-route recovery climbs, the edge's HIGH break cell is out of reach from down
         // there: a dig would hold a futile swing until its own timeout and starve the recovery.
-        if (wk.pillarRecover.latch > 0) return "a recovery pillar is climbing";
+        if (wk.pillar.recoverLatch > 0) return "a recovery pillar is climbing";
         if (!breakInReach) return "the break cell is out of reach";
         if (!hasPendingEdge(world, edge)) return "nothing left to break or place";
         return null;

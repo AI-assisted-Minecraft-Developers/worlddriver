@@ -220,91 +220,15 @@ public final class Walker implements Locomotor {
          *  in the prelude; this is a named override with a caller, not a second clock. */
         void revoke() { pos = null; ticks = 0; lastProgress = 0f; stallTicks = 0; }
     }
-    /** In-progress pillarUp edge (task#96 step B8), owned by WalkerTickClimb; both
-     *  fields cleared to -1 by both journey resets via {@link PillarEdge#reset()}. */
-    final PillarEdge pillar = new PillarEdge();
-    static final class PillarEdge {
-        int step = -1;        // path index of the pillar edge in progress
-        int sinceJump = -1;   // ticks since the pillar jump press (-1 = grounded)
-        void reset() {
-            step = -1;
-            sinceJump = -1;
-        }
-    }
-    /** Water climb-out machine (task#96 step B10), owned by {@link WaterClimb} (digging is
-     *  read by StallDetect for the breakingEdge OR). {@link WaterClimbState#reset()}
-     *  clears the fourteen fields both journey resets cleared (a resume mid climb-out
-     *  otherwise carries a stale window base-Y / armed stall). NOT in the reset — all
-     *  latch-gated or self-managing: lastDigAimEyeY (re-snaps per dig aim), the LOCKED
-     *  engage column/heading (targetY/colX/colZ/yaw — only read while pillaring), and
-     *  digGroundedStreak (per-commit blip counter). */
-    final WaterClimbState waterClimb = new WaterClimbState();
-    static final class WaterClimbState {
-        int stall;                // armed flag (>WATER_CLIMB_STALL) once net-displacement window shows a bob-stall climbing out of water
-        int touchRecent;          // sticky countdown: >0 while in a water climb-out, kept latched through bob-peak surface breaches (see WATER_TOUCH_STICKY)
-        int wantClimbRecent;      // sticky countdown: >0 while a higher node sits ahead, latched through bob-peak/repath flicker (see WANT_CLIMB_STICKY)
-        boolean pillaring;        // latched: pillaring up the bot's column to bank stand level
-        boolean digging;          // set the tick the block-less bank-dig actuator swings; OR'd into breakingEdge next tick so the anti-stuck burst can't yank the bot off the riser mid-dig (it has no planned toBreak edge of its own)
-        BlockPos lastDigRiser;    // the riser the dig last aimed at; re-snap the look ONLY when it changes (not every tick) so the camera holds steady instead of juddering off the bobbing eye — the bob keeps the crosshair on the 1-tall block between re-aims
-        double lastDigAimEyeY = Double.NaN;   // eye-Y at the last dig aim-snap; re-snap once the buoyant bob has moved the eye far enough (DIG_REAIM_EYE_DY) that the fixed ray would drift OFF the 1-tall riser face (the ±0.5 once-only assumption fails for a ±1.5 deep-water bob → break never lands, 30s bob-stall)
-        BlockPos digRiser;        // LATCHED bank-dig riser cell — held while still solid so a buoyant bob (foot.y flickering ±1) or lateral drift (foot.z wandering) can't re-target a LOWER block of the same column or a neighbouring column mid-dig; cleared once the block breaks so the next +1 step is chosen fresh (drift-arena over-dig fix)
-        int digCommitTicks;       // ticks spent committed to the CURRENT latched riser; while >0 and <CAP the climb-out won't disengage on a transient wantClimb flicker, so a slow stone-bank break (~750 ticks by hand) finishes instead of being abandoned mid-dig → wander/sink; reset per riser
-        int digFloatTicks;        // consecutive ticks committed to the current latched riser while the bot stayed AFLOAT (onGround=false); reset to 0 on any ground contact. Feeds the futile-overhang early-release (walkerFutileBankDigRelease): a high count + a >=2-above-foot riser that breaks NOTHING = an unreachable overhang, not a legit grounded climb-out (which touches ground and resets this)
-        int futileBankDigCooldown;    // ticks left during which the bank-DIG must NOT re-engage after a futile-overhang early-release (walkerFutileBankDigRelease) — gives the reactive back-off burst time to physically move the bot off the unreachable riser before any dig can re-latch it; decremented per tick
-        boolean pillarGaveUp;     // latched once the pillar takeover proves futile (drifted off its locked column, or bob peak never clears the surface fill cell) → block pillar re-engage + let the bank-DIG take over even with a place block in hand; cleared when the climb context ends
-        BlockPos gaveUpPos;       // where the pillar proved futile (walkerClimbGaveUpSticky) — while the foot stays within 3 blocks and the TTL runs, the gave-up latch survives climb-context resets (repath node swaps) so the proven-futile pillar can't re-engage in a loop
-        int gaveUpTtl;            // ticks left on the sticky gave-up latch (walkerClimbGaveUpSticky); decremented per tick, 0 = expired
-        int pillarNoPlaceTicks;   // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
-        BlockPos placeAttemptCell;   // the cell the last climb-out click aimed at, carried to the NEXT tick so the ledger above can ask whether it actually filled. BlockInteraction.place is void — the click has no verdict — and vanilla refuses any placement whose cell still intersects the bot's AABB, so "clicked" and "placed" are different events and only the second one is progress. Cleared once read.
-        int pillarHighWaterY = Integer.MIN_VALUE;   // highest foot.getY() this takeover has reached — the OTHER half of "successful place / height gain". A HIGH-WATER MARK, not a per-tick delta: a buoyant bob crosses a block boundary every cycle, so "higher than last tick" is true forever and would count buoyancy as progress; "higher than ever" stops refreshing the moment the bob settles between two cells. Re-based at engagePillar so a re-locked column cannot inherit the previous segment's height.
-        int targetY;              // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
-        int colX, colZ;           // LOCKED column the takeover pillars in (don't chase repathing nodes)
-        float yaw;                // LOCKED heading toward the bank at engage (no horizontal chase → no wander)
-        boolean sideRung;         // this takeover has placed a side foothold: keys are anticipatory from here (forward only while wet, jump only wet or settled on the ground) — see WalkerTickClimb; cleared at engage
-        final java.util.Set<BlockPos> placedRungs = new java.util.HashSet<>();   // every cell a climb-out click has aimed at; a rung of our own beside the bot is not an exit, however dry (walkerShallowWaterSideFoothold)
-        int digGroundedStreak;    // consecutive grounded ticks during a committed bank dig — a bob bottom-blip (<=5) must not break the dig commit (walkerBankDigGroundBlip)
-        void reset() {
-            stall = 0;
-            touchRecent = 0;
-            wantClimbRecent = 0;
-            pillaring = false;
-            digging = false;
-            pillarGaveUp = false;
-            gaveUpPos = null;
-            gaveUpTtl = 0;
-            pillarNoPlaceTicks = 0;
-            placeAttemptCell = null;
-            pillarHighWaterY = Integer.MIN_VALUE;
-            lastDigRiser = null;
-            digRiser = null;
-            digCommitTicks = 0;
-            digFloatTicks = 0;
-            futileBankDigCooldown = 0;
-        }
-    }
-    /** Drowning-escape override (task#96 step B): walkerDrowningEscape — air critically
-     *  low while submerged → surface-for-air until air recovers. Owned by {@link DrownEscape}.
-     *  {@link DrownGuard#reset()} clears only the latch and the heading-hold timer (exactly
-     *  what both journey resets cleared): heading is scratch (only read while turnTicks>0)
-     *  and probe deliberately PERSISTS across goals so a falsely-open pocket direction is
-     *  not re-picked forever. */
-    final DrownGuard drownGuard = new DrownGuard();
-    static final class DrownGuard {
-        boolean latch;     // surface-for-air override active until air recovers
-        int turnTicks;     // pocket probe: ticks left holding the current escape heading
-        float heading;     // current pocket-escape heading (deg)
-        int probe;         // rotating probe start index so a falsely-open direction is not re-picked forever
-        void reset() {
-            latch = false;
-            turnTicks = 0;
-        }
-    }
+    /** The controllers, each holding its own state; the phases read some of it through these fields. */
+    final WaterClimb waterClimb = new WaterClimb();
+    final Pillar pillar = new Pillar();
     /** The back-off and the burst that move a stuck bot; asked for by the phases, driven by {@link #arbiter}. */
     final Recovery recovery = new Recovery();
     /** Breaking and placing the route's own blocks; its work this tick tells the walk how to stand. */
     final RouteDig routeDig = new RouteDig();
     /** Who drives which channel this tick; {@link Arbiter#snapshot} says. */
-    final Arbiter arbiter = new Arbiter(List.of(new DrownEscape(), recovery, new WaterClimb(), new Pillar(),
+    final Arbiter arbiter = new Arbiter(List.of(new DrownEscape(), recovery, waterClimb, pillar,
             new ParkourPlace(), new VineClimb(), routeDig));
     // --- expectation alarms (walkerExpectAlarm): live actual-vs-expected divergence detectors ---
     // Extracted to WalkerExpectAlarms (all the ex* sentinel state + the observers) — purely
@@ -319,21 +243,6 @@ public final class Walker implements Locomotor {
         void reset() {
             latch = 0;
             hold = 0;
-        }
-    }
-    /** Fell-below-route pillar-up recovery (task#96 step B4): engaged by
-     *  WalkerTickStallDetect, driven (place + latch decay) by WalkerTickDrive, latch read
-     *  by WalkerTickClimb's edge gate. {@link PillarRecover#reset()} clears only the
-     *  latch (exactly what both journey resets cleared) — cell/peakY/stallTicks are
-     *  latch-gated and re-initialized by StallDetect on each fresh engage. */
-    final PillarRecover pillarRecover = new PillarRecover();
-    static final class PillarRecover {
-        int latch;             // ticks left driving an in-place pillar-up recovery (bot fell below the climb path beyond jump reach) — latched across the jump's airborne phase so a place can land
-        BlockPos cell;         // the (grounded) feet cell the recovery is filling this rung
-        int peakY;             // highest foot Y this pillar-recovery has reached (no-rise give-up tracking)
-        int stallTicks;        // consecutive recovery ticks with no height gain → PILLAR_NORISE_GIVEUP re-routes
-        void reset() {
-            latch = 0;
         }
     }
     final AscendMovement ascendMovement = new AscendMovement();   // task#82 per-move machine (drives only when walkerAscendMovement is ON)
@@ -506,29 +415,6 @@ public final class Walker implements Locomotor {
             steepDescentLatch = 0;
         }
     }
-    /** Anti-stuck wedge counter (task#96 step B): repeated safety repaths anchored at
-     *  lastWedgeFoot (WalkerTickRepath is the ONLY setter of the anchor), which ask
-     *  {@link #recovery} for a burst. Deliberately NOT touched by replan:
-     *  the wedge memory must survive a process resume, else a resume loop at the same
-     *  wedge never escalates to the burst. {@link Unstuck#resetForNewGoal()} runs in
-     *  start only; {@link Unstuck#dropWedgeAnchor()} is the full anchor drop (progressive-stub
-     *  adoption, post-burst displacement) — WalkerTickClimb's dig-start clear is a
-     *  PARTIAL one (count only, anchor retained) and stays a direct field write. */
-    final Unstuck unstuck = new Unstuck();
-    static final class Unstuck {
-        BlockPos lastWedgeFoot;   // where the last wedge/stuck repath fired
-        int wedgeRepathsHere;     // consecutive wedge repaths from (about) the same foot
-        int countCooldown;        // min ticks between counted repath events (debounce)
-        void resetForNewGoal() {
-            lastWedgeFoot = null;
-            wedgeRepathsHere = 0;
-            countCooldown = 0;
-        }
-        void dropWedgeAnchor() {
-            wedgeRepathsHere = 0;
-            lastWedgeFoot = null;
-        }
-    }
     /** @see SearchGovernors */
     final SearchGovernors searchGov = new SearchGovernors();
     int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
@@ -586,31 +472,43 @@ public final class Walker implements Locomotor {
         this.goalSnapChecked = false;
         this.goalSnapped = false;
         this.result = WalkResult.NONE;
-        this.route.restart();
-        this.ticksSinceRepath = 0;
-        this.stuckTicks = 0;
-        this.totalTicks = 0;
-        this.actionTicks = 0;
-        this.pillar.reset();
-        this.waterClimb.reset();
-        this.drownGuard.reset();
-        this.arbiter.stopAll(g == null ? "cancelled" : "new goal");
-        this.recovery.dropBackOff();
-        this.dive.reset();
-        this.driveLatch.reset();
-        this.pillarRecover.reset();
-        this.descending = false;
-        this.goalSpin.resetForNewGoal();
-        this.searchGov.reset();
-        this.churn.resetForNewGoal();
-        this.escal.disarm();
-        this.stepProg.restartWindows();
-        this.aimSmooth.reset();
-        this.unstuck.resetForNewGoal();
-        this.safety.guardPlugCell = null;                   // plug arming is per-journey; a stale
-        this.safety.guardPlugFires = 0;                     // cell must not pre-arm the next goal
-        this.error = null;
+        reset(Scope.GOAL, g == null ? "cancelled" : "new goal");
         if (medium != null) medium.start(g);
+    }
+
+    /**
+     * How much of the walk a change clears. A new goal clears all of it. A replan drops the plan and what
+     * was measured against it — a resume mid climb-out would otherwise carry an armed stall into the next
+     * tick and fire a spurious takeover — but keeps how this pursuit has been going: the anti-spin and churn
+     * baselines, the search governors bar the quick cooldown, the wedge count. A running controller is
+     * stopped only for a new goal; after a replan one that depended on the old plan stops itself.
+     */
+    enum Scope { GOAL, REPLAN }
+
+    private void reset(Scope scope, String why) {
+        ticksSinceRepath = 0;
+        stuckTicks = 0;
+        actionTicks = 0;
+        arbiter.reset(scope, why);
+        dive.reset();
+        driveLatch.reset();
+        descending = false;
+        escal.disarm();
+        stepProg.restartWindows();
+        aimSmooth.reset();
+        if (scope == Scope.REPLAN) {
+            route.clear();
+            searchGov.quickCooldown = 0;
+            return;
+        }
+        route.restart();
+        totalTicks = 0;
+        goalSpin.resetForNewGoal();
+        searchGov.reset();
+        churn.resetForNewGoal();
+        safety.guardPlugCell = null;    // plug arming is per-journey; a stale cell must not pre-arm the next goal
+        safety.guardPlugFires = 0;
+        error = null;
     }
 
     /**
@@ -680,26 +578,7 @@ public final class Walker implements Locomotor {
      *  may have been knocked back or the terrain changed, so reusing the stale
      *  path would walk into a wall. See ProcessScheduler / UserTaskChain.onResume. */
     @Override public void replan() {
-        this.route.clear();
-        this.ticksSinceRepath = 0;
-        this.stuckTicks = 0;
-        this.actionTicks = 0;
-        this.pillar.reset();
-        this.stepProg.restartWindows();
-        this.aimSmooth.reset();
-        this.searchGov.quickCooldown = 0;
-        // Clear the water-climb-out / descent state too (start resets these): a
-        // resume mid water-climb otherwise carries a stale window base-Y / armed
-        // stall, so the next tick either fires a spurious foothold-place takeover
-        // (stall already past threshold) or suppresses a legitimate stall.
-        this.waterClimb.reset();
-        this.drownGuard.reset();
-        this.recovery.dropBackOff();
-        this.dive.reset();
-        this.driveLatch.reset();
-        this.pillarRecover.reset();
-        this.descending = false;
-        this.escal.disarm();
+        reset(Scope.REPLAN, "replan");
         if (medium != null) medium.replan();
     }
 

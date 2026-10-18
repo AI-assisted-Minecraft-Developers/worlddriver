@@ -65,8 +65,14 @@ final class Arbiter {
         return taken;
     }
 
-    /** Stop every running controller; the goal changed or the walk was cancelled. */
-    void stopAll(String why) {
+    /** The walk changed: a new goal stops every running controller, and every controller forgets {@code scope}. */
+    void reset(Walker.Scope scope, String why) {
+        if (scope == Walker.Scope.GOAL) stopAll(why);
+        for (Controller c : controllers) c.reset(scope);
+    }
+
+    /** Stop every running controller. */
+    private void stopAll(String why) {
         for (int i = 0; i < controllers.size(); i++)
             if (running[i]) stop(i, why);
         Arrays.fill(owner, null);

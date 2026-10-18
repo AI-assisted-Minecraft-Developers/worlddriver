@@ -28,8 +28,8 @@ import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
  * it carries blocks shorter than a full cube into the cell the bot floats in, which the full-cube rule here
  * would never allow.
  *
- * <p>Its state lives in {@code wk.pillar} (the planned pillar's jump clock) and {@code wk.pillarRecover}
- * (the recovery latch, also armed by StallDetect when the bot fell below its route) for now.
+ * <p>The recovery is also armed by StallDetect when the bot fell below its route, and RouteDig stands aside
+ * while it is.
  */
 final class Pillar implements Controller {
 
@@ -40,6 +40,15 @@ final class Pillar implements Controller {
     /** What this tick asks for, from {@link #sense}. */
     private Mode mode = Mode.NONE;
     private Move.Edge edge;
+
+    /** The planned pillar: the path index of its edge, and ticks since its jump (-1 = grounded). */
+    private int edgeStep = -1, sinceJump = -1;
+
+    // ---- the recovery pillar ----
+    int recoverLatch;             // ticks left driving an in-place pillar-up recovery (bot fell below the climb path beyond jump reach) — latched across the jump's airborne phase so a place can land
+    BlockPos recoverCell;         // the (grounded) feet cell the recovery is filling this rung
+    int recoverPeakY;             // highest foot Y this pillar-recovery has reached (no-rise give-up tracking)
+    int recoverStallTicks;        // consecutive recovery ticks with no height gain → PILLAR_NORISE_GIVEUP re-routes
 
     @Override public String name() { return "pillar"; }
     @Override public Set<Channel> channels() { return CHANNELS; }
@@ -70,14 +79,14 @@ final class Pillar implements Controller {
         // Standing on the filled rung ends the recovery; a further rung re-armed it on the new foot
         // above. The latch used to run out its ticks here, jumping in place and re-placing into the
         // full cell (live R1 cliff 1390,82,-520: ~12 ticks of refused places, every run).
-        if (wk.pillarRecover.latch > 0 && wk.pillarRecover.cell != null && p.onGround()
-                && p.getY() >= wk.pillarRecover.cell.getY() + 1.0 - 1e-3) wk.pillarRecover.latch = 0;
+        if (wk.pillar.recoverLatch > 0 && wk.pillar.recoverCell != null && p.onGround()
+                && p.getY() >= wk.pillar.recoverCell.getY() + 1.0 - 1e-3) wk.pillar.recoverLatch = 0;
         boolean pillarEdge = edge != null && "pillarUp".equals(edge.move);
         if (pillarEdge && hasPendingEdge(world, edge)) mode = Mode.PLANNED;
         // Pillar placed but the bot is still rising onto it: hold (no horizontal walk) until grounded at
         // the new level, so it doesn't walk off the fresh block mid-jump.
         else if (pillarEdge && !(p.onGround() && p.getY() >= wk.route.path().get(wk.route.step()).getY() - 0.1)) mode = Mode.SETTLE;
-        else if (wk.pillarRecover.latch > 0 && wk.pillarRecover.cell != null) mode = Mode.RECOVER;
+        else if (wk.pillar.recoverLatch > 0 && wk.pillar.recoverCell != null) mode = Mode.RECOVER;
         else mode = Mode.NONE;
     }
 
@@ -112,8 +121,8 @@ final class Pillar implements Controller {
                 && diagUp && upDy == 1 && p.onGround() && !p.isInWater()
                 && wk.stepProg.noStepProgressTicks > DIAGUP_PILLAR_TICKS;
         if ((overJump || slowDiagUpPillar) && WorldConfig.allowPlace && wk.equipment.holdPillarBlock()) {
-            wk.pillarRecover.latch = PILLAR_RECOVER_TICKS;
-            wk.pillarRecover.cell = foot;                 // grounded feet cell = the rung we fill
+            wk.pillar.recoverLatch = PILLAR_RECOVER_TICKS;
+            wk.pillar.recoverCell = foot;                 // grounded feet cell = the rung we fill
         }
     }
 
@@ -144,6 +153,13 @@ final class Pillar implements Controller {
     }
 
     @Override public void stop(String why) {}
+
+    /** The recovery's cell, peak and stall count are re-based whenever it is armed, so only the latch goes. */
+    @Override public void reset(Walker.Scope scope) {
+        edgeStep = -1;
+        sinceJump = -1;
+        recoverLatch = 0;
+    }
 
     /**
      * A planned pillarUp: clear the ceiling if one blocks the rise, then jump and place the support beneath
@@ -187,7 +203,7 @@ final class Pillar implements Controller {
         p.setSprinting(false);
         wk.totalTicks = 0;
         wk.stuckTicks = 0;   // pillaring stays on one cell while placing — not "stuck"
-        if (wk.route.step() != wk.pillar.step) { wk.pillar.step = wk.route.step(); wk.pillar.sinceJump = -1; }
+        if (wk.route.step() != wk.pillar.edgeStep) { wk.pillar.edgeStep = wk.route.step(); wk.pillar.sinceJump = -1; }
         if (++wk.actionTicks > ControlConfig.breakTimeoutTicks) {
             wk.blocks.breakHold(false);
             wk.avatarJump(a, false);
@@ -270,7 +286,7 @@ final class Pillar implements Controller {
 
     /** One tick of the recovery pillar: clear the ceiling, jump off the rung, fill it on the way up. */
     private static void recover(Walker wk, Body a, WorldView world, LivingEntity p) {
-        wk.pillarRecover.latch--;
+        wk.pillar.recoverLatch--;
         wk.actionTicks = 0;   // no planned edge action is running, so its timeout starts over
         wk.blocks.breakHold(false);
         Walker.avatarForward(a, false);
@@ -282,7 +298,7 @@ final class Pillar implements Controller {
         // height, can't place, and wedges (a pillar-up under a tree stuck against the leaves). The planned
         // pillarUp clears its toBreak the same way; this recovery path had none.
         // Only with allowBreak, and only the single head cell, so it digs no more than the
-        // one block needed to rise this rung (re-checked each rung as pillarRecover.cell rises).
+        // one block needed to rise this rung (re-checked each rung as recoverCell rises).
         // DELIBERATELY on the global allowBreak switch, NOT mayBreak(): this is the
         // anti-suffocation safety dig, and it is EXEMPT from per-goto forbidDig — suffocation is
         // death, forbidDig is only a navigation preference, so safety wins over the constraint.
@@ -301,7 +317,7 @@ final class Pillar implements Controller {
             wk.avatarJump(a, true);     // jump off the current rung
         } else {
             wk.avatarJump(a, false);
-            placeRung(wk, world, p, wk.pillarRecover.cell);
+            placeRung(wk, world, p, wk.pillar.recoverCell);
         }
     }
 
@@ -313,7 +329,7 @@ final class Pillar implements Controller {
      */
     private static BlockPos recoverCeiling(Walker wk, LivingEntity p) {
         List<BlockPos> ceiling = BodyGeometry.riseBlockers(p,
-                wk.pillarRecover.cell.getY() + BodyGeometry.PILLAR_RISE - p.getY());
+                wk.pillar.recoverCell.getY() + BodyGeometry.PILLAR_RISE - p.getY());
         return ceiling.isEmpty() ? null : ceiling.get(0);
     }
 }

@@ -50,4 +50,11 @@ interface Controller {
 
     /** Stop and clear the run's state. */
     void stop(String why);
+
+    /**
+     * Forget what it remembers between runs about the walk being replaced: a gave-up latch, a cooldown, a
+     * counter {@link #sense} keeps. Called on every controller, running or not, when the walk gets a new goal
+     * or drops its plan; a running one is stopped first only for a new goal.
+     */
+    default void reset(Walker.Scope scope) {}
 }

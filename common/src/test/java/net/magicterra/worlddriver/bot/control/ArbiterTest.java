@@ -46,6 +46,8 @@ class ArbiterTest {
             return true;
         }
         @Override public void stop(String why) { stops.add(why); wanted = 0; }
+        final List<Walker.Scope> resets = new ArrayList<>();
+        @Override public void reset(Walker.Scope scope) { resets.add(scope); }
     }
 
     private static Set<Channel> tick(Arbiter arb) {
@@ -121,13 +123,29 @@ class ArbiterTest {
     }
 
     @Test
-    void stopAllStopsEveryRunner() {
+    void aNewGoalStopsEveryRunnerAndEveryControllerForgets() {
+        Fake f = new Fake("f", 2, 50, Channel.MOVE);
+        Fake idle = new Fake("idle", 3, 50, Channel.HANDS);
+        Arbiter arb = new Arbiter(List.of(f, idle));
+        f.wanted = 5;
+        tick(arb);
+        arb.reset(Walker.Scope.GOAL, "new goal");
+        assertEquals(List.of("new goal"), f.stops);
+        assertEquals(List.of(), idle.stops);
+        assertEquals(List.of(Walker.Scope.GOAL), f.resets);
+        assertEquals(List.of(Walker.Scope.GOAL), idle.resets);
+        assertTrue(tick(arb).isEmpty());
+    }
+
+    @Test
+    void aReplanLeavesARunnerRunning() {
         Fake f = new Fake("f", 2, 50, Channel.MOVE);
         Arbiter arb = new Arbiter(List.of(f));
         f.wanted = 5;
         tick(arb);
-        arb.stopAll("new goal");
-        assertEquals(List.of("new goal"), f.stops);
-        assertTrue(tick(arb).isEmpty());
+        arb.reset(Walker.Scope.REPLAN, "replan");
+        assertEquals(List.of(), f.stops);
+        assertEquals(List.of(Walker.Scope.REPLAN), f.resets);
+        assertEquals(EnumSet.of(Channel.MOVE), tick(arb));
     }
 }

@@ -240,7 +240,7 @@ final class RouteAdoption {
         // counter simply re-arms and bursts as before. The big-search continuation
         // (foot != null) keeps its burst intact — that's the deterministic
         // same-segment deadlock breaker and must not be reset away.
-        if (stub) wk.unstuck.dropWedgeAnchor();
+        if (stub) wk.recovery.dropWedgeAnchor();
         wk.stepProg.bestStepDist = Double.POSITIVE_INFINITY;
         wk.stepProg.stuckStepHigh = wk.route.step() - 1;   // new path, new index semantics: one fresh window on the first tick, then high-water applies
         wk.actionTicks = 0;

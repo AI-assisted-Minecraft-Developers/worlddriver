@@ -43,6 +43,18 @@ final class Recovery implements Controller {
     private int burstLeft;
     private float burstYaw;
 
+    // ---- the wedge count Repath keeps to decide when a burst is due ----
+    // Kept across a replan on purpose: a resume loop at the same wedge must still escalate to the burst.
+    BlockPos lastWedgeFoot;   // where the last wedge/stuck repath fired
+    int wedgeRepathsHere;     // consecutive wedge repaths from (about) the same foot
+    int countCooldown;        // min ticks between counted repath events (debounce)
+
+    /** Forget the wedge: the bot got away from it, or a new route makes it moot. */
+    void dropWedgeAnchor() {
+        wedgeRepathsHere = 0;
+        lastWedgeFoot = null;
+    }
+
     // ---- requests, from the phases that notice the trouble ----
 
     /** Whether a back-off may be asked for at walker tick {@code now}. */
@@ -123,6 +135,14 @@ final class Recovery implements Controller {
     @Override public void stop(String why) {
         backOffLeft = 0;
         burstLeft = 0;
+    }
+
+    @Override public void reset(Walker.Scope scope) {
+        dropBackOff();
+        if (scope == Walker.Scope.GOAL) {
+            dropWedgeAnchor();
+            countCooldown = 0;
+        }
     }
 
     private static void push(Body a, LivingEntity p, float yaw) {

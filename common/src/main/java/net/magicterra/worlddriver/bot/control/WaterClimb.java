@@ -29,7 +29,7 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  * vertical progress, this takes over. The stall counter only advances while in the climb context, so a
  * working swim-up that leaves the context never trips it. The pathfinder is unchanged by any of it.
  *
- * <p>Its state lives in {@link Walker.WaterClimbState} ({@code wk.waterClimb}) for now; what it reads about
+ * <p>Its state is its own fields below; what it reads about
  * the climb context each tick is computed in {@link #sense}, whether it runs or not.
  */
 final class WaterClimb implements Controller {
@@ -50,6 +50,52 @@ final class WaterClimb implements Controller {
     private BlockPos cwp;
     private boolean wantClimbNow, wantClimb, waterClimbing, deepDig, cwpSwims;
     private int digStall;
+
+    // ---- what the climb-out remembers across ticks; StallDetect reads digging, the inspector more ----
+    int stall;                // armed flag (>WATER_CLIMB_STALL) once net-displacement window shows a bob-stall climbing out of water
+    int touchRecent;          // sticky countdown: >0 while in a water climb-out, kept latched through bob-peak surface breaches (see WATER_TOUCH_STICKY)
+    int wantClimbRecent;      // sticky countdown: >0 while a higher node sits ahead, latched through bob-peak/repath flicker (see WANT_CLIMB_STICKY)
+    boolean pillaring;        // latched: pillaring up the bot's column to bank stand level
+    boolean digging;          // set the tick the block-less bank-dig actuator swings; OR'd into breakingEdge next tick so the anti-stuck burst can't yank the bot off the riser mid-dig (it has no planned toBreak edge of its own)
+    BlockPos lastDigRiser;    // the riser the dig last aimed at; re-snap the look ONLY when it changes (not every tick) so the camera holds steady instead of juddering off the bobbing eye — the bob keeps the crosshair on the 1-tall block between re-aims
+    double lastDigAimEyeY = Double.NaN;   // eye-Y at the last dig aim-snap; re-snap once the buoyant bob has moved the eye far enough (DIG_REAIM_EYE_DY) that the fixed ray would drift OFF the 1-tall riser face (the ±0.5 once-only assumption fails for a ±1.5 deep-water bob → break never lands, 30s bob-stall)
+    BlockPos digRiser;        // LATCHED bank-dig riser cell — held while still solid so a buoyant bob (foot.y flickering ±1) or lateral drift (foot.z wandering) can't re-target a LOWER block of the same column or a neighbouring column mid-dig; cleared once the block breaks so the next +1 step is chosen fresh (drift-arena over-dig fix)
+    int digCommitTicks;       // ticks spent committed to the CURRENT latched riser; while >0 and <CAP the climb-out won't disengage on a transient wantClimb flicker, so a slow stone-bank break (~750 ticks by hand) finishes instead of being abandoned mid-dig → wander/sink; reset per riser
+    int digFloatTicks;        // consecutive ticks committed to the current latched riser while the bot stayed AFLOAT (onGround=false); reset to 0 on any ground contact. Feeds the futile-overhang early-release (walkerFutileBankDigRelease): a high count + a >=2-above-foot riser that breaks NOTHING = an unreachable overhang, not a legit grounded climb-out (which touches ground and resets this)
+    int futileBankDigCooldown;    // ticks left during which the bank-DIG must NOT re-engage after a futile-overhang early-release (walkerFutileBankDigRelease) — gives the reactive back-off burst time to physically move the bot off the unreachable riser before any dig can re-latch it; decremented per tick
+    boolean pillarGaveUp;     // latched once the pillar takeover proves futile (drifted off its locked column, or bob peak never clears the surface fill cell) → block pillar re-engage + let the bank-DIG take over even with a place block in hand; cleared when the climb context ends
+    BlockPos gaveUpPos;       // where the pillar proved futile (walkerClimbGaveUpSticky) — while the foot stays within 3 blocks and the TTL runs, the gave-up latch survives climb-context resets (repath node swaps) so the proven-futile pillar can't re-engage in a loop
+    int gaveUpTtl;            // ticks left on the sticky gave-up latch (walkerClimbGaveUpSticky); decremented per tick, 0 = expired
+    int pillarNoPlaceTicks;   // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
+    BlockPos placeAttemptCell;   // the cell the last climb-out click aimed at, carried to the NEXT tick so the ledger above can ask whether it actually filled. BlockInteraction.place is void — the click has no verdict — and vanilla refuses any placement whose cell still intersects the bot's AABB, so "clicked" and "placed" are different events and only the second one is progress. Cleared once read.
+    int pillarHighWaterY = Integer.MIN_VALUE;   // highest foot.getY() this takeover has reached — the OTHER half of "successful place / height gain". A HIGH-WATER MARK, not a per-tick delta: a buoyant bob crosses a block boundary every cycle, so "higher than last tick" is true forever and would count buoyancy as progress; "higher than ever" stops refreshing the moment the bob settles between two cells. Re-based at engagePillar so a re-locked column cannot inherit the previous segment's height.
+    int targetY;              // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
+    int colX, colZ;           // LOCKED column the takeover pillars in (don't chase repathing nodes)
+    float yaw;                // LOCKED heading toward the bank at engage (no horizontal chase → no wander)
+    boolean sideRung;         // this takeover has placed a side foothold: keys are anticipatory from here (forward only while wet, jump only wet or settled on the ground); cleared at engage
+    final java.util.Set<BlockPos> placedRungs = new java.util.HashSet<>();   // every cell a climb-out click has aimed at; a rung of our own beside the bot is not an exit, however dry (walkerShallowWaterSideFoothold)
+    int digGroundedStreak;    // consecutive grounded ticks during a committed bank dig — a bob bottom-blip (<=5) must not break the dig commit (walkerBankDigGroundBlip)
+
+    /** The climb-out state a new goal or a replan clears. Not cleared: lastDigAimEyeY (re-snapped per dig
+     *  aim), the locked engage column and heading (read only while pillaring), digGroundedStreak (per commit). */
+    @Override public void reset(Walker.Scope scope) {
+        stall = 0;
+        touchRecent = 0;
+        wantClimbRecent = 0;
+        pillaring = false;
+        digging = false;
+        pillarGaveUp = false;
+        gaveUpPos = null;
+        gaveUpTtl = 0;
+        pillarNoPlaceTicks = 0;
+        placeAttemptCell = null;
+        pillarHighWaterY = Integer.MIN_VALUE;
+        lastDigRiser = null;
+        digRiser = null;
+        digCommitTicks = 0;
+        digFloatTicks = 0;
+        futileBankDigCooldown = 0;
+    }
 
     @Override public String name() { return "waterClimb"; }
     @Override public Set<Channel> channels() { return CHANNELS; }
@@ -428,7 +474,7 @@ final class WaterClimb implements Controller {
         // Clear any burst count accrued during the pre-dig bob-stall so the
         // very first dig tick can't fire a stale burst before the exemption.
         wk.waterClimb.digging = true;
-        wk.unstuck.wedgeRepathsHere = 0;
+        wk.recovery.wedgeRepathsHere = 0;
         // Aim-stabilisation, BALANCE half — the jump (space) is corrected, not
         // held flat-out and not bang-banged to the riser. Both extremes bob:
         // holding jump CONTINUOUSLY over-swims the bot up; bang-banging to the
@@ -673,7 +719,7 @@ final class WaterClimb implements Controller {
      *
      * <p>Both are one defect: <b>a guard whose threshold is computed from the very quantity it is
      * meant to bound can never bind it.</b> Keeping the assignment of
-     * {@link Walker.WaterClimbState#targetY} to a single call site inside a method named for the
+     * {@link #targetY} to a single call site inside a method named for the
      * transition is the structural half of the fix — a future "just refresh it each tick" has to go
      * through this name first.
      */

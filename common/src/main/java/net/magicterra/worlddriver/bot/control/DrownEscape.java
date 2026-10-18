@@ -34,6 +34,14 @@ final class DrownEscape implements Controller {
 
     /** Whether the world has water where the bot is, this tick. */
     private boolean reallyInWater;
+    /** Surface for air until the air recovers; set and cleared in {@link #sense}. */
+    private boolean latch;
+    /** Ticks left holding the current escape heading, and that heading in degrees. */
+    private int turnTicks;
+    private float heading;
+    /** Where the next heading probe starts, rotated each pick so a falsely open direction is not picked
+     *  forever; kept across goals for the same reason. */
+    private int probe;
 
     @Override public String name() { return "drownEscape"; }
     @Override public Set<Channel> channels() { return CHANNELS; }
@@ -47,20 +55,20 @@ final class DrownEscape implements Controller {
         BlockPos foot = cx.frame.foot;
         reallyInWater = p.getHealth() > 0 && (world.isWater(foot) || world.isWater(foot.above()));
         if (reallyInWater && p.isUnderWater() && p.getAirSupply() <= 60) {
-            if (!wk.drownGuard.latch && GameConfig.walkerDebug)
+            if (!latch && GameConfig.walkerDebug)
                 LOG.info("[walker] DROWNING-ESCAPE engaged: air={} foot={},{},{} → surface for air",
                         p.getAirSupply(), foot.getX(), foot.getY(), foot.getZ());
-            wk.drownGuard.latch = true;
+            latch = true;
         } else if (!reallyInWater || !p.isInWater() || p.getAirSupply() >= 240) {
-            if (wk.drownGuard.latch && GameConfig.walkerDebug)
+            if (latch && GameConfig.walkerDebug)
                 LOG.info("[walker] DROWNING-ESCAPE released: air={} → resume", p.getAirSupply());
-            wk.drownGuard.latch = false;
+            latch = false;
         }
     }
 
     @Override public String whyNot(Walker wk, WalkerTickCtx cx, WorldView world) {
         if (!ControlConfig.walkerDrowningEscape) return "switched off";
-        if (!wk.drownGuard.latch) return "air is fine";
+        if (!latch) return "air is fine";
         if (!reallyInWater || !cx.frame.p.isInWater()) return "not in water";
         return null;
     }
@@ -83,25 +91,25 @@ final class DrownEscape implements Controller {
             // column two cells out is water at head height with NO solid lid two above (a buoyant rise is
             // possible there); rotate the probe start each pick so a falsely-open direction can't be
             // re-picked forever.
-            if (wk.drownGuard.turnTicks <= 0) {
-                wk.drownGuard.turnTicks = HEADING_HOLD_TICKS;
+            if (turnTicks <= 0) {
+                turnTicks = HEADING_HOLD_TICKS;
                 float pick = p.getYRot() + 180f;   // fallback: straight back
                 for (int i = 0; i < 8; i++) {
-                    float cand = ((wk.drownGuard.probe + i) % 8) * 45f;
+                    float cand = ((probe + i) % 8) * 45f;
                     int dx = (int) Math.round(-Math.sin(Math.toRadians(cand)));
                     int dz = (int) Math.round(Math.cos(Math.toRadians(cand)));
                     BlockPos out = foot.offset(dx * 2, 0, dz * 2);
                     if (world.isWater(out.above()) && !world.isSolid(out.offset(0, 2, 0))) {
                         pick = cand;
-                        wk.drownGuard.probe = (wk.drownGuard.probe + i + 1) % 8;
+                        probe = (probe + i + 1) % 8;
                         break;
                     }
                 }
-                wk.drownGuard.heading = pick;
+                heading = pick;
             }
-            wk.drownGuard.turnTicks--;
-            p.setYRot(wk.drownGuard.heading);
-            p.yHeadRot = wk.drownGuard.heading; p.yBodyRot = wk.drownGuard.heading;
+            turnTicks--;
+            p.setYRot(heading);
+            p.yHeadRot = heading; p.yBodyRot = heading;
             p.setXRot(0f);
             Walker.avatarForward(a, true);
         } else {
@@ -110,5 +118,10 @@ final class DrownEscape implements Controller {
         return true;
     }
 
-    @Override public void stop(String why) {}
+    @Override public void stop(String why) { turnTicks = 0; }
+
+    @Override public void reset(Walker.Scope scope) {
+        latch = false;
+        turnTicks = 0;
+    }
 }

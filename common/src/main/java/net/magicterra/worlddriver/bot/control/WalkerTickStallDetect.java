@@ -288,7 +288,7 @@ final class WalkerTickStallDetect {
         boolean fellBelowRoute = fellOffPath && onRoute(wk) && !isDescentEdge(wedgeEdge)
                 && wk.route.path().get(wk.route.step()).getY() > foot.getY()
                 && wk.route.path().get(wk.route.step()).getY() - foot.getY() <= PILLAR_RECOVER_MAX_DY
-                && wk.pillarRecover.stallTicks <= PILLAR_NORISE_GIVEUP   // a no-rise pillar-trap (canopy/overhang) gives up → foot-search re-routes
+                && wk.pillar.recoverStallTicks <= PILLAR_NORISE_GIVEUP   // a no-rise pillar-trap (canopy/overhang) gives up → foot-search re-routes
                 && WorldConfig.allowPlace && wk.equipment.holdPillarBlock();
         // DEEP-PIT ESCAPE (last resort, see DEEP_PIT_ESCAPE_TICKS): a sheer pit DEEPER than the
         // recover cap leaves fellBelowRoute false (gap > cap) so only the foot-search runs, and in
@@ -304,20 +304,20 @@ final class WalkerTickStallDetect {
                 && wk.stepProg.noStepProgressTicks > DEEP_PIT_ESCAPE_TICKS
                 && WorldConfig.allowPlace && wk.equipment.holdPillarBlock();
         if ((fellBelowRoute || deepPitEscape) && p.onGround()) {
-            if (wk.pillarRecover.latch <= 0) { wk.pillarRecover.peakY = foot.getY(); wk.pillarRecover.stallTicks = 0; }   // new recovery → fresh peak
-            else if (foot.getY() > wk.pillarRecover.peakY) { wk.pillarRecover.peakY = foot.getY(); wk.pillarRecover.stallTicks = 0; } // rose a rung → reset stall
-            else wk.pillarRecover.stallTicks++;                          // bobbing under a ceiling, no height gain
-            wk.pillarRecover.latch = PILLAR_RECOVER_TICKS;
-            wk.pillarRecover.cell = foot;
+            if (wk.pillar.recoverLatch <= 0) { wk.pillar.recoverPeakY = foot.getY(); wk.pillar.recoverStallTicks = 0; }   // new recovery → fresh peak
+            else if (foot.getY() > wk.pillar.recoverPeakY) { wk.pillar.recoverPeakY = foot.getY(); wk.pillar.recoverStallTicks = 0; } // rose a rung → reset stall
+            else wk.pillar.recoverStallTicks++;                          // bobbing under a ceiling, no height gain
+            wk.pillar.recoverLatch = PILLAR_RECOVER_TICKS;
+            wk.pillar.recoverCell = foot;
         } else if (!fellOffPath) {
-            wk.pillarRecover.stallTicks = 0;                             // back on the route → clear the give-up for the next genuine recovery
+            wk.pillar.recoverStallTicks = 0;                             // back on the route → clear the give-up for the next genuine recovery
         }
         // fellOffPath (when NOT recoverable) forces a fresh foot-search: with only
         // the continuation cancelled, the stale path's far carrot kept driving the
         // bot against the wall until the wedge timer fired — up to 15 s with the
         // breaking-edge leash. offPath is folded in: a 4-block fall puts the 3D
         // distSqr over its gate too, and that re-search would steal the recovery.
-        if (wk.unstuck.countCooldown > 0) wk.unstuck.countCooldown--;
+        if (wk.recovery.countCooldown > 0) wk.recovery.countCooldown--;
         // BOXED-POCKET churn escape (time-windowed net displacement). Catches a pocket
         // where the bot pillars a goal-ward dead-end wall and limit-cycles (round73:
         // 1416↔1454, pillaring to XZ-closer columns that RESET a goal-distance counter,
