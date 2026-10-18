@@ -40,7 +40,14 @@ public final class TestHarnessContracts {
     }
 
     public sealed interface SettingsOp permits Pin, Unpin, Write, Read {}
-    public record Pin(Baseline baseline) implements SettingsOp {}
+    /**
+     * {@code untimed} also lifts the planner's wall-clock budgets ({@code pathfinder.maxMs} and
+     * {@code pathfinder.sliceMs}) past what a user may set, so a search ends on its node budget alone and a
+     * scene plans the same on a slow machine as on a fast one.
+     */
+    public record Pin(Baseline baseline, boolean untimed) implements SettingsOp {
+        public static Pin of(Baseline baseline) { return new Pin(baseline, false); }
+    }
     public record Unpin(int pin) implements SettingsOp {}
     public record Write(List<Entry> values) implements SettingsOp {
         /** Write {@code values}, in the map's iteration order. */
@@ -72,6 +79,8 @@ public final class TestHarnessContracts {
             ApiTypes.variant("pin", Pin.class, ApiTypes.record(Pin.class, null,
                     ApiField.field("baseline", ApiTypes.enumOf("TestBaseline", Baseline.class)).defaulted(Baseline.TEST)
                             .forGetter(Pin::baseline),
+                    ApiField.field("untimed", ApiTypes.bool()).describe("Also lift the planner's wall-clock budgets.")
+                            .defaulted(false).forGetter(Pin::untimed),
                     Pin::new)),
             ApiTypes.variant("unpin", Unpin.class, ApiTypes.record(Unpin.class, null,
                     ApiField.field("pin", ApiTypes.integer(1, Integer.MAX_VALUE)).required().forGetter(Unpin::pin),

@@ -37,18 +37,30 @@ public final class Harness {
     // ---------------------------------------------------------------- settings
 
     /** Save every setting and put the test baseline in place; the scene's cleanup restores the saved ones. */
-    public static void pin(SceneContext ctx) { pin(ctx, Baseline.TEST); }
+    public static void pin(SceneContext ctx) { pin(ctx, Baseline.TEST, false); }
+
+    /** {@link #pin(SceneContext)} with the planner's wall-clock budgets lifted, so it plans the same on any machine. */
+    public static void pinUntimed(SceneContext ctx) { pin(ctx, Baseline.TEST, true); }
 
     /** Save every setting and put {@code baseline} in place; the scene's cleanup restores the saved ones. */
-    public static void pin(SceneContext ctx, Baseline baseline) {
-        int id = ((TestHarnessContracts.Pinned) now(api().settings(new TestHarnessContracts.Pin(baseline)))).pin();
+    public static void pin(SceneContext ctx, Baseline baseline, boolean untimed) {
+        int id = pinId(baseline, untimed);
         ctx.cleanup(() -> now(api().settings(new TestHarnessContracts.Unpin(id))));
     }
 
     /** Save every setting and put the test baseline in place; closing restores the saved ones. */
-    public static AutoCloseable pin() {
-        int id = ((TestHarnessContracts.Pinned) now(api().settings(new TestHarnessContracts.Pin(Baseline.TEST)))).pin();
+    public static Pin pin() {
+        int id = pinId(Baseline.TEST, false);
         return () -> now(api().settings(new TestHarnessContracts.Unpin(id)));
+    }
+
+    /** A pin held outside a scene's cleanup. */
+    public interface Pin extends AutoCloseable {
+        @Override void close();
+    }
+
+    private static int pinId(Baseline baseline, boolean untimed) {
+        return ((TestHarnessContracts.Pinned) now(api().settings(new TestHarnessContracts.Pin(baseline, untimed)))).pin();
     }
 
     /** Write one setting by its key. */
