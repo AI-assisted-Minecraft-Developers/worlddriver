@@ -42,7 +42,7 @@ final class WalkerTickCtx {
         boolean fellBelowRoute;
     }
 
-    /** Produced by {@link WalkerTickClimb}/{@link WalkerTickEdgeGuards}: the committed
+    /** Produced by {@link WalkerTickEdgeGuards}: the committed
      *  edge under execution and its guard classifications, consumed by Aim/Drive. */
     static final class EdgeState {
         Move.Edge edge;

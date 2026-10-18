@@ -38,7 +38,7 @@ threshold at which a bare-handed bot digs its way out of stone.**
 That makes `ControlConfig.drownEscapeAirThreshold` (100) the wrong dial to reach for, twice over.
 Its range is capped: raising it to 300, so the reflex latches the instant the bot submerges,
 lifts the budget from 300 ticks to 500, which still buys exactly one stone block. And the same
-number is a divisor in two other places that move the opposite way. `WalkerTickClimb` prices
+number is a divisor in two other places that move the opposite way. `WalkerDig` prices
 "can this underwater dig fit inside one breath" as `300 − threshold − 20`, so a threshold of
 300 makes that budget negative and the planner loses every underwater-digging edge it has;
 `AutoSwim`'s yield floor is also keyed to it, so raising it makes the backstop seize the

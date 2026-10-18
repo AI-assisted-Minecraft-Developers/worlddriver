@@ -17,7 +17,7 @@ import net.minecraft.core.BlockPos;
  *
  * <p>TTL-bounded so a later revisit (with tools / from dry ground) reprices
  * honestly. Lives in COMMON (not ClientWorldView) because the writer —
- * {@code WalkerTickClimb}'s hopeless-dig gate — also runs for server avatars,
+ * {@code WalkerDig}'s hopeless-dig gate — also runs for server avatars,
  * and referencing a client class from there crashes dedicated-server
  * classloading (the t0 LocalPlayer-in-SERVER family). The drowning-survival
  * reflex (DrownEscapeChain float / AntiSuffocate-style direct dig) never prices

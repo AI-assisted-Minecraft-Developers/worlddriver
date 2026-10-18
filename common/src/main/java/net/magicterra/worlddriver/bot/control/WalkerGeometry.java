@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control;
 
+import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
@@ -24,6 +25,57 @@ import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
  *  is {@link BodyGeometry}'s, below the walker, because a body's actuators ask it too. */
 public final class WalkerGeometry {
     private WalkerGeometry() {}
+
+    /**
+     * Is this pillarUp destination a FLOODED shaft — one the bot floats straight up through —
+     * rather than a water SURFACE it must place a support to leave?
+     *
+     * <p><b>The single answer both callers ask.</b> It used to be computed twice. The planned pillar
+     * ({@link Pillar}) carved the surface case out of "flooded" (the {@code walkerPillarSurfacePlace}
+     * branch, which is the flag's only reader in the whole product); {@link WalkerTickProgress} computed
+     * plain {@code isWater(dest)} and never carved. On the one geometry where the two disagree —
+     * destination water, air directly above — the pillar decided "place a support" while Progress still
+     * called it a buoyant float, took the branch whose comment says an unfilled place cell is not
+     * genuinely pending, and let bare height promote the step. Progress runs before the pillar, so the
+     * pointer left the edge before the support existed.
+     *
+     * <p><b>Why the carve-out belongs to the shared answer and the pillarUp test does not.</b> The
+     * carve-out is about GEOMETRY — what this cell is — so both callers need it. Whether the edge
+     * under the pointer is a pillarUp at all is about WHICH EDGE, which only Progress has to ask
+     * because the pillar is already inside that branch.
+     *
+     * <p><b>Direction of the change, per call site.</b> The pillar: byte-identical — this is its old
+     * expression, moved. Progress: STRICTER and never looser — the result can only go true→false,
+     * and each of the two places it feeds tightens when it does (the pending-edge check reverts to
+     * {@code hasPendingEdge}, and the arrival gate reverts to requiring {@code onGround()}). A
+     * pointer that used to advance mid-float now waits for the support, which is the fix.
+     */
+    static boolean floodedShaft(WorldView world, BlockPos dest) {
+        if (!world.isWater(dest)) return false;
+        // Surface, not shaft: water underfoot with AIR directly above is the water-bank climb-out.
+        // Floating higher is physically impossible there, so the bot must crest and place.
+        return !(ControlConfig.walkerPillarSurfacePlace && !world.isWater(dest.above()));
+    }
+
+    /**
+     * Have the feet risen clear of {@code cell}, so that vanilla can accept a block placed into it?
+     *
+     * <p><b>1.0, and it is not a tuning knob.</b> A player's AABB starts at {@code p.getY()} and the
+     * cell occupies {@code [y, y+1]}; {@code Level#isUnobstructed} refuses any placement whose cell
+     * still intersects that box. So {@code p.getY() >= cell.y + 1.0} is the exact boundary between
+     * "will be placed" and "will be silently refused" — there is nothing to tune, and a looser
+     * number does not buy earlier placements, it buys refusals.
+     *
+     * <p><b>This is the FULL-CUBE boundary, and it is only that.</b> {@code isUnobstructed} tests the
+     * collision shape of the state being PLACED, not the cell it goes in, so the number above is the
+     * boundary for a block whose collision box is a whole cube. The climb-out places a different kind
+     * of block into a different kind of cell and needs {@link WaterClimb#crestClearOf}; unifying the two is what
+     * regressed {@code wd.waterLowBank}, because for that call site this predicate is not merely
+     * stricter — it is unsatisfiable (see there).
+     */
+    static boolean feetClearOf(LivingEntity p, BlockPos cell) {
+        return p.getY() >= cell.getY() + 1.0;
+    }
 
     /** The 4 horizontal unit offsets, scanned when locating a vine's backing wall. */
     public static final Direction[] HORIZ = {Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST};

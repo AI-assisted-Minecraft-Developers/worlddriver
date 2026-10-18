@@ -111,7 +111,7 @@ final class RouteDig implements Controller {
         for (BlockPos b : edge.toBreak) {
             if (world.isSolid(b)) {
                 wk.equipment.selectTool(b);
-                if (WalkerTickClimb.bailOnBreathInfeasibleDig(wk, a, p, b)) {
+                if (WalkerDig.bailOnBreathInfeasibleDig(wk, a, p, b)) {
                     work = new Work(Kind.DROPPED, b, edge.move);
                     return true;
                 }

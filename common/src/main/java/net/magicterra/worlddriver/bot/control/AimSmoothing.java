@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.control;
 /**
  * Aim/heading smoothing state, owned by {@link WalkerTickAim} and held on {@link Walker#aimSmooth}
  * ({@code smoothWaterDriveYaw} is also read by {@link WalkerTickDrive}; {@code lastAimYaw} by
- * {@link WalkerTickClimb}'s dig telemetry). {@link #reset()} resyncs the EMA chain + the yaw-thrash
+ * {@link WalkerTickEdgeGuards}'s per-tick trace). {@link #reset()} resyncs the EMA chain + the yaw-thrash
  * detector — exactly the four fields both journey resets cleared; the remaining fields self-manage
  * (NaN resync / decay / streak logic).
  */

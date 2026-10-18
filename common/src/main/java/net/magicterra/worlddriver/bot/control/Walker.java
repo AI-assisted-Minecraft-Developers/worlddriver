@@ -1129,7 +1129,6 @@ public final class Walker implements Locomotor {
         // ends the tick's decisions here, and one on LOOK leaves the walk standing to let it work.
         if (taken.contains(Channel.MOVE)) return Step.WALKING;
         if (taken.contains(Channel.LOOK)) return StandToWork.run(this, c, a, routeDig.work());
-        r = WalkerTickClimb.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickEdgeGuards.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickAim.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickDrive.run(this, c, a, world);

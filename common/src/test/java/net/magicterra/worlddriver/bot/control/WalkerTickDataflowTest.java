@@ -130,7 +130,7 @@ class WalkerTickDataflowTest {
     @Test
     void theScanFoundTheRealPipeline() {
         // A parser that quietly matches nothing would make every test above vacuous.
-        assertEquals(9, ORDER.size(), "expected the nine-phase pipeline, got " + ORDER);
+        assertEquals(8, ORDER.size(), "expected the eight-phase pipeline, got " + ORDER);
         assertEquals("Prelude", ORDER.get(0));
         assertEquals("Drive", ORDER.get(ORDER.size() - 1));
         assertEquals(32, declaredFields().size(),

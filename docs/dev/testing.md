@@ -296,7 +296,7 @@ Several development tools recover bot state by matching regular expressions agai
 the tick path, and nothing connects the two. Renaming a field there compiles, passes every
 scene, and turns each of those tools into a no-op — a regular expression that matches
 nothing does not raise, it yields an empty result, and the tool reports "no ticks" as
-though the bot had never moved. The emitters are `WalkerTickClimb` and `WalkerTickDrive`; the
+though the bot had never moved. The emitters are `WalkerTickEdgeGuards` and `WalkerTickDrive`; the
 consumers are `scripts/forensic.py`, `scripts/pmcs/telemetry.py`, `scripts/pmcs/run_case.py` and
 `scripts/accept_cycle.py`. The check imports the consumers' own patterns rather than copying
 them, so it cannot pass while the tool it protects is broken.

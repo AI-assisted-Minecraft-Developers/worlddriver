@@ -36,10 +36,9 @@ next:
 3. `WalkerTickRepath`
 4. `WalkerTickSearch`
 5. `WalkerTickProgress`
-6. `WalkerTickClimb`
-7. `WalkerTickEdgeGuards`
-8. `WalkerTickAim`
-9. `WalkerTickDrive`
+6. `WalkerTickEdgeGuards`
+7. `WalkerTickAim`
+8. `WalkerTickDrive`
 
 `WalkerTickDrive` is the terminal phase and always returns a verdict.
 
@@ -85,7 +84,7 @@ holders those fields are grouped into. The context is organised by the phase tha
 |---|---|---|
 | `frame` | Prelude | The resolved entity being driven and the anchor cells every later phase keys off. Phases that move the entity re-derive the foot cell. |
 | `stall` | StallDetect | The stall and deviation verdict the repath and search stages consume. |
-| `edges` | Climb and EdgeGuards | The committed edge under execution and its guard classifications, consumed by Aim and Drive. |
+| `edges` | EdgeGuards | The committed edge under execution and its guard classifications, consumed by Aim and Drive. |
 | `aim` | Aim | The full aim, camera and drive-shaping plan that Drive executes. |
 
 Read the field lists in `WalkerTickCtx` rather than reproducing them; they move. What does
@@ -122,8 +121,8 @@ keyed off the first writer in driver order, which stays correct when that happen
 ## The one value that crosses a mid-pipeline path swap
 
 `WalkerTickProgress` can replace the whole path and fall through on the new one. Almost
-everything downstream re-derives after the swap: the committed edge comes from the
-walker's own lookup in Climb and the waypoint from EdgeGuards, both after the replacement,
+everything downstream re-derives after the swap: the committed edge and the waypoint both
+come from the walker's own lookup in EdgeGuards, after the replacement,
 and the foot cell stays valid because no phase moves the bot — the position only changes
 at the physics step after the pipeline.
 

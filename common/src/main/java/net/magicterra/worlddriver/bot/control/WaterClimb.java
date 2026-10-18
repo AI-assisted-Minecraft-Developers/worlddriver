@@ -439,10 +439,10 @@ final class WaterClimb implements Controller {
         // searches route around, drop the latch, and let the scan above pick a
         // diggable column next tick — or none, in which case the bot swims the
         // committed path instead of mining a wall it can never break.
-        if (riser != null && WalkerTickClimb.breathInfeasibleDig(p, riser)) {
-            BreakFeasibility.poison(riser, WalkerTickClimb.BREATH_POISON_TTL_MS);
+        if (riser != null && WalkerDig.breathInfeasibleDig(p, riser)) {
+            BreakFeasibility.poison(riser, WalkerDig.BREATH_POISON_TTL_MS);
             if (GameConfig.walkerDebug)
-                LOG.info("[walker] hopeless bank dig {} — poisoned {}s, latch dropped", riser, WalkerTickClimb.BREATH_POISON_TTL_MS / 1000);
+                LOG.info("[walker] hopeless bank dig {} — poisoned {}s, latch dropped", riser, WalkerDig.BREATH_POISON_TTL_MS / 1000);
             wk.waterClimb.digRiser = null;
             riser = null;
         }
@@ -594,7 +594,7 @@ final class WaterClimb implements Controller {
             // falls through to a diggable column or to no dig at all —
             // the same gate the latched-riser check below applies.
             if (ry <= surfY + 5 && world.isSolid(riserCand) && !overhang
-                    && !WalkerTickClimb.breathInfeasibleDig(p, riserCand)) return riserCand;
+                    && !WalkerDig.breathInfeasibleDig(p, riserCand)) return riserCand;
         }
         return null;
     }
@@ -602,7 +602,7 @@ final class WaterClimb implements Controller {
     /**
      * The climb-out's own crest gate: may the bot click NOW, into the cell it is standing in?
      *
-     * <p><b>Why {@link WalkerTickClimb#feetClearOf} cannot be used here.</b> On the locked column the fill
+     * <p><b>Why {@link WalkerGeometry#feetClearOf} cannot be used here.</b> On the locked column the fill
      * cell IS the bot's foot cell ({@code colFoot == foot}), so "feet entirely above the cell" expands to
      * {@code p.getY() >= floor(p.getY()) + 1.0} — a contradiction. Asking it here does not place
      * fewer blocks, it places NONE, for every bot and every held item; the whole self-column family

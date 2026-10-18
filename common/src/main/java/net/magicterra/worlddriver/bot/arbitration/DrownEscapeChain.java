@@ -296,7 +296,7 @@ public final class DrownEscapeChain implements Chain {
         // costs a fifth. The number that makes this worth doing is the air budget: latching at
         // `drownEscapeAirThreshold` (100) buys roughly 300 ticks of life (100 air + 20 HP at 2 per
         // 20 ticks), so a 380-tick escape LOSES and a ~76-tick one wins with room to spare. The
-        // walker's own hopelessness gate has priced digs this way all along — WalkerTickClimb notes
+        // walker's own hopelessness gate has priced digs this way all along — WalkerDig notes
         // "off-ground ÷5 always undone (the bot can always ground)" — while this reflex never
         // grounded. That gap is what the fix closes.
         //

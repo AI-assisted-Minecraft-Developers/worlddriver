@@ -153,7 +153,7 @@ public final class AutoSwim {
         // off the dig cell so vanilla reset destroyProgress; the dig looped to the
         // sticky-dig 4000t cap without ever finishing a single block. The Walker only
         // starts underwater digs that fit one breath (breath-feasibility gate in
-        // WalkerTickClimb), so yielding down to the escape floor is safe: below
+        // WalkerDig), so yielding down to the escape floor is safe: below
         // threshold+reserve the backstop resumes, and DrownEscapeChain (bid 500,
         // air<=drownEscapeAirThreshold) remains the untouched hard survival floor.
         if (world.signals().digging

@@ -64,7 +64,6 @@ METHOD_EXEMPT_DIRS = ("common/src/testmod",)
 # rather than decomposed — they are the backlog this list exists to shrink.
 GRANDFATHERED = {
     "WalkerTickDrive.java::run": 519,
-    "WalkerTickClimb.java::run": 471,
     "WalkerTickAim.java::run": 347,
     "WalkerTickProgress.java::run": 305,
 }

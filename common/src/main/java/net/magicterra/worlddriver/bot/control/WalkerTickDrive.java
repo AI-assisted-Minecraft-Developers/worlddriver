@@ -1028,7 +1028,7 @@ final class WalkerTickDrive {
         // Re-admit the dynamic brake for that one case (approach momentum control);
         // the pending check self-releases the moment the support block lands, so the
         // real step-down still proceeds pin-free. The actuator's own sneak hold
-        // (WalkerTickClimb place loop) covers the aim ticks; this covers the approach.
+        // (StandToWork, while RouteDig places) covers the aim ticks; this covers the approach.
         boolean descentPlacePending = false;
         if (ControlConfig.walkerBridgeDescentPlaceAnchor && bridging && plannedDescent) {
             Move.Edge nextE = wk.edgeAt(wk.route.step() + 1);

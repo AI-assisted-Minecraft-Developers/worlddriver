@@ -11,7 +11,7 @@ Four scripts recover bot state by scraping the game log with regexes:
     scripts/accept_cycle.py         [expect] lines
 
 The producing side is two `LOG.info` format strings deep in the tick path
-(WalkerTickClimb.java:97 for `[walker] t=`, WalkerTickDrive.java:1300 for
+(WalkerTickEdgeGuards.java trace() for `[walker] t=`, WalkerTickDrive.java:1300 for
 `walk-keys`). Nothing connected the two: adding a field, renaming `totStuck`, or
 moving `yaw` would compile, pass every scene, ship — and silently turn every one
 of those tools into a no-op. A regex that matches nothing does not raise; it
@@ -80,7 +80,7 @@ def contracts():
     telemetry = _load("scripts/pmcs/telemetry.py", "_telemetry")
     return [
         ("forensic.P_T", "[walker] t=", forensic.P_T,
-         "WalkerTickClimb.java LOG.info(\"[walker] t={} step=...\")", True),
+         "WalkerTickEdgeGuards.java LOG.info(\"[walker] t={} step=...\")", True),
         ("forensic.P_K", "walk-keys", forensic.P_K,
          "WalkerTickDrive.java LOG.info(\"[walker] walk-keys ...\")", True),
         # [expect] is emitted by the interactive CLIENT run (fabric/run/logs), not by

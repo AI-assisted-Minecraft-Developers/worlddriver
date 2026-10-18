@@ -1,6 +1,6 @@
 """Parse the Walker's [walker] telemetry lines.
 
-The emitter is `LOG.info("[walker] t={} step=...")` in WalkerTickClimb.java (the Walker is
+The emitter is `LOG.info("[walker] t={} step=...")` in WalkerTickEdgeGuards.java (the Walker is
 split into WalkerTick* phase classes, see docs/dev/movement-tick-phases.md). No line number is
 pinned here: line numbers drift, class names do not.
 

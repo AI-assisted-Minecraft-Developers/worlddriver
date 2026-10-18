@@ -60,12 +60,12 @@ final class Pillar implements Controller {
      * Place a block into {@code cell} — the cell the feet are rising out of — on the top face of the block
      * below it, once the feet are clear of it. Vanilla's entity-collision check (Level#isUnobstructed)
      * silently rejects the block while the bot's box still overlaps the cell, i.e. until the feet reach the
-     * cell's top face ({@link WalkerTickClimb#feetClearOf}). A vanilla jump (peak ~+1.25) only crosses +1.0
+     * cell's top face ({@link WalkerGeometry#feetClearOf}). A vanilla jump (peak ~+1.25) only crosses +1.0
      * around tick 4, so a fixed 3-tick delay fired at ~+0.99 and the place no-op'd against the bot's own
      * box. Gate on real height. True when the click was made.
      */
     static boolean placeRung(Walker wk, WorldView world, LivingEntity p, BlockPos cell) {
-        if (!WalkerTickClimb.feetClearOf(p, cell) || world.isSolid(cell)) return false;
+        if (!WalkerGeometry.feetClearOf(p, cell) || world.isSolid(cell)) return false;
         wk.blocks.placeOn(cell.below(), Direction.UP);
         wk.exAlarms.notePlace(cell);
         return true;
@@ -215,7 +215,7 @@ final class Pillar implements Controller {
             if (world.isSolid(b)) {
                 wk.avatarJump(a, false);
                 wk.equipment.selectTool(b);
-                if (WalkerTickClimb.bailOnBreathInfeasibleDig(wk, a, p, b)) return;
+                if (WalkerDig.bailOnBreathInfeasibleDig(wk, a, p, b)) return;
                 world.signals().digging = true;
                 // Claim, aim and drive all live inside avatarDig: digging `b` first and claiming it
                 // afterwards drove a cell another phase already held.
@@ -257,7 +257,7 @@ final class Pillar implements Controller {
         // That carve-out lives in floodedShaft() because WalkerTickProgress has
         // to reach the same answer; when it was written here only, Progress kept
         // calling this cell a float and advanced the pointer off an unplaced support.
-        boolean shaftFlooded = WalkerTickClimb.floodedShaft(world, wk.route.path().get(wk.route.step()));
+        boolean shaftFlooded = WalkerGeometry.floodedShaft(world, wk.route.path().get(wk.route.step()));
         if (shaftFlooded || p.isInWater() || world.isWater(wk.route.path().get(wk.route.step()).offset(0, -1, 0))) {
             wk.avatarJump(a, true);
             // gap#81: routine pillar/scaffold filler must not spend gathered wood.

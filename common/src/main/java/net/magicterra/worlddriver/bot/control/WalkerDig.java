@@ -1,18 +1,23 @@
 package net.magicterra.worlddriver.bot.control;
 
 import net.magicterra.worlddriver.config.ControlConfig;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.rules.Move;
+import net.magicterra.worlddriver.bot.world.BreakFeasibility;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.BotUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+
+import static net.magicterra.worlddriver.config.Mod.LOG;
 
 /**
  * The walker's one dig door — every walker dig routes through {@link #avatarDig}; aim at the cell
- * it returns. Held outside {@link Walker} for that file's line budget.
+ * it returns — and the gate that refuses a dig that cannot finish ({@link #breathInfeasibleDig}).
  */
 final class WalkerDig {
     private WalkerDig() {}
@@ -99,4 +104,92 @@ final class WalkerDig {
         if (wk != null) wk.stickyDig.revoke();
         return avatarDig(wk, a, cell, selectTool);
     }
+
+    /** TTL for a breath-infeasible break cell in {@link ClientWorldView}'s poison set
+     *  (~60 s): long enough that repeated repaths within the episode route around it,
+     *  short enough that a later revisit with tools / from dry ground reprices it. */
+    static final long BREATH_POISON_TTL_MS = 60_000;
+    /** Effort ceiling for a single executor dig (~30 s of continuous mining): past
+     *  this a visible detour always wins, and in water the drift-release + progress
+     *  zeroing make the true cost effectively unbounded (live: bare-hand floating
+     *  stone ≈3750t estimated, 0.05 progress per 65-155t drift-released lap). Chosen
+     *  so a floating bare-hand DIRT climb-out (≈375t) stays allowed while any
+     *  bare-hand stone-family dig in/over water (≥750t) is refused. */
+    private static final int HOPELESS_DIG_TICKS = 600;
+
+    /**
+     * The breath gate on a break cell, and what to do when it fails: drop the hold, poison the cell
+     * so the next search routes around it instead of re-proposing it, and drop the path so the tick
+     * ends in a repath. Two dig sites had these eight lines written out verbatim.
+     *
+     * @return true when the caller must return {@link Walker.Step#WALKING} at once.
+     */
+    static boolean bailOnBreathInfeasibleDig(Walker wk, Body a, LivingEntity p, BlockPos b) {
+        if (!breathInfeasibleDig(p, b)) return false;
+        wk.blocks.breakHold(false);
+        BreakFeasibility.poison(b, BREATH_POISON_TTL_MS);
+        if (GameConfig.walkerDebug)
+            LOG.info("[walker] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
+        wk.error = "breath-infeasible dig at " + b;
+        wk.route.drop(wk.error);
+        return true;
+    }
+
+    /** HOPELESS-DIG GATE (2026-07-21 live, flooded Mountains channel): estimate the
+     *  dig with vanilla's own {@code getDestroyProgress} (already includes
+     *  eyes-in-water ÷5, off-ground ÷5, and the currently held tool) and refuse to
+     *  start digs that provably cannot pay off. Two prongs:
+     *  <ol>
+     *  <li><b>Effort ceiling</b> (any stance): past {@link #HOPELESS_DIG_TICKS} a
+     *      single block costs more than any visible detour (bare-hand floating stone
+     *      ≈3750t; live: prog 0.05 per 65-155t lap, drift-released and zeroed every
+     *      lap — an unbounded sink). Mirrors the planner's wrong-tool aversion on the
+     *      executor side, where stub/escape adoptions used to sneak past pricing.</li>
+     *  <li><b>Breath box</b> (DEEP water only — water well above the head, same test
+     *      as AutoSwim's deep-ascent): vanilla zeroes destroyProgress on any
+     *      interruption and a fully-submerged dig gets one breath of uninterrupted
+     *      work (maxAir − drownEscape floor − reserve ≈ 180t); longer digs can NEVER
+     *      complete. Surface-bobbing digs refill air at the bob peaks, so they are
+     *      judged by the effort ceiling alone.</li>
+     *  </ol>
+     *  Callers poison the cell (TTL) so the very next search routes around.
+     *  <p>CLIENT-SIDE ONLY: the estimate models the vanilla client mining loop
+     *  (per-tick destroyProgress, zeroed on interruption). Server avatars break
+     *  through their own simplified fast path, so gating them on the vanilla
+     *  estimate refused digs their executor completes easily (t0 wd.buoyantWall
+     *  regression: bare-hand +5 stone wall the avatar mounts fine). */
+    static boolean breathInfeasibleDig(LivingEntity p, BlockPos b) {
+        // getDestroyProgress prices the dig for a Player's tool and stance; the client-only
+        // guard above already restricts this to the local player, so a non-player falls
+        // through to the same "not estimated" answer a server-side player gets.
+        if (!p.level().isClientSide() || !(p instanceof Player pl)) return false;
+        float dmg = p.level().getBlockState(b).getDestroyProgress(pl, p.level(), b);
+        if (dmg >= 1f) return false;                       // instant-mine — always fits
+        if (dmg <= 0f) return true;                        // unbreakable from here
+        // STANCE NORMALIZATION (2026-07-21 live, shoreline poison storm): the live
+        // estimate bakes in THIS tick's stance — a bobbing or jumping player eats vanilla's
+        // off-ground ÷5 and eyes-in-water ÷5 — but the poison it justifies lasts 60 s
+        // and outlives the stance. Live: the same stone bank cell is 150t dug grounded
+        // ashore yet 750-3750t sampled mid-bob, so the gate carpet-poisoned the whole
+        // climb-out shoreline while floating and the freshly-landed bot then had no
+        // priced route into the hill — it stopped digging and rammed the bank instead.
+        // Hopelessness must be judged from the best REACHABLE digging stance:
+        //  - off-ground ÷5 always undone (the bot can always ground — ashore or on
+        //    the basin floor);
+        //  - eyes-in-water ÷5 undone when the target sits ABOVE the waterline (a dry
+        //    stance beside it is reachable; if the player actually has aqua affinity
+        //    this overcorrects toward permissive, which is harmless).
+        float norm = 1f;
+        if (!p.onGround()) norm *= 5f;
+        boolean targetDry = !p.level().getFluidState(b.above()).is(net.minecraft.tags.FluidTags.WATER);
+        if (targetDry && p.isEyeInFluid(net.minecraft.tags.FluidTags.WATER)) norm *= 5f;
+        if (Math.ceil(1f / (dmg * norm)) > HOPELESS_DIG_TICKS) return true;   // never worth it from ANY stance
+        if (!p.isUnderWater()) return false;
+        // Breath box uses the LIVE estimate: it asks "can THIS submerged dig finish
+        // on this breath", and down here the wet stance is the real one.
+        BlockPos foot = p.blockPosition();
+        boolean deep = p.level().getFluidState(foot.above(2)).is(net.minecraft.tags.FluidTags.WATER);
+        return deep && Math.ceil(1f / dmg) > p.getMaxAirSupply() - ControlConfig.drownEscapeAirThreshold - 20;
+    }
 }
+

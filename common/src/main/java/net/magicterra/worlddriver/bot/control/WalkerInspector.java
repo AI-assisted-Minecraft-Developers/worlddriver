@@ -52,7 +52,7 @@ public final class WalkerInspector {
 
     /** Is the climb-out takeover still holding the bot? Exposed because {@link #pillarNoPlaceTicks}
      *  reading zero is AMBIGUOUS on its own: the ledger is zeroed both by a landing (the thing a
-     *  scene wants to prove) and by every bail path (WalkerTickClimb releases and resets). A scene
+     *  scene wants to prove) and by every bail path (WaterClimb releases and resets). A scene
      *  asserting "a real place cleared the counter" has to be able to say the takeover was still
      *  engaged when it read the zero, or a bail one tick earlier answers its question for it. */
     public boolean pillarEngaged() { return wk.waterClimb.pillaring; }

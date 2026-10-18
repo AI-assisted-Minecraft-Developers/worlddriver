@@ -21,7 +21,7 @@ import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
 import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
 // Not in WalkerGeometry: that class is pure functions of their arguments and reads no BotConfig.
 // This one consults walkerPillarSurfacePlace, so it stays with the phase that owns the carve-out.
-import static net.magicterra.worlddriver.bot.control.WalkerTickClimb.floodedShaft;
+import static net.magicterra.worlddriver.bot.control.WalkerGeometry.floodedShaft;
 
 
 /**

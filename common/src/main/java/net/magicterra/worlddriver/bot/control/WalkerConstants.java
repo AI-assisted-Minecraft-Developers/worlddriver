@@ -476,7 +476,7 @@ final class WalkerConstants {
      *  yet stays well under {@link #OVERSHOOT_RESYNC_SQ}=4 so it can never skip a node the bot is still
      *  genuinely swimming toward from afar / cut a live corner. */
     public static final double WATER_WALK_REACH_SQ = 1.3;
-    /** Eye-to-centre reach for the mid-leap parkour floor place ({@code WalkerTickClimb}). Was an
+    /** Eye-to-centre reach for the mid-leap parkour floor place ({@code ParkourPlace}). Was an
      *  inline {@code < 16} with the comment "~4 blocks of the eye"; named here so it sits beside
      *  the other reach numbers instead of hiding as a magic square. Deliberately short of the
      *  {@code blockInteractionRange + 0.5} the game actually grants: this fires while AIRBORNE, so

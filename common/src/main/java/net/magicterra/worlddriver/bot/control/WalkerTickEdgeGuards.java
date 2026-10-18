@@ -18,8 +18,9 @@ import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
 
 
 /**
- * Mechanical extraction of {@code Walker#tickInner} (pre-split lines 3280–3504): current edge context and the MLG step-off.
- * Climbing a vine moved to {@link VineClimb}.
+ * Mechanical extraction of {@code Walker#tickInner} (pre-split lines 3280–3504): the current edge, its
+ * context and the MLG step-off, for the regular walk once no controller has taken the tick; and the
+ * per-tick walker trace. Climbing a vine moved to {@link VineClimb}.
  * One phase of the per-tick pipeline — see {@link Walker#tickInner} for the driver and
  * {@link WalkerTickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
  * original tick body except for the {@code w.}/{@code Walker.} member prefixes; do not
@@ -33,9 +34,10 @@ final class WalkerTickEdgeGuards {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
-        Move.Edge edge = cx.edges.edge;
         // ---- original body (byte-identical modulo member prefixes) ----
 
+        Move.Edge edge = wk.edgeAt(wk.route.step());
+        if (GameConfig.walkerDebug) trace(wk, p, world, edge);
         BlockPos wp = wk.route.path().get(wk.route.step());
         Move.Edge nextEdge = wk.edgeAt(wk.route.step() + 1);
         boolean parkourEdge = edge != null && edge.move != null && edge.move.startsWith("parkour");
@@ -85,6 +87,7 @@ final class WalkerTickEdgeGuards {
             if (land != null) world.signals().planClutch(land.getX(), land.getZ());
         }
         // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
+        cx.edges.edge = edge;
         cx.edges.wp = wp;
         cx.edges.parkourEdge = parkourEdge;
         cx.edges.bridging = bridging;
@@ -92,5 +95,44 @@ final class WalkerTickEdgeGuards {
         cx.edges.steppingOffFall = steppingOffFall;
         cx.edges.steppingOffWaterFall = steppingOffWaterFall;
         return null;
+    }
+
+    /**
+     * The per-tick walker trace, the single source of truth for "why is the bot stuck": for the current step
+     * the exact advance-decision inputs (horizontal dist² against the REACH_DIST_SQ gate, |Δy| against the 1.2
+     * gate that together decide `within`), how many ticks on this step, the move and its break/place needs,
+     * and the live bot state. Read it top to bottom to see which condition fails tick after tick.
+     */
+    private static void trace(Walker wk, LivingEntity p, WorldView world, Move.Edge edge) {
+        if (wk.route.step() != wk.dbgPrevStep) { wk.dbgPrevStep = wk.route.step(); wk.dbgTicksOnStep = 0; }
+        wk.dbgTicksOnStep++;
+        BlockPos nd = wk.route.path().get(wk.route.step());
+        double ddx = (nd.getX() + 0.5) - p.getX();
+        double ddz = (nd.getZ() + 0.5) - p.getZ();
+        double cur2 = ddx * ddx + ddz * ddz;
+        double dY = nd.getY() - p.getY();
+        boolean within = cur2 < REACH_DIST_SQ && Math.abs(dY) < 1.2;
+        BlockPos br0 = (edge != null && !edge.toBreak.isEmpty()) ? edge.toBreak.get(0) : null;
+        // bearing TO the node (MC yaw: 0=+z south, atan2(-dx,dz)); yawErr = how far the bot's body
+        // faces OFF that bearing. With hCol this separates "rammed a wall, facing right" (stuck against a wall) from
+        // "facing the wrong way, not driving toward the node" (aim/drive bug) — the missing axis that
+        // forced guessing on every "won't close" stall.
+        double bearing = Math.toDegrees(Math.atan2(-ddx, ddz));
+        double yawErr = angleDiff(p.getYRot(), (float) bearing);
+        LOG.info("[walker] t={} step={}/{} move={} node={},{},{} p=({},{},{}) pitch={} yaw={} bear={} yawErr={} hCol={} lastAim={} cur2={} (gate {}) |dY|={} (gate 1.2) within={} onG={} inW={} undW={} stuck={} totStuck={} pend={} break0={}{}",
+                wk.dbgTicksOnStep, wk.route.step(), wk.route.path().size(), edge != null ? edge.move : "-",
+                nd.getX(), nd.getY(), nd.getZ(),
+                String.format(Locale.ROOT, "%.2f", p.getX()), String.format(Locale.ROOT, "%.2f", p.getY()), String.format(Locale.ROOT, "%.2f", p.getZ()),
+                String.format(Locale.ROOT, "%.0f", p.getXRot()),
+                String.format(Locale.ROOT, "%.0f", p.getYRot()),
+                String.format(Locale.ROOT, "%.0f", bearing),
+                String.format(Locale.ROOT, "%.0f", yawErr),
+                p.horizontalCollision,
+                String.format(Locale.ROOT, "%.0f", wk.aimSmooth.lastAimYaw),
+                String.format(Locale.ROOT, "%.3f", cur2), REACH_DIST_SQ,
+                String.format(Locale.ROOT, "%.2f", Math.abs(dY)), within,
+                p.onGround(), p.isInWater(), p.isUnderWater(),
+                wk.stuckTicks, wk.totalTicks, edge != null && hasPendingEdge(world, edge),
+                br0, br0 != null ? (world.isSolid(br0) ? " (solid)" : " (clear)") : "");
     }
 }

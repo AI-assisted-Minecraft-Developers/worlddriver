@@ -408,7 +408,7 @@ public final class BotUtil {
      *     <td>{@code MAX_REACH} = 4.4, plus a collider ray</td></tr>
      * <tr><td>{@code BboxFillProcess.withinReach}</td><td>this hypothetical eye</td>
      *     <td>{@code FILL_STAND_REACH} = 4.0, no ray</td></tr>
-     * <tr><td>{@code WalkerTickClimb} parkour-place</td><td>the real eye</td>
+     * <tr><td>{@code ParkourPlace}</td><td>the real eye</td>
      *     <td>{@code PARKOUR_PLACE_REACH} = 4.0</td></tr>
      * <tr><td>{@code Stations.table}</td><td>the real eye</td>
      *     <td>{@link #STATION_REACH} = 4.3, via {@link #nearestBlockWithinReach}</td></tr>
