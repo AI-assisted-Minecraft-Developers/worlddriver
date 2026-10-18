@@ -15,7 +15,7 @@ import net.magicterra.worlddriver.api.methods.debug.DebugContracts.SinglePlan;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.bot.world.ClientWorldView;
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.PathSmoothing;
+import net.magicterra.worlddriver.bot.control.route.PathSmoothing;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.minecraft.client.Minecraft;

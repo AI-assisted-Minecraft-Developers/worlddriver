@@ -5,6 +5,21 @@ several thousand lines long. It is now a fixed pipeline of phase classes, each i
 file under `common/src/main/java/net/magicterra/worlddriver/bot/control/`, driven from
 `Walker#tickInner`.
 
+The package is split by what each part does:
+
+| Package | Holds |
+|---|---|
+| `control` | `Walker` and its outward face, the per-tick context, constants, geometry, telemetry |
+| `control.sense` | Prelude and StallDetect: what the tick starts from |
+| `control.route` | The plan: `Route`, adoption, stub routes, Repath, Search, Progress, path smoothing |
+| `control.controller` | `Controller`, `Channel`, `Arbiter` and the controllers |
+| `control.steer` | The regular walk: EdgeGuards, Aim, Drive |
+| `control.act` | `InputFrame`, `Safety`, `Actuate` |
+| `control.medium` | The walk of a body that swims or flies |
+
+Members another subpackage needs are public; that is the price of the split. Nothing outside
+`bot/control` is meant to use them, though only review keeps the layers above from doing so.
+
 Read this before changing a phase, and read [`bot-layering.md`](bot-layering.md) first if
 the walker's place in the wider subsystem is not already familiar.
 

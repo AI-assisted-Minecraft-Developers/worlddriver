@@ -50,7 +50,7 @@ public final class WalkerGeometry {
      * {@code hasPendingEdge}, and the arrival gate reverts to requiring {@code onGround()}). A
      * pointer that used to advance mid-float now waits for the support, which is the fix.
      */
-    static boolean floodedShaft(WorldView world, BlockPos dest) {
+    public static boolean floodedShaft(WorldView world, BlockPos dest) {
         if (!world.isWater(dest)) return false;
         // Surface, not shaft: water underfoot with AIR directly above is the water-bank climb-out.
         // Floating higher is physically impossible there, so the bot must crest and place.
@@ -73,7 +73,7 @@ public final class WalkerGeometry {
      * regressed {@code wd.waterLowBank}, because for that call site this predicate is not merely
      * stricter — it is unsatisfiable (see there).
      */
-    static boolean feetClearOf(LivingEntity p, BlockPos cell) {
+    public static boolean feetClearOf(LivingEntity p, BlockPos cell) {
         return p.getY() >= cell.getY() + 1.0;
     }
 

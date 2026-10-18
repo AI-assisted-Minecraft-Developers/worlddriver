@@ -47,7 +47,7 @@ public final class WalkerExpectAlarms {
 
     /** Note a placement's expected cell for the PLACE-noBlock observer (call right
      *  after {@code a.placeOn(clicked, UP)} with {@code clicked.above()}). */
-    void notePlace(BlockPos cell) {
+    public void notePlace(BlockPos cell) {
         if (!ControlConfig.walkerExpectAlarm) return;
         exPlacePos = cell;
         exPlaceTicksLeft = 8;
@@ -55,7 +55,7 @@ public final class WalkerExpectAlarms {
 
     /** REPATH-flip: the planner adopted a route whose near-term direction reverses the current
      *  one. Called (under the walkerExpectAlarm + uTurnLeg guard) when such an adoption happens. */
-    void noteRepathFlip(long pfTickCounter, BlockPos foot) {
+    public void noteRepathFlip(long pfTickCounter, BlockPos foot) {
         if (pfTickCounter - exRepathFlipTick < 200) {
             exRepathFlipCount++;
             FIRED.incrementAndGet();
@@ -69,7 +69,7 @@ public final class WalkerExpectAlarms {
         exRepathFlipTick = pfTickCounter;
     }
 
-    void tick(BlockInteraction blocks, Body a, WorldView world, LivingEntity p, List<BlockPos> path, int step, int noStepProgressTicks) {
+    public void tick(BlockInteraction blocks, Body a, WorldView world, LivingEntity p, List<BlockPos> path, int step, int noStepProgressTicks) {
         if (exThrottle > 0) exThrottle--;
         // DIG-dropped / DIG-slow: vanilla resets break progress on ANY released tick, so a
         // committed dig must hold continuously until the block breaks. Dropping the hold

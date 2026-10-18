@@ -173,7 +173,7 @@ public final class IntentProcess implements BotProcess {
                     + "; terrain along the path: " + walker.inspect().planTerrain(w)
                     + "; cell by cell: " + walker.inspect().planSpans(w, 4)
                     + "; smoothing self-audit: "
-                    + net.magicterra.worlddriver.bot.control.PathSmoothing.smoothingAudit();
+                    + net.magicterra.worlddriver.bot.control.route.PathSmoothing.smoothingAudit();
         }
         // Published from the SAME tick as the two counters above, so a reader cannot pair a step
         // index with a node the walker had already moved past. See BotState.ProcessSlot.pathNode.

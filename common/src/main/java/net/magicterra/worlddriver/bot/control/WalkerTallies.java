@@ -39,7 +39,7 @@ public final class WalkerTallies {
     public volatile int blockReplans;
 
     /** A dig drove {@code cell} this tick; counted when it is not the cell of the previous dig. */
-    void dig(BlockPos cell) {
+    public void dig(BlockPos cell) {
         if (cell == null) return;
         if (!cell.equals(lastDigCell)) {
             digs++;

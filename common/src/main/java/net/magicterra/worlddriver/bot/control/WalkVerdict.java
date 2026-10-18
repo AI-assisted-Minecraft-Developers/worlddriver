@@ -31,7 +31,7 @@ public final class WalkVerdict {
      *                  negative when there was no foot to measure from
      * @param openGoal  the goal has no cell to reach (an exploration), so ending is reaching it
      */
-    static WalkResult of(boolean failed, String error, boolean goalReached, String endReason,
+    public static WalkResult of(boolean failed, String error, boolean goalReached, String endReason,
                          double finalDist, boolean goalSnapped, boolean openGoal) {
         if (failed) {
             return new WalkResult(Locomotor.Status.FAILED, error != null ? error : "walk failed", endReason,

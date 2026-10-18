@@ -64,7 +64,7 @@ class WalkerTickDataflowTest {
         // If a phase file exists but is never called (or vice versa) the ordering
         // below is measuring something other than what runs.
         Set<String> onDisk = new TreeSet<>();
-        try (Stream<Path> files = Files.list(MOVEMENT)) {
+        try (Stream<Path> files = Files.walk(MOVEMENT)) {
             Pattern name = Pattern.compile("WalkerTick(\\w+)\\.java");
             files.forEach(p -> {
                 Matcher m = name.matcher(p.getFileName().toString());
@@ -156,6 +156,17 @@ class WalkerTickDataflowTest {
         return src.replaceAll("(?s)/\\*.*?\\*/", " ").replaceAll("//[^\n]*", " ");
     }
 
+    /** The phase's source file, in whichever subpackage of the walker it lives. */
+    private static Path phaseFile(String phase) {
+        String name = "WalkerTick" + phase + ".java";
+        try (Stream<Path> files = Files.walk(MOVEMENT)) {
+            return files.filter(p -> p.getFileName().toString().equals(name)).findFirst()
+                    .orElseThrow(() -> new AssertionError("no " + name + " under " + MOVEMENT));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     private static List<String> driverOrder() {
         assertTrue(Files.isDirectory(MOVEMENT),
                 "expected the module dir as cwd; got " + Path.of(".").toAbsolutePath());
@@ -180,7 +191,7 @@ class WalkerTickDataflowTest {
             String group = groupOfClass.get(c.group(1));
             if (group == null) continue;
             for (String stmt : c.group(2).split(";")) {
-                Matcher d = Pattern.compile("^\\s*[\\w.<>\\[\\]]+\\s+(\\w+)\\s*$").matcher(stmt);
+                Matcher d = Pattern.compile("^\\s*(?:public\\s+)?[\\w.<>\\[\\]]+\\s+(\\w+)\\s*$").matcher(stmt);
                 if (d.matches()) fields.add(group + "." + d.group(1));
             }
         }
@@ -193,7 +204,7 @@ class WalkerTickDataflowTest {
      * reads before it writes — counts as a READ.
      */
     private static void scan(String phase) {
-        String src = strip(read(MOVEMENT.resolve("WalkerTick" + phase + ".java")));
+        String src = strip(read(phaseFile(phase)));
         Matcher sig = Pattern.compile("WalkerTickCtx\\s+(\\w+)\\s*[,)]").matcher(src);
         assertTrue(sig.find(), "no WalkerTickCtx parameter found in WalkerTick" + phase);
         String ctx = sig.group(1);

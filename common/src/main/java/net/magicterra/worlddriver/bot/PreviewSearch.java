@@ -20,7 +20,7 @@ import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Segment;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts.SegmentRisk;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Scored;
-import net.magicterra.worlddriver.bot.control.PathSmoothing;
+import net.magicterra.worlddriver.bot.control.route.PathSmoothing;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
 import net.magicterra.worlddriver.bot.planning.PathFinder;

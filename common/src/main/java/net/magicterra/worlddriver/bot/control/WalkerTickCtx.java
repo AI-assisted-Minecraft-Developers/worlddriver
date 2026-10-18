@@ -14,63 +14,63 @@ import net.minecraft.world.entity.LivingEntity;
  * product group and only re-publishes {@code frame} basics it recomputed; a phase's
  * rehydrate block names exactly what it consumes.
  */
-final class WalkerTickCtx {
-    final Frame frame = new Frame();
-    final StallVerdict stall = new StallVerdict();
-    final EdgeState edges = new EdgeState();
-    final AimPlan aim = new AimPlan();
+public final class WalkerTickCtx {
+    public final Frame frame = new Frame();
+    public final StallVerdict stall = new StallVerdict();
+    public final EdgeState edges = new EdgeState();
+    public final AimPlan aim = new AimPlan();
     /** Why {@link WalkerTickDrive}'s riser lead gave no lead this tick, for the walk-keys line only. */
-    String leadWhy = "";
+    public String leadWhy = "";
 
     /** Produced by {@link WalkerTickPrelude}: the resolved bot + anchor cells every
      *  later phase keys off. {@code foot} is re-derived by phases that move the bot. */
-    static final class Frame {
-        LivingEntity p;
-        BlockPos foot;
-        BlockPos searchFoot;
+    public static final class Frame {
+        public LivingEntity p;
+        public BlockPos foot;
+        public BlockPos searchFoot;
     }
 
     /** Produced by {@link WalkerTickStallDetect}: the stall/deviation verdict consumed
      *  by the repath/search stages. */
-    static final class StallVerdict {
-        double d;                  // goal.estimate(foot) this tick
-        boolean offPath;
-        boolean breakingEdge;      // a planned break edge is actively swinging
-        boolean dugLastTick;       // the block-less climb-out dig swung last tick (its flag is re-armed later this tick)
-        boolean wedged;
-        boolean fellOffPath;
-        boolean fellBelowRoute;
+    public static final class StallVerdict {
+        public double d;                  // goal.estimate(foot) this tick
+        public boolean offPath;
+        public boolean breakingEdge;      // a planned break edge is actively swinging
+        public boolean dugLastTick;       // the block-less climb-out dig swung last tick (its flag is re-armed later this tick)
+        public boolean wedged;
+        public boolean fellOffPath;
+        public boolean fellBelowRoute;
     }
 
     /** Produced by {@link WalkerTickEdgeGuards}: the committed
      *  edge under execution and its guard classifications, consumed by Aim/Drive. */
-    static final class EdgeState {
-        Move.Edge edge;
-        BlockPos wp;
-        boolean parkourEdge;
-        boolean bridging;
-        boolean placingEdge;
-        boolean steppingOffFall;
-        boolean steppingOffWaterFall;
+    public static final class EdgeState {
+        public Move.Edge edge;
+        public BlockPos wp;
+        public boolean parkourEdge;
+        public boolean bridging;
+        public boolean placingEdge;
+        public boolean steppingOffFall;
+        public boolean steppingOffWaterFall;
     }
 
     /** Produced by {@link WalkerTickAim}: the full aim/camera/drive-shaping plan the
      *  Drive stage executes. */
-    static final class AimPlan {
-        boolean aimAtWaypoint;
-        boolean reCentre;
-        String aimSrc;
-        float descentNodeYaw;
-        boolean dryDescent;
-        boolean flatWaterTrend;
-        boolean trendCam;
-        float aimYaw;
-        boolean diveUnderCap;
-        boolean diving;
-        double stepColDx;
-        double stepColDz;
-        boolean stepUpFreeze;
-        boolean pivotForStepUp;
-        boolean descendBrake;
+    public static final class AimPlan {
+        public boolean aimAtWaypoint;
+        public boolean reCentre;
+        public String aimSrc;
+        public float descentNodeYaw;
+        public boolean dryDescent;
+        public boolean flatWaterTrend;
+        public boolean trendCam;
+        public float aimYaw;
+        public boolean diveUnderCap;
+        public boolean diving;
+        public double stepColDx;
+        public double stepColDz;
+        public boolean stepUpFreeze;
+        public boolean pivotForStepUp;
+        public boolean descendBrake;
     }
 }

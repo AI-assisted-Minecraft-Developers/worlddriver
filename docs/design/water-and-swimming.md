@@ -198,10 +198,10 @@ bot passes its goal. An earlier version cleared on that, and a 929-tick orbit in
 
 - `bot/rules/moves/SurfaceClimbOut.java` — the exit edge and its three legal shapes.
 - `bot/world/WorldView.java` — `surfaceWaterNodes()` and `diveSearch()`.
-- `bot/control/WalkerTickDrive.java` — the cruise state machine; its constants are in
+- `bot/control/steer/WalkerTickDrive.java` — the cruise state machine; its constants are in
   `bot/control/WalkerConstants.java`.
-- `bot/control/WaterClimb.java` — the climb-out controller; `pillarTakeoverTick` is the executor half of the exit.
-- `bot/control/WalkerTickAim.java` — the orbit break.
+- `bot/control/controller/WaterClimb.java` — the climb-out controller; `pillarTakeoverTick` is the executor half of the exit.
+- `bot/control/steer/WalkerTickAim.java` — the orbit break.
 - `config/WorldConfig.java` — `pathfinderSurfaceWaterNodes`, `pathfinderDeepWaterPriced`, `waterDangerPenalty`;
   `config/ControlConfig.java` — `walkerSurfaceSprintSwim`, `walkerOrbitBreaksAimLag`.
 

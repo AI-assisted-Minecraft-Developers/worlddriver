@@ -237,7 +237,7 @@ public final class WalkerInspector {
         return tallyOf(wk.route.path(), wk.route.edges()) + " reachesGoal=" + !wk.route.seg.pathBestEffort;
     }
 
-    static String tallyOf(List<BlockPos> nodes, List<Move.Edge> es) {
+    public static String tallyOf(List<BlockPos> nodes, List<Move.Edge> es) {
         if (nodes == null || nodes.isEmpty()) return "no path";
         java.util.Map<String, Integer> byMove = new java.util.LinkedHashMap<>();
         if (es != null)

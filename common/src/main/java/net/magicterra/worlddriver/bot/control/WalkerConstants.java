@@ -6,7 +6,7 @@ import net.magicterra.worlddriver.config.ControlConfig;
  *  record) is preserved exactly as it lived in {@code Walker}; only the visibility was
  *  widened from {@code private} to {@code public} so {@code Walker} can static-import
  *  them ({@code import static WalkerConstants.*}). No behaviour change. */
-final class WalkerConstants {
+public final class WalkerConstants {
     private WalkerConstants() {}
 
     public static final int CARROT_MAX_NODES = 10;

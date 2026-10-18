@@ -25,7 +25,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 
-import static net.magicterra.worlddriver.bot.control.PathSmoothing.*;
+import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Locale;
@@ -33,10 +33,38 @@ import java.util.Set;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
 import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
+import net.magicterra.worlddriver.bot.control.act.Actuate;
+import net.magicterra.worlddriver.bot.control.act.Safety;
+import net.magicterra.worlddriver.bot.control.controller.Arbiter;
+import net.magicterra.worlddriver.bot.control.controller.Channel;
+import net.magicterra.worlddriver.bot.control.controller.DrownEscape;
+import net.magicterra.worlddriver.bot.control.controller.ParkourPlace;
+import net.magicterra.worlddriver.bot.control.controller.Pillar;
+import net.magicterra.worlddriver.bot.control.controller.Recovery;
+import net.magicterra.worlddriver.bot.control.controller.RouteDig;
+import net.magicterra.worlddriver.bot.control.controller.VineClimb;
+import net.magicterra.worlddriver.bot.control.controller.WalkerDig;
+import net.magicterra.worlddriver.bot.control.controller.WaterClimb;
+import net.magicterra.worlddriver.bot.control.medium.MediumLocomotor;
+import net.magicterra.worlddriver.bot.control.route.PathProjection;
+import net.magicterra.worlddriver.bot.control.route.PathSmoothing;
+import net.magicterra.worlddriver.bot.control.route.Route;
+import net.magicterra.worlddriver.bot.control.route.RouteAdoption;
+import net.magicterra.worlddriver.bot.control.route.SearchGovernors;
+import net.magicterra.worlddriver.bot.control.route.WalkerTickProgress;
+import net.magicterra.worlddriver.bot.control.route.WalkerTickRepath;
+import net.magicterra.worlddriver.bot.control.route.WalkerTickSearch;
+import net.magicterra.worlddriver.bot.control.sense.WalkerTickPrelude;
+import net.magicterra.worlddriver.bot.control.sense.WalkerTickStallDetect;
+import net.magicterra.worlddriver.bot.control.steer.AimSmoothing;
+import net.magicterra.worlddriver.bot.control.steer.StandToWork;
+import net.magicterra.worlddriver.bot.control.steer.WalkerTickAim;
+import net.magicterra.worlddriver.bot.control.steer.WalkerTickDrive;
+import net.magicterra.worlddriver.bot.control.steer.WalkerTickEdgeGuards;
 
 public final class Walker implements Locomotor {
     /** What a tick phase decided; {@link #tick} turns it into a {@link Locomotor.Status}. */
-    enum Step { WALKING, ARRIVED, FAILED }
+    public enum Step { WALKING, ARRIVED, FAILED }
     // Water-bucket (MLG) fall handling lives in the always-on {@link
     // ClutchController} the bot ticks, so an unplanned fall self-rescues
     // whether or not a Walker is driving. The Walker only SIGNALS a planned fall
@@ -45,17 +73,17 @@ public final class Walker implements Locomotor {
     // Other tuning lives in BotConfig (mutable via mc.bot.setting).
 
     /** This walker's own event counts (searches, recovery hops, digs) — see {@link WalkerTallies}. */
-    final WalkerTallies tallies = new WalkerTallies();
+    public final WalkerTallies tallies = new WalkerTallies();
 
     private final WalkerInspector inspector = new WalkerInspector(this);
     /** The readings a diagnosis wants: the plan, the step, the per-tick tags. */
     public WalkerInspector inspect() { return inspector; }
 
     /** The telemetry of the body this walker last ticked; a private sink until the first tick. */
-    WalkerTelemetry tel = new WalkerTelemetry();
+    public WalkerTelemetry tel = new WalkerTelemetry();
 
     /** The chain or verb this walker moves for — see {@link WalkerSettings#owner}. */
-    final String owner;
+    public final String owner;
 
     public Walker() { this(WalkerSettings.DEFAULT); }
 
@@ -66,11 +94,11 @@ public final class Walker implements Locomotor {
         useProfile(settings.profile());
     }
 
-    Goal goal;
+    public Goal goal;
     /** Per-intent search profile (bias + capability + constraints) forwarded to
      *  every PathFinder this Walker builds (A4a bias-only; A2a full profile).
      *  {@link SearchProfile#NONE} = plain navigation; IntentProcess sets it from the Intent. */
-    SearchProfile profile = SearchProfile.NONE;
+    public SearchProfile profile = SearchProfile.NONE;
     /** Cached from {@link #profile} in {@link #useProfile}: does the current profile carry a
      *  {@link NoBreak} (a per-goto {@code forbidDig})? Cached so the execution-layer dig gate
      *  ({@link #mayBreak}) is a field read, not a per-tick constraint scan at every fallback site. */
@@ -83,7 +111,7 @@ public final class Walker implements Locomotor {
     /** Single construction point for this Walker's deep-search PathFinders so the
      *  per-Walker budget override, tuning and scope source apply to every search launch site
      *  alike (foot repath, commit-end continuation, place-suppressed re-plan). See {@link WalkerFinders}. */
-    PathFinder newPathFinder(WorldView world) { return WalkerFinders.deep(this, world); }
+    public PathFinder newPathFinder(WorldView world) { return WalkerFinders.deep(this, world); }
 
     /** The bot the last {@link #tick(Body, WorldView)} drove, for the finders' scope source.
      *  Null until the first tick, which is also the first time a search can start. */
@@ -91,8 +119,8 @@ public final class Walker implements Locomotor {
 
     /** That bot's equipment and block interaction, or {@link WalkerNoHands} when it lacks either —
      *  never null, so the tick phases' dig and place sites read and drive them without a guard each. */
-    Equipment equipment = WalkerNoHands.INSTANCE;
-    BlockInteraction blocks = WalkerNoHands.INSTANCE;
+    public Equipment equipment = WalkerNoHands.INSTANCE;
+    public BlockInteraction blocks = WalkerNoHands.INSTANCE;
 
     /** Search with {@code p} from now on. Null → {@link SearchProfile#NONE}. */
     private void useProfile(SearchProfile p) {
@@ -113,25 +141,25 @@ public final class Walker implements Locomotor {
      *  are NOT gated here — {@code NoBreak} already prunes them at the planner. The single-head-cell
      *  anti-suffocation dig (pillarRecover) is DELIBERATELY exempt and stays on {@code allowBreak}
      *  only: suffocation is death, {@code forbidDig} is a navigation preference — safety wins. */
-    boolean mayBreak() {
+    public boolean mayBreak() {
         return WorldConfig.allowBreak && !profileForbidsBreak;
     }
     /** Ticks the pointer has been HELD on a final node that is the goal while the foot is not yet
      *  in it (walkerHoldLastNodeUntilStanding); keyed to the path and step it counts for. */
-    int finalNodeHold;
-    Object finalNodeHoldPath;
-    int finalNodeHoldStep = -1;
-    boolean goalSnapChecked;   // one-shot per goal: snap an unstandable Goal.Block target to the nearest standable cell (see snapGoalToStandable) — needs a live WorldView so it runs on the first tick, not at start
+    public int finalNodeHold;
+    public Object finalNodeHoldPath;
+    public int finalNodeHoldStep = -1;
+    public boolean goalSnapChecked;   // one-shot per goal: snap an unstandable Goal.Block target to the nearest standable cell (see snapGoalToStandable) — needs a live WorldView so it runs on the first tick, not at start
     /** The plan and the searches for it; the only writer of either. */
-    final Route route = new Route();
+    public final Route route = new Route();
     /** The guards that get the last word on a walking tick's input. */
-    final Safety safety = new Safety(this);
+    public final Safety safety = new Safety(this);
     /** The A* result before stringPull, as a tally — see {@link WalkerInspector#rawPlanTally()}. */
-    String rawPlan;
+    public String rawPlan;
     /** The first parkour takeoff this walk ever made — see WalkerTickDrive's latch. */
     String parkourTakeoff;
-    int ticksSinceRepath;
-    int stuckTicks;
+    public int ticksSinceRepath;
+    public int stuckTicks;
     /** Physical stall clock (§84): XZ-anchor ticks-without-displacement, fully
      *  DECOUPLED from path/step/repath — the acceptance rig's "worst movement
      *  stall" metric mirrored into the executor. WHY: a safety-repath loop swaps
@@ -146,25 +174,25 @@ public final class Walker implements Locomotor {
      *  <p>Physical-stall anchor (task#96 step B7), owned by WalkerTickProgress; the stall
      *  verdict is read by the aim/drive gates. Self-managing (re-anchors on real motion)
      *  — no journey reset ever touched it. */
-    final PhysicalStall physStall = new PhysicalStall();
-    static final class PhysicalStall {
-        double anchorX = Double.NaN, anchorZ;
-        int stallTicks;
+    public final PhysicalStall physStall = new PhysicalStall();
+    public static final class PhysicalStall {
+        public double anchorX = Double.NaN, anchorZ;
+        public int stallTicks;
     }
-    int totalTicks;
-    int actionTicks;          // ticks spent on the current break/place edge
+    public int totalTicks;
+    public int actionTicks;          // ticks spent on the current break/place edge
     /** Sticky planned-break dig (task#96 step B7): held across ticks so an interleaved
      *  travel tick can't release attack (a single released tick resets vanilla mining
      *  progress to zero; C28-J1 DIG-slow @-258,81,338: 200t of dig ticks interleaved with
      *  attack=false travel ticks never completed one block). Engaged by Climb/Drive,
      *  released by WalkerTickPrelude when the planned break is gone; deliberately NO
      *  journey reset (release is world-state-driven). */
-    final StickyDig stickyDig = new StickyDig();
-    boolean digDrivenThisTick, digKeyOwned;   // a dig drove the avatar this tick / the dig latch is a walker dig's (see DIG_KEY_RELEASE_TICKS)
-    int digIdleTicks;                         // consecutive tick-ends with the latch owned and no dig driven
-    static final class StickyDig {
-        BlockPos pos;         // planned-break cell being mined
-        int ticks;            // watchdog for pos
+    public final StickyDig stickyDig = new StickyDig();
+    public boolean digDrivenThisTick, digKeyOwned;   // a dig drove the avatar this tick / the dig latch is a walker dig's (see DIG_KEY_RELEASE_TICKS)
+    public int digIdleTicks;                         // consecutive tick-ends with the latch owned and no dig driven
+    public static final class StickyDig {
+        public BlockPos pos;         // planned-break cell being mined
+        public int ticks;            // watchdog for pos
         // PROGRESS-AWARE release (2026-07-21, Mountains bank live + 23 RELEASE
         // loops): a fixed tick cap cannot work because vanilla stacks the x5 (eye in
         // water) and x5 (airborne) dig penalties MULTIPLICATIVELY — a swimAshoreClimb
@@ -172,8 +200,8 @@ public final class Walker implements Locomotor {
         // every such dig with the block still solid, reset progress to zero, and the
         // walker re-acquired the same cell forever. Tracking the actual destroy
         // progress holds while it climbs and releases only on a true stall.
-        float lastProgress;   // last observed vanilla destroyProgress (0..1)
-        int stallTicks;       // consecutive ticks with no progress increase
+        public float lastProgress;   // last observed vanilla destroyProgress (0..1)
+        public int stallTicks;       // consecutive ticks with no progress increase
         // The drive is on the exact cell and vanilla's crosshair-driven attack pass stands
         // aside for it (ClientIntents), so progress is decoupled from where the eye raycast
         // lands — the bob-reset latch that used to live here is gone with the attack key.
@@ -198,7 +226,7 @@ public final class Walker implements Locomotor {
          * policy in two places, which is how the fixed-clock release outlived the lesson that
          * killed it.
          */
-        void engage(net.minecraft.core.BlockPos b) {
+        public void engage(net.minecraft.core.BlockPos b) {
             // A LIVE CLAIM HOLDS, whatever its progress currently reads. Two earlier shapes failed:
             // last-caller-wins (no guard at all), and hold-while-lastProgress>0 — the latter written
             // and refuted on the same night (2026-08-22, real-client ladder rung 3). It asked the
@@ -218,57 +246,57 @@ public final class Walker implements Locomotor {
         /** Revoke unconditionally, for a preempting SAFETY dig (suffocation) — that is not a
          *  navigation preference and must not queue behind one. The expiry policy still lives only
          *  in the prelude; this is a named override with a caller, not a second clock. */
-        void revoke() { pos = null; ticks = 0; lastProgress = 0f; stallTicks = 0; }
+        public void revoke() { pos = null; ticks = 0; lastProgress = 0f; stallTicks = 0; }
     }
     /** The controllers, each holding its own state; the phases read some of it through these fields. */
-    final WaterClimb waterClimb = new WaterClimb();
-    final Pillar pillar = new Pillar();
+    public final WaterClimb waterClimb = new WaterClimb();
+    public final Pillar pillar = new Pillar();
     /** The back-off and the burst that move a stuck bot; asked for by the phases, driven by {@link #arbiter}. */
-    final Recovery recovery = new Recovery();
+    public final Recovery recovery = new Recovery();
     /** Breaking and placing the route's own blocks; its work this tick tells the walk how to stand. */
     final RouteDig routeDig = new RouteDig();
     /** Who drives which channel this tick; {@link Arbiter#snapshot} says. */
-    final Arbiter arbiter = new Arbiter(List.of(new DrownEscape(), recovery, waterClimb, pillar,
+    public final Arbiter arbiter = new Arbiter(List.of(new DrownEscape(), recovery, waterClimb, pillar,
             new ParkourPlace(), new VineClimb(), routeDig));
     // --- expectation alarms (walkerExpectAlarm): live actual-vs-expected divergence detectors ---
     // Extracted to WalkerExpectAlarms (all the ex* sentinel state + the observers) — purely
     // observational, never drives movement. Fed via exAlarms.tick / .notePlace / .noteRepathFlip.
-    final WalkerExpectAlarms exAlarms = new WalkerExpectAlarms();
+    public final WalkerExpectAlarms exAlarms = new WalkerExpectAlarms();
     /** Submerged-descent dive latches (task#96 step B), owned by WalkerTickAim; both
      *  cleared on every journey reset via {@link DiveLatches#reset()}. */
-    final DiveLatches dive = new DiveLatches();
-    static final class DiveLatches {
-        int latch;         // ticks left forcing a dive-under-cap (set on a blocked submerged descent; holds the dive through the sink so it doesn't flip-flop)
-        int hold;          // ticks left holding an ACTIVE descent (diving) across repaths — a mid-sink repath re-plans from the buoyancy point with a dy=1 first hop, which alone never re-arms diving, so the bot pops back up (round45 water-well live)
+    public final DiveLatches dive = new DiveLatches();
+    public static final class DiveLatches {
+        public int latch;         // ticks left forcing a dive-under-cap (set on a blocked submerged descent; holds the dive through the sink so it doesn't flip-flop)
+        public int hold;          // ticks left holding an ACTIVE descent (diving) across repaths — a mid-sink repath re-plans from the buoyancy point with a dy=1 first hop, which alone never re-arms diving, so the bot pops back up (round45 water-well live)
         void reset() {
             latch = 0;
             hold = 0;
         }
     }
-    final AscendMovement ascendMovement = new AscendMovement();   // task#82 per-move machine (drives only when walkerAscendMovement is ON)
-    boolean forceFellOffPath;   // task#82: AscendMovement returned UNREACHABLE/FAILED last delegated tick → OR into fellOffPath (line 1042) so the proven re-route fires
+    public final AscendMovement ascendMovement = new AscendMovement();   // task#82 per-move machine (drives only when walkerAscendMovement is ON)
+    public boolean forceFellOffPath;   // task#82: AscendMovement returned UNREACHABLE/FAILED last delegated tick → OR into fellOffPath (line 1042) so the proven re-route fires
     /** Riser-ram fold counters (task#96 step B7): the four stepUpFreeze/bank-follow
      *  feeders, counted by WalkerTickAim (bankFollowRamTicks also driven in Drive).
      *  All self-zero on their own disengage conditions — no journey reset ever
      *  touched them. */
-    final RamFold ramFold = new RamFold();
-    static final class RamFold {
-        int stepRamStuckTicks;       // GROUNDED ticks ramming an above-node riser (bob-immune; dry OR shallow water) → STEPUP_FREEZE_TICKS engages stepUpFreeze
-        int ascentRamBobTicks;       // foot-below-node + lateral-close ticks IGNORING onGround (bob-resettable; steep-bank +1 mount) → ORs into stepUpFreeze (gated walkerAscentRamBobBreak)
-        int floatingBankBobTicks;    // FLOATING +1 water-bank: !onGround + foot-below-node + lateral-ram, IGNORING the in/out-water bob → ORs into stepUpFreeze (gated walkerFloatingBankBobFreeze)
-        int bankFollowRamTicks;      // FLOATING water-bank lateral ram (ANY node-Y) → drives a slide ALONG the bank toward a mountable exit (gated walkerFloatingBankFollow)
+    public final RamFold ramFold = new RamFold();
+    public static final class RamFold {
+        public int stepRamStuckTicks;       // GROUNDED ticks ramming an above-node riser (bob-immune; dry OR shallow water) → STEPUP_FREEZE_TICKS engages stepUpFreeze
+        public int ascentRamBobTicks;       // foot-below-node + lateral-close ticks IGNORING onGround (bob-resettable; steep-bank +1 mount) → ORs into stepUpFreeze (gated walkerAscentRamBobBreak)
+        public int floatingBankBobTicks;    // FLOATING +1 water-bank: !onGround + foot-below-node + lateral-ram, IGNORING the in/out-water bob → ORs into stepUpFreeze (gated walkerFloatingBankBobFreeze)
+        public int bankFollowRamTicks;      // FLOATING water-bank lateral ram (ANY node-Y) → drives a slide ALONG the bank toward a mountable exit (gated walkerFloatingBankFollow)
     }
-    boolean descending;       // ending creative flight; wait to land before pathing
+    public boolean descending;       // ending creative flight; wait to land before pathing
     /** Water anti-spin governor (task#96 step B9): consumed by the search/stall gates.
      *  {@link GoalSpin#resetForNewGoal()} (start only) clears the baselines;
      *  goalSpin.churnResets deliberately PERSISTS across goals (fresh-baseline grants are a
      *  per-bot budget, not per-journey — do NOT add it to the reset). */
-    final GoalSpin goalSpin = new GoalSpin();
-    static final class GoalSpin {
-        double bestDistToGoal = Double.POSITIVE_INFINITY;
-        double bestGoalDist = Double.POSITIVE_INFINITY;  // anti-spin: best goal-estimate across repaths (5-block margin ignores micro-lunges)
-        int repathsNoProgress;                           // anti-spin: consecutive in-water repaths that didn't improve goalSpin.bestGoalDist
-        int churnResets;                                 // anti-spin: fresh baselines granted after a stall (tolerates water go-arounds; real progress clears it)
+    public final GoalSpin goalSpin = new GoalSpin();
+    public static final class GoalSpin {
+        public double bestDistToGoal = Double.POSITIVE_INFINITY;
+        public double bestGoalDist = Double.POSITIVE_INFINITY;  // anti-spin: best goal-estimate across repaths (5-block margin ignores micro-lunges)
+        public int repathsNoProgress;                           // anti-spin: consecutive in-water repaths that didn't improve goalSpin.bestGoalDist
+        public int churnResets;                                 // anti-spin: fresh baselines granted after a stall (tolerates water go-arounds; real progress clears it)
         private void resetForNewGoal() {
             bestDistToGoal = Double.POSITIVE_INFINITY;
             bestGoalDist = Double.POSITIVE_INFINITY;
@@ -281,13 +309,13 @@ public final class Walker implements Locomotor {
      *  cleared this window); hColRamTicks has NO reset site anywhere — it self-zeroes
      *  on every collision-free tick. The water anti-spin's goalSpin.churnResets stays a loose
      *  field (cross-goal persistence — see its doc). */
-    final BoxedChurn churn = new BoxedChurn();
-    static final class BoxedChurn {
-        BlockPos base;         // foot at the start of the current net-displacement window
-        int windowTicks;       // ticks elapsed in the current window
-        int escapes;           // consecutive windows that detected churn (escalates the charge radius)
-        int hColRamTicks;      // wall-corner: consecutive ticks of sustained horizontalCollision (the signature of the bot pinned against a wall)
-        int cycle;             // this window: -1 got nearer the goal, 0 near base, 1 left it, 2 came back to it (WalkerTickStallDetect.trackWindow)
+    public final BoxedChurn churn = new BoxedChurn();
+    public static final class BoxedChurn {
+        public BlockPos base;         // foot at the start of the current net-displacement window
+        public int windowTicks;       // ticks elapsed in the current window
+        public int escapes;           // consecutive windows that detected churn (escalates the charge radius)
+        public int hColRamTicks;      // wall-corner: consecutive ticks of sustained horizontalCollision (the signature of the bot pinned against a wall)
+        public int cycle;             // this window: -1 got nearer the goal, 0 near base, 1 left it, 2 came back to it (WalkerTickStallDetect.trackWindow)
         private void resetForNewGoal() {
             base = null;
             windowTicks = 0;
@@ -300,15 +328,15 @@ public final class Walker implements Locomotor {
      *  and the proactive pinch check ({@link #maybeArmPinchEscalation}); read live by this
      *  walker's finders through {@link WalkerFinders}. Both journey resets
      *  {@link EscalationClock#disarm()} so the escalation never leaks into the next goto. */
-    final EscalationClock escal = new EscalationClock();
-    static final class EscalationClock {
-        long tick;             // monotonic per-tick counter (drives the sticky boxed-escalation timer)
-        long untilTick;        // escalation armed until this tick (sticky so a few net-progress windows mid-climb don't drop it)
-        boolean wasArmed;      // armed on the previous tick, so the debug line marks the edge only
-        boolean armed() {
+    public final EscalationClock escal = new EscalationClock();
+    public static final class EscalationClock {
+        public long tick;             // monotonic per-tick counter (drives the sticky boxed-escalation timer)
+        public long untilTick;        // escalation armed until this tick (sticky so a few net-progress windows mid-climb don't drop it)
+        public boolean wasArmed;      // armed on the previous tick, so the debug line marks the edge only
+        public boolean armed() {
             return tick < untilTick;
         }
-        void arm(long stickyTicks) {
+        public void arm(long stickyTicks) {
             untilTick = tick + stickyTicks;
         }
         void disarm() {
@@ -323,18 +351,18 @@ public final class Walker implements Locomotor {
      *  beginScriptedFollow keep their DIFFERENT partial restarts as direct writes
      *  (adoption re-bases stuckStepHigh to step-1, not -1). The dwell/orbit counters
      *  self-manage on step/path change inside WalkerTickProgress. */
-    final StepProgress stepProg = new StepProgress();
-    static final class StepProgress {
-        double bestStepDist = Double.POSITIVE_INFINITY; // closest approach² to the current node (drives the progress-based stuckTicks)
-        int stuckStep = -1;                         // path index bestStepDist tracks; a step change starts a fresh progress window
-        int stuckStepHigh = -1;                     // walkerStuckStepMonotonic HIGH-WATER mark: the stall clock only resets when step exceeds this (C33-J2: an oscillating pointer 5↔6 cleared the clock on every "advance" because the retreat re-base LOWERED stuckStep — the high-water mark never goes down within one path)
-        int noStepProgressTicks;                    // jitter-immune ticks on the SAME step (resets only when step advances/path changes) → wedge detector
-        int noProgressStep = -1;                    // path index noStepProgressTicks tracks (independent of bridge/progress resets)
-        double noProgressBestD2 = Double.POSITIVE_INFINITY; // closest-ever approach² to the tracked step; monotonic, so a bob can't reset the wedge timer but a slow water cruise along a long string-pulled edge does
-        int crestOrbitTicks;                        // BOB-IMMUNE dwell on a dry stepUp/diagUp CREST step: resets ONLY on step-advance/path-change, never on the 3D new-low the vertical bob fakes on dry land → lets walkerStepUpCrestReach fire on a WIDE bob orbit where noStepProgressTicks keeps zeroing
-        int crestOrbitStep = -1;                    // path index crestOrbitTicks tracks
-        int rawStepDwellTicks;                      // PURELY step-tracked dwell (resets ONLY on step-change/path-change, NEVER on a 3D new-low) → jitter-immune wedge gate for the steep-ascent slide-back recovery (walkerAscentRamJitterImmune)
-        int ramRecoverLastFireDwell = -1;           // rawStepDwellTicks at the last walkerAscentRamJitterImmune fold (-1 = none this episode); a RAM_RECOVER_DEBOUNCE gap caps the fold rate AND re-attempts a stubborn same-step ram; cleared on step/path change
+    public final StepProgress stepProg = new StepProgress();
+    public static final class StepProgress {
+        public double bestStepDist = Double.POSITIVE_INFINITY; // closest approach² to the current node (drives the progress-based stuckTicks)
+        public int stuckStep = -1;                         // path index bestStepDist tracks; a step change starts a fresh progress window
+        public int stuckStepHigh = -1;                     // walkerStuckStepMonotonic HIGH-WATER mark: the stall clock only resets when step exceeds this (C33-J2: an oscillating pointer 5↔6 cleared the clock on every "advance" because the retreat re-base LOWERED stuckStep — the high-water mark never goes down within one path)
+        public int noStepProgressTicks;                    // jitter-immune ticks on the SAME step (resets only when step advances/path changes) → wedge detector
+        public int noProgressStep = -1;                    // path index noStepProgressTicks tracks (independent of bridge/progress resets)
+        public double noProgressBestD2 = Double.POSITIVE_INFINITY; // closest-ever approach² to the tracked step; monotonic, so a bob can't reset the wedge timer but a slow water cruise along a long string-pulled edge does
+        public int crestOrbitTicks;                        // BOB-IMMUNE dwell on a dry stepUp/diagUp CREST step: resets ONLY on step-advance/path-change, never on the 3D new-low the vertical bob fakes on dry land → lets walkerStepUpCrestReach fire on a WIDE bob orbit where noStepProgressTicks keeps zeroing
+        public int crestOrbitStep = -1;                    // path index crestOrbitTicks tracks
+        public int rawStepDwellTicks;                      // PURELY step-tracked dwell (resets ONLY on step-change/path-change, NEVER on a 3D new-low) → jitter-immune wedge gate for the steep-ascent slide-back recovery (walkerAscentRamJitterImmune)
+        public int ramRecoverLastFireDwell = -1;           // rawStepDwellTicks at the last walkerAscentRamJitterImmune fold (-1 = none this episode); a RAM_RECOVER_DEBOUNCE gap caps the fold rate AND re-attempts a stubborn same-step ram; cleared on step/path change
         private void restartWindows() {
             bestStepDist = Double.POSITIVE_INFINITY;
             stuckStep = -1;
@@ -350,7 +378,7 @@ public final class Walker implements Locomotor {
     /** Phase-3: consecutive ARC_WEDGE_DS+horizontalCollision ticks before the arc-wedge folds into fellOffPath.
      *  30 ticks (1.5 s) cuts the legacy ~100-tick (5 s) wedge wait by 70% while sitting well past a legit
      *  stepUp/diagUp jump-mount (which presses the riser only ~5-10 t before it tops out and ds jumps). */
-    static final int ARC_WEDGE_TICKS = 30;
+    public static final int ARC_WEDGE_TICKS = 30;
     /** Phase-3b net-arc-progress window (walkerArcProgressWedge). 40 ticks (2 s): a healthy walk advances ~8 blocks
      *  of arc-length, the slowest legit climb still clears several, so requiring ≥ ARC_PROG_MIN net progress over the
      *  window flags an oscillating/frozen limit cycle (net ≈ 0) without misfiring on slow-but-moving travel. Shorter
@@ -363,9 +391,9 @@ public final class Walker implements Locomotor {
      *  StallDetect/Drive, the projection by Aim/Progress. NO journey reset — everything
      *  self-resets on a path-identity change (shadowPath != path), and Progress clears the
      *  windows on a no-projection tick. */
-    final ArcShadow arc = new ArcShadow();
-    static final class ArcShadow {
-        final PathProjection proj = new PathProjection();  // reusable arc-length projector (the carved-out, fully-readable core; the executor only holds onto its result)
+    public final ArcShadow arc = new ArcShadow();
+    public static final class ArcShadow {
+        public final PathProjection proj = new PathProjection();  // reusable arc-length projector (the carved-out, fully-readable core; the executor only holds onto its result)
         private List<BlockPos> shadowPath;    // path identity the shadow s tracks (reset s/ds when the path object changes)
         private double shadowS = Double.NaN;  // last tick's cumulative arc-length (XZ, from path[0] to the foot's polyline projection); for ds/dt + monotonic-violation detection
         private long monoViol;                // count of backward-snap events (ds < -0.5) — must stay ~0 on clean runs for the projection to be trustworthy enough to drive in Phase 1
@@ -375,7 +403,7 @@ public final class Walker implements Locomotor {
         // gate never fills and the ram bobs ~5 s until the slow 100-tick wedge fires. The horizontal arc projection s
         // is immune to that vertical/jitter noise (a wall-ram makes no forward arc progress regardless of bob), so
         // ticks of |ds|<ARC_WEDGE_DS while horizontalCollision accumulate reliably → fold into fellOffPath far sooner.
-        int wedgeTicks;               // consecutive ticks of ~zero arc-progress while ramming (bob/jitter-immune); reset on any real ds or path change
+        public int wedgeTicks;               // consecutive ticks of ~zero arc-progress while ramming (bob/jitter-immune); reset on any real ds or path change
         // Phase-3b (walkerArcProgressWedge): NET arc-length progress over a WINDOW — catches an OSCILLATING limit cycle
         // the per-tick ram wedge (wedgeTicks, needs hCol + per-tick |ds|<0.05) and the anti-churn net-XZ both miss.
         // A steep-face diagUp churn (live 2026-06-28 -815, replay-0006) has the bot bob-jumping airborne (no hCol), making
@@ -384,49 +412,49 @@ public final class Walker implements Locomotor {
         // the path, immune to the lateral swing AND the vertical bob, so net arc-s over a window cleanly flags "no path
         // progress despite motion". Folds into the SAME fellOffPath recovery (fresh foot-search blacklists the
         // un-advanceable node + re-routes). Window-based so it does NOT need hCol or onGround.
-        double progBaseS = Double.NaN;  // proj.s at the start of the current progress window
-        int progWindowTicks;          // ticks elapsed in the current arc-progress window
-        boolean progStall;            // last completed window made < ARC_PROG_MIN net arc-s progress → stuck (consumed by fellOffPath)
+        public double progBaseS = Double.NaN;  // proj.s at the start of the current progress window
+        public int progWindowTicks;          // ticks elapsed in the current arc-progress window
+        public boolean progStall;            // last completed window made < ARC_PROG_MIN net arc-s progress → stuck (consumed by fellOffPath)
     }
-    float freeHangDriveYaw = Float.NaN;             // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter ±180° flips that would circle the bot off a narrow column — EdgeGuards-owned, self-resyncing (no journey reset)
-    int surfaceWaterLatch = 0;                      // ticks the open-water swim stays latched after a surface bob lifts the foot out of the fluid (rides out the isInWater blink) — read across Aim/Climb/Progress; belongs to a future water-state family
+    public float freeHangDriveYaw = Float.NaN;             // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter ±180° flips that would circle the bot off a narrow column — EdgeGuards-owned, self-resyncing (no journey reset)
+    public int surfaceWaterLatch = 0;                      // ticks the open-water swim stays latched after a surface bob lifts the foot out of the fluid (rides out the isInWater blink) — read across Aim/Climb/Progress; belongs to a future water-state family
     /** Aim/heading smoothing state — see {@link AimSmoothing}. */
-    final AimSmoothing aimSmooth = new AimSmoothing();
+    public final AimSmoothing aimSmooth = new AimSmoothing();
     /** Descent/water sprint-brake latches + drive debouncers (task#96 step B5), owned by
      *  WalkerTickDrive. {@link DriveLatches#reset()} clears only the two sprint-brake
      *  latches (exactly what both journey resets cleared); the debounce counters
      *  self-manage per tick. */
-    final DriveLatches driveLatch = new DriveLatches();
-    static final class DriveLatches {
-        int deepWaterDriftLatch = 0;                // ticks the deep-water drift sprint-brake stays latched after firing while grounded, so sprint stays OFF through the airborne sub-arcs of a step-down descent toward a deep pocket (otherwise sprint re-arms each airborne tick and the accumulated forward momentum still overshoots into the water)
-        int steepDescentLatch = 0;                  // DRY sibling of deepWaterDriftLatch: ticks the steep-descent sprint-brake stays latched across the airborne sub-arcs of a step-down, so sprint can't re-arm mid-fall and accumulate forward momentum off a survivable-deep lip (live 2026-07-11 Mountains massif: onG=false→sprint=true walked the bot off a 19-block lip to death)
-        int climbPressConsec = 0;                   // consecutive ticks the buoyant-climb-press raw condition has held (debounces the surface-bob false trigger)
-        int descentDriveRejectStreak = 0;           // consecutive back-hop rejections on a dry diagDown slope (escape-hatch snaps to the real node after WATER_DRIVE_MAX_REJECT)
-        int underwaterTicks;                        // consecutive eyes-under ticks → debounces the swim-up jump (surface bob ≠ sinking)
-        int hopY = Integer.MIN_VALUE, hopTick;      // a cruise hop in flight: the level it left and the tick it was keyed (see WalkerTickPrelude.hopFoot)
-        boolean cruiseOn;                           // surface cruise engaged last tick (entry needs the eyes out; the dip then takes them under on purpose)
-        boolean cruiseBreath;                       // surface cruise: air ran low → bob and breathe until it refills (hysteresis, see WalkerTickDrive.surfaceCruise)
-        int cruiseSwimTicks;                        // surface cruise: consecutive ticks in the swim pose (0 = not swimming; log edge + the server-confirm hold)
-        int cruiseDipTicks;                         // surface cruise: ticks spent sinking for the pose without getting it → past CRUISE_DIP_MAX_TICKS the cruise backs off
-        int cruiseCooldown;                         // surface cruise: ticks left in that back-off
-        boolean lavaBrakeLogged;                    // edge-trigger for the hazard-ahead brake's log line: that brake can hold for every tick of a legitimate lava-side passage, so it prints once per engagement rather than once per tick. Not cleared by reset() — it is a log latch, not a drive latch, and a repath mid-passage should not re-announce the same creep
+    public final DriveLatches driveLatch = new DriveLatches();
+    public static final class DriveLatches {
+        public int deepWaterDriftLatch = 0;                // ticks the deep-water drift sprint-brake stays latched after firing while grounded, so sprint stays OFF through the airborne sub-arcs of a step-down descent toward a deep pocket (otherwise sprint re-arms each airborne tick and the accumulated forward momentum still overshoots into the water)
+        public int steepDescentLatch = 0;                  // DRY sibling of deepWaterDriftLatch: ticks the steep-descent sprint-brake stays latched across the airborne sub-arcs of a step-down, so sprint can't re-arm mid-fall and accumulate forward momentum off a survivable-deep lip (live 2026-07-11 Mountains massif: onG=false→sprint=true walked the bot off a 19-block lip to death)
+        public int climbPressConsec = 0;                   // consecutive ticks the buoyant-climb-press raw condition has held (debounces the surface-bob false trigger)
+        public int descentDriveRejectStreak = 0;           // consecutive back-hop rejections on a dry diagDown slope (escape-hatch snaps to the real node after WATER_DRIVE_MAX_REJECT)
+        public int underwaterTicks;                        // consecutive eyes-under ticks → debounces the swim-up jump (surface bob ≠ sinking)
+        public int hopY = Integer.MIN_VALUE, hopTick;      // a cruise hop in flight: the level it left and the tick it was keyed (see WalkerTickPrelude.hopFoot)
+        public boolean cruiseOn;                           // surface cruise engaged last tick (entry needs the eyes out; the dip then takes them under on purpose)
+        public boolean cruiseBreath;                       // surface cruise: air ran low → bob and breathe until it refills (hysteresis, see WalkerTickDrive.surfaceCruise)
+        public int cruiseSwimTicks;                        // surface cruise: consecutive ticks in the swim pose (0 = not swimming; log edge + the server-confirm hold)
+        public int cruiseDipTicks;                         // surface cruise: ticks spent sinking for the pose without getting it → past CRUISE_DIP_MAX_TICKS the cruise backs off
+        public int cruiseCooldown;                         // surface cruise: ticks left in that back-off
+        public boolean lavaBrakeLogged;                    // edge-trigger for the hazard-ahead brake's log line: that brake can hold for every tick of a legitimate lava-side passage, so it prints once per engagement rather than once per tick. Not cleared by reset() — it is a log latch, not a drive latch, and a repath mid-passage should not re-announce the same creep
         void reset() {
             deepWaterDriftLatch = 0;
             steepDescentLatch = 0;
         }
     }
     /** @see SearchGovernors */
-    final SearchGovernors searchGov = new SearchGovernors();
-    int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
-    int dbgTicksOnStep = 0;   // walkerDebug: ticks spent on the current step
+    public final SearchGovernors searchGov = new SearchGovernors();
+    public int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
+    public int dbgTicksOnStep = 0;   // walkerDebug: ticks spent on the current step
     /** Why the walk failed, or why a branch last threw the route away; the failing branch's text is
      *  what {@link #result()} reports. */
-    String error;
+    public String error;
     /** How the last walk ended, written once by {@link #terminalReport}. Volatile: status threads read. */
     private volatile WalkResult result = WalkResult.NONE;
     /** True once snapGoalToStandable() rewrote the requested Goal.Block to a nearby
      *  standable cell — arrival then means "arrived NEAR", not "arrived AT". */
-    boolean goalSnapped;
+    public boolean goalSnapped;
 
     @Override public WalkResult result() { return medium != null ? medium.result() : result; }
 
@@ -483,7 +511,7 @@ public final class Walker implements Locomotor {
      * baselines, the search governors bar the quick cooldown, the wedge count. A running controller is
      * stopped only for a new goal; after a replan one that depended on the old plan stops itself.
      */
-    enum Scope { GOAL, REPLAN }
+    public enum Scope { GOAL, REPLAN }
 
     private void reset(Scope scope, String why) {
         ticksSinceRepath = 0;
@@ -526,7 +554,7 @@ public final class Walker implements Locomotor {
      * targets, non-Block goals (Near/XZ already tolerate it), or when nothing standable is
      * near (then the goal is unchanged — fails as before, never worse).
      */
-    void snapGoalToStandable(WorldView world, BlockPos foot) {
+    public void snapGoalToStandable(WorldView world, BlockPos foot) {
         if (!(goal instanceof Goal.Block b)) return;
         BlockPos t = b.target();
         if (world.canStandAt(t)) return;                 // already fine — leave it
@@ -649,7 +677,7 @@ public final class Walker implements Locomotor {
      *  {@code onGround=false} therefore does NOT by itself distinguish a bot that was standing and
      *  refused the jump from a bot that was already falling when the parkour edge became current —
      *  the exact y and the sole area are what separate them, which is why both are printed. */
-    void noteParkourTakeoff(WorldView world, Body a, LivingEntity p, boolean jump, BlockPos foot) {
+    public void noteParkourTakeoff(WorldView world, Body a, LivingEntity p, boolean jump, BlockPos foot) {
         if (parkourSamples >= 5) return;
         double h = Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z);
         if (parkourSamples == 0) parkourTakeoffBuf = new StringBuilder();
@@ -790,7 +818,7 @@ public final class Walker implements Locomotor {
      * line is the one that says an event was actually swallowed, and its ABSENCE after a
      * {@code seq=6/6} means the bot really did stop asking.
      */
-    void avatarJump(Body a, boolean v) {
+    public void avatarJump(Body a, boolean v) {
         boolean newEvent = v && !lastJumpAsk;
         lastJumpAsk = v;
         if (newEvent) noteJumpSource(a);
@@ -877,7 +905,7 @@ public final class Walker implements Locomotor {
      * print the first line and go blind for the rest of the run. NOT gated on
      * {@code GameConfig.walkerDebug}, which that scene switches off.
      */
-    void noteStepAdvance(WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx,
+    public void noteStepAdvance(WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx,
                          String cause, double cur2, double nd2, boolean overshot) {
         if (seenLegEpoch != tel.legEpoch) {             // a new walk: fresh budget, see WalkerTelemetry#newLeg
             seenLegEpoch = tel.legEpoch;
@@ -931,10 +959,10 @@ public final class Walker implements Locomotor {
     /** One-shot latch for the "the cap swallowed an advance" line — see {@link #noteStepAdvance}. */
     private boolean stepAdvCapped;
 
-    static void avatarSneak(Body a, boolean v) { a.commandSneak(v); }
+    public static void avatarSneak(Body a, boolean v) { a.commandSneak(v); }
     /** Raw forward (keyUp equivalent) for the special branches that drive the impulse
      *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */
-    static void avatarForward(Body a, boolean v) { a.commandForward(v ? 1f : 0f); }
+    public static void avatarForward(Body a, boolean v) { a.commandForward(v ? 1f : 0f); }
 
     /** The body the tick drives, recording movement into this tick's frame; see {@link Actuate}. */
     private final Actuate.FrameBody frameBody = new Actuate.FrameBody();
@@ -1042,7 +1070,7 @@ public final class Walker implements Locomotor {
      * REASONING, not a reading — the rehearsal log has no per-tick walker lines to check it against.
      * This is the reading.
      */
-    boolean wiggleHop(WorldView world, LivingEntity p, BlockPos foot,
+    public boolean wiggleHop(WorldView world, LivingEntity p, BlockPos foot,
                       boolean precond, float driveYaw) {
         long call = ++wiggleCalls;   // bumped BEFORE the precondition: adjacency must count skipped calls too
         if (!(precond && stuckTicks > 10 && stuckTicks < 18)) return false;
@@ -1100,16 +1128,16 @@ public final class Walker implements Locomotor {
      *  reset each tick in the prelude: fall post-mortems keep needing "who launched the
      *  fatal arc?" (bridge battery: three different launchers over three rounds), and the
      *  aggregated drive jump erases the answer by the time the bot is airborne. */
-    String jumpTag;
+    public String jumpTag;
 
     /** This tick's aim-tree owner ({@code aimSrc}) — same telemetry channel as
      *  {@link WalkerInspector#jumpTag}: wedge post-mortems need "who owned the heading". */
-    String aimTag;
+    public String aimTag;
 
     /** This tick's drive command (target yaw + impulse) as a compact string; null when
      *  the tick never reached the drive tail (early-return branch) — which is itself
      *  the answer a pinned-bot autopsy is after. Reset each tick in the prelude. */
-    String driveTag;
+    public String driveTag;
     /** The walk of a body living in water or air, which takes every order and tick while it exists. */
     private MediumLocomotor medium;
 
@@ -1142,7 +1170,7 @@ public final class Walker implements Locomotor {
      * End the walk: stamp {@link #result} and fire the route trace's terminal, so every terminal
      * return site stays a one-liner. {@code foot} may be null (no player) → conservatively not reached.
      */
-    Step terminalReport(Step s, PathTrace.Outcome outcome, String reason, String endReason, BlockPos foot) {
+    public Step terminalReport(Step s, PathTrace.Outcome outcome, String reason, String endReason, BlockPos foot) {
         boolean reached = foot != null && goal != null && !goalSnapped && goal.reached(foot);
         double dist = (foot != null && goal != null) ? goal.estimate(foot) : -1;
         result = WalkVerdict.of(s == Step.FAILED, reason, reached, endReason, dist, goalSnapped,
@@ -1163,7 +1191,7 @@ public final class Walker implements Locomotor {
 
     /** No onward route from the segment end: hold (keys released) and return WALKING while
      *  {@link Route#retryAtFrontier} re-searches; ARRIVED when out of retries or the feature is off. */
-    Step frontierHoldOrArrive(Body a, WorldView world, LivingEntity p) {
+    public Step frontierHoldOrArrive(Body a, WorldView world, LivingEntity p) {
         if (route.retryAtFrontier(this, world)) {
             avatarForward(a, false);
             avatarJump(a, false);
@@ -1181,7 +1209,7 @@ public final class Walker implements Locomotor {
      *  executor to churn ~20 s until the reactive churn-window fires. Re-arms (extends) on
      *  each struggling commit while the pinch persists; logs only on the transition. Gated
      *  to {@link ControlConfig#pathfinderProgressive} (default OFF → behaviour unchanged). */
-    void maybeArmPinchEscalation(BlockPos foot, PathFinder.Result res) {
+    public void maybeArmPinchEscalation(BlockPos foot, PathFinder.Result res) {
         if (!ControlConfig.pathfinderProgressive) return;
         if (res.goalReached() || route.seg.commitEnd == null) return;      // healthy full route → no escalation
         double progress = goal.estimate(foot) - goal.estimate(route.seg.commitEnd);
@@ -1194,7 +1222,7 @@ public final class Walker implements Locomotor {
     }
 
     /** Emit a per-tick execution sample. Pure reads; cheap; gated to NOOP in release. */
-    void sampleTick(LivingEntity p) {
+    public void sampleTick(LivingEntity p) {
         // Cheap gate: skip the per-tick WalkerSample allocation entirely unless capture is on.
         // Keeps the hot path free in normal play and in a stripped (NOOP) release build.
         if (!ControlConfig.pathDebug && !ControlConfig.pathArchive) return;
@@ -1219,7 +1247,7 @@ public final class Walker implements Locomotor {
                 p.getPose().name(), overlap, p.getId()));
     }
 
-    Move.Edge edgeAt(int i) {
+    public Move.Edge edgeAt(int i) {
         return route.edgeAt(i);
     }
 
@@ -1227,7 +1255,7 @@ public final class Walker implements Locomotor {
      *  test — a plain stepUp, its break-carrying sibling stairUpBreak, and the diagonal diagUp.
      *  stepUp2 (+2, horse) and parkourAscend* are excluded (spec §10). Cheap string check so the OFF
      *  delegation short-circuit costs nothing. */
-    static boolean isMigratedAscent(String move) {
+    public static boolean isMigratedAscent(String move) {
         return "stepUp".equals(move) || "stairUpBreak".equals(move) || "diagUp".equals(move);
     }
 
@@ -1239,7 +1267,7 @@ public final class Walker implements Locomotor {
      *  heading at s+lookahead — and counts backward-snap events (ds&lt;-0.5). DRIVES NOTHING; this only proves
      *  (via replay) that s is monotonic and the projected segment tracks the live {@code step} on clean runs,
      *  the precondition for Phase 1 driving the step pointer off the projection. */
-    void arcShadowTick(WorldView world, BlockPos foot, double px, double pz, float liveYaw, boolean inW, boolean hCol) {
+    public void arcShadowTick(WorldView world, BlockPos foot, double px, double pz, float liveYaw, boolean inW, boolean hCol) {
         arc.proj.compute(route.path(), route.edges(), world, route.step(), foot.getY(), px, pz, 16, 2.5);
         // Monotonic / backward-snap check vs the previous tick (reset on a fresh path object).
         boolean reset = (route.path() != arc.shadowPath);
@@ -1288,7 +1316,7 @@ public final class Walker implements Locomotor {
      *  so the heading doesn't wobble over the cardinal/diagonal staircase.
      *  Stops at a wall/turn or an action cell so it never aims through one.
      *  Returns {x, z} world coords. */
-    double[] carrotPoint(WorldView world, BlockPos foot, double px, double pz) {
+    public double[] carrotPoint(WorldView world, BlockPos foot, double px, double pz) {
         double remaining = CARROT_DIST;
         // Sustained wall collision → the far carrot is steering the bot at a gap only
         // the LOS ray fits (jungle trunks). Collapse pursuit to the immediate node —

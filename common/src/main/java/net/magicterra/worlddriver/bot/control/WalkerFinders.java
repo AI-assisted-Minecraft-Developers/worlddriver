@@ -12,7 +12,7 @@ import net.minecraft.world.entity.LivingEntity;
  * so every launch site gets the same budget, tuning, owner and scope source. Split out of
  * {@code Walker} for its line budget, the way the {@code WalkerTick*} phases were.
  */
-final class WalkerFinders {
+public final class WalkerFinders {
     private WalkerFinders() {}
 
     /** The deep-search finder: the per-Walker budget override when set, else the global one. */
@@ -29,7 +29,7 @@ final class WalkerFinders {
     }
 
     /** The quick-start finder: a small node cap, one call, on the same escalation as the deep one. */
-    static PathFinder quick(Walker wk, WorldView world, long maxMs) {
+    public static PathFinder quick(Walker wk, WorldView world, long maxMs) {
         PathFinder pf = new PathFinder(world, ControlConfig.pathfinderQuickNodes, maxMs, wk.profile)
                 .withTuning(PathTuning.escalatedWhen(wk.escal::armed));
         return scoped(wk, pf).withOwner(wk.owner);

@@ -252,7 +252,7 @@ trims and fast-forwards, so cell-for-cell equality is not a property the design 
   leash and column constraints whose rejoin rule the new ones extend.
 - `bot/rules/modifiers/PreferBreak.java` — the only-add surcharge.
 - `bot/RouteParams.java` — the pure parser, shared by `goto` and `follow`.
-- `bot/PreviewSearch.java` and `Walker.adoptPlan` (`bot/control/RouteAdoption.java`) — preview and adoption.
+- `bot/PreviewSearch.java` and `Walker.adoptPlan` (`bot/control/route/RouteAdoption.java`) — preview and adoption.
 - `bot/behavior/RouteEvents.java` — the three events and the debounce.
 - `bot/SceneOverlays.java` — the sight and mob-density overlays.
 - `mcp/catalog/BotTools.java` — the advertised schema, and the migration note for the removed fields.
