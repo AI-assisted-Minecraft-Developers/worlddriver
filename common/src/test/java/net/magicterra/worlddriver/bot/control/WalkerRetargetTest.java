@@ -29,29 +29,29 @@ class WalkerRetargetTest {
     void aChaseReAimKeepsTheSearchRunningFromTheFeet() {
         walker.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
         PathFinder.Search s = footSearch();
-        walker.seg.activeSearch = s;
+        walker.route.searchFromFoot(s, false);
 
         walker.retarget(new Goal.Near(new BlockPos(6, 64, 0), 1));
-        assertSame(s, walker.seg.activeSearch, "the search toward the quarry's last cell must be allowed to land");
+        assertSame(s, walker.route.seg.activeSearch, "the search toward the quarry's last cell must be allowed to land");
     }
 
     @Test
     void aContinuationFromTheSegmentEndGoesWithThePathItWouldExtend() {
         walker.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
-        walker.seg.activeSearch = footSearch();
-        walker.seg.searchFromEnd = true;
-        walker.seg.commitEnd = new BlockPos(3, 64, 0);
+        walker.route.install(java.util.List.of(new BlockPos(0, 64, 0), new BlockPos(3, 64, 0)),
+                java.util.Arrays.asList(null, null), 1, true);
+        walker.route.searchFromEnd(walker, new GridWorldView(-4, 60, -4, 16, 8, 16));
 
         walker.retarget(new Goal.Near(new BlockPos(6, 64, 0), 1));
-        assertNull(walker.seg.activeSearch, "the re-aim clears the path, so there is nothing left to splice onto");
+        assertNull(walker.route.seg.activeSearch, "the re-aim clears the path, so there is nothing left to splice onto");
     }
 
     @Test
     void aNewGoalStillDropsTheSearch() {
         walker.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
-        walker.seg.activeSearch = footSearch();
+        walker.route.searchFromFoot(footSearch(), false);
 
         walker.start(new Goal.Near(new BlockPos(6, 64, 0), 1));
-        assertNull(walker.seg.activeSearch);
+        assertNull(walker.route.seg.activeSearch);
     }
 }

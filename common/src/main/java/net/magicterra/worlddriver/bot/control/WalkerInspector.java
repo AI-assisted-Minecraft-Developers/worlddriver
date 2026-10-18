@@ -59,10 +59,10 @@ public final class WalkerInspector {
      *  the package-private fields are invisible to testmod scene classes and the
      *  log stream drops lines under load, so failures embed this in ctx.fail. */
     public String progressProbe() {
-        BlockPos wp = wk.path != null && wk.step < wk.path.size() ? wk.path.get(wk.step) : null;
-        return (wk.path == null ? "path=null" : "step=" + wk.step + "/" + wk.path.size()
+        BlockPos wp = wk.route.path() != null && wk.route.step() < wk.route.path().size() ? wk.route.path().get(wk.route.step()) : null;
+        return (wk.route.path() == null ? "path=null" : "step=" + wk.route.step() + "/" + wk.route.path().size()
                 + " wp=" + (wp == null ? "-" : wp.getX() + "," + wp.getY() + "," + wp.getZ())
-                + (wk.seg.pathBestEffort ? " bestEffort" : ""))
+                + (wk.route.seg.pathBestEffort ? " bestEffort" : ""))
                 + " unstuck=" + wk.unstuck.burstTicks + " churnEsc=" + wk.churn.escapes
                 + " escal=" + (wk.escal.armed() ? "ON" : "off")
                 + " noStep=" + wk.stepProg.noStepProgressTicks
@@ -74,10 +74,10 @@ public final class WalkerInspector {
      *  breach-time {@link #planProbe} is post-facto and fatal windows often straddle a
      *  repath), step pointer, and the current waypoint. */
     public String tickProbe() {
-        if (wk.path == null) return "p#---";
-        BlockPos wp = wk.step < wk.path.size() ? wk.path.get(wk.step) : null;
-        return "p#" + String.format("%03d", Math.floorMod(System.identityHashCode(wk.path), 1000))
-                + " s" + wk.step + "/" + wk.path.size()
+        if (wk.route.path() == null) return "p#---";
+        BlockPos wp = wk.route.step() < wk.route.path().size() ? wk.route.path().get(wk.route.step()) : null;
+        return "p#" + String.format("%03d", Math.floorMod(System.identityHashCode(wk.route.path()), 1000))
+                + " s" + wk.route.step() + "/" + wk.route.path().size()
                 + (wp == null ? "" : " w" + wp.getX() + "," + wp.getY() + "," + wp.getZ())
                 + " st" + wk.stuckTicks + "/" + wk.physStall.stallTicks;
     }
@@ -87,14 +87,14 @@ public final class WalkerInspector {
      *  unanswerable from the step pointer alone once the plan has been replaced, and
      *  the [walker] path log line is droppable under end-of-suite load. */
     public String planProbe() {
-        if (wk.path == null) return "plan=null";
-        StringBuilder sb = new StringBuilder("plan=").append(wk.step).append('/').append(wk.path.size());
-        for (int i = 0; i < wk.path.size(); i++) {
-            BlockPos n = wk.path.get(i);
+        if (wk.route.path() == null) return "plan=null";
+        StringBuilder sb = new StringBuilder("plan=").append(wk.route.step()).append('/').append(wk.route.path().size());
+        for (int i = 0; i < wk.route.path().size(); i++) {
+            BlockPos n = wk.route.path().get(i);
             sb.append(' ').append(i).append(':')
               .append(n.getX()).append(',').append(n.getY()).append(',').append(n.getZ());
-            if (wk.edges != null && i < wk.edges.size() && wk.edges.get(i) != null)
-                sb.append('[').append(wk.edges.get(i).move).append(']');
+            if (wk.route.edges() != null && i < wk.route.edges().size() && wk.route.edges().get(i) != null)
+                sb.append('[').append(wk.route.edges().get(i).move).append(']');
         }
         return sb.toString();
     }
@@ -141,15 +141,15 @@ public final class WalkerInspector {
      */
     public String planCellAudit(BlockGetter lvl) {
         if (lvl == null) return "nodes=none(level=null)";
-        if (wk.path == null) return "nodes=none(plan=null)";
-        if (wk.path.isEmpty()) return "nodes=none(plan empty)";
-        StringBuilder sb = new StringBuilder("nodeCount=").append(wk.path.size()).append(" step=").append(wk.step);
-        for (int i = 0; i < wk.path.size(); i++) {
-            BlockPos n = wk.path.get(i);
+        if (wk.route.path() == null) return "nodes=none(plan=null)";
+        if (wk.route.path().isEmpty()) return "nodes=none(plan empty)";
+        StringBuilder sb = new StringBuilder("nodeCount=").append(wk.route.path().size()).append(" step=").append(wk.route.step());
+        for (int i = 0; i < wk.route.path().size(); i++) {
+            BlockPos n = wk.route.path().get(i);
             sb.append(" node").append(i).append('=')
               .append(n.getX()).append(',').append(n.getY()).append(',').append(n.getZ());
-            String mv = (wk.edges != null && i < wk.edges.size() && wk.edges.get(i) != null)
-                    ? String.valueOf(wk.edges.get(i).move) : "no edge";
+            String mv = (wk.route.edges() != null && i < wk.route.edges().size() && wk.route.edges().get(i) != null)
+                    ? String.valueOf(wk.route.edges().get(i).move) : "no edge";
             sb.append('[').append(mv).append(']');
             appendCell(sb, lvl, " cell=", n);
             appendCell(sb, lvl, " support=", n.below());
@@ -186,9 +186,9 @@ public final class WalkerInspector {
      * decision under investigation did not consult.
      */
     public String planTerrain(WorldView w) {
-        if (wk.path == null || wk.path.isEmpty() || w == null) return "no path";
+        if (wk.route.path() == null || wk.route.path().isEmpty() || w == null) return "no path";
         StringBuilder sb = new StringBuilder();
-        int n = wk.path.size();
+        int n = wk.route.path().size();
         int stride = Math.max(1, (n - 1) / 4);
         for (int i = 0; i < n; i += stride) {
             if (sb.length() > 0) sb.append(' ');
@@ -199,7 +199,7 @@ public final class WalkerInspector {
     }
 
     private String sample(WorldView w, int i) {
-        BlockPos c = wk.path.get(i);
+        BlockPos c = wk.route.path().get(i);
         BlockPos under = c.below();
         return "[" + i + "]" + c.toShortString()
                 + " cell=" + (w.isSolid(c) ? "solid" : w.isWater(c) ? "water" : "open")
@@ -217,7 +217,7 @@ public final class WalkerInspector {
      * {@link #pathMove()} alone reports identically whenever the step pointer happens to sit on a
      * walk.
      *
-     * <p><b>A move count is not a block count, and the gap is large.</b> {@link Walker#adoptPath} runs
+     * <p><b>A move count is not a block count, and the gap is large.</b> {@link RouteAdoption#adopt} runs
      * {@code PathSmoothing.stringPull} before the path is ever driven, and that collapses a whole run
      * of flat same-Y {@code walk}/{@code diag} edges into ONE edge spanning the straight line between
      * its endpoints; only vertical, parkour, climb, break and place edges survive as hard waypoints.
@@ -231,7 +231,7 @@ public final class WalkerInspector {
      * rule they share: <b>ask what a path reading counts before dividing by it.</b>
      */
     public String planTally() {
-        return tallyOf(wk.path, wk.edges) + " reachesGoal=" + !wk.seg.pathBestEffort;
+        return tallyOf(wk.route.path(), wk.route.edges()) + " reachesGoal=" + !wk.route.seg.pathBestEffort;
     }
 
     static String tallyOf(List<BlockPos> nodes, List<Move.Edge> es) {
@@ -293,11 +293,11 @@ public final class WalkerInspector {
      * therefore printed beside it, and the gap count must never be read without it.
      */
     public String planSpans(WorldView w, int segments) {
-        if (wk.path == null || wk.path.size() < 2 || w == null) return "no path";
+        if (wk.route.path() == null || wk.route.path().size() < 2 || w == null) return "no path";
         StringBuilder sb = new StringBuilder();
-        int last = Math.min(segments, wk.path.size() - 1);
+        int last = Math.min(segments, wk.route.path().size() - 1);
         for (int i = 0; i < last; i++) {
-            BlockPos a = wk.path.get(i), b = wk.path.get(i + 1);
+            BlockPos a = wk.route.path().get(i), b = wk.route.path().get(i + 1);
             int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
             StringBuilder holes = new StringBuilder();
             int nHoles = 0;
@@ -329,7 +329,7 @@ public final class WalkerInspector {
     }
 
     /** Node the step-pointer currently targets (null when no path / consumed). Test seam. */
-    public BlockPos pathNode() { return (wk.path != null && wk.step >= 0 && wk.step < wk.path.size()) ? wk.path.get(wk.step) : null; }
+    public BlockPos pathNode() { return (wk.route.path() != null && wk.route.step() >= 0 && wk.route.step() < wk.route.path().size()) ? wk.route.path().get(wk.route.step()) : null; }
 
     /**
      * Name of the move that ENTERS {@link #pathNode()} — {@code walk}, {@code stepDown},
@@ -341,7 +341,7 @@ public final class WalkerInspector {
      * fixes (a planner budget vs. an executor that overshot).
      */
     public String pathMove() {
-        Move.Edge e = wk.edgeAt(wk.step);
+        Move.Edge e = wk.edgeAt(wk.route.step());
         return e == null ? null : e.move;
     }
 

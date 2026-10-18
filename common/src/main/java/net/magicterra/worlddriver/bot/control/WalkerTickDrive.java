@@ -114,8 +114,8 @@ final class WalkerTickDrive {
      */
     private static boolean finalApproach(Walker wk, LivingEntity p, BlockPos wp, boolean parkourEdge) {
         double dx = (wp.getX() + 0.5) - p.getX(), dz = (wp.getZ() + 0.5) - p.getZ();
-        return ControlConfig.walkerFinalNodeDirectAim && !p.isInWater() && !parkourEdge && !wk.seg.pathBestEffort
-                && wk.step == wk.path.size() - 1 && dx * dx + dz * dz < FINAL_APPROACH_WALK_SQ;
+        return ControlConfig.walkerFinalNodeDirectAim && !p.isInWater() && !parkourEdge && !wk.route.seg.pathBestEffort
+                && wk.route.step() == wk.route.path().size() - 1 && dx * dx + dz * dz < FINAL_APPROACH_WALK_SQ;
     }
 
     /** The surface sprint-swim cruise's verdict for this tick: {@code on} suppresses the surface
@@ -149,8 +149,8 @@ final class WalkerTickDrive {
         double wdx = wp.getX() + 0.5 - p.getX(), wdz = wp.getZ() + 0.5 - p.getZ();
         // A node straight above a cruising bot is the swimUp a fresh plan puts over a sunk foot:
         // the pose surfaces on its own, so read the node after it. Uncommitted, it is a rise.
-        if (wdx * wdx + wdz * wdz < 1.0 && l.cruiseOn && wk.path != null && wk.step + 1 < wk.path.size()) {
-            wp = wk.path.get(wk.step + 1);
+        if (wdx * wdx + wdz * wdz < 1.0 && l.cruiseOn && wk.route.path() != null && wk.route.step() + 1 < wk.route.path().size()) {
+            wp = wk.route.path().get(wk.route.step() + 1);
             wdx = wp.getX() + 0.5 - p.getX();
             wdz = wp.getZ() + 0.5 - p.getZ();
         }
@@ -164,7 +164,7 @@ final class WalkerTickDrive {
                 && world.isWater(foot.below()) && !world.isSolid(foot.offset(0, 2, 0));
         // Engage only from the surface (eyes out): a bot still rising from a sunken start keeps
         // its swim-up; once engaged the dip takes the eyes under on purpose.
-        if (!ControlConfig.walkerSurfaceSprintSwim || !surfaceNode || wk.path == null
+        if (!ControlConfig.walkerSurfaceSprintSwim || !surfaceNode || wk.route.path() == null
                 || (!l.cruiseOn && p.isUnderWater())) {
             if (GameConfig.walkerDebug && l.cruiseOn)
                 LOG.info("[walker] surface cruise: off — node {} dy={} lat2={} inW={} onG={} diving={} deepBelow={} capped={} pos=({},{},{})",
@@ -185,8 +185,8 @@ final class WalkerTickDrive {
         }
         if (l.cruiseBreath) { l.cruiseOn = false; return Cruise.OFF; }
         // A bank ahead: the climb-out needs the upright pose and the surface bob, so hand over early.
-        for (int i = wk.step, n = Math.min(wk.path.size(), wk.step + CRUISE_LOOKAHEAD); i < n; i++) {
-            BlockPos node = wk.path.get(i);
+        for (int i = wk.route.step(), n = Math.min(wk.route.path().size(), wk.route.step() + CRUISE_LOOKAHEAD); i < n; i++) {
+            BlockPos node = wk.route.path().get(i);
             if (world.isWater(node)) continue;
             double dx = node.getX() + 0.5 - p.getX(), dz = node.getZ() + 0.5 - p.getZ();
             if (dx * dx + dz * dz < CRUISE_BANK_DIST_SQ) { l.cruiseOn = false; return Cruise.OFF; }
@@ -196,7 +196,7 @@ final class WalkerTickDrive {
         boolean swimming = p.isSwimming();
         if (GameConfig.walkerDebug && (swimming != (l.cruiseSwimTicks > 0) || p.tickCount % 20 == 0))
             LOG.info("[walker] surface cruise: {} step={}/{} seg={} y={} vy={} pitch={} yaw={} sprint={} eyesUnder={} air={} dip={} swimT={} pose={} inW={} onG={} fwd={} sneak={} jump={} food={} using={} drive[{}]",
-                    swimming ? "swimming" : "dipping", wk.step, wk.path.size(), wk.arc.proj.segIdx, String.format("%.2f", p.getY()),
+                    swimming ? "swimming" : "dipping", wk.route.step(), wk.route.path().size(), wk.arc.proj.segIdx, String.format("%.2f", p.getY()),
                     String.format("%.3f", p.getDeltaMovement().y), String.format("%.0f", p.getXRot()), String.format("%.0f", p.getYRot()),
                     p.isSprinting(), p.isUnderWater(), p.getAirSupply(), l.cruiseDipTicks, l.cruiseSwimTicks, p.getPose(), p.isInWater(),
                     p.onGround(), a.dbgForwardImpulse(), a.dbgSneak(), a.dbgJumping(),
@@ -247,8 +247,8 @@ final class WalkerTickDrive {
      * the heading lagged west of the x=1513 stair and the body walked off a 5-block ridge, most runs).
      */
     private static double[] segmentLaneOffset(Walker wk, LivingEntity p, BlockPos wp, boolean stepDown) {
-        if (!(p.horizontalCollision || stepDown && ControlConfig.walkerDescentLaneKeep) || wk.step <= 0) return null;
-        BlockPos sp = wk.path.get(wk.step - 1);
+        if (!(p.horizontalCollision || stepDown && ControlConfig.walkerDescentLaneKeep) || wk.route.step() <= 0) return null;
+        BlockPos sp = wk.route.path().get(wk.route.step() - 1);
         if (stepDown && sp.getX() != wp.getX() && sp.getZ() != wp.getZ()) return null;
         double ax = sp.getX() + 0.5, az = sp.getZ() + 0.5, sx = wp.getX() + 0.5 - ax, sz = wp.getZ() + 0.5 - az;
         double t = Mth.clamp(((p.getX() - ax) * sx + (p.getZ() - az) * sz) / Math.max(1e-6, sx * sx + sz * sz), 0, 1);
@@ -489,10 +489,10 @@ final class WalkerTickDrive {
         // stays with the legacy advance loop (~line 2265) so there is no double-advance race.
         if (ControlConfig.walkerAscendMovement && edge != null && Walker.isMigratedAscent(edge.move) && !p.isInWater()) {
             MovementContext ctx = new MovementContext(
-                    p, world, a, edge, foot, wk.path.get(wk.step),
+                    p, world, a, edge, foot, wk.route.path().get(wk.route.step()),
                     world.maxJumpUpBlocks(), world.maxStepUpBlocks(),
-                    wk.step >= 1 ? wk.path.get(wk.step - 1) : null,
-                    wk.step >= 2 ? wk.path.get(wk.step - 2) : null, breakingEdge);
+                    wk.route.step() >= 1 ? wk.route.path().get(wk.route.step() - 1) : null,
+                    wk.route.step() >= 2 ? wk.route.path().get(wk.route.step() - 2) : null, breakingEdge);
             switch (wk.ascendMovement.updateState(ctx)) {
                 case UNREACHABLE, FAILED -> {                          // fold into the existing re-route (consumed next tick at line 1042)
                     Walker.Step give = noteDeadZone(wk, p, foot, edge);
@@ -540,8 +540,8 @@ final class WalkerTickDrive {
             // gate (sideDist 0.45, lateral 0.25, launch 2.0) so the chain keeps rolling;
             // direction changes keep the strict gate (a loose corner launch bonks).
             boolean chainAscend = false;
-            if (ControlConfig.walkerChainMount && wk.step >= 2) {
-                BlockPos cmP = wk.path.get(wk.step - 1), cmP2 = wk.path.get(wk.step - 2);
+            if (ControlConfig.walkerChainMount && wk.route.step() >= 2) {
+                BlockPos cmP = wk.route.path().get(wk.route.step() - 1), cmP2 = wk.route.path().get(wk.route.step() - 2);
                 chainAscend = cmP.getY() - cmP2.getY() == 1
                         && wp.getY() - cmP.getY() == 1
                         && Integer.signum(wp.getX() - cmP.getX()) == Integer.signum(cmP.getX() - cmP2.getX())
@@ -810,7 +810,7 @@ final class WalkerTickDrive {
         // 6-7 blocks away, so its bearing is STABLE (no collapse). Drive straight at the centre to
         // close the last fraction INTO the disk, where the goal.reached check at the top of step()
         // fires for real. radius>0 only (exact-cell / radius-0 water arrivals unchanged).
-        if (wk.step + 1 >= wk.path.size() && !wk.goal.reached(foot)) {
+        if (wk.route.step() + 1 >= wk.route.path().size() && !wk.goal.reached(foot)) {
             int gcx = Integer.MIN_VALUE, gcz = 0;
             if (wk.goal instanceof Goal.XZ xz && xz.radius() > 0) { gcx = xz.x(); gcz = xz.z(); }
             else if (wk.goal instanceof Goal.Near nr && nr.radius() > 0) {
@@ -947,10 +947,10 @@ final class WalkerTickDrive {
         // the next few nodes (foot.Y − min node.Y); arm when it exceeds a single legal step. Uses
         // the PATH (authoritative — exactly maxStepDrop≤4 per node) not a hand-rolled world probe.
         int steepDescentPathDrop = 0;
-        if (wk.path != null && !wk.path.isEmpty()) {
+        if (wk.route.path() != null && !wk.route.path().isEmpty()) {
             int loY = foot.getY();
-            for (int k = wk.step; k < Math.min(wk.path.size(), wk.step + STEEP_DESCENT_LOOKAHEAD_NODES); k++) {
-                loY = Math.min(loY, wk.path.get(k).getY());
+            for (int k = wk.route.step(); k < Math.min(wk.route.path().size(), wk.route.step() + STEEP_DESCENT_LOOKAHEAD_NODES); k++) {
+                loY = Math.min(loY, wk.route.path().get(k).getY());
             }
             steepDescentPathDrop = foot.getY() - loY;
         }
@@ -1122,7 +1122,7 @@ final class WalkerTickDrive {
         // (WalkerTickClimb place loop) covers the aim ticks; this covers the approach.
         boolean descentPlacePending = false;
         if (ControlConfig.walkerBridgeDescentPlaceAnchor && bridging && plannedDescent) {
-            Move.Edge nextE = wk.edgeAt(wk.step + 1);
+            Move.Edge nextE = wk.edgeAt(wk.route.step() + 1);
             outer:
             for (Move.Edge e : new Move.Edge[]{edge, nextE}) {
                 if (e == null) continue;
@@ -1584,11 +1584,11 @@ final class WalkerTickDrive {
      */
     private static double riserLead(Walker wk, WalkerTickCtx tick, WorldView world, LivingEntity p, BlockPos foot) {
         tick.leadWhy = "air";
-        if (!ControlConfig.walkerRiserLeadJump || !p.onGround() || p.isInWater() || wk.path == null) return Double.NaN;
+        if (!ControlConfig.walkerRiserLeadJump || !p.onGround() || p.isInWater() || wk.route.path() == null) return Double.NaN;
         int idx = -1;
         tick.leadWhy = "noRise";
-        for (int i = wk.step; i < Math.min(wk.path.size(), wk.step + 2) && idx < 0; i++) {
-            BlockPos n = wk.path.get(i);
+        for (int i = wk.route.step(); i < Math.min(wk.route.path().size(), wk.route.step() + 2) && idx < 0; i++) {
+            BlockPos n = wk.route.path().get(i);
             if (n.getY() == foot.getY() + 1) idx = i;
             else if (n.getY() != foot.getY()) return Double.NaN;
         }
@@ -1598,7 +1598,7 @@ final class WalkerTickDrive {
             tick.leadWhy = "edge:" + (e == null ? "null" : e.move);
             return Double.NaN;
         }
-        BlockPos node = wk.path.get(idx);
+        BlockPos node = wk.route.path().get(idx);
         tick.leadWhy = "contact";
         Vec3 v = p.getDeltaMovement();
         double vh = Math.hypot(v.x, v.z);
@@ -1692,8 +1692,8 @@ final class WalkerTickDrive {
      *  it and the edge's jump fires from the dip floor, unsprinted so the climb-out lands its cell.
      *  A leap over a hole, which needs the run-up, keeps its sprint. */
     private static boolean dipLeap(Walker wk, WorldView world, BlockPos wp, boolean parkourEdge) {
-        if (!parkourEdge || wk.step <= 0 || wk.step >= wk.path.size()) return false;
-        BlockPos from = wk.path.get(wk.step - 1);
+        if (!parkourEdge || wk.route.step() <= 0 || wk.route.step() >= wk.route.path().size()) return false;
+        BlockPos from = wk.route.path().get(wk.route.step() - 1);
         int dx = wp.getX() - from.getX(), dz = wp.getZ() - from.getZ();
         if (wp.getY() != from.getY() || Math.max(Math.abs(dx), Math.abs(dz)) != 2) return false;
         return world.canStandAt(from.offset(Integer.signum(dx), -1, Integer.signum(dz)));
@@ -1708,7 +1708,7 @@ final class WalkerTickDrive {
      *  a walk. Held jump used to fire a second hop from there — live 1569,64,-107 → 1567,64,-109 landed
      *  0.85 short, hopped again and on some starts over into the pit behind, ~1 s. */
     private static boolean parkourLanded(Walker wk, LivingEntity p, BlockPos wp, BlockPos foot) {
-        if (!p.onGround() || foot.getY() != wp.getY() || wk.step <= 0 || foot.equals(wk.path.get(wk.step - 1))) return false;
+        if (!p.onGround() || foot.getY() != wp.getY() || wk.route.step() <= 0 || foot.equals(wk.route.path().get(wk.route.step() - 1))) return false;
         double dx = wp.getX() + 0.5 - p.getX(), dz = wp.getZ() + 0.5 - p.getZ();
         return dx * dx + dz * dz < 1.5 * 1.5;
     }
@@ -1787,14 +1787,14 @@ final class WalkerTickDrive {
      */
     private static boolean cruiseHop(Walker wk, WorldView world, LivingEntity p, BlockPos foot) {
         if (!ControlConfig.walkerCruiseHop || !p.onGround() || p.isInWater() || !p.isSprinting() || p.horizontalCollision
-                || wk.stuckTicks > 0 || wk.path == null || wk.step >= wk.path.size()
+                || wk.stuckTicks > 0 || wk.route.path() == null || wk.route.step() >= wk.route.path().size()
                 || p.getDeltaMovement().horizontalDistance() < 0.13) return false;   // after ground friction: sprint 0.153, walk 0.118
         double ux = -Mth.sin(p.getYRot() * Mth.DEG_TO_RAD), uz = Mth.cos(p.getYRot() * Mth.DEG_TO_RAD);
         // The path ahead, sampled every block from the bot along its polyline, must stay within 0.6 of the facing
         // ray: the body's yaw moves in steps of about 5°, 0.45 over the run, and the sweep below vets the ray itself.
         double cx = p.getX(), cz = p.getZ(), run = 0, next = 1;
-        for (int i = wk.step; i < wk.path.size() && run < CRUISE_HOP_RUN; i++) {
-            BlockPos n = wk.path.get(i);
+        for (int i = wk.route.step(); i < wk.route.path().size() && run < CRUISE_HOP_RUN; i++) {
+            BlockPos n = wk.route.path().get(i);
             if (n.getY() != foot.getY() || hasPendingEdge(world, wk.edgeAt(i))) return false;
             double nx = n.getX() + 0.5, nz = n.getZ() + 0.5, seg = Math.hypot(nx - cx, nz - cz);
             for (; next <= run + seg && next <= CRUISE_HOP_RUN; next++) {
@@ -1849,7 +1849,7 @@ final class WalkerTickDrive {
      */
     private static Walker.Step noteDeadZone(Walker wk, LivingEntity p, BlockPos foot, Move.Edge edge) {
         wk.forceFellOffPath = true;
-        BlockPos node = wk.path.get(wk.step);
+        BlockPos node = wk.route.path().get(wk.route.step());
         if (foot.equals(wk.searchGov.deadZoneFoot) && node.equals(wk.searchGov.deadZoneNode)) {
             wk.searchGov.deadZoneRepeats++;
         } else {

@@ -221,7 +221,7 @@ public final class ControlConfig {
      *  stall. When that gap opens, the Walker spends this many nodes on a tiny
      *  SYNCHRONOUS best-effort search and starts walking the resulting short
      *  segment toward the goal immediately; the big search's result replaces
-     *  the stub when it lands (adoptPath fast-forwards past the overlap, so no
+     *  the stub when it lands (the adoption fast-forwards past the overlap, so no
      *  walking backward). Sized to finish within roughly one frame — the frame
      *  is frozen anyway while the bot has nothing to walk. */
     public static volatile int pathfinderQuickNodes = 600;
@@ -232,7 +232,7 @@ public final class ControlConfig {
      *  goal as a zero-search coarse-direction stub, so the bot starts moving almost
      *  instantly instead of holding frozen while the big sliced A* runs (the visible
      *  startup / inter-segment churn). The big search supersedes the stub when it
-     *  lands (adoptPath fast-forwards past the overlap). Default ON — gated so the
+     *  lands (the adoption fast-forwards past the overlap). Default ON — gated so the
      *  GameTest suite (which exercises the non-progressive commit modes) is byte-for-
      *  byte unchanged until explicitly enabled; flipped ON after live A/B.
      *  2026-06-19: flipped ON by default after the proactive-pinch-escalation A/B at the
@@ -1298,7 +1298,7 @@ public final class ControlConfig {
      *  (an IN-PLACE {@code swimUp} at the foot, then ONE long {@code walk} node tens of blocks ahead). The
      *  eager continuation from that segment's {@code commitEnd} lands while the bot is still back at the
      *  start, so the continuation's {@code path[0]} is that FAR node — tens of blocks from the foot. The
-     *  segment anchor-gate (the nearest-prefix-node {@code d2} check in {@link Walker#adoptPath}) finds NO
+     *  segment anchor-gate (the nearest-prefix-node {@code d2} check in {@code RouteAdoption.adopt}) finds NO
      *  near forward node (the only intermediate was the in-place {@code swimUp}, in the PREVIOUS segment)
      *  and REJECTS the continuation as {@code mis-anchored} ({@code d2≈2300}). The reject drops the path;
      *  the foot-search returns the SAME {@code swimUp}+far-{@code walk} best-effort; it re-rejects → a

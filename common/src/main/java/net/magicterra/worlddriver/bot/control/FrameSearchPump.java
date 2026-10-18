@@ -43,7 +43,7 @@ public final class FrameSearchPump {
         if (slackMs < 1) return;
         Walker wk = walker;
         if (wk == null || now - offeredAt > STALE_NANOS) return;
-        PathFinder.Search s = wk.seg.activeSearch;
+        PathFinder.Search s = wk.route.seg.activeSearch;
         if (s == null || s.done()) { walker = null; return; }
         s.advance(slackMs);
         spentNanos += System.nanoTime() - now;

@@ -36,7 +36,7 @@ public record ScenePlan(List<BlockPos> nodes, List<Move.Edge> edges) {
      *
      * <p>Callers pass only the nodes they want WALKED. This prepends the start node and the
      * {@code null} lead edge, because {@code PathFinder.build}'s javadoc says the start has no
-     * incoming edge and {@code adoptPath} relies on it: it sets {@code step = 1} unconditionally,
+     * incoming edge and the adoption relies on it: it sets {@code step = 1} unconditionally,
      * meaning "the bot already stands on node 0". Hand it a plan without that node and the
      * pointer starts one past the only edge there was — a plan that is finished the instant it is
      * adopted, which reports as a clean ARRIVED and executes nothing.
@@ -77,7 +77,7 @@ public record ScenePlan(List<BlockPos> nodes, List<Move.Edge> edges) {
 
     /**
      * A continuation segment that deliberately does NOT start at the foot, for a scene that only
-     * reads {@code adoptPath}'s VERDICT — i.e. the 4-arg {@link Walker#adoptForTest} seam, whose
+     * reads the adoption's VERDICT — i.e. the 4-arg {@link Walker#adoptForTest} seam, whose
      * javadoc explains why the two arities differ.
      *
      * <p>This is the input the segment anchor-gate exists to judge, so the missing start node is

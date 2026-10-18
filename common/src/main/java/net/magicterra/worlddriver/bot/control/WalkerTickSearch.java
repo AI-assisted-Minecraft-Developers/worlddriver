@@ -119,6 +119,20 @@ final class WalkerTickSearch {
         return null;
     }
 
+    /** A landed search the adoption refused: the old plan stays (or, with none, the next tick searches
+     *  again from the feet), so the only trace a refusal leaves is the one written here. */
+    private static void refused(Walker wk, Route.Adoption adoption, BlockPos foot) {
+        wk.tallies.refusals++;
+        wk.tallies.lastRefusal = adoption.refusal();
+        if (wk.tallies.refusals <= REFUSALS_LOGGED)
+            LOG.info("[walker] search result refused at {} ({} so far, owner={}): {}{}", foot.toShortString(),
+                    wk.tallies.refusals, wk.owner, adoption.refusal(),
+                    wk.route.path() == null ? "; no plan to keep, searching again" : "; keeping the current plan");
+    }
+
+    /** Refusal lines printed per walker before going quiet; {@link WalkerTallies#refusals} keeps counting. */
+    private static final int REFUSALS_LOGGED = 8;
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
@@ -129,7 +143,7 @@ final class WalkerTickSearch {
         // Advance any in-flight search by one tick-slice so a big search never
         // blocks the render thread in a single tick (fixes the stutter).
         boolean searchDone = false;
-        if (wk.seg.activeSearch != null) {
+        if (wk.route.seg.activeSearch != null) {
             long sb = System.nanoTime();
             // IDLE-SLICE: if there's no walkable path this tick (segment consumed or
             // none yet), the bot is FROZEN until the search lands — so frame-smoothness
@@ -142,24 +156,22 @@ final class WalkerTickSearch {
             // into a pit (live 2026-09-28, 1385,71,-517). So does a continuation the bot is about
             // to run out of path for: thin-sliced, a 20k-node cliff continuation left it standing
             // ~4 s at its segment end (live 2026-09-28, 1385,75,-511).
-            boolean idleNoPath = wk.path == null || wk.step >= wk.path.size() - SEGMENT_END_SLICE_NODES || !wk.seg.searchFromEnd;
+            boolean idleNoPath = wk.route.path() == null || wk.route.step() >= wk.route.path().size() - SEGMENT_END_SLICE_NODES || !wk.route.seg.searchFromEnd;
             FrameSearchPump.offer(wk);
             long want = idleNoPath ? Math.max(ControlConfig.pathfinderSliceMs, ControlConfig.pathfinderIdleSliceMs)
                     : ControlConfig.pathfinderSliceMs;
             long slice = Math.max(1, want - FrameSearchPump.takeSpentMs());   // less what frames spent: see FrameSearchPump
-            searchDone = wk.seg.activeSearch.advance(slice);
+            searchDone = wk.route.seg.activeSearch.advance(slice);
             if (GameConfig.walkerDebug && !searchDone)
                 LOG.info(
                         "[walker] search slice {}ms expanded={} (still running)",
-                        (System.nanoTime() - sb) / 1_000_000, wk.seg.activeSearch.expanded());
+                        (System.nanoTime() - sb) / 1_000_000, wk.route.seg.activeSearch.expanded());
         }
         if (searchDone) {
-            PathFinder.Result res = wk.seg.activeSearch.result();
-            wk.tallies.lastSearch = wk.seg.activeSearch;
+            wk.tallies.lastSearch = wk.route.seg.activeSearch;
+            boolean wasFromEnd = wk.route.seg.searchFromEnd;
+            PathFinder.Result res = wk.route.takeSearchResult();
             wk.tallies.lastResult = res;
-            wk.seg.activeSearch = null;
-            boolean wasFromEnd = wk.seg.searchFromEnd;
-            wk.seg.searchFromEnd = false;
             wk.tel.lastStats = new WalkerTelemetry.PathStats(res.expanded(), res.ms(), res.goalReached(),
                     res.finalCost(), res.path().size(), res.sightBudgetExhausted(), res.snapshotTruncated());
             wk.tallies.searches++;
@@ -170,7 +182,7 @@ final class WalkerTickSearch {
             if (GameConfig.walkerDebug)
                 LOG.info(
                         "[walker] repath from {} → goalReached={} pathLen={} expanded={} ms={}",
-                        wasFromEnd ? wk.seg.commitEnd : foot, res.goalReached(), res.path().size(), res.expanded(), res.ms());
+                        wasFromEnd ? wk.route.seg.commitEnd : foot, res.goalReached(), res.path().size(), res.expanded(), res.ms());
             Walker.Step futile = futileGateJudge(res, a, wk, world, foot, p);
             if (futile != null) return futile;
             // FROM-END continuation that makes NO goal progress beyond the committed end
@@ -185,27 +197,27 @@ final class WalkerTickSearch {
             // one node that beats commitEnd's estimate, so it is never discarded; water
             // is exempt (afloat churn is owned by the anti-spin governor).
             if (ControlConfig.walkerFromEndNoProgressDiscard
-                    && wasFromEnd && res.hasPath() && wk.seg.commitEnd != null && !world.isWater(foot)) {
-                double endEst = wk.goal.estimate(wk.seg.commitEnd);
+                    && wasFromEnd && res.hasPath() && wk.route.seg.commitEnd != null && !world.isWater(foot)) {
+                double endEst = wk.goal.estimate(wk.route.seg.commitEnd);
                 double bestEst = Double.MAX_VALUE;
                 for (BlockPos n : res.path()) bestEst = Math.min(bestEst, wk.goal.estimate(n));
                 if (bestEst >= endEst - 0.5) {
                     if (GameConfig.walkerDebug)
                         LOG.info("[walker] from-end continuation makes no progress past {},{},{} (best {} vs end {}) → discard as no-onward-route",
-                                wk.seg.commitEnd.getX(), wk.seg.commitEnd.getY(), wk.seg.commitEnd.getZ(),
+                                wk.route.seg.commitEnd.getX(), wk.route.seg.commitEnd.getY(), wk.route.seg.commitEnd.getZ(),
                                 String.format(Locale.ROOT, "%.1f", bestEst), String.format(Locale.ROOT, "%.1f", endEst));
                     res = new PathFinder.Result(java.util.List.of(), java.util.List.of(), false,
                             res.expanded(), res.ms(), res.finalCost());
                 }
             }
-            if (wasFromEnd && wk.path != null && wk.step < wk.path.size()) {
+            if (wasFromEnd && wk.route.path() != null && wk.route.step() < wk.route.path().size()) {
                 // Continuation finished while we're still walking the current
                 // segment — stash it and splice only once we reach the segment end
                 // (see the step>=size handler), so its start coincides with the bot.
                 // Stash even an empty (no-path) result: the segment-end handler
                 // reads that as "no further progress" and ends cleanly, rather than
                 // letting the kickoff re-launch the same boxed-in search forever.
-                wk.seg.pendingSegment = res;
+                wk.route.stashContinuation(res);
             } else if (wasFromEnd && !res.hasPath()) {
                 // Already at/over the segment end and no onward route. With frontier
                 // planning this may be a STALE continuation (computed before we
@@ -272,16 +284,13 @@ final class WalkerTickSearch {
                 // placing OFF so A* digs through / routes around (break moves need no
                 // blocks). Guard with searchSuppressedPlace so the place-off result is
                 // adopted as-is (no second reroute / loop).
-                if (!wk.replayMode && !wk.seg.searchSuppressedPlace) {
+                if (!wk.route.replay() && !wk.route.seg.searchSuppressedPlace) {
                     int placesNeeded = countPlaceEdges(res.edges());
                     if (placesNeeded > world.placeableBlockCount()) {
                         if (GameConfig.walkerDebug)
                             LOG.info("[walker] path needs {} placed blocks, have {} → re-search place-off (dig/around)",
                                     placesNeeded, world.placeableBlockCount());
-                        wk.seg.activeSearch = wk.newPathFinder(world).newSearch(foot, wk.goal, true);
-                        wk.seg.searchFromEnd = false;
-                        wk.seg.searchSuppressedPlace = true;
-                        wk.seg.pendingSegment = null;
+                        wk.route.searchFromFoot(wk.newPathFinder(world).newSearch(foot, wk.goal, true), true);
                         return Walker.Step.WALKING;
                     }
                 }
@@ -294,9 +303,9 @@ final class WalkerTickSearch {
                 // (the C16 dry-land churn that took three autopsies to see from raw logs).
                 boolean keepCurrent = false;
                 boolean uTurnLeg = false;
-                if (wk.path != null && wk.step < wk.path.size()
-                        && res.path().size() > 3 && wk.path.size() - wk.step > 3) {
-                    BlockPos curAhead = wk.path.get(Math.min(wk.step + 3, wk.path.size() - 1));
+                if (wk.route.path() != null && wk.route.step() < wk.route.path().size()
+                        && res.path().size() > 3 && wk.route.path().size() - wk.route.step() > 3) {
+                    BlockPos curAhead = wk.route.path().get(Math.min(wk.route.step() + 3, wk.route.path().size() - 1));
                     BlockPos newAhead = res.path().get(3);
                     double cax = curAhead.getX() + 0.5 - p.getX(), caz = curAhead.getZ() + 0.5 - p.getZ();
                     double nax = newAhead.getX() + 0.5 - p.getX(), naz = newAhead.getZ() + 0.5 - p.getZ();
@@ -325,10 +334,11 @@ final class WalkerTickSearch {
                     if (ControlConfig.walkerExpectAlarm && uTurnLeg) {
                         wk.exAlarms.noteRepathFlip(wk.escal.tick, foot);
                     }
-                    wk.adoptPath(res, world, foot);
-                    wk.maybeArmPinchEscalation(foot, res);
+                    Route.Adoption adoption = RouteAdoption.adopt(wk, res, world, foot);
+                    if (adoption.adopted()) wk.maybeArmPinchEscalation(foot, res);
+                    else refused(wk, adoption, foot);
                 }
-            } else if (wk.path == null) {
+            } else if (wk.route.path() == null) {
                 // No route and nothing to fall back on. But if we're airborne
                 // — plummeting from an unplanned fall (knockback, the ground
                 // broken out from under us, a tp) — a mid-air foot ALWAYS has

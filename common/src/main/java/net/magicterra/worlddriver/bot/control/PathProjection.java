@@ -51,7 +51,7 @@ public final class PathProjection {
      * Project {@code (px,pz)} onto {@code path} within the FORWARD window {@code [step, step+window]} and
      * fill the result fields. The forward window is what keeps the projection from snapping backward onto a
      * self-overlapping earlier segment (a dive→ride-bed→climb-out "V" overlaps itself in XZ — the dominant
-     * projection hazard). Two barriers mirror {@code Walker.adoptPath}: a node sitting {@code >1} below the
+     * projection hazard). Two barriers mirror {@code RouteAdoption}'s fast-forward: a node sitting {@code >1} below the
      * foot that is water is a hard dive barrier (everything beyond is only reachable through the dive), and a
      * node entered by a still-pending break/place edge stops the scan (don't skim past an unexecuted bridge
      * lip / dug riser).
@@ -89,7 +89,7 @@ public final class PathProjection {
             double d2 = (px - cx) * (px - cx) + (pz - cz) * (pz - cz);
             if (d2 < bestD2 && !aboveReach) { bestD2 = d2; bestSeg = i; bestT = t; }
             if (i < step) continue;
-            // V-shaped submerged-below dive barrier (mirrors adoptPath): everything beyond a node that sits
+            // V-shaped submerged-below dive barrier (mirrors RouteAdoption's fast-forward): everything beyond a node that sits
             // >1 below the foot AND is water is only reachable THROUGH the dive — stop the forward scan.
             if (b.getY() - footY < -1 && world.isWater(b)) { barrier = true; aheadEnd = i + 1; break; }
             // Pending break/place edge entering the next node: don't let the projection skim past an

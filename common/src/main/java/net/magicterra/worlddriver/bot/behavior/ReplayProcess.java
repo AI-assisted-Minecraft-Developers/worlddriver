@@ -55,7 +55,7 @@ public final class ReplayProcess implements BotProcess {
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         if (!begun) {
             // Adopt the fixed plan on the first tick — the WorldView is live here,
-            // exactly as adoptPath expects (it must be called from the tick thread).
+            // exactly as the adoption expects (it must be called from the tick thread).
             walker.replay(w, plan, edges, endGoal, startFoot);
             begun = true;
         }

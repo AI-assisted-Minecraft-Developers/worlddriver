@@ -31,6 +31,10 @@ public final class WalkerTallies {
     public volatile PathFinder.Result lastResult;
     /** The finished search that produced {@link #lastResult}. */
     public volatile PathFinder.Search lastSearch;
+    /** Search results the adoption refused, and why it refused the last one; a refused result leaves
+     *  the old plan in place, so without these a refusal looks exactly like a search that kept the route. */
+    public volatile int refusals;
+    public volatile String lastRefusal;
 
     /** A dig drove {@code cell} this tick; counted when it is not the cell of the previous dig. */
     void dig(BlockPos cell) {
@@ -42,6 +46,6 @@ public final class WalkerTallies {
     }
 
     @Override public String toString() {
-        return "searches=" + searches + " recoveryHops=" + recoveryHops + " digs=" + digs;
+        return "searches=" + searches + " recoveryHops=" + recoveryHops + " digs=" + digs + " refusals=" + refusals;
     }
 }

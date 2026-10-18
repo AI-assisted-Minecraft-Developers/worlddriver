@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.bot.control;
 
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
@@ -10,7 +9,6 @@ import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.bot.control.BotLevelHolder;
-import net.magicterra.worlddriver.bot.control.PathSmoothing.SmoothResult;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
@@ -25,8 +23,6 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static net.magicterra.worlddriver.bot.control.PathSmoothing.*;
@@ -125,13 +121,12 @@ public final class Walker implements Locomotor {
     Object finalNodeHoldPath;
     int finalNodeHoldStep = -1;
     boolean goalSnapChecked;   // one-shot per goal: snap an unstandable Goal.Block target to the nearest standable cell (see snapGoalToStandable) — needs a live WorldView so it runs on the first tick, not at start
-    List<BlockPos> path;
-    List<Move.Edge> edges;   // aligned with path; edges.get(i) enters path.get(i)
+    /** The plan and the searches for it; the only writer of either. */
+    final Route route = new Route();
     /** The A* result before stringPull, as a tally — see {@link WalkerInspector#rawPlanTally()}. */
     String rawPlan;
     /** The first parkour takeoff this walk ever made — see WalkerTickDrive's latch. */
     String parkourTakeoff;
-    int step;
     int ticksSinceRepath;
     int stuckTicks;
     /** Physical stall clock (§84): XZ-anchor ticks-without-displacement, fully
@@ -420,9 +415,9 @@ public final class Walker implements Locomotor {
      *  per-tick updater); their verdicts feed StallDetect's wedge/ram folds and the
      *  aim/drive stall gates, and WalkerTickPrelude forwards noStepProgressTicks to the
      *  expectation alarms. {@link StepProgress#restartWindows()} is the journey reset
-     *  (start + replan — exactly the five fields both cleared); adoptPath and
+     *  (start + replan — exactly the five fields both cleared); adoption and
      *  beginScriptedFollow keep their DIFFERENT partial restarts as direct writes
-     *  (adoptPath re-bases stuckStepHigh to step-1, not -1). The dwell/orbit counters
+     *  (adoption re-bases stuckStepHigh to step-1, not -1). The dwell/orbit counters
      *  self-manage on step/path change inside WalkerTickProgress. */
     final StepProgress stepProg = new StepProgress();
     static final class StepProgress {
@@ -516,28 +511,6 @@ public final class Walker implements Locomotor {
             steepDescentLatch = 0;
         }
     }
-    /** Async search + best-effort segment commit (task#96 step B9): the in-flight
-     *  time-sliced A* and the partial-segment plumbing around it, driven by
-     *  WalkerTickSearch/Repath and Walker's adopt/splice/frontier logic.
-     *  {@link SegmentCommit#reset()} clears the search + continuation state (exactly
-     *  what both journey resets cleared); seg.pathBestEffort/seg.searchSuppressedPlace follow
-     *  path adoption, and seg.frontierWaitTicks resets on adoption progress only. */
-    final SegmentCommit seg = new SegmentCommit();
-    static final class SegmentCommit {
-        PathFinder.Search activeSearch;             // in-flight time-sliced A* (null = none)
-        boolean pathBestEffort;                     // current path is a best-effort partial (goal NOT reached) → commit to it before re-searching
-        BlockPos commitEnd;                         // last node of the current best-effort segment (null for a full path) → where continuation searches launch from
-        boolean searchFromEnd;                      // seg.activeSearch is a continuation launched from seg.commitEnd (deferred splice) vs a foot-search (splice immediately)
-        PathFinder.Result pendingSegment;           // a finished continuation segment awaiting splice at the current segment's end
-        boolean searchSuppressedPlace;              // the in-flight search dropped placing moves (block-budget reroute) → adopt its result without re-checking
-        int frontierWaitTicks;                      // bounded retries re-searching at a loaded-chunk frontier before giving up (pathfinderFrontierCommit)
-        void reset() {
-            activeSearch = null;
-            commitEnd = null;
-            searchFromEnd = false;
-            pendingSegment = null;
-        }
-    }
     /** Anti-stuck forced displacement (task#96 step B): the wedge-repath counter anchored
      *  at lastWedgeFoot (WalkerTickRepath is the ONLY setter of the anchor) and the
      *  displacement burst it fires (burst driven by WalkerTickRepath; also armed directly
@@ -570,7 +543,6 @@ public final class Walker implements Locomotor {
     final SearchGovernors searchGov = new SearchGovernors();
     int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
     int dbgTicksOnStep = 0;   // walkerDebug: ticks spent on the current step
-    boolean replayMode;   // executing a fixed archived plan: no repath/quick-start/splice/anti-stuck repath
     /** Why the walk failed, or why a branch last threw the route away; the failing branch's text is
      *  what {@link #result()} reports. */
     String error;
@@ -606,7 +578,8 @@ public final class Walker implements Locomotor {
         BlockPos latchFoot = searchGov.futileLatchFoot;
         int searches = searchGov.futileSearches;
         int backoff = searchGov.searchBackoffTicks;
-        PathFinder.Search running = seg.searchFromEnd ? null : seg.activeSearch;
+        PathFinder.Search running = route.seg.searchFromEnd ? null : route.seg.activeSearch;
+        boolean placeSuppressed = route.seg.searchSuppressedPlace;
         start(g);
         searchGov.futileBestDist = bestDist;
         searchGov.futileFoot = bestFoot;
@@ -614,7 +587,7 @@ public final class Walker implements Locomotor {
         searchGov.futileLatchFoot = latchFoot;
         searchGov.futileSearches = searches;
         searchGov.searchBackoffTicks = backoff;
-        seg.activeSearch = running;
+        if (running != null) route.searchFromFoot(running, placeSuppressed);
     }
 
     @Override public void start(Goal g) {
@@ -622,9 +595,7 @@ public final class Walker implements Locomotor {
         this.goalSnapChecked = false;
         this.goalSnapped = false;
         this.result = WalkResult.NONE;
-        this.path = null;
-        this.edges = null;
-        this.step = 0;
+        this.route.restart();
         this.ticksSinceRepath = 0;
         this.stuckTicks = 0;
         this.totalTicks = 0;
@@ -637,7 +608,6 @@ public final class Walker implements Locomotor {
         this.driveLatch.reset();
         this.pillarRecover.reset();
         this.descending = false;
-        this.seg.reset();
         this.goalSpin.resetForNewGoal();
         this.searchGov.reset();
         this.churn.resetForNewGoal();
@@ -647,7 +617,6 @@ public final class Walker implements Locomotor {
         this.unstuck.resetForNewGoal();
         this.guardPlugCell = null;                          // plug arming is per-journey; a stale
         this.guardPlugFires = 0;                            // cell must not pre-arm the next goal
-        this.replayMode = false;
         this.error = null;
     }
 
@@ -718,14 +687,11 @@ public final class Walker implements Locomotor {
      *  may have been knocked back or the terrain changed, so reusing the stale
      *  path would walk into a wall. See ProcessScheduler / UserTaskChain.onResume. */
     @Override public void replan() {
-        this.path = null;
-        this.edges = null;
-        this.step = 0;
+        this.route.clear();
         this.ticksSinceRepath = 0;
         this.stuckTicks = 0;
         this.actionTicks = 0;
         this.pillar.reset();
-        this.seg.reset();
         this.stepProg.restartWindows();
         this.aimSmooth.reset();
         this.searchGov.quickCooldown = 0;
@@ -750,29 +716,30 @@ public final class Walker implements Locomotor {
 
     /** Replay a fixed archived plan. Caller has already teleported the bot to the plan
      *  start and restored the block envelope. Disables A* entirely — the plan executes
-     *  with real physics; a wedge is recorded, not re-planned. */
+     *  with real physics; a wedge is recorded, not re-planned: whatever would have dropped
+     *  the plan ends the walk instead, and a plan the adoption refuses ends it on the first tick. */
     public void replay(WorldView world, List<BlockPos> plan, List<Move.Edge> planEdges, Goal endGoal, BlockPos startFoot) {
         start(endGoal);
-        this.replayMode = true;
-        adoptPath(new PathFinder.Result(plan, planEdges, true, 0, 0L, 0.0), world, startFoot);
+        route.enterReplay();
+        Route.Adoption a = RouteAdoption.adopt(this, new PathFinder.Result(plan, planEdges, true, 0, 0L, 0.0), world, startFoot);
+        if (!a.adopted()) route.drop("replay plan refused: " + a.refusal());
     }
 
     /**
      * TEST SEAM — adopt a hand-built plan with the LIVE recovery/repath machinery left ON
-     * (unlike {@link #replay}, which sets {@code replayMode} and disables A*), then
+     * (unlike {@link #replay}, which puts the route in replay and disables A*), then
      * point {@code step} at an arbitrary mid-plan node. The harness uses this to force the
      * exact step-pointer-mismatch STATE the live wedge lands in — bot grounded N blocks off a
      * descend node — INDEPENDENT of how the bot drifted there live (which a momentum overshoot
-     * on a synthetic 2-D arena could not reliably reproduce). Because {@code replayMode} stays
+     * on a synthetic 2-D arena could not reliably reproduce). Because the route is not in replay
      * false, the real {@code fellOffPath}/{@code safetyRepath}/blacklist recovery runs, giving
-     * the clean A/B the live wedge couldn't. Pass {@code foot==null} so {@link #adoptPath} does
+     * the clean A/B the live wedge couldn't. Pass {@code foot==null} so {@link RouteAdoption#adopt} does
      * NOT fast-forward/re-anchor the step it just set. Not wired to any transport; test-only.
      */
     public void beginScriptedFollow(WorldView world, List<BlockPos> plan, List<Move.Edge> planEdges, Goal endGoal, int startStep) {
         start(endGoal);
-        this.replayMode = false;
-        adoptPath(new PathFinder.Result(plan, planEdges, false, 0, 0L, 0.0), world, null);
-        this.step = Math.max(0, Math.min(startStep, (path == null ? 1 : path.size())));
+        RouteAdoption.adopt(this, new PathFinder.Result(plan, planEdges, false, 0, 0L, 0.0), world, null);
+        route.seek(startStep);
         this.stepProg.noProgressStep = -1;          // force a fresh noStepProgressTicks baseline at the injected step
         this.stepProg.noStepProgressTicks = 0;
     }
@@ -792,8 +759,8 @@ public final class Walker implements Locomotor {
      * of the path" and "the destination" are different questions and {@link WalkerInspector#planTally()} answers
      * the first one.
      */
-    @Override public int pathLen() { return path == null ? 0 : path.size(); }
-    @Override public int pathStep() { return step; }
+    @Override public int pathLen() { return route.path() == null ? 0 : route.path().size(); }
+    @Override public int pathStep() { return route.step(); }
 
     /** Latch the FIRST parkour takeoff of this walk. The sprint decision is taken a tick before the
      *  jump, so {@code isSprinting()} here is the state the leap actually launches with. Only the
@@ -853,19 +820,10 @@ public final class Walker implements Locomotor {
     private int parkourSamples;
     private StringBuilder parkourTakeoffBuf;
 
-    /** String-pull the search result, keeping a tally of what it looked like BEFORE — see
-     *  {@link WalkerInspector#rawPlanTally()}. The latch lives here rather than at the call site so
-     *  {@code adoptPath} does not grow: it is already grandfathered at its line budget. */
-    private SmoothResult smoothAndRemember(WorldView world, PathFinder.Result res,
-                                           List<net.magicterra.worlddriver.bot.rules.CostModifier> bias) {
-        rawPlan = WalkerInspector.tallyOf(res.path(), res.edges());
-        return stringPull(world, res.path(), res.edges(), bias);
-    }
-
-    /** TEST SEAM — run {@link #adoptPath} with an explicit {@code foot} so a harness can exercise the
+    /** TEST SEAM — run {@link RouteAdoption#adopt} with an explicit {@code foot} so a harness can exercise the
      *  segment anchor-gate (the {@code mis-anchored segment} reject vs the deep-water-float open-water
      *  bee-line exemption) deterministically, INDEPENDENT of the full continuation/repath machinery the
-     *  headless server-sim doesn't reproduce for this live water dead-stop. @return adoptPath's verdict:
+     *  headless server-sim doesn't reproduce for this live water dead-stop. @return the adoption's verdict:
      *  true = ACCEPTED (segment adopted, the bot will drive it), false = REJECTED as mis-anchored. */
     public boolean adoptForTest(WorldView world, List<BlockPos> plan, List<Move.Edge> planEdges, BlockPos foot) {
         return adoptForTest(world, plan, planEdges, foot, false);
@@ -876,11 +834,26 @@ public final class Walker implements Locomotor {
      *  off a continuation search, adopts the result, and the synthetic edges are gone. That is how
      *  {@code wd.surfacePillarPointerNeedsItsSupport} lost its subject on tick ONE — its terminal read
      *  {@code path-consumed}, a class {@link WalkVerdict#classifyArrival} can only return once
-     *  {@code seg.pathBestEffort} is false, and {@link #adoptPath} is its only writer. A synthetic plan
+     *  {@code seg.pathBestEffort} is false, and {@link RouteAdoption#adopt} is its only writer. A synthetic plan
      *  whose last node IS the goal has to say so, or it does not survive its own first tick. */
     public boolean adoptForTest(WorldView world, List<BlockPos> plan, List<Move.Edge> planEdges,
                                 BlockPos foot, boolean goalReached) {
-        return adoptPath(new PathFinder.Result(plan, planEdges, goalReached, 0, 0L, 0.0), world, foot);
+        return RouteAdoption.adopt(this, new PathFinder.Result(plan, planEdges, goalReached, 0, 0L, 0.0), world, foot).adopted();
+    }
+
+    /**
+     * Hand this walker a previewed route ({@code mc.bot.goto} with {@code planId}). Feed the RAW search
+     * result, never the straightened route a preview showed: adoption straightens on its own, cuts a
+     * best-effort tail, and skips the prefix the bot already walked, so a pre-straightened route would be
+     * straightened twice. A preview whose first stretch has been built over comes back refused, which is
+     * the caller's cue to let the walker search as usual.
+     *
+     * @param foot where the bot stands now; the route is anchored to its nearest prefix node
+     * @return false when the route was refused (mis-anchored or stale)
+     */
+    public boolean adoptPlan(PathFinder.Result raw, WorldView world, BlockPos foot) {
+        if (raw == null || raw.path().isEmpty()) return false;
+        return RouteAdoption.adopt(this, raw, world, foot).adopted();
     }
 
     // Jump / sneak actuators — drive the player's OWN AvatarInput (Input.jumping /
@@ -965,7 +938,7 @@ public final class Walker implements Locomotor {
         jumpSrcEvents++;
         long now = p.level().getGameTime();
         BlockPos foot = BlockPos.containing(p.getX(), p.getY(), p.getZ());
-        BlockPos wp = path != null && step >= 0 && step < path.size() ? path.get(step) : null;
+        BlockPos wp = route.path() != null && route.step() >= 0 && route.step() < route.path().size() ? route.path().get(route.step()) : null;
         String site = StackWalker.getInstance().walk(s -> s.skip(2)
                 .map(f -> f.getFileName() + ":" + f.getLineNumber()).findFirst().orElse("?"));
         // The water pair is here because a `swimColumn` tag on dry obsidian has three readings and
@@ -1046,7 +1019,7 @@ public final class Walker implements Locomotor {
         tel.stepAdvancesLogged++;
         LOG.info("[walker] step advance: seq={}/{} cause={} oldStep={} newStep={} w={} nx={} foot={} exact=({}) "
                         + "cur2={} nd2={} overshot={} |w.y-p.y|={} |nx.y-p.y|={} onGround={} soleOnSolid={} fallSpeed={}",
-                stepAdvEvents, STEP_ADV_EVENTS, cause, step, step + 1,
+                stepAdvEvents, STEP_ADV_EVENTS, cause, route.step(), route.step() + 1,
                 w == null ? "none" : w.toShortString(),
                 nx == null ? "none(last node)" : nx.toShortString(),
                 foot == null ? "none" : foot.toShortString(),
@@ -1116,8 +1089,8 @@ public final class Walker implements Locomotor {
                         tp.getDeltaMovement().horizontalDistance())
                     + " sole=" + String.format(java.util.Locale.ROOT, "%.3f",
                         WalkerGeometry.soleOnSolid(world, tp)))
-                + " node=" + (path == null || step < 0 || step >= path.size()
-                        ? "none" : path.get(step).toShortString());
+                + " node=" + (route.path() == null || route.step() < 0 || route.step() >= route.path().size()
+                        ? "none" : route.path().get(route.step()).toShortString());
         if (tp != null && WalkerGeometry.soleOnSolid(world, tp) > 0.0) tel.lastSupportedTrace = tel.lastTickTrace;
         boolean fired = strideFloorGuard(a, world);
         boolean footing = footingGuard(a, world);
@@ -1138,8 +1111,8 @@ public final class Walker implements Locomotor {
             // and steep descents stand on knife edges BY DESIGN — holding the pin there
             // froze the whole descent at the crest (r10 regression: descentYaw never left
             // the top; caught four rounds late behind bridge-filtered greps).
-            boolean plannedDescent = fc != null && path != null && step < path.size()
-                    && path.get(step).getY() < fc.getY();
+            boolean plannedDescent = fc != null && route.path() != null && route.step() < route.path().size()
+                    && route.path().get(route.step()).getY() < fc.getY();
             if (guardParkourTick || plannedDescent || hp == null) guardHoldTicks = 0;
             else {
                 // While the bot OVERHANGS (grounded only by the epsilon face-contact of
@@ -1260,8 +1233,8 @@ public final class Walker implements Locomotor {
         // wd.bridgeDescend "descending bridge wedged (sneak ledge-guard?)", wd.descentYaw thrashing
         // to 2463°. Every fall this guard is for was a bot walking or jumping at a node level with
         // it or above it, so nothing it protects is given up here.
-        if (path != null && step >= 0 && step < path.size()
-                && path.get(step).getY() < foot.getY()) return false;
+        if (route.path() != null && route.step() >= 0 && route.step() < route.path().size()
+                && route.path().get(route.step()).getY() < foot.getY()) return false;
         if (!lethalDropAdjacent(world, p, foot)) return false;
         avatarSneak(a, true);
         a.commandJump(false);
@@ -1554,8 +1527,8 @@ public final class Walker implements Locomotor {
      */
     private void forcedRepathIfPinnedTooLong(Body a) {
         if (guardPinStreak == 0) {
-            guardStreakPath = path;
-            guardStreakStartStep = step;
+            guardStreakPath = route.path();
+            guardStreakStartStep = route.step();
         }
         if (guardPlugCell != null && !guardPlugCell.equals(guardStreakCell)) {
             guardStreakCell = guardPlugCell;
@@ -1571,7 +1544,7 @@ public final class Walker implements Locomotor {
                 + (guardStreakCells <= 1 ? " (never left that cell)"
                         : " (changed cells; for reference, not a criterion)");
 
-        if (path != guardStreakPath) {
+        if (route.path() != guardStreakPath) {
             tel.guardStreakRebases++;
             if (tel.guardStreakRebases <= GUARD_STREAK_EVENTS) {
                 LOG.info("[walker] guard pin streak rebased: pinned {} ticks{} — another branch replaced "
@@ -1585,16 +1558,16 @@ public final class Walker implements Locomotor {
             return;
         }
 
-        int consumed = step - guardStreakStartStep;
+        int consumed = route.step() - guardStreakStartStep;
         if (consumed > 0) {
             int kept = ++tel.guardKeptPlans;
             String keep = "#" + kept + ": pinned " + guardPinStreak
                     + " ticks, but the plan advanced " + consumed + " steps (node " + guardStreakStartStep
-                    + " → " + step + ") — the bot is walking along the edge, not stuck, so the plan is kept"
+                    + " → " + route.step() + ") — the bot is walking along the edge, not stuck, so the plan is kept"
                     + cells
-                    + "; the plan has " + Math.max(0, path.size() - Math.max(step, 0))
+                    + "; the plan has " + Math.max(0, route.path().size() - Math.max(route.step(), 0))
                     + " nodes left, last node "
-                    + (path.isEmpty() ? "none" : path.get(path.size() - 1).toShortString()) + where;
+                    + (route.path().isEmpty() ? "none" : route.path().get(route.path().size() - 1).toShortString()) + where;
             tel.lastGuardKeep = keep;
             if (kept <= GUARD_STREAK_EVENTS) {
                 LOG.info("[walker] guard pin kept the plan: {}", keep);
@@ -1608,7 +1581,7 @@ public final class Walker implements Locomotor {
             return;
         }
 
-        if (path == null) {
+        if (route.path() == null) {
             // NOTHING TO THROW AWAY, so this is not a discard and must not be counted as one. Ten of
             // the 45 "forced repaths" in the 2026-08-21 rehearsal discarded a plan with 0 nodes left
             // and no last node — a bot pinned with no plan. Left in the same counter they inflate it
@@ -1630,13 +1603,13 @@ public final class Walker implements Locomotor {
                 + " ticks and the plan did not advance a single step (stopped at node " + guardStreakStartStep
                 + ") — stuck in place"
                 + cells
-                + "; the discarded plan had " + Math.max(0, path.size() - Math.max(step, 0))
+                + "; the discarded plan had " + Math.max(0, route.path().size() - Math.max(route.step(), 0))
                 + " nodes left, last node "
-                + (path.isEmpty() ? "none" : path.get(path.size() - 1).toShortString())
+                + (route.path().isEmpty() ? "none" : route.path().get(route.path().size() - 1).toShortString())
                 + where;
         tel.lastGuardRepath = repath;
         LOG.info("[walker] guard pin forced a repath: {}", repath);
-        path = null;
+        route.drop("guard pin: " + repath);
         guardPinStreak = 0;
         guardStreakCells = 0;
         guardStreakCell = null;
@@ -1770,10 +1743,10 @@ public final class Walker implements Locomotor {
         // put the landing node a step or two ahead of the pointer). Column must match
         // EXACTLY: a Chebyshev-1 slack would exempt the pit mouth beside a staircase and
         // re-open the descentDrift launch death.
-        if (path != null) {
-            int end = Math.min(step + 8, path.size());
-            for (int i = Math.max(step, 0); i < end; i++) {
-                BlockPos n = path.get(i);
+        if (route.path() != null) {
+            int end = Math.min(route.step() + 8, route.path().size());
+            for (int i = Math.max(route.step(), 0); i < end; i++) {
+                BlockPos n = route.path().get(i);
                 if (n.getY() < footCell.getY() && n.getX() == strideCell.getX() && n.getZ() == strideCell.getZ())
                     return skipStride(6);
             }
@@ -1821,8 +1794,8 @@ public final class Walker implements Locomotor {
         // judged walking cheaper — there the dwell keeps transient corner-cut grazes
         // from spending blocks the contract says to keep (StepTwo r28: 6 dirt causeway).
         boolean constructionPlan = false;
-        if (edges != null)
-            for (var e : edges)
+        if (route.edges() != null)
+            for (var e : route.edges())
                 if (e != null && e.move != null
                         && ("pillarUp".equals(e.move) || "bridgePlace".equals(e.move)
                             || e.move.startsWith("parkourPlace"))) {
@@ -1914,21 +1887,10 @@ public final class Walker implements Locomotor {
         start(null);
     }
 
-    /** At a loaded-chunk frontier the (stale) eager continuation from seg.commitEnd —
-     *  computed before the bot arrived — found no onward route. Re-search FRESH from
-     *  the frontier: now that the bot stands there, chunks ~render-distance further
-     *  have loaded and the next segment is visible. Bounded by {@link #FRONTIER_WAIT_CAP}
-     *  (the bot is stationary while waiting, so retrying more can't load new chunks)
-     *  so a genuine box-in still terminates. Holds (keys released) and returns
-     *  WALKING while retrying; ARRIVED when out of retries or the feature is off. */
+    /** No onward route from the segment end: hold (keys released) and return WALKING while
+     *  {@link Route#retryAtFrontier} re-searches; ARRIVED when out of retries or the feature is off. */
     Step frontierHoldOrArrive(Body a, WorldView world, LivingEntity p) {
-        if (!replayMode && PlanningConfig.pathfinderFrontierCommit && seg.commitEnd != null
-                && seg.frontierWaitTicks < FRONTIER_WAIT_CAP) {
-            seg.frontierWaitTicks++;
-            if (seg.activeSearch == null) {
-                seg.activeSearch = newPathFinder(world).newSearch(seg.commitEnd, goal);
-                seg.searchFromEnd = true;
-            }
+        if (route.retryAtFrontier(this, world)) {
             avatarForward(a, false);
             avatarJump(a, false);
             p.setSprinting(false);
@@ -1947,375 +1909,14 @@ public final class Walker implements Locomotor {
      *  to {@link ControlConfig#pathfinderProgressive} (default OFF → behaviour unchanged). */
     void maybeArmPinchEscalation(BlockPos foot, PathFinder.Result res) {
         if (!ControlConfig.pathfinderProgressive) return;
-        if (res.goalReached() || seg.commitEnd == null) return;      // healthy full route → no escalation
-        double progress = goal.estimate(foot) - goal.estimate(seg.commitEnd);
+        if (res.goalReached() || route.seg.commitEnd == null) return;      // healthy full route → no escalation
+        double progress = goal.estimate(foot) - goal.estimate(route.seg.commitEnd);
         if (progress >= PINCH_MIN_PROGRESS) return;              // real headway → not a pinch
         boolean wasArmed = escal.armed();
         escal.arm(BOXED_ESCALATE_STICKY_TICKS);
         if (GameConfig.walkerDebug && !wasArmed)
             LOG.info("[walker] proactive pinch escalation ARMED: best-effort commit gained only {} blocks toward goal → deepen next search",
                     String.format("%.1f", progress));
-    }
-
-    /** PROGRESSIVE QUICK-START (progressive pathfinding): the big re-plan is still slicing in
-     *  the background and the bot has nothing to walk — that gap is the visible
-     *  inter-segment freeze (several seconds standing still at every hard
-     *  obstacle). Spend a tiny SYNCHRONOUS node budget on a short best-effort
-     *  segment toward the goal and start walking it right now; the big result
-     *  supersedes the stub when it lands through the normal adoption path.
-     *  Frame cost is irrelevant here: with no path the bot is frozen anyway
-     *  (same argument as the idle-slice). Only a stub that actually nears the
-     *  goal is adopted — a boxed-in micro-search returns pacing scraps that
-     *  would jitter, so those back off for {@link #QUICK_RETRY_TICKS}.
-     *  @return true if a stub segment was adopted (path != null, step = 1). */
-    boolean tryQuickStart(WorldView world, BlockPos foot, Goal goal) {
-        if (ControlConfig.pathfinderQuickNodes <= 0) return false;
-        if (searchGov.quickCooldown > 0) { searchGov.quickCooldown--; return false; }
-        PathFinder.Search q = WalkerFinders.quick(this, world, QUICK_MAX_MS).newSearch(foot, goal);
-        while (!q.advance(QUICK_MAX_MS)) { /* bounded by the node cap / QUICK_MAX_MS */ }
-        PathFinder.Result res = q.result();
-        boolean useful = res.hasPath() && res.path().size() > 1
-                && goal.estimate(foot)
-                   - goal.estimate(res.path().get(res.path().size() - 1)) >= 2.0;
-        if (!useful) {
-            searchGov.quickCooldown = QUICK_RETRY_TICKS;
-            return false;
-        }
-        if (GameConfig.walkerDebug)
-            LOG.info("[walker] quick-start stub adopted: len={} expanded={} ms={} (big search still running)",
-                    res.path().size(), res.expanded(), res.ms());
-        adoptPath(res, world, null);    // stub starts at the foot — no fast-forward needed
-        return true;
-    }
-
-    /** PROGRESSIVE OPEN-WATER BEE-LINE stub: over a wide deep-water
-     *  crossing the sliced A* re-plan is expensive — it expands the whole 3-D water
-     *  volume (canStandAt accepts every depth), thousands of nodes over several
-     *  seconds, and even a bounded {@link #tryQuickStart} can't progress 2 blocks. So
-     *  the bot consumes its short committed segment, has no fresh forward path, wedges,
-     *  and anti-stuck bursts crab it across jerkily (live 2026-06-15 wide-water run:
-     *  burst every ~6 s, the bot 30+ blocks past a stale segment, max step-stuck 106).
-     *  A flat open-water crossing needs no search: greedily march toward the goal along
-     *  the SURFACE — at each cell take the 8-neighbour that most reduces goal.estimate
-     *  and is open surface water — and adopt that straight run as a long stub so the bot
-     *  keeps swimming smoothly while the big search lands and supersedes it. A greedy
-     *  local minimum is harmless: the stub is a stopgap, replaced the instant the real
-     *  path arrives; it only ever drives the bot over open water it could swim anyway.
-     *  Gated to a body of water under the feet. Tried BEFORE {@link #tryQuickStart} in water:
-     *  under the surface water model the quick search succeeds there, and its first node
-     *  follows the bob (a swimUp when the foot is sunk, a stepDown when it rides high), so
-     *  each adoption re-aimed the jump/sneak and the crossing became a piston. The march
-     *  starts from the SURFACE cell of the foot's column, whichever way the bob has the
-     *  foot at this tick. @return true if a bee-line was adopted. */
-    boolean tryWaterBeeline(WorldView world, BlockPos foot, Goal goal) {
-        if (!world.isWater(foot)) return false;
-        BlockPos surface = isOpenSurfaceWater(world, foot) ? foot
-                : isOpenSurfaceWater(world, foot.above()) ? foot.above()
-                : isOpenSurfaceWater(world, foot.below()) ? foot.below() : foot;
-        List<BlockPos> path = new ArrayList<>();
-        List<Move.Edge> edges = new ArrayList<>();
-        path.add(surface);
-        edges.add(null);                       // start node carries no inbound edge
-        BlockPos cur = surface;
-        double curEst = goal.estimate(surface);
-        for (int i = 0; i < BEELINE_MAX_STEPS; i++) {
-            BlockPos best = null;
-            double bestEst = curEst;
-            for (int dx = -1; dx <= 1; dx++)
-                for (int dz = -1; dz <= 1; dz++) {
-                    if (dx == 0 && dz == 0) continue;
-                    BlockPos n = cur.offset(dx, 0, dz);
-                    if (!isOpenSurfaceWater(world, n)) continue;
-                    double e = goal.estimate(n);
-                    if (e < bestEst) { bestEst = e; best = n; }
-                }
-            if (best == null) break;            // no goal-ward open-water step (boxed / reached a bank)
-            path.add(best);
-            edges.add(new Move.Edge(best, 10, List.of(), List.of(), "walk"));
-            cur = best;
-            curEst = bestEst;
-        }
-        if (path.size() <= BEELINE_MIN_STEPS) return false;   // too short to be worth a stub
-        if (GameConfig.walkerDebug)
-            LOG.info("[walker] open-water bee-line stub adopted: len={} toward goal (big search still running)",
-                    path.size());
-        adoptPath(new PathFinder.Result(path, edges, false, 0, 0L, 0.0), world, null);
-        return true;
-    }
-
-    /** PROGRESSIVE LAND COARSE-DIRECTION stub: the dry-land twin of
-     *  {@link #tryWaterBeeline}. Over open / gently-sloped land the big sliced A* re-plan
-     *  can burn thousands of nodes before it commits, leaving the bot frozen at the
-     *  start-of-segment gap (the visible startup / inter-segment churn). No search is
-     *  needed to START moving the right way: greedily march toward the goal — at each
-     *  cell take the 8-neighbour, at the SAME Y, that most reduces {@code goal.estimate}
-     *  and is safely STANDABLE on dry ground — and adopt that run as a coarse stub the
-     *  bot walks immediately while the big search runs and supersedes it. A greedy local
-     *  minimum (a wall, a slope, a cliff, water) is harmless: the march simply stops
-     *  there and the real path replaces the stub the instant it lands; the stub only ever
-     *  drives the bot over flat ground it could walk anyway. Same-Y only (like the water
-     *  bee-line) so it never steps off a ledge or rams a riser — slopes hand back to A*.
-     *  Gated to {@link ControlConfig#pathfinderProgressive} + dry land under the feet (water
-     *  is {@link #tryWaterBeeline}'s job). @return true if a land run was adopted. */
-    boolean tryLandBeeline(WorldView world, BlockPos foot, Goal goal) {
-        if (!ControlConfig.pathfinderProgressive) return false;
-        if (world.isWater(foot)) return false;          // water is tryWaterBeeline's job
-        List<BlockPos> path = new ArrayList<>();
-        List<Move.Edge> edges = new ArrayList<>();
-        path.add(foot);
-        edges.add(null);                                // start node carries no inbound edge
-        BlockPos cur = foot;
-        double curEst = goal.estimate(foot);
-        for (int i = 0; i < BEELINE_MAX_STEPS; i++) {
-            BlockPos best = null;
-            double bestEst = curEst;
-            for (int dx = -1; dx <= 1; dx++)
-                for (int dz = -1; dz <= 1; dz++) {
-                    if (dx == 0 && dz == 0) continue;
-                    BlockPos n = cur.offset(dx, 0, dz);
-                    if (!isDryWalkable(world, n)) continue;
-                    double e = goal.estimate(n);
-                    if (e < bestEst) { bestEst = e; best = n; }
-                }
-            if (best == null) break;            // no goal-ward dry step (slope / wall / water / cliff)
-            path.add(best);
-            edges.add(new Move.Edge(best, 10, List.of(), List.of(), "walk"));
-            cur = best;
-            curEst = bestEst;
-        }
-        if (path.size() <= BEELINE_MIN_STEPS) return false;   // too short to be worth a stub
-        if (GameConfig.walkerDebug)
-            LOG.info("[walker] land coarse-direction stub adopted: len={} toward goal (big search still running)",
-                    path.size());
-        adoptPath(new PathFinder.Result(path, edges, false, 0, 0L, 0.0), world, null);
-        return true;
-    }
-
-    /** Where a best-effort segment's commit stops, which is where the continuation launches from.
-     *  §93 platform retreat (#15 final lane): the tail is wherever the node budget ran out — often
-     *  MID-SLOPE on complex steep terrain. The bot then climbs to a half-mounted ledge, the periodic
-     *  repath re-plans from that awkward stance, and the climb-fall oscillation burns ~100s
-     *  (slow-map zones; the SAME terrain runs clean in 8s standalone, §92b — the grind is planner
-     *  state, not executor skill). When the tail node is not a platform (fewer than 2 same-Y
-     *  standable cardinal neighbours), retreat up to 8 nodes to the nearest platform node so the
-     *  segment ends on ground the executor can stand square on while the next search runs.
-     *  Ridge retreat: see {@link PathSmoothing#sunkTailCut}. */
-    private void trimCommitTail(WorldView world) {
-        int cut = -1;
-        if (ControlConfig.walkerCommitTailPlatform && path.size() > 4) {
-            for (int k = path.size() - 1; k >= Math.max(2, path.size() - 8) && cut < 0; k--) {
-                BlockPos n = path.get(k);
-                int flat = 0;
-                for (int[] d4 : new int[][]{{1,0},{-1,0},{0,1},{0,-1}})
-                    if (world.canStandAt(n.offset(d4[0], 0, d4[1]))) flat++;
-                if (flat >= 2) cut = k;
-            }
-        }
-        int peak = ControlConfig.walkerCommitTailPeak ? PathSmoothing.sunkTailCut(path) : -1;
-        if (peak > 0 && (cut < 0 || peak < cut)) cut = peak;
-        if (cut <= 0 || cut >= path.size() - 1) return;
-        if (GameConfig.walkerDebug)
-            LOG.info("[walker] commit-tail retreat: {} -> {} ({} {},{},{})", path.size() - 1, cut,
-                    cut == peak ? "ridge" : "platform", path.get(cut).getX(), path.get(cut).getY(), path.get(cut).getZ());
-        path = List.copyOf(path.subList(0, cut + 1));
-        edges = Collections.unmodifiableList(new ArrayList<>(edges.subList(0, cut + 1)));
-    }
-
-    /** Splice in a freshly-searched route: string-pull it, reset the per-path
-     *  follow state, and record whether it's a best-effort partial (so the next
-     *  segment is precomputed from its end — see the kickoff/splice logic in
-     *  {@link #tick}). {@code seg.commitEnd} is the segment's last node, the launch
-     *  point for that continuation search.
-     *
-     *  @return false if the segment was REJECTED because its start is nowhere
-     *  near the feet. A continuation is computed from the previous segment's
-     *  seg.commitEnd; when the bot never actually made it there (fumbled the climb,
-     *  fell off the route) the spliced path STARTS in mid-air several blocks
-     *  away — step 1 is unreachable, fast-forward finds nothing near, and the
-     *  bot just hangs against the wall until the wedge timer fires (live
-     *  2026-06-09: cave pocket, step1 4 blocks up / 4.5 away, 15 s freeze).
-     *  Rejecting here lets the caller drop the stale segment and re-search
-     *  from where the bot really is. */
-    boolean adoptPath(PathFinder.Result res, WorldView world, BlockPos foot) {
-        if (foot != null && !res.path().isEmpty()) {
-            // Anchor on the nearest node of the PREFIX, not just path[0]. While a
-            // search runs (0.4-1.7 s) a SWIMMING bot keeps drifting 5-12 blocks
-            // along its old segment — both routes head for the same goal, so the
-            // fresh path's prefix IS the corridor the bot just swam. Judging only
-            // path[0] turns that drift into a reject→re-search→drift-again
-            // oscillation (live 2026-06-10: 6 rejects in 18 s, 35 min circling a
-            // water-shore pocket, the 75-node highland exit killed twice). A
-            // truly mis-anchored continuation (computed from a seg.commitEnd the bot
-            // never reached) has its WHOLE prefix far/high, so it still rejects.
-            List<BlockPos> raw = res.path();
-            int anchor = 0;
-            double anchorD = raw.get(0).distSqr(foot);
-            int lim = Math.min(raw.size() - 1, 16);
-            for (int i = 1; i <= lim && anchorD > 1.0; i++) {
-                Move.Edge e = i < res.edges().size() ? res.edges().get(i) : null;
-                if (e != null && (!e.toBreak.isEmpty() || !e.toPlace.isEmpty())) break;
-                double d2 = raw.get(i).distSqr(foot);
-                if (d2 < anchorD) { anchorD = d2; anchor = i; }
-            }
-            // In WATER the gate must absorb CURRENT drift: a river pushes the
-            // bot ~1.5 b/s downstream while it holds path-less, so by the time
-            // a 0.4-1.7 s search lands the feet are 5-7 blocks away — with the
-            // dry 4-block gate every fresh segment got rejected, the hold let
-            // the river push further, and the loop swept the bot 50 blocks
-            // downstream (live 2026-06-10: 10 rejects in 30 s straight down
-            // z=-561, each segment's nearest prefix node = the previous foot).
-            // Swimming 8 blocks back onto the route is always executable; the
-            // tight gate only exists for dry falls/jumps that aren't.
-            double rejectGate = world.isWater(foot) ? 64 : 16;
-            // DEEP-WATER-FLOAT BEE-LINE EXEMPTION (live #47 deterministic dead-stop): a bot floating in
-            // deep open water commits a best-effort segment whose continuation (from seg.commitEnd) starts a
-            // long clear-LOS open-water WALK node tens of blocks ahead — the only intermediate node is an
-            // IN-PLACE swimUp (same XZ as the foot), so the anchor finds NO near forward node and rejects
-            // (d2≈2300). The reject drops the path, the foot-search returns the SAME swimUp+far-walk
-            // best-effort, and it re-pins → 13 repaths, no progress, hSpd=0, anti-spin ends best-effort
-            // (~6 s dead-stop; telemetry "reject mis-anchored: -812,62 (d2=2305) vs foot -860,58"). But
-            // that far node IS reachable: the buoyant bot can swim a STRAIGHT line to it over open water
-            // (no wall, all water/air). Accepting the segment lets the carrot bee-line toward the far node
-            // and make forward progress (the deep-water-float analog of the quick-start stub / water
-            // bee-line). STRICTLY gated so it can NOT exempt a truly mis-anchored / walled / climb segment:
-            //   • the foot must be FLOATING in water (the rejectGate's own water test);
-            //   • the straight line foot→anchor must be a CLEAR OPEN-WATER bee-line (losWalkable AND every
-            //     sampled cell water/air — a bank, ledge or dry walkway fails it);
-            //   • the anchor node must sit within ±4 Y of the floating foot — a SURFACE crossing the buoyant
-            //     bot swims up+across to (the live foot bobs y58↔61 under a y62 surface node, dy up to 4),
-            //     never an impossible bank climb (a real climb-out has a solid bank IN the line → the
-            //     open-water LOS already rejects it, so this band only bounds the swim-up reach).
-            // A genuinely fumbled continuation (computed from a seg.commitEnd behind a wall / up a cliff the
-            // bot never reached) fails the open-water LOS or the ±4 Y band, so it still rejects.
-            // The exemption suppresses BOTH reject conditions (the d2 distance gate AND the |Δy| jump gate):
-            // for an open-water bee-line the Y difference is a buoyant swim-UP to the surface node, not a dry
-            // jump/fall, so the maxJumpUp gate (which exists to bar impossible dry climbs) must not veto it.
-            boolean openWaterBeeline = ControlConfig.walkerDeepWaterFloatBeeline
-                    && world.isWater(foot)
-                    && Math.abs(raw.get(anchor).getY() - foot.getY()) <= 4
-                    && losWalkable(world, foot, raw.get(anchor))
-                    && isOpenWaterLine(world, foot, raw.get(anchor));
-            if (!openWaterBeeline
-                    && (anchorD > rejectGate
-                        || Math.abs(raw.get(anchor).getY() - foot.getY()) > world.maxJumpUpBlocks() + 2)) {
-                if (GameConfig.walkerDebug)
-                    LOG.info("[walker] reject mis-anchored segment: nearest prefix node {},{},{} (d2={}) vs foot {},{},{}",
-                            raw.get(anchor).getX(), raw.get(anchor).getY(), raw.get(anchor).getZ(),
-                            (int) anchorD, foot.getX(), foot.getY(), foot.getZ());
-                return false;
-            }
-            if (openWaterBeeline && anchorD > rejectGate && GameConfig.walkerDebug)
-                LOG.info("[walker] accept open-water bee-line segment: far node {},{},{} (d2={}) reachable by clear-LOS swim from foot {},{},{}",
-                        raw.get(anchor).getX(), raw.get(anchor).getY(), raw.get(anchor).getZ(),
-                        (int) anchorD, foot.getX(), foot.getY(), foot.getZ());
-        }
-        if ((res = PathSmoothing.dropStalePrefix(world, res)).path().size() < 2) return false;   // the bot dug while the search ran
-        // String-pull flat walk runs so the heading stays steady over the staircase (no left-right
-        // camera wobble) and the bot walks straight; action/vertical/parkour nodes are preserved.
-        SmoothResult sm = smoothAndRemember(world, res, profile.bias());
-        path = sm.path;
-        edges = sm.edges;
-        seg.pathBestEffort = !res.goalReached();
-        if (seg.pathBestEffort) trimCommitTail(world);
-        seg.commitEnd = (seg.pathBestEffort && !path.isEmpty()) ? path.get(path.size() - 1) : null;
-        step = 1;
-        searchGov.noPathWaitTicks = 0;            // a segment was found → the no-path wait starts over
-        // A segment that ends FARTHER from the goal than it starts can only be
-        // the last-resort ESCAPE (every other selector is strictly goal-ward):
-        // its start is a PROVEN dead pocket. Charge it now so subsequent searches
-        // stop folding back into it — without this the cave-funnel relapse loop
-        // is fully deterministic (live 2026-06-09: escape→high route→fall→free
-        // h-improving corridors all funnel back to the same pocket, ~3 min/lap,
-        // and nothing on the lap ever calls penalizeStuckNode).
-        if (goal != null && path.size() > 1
-                && goal.estimate(path.get(path.size() - 1)) > goal.estimate(path.get(0))) {
-            world.penalizeStuckNode(path.get(0));
-            world.penalizeStuckNode(path.get(0).above());
-            if (GameConfig.walkerDebug)
-                LOG.info("[walker] escape segment adopted → penalize dead pocket at {}", path.get(0));
-        }
-        // Fast-forward past a prefix the bot has already covered. A quick-start
-        // stub (progressive pathfinding) carries the bot a few blocks ahead of
-        // where the superseding big search was LAUNCHED, so the fresh path can
-        // start behind the feet — without this the bot visibly walks BACKWARD
-        // to rejoin at path[0]. Skip to the nearest on-path node in the first
-        // few steps, but never across an edge that still needs to break/place
-        // blocks (skipping its action would desync the build state). Only jump
-        // when a node is genuinely at the feet; a normal foot-search has
-        // path[0] == foot and is untouched.
-        if (foot != null && path.size() > 2) {
-            // Loose rejoin ONLY when path[0] is already off the feet (the bot
-            // drifted while the search ran — open water, quick-start carry).
-            // A normally-anchored path keeps the strict gate: skipping to a
-            // node 2-3 blocks out also skips the stair base / bridge lip
-            // between here and there.
-            boolean drifted = path.get(0).distSqr(foot) > 2.0;
-            int window = drifted ? 16 : 8;
-            // In water, accept a rejoin node as far as the reject gate lets a
-            // segment in (river drift, see adopt-gate above): swimming back a
-            // few blocks is always executable, and refusing leaves step=1
-            // pointing far UPSTREAM of a drifted bot.
-            double accept = drifted ? (world.isWater(foot) ? 64.0 : 9.0) : 2.0;
-            int nearest = step;
-            double nearestD = path.get(step).distSqr(foot);
-            for (int i = step + 1; i < Math.min(path.size() - 1, step + window); i++) {
-                Move.Edge e = i < edges.size() ? edges.get(i) : null;
-                if (e != null && (!e.toBreak.isEmpty() || !e.toPlace.isEmpty())) break;
-                // Never anchor onto a node beyond ±1 of the feet: a drifted bot
-                // in water sits 2 below the bank nodes (3D distSqr still ranks
-                // them "near", dy=2 → +4) — starting there is an impossible +2
-                // climb (live: wedged at y62 vs a y64 diagUp for 100 ticks).
-                // DOWN must be capped too: anchoring onto a node 5 BELOW a
-                // cliff-top bot aims the walk at the column past the lip and it
-                // just rams the wall (live: wp walk@y57 vs feet y62, hCol,
-                // hSpd=0). ±1 keeps the rejoin on the bot's own walking layer.
-                int ffDy = path.get(i).getY() - foot.getY();
-                // A V-shaped underwater path (dive → ride the bed → climb out)
-                // overlaps itself in XZ, so the climb-out branch ranks "nearest"
-                // and skipping flattens the V: the bot anchors onto the node
-                // ABOVE its head, the dive trigger never arms (wp not below),
-                // and it pins against the well wall (live round46: wp=(3156,64)
-                // vs feet y62, hCol, hSpd=0, 17 bursts in 2 min). A submerged
-                // valley node is a hard rejoin barrier — stop the scan there:
-                // everything beyond is only reachable THROUGH the dive.
-                if (ffDy < -1 && world.isWater(path.get(i))) break;
-                if (Math.abs(ffDy) > 1) continue;
-                double d2 = path.get(i).distSqr(foot);
-                if (d2 < nearestD) { nearestD = d2; nearest = i; }
-            }
-            if (nearest > step && nearestD <= accept) step = nearest;
-        }
-        stuckTicks = 0;
-        seg.frontierWaitTicks = 0;          // progress made → reset the frontier re-search budget
-        stepProg.stuckStep = -1;        // new path geometry → restart the progress window
-        stepProg.noStepProgressTicks = 0;   // new path → restart the wedge timer (else a same-index step re-triggers instantly)
-        stepProg.noProgressStep = -1;
-        // A freshly adopted PROGRESSIVE stub (quick-start / open-water bee-line —
-        // the only adopts with foot==null) is a brand-new runway in a NEW
-        // direction, so the wedge-burst counter accrued against the stale segment
-        // is no longer valid: leaving it set fires a forced-displacement burst
-        // ~1 s after adoption (the 40-tick count cooldown was already armed),
-        // which yanks the bot BACKWARD off the runway it just got — live
-        // 2026-06-15 wide-water run: bee-line adopted then burst 1 s later, on
-        // repeat, crabbing the bot the WRONG way along the shore. Clear it so the
-        // stub gets a clean ~6 s trial; if the bot genuinely can't follow it the
-        // counter simply re-arms and bursts as before. The big-search continuation
-        // (foot != null) keeps its burst intact — that's the deterministic
-        // same-segment deadlock breaker and must not be reset away.
-        if (foot == null) unstuck.dropWedgeAnchor();
-        stepProg.bestStepDist = Double.POSITIVE_INFINITY;
-        stepProg.stuckStepHigh = step - 1;   // new path, new index semantics: one fresh window on the first tick, then high-water applies
-        actionTicks = 0;
-        if (GameConfig.walkerDebug) {
-            StringBuilder sbp = new StringBuilder();
-            for (int i = 0; i < path.size(); i++) {
-                Move.Edge e = i < edges.size() ? edges.get(i) : null;
-                sbp.append(i).append(':').append(path.get(i).getX()).append(',').append(path.get(i).getY())
-                   .append(',').append(path.get(i).getZ()).append('[').append(e != null ? e.move : "-").append("] ");
-            }
-            LOG.info("[walker] path = {}", sbp);
-        }
-        return true;
     }
 
     /** Emit a per-tick execution sample. Pure reads; cheap; gated to NOOP in release. */
@@ -2330,22 +1931,22 @@ public final class Walker implements Locomotor {
         BotLevelHolder.current = p.level();
         double tx = Double.NaN, tz = Double.NaN;
         String mv = null;
-        if (path != null && step >= 0 && step < path.size()) {
-            BlockPos t = path.get(step);
+        if (route.path() != null && route.step() >= 0 && route.step() < route.path().size()) {
+            BlockPos t = route.path().get(route.step());
             tx = t.getX() + 0.5;
             tz = t.getZ() + 0.5;
-            Move.Edge e = edgeAt(step);
+            Move.Edge e = edgeAt(route.step());
             mv = (e != null) ? e.move : null;
         }
         boolean overlap = !p.level().noCollision(p, p.getBoundingBox().deflate(1.0E-7));
         PathTraceHolder.SINK.onWalkerTick(new PathTrace.WalkerSample(
                 p.tickCount, p.getX(), p.getY(), p.getZ(), p.getYRot(),
-                tx, tz, step, mv, p.onGround(), p.isInWater(),
+                tx, tz, route.step(), mv, p.onGround(), p.isInWater(),
                 p.getPose().name(), overlap, p.getId()));
     }
 
     Move.Edge edgeAt(int i) {
-        return (edges != null && i >= 0 && i < edges.size()) ? edges.get(i) : null;
+        return route.edgeAt(i);
     }
 
     /** task#82 migrated ascent move-names (spec §3.3): exactly the three the recovery gates already
@@ -2358,16 +1959,16 @@ public final class Walker implements Locomotor {
 
     /** Phase-0 SHADOW arc-length pursuit (walkerArcLengthShadow). Projects the continuous foot XZ onto the
      *  path polyline within a FORWARD window [step, step+W] (so it can't snap backward onto a self-overlapping
-     *  earlier segment — the dominant projection risk), honouring the adoptPath overlap barriers (a submerged
+     *  earlier segment — the dominant projection risk), honouring the adoption's overlap barriers (a submerged
      *  below-node is a hard dive barrier; a pending break/place edge stops the scan). Reports the projected
      *  segment, cumulative XZ arc-length s (from path[0]), horizontal perpendicular distance, and the tangent
      *  heading at s+lookahead — and counts backward-snap events (ds&lt;-0.5). DRIVES NOTHING; this only proves
      *  (via replay) that s is monotonic and the projected segment tracks the live {@code step} on clean runs,
      *  the precondition for Phase 1 driving the step pointer off the projection. */
     void arcShadowTick(WorldView world, BlockPos foot, double px, double pz, float liveYaw, boolean inW, boolean hCol) {
-        arc.proj.compute(path, edges, world, step, foot.getY(), px, pz, 16, 2.5);
+        arc.proj.compute(route.path(), route.edges(), world, route.step(), foot.getY(), px, pz, 16, 2.5);
         // Monotonic / backward-snap check vs the previous tick (reset on a fresh path object).
-        boolean reset = (path != arc.shadowPath);
+        boolean reset = (route.path() != arc.shadowPath);
         double ds = (reset || Double.isNaN(arc.shadowS)) ? 0.0 : arc.proj.s - arc.shadowS;
         if (!reset && ds < -0.5) arc.monoViol++;
         // Phase-3 arc-wedge accumulator: a grounded DRY forward-RAM that makes no arc progress. Excluded when the
@@ -2389,17 +1990,17 @@ public final class Walker implements Locomotor {
             arc.progStall = !arc.proj.barrierHit && (arc.proj.s - arc.progBaseS) < ARC_PROG_MIN;
             if (arc.progStall && GameConfig.walkerDebug)
                 LOG.info("[walker] arc-progress-wedge: net s={} < {} over {} ticks at step={} node={} → fellOffPath",
-                        String.format("%.2f", arc.proj.s - arc.progBaseS), ARC_PROG_MIN, ARC_PROG_WINDOW, step,
-                        (step < path.size() ? path.get(step) : null));
+                        String.format("%.2f", arc.proj.s - arc.progBaseS), ARC_PROG_MIN, ARC_PROG_WINDOW, route.step(),
+                        (route.step() < route.path().size() ? route.path().get(route.step()) : null));
             arc.progBaseS = arc.proj.s;
             arc.progWindowTicks = 0;
         }
-        arc.shadowPath = path;
+        arc.shadowPath = route.path();
         arc.shadowS = arc.proj.s;
         float dYaw = angleDiff(arc.proj.tangentYaw, liveYaw);    // the camera-vs-tangent gap
         if (GameConfig.walkerDebug)
             LOG.info("[walker] arc-shadow step={} projSeg={} segFrac={} s={} ds={} perp={} tanYaw={} liveYaw={} dYaw={} monoViol={} inW={}",
-                    step, arc.proj.segIdx, String.format("%.2f", arc.proj.segFrac), String.format("%.2f", arc.proj.s),
+                    route.step(), arc.proj.segIdx, String.format("%.2f", arc.proj.segFrac), String.format("%.2f", arc.proj.s),
                     String.format("%.2f", ds), String.format("%.2f", arc.proj.perp),
                     String.format("%.1f", arc.proj.tangentYaw), String.format("%.1f", liveYaw),
                     String.format("%.1f", Math.abs(dYaw)),
@@ -2423,9 +2024,9 @@ public final class Walker implements Locomotor {
         // vector holds the stale yaw, and a bot that walked off a pulled diagonal kept ramming the
         // corner it had drifted onto (live 2026-09-28, 1389.57,66,-478.70: 38 ticks, bearing to wp -131, yaw -178).
         double cx = px, cz = pz;
-        double tx = step < path.size() ? path.get(step).getX() + 0.5 : px, tz = step < path.size() ? path.get(step).getZ() + 0.5 : pz;
-        for (int i = step; i < path.size() && i - step <= CARROT_MAX_NODES; i++) {
-            BlockPos node = path.get(i);
+        double tx = route.step() < route.path().size() ? route.path().get(route.step()).getX() + 0.5 : px, tz = route.step() < route.path().size() ? route.path().get(route.step()).getZ() + 0.5 : pz;
+        for (int i = route.step(); i < route.path().size() && i - route.step() <= CARROT_MAX_NODES; i++) {
+            BlockPos node = route.path().get(i);
             double nx = node.getX() + 0.5, nz = node.getZ() + 0.5;
             if (hasPendingEdge(world, edgeAt(i))) return new double[]{nx, nz}; // face the action cell
             boolean losOk = ControlConfig.walkerCarrotBodyLos
@@ -2439,7 +2040,7 @@ public final class Walker implements Locomotor {
                 // Past a corner the chord to the carrot is not the checked foot→node line: live
                 // 1489,65,-399 was a pit beside the 1491,66,-400 corner that the chord crossed.
                 // At the box's true half-width: with the margin, a body pressed on a trunk failed every chord.
-                if (i > step && !PathSmoothing.losWalkableBody(world, px, pz, foot, ax, az, node.getY()))
+                if (i > route.step() && !PathSmoothing.losWalkableBody(world, px, pz, foot, ax, az, node.getY()))
                     return new double[]{cx, cz};
                 return new double[]{ax, az};
             }

@@ -103,7 +103,7 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
      * How many searches the walker made on the way is recorded, not judged
      * ({@code WalkerTelemetry.lastStats} moves once per search): the off-path safety re-search supersedes the
      * adopted route on the first tick of any lane longer than three cells, and cells are not
-     * comparable either ({@code adoptPath} straightens, trims and fast-forwards). Then the bot is
+     * comparable either (the adoption straightens, trims and fast-forwards). Then the bot is
      * put six cells off the previewed line, past the adoption gate's four, and the same call must
      * decline with a reason and search normally.
      */

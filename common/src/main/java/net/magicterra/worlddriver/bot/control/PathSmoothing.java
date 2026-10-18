@@ -175,7 +175,7 @@ public final class PathSmoothing {
      *       control flow, and the recorded span says which one.</li>
      *   <li><b>It never fires</b> ⇒ every segment this file emits is walkable, and the unwalkable one
      *       observed downstream was produced by something else between here and
-     *       {@code adoptPath}'s assignment — the search moves to that stretch, not to smoothing.</li>
+     *       {@code RouteAdoption.adopt}'s assignment — the search moves to that stretch, not to smoothing.</li>
      * </ul>
      *
      * <p>Static because it is read from a scene through {@link #smoothingAudit()}: this is a pure

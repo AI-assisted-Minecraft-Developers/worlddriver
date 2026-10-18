@@ -147,7 +147,7 @@ final class WalkerTickPrelude {
 
         // Expectation alarms read LAST tick's pressed state vs THIS tick's world response —
         // run before the per-tick input baseline below clears anything.
-        if (ControlConfig.walkerExpectAlarm) wk.exAlarms.tick(wk.blocks, a, world, p, wk.path, wk.step, wk.stepProg.noStepProgressTicks);
+        if (ControlConfig.walkerExpectAlarm) wk.exAlarms.tick(wk.blocks, a, world, p, wk.route.path(), wk.route.step(), wk.stepProg.noStepProgressTicks);
 
         // Per-tick baseline for the jump/sneak channel: default to "not jumping / not
         // sneaking" so any path that returns without setting them can't leak a stale
@@ -269,12 +269,12 @@ final class WalkerTickPrelude {
             // lower goal cell mid-arc while still airborne and carrying forward
             // momentum; declaring ARRIVED there skips the landing brake and the
             // bot overshoots the 1-wide block into the void. Hold until grounded.
-            Move.Edge ce = wk.edgeAt(wk.step);
+            Move.Edge ce = wk.edgeAt(wk.route.step());
             boolean midAirEdge = ce != null && ce.move != null && !p.onGround()
                     && ("pillarUp".equals(ce.move) || ce.move.startsWith("parkourPlace")
                         || ce.move.startsWith("parkourDescend"));
             if (!midAirEdge) return wk.terminalReport(Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null,
-                    WalkVerdict.classifyArrival(wk.seg.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
+                    WalkVerdict.classifyArrival(wk.route.seg.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
         }
 
         expireDigClaim(wk, a, world, p);

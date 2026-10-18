@@ -56,7 +56,6 @@ import net.magicterra.worlddriver.bot.behavior.reflex.ContactDamageEscape;
 import net.magicterra.worlddriver.bot.behavior.reflex.LavaProximityEscape;
 import net.magicterra.worlddriver.bot.control.ClutchController;
 import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerPlanAdoption;
 import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
 import net.magicterra.worlddriver.bot.planning.ScopeSource;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
@@ -649,7 +648,7 @@ public final class BotBrain {
         if (plan.bestEffort()) why = "the preview did not reach the goal (bestEffort)";
         else if (System.currentTimeMillis() - plan.createdMs > PreviewSearch.TTL_MS) why = "the preview is older than 60 s";
         else {
-            adopted = WalkerPlanAdoption.adopt(process.walker(), plan.legs.get(0), world, self.blockPosition());
+            adopted = process.walker().adoptPlan(plan.legs.get(0), world, self.blockPosition());
             if (!adopted) why = "the walker refused the route: the bot is no longer near its start, or its first stretch is no longer walkable";
         }
         GotoContracts.Adoption adoption = new GotoContracts.Adoption(planId, adopted,

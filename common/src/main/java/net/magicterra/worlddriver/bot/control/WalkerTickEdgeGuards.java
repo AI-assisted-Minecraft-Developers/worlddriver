@@ -35,8 +35,8 @@ final class WalkerTickEdgeGuards {
         Move.Edge edge = cx.edges.edge;
         // ---- original body (byte-identical modulo member prefixes) ----
 
-        BlockPos wp = wk.path.get(wk.step);
-        Move.Edge nextEdge = wk.edgeAt(wk.step + 1);
+        BlockPos wp = wk.route.path().get(wk.route.step());
+        Move.Edge nextEdge = wk.edgeAt(wk.route.step() + 1);
         boolean parkourEdge = edge != null && edge.move != null && edge.move.startsWith("parkour");
         if (parkourEdge) wk.guardParkourTick = true;
         // Bridging-over-a-gap detection (place-bridge on the current OR next edge),
@@ -96,7 +96,7 @@ final class WalkerTickEdgeGuards {
                     wp.getX(), wp.getY(), wp.getZ());
         }
         if (onVine) {
-            BlockPos ahead = wk.path.get(Math.min(wk.step + 2, wk.path.size() - 1));
+            BlockPos ahead = wk.route.path().get(Math.min(wk.route.step() + 2, wk.route.path().size() - 1));
             // Vanilla vine ASCENT (LivingEntity.travel) only fires while
             // (horizontalCollision || jumping) && onClimbable, and SUSTAINS only while the
             // player keeps colliding with a wall — proven by vineClingFidelityProbe (the avatar
@@ -257,7 +257,7 @@ final class WalkerTickEdgeGuards {
             // before it descends, and the water gets placed on whatever happens
             // to be below the drifted-into column instead.
             BlockPos land = (edge != null && edge.move != null && edge.move.startsWith("fallBucket"))
-                    ? wp : wk.path.get(wk.step + 1);
+                    ? wp : wk.route.path().get(wk.route.step() + 1);
             if (land != null) world.signals().planClutch(land.getX(), land.getZ());
         }
         // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----

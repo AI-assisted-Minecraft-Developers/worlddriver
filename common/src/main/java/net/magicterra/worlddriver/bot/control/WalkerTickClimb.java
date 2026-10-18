@@ -297,7 +297,7 @@ final class WalkerTickClimb {
                     wk.waterClimb.pillarNoPlaceTicks = 0;
                     if (dryGrounded) {
                         // Out of the water on solid ground → re-plan; a flush walk now.
-                        wk.path = null;
+                        wk.route.drop("water climb-out topped out on dry ground");
                         wk.stuckTicks = 0;
                         wk.totalTicks = 0;
                         wk.waterClimb.stall = 0;
@@ -559,7 +559,7 @@ final class WalkerTickClimb {
         if (GameConfig.walkerDebug)
             LOG.info("[walker] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
         wk.error = "breath-infeasible dig at " + b;
-        wk.path = null;
+        wk.route.drop(wk.error);
         return true;
     }
 
@@ -570,7 +570,7 @@ final class WalkerTickClimb {
         BlockPos foot = cx.frame.foot;
         // ---- original body (byte-identical modulo member prefixes) ----
 
-        Move.Edge edge = wk.edgeAt(wk.step);
+        Move.Edge edge = wk.edgeAt(wk.route.step());
 
         // === Comprehensive per-tick Walker trace (walkerDebug) ===
         // The single source of truth for "why is the bot stuck": for the current
@@ -580,9 +580,9 @@ final class WalkerTickClimb {
         // break/place needs, and the live bot state. Read this trace top-to-bottom
         // to see precisely which condition fails tick after tick — no guessing.
         if (GameConfig.walkerDebug) {
-            if (wk.step != wk.dbgPrevStep) { wk.dbgPrevStep = wk.step; wk.dbgTicksOnStep = 0; }
+            if (wk.route.step() != wk.dbgPrevStep) { wk.dbgPrevStep = wk.route.step(); wk.dbgTicksOnStep = 0; }
             wk.dbgTicksOnStep++;
-            BlockPos nd = wk.path.get(wk.step);
+            BlockPos nd = wk.route.path().get(wk.route.step());
             double ddx = (nd.getX() + 0.5) - p.getX();
             double ddz = (nd.getZ() + 0.5) - p.getZ();
             double cur2 = ddx * ddx + ddz * ddz;
@@ -596,7 +596,7 @@ final class WalkerTickClimb {
             double bearing = Math.toDegrees(Math.atan2(-ddx, ddz));
             double yawErr = angleDiff(p.getYRot(), (float) bearing);
             LOG.info("[walker] t={} step={}/{} move={} node={},{},{} p=({},{},{}) pitch={} yaw={} bear={} yawErr={} hCol={} lastAim={} cur2={} (gate {}) |dY|={} (gate 1.2) within={} onG={} inW={} undW={} stuck={} totStuck={} pend={} break0={}{}",
-                    wk.dbgTicksOnStep, wk.step, wk.path.size(), edge != null ? edge.move : "-",
+                    wk.dbgTicksOnStep, wk.route.step(), wk.route.path().size(), edge != null ? edge.move : "-",
                     nd.getX(), nd.getY(), nd.getZ(),
                     String.format(Locale.ROOT, "%.2f", p.getX()), String.format(Locale.ROOT, "%.2f", p.getY()), String.format(Locale.ROOT, "%.2f", p.getZ()),
                     String.format(Locale.ROOT, "%.0f", p.getXRot()),
@@ -628,7 +628,7 @@ final class WalkerTickClimb {
         // it. Default-ON escape permission + a placeable in hand required; reads
         // only here, so the pathfinder is byte-for-byte unchanged.
         {
-            BlockPos cwp = wk.path.get(wk.step);
+            BlockPos cwp = wk.route.path().get(wk.route.step());
             // DROWNING-ESCAPE reflex (walkerDrowningEscape, default OFF): a submerged climb-out
             // deadlock (e.g. the pillar↔repath loop below) can pin the bot under a bank lip until
             // its air runs out — Peaceful does not prevent drowning (live 2026-06-29: died at
@@ -1191,7 +1191,7 @@ final class WalkerTickClimb {
             // the column XZ first (no place/jump) — once within PILLAR_ALIGN_SQ the normal
             // pillar below engages. Self-recovering: a blocked approach rams → noStepProgress
             // climbs → the fellOffPath/repath path re-routes, so this can't deadlock.
-            BlockPos pcol = wk.path.get(wk.step);
+            BlockPos pcol = wk.route.path().get(wk.route.step());
             double pcdx = (pcol.getX() + 0.5) - p.getX();
             double pcdz = (pcol.getZ() + 0.5) - p.getZ();
             // DRY pillars only: a buoyant/water pillar bobs and drifts off-column BY DESIGN and
@@ -1221,12 +1221,12 @@ final class WalkerTickClimb {
             p.setSprinting(false);
             wk.totalTicks = 0;
             wk.stuckTicks = 0;   // pillaring stays on one cell while placing — not "stuck"
-            if (wk.step != wk.pillar.step) { wk.pillar.step = wk.step; wk.pillar.sinceJump = -1; }
+            if (wk.route.step() != wk.pillar.step) { wk.pillar.step = wk.route.step(); wk.pillar.sinceJump = -1; }
             if (++wk.actionTicks > ControlConfig.breakTimeoutTicks) {
                 wk.blocks.breakHold(false);
                 wk.avatarJump(a, false);
-                wk.error = "pillar stalled at " + wk.path.get(wk.step);
-                wk.path = null;
+                wk.error = "pillar stalled at " + wk.route.path().get(wk.route.step());
+                wk.route.drop(wk.error);
                 return Walker.Step.WALKING;
             }
             for (BlockPos b : edge.toBreak) {
@@ -1275,8 +1275,8 @@ final class WalkerTickClimb {
             // That carve-out now lives in floodedShaft() because WalkerTickProgress has
             // to reach the same answer; when it was written here only, Progress kept
             // calling this cell a float and advanced the pointer off an unplaced support.
-            boolean shaftFlooded = floodedShaft(world, wk.path.get(wk.step));
-            if (shaftFlooded || p.isInWater() || world.isWater(wk.path.get(wk.step).offset(0, -1, 0))) {
+            boolean shaftFlooded = floodedShaft(world, wk.route.path().get(wk.route.step()));
+            if (shaftFlooded || p.isInWater() || world.isWater(wk.route.path().get(wk.route.step()).offset(0, -1, 0))) {
                 wk.avatarJump(a, true);
                 // gap#81: routine pillar/scaffold filler must not spend gathered wood.
                 if (!shaftFlooded && wk.equipment.holdThrowawayPlaceable()) {
@@ -1291,7 +1291,7 @@ final class WalkerTickClimb {
             }
             if (!wk.equipment.holdPlaceable()) {
                 wk.error = "pillar: no placeable block in hotbar";
-                wk.path = null;
+                wk.route.drop(wk.error);
                 return Walker.Step.WALKING;
             }
             BlockPos place = edge.toPlace.get(0);                    // cell we fill (old feet cell)
@@ -1337,7 +1337,7 @@ final class WalkerTickClimb {
         // arrival check.
         if (edge != null && edge.move != null && edge.move.startsWith("parkourPlace")
                 && (hasPendingEdge(world, edge) || !p.onGround())) {
-            BlockPos dest = wk.path.get(wk.step);
+            BlockPos dest = wk.route.path().get(wk.route.step());
             BlockPos floor = edge.toPlace.get(0);
             boolean placed = !hasPendingEdge(world, edge);   // landing block is down
             boolean grounded = p.onGround();
@@ -1345,7 +1345,7 @@ final class WalkerTickClimb {
             wk.stuckTicks = 0;       // owns this cell while leaping — not "stuck"
             if (++wk.actionTicks > ControlConfig.breakTimeoutTicks) {
                 wk.error = "parkour-place stalled at " + dest;
-                wk.path = null;
+                wk.route.drop(wk.error);
                 return Walker.Step.WALKING;
             }
             // Snap heading at the destination — can't course-correct mid-air.
@@ -1419,8 +1419,8 @@ final class WalkerTickClimb {
                 // Lag or an unexpected obstruction — drop the path and let
                 // the next tick repath from the current position.
                 wk.blocks.breakHold(false);
-                wk.error = "break/place stalled at " + wk.path.get(wk.step);
-                wk.path = null;
+                wk.error = "break/place stalled at " + wk.route.path().get(wk.route.step());
+                wk.route.drop(wk.error);
                 return Walker.Step.WALKING;
             }
             // Water-escape break (swimAshore / swimTraverseBreak): while breaking the
@@ -1489,7 +1489,7 @@ final class WalkerTickClimb {
                         LOG.info(
                                 "[walker] place-act foot={},{},{} y={} step={} placing={},{},{} onGround={} edge={}",
                                 foot.getX(), foot.getY(), foot.getZ(), String.format(Locale.ROOT, "%.2f", p.getY()),
-                                wk.step, b.getX(), b.getY(), b.getZ(), p.onGround(), edge.move);
+                                wk.route.step(), b.getX(), b.getY(), b.getZ(), p.onGround(), edge.move);
                     a.aimAtBlock(b);
                     wk.blocks.place(world::isSolid, b);
                     return Walker.Step.WALKING;
@@ -1504,7 +1504,7 @@ final class WalkerTickClimb {
         // horizontal walk) until grounded at the new level, so we don't walk
         // off the fresh block mid-jump.
         if (edge != null && "pillarUp".equals(edge.move)
-                && !(p.onGround() && p.getY() >= wk.path.get(wk.step).getY() - 0.1)) {
+                && !(p.onGround() && p.getY() >= wk.route.path().get(wk.route.step()).getY() - 0.1)) {
             Walker.avatarForward(a, false);
             wk.avatarJump(a, false);
             p.setSprinting(false);

@@ -87,20 +87,20 @@ final class WalkerMedium {
         outTicks = inMedium(p) ? 0 : outTicks + 1;
         if (outTicks > OUT_TICKS) return fail(a, medium == MediumMove.Medium.AIR ? "fell into water" : "out of water", foot);
 
-        if (wk.path == null || wk.path != followed) {
+        if (wk.route.path() == null || wk.route.path() != followed) {
             Walker.Step s = plan(a, world, goal, foot);
             if (s != null) return s;
         }
 
-        while (wk.step < wk.path.size() && reached(p, wk.path.get(wk.step))) {
-            wk.step++;
+        while (wk.route.step() < wk.route.path().size() && reached(p, wk.route.path().get(wk.route.step()))) {
+            wk.route.advance();
             bestNodeDist = Double.POSITIVE_INFINITY;
             noProgressTicks = 0;
             stalls = 0;
         }
-        if (wk.step >= wk.path.size()) return segmentEnd(a, goal, foot);
+        if (wk.route.step() >= wk.route.path().size()) return segmentEnd(a, goal, foot);
 
-        BlockPos node = wk.path.get(wk.step);
+        BlockPos node = wk.route.path().get(wk.route.step());
         double feetAim = node.getY() + MediumMove.feetLift(p.getBbHeight());
         double tx = node.getX() + 0.5 - p.getX(), ty = feetAim - p.getY(), tz = node.getZ() + 0.5 - p.getZ();
         double dist = Math.sqrt(tx * tx + ty * ty + tz * tz);
@@ -108,7 +108,7 @@ final class WalkerMedium {
         if (dist < bestNodeDist - 0.05) { bestNodeDist = dist; noProgressTicks = 0; }
         else if (++noProgressTicks >= STALL_TICKS) {
             if (++stalls > MAX_STALLS) return fail(a, "stuck: no closer to node " + node.toShortString(), foot);
-            wk.path = null;
+            wk.route.drop("no closer to node " + node.toShortString());
             hold(a);
             return Walker.Step.WALKING;
         }
@@ -116,8 +116,8 @@ final class WalkerMedium {
         wk.driveTag = verb;
         wk.tel.lastTickTrace = String.format(java.util.Locale.ROOT,
                 "%s step=%d/%d node=%s pos=%.2f,%.2f,%.2f vy=%.3f %s out=%d stalled=%d stalls=%d bestEffort=%b",
-                verb, wk.step, wk.path.size(), node.toShortString(), p.getX(), p.getY(), p.getZ(), p.getDeltaMovement().y,
-                vertical, outTicks, noProgressTicks, stalls, wk.seg.pathBestEffort);
+                verb, wk.route.step(), wk.route.path().size(), node.toShortString(), p.getX(), p.getY(), p.getZ(), p.getDeltaMovement().y,
+                vertical, outTicks, noProgressTicks, stalls, wk.route.seg.pathBestEffort);
         return Walker.Step.WALKING;
     }
 
@@ -145,11 +145,8 @@ final class WalkerMedium {
         // closest spot it offers one a few cells off, and following those trades places forever.
         if (!r.goalReached() && goal.estimate(r.path().get(r.path().size() - 1)) >= bestGoalDist - 1e-6)
             return fail(a, "no route closer to the goal " + through, foot);
-        wk.path = r.path();
-        wk.edges = r.edges();
-        wk.step = 1;
-        wk.seg.pathBestEffort = !r.goalReached();
-        followed = wk.path;
+        wk.route.install(r.path(), r.edges(), 1, !r.goalReached());
+        followed = wk.route.path();
         bestNodeDist = Double.POSITIVE_INFINITY;
         noProgressTicks = 0;
         return null;
@@ -157,11 +154,11 @@ final class WalkerMedium {
 
     /** The path is spent: arrived, or a best-effort segment ended and the next one is planned from here. */
     private Walker.Step segmentEnd(Body a, Goal goal, BlockPos foot) {
-        if (!wk.seg.pathBestEffort) {
+        if (!wk.route.seg.pathBestEffort) {
             String why = WalkVerdict.classifyArrival(false, goal.reached(foot), false);
             return end(a, Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null, why, foot);
         }
-        wk.path = null;
+        wk.route.drop("best-effort segment spent");
         hold(a);
         return Walker.Step.WALKING;
     }

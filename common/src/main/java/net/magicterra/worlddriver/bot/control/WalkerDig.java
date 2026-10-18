@@ -71,18 +71,18 @@ final class WalkerDig {
      * not the burned delay.
      */
     static void preDigNextBreak(Walker wk, Body a, WorldView world) {
-        if (!ControlConfig.walkerPreDigNextBreak || wk.path == null || wk.stickyDig.pos != null) return;
+        if (!ControlConfig.walkerPreDigNextBreak || wk.route.path() == null || wk.stickyDig.pos != null) return;
         LivingEntity p = a.entity();
         if (p == null || p.onGround() || p.isInWater() || wk.blocks.destroyProgress() < 0) return;
-        if (wk.step + 1 >= wk.path.size()) return;
-        Move.Edge cur = wk.edgeAt(wk.step), next = wk.edgeAt(wk.step + 1);
+        if (wk.route.step() + 1 >= wk.route.path().size()) return;
+        Move.Edge cur = wk.edgeAt(wk.route.step()), next = wk.edgeAt(wk.route.step() + 1);
         if (next == null || !"stairUpBreak".equals(next.move) || !next.toPlace.isEmpty()) return;
         if (cur != null && PathSmoothing.hasPendingEdge(world, cur)) return;
         BlockPos b = null;
         for (BlockPos c : next.toBreak) if (world.isSolid(c)) { b = c; break; }
         // Only the stair cell above the landing: one level with it sat beside and behind the body,
         // and turning down to it mid-jump (live 1388,86,-521, pitch 50) missed the landing, 17 ticks.
-        if (b == null || b.getY() <= wk.path.get(wk.step).getY()
+        if (b == null || b.getY() <= wk.route.path().get(wk.route.step()).getY()
                 || !BotUtil.eyeWithin(p, b, BotUtil.blockReachToCentre(p))) return;
         double yaw = Math.toDegrees(Math.atan2(-(b.getX() + 0.5 - p.getX()), b.getZ() + 0.5 - p.getZ()));
         if (Math.abs(Mth.wrapDegrees(yaw - p.getYRot())) > PRE_DIG_MAX_YAW) return;

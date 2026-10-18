@@ -53,7 +53,7 @@ import net.magicterra.worlddriver.bot.rules.Goal;
  * nearest mob and the regions change, a new segment starts — "the first 31 cells are safe, the next
  * 21 are in skeleton 1203's sight" rather than 87 coordinates. Segments are cut over the
  * string-pulled route the walker would drive; the A* result itself is cached under the
- * {@code planId} for {@code WalkerPlanAdoption}, which straightens on its own.
+ * {@code planId} for {@code Walker.adoptPlan}, which straightens on its own.
  *
  * <p>Client only in this version: the verb lives there, and the server-side player has no caller
  * yet.

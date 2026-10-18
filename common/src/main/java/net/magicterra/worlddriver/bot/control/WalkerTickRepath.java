@@ -38,7 +38,7 @@ final class WalkerTickRepath {
         boolean fellOffPath = cx.stall.fellOffPath;
         boolean fellBelowRoute = cx.stall.fellBelowRoute;
         // ---- original body (byte-identical modulo member prefixes) ----
-        boolean safetyRepath = (wk.path == null) || (wk.stuckTicks > STUCK_TICKS) || wedged
+        boolean safetyRepath = (wk.route.path() == null) || (wk.stuckTicks > STUCK_TICKS) || wedged
                 || ((offPath || fellOffPath) && !fellBelowRoute);
         // walkerBridgeHoldRepath (§82): a mid-bridge PERIODIC repath swaps the committed
         // bridgePlace chain for a fresh plan whose first node sits elsewhere (arena live:
@@ -50,11 +50,11 @@ final class WalkerTickRepath {
         // (stuck/wedged/off-path) stay live.
         boolean bridgingNow = false;
         if (ControlConfig.walkerBridgeHoldRepath) {
-            Move.Edge cbE = wk.edgeAt(wk.step), nbE = wk.edgeAt(wk.step + 1);
+            Move.Edge cbE = wk.edgeAt(wk.route.step()), nbE = wk.edgeAt(wk.route.step() + 1);
             bridgingNow = (cbE != null && "bridgePlace".equals(cbE.move))
                     || (nbE != null && "bridgePlace".equals(nbE.move));
         }
-        boolean fullPeriodic = !wk.seg.pathBestEffort && wk.path != null && !bridgingNow
+        boolean fullPeriodic = !wk.route.seg.pathBestEffort && wk.route.path() != null && !bridgingNow
                 && wk.ticksSinceRepath > ControlConfig.walkerRepathEveryTicks;
         // ANTI-STUCK (forced displacement, Baritone-UnstuckChain-style): a
         // re-search from the SAME foot is deterministic — when the blocker is
@@ -80,7 +80,7 @@ final class WalkerTickRepath {
         // slowly (foot stays within the 4-blk cell) — the event counter filled in
         // exactly 3 cooldowns (6 s) and burst the bot away from the search origin,
         // chaining rejects (round29 swamp: bursts every 6 s while cruising at 1.5 b/s).
-        if (safetyRepath && !breakingEdge && !(wk.path == null && wk.seg.activeSearch != null)) {
+        if (safetyRepath && !breakingEdge && !(wk.route.path() == null && wk.route.seg.activeSearch != null)) {
             // lastWedgeFoot ANCHORS the spot where this wedge began — it must NOT be
             // re-stamped to `foot` every tick. A buoyant bot CRUISING across open
             // water bobs ±0.04 vertically and so keeps failing the tight node-reach
@@ -110,7 +110,7 @@ final class WalkerTickRepath {
                         // cliff notch, every burst re-entering the same seam.
                         // Backing straight off the wp is the one heading that's
                         // guaranteed open (the bot came from there).
-                        BlockPos bwp = (wk.path != null && wk.step < wk.path.size()) ? wk.path.get(wk.step) : null;
+                        BlockPos bwp = (wk.route.path() != null && wk.route.step() < wk.route.path().size()) ? wk.route.path().get(wk.route.step()) : null;
                         double bdx = bwp != null ? p.getX() - (bwp.getX() + 0.5) : 0;
                         double bdz = bwp != null ? p.getZ() - (bwp.getZ() + 0.5) : 0;
                         wk.unstuck.burstYaw = (bdx * bdx + bdz * bdz) > 0.01
@@ -135,7 +135,7 @@ final class WalkerTickRepath {
         // don't kick off another one — the churn loop otherwise relaunches a full-budget
         // A* every tick from the same foot toward the same unreachable goal.
         if (wk.searchGov.searchBackoffTicks > 0) wk.searchGov.searchBackoffTicks--;
-        if (!wk.replayMode && (safetyRepath || fullPeriodic) && wk.seg.activeSearch == null
+        if (!wk.route.replay() && (safetyRepath || fullPeriodic) && wk.route.seg.activeSearch == null
                 && wk.searchGov.searchBackoffTicks == 0 && !wk.searchGov.futileLatched(foot)) {
             // Stuck too long on a move the Walker can't execute (a steep stepUp it
             // slides off, a pillar it can't ground)? Blacklist that node so this
@@ -145,19 +145,14 @@ final class WalkerTickRepath {
             // stall observed on a steep mountain). Soft + decaying, so a sole route
             // is still taken eventually.
             kickoff(wk, p, world, foot, wedged, fellOffPath, offPath, fellBelowRoute, fullPeriodic);
-            wk.seg.activeSearch = wk.newPathFinder(world).newSearch(searchFoot, wk.goal);
-            wk.seg.searchFromEnd = false;
-            wk.seg.searchSuppressedPlace = false;    // normal search: placing allowed; budget re-checked on result
-            wk.seg.pendingSegment = null;            // a foot-search supersedes any stashed continuation
+            wk.route.searchFromFoot(wk.newPathFinder(world).newSearch(searchFoot, wk.goal), false);   // placing allowed; budget re-checked on result
             wk.ticksSinceRepath = 0;
-        } else if (!wk.replayMode && wk.seg.pathBestEffort && wk.seg.commitEnd != null
-                && wk.seg.activeSearch == null && wk.seg.pendingSegment == null
+        } else if (!wk.route.replay() && wk.route.seg.pathBestEffort && wk.route.seg.commitEnd != null
+                && wk.route.seg.activeSearch == null && wk.route.seg.pendingSegment == null
                 && wk.searchGov.searchBackoffTicks == 0 && !wk.searchGov.futileLatched(foot)
                 && continuationInLoadedReach(wk, p)) {
             // Eagerly precompute the next best-effort segment from the committed end.
-            wk.seg.activeSearch = wk.newPathFinder(world).newSearch(wk.seg.commitEnd, wk.goal);
-            wk.seg.searchFromEnd = true;
-            wk.seg.searchSuppressedPlace = false;
+            wk.route.searchFromEnd(wk, world);
             wk.ticksSinceRepath = 0;
         }
         // ANTI-STUCK displacement burst: drive a fixed turned heading + jump for a
@@ -239,7 +234,7 @@ final class WalkerTickRepath {
     private static boolean continuationInLoadedReach(Walker wk, LivingEntity p) {
         int lead = ControlConfig.walkerContinuationMaxLead;
         if (lead <= 0) return true;
-        double dx = wk.seg.commitEnd.getX() + 0.5 - p.getX(), dz = wk.seg.commitEnd.getZ() + 0.5 - p.getZ();
+        double dx = wk.route.seg.commitEnd.getX() + 0.5 - p.getX(), dz = wk.route.seg.commitEnd.getZ() + 0.5 - p.getZ();
         return dx * dx + dz * dz <= (double) lead * lead;
     }
 
@@ -287,19 +282,19 @@ final class WalkerTickRepath {
                                 boolean fellOffPath, boolean offPath, boolean fellBelowRoute, boolean periodic) {
         if (GameConfig.walkerDebug)
             LOG.info("[walker] foot-search kickoff: pathNull={} stuck={} wedged={} offPath={} fellOff={} belowRoute={} periodic={} step={}/{}",
-                    wk.path == null, wk.stuckTicks > STUCK_TICKS, wedged, offPath, fellOffPath, fellBelowRoute,
-                    periodic, wk.step, wk.path == null ? 0 : wk.path.size());
+                    wk.route.path() == null, wk.stuckTicks > STUCK_TICKS, wedged, offPath, fellOffPath, fellBelowRoute,
+                    periodic, wk.route.step(), wk.route.path() == null ? 0 : wk.route.path().size());
         penalizeWedgeNodes(wk, p, world, foot, wedged, fellOffPath);
     }
 
     private static void penalizeWedgeNodes(Walker wk, LivingEntity p, WorldView world, BlockPos foot,
                                            boolean wedged, boolean fellOffPath) {
         if (!((wk.stuckTicks > STUCK_TICKS || wedged || fellOffPath)
-                && wk.path != null && wk.step < wk.path.size())) return;
+                && wk.route.path() != null && wk.route.step() < wk.route.path().size())) return;
         // fellOffPath included: the step node the bot FELL AWAY from is a
         // demonstrably fragile traverse (mountain high route) — charge it
         // so the immediate re-search doesn't commit the same brittle line.
-        world.penalizeStuckNode(wk.path.get(wk.step));
+        world.penalizeStuckNode(wk.route.path().get(wk.route.step()));
         // Also penalize the cells at the bot's NOSE. After string-pulling
         // the current step node can sit many blocks past the actual
         // obstruction (live 2026-06-09: afloat in a 1-wide flooded crevice,

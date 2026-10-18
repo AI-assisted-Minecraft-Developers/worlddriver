@@ -969,7 +969,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             ctx.fail("surfacePillar: the walker rejected this two-step pillarUp plan (anchor gate); "
                     + "none of the rows below describe the subject under test.");
         // The earliest possible second-class gate: BEFORE the first tick, is the subject under the
-        // pointer at all? adoptPath starts at step 1, so this reads "the pointer is on the pillarUp
+        // pointer at all? the adoption starts at step 1, so this reads "the pointer is on the pillarUp
         // edge" directly rather than inferring it from the plan's shape. Three runs died upstream of every other
         // guard because nothing asked this one question.
         if (!"pillarUp".equals(walker.inspect().pathMove()))

@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same way as one that arrived, and each caller had to test the goal again to tell them apart.
   `/worlddriver server status` prints `status=` instead of `step=`, with `MOVING`,
   `REACHED`, `GAVE_UP` or `FAILED`, and a bare goto that fails now says why.
+- **A replayed route that cannot go on ends the replay.** When a replay's route was refused at the
+  start, or the walker threw it away mid-way (a stalled pillar, a dig that would drown the bot, a
+  pin at a lip), the bot used to stand still until the caller's time ran out. A replay never plans a
+  new route, so it now ends there as gave up, and the reason names what dropped the route.
+- **A refused search result is no longer treated as adopted.** When a fresh route turned out not to
+  start near the bot, the walker kept the old route as before, but also widened its next searches as
+  if it had committed to the refused one; and a stop-gap route refused while the bot had none could
+  crash the tick. Refusals are now counted in the walker's tallies and the first few are logged.
 
 ## 2026-10-17
 
