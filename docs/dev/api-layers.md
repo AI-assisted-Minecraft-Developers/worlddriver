@@ -29,9 +29,6 @@ type in it; they call through the `ApiRegistry` (`WorldDriverCommon.registry()`)
 holds the driver by `DriverHost` (`WorldDriverCommon.host()`). `application/`
 may use every layer and `bot/`. The bot's planning and movement core uses none of `api/`.
 
-One family lives elsewhere: `mc.bot.setting`'s `SettingsApi` and `SettingsContracts` stay in
-`bot/`, because the contract is generated from the settings table there.
-
 ## Why it is cut this way
 
 **Dependency follows stability.** The schema and the method contracts are what other builds see,

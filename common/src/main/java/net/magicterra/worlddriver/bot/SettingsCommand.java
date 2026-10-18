@@ -8,7 +8,8 @@ import java.util.Set;
 
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
-import net.magicterra.worlddriver.bot.SettingsContracts.AvoidPoint;
+import net.magicterra.worlddriver.api.methods.setting.SettingDefs.AvoidPoint;
+import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
 import net.magicterra.worlddriver.config.BotConfig;

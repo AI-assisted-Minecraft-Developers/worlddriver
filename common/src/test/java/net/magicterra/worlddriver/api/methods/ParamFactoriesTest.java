@@ -9,7 +9,7 @@ import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.api.methods.query.QueryContracts;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
-import net.magicterra.worlddriver.bot.SettingsContracts;
+import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 import java.util.LinkedHashMap;
 import java.util.Map;

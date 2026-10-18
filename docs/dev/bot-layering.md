@@ -274,22 +274,23 @@ Two kinds of class, one surface:
   its own class and the ones below (`ArchitectureTest` holds it to that). `BotConfig`
   holds the facade's own and enumerates, persists and pins them all. They are common- and
   server-safe, so a dedicated-server scene can read them.
-- `SettingsRegistry`, beside them in `config/`, is the single source of truth for the
-  `mc.bot.setting` key surface.
-  The read snapshot, the MCP schema and the write path all derive from it, and applying an
-  unrecognised key is rejected.
+- The `mc.bot.setting` keys are declared in the api, in `api/methods/setting/SettingDefs`:
+  each key's wire name, its type with any range, and its prose. A key's default is not
+  written there; it is its field's initial value, which `bot/SettingDefaults` hands to the
+  contract at startup and the artifact generator.
+- `SettingsRegistry`, beside the config classes, binds each key to its field by wire name.
+  A key names the field of the same name unless the registry's short `HAND` list says
+  otherwise.
 
-The registry exists because that knowledge once lived in three places that drifted, and a
-newly declared flag whose schema and write branch lagged behind was silently dropped by
-the apply path: accepted, echoed back as set, and doing nothing. The reflective completion
-pass by which a new flag enters the surface is a single method consumed by both the
-registry and the snapshot, so they cannot diverge, and a class-load self-check throws on a
-misspelled field name. A documentation entry pointing at a renamed or deleted key throws
-at class load too.
+That knowledge once lived in three places that drifted, and a newly declared flag whose
+schema and write branch lagged behind was silently dropped by the apply path: accepted,
+echoed back as set, and doing nothing. `SettingsBindingTest` now holds every key to a
+field and every setting field to exactly one key, so a field declared without a key, or
+the reverse, fails the build.
 
-All of that keeps the key set, the snapshot, the schema and the documentation agreeing
-about which knobs *exist*. None of it asks whether a knob does anything. A field added to
-a config class surfaces automatically, so a flag whose read site never landed — or whose
+All of that keeps the key set, the fields and the schema agreeing about which knobs
+*exist*. None of it asks whether a knob does anything. A flag whose read site never
+landed — or whose
 behaviour was later refactored away, leaving the knob behind — is accepted and echoed as
 set while changing nothing, and the caller gets every signal that it worked.
 `SettingsConsumerTest` in `common/src/test` closes that side by failing the build when a

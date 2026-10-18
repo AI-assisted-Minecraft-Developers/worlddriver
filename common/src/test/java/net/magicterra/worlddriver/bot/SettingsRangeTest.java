@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Map;
 
+import net.magicterra.worlddriver.api.methods.setting.SettingDefs;
+import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import org.junit.jupiter.api.AfterEach;
@@ -14,8 +16,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.PlanningConfig;
-import net.magicterra.worlddriver.config.SettingsDocs;
-import net.magicterra.worlddriver.config.SettingsRegistry;
 
 /**
  * A value outside a key's documented range is invalid_params at its own path, and nothing is written.
@@ -65,28 +65,30 @@ class SettingsRangeTest {
         }
     }
 
-    /** An aliased key's backing field is a key of its own; it must not bypass the alias's range. */
+    /** An aliased key's backing field is not a key: one knob, one wire name. */
     @Test
-    void theFieldNameOfAnAliasedKeyHasTheSameRange() throws ReflectiveOperationException {
-        assertRejectedAndUnchanged("navigatorRepathEveryTicks", 5, "navigatorRepathEveryTicks");
-        assertRejectedAndUnchanged("dangerPenaltyPerCell", 5000.0, "dangerPenaltyPerCell");
+    void theFieldNameOfAnAliasedKeyIsNotAKey() throws ReflectiveOperationException {
+        assertRejectedAndUnchanged("navigatorRepathEveryTicks", 100, "navigatorRepathEveryTicks");
+        assertRejectedAndUnchanged("dangerPenaltyPerCell", 5.0, "dangerPenaltyPerCell");
     }
 
-    /** Every row that states a range is held to it at both ends, and both endpoints are legal. */
+    /** Every key with a bounded range is held to it at both ends, and both endpoints are legal. */
     @Test
-    void everyDocumentedRangeIsEnforced() {
+    void everyDeclaredRangeIsEnforced() {
         int checked = 0;
-        for (String key : SettingsRegistry.knownKeys()) {
-            SettingsDocs.Range r = SettingsRegistry.documentedRange(key);
-            if (r == null) continue;
+        for (SettingDefs.Def d : SettingDefs.all()) {
+            Map<String, Object> schema = d.type().schema();
+            if (!(schema.get("minimum") instanceof Number lo) || !(schema.get("maximum") instanceof Number hi)) continue;
+            if (hi.doubleValue() == Double.MAX_VALUE) continue;   // floored at zero, no ceiling to cross
+            String key = d.key();
             checked++;
-            boolean integral = SettingsRegistry.schemaProps().get(key) == SettingsRegistry.Type.INTEGER;
+            boolean integral = "integer".equals(schema.get("type"));
             double step = integral ? 1 : 0.5;
-            for (double outside : new double[] {r.lo() - step, r.hi() + step}) {
+            for (double outside : new double[] {lo.doubleValue() - step, hi.doubleValue() + step}) {
                 Object v = integral ? (Object) (long) outside : outside;
-                assertThrows(ApiException.class, () -> patch(key, v), key + "=" + v + " is outside " + r.text());
+                assertThrows(ApiException.class, () -> patch(key, v), key + "=" + v + " is outside [" + lo + ", " + hi + "]");
             }
-            for (double edge : new double[] {r.lo(), r.hi()}) {
+            for (double edge : new double[] {lo.doubleValue(), hi.doubleValue()}) {
                 Object v = integral ? (Object) (long) edge : edge;
                 patch(key, v);
                 assertEquals(((Number) v).doubleValue(), ((Number) SettingsCommand.read(null, key)).doubleValue(), 1e-6,
@@ -94,7 +96,7 @@ class SettingsRangeTest {
             }
             BotConfig.restoreAll(saved);
         }
-        assertTrue(checked >= 50, "expected most numeric rows to state a range, found " + checked);
+        assertTrue(checked >= 50, "expected most numeric keys to declare a range, found " + checked);
     }
 
     @Test

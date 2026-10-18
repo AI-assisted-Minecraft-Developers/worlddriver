@@ -19,9 +19,9 @@ import net.magicterra.worlddriver.api.registry.ApiBatch;
 import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.thread.GameThreads;
-import net.magicterra.worlddriver.bot.SettingsApi;
-import net.magicterra.worlddriver.bot.SettingsContracts.Patch;
-import net.magicterra.worlddriver.bot.SettingsContracts.Read;
+import net.magicterra.worlddriver.api.methods.setting.SettingsApi;
+import net.magicterra.worlddriver.api.methods.setting.SettingsContracts.Patch;
+import net.magicterra.worlddriver.api.methods.setting.SettingsContracts.Read;
 import org.junit.jupiter.api.Test;
 
 /**

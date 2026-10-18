@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.application;
+package net.magicterra.worlddriver.api.methods;
 
 import java.util.List;
 
@@ -22,13 +22,12 @@ import net.magicterra.worlddriver.api.methods.script.ScriptContracts;
 import net.magicterra.worlddriver.api.methods.system.SystemContracts;
 import net.magicterra.worlddriver.api.methods.wait.WaitContracts;
 import net.magicterra.worlddriver.api.methods.world.WorldContracts;
-import net.magicterra.worlddriver.bot.SettingsContracts;
+import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
 
 /**
  * Every core method's description, in the order they are documented. The artifact generator loads this
  * class on a classpath with no Minecraft, which is what proves the contracts do not reach into the game.
- * The application binds a handler to each of these and registers them as one batch. It sits here, not in
- * {@code api/methods}, because {@code mc.bot.setting}'s contract is built from the bot's settings table.
+ * The application binds a handler to each of these and registers them as one batch.
  */
 public final class CoreMethods {
     private CoreMethods() {}

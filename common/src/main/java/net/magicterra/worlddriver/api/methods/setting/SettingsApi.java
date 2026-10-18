@@ -1,12 +1,12 @@
-package net.magicterra.worlddriver.bot;
+package net.magicterra.worlddriver.api.methods.setting;
 
 import java.util.concurrent.CompletionStage;
 
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.registry.Spec;
-import net.magicterra.worlddriver.bot.SettingsContracts.SettingsOp;
-import net.magicterra.worlddriver.bot.SettingsContracts.SettingsReply;
+import net.magicterra.worlddriver.api.methods.setting.SettingsContracts.SettingsOp;
+import net.magicterra.worlddriver.api.methods.setting.SettingsContracts.SettingsReply;
 
 /** {@code mc.bot.setting} for Java callers; see {@link SettingsContracts} for what each op does. */
 public interface SettingsApi {

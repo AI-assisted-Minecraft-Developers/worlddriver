@@ -355,6 +355,12 @@ public final class ApiTypes {
      * {@code docs} describes the keys that have a description.
      */
     public static KeyedValueType keyedValues(String name, Map<String, ApiType<?>> types, Map<String, String> docs) {
-        return new KeyedValueType(name, types, docs);
+        return new KeyedValueType(name, types, docs, key -> null);
+    }
+
+    /** As above, each key's default looked up through {@code defaults} (null for none) when rendered. */
+    public static KeyedValueType keyedValues(String name, Map<String, ApiType<?>> types, Map<String, String> docs,
+                                             Function<String, Object> defaults) {
+        return new KeyedValueType(name, types, docs, defaults);
     }
 }

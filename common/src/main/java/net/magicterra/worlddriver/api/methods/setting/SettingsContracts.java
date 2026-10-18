@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.bot;
+package net.magicterra.worlddriver.api.methods.setting;
 
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -15,16 +15,13 @@ import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.KeyedValueType;
 import net.magicterra.worlddriver.api.schema.KeyedValueType.Entry;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
-import net.magicterra.worlddriver.config.SettingsDocs;
-import net.magicterra.worlddriver.config.SettingsRegistry;
 
 /**
  * {@code mc.bot.setting}: read the tuning surface, patch it, or apply one of its controls.
  *
- * <p>The key table is {@link SettingsRegistry}'s, with each key's prose and range from {@link SettingsDocs}:
- * the one place the keys are enumerated, read reflectively from the settings class's field declarations.
- * Neither class touches the game, so the artifact generator still loads this without Minecraft. It lives
- * beside them rather than in {@code api/methods} because the contract layer may not depend on the bot.
+ * <p>The keys, their types and their prose are {@link SettingDefs}'. Their defaults are the setting
+ * fields' initial values, which this layer cannot read: whoever can see both installs them with
+ * {@link #useDefaults}, and the schema and the declarations show them from then on.
  *
  * <p>Two keys are controls rather than configuration: {@code paused} stops this client's bot and releases
  * its keys, and {@code debugFly} toggles creative flight. Their effects cannot be taken back by restoring a
@@ -32,9 +29,6 @@ import net.magicterra.worlddriver.config.SettingsRegistry;
  */
 public final class SettingsContracts {
     private SettingsContracts() {}
-
-    /** A point the pathfinder keeps away from, by {@code radius} blocks. */
-    public record AvoidPoint(double x, double y, double z, double radius) {}
 
     public sealed interface SettingsOp permits Read, Patch, Apply {}
     public record Read(Optional<List<String>> keys) implements SettingsOp {
@@ -81,65 +75,32 @@ public final class SettingsContracts {
     /** Controls with nothing to read back. */
     public static final Set<String> WRITE_ONLY = Set.of("debugFly");
 
-    public static boolean readable(String key) { return SettingsRegistry.isKnown(key) && !WRITE_ONLY.contains(key); }
+    public static boolean readable(String key) { return SettingDefs.isKnown(key) && !WRITE_ONLY.contains(key); }
 
-    public static boolean patchable(String key) { return SettingsRegistry.isKnown(key) && !CONTROLS.contains(key); }
+    public static boolean patchable(String key) { return SettingDefs.isKnown(key) && !CONTROLS.contains(key); }
 
-    /** Keys whose numbers are floored at zero with no documented ceiling. */
-    private static final Set<String> NON_NEGATIVE = Set.of(
-            "pathfinderWaterCellCost", "pathfinderWaterClimbOutCost", "pathfinderSubmergedWaterCost");
-
-    private static final ApiType<AvoidPoint> AVOID_POINT = ApiTypes.record(AvoidPoint.class, "AvoidPoint",
-            ApiField.field("x", ApiTypes.number()).required().forGetter(AvoidPoint::x),
-            ApiField.field("y", ApiTypes.number()).required().forGetter(AvoidPoint::y),
-            ApiField.field("z", ApiTypes.number()).required().forGetter(AvoidPoint::z),
-            ApiField.field("radius", ApiTypes.number(1, 64)).defaulted(8.0).forGetter(AvoidPoint::radius),
-            AvoidPoint::new);
-
-    /** Each key's value type, in the registry's order. */
+    /** Each key's value type, in {@link SettingDefs}' order. */
     public static final Map<String, ApiType<?>> TYPES = types();
 
     private static Map<String, ApiType<?>> types() {
         Map<String, ApiType<?>> out = new LinkedHashMap<>();
-        SettingsRegistry.schemaProps().forEach((key, kind) -> out.put(key, typeOf(key, kind)));
+        for (SettingDefs.Def d : SettingDefs.all()) out.put(d.key(), d.type());
         return out;
     }
 
     private static Map<String, String> docs() {
         Map<String, String> out = new LinkedHashMap<>();
-        for (String key : TYPES.keySet()) {
-            String doc = SettingsDocs.of(key);
-            if (doc != null) out.put(key, doc);
-        }
+        for (SettingDefs.Def d : SettingDefs.all()) if (d.description() != null) out.put(d.key(), d.description());
         return out;
     }
 
-    private static ApiType<?> typeOf(String key, SettingsRegistry.Type kind) {
-        SettingsDocs.Range r = SettingsRegistry.documentedRange(key);
-        return switch (key) {
-            case "tunnelWidthBias" -> ApiTypes.stringEnum("TunnelWidthBias", "left", "right");
-            case "autoBackfillBlock" -> ApiTypes.pattern("[a-z0-9_.-]+:[a-z0-9/._-]+", "a block id such as minecraft:cobblestone");
-            case "blocksToAvoid", "buildBlockWhitelist" -> ApiTypes.list(
-                    ApiTypes.pattern("[a-z0-9_.-]+:[a-z0-9/._-]+", "a block id such as minecraft:powder_snow"), 256);
-            case "mutedEvents" -> ApiTypes.list(ApiTypes.string(1, 64), 64);
-            case "undrivableMobs" -> ApiTypes.list(
-                    ApiTypes.pattern("[a-z0-9_.-]+:[a-z0-9/._-]+", "an entity type id such as minecraft:squid"), 256);
-            case "avoidPoints" -> ApiTypes.list(AVOID_POINT, 64);
-            default -> switch (kind) {
-                case BOOLEAN -> ApiTypes.bool();
-                case STRING -> ApiTypes.string(0, 256);
-                case INTEGER -> SettingsRegistry.storedType(key) == long.class
-                        ? ApiTypes.int64(r == null ? Long.MIN_VALUE : (long) r.lo(), r == null ? Long.MAX_VALUE : (long) r.hi())
-                        : ApiTypes.integer(r == null ? Integer.MIN_VALUE : (int) r.lo(), r == null ? Integer.MAX_VALUE : (int) r.hi());
-                case NUMBER -> r != null ? ApiTypes.number(r.lo(), r.hi())
-                        : NON_NEGATIVE.contains(key) ? ApiTypes.number(0, Double.MAX_VALUE) : ApiTypes.number();
-                case STRING_LIST -> ApiTypes.list(ApiTypes.string(1, 256), 256);
-                case POINT_LIST -> ApiTypes.list(AVOID_POINT, 64);
-            };
-        };
-    }
+    private static volatile Map<String, Object> defaults = Map.of();
 
-    public static final KeyedValueType SETTING_VALUES = ApiTypes.keyedValues("SettingValues", TYPES, docs());
+    /** Each key's default, as its type decodes it; a key missing from {@code values} shows none. */
+    public static void useDefaults(Map<String, Object> values) { defaults = Map.copyOf(values); }
+
+    public static final KeyedValueType SETTING_VALUES =
+            ApiTypes.keyedValues("SettingValues", TYPES, docs(), key -> defaults.get(key));
 
     private static final ApiType<String> SETTING_KEY = ApiTypes.string(1, 64).tsAlias("SettingKey", "keyof SettingValues");
 
@@ -173,7 +134,7 @@ public final class SettingsContracts {
                 for (int i = 0; i < keys.size(); i++) {
                     String k = keys.get(i);
                     DecodeContext here = at.field("keys").index(i);
-                    if (!SettingsRegistry.isKnown(k)) here.fail(ApiIssue.Code.INVALID_VALUE, "unknown key \"" + k + "\"");
+                    if (!SettingDefs.isKnown(k)) here.fail(ApiIssue.Code.INVALID_VALUE, "unknown key \"" + k + "\"");
                     else if (!readable(k)) here.fail(ApiIssue.Code.INVALID_VALUE, k + " is a control with nothing to read");
                     else if (!seen.add(k)) here.fail(ApiIssue.Code.INVALID_VALUE, k + " is named twice");
                 }

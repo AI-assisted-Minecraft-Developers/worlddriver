@@ -18,7 +18,7 @@ import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.RecordType;
 import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.methods.shared.ActionResults;
-import net.magicterra.worlddriver.application.CoreMethods;
+import net.magicterra.worlddriver.api.methods.CoreMethods;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 import org.junit.jupiter.api.Test;
 

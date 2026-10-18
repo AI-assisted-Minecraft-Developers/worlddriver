@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **Each setting answers to one name, and the schema states its default.** A setting with a dotted
+  wire name used to answer to its field's name as well, so `pathfinder.maxNodes` could also be
+  written as `pathfinderMaxNodes`; only the wire name is accepted now, and a read without `keys`
+  no longer lists the field names. The 21 dropped names are the fields `SettingsRegistry.HAND`
+  binds under another key (`navigatorRepathEveryTicks`, `dangerPenaltyPerCell`, `riskBiasScale`,
+  `axisHeight`, …). Each key's schema now carries `default`, read from the field the build ships,
+  and the descriptions no longer state defaults, which is how many of them once drifted from the
+  code.
 - **Every event type the driver emits has a declared payload, and three payloads changed shape.**
   `chat.message` was one `"name: text"` string and is now `{player, text}`; `block.fill` was
   `"type@from->to"` and is now `{block, from, to}`; `world.restore` was `"id@N blocks"` and is now

@@ -13,6 +13,7 @@ import net.magicterra.worlddriver.api.registry.ApiMethod;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.thread.ServerThreadGuard;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
+import net.magicterra.worlddriver.bot.SettingDefaults;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -42,7 +43,7 @@ import net.magicterra.worlddriver.application.client.ClientDriverApi;
  * the shared server handle, event ring buffer, and server-thread hop); pure
  * parse/encode helpers live in {@link ApiSupport}. Every transport dispatches
  * through the {@link ApiRegistry} this holds, so a core method is wired here
- * and in {@link CoreMethods}, nowhere else.
+ * and in {@link net.magicterra.worlddriver.api.methods.CoreMethods}, nowhere else.
  */
 public final class DriverApplication implements DriverHost {
     private final ApiRegistry registry = new ApiRegistry();
@@ -79,6 +80,7 @@ public final class DriverApplication implements DriverHost {
     private volatile ScriptHost scriptHost;
 
     public DriverApplication() {
+        SettingDefaults.install();
         registry.registerBatch(coreBatch);
     }
 

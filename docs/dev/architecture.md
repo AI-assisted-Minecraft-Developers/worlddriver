@@ -123,8 +123,7 @@ diverge. When a batch changes what `tools/list` shows, `McpServer` sends
 
 `api/` holds the registry, the schema combinators (`api/schema/`) and the pure contracts
 (`api/methods/<family>/`); it imports no transport, handler or bot class (`ArchitectureTest`).
-`mc.bot.setting`'s contract is built from the bot's settings table, so it lives in
-`bot/SettingsContracts`, and the list of core specs, `CoreMethods`, lives in `application/`.
+The list of core specs, `CoreMethods`, sits beside the families in `api/methods/`.
 
 ## Threading
 

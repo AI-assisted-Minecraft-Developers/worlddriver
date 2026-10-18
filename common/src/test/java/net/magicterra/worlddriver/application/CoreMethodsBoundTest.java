@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import java.util.ArrayList;
 import java.util.List;
 
+import net.magicterra.worlddriver.api.methods.CoreMethods;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import org.junit.jupiter.api.Test;

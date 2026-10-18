@@ -28,7 +28,7 @@ window creation can hang. Both cases, and how to tell which one applies, are in
 New `BotConfig` keys must be set over the socket, not through a cached MCP tool schema. An
 MCP client's copy of the tool schemas is frozen when its session starts, so a key added
 after that is stripped from the call before it ever reaches the game. The mod's own side
-is not stale — it computes the schema from `SettingsRegistry` on every request — so the
+is not stale — it serves the schema built from `SettingDefs` — so the
 socket path always carries the current key set.
 
 Either send `mc.bot.setting` over the WebSocket endpoint directly, or use
@@ -61,21 +61,16 @@ The reading that follows:
 
 ## Wiring a new default-off navigator flag
 
-Two steps are mandatory and one is optional.
+All three steps are mandatory.
 
-1. **Declare it** in the config class of the lowest layer that reads it (`ControlConfig.java` for
-   a navigator flag), as a `public static volatile boolean` defaulting to
-   false. That is the whole registration. `SettingsRegistry.reflectivePrimitiveFields()`
-   collects it, and that one method feeds the key set, the snapshot read path and the
-   generated MCP schema, so the setter, the snapshot and the schema follow automatically
-   and cannot drift apart. Do not hand-wire a schema entry or an apply branch; an older
-   recipe that told you to would reintroduce a defect that has been fixed, in which the
-   apply path silently discards a key whose schema has not caught up.
-2. **Read it somewhere.** This is not optional. `SettingsConsumerTest` in
-   `common/src/test` takes the same key set from the same reflective method and fails the
-   build when a key is never read outside the settings pipeline. Without that test, a
+1. **Declare the field** in the config class of the lowest layer that reads it
+   (`ControlConfig.java` for a navigator flag), as a `public static volatile boolean`
+   defaulting to false.
+2. **Declare the key** with a `def(...)` line in `api/methods/setting/SettingDefs.java`: its
+   wire name (the field's name, unless `SettingsRegistry.HAND` binds it otherwise), its type
+   and what it does. Leave the default out of the prose; the schema shows the field's.
+   `SettingsBindingTest` fails the build on a field with no key or a key with no field. The
+   setter and the read path follow from the binding, so do not hand-wire an apply branch.
+3. **Read it somewhere.** `SettingsConsumerTest` in `common/src/test` fails the build when a
+   setting field is never read outside the settings pipeline. Without that test, a
    knob with no read site is accepted, echoed back as set, and changes nothing.
-3. **Optionally document it** with a line in `SettingsDocs.java`, which renders as that
-   property's schema description. Undocumented keys are explicitly allowed. An orphaned
-   line — one naming a key that has been renamed or deleted — throws at class load, via
-   `SettingsRegistry.assertDocsResolve()`.

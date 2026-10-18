@@ -13,8 +13,8 @@ import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.SettingsContracts;
-import net.magicterra.worlddriver.config.SettingsRegistry;
+import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
+import net.magicterra.worlddriver.api.methods.setting.SettingDefs;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.bot.control.AscendMovement;
@@ -238,49 +238,43 @@ public final class WorldDriverScenes implements SceneProvider {
      * P2a verb-pipeline regression net — the SPI's own dogfood gate. A pure-function
      * assertion scene (no world ops: it never spawns an avatar or edits blocks, so the bot
      * is cheap and position-invariant — auto slot, default radius, {@code required=true}).
-     * It pins the #280 root fix ({@link SettingsRegistry} single-source + closed
+     * It pins the #280 root fix ({@link SettingDefs} single-source + closed
      * {@code mc.bot.setting} schema) AND the paired verb-registration SPI ({@code mc.test.reset}
      * route + schema present on THIS loader's boot path — the assertion that catches a
      * mis-placed registration hook RED on either loader).
      *
      * <p><b>Assertions</b> (failure prefix {@code "settingRegistry: "}):
      * <ol>
-     *   <li>{@code knownKeys().size() >= 200} — a {@code >=} FLOOR, not the exact 229, on
-     *       purpose: the reflective completion pass legitimately grows the registry as new
-     *       {@code public static volatile} {@link BotConfig} flags are declared, so an exact
-     *       equality would false-RED on every future flag. 200 is a generous floor well below
-     *       today's 229 that still catches a wholesale registry collapse.</li>
+     *   <li>{@code all().size() >= 200} — a {@code >=} FLOOR, not an exact count, on
+     *       purpose: the key table grows as flags are declared, so an exact equality would
+     *       false-RED on every future flag, while 200 still catches a wholesale collapse.</li>
      *   <li>sentinel keys present — {@code paused} (apply-special, no BotConfig field),
      *       {@code autoEat} (hand boolean), {@code navigator.repathEveryTicks} (dotted hand key
      *       aliasing {@code navigatorRepathEveryTicks}), {@code debugFly} (apply-only affordance):
      *       one of each provenance, so a regression that drops any single key class trips.</li>
      *   <li>{@code isKnown("definitelyNotAKnob") == false} — the unknown-key gate still says no.</li>
      *   <li>{@code mc.bot.setting}'s contract is CLOSED and typed per key: a patch naming the
-     *       bogus key is invalid_params at {@code /values/definitelyNotAKnob}, and the contract's key
-     *       set is the registry's.</li>
+     *       bogus key is invalid_params at {@code /values/definitelyNotAKnob}.</li>
      *   <li>{@code mc.test.reset} is registered: the registry holds a typed spec for it, published
      *       by StageWright's batch. This is the assertion that goes RED on a loader whose boot path
      *       never called the registration hook.</li>
      * </ol>
      */
     private static void settingRegistryClosed(SceneContext ctx) {
-        // (1) Registry non-trivially populated. >= floor, NOT exact 229 — reflective completion
-        //     grows it as new BotConfig flags land (an exact check would false-RED on every flag).
-        int known = SettingsRegistry.knownKeys().size();
+        // (1) Key table non-trivially populated; a floor, since it grows as flags land.
+        int known = SettingDefs.all().size();
         if (known < 200)
-            ctx.fail("settingRegistry: knownKeys().size()=" + known + " < 200 floor (expected ~229; "
-                    + "floor is a >= not exact because reflective completion legitimately grows it "
-                    + "as new BotConfig flags are declared)");
+            ctx.fail("settingRegistry: SettingDefs.all().size()=" + known + " < 200 floor");
 
         // (2) Sentinel keys — one per provenance class (apply-special / hand / dotted-alias / apply-only).
         for (String k : List.of("paused", "autoEat", "navigator.repathEveryTicks", "debugFly")) {
-            if (!SettingsRegistry.isKnown(k))
+            if (!SettingDefs.isKnown(k))
                 ctx.fail("settingRegistry: sentinel key '" + k + "' missing from the registry "
-                        + "(knownKeys().size()=" + known + ")");
+                        + "(" + known + " keys)");
         }
 
         // (3) A bogus key is NOT known.
-        if (SettingsRegistry.isKnown("definitelyNotAKnob"))
+        if (SettingDefs.isKnown("definitelyNotAKnob"))
             ctx.fail("settingRegistry: bogus key 'definitelyNotAKnob' reported known — the "
                     + "unknown-key gate regressed");
 
@@ -293,10 +287,6 @@ public final class WorldDriverScenes implements SceneProvider {
         }
         if (!closed)
             ctx.fail("settingRegistry: mc.bot.setting accepted an unknown key — #280 would silently return");
-        int propCount = SettingsContracts.TYPES.size();
-        if (!SettingsContracts.TYPES.keySet().equals(SettingsRegistry.knownKeys()))
-            ctx.fail("settingRegistry: mc.bot.setting's " + propCount + " keys are not the registry's " + known
-                    + " — the contract drifted from SettingsRegistry");
 
         // (5) mc.test.reset registered — the SPI's regression net: a typed method, from StageWright's batch.
         var api = WorldDriverCommon.registry();
@@ -309,8 +299,8 @@ public final class WorldDriverScenes implements SceneProvider {
         if (owner != null && !owner.startsWith(ApiRegistry.TEST_OWNER + "/"))
             ctx.fail("settingRegistry: mc.test.reset is owned by " + owner + ", not StageWright");
 
-        WorldDriverCommon.LOG.info("[wd.settingRegistryClosed] knownKeys={} settingProps={} "
-                + "closed={} mc.test.reset registered=true", known, propCount, closed);
+        WorldDriverCommon.LOG.info("[wd.settingRegistryClosed] knownKeys={} closed={} mc.test.reset registered=true",
+                known, closed);
     }
 
     /** Ported from {@code AgentGameTestTerrain#ascendMovementNoopArena} (:969-1020). */

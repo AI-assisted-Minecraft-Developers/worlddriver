@@ -89,7 +89,7 @@ to read a negative verdict, and the out-of-process suites are in `docs/dev/testi
 
 0. Re-read hard rule 6 first. Can you extend an existing method instead?
 1. Write its contract — parameter and reply records, their `ApiType`s, a `MethodSpec` — under
-   `api/methods/`, and list the spec in `application/CoreMethods`. A method meant for tests or
+   `api/methods/`, and list the spec in `api/methods/CoreMethods`. A method meant for tests or
    tools rather than for a model is marked `.hidden()`: callable, but not in MCP `tools/list`.
 2. Bind its handler in `application/` and add it to the core batch in `DriverApplication`. An
    extension (`mc.test.*` for StageWright, `<modid>.*` for anyone else) publishes its own

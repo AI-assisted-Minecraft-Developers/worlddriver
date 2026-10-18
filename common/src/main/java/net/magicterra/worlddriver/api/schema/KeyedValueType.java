@@ -6,11 +6,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+
+import net.magicterra.worlddriver.protocol.JsonCodec;
 
 /**
  * An object whose members are drawn from a fixed key table, each member's value typed by its key:
  * {@code {autoEat: true, autoEatFoodThreshold: 14}}. Every member is optional, so a table of a hundred
  * keys is one object type rather than a hundred-field record. Decoded as entries in the order sent.
+ *
+ * <p>A key's default is looked up when the schema or the declaration is rendered, not when the type is
+ * built: the values may live in a layer the contract cannot name, which installs the lookup at startup.
  */
 public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
 
@@ -25,19 +31,22 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
     private final String name;
     private final Map<String, ApiType<?>> types;
     private final Map<String, String> docs;
+    private final Function<String, Object> defaults;
     private final int minEntries;
     /** Shared with {@link #atLeast} copies: the TypeScript declaration is the same one. */
     private final Object tsOwner;
 
-    KeyedValueType(String name, Map<String, ApiType<?>> types, Map<String, String> docs) {
-        this(name, Collections.unmodifiableMap(new LinkedHashMap<>(types)), Map.copyOf(docs), 0, new Object());
+    KeyedValueType(String name, Map<String, ApiType<?>> types, Map<String, String> docs, Function<String, Object> defaults) {
+        this(name, Collections.unmodifiableMap(new LinkedHashMap<>(types)), Map.copyOf(docs), defaults, 0, new Object());
         if (types.isEmpty()) throw new IllegalArgumentException(name + " has no keys");
     }
 
-    private KeyedValueType(String name, Map<String, ApiType<?>> types, Map<String, String> docs, int minEntries, Object tsOwner) {
+    private KeyedValueType(String name, Map<String, ApiType<?>> types, Map<String, String> docs,
+                           Function<String, Object> defaults, int minEntries, Object tsOwner) {
         this.name = Objects.requireNonNull(name);
         this.types = types;
         this.docs = docs;
+        this.defaults = Objects.requireNonNull(defaults);
         this.minEntries = minEntries;
         this.tsOwner = tsOwner;
     }
@@ -45,7 +54,7 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
     public Map<String, ApiType<?>> types() { return types; }
 
     /** The same key table, refusing an object with fewer than {@code min} members. */
-    public KeyedValueType atLeast(int min) { return new KeyedValueType(name, types, docs, min, tsOwner); }
+    public KeyedValueType atLeast(int min) { return new KeyedValueType(name, types, docs, defaults, min, tsOwner); }
 
     @Override public String expected() {
         return "a " + name + " object" + (minEntries > 0 ? " with at least " + minEntries + " known key" : " of known keys");
@@ -82,6 +91,13 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
         return out;
     }
 
+    /** {@code key}'s default in wire form, or null when it has none. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Object defaultOf(String key) {
+        Object d = defaults.apply(key);
+        return d == null ? null : ((ApiType) types.get(key)).write(d);
+    }
+
     @Override
     protected Map<String, Object> schemaBody() {
         Map<String, Object> props = new LinkedHashMap<>();
@@ -89,6 +105,8 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
             Map<String, Object> p = new LinkedHashMap<>();
             if (docs.containsKey(key)) p.put("description", docs.get(key));
             p.putAll(type.schema());
+            Object d = defaultOf(key);
+            if (d != null) p.put("default", d);
             props.put(key, p);
         });
         Map<String, Object> s = new LinkedHashMap<>();
@@ -105,7 +123,10 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
             StringBuilder b = new StringBuilder("interface " + name + " {");
             types.forEach((key, type) -> {
                 b.append("\n    ");
-                if (docs.containsKey(key)) b.append("/** ").append(docs.get(key).replace("*/", "* /")).append(" */\n    ");
+                Object d = defaultOf(key);
+                String doc = docs.containsKey(key) ? docs.get(key) : null;
+                if (d != null) doc = (doc == null ? "" : doc + " ") + "@default " + JsonCodec.encode(d);
+                if (doc != null) b.append("/** ").append(doc.replace("*/", "* /")).append(" */\n    ");
                 b.append(TsContext.key(key)).append("?: ").append(type.ts(ts)).append(';');
             });
             return b.append("\n}").toString();
