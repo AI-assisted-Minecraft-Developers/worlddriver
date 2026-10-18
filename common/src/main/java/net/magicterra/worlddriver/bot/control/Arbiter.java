@@ -14,17 +14,18 @@ import net.magicterra.worlddriver.game.body.Body;
  * Hands each {@link Channel} to one {@link Controller} per tick: the highest-priority one that is running
  * and claims it. Channels no controller claims are left to the regular walk.
  *
- * <p>A tick goes: stop the running controllers that cannot go on or have run their longest; start the idle
- * ones whose condition holds, in priority order, each taking its channels from any lower-priority runner
- * (which is stopped); then tick the runners. Two runners never share a channel, so each one owns every
- * channel it claims.
+ * <p>A tick first lets every controller {@link Controller#sense sense}, then walks them in priority order.
+ * A runner whose channels a higher one has already taken this tick is preempted; otherwise it is stopped if
+ * it cannot go on or has run its longest. An idle one starts if none of its channels is taken and its
+ * condition holds. Each runner then ticks; one that lets go is stopped and leaves its channels to the
+ * controllers after it, this same tick. Two runners never share a channel.
  */
 final class Arbiter {
 
     private final List<Controller> controllers = new ArrayList<>();
     private final boolean[] running;
     private final int[] ranTicks;
-    /** Why each idle controller did not start on the last tick, or why the last run stopped. */
+    /** Why each idle controller did not start on the last tick, or why its last run stopped. */
     private final String[] idleWhy;
     private final Controller[] owner = new Controller[Channel.values().length];
 
@@ -38,33 +39,28 @@ final class Arbiter {
 
     /** One tick of the lifecycle; returns the channels taken this tick. */
     Set<Channel> tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
-        for (int i = 0; i < controllers.size(); i++) {
-            if (!running[i]) continue;
-            Controller c = controllers.get(i);
-            if (!c.canContinue(wk, cx, world)) stop(i, "cannot continue");
-            else if (ranTicks[i] >= c.maxTicks()) stop(i, "ran its " + c.maxTicks() + " ticks");
-        }
-        for (int i = 0; i < controllers.size(); i++) {
-            if (running[i]) continue;
-            Controller c = controllers.get(i);
-            String why = c.whyNot(wk, cx, world);
-            if (why == null) why = heldByHigher(i);
-            idleWhy[i] = why;
-            if (why != null) continue;
-            for (int j = i + 1; j < controllers.size(); j++)
-                if (running[j] && overlaps(controllers.get(j), c)) stop(j, "preempted by " + c.name());
-            running[i] = true;
-            ranTicks[i] = 0;
-        }
+        for (Controller c : controllers) c.sense(wk, cx, world);
         EnumSet<Channel> taken = EnumSet.noneOf(Channel.class);
         Arrays.fill(owner, null);
         for (int i = 0; i < controllers.size(); i++) {
-            if (!running[i]) continue;
             Controller c = controllers.get(i);
+            Controller holder = holderOf(c, taken);
+            if (running[i]) {
+                if (holder != null) stop(i, "preempted by " + holder.name());
+                else if (!c.canContinue(wk, cx, world)) stop(i, "cannot continue");
+                else if (ranTicks[i] >= c.maxTicks()) stop(i, "ran its " + c.maxTicks() + " ticks");
+            }
+            if (!running[i]) {
+                if (holder != null) { idleWhy[i] = "channel held by " + holder.name(); continue; }
+                String why = c.whyNot(wk, cx, world);
+                if (why != null) { idleWhy[i] = why; continue; }
+                running[i] = true;
+                ranTicks[i] = 0;
+            }
+            if (!c.tick(wk, cx, a, world)) { stop(i, "let go"); continue; }
+            ranTicks[i]++;
             for (Channel ch : c.channels()) owner[ch.ordinal()] = c;
             taken.addAll(c.channels());
-            c.tick(wk, cx, a, world);
-            ranTicks[i]++;
         }
         return taken;
     }
@@ -78,7 +74,7 @@ final class Arbiter {
 
     /**
      * Who held each channel on the last tick and why each idle controller did not start:
-     * {@code MOVE=recovery LOOK=- JUMP=recovery HANDS=- | recovery running 3/44}.
+     * {@code MOVE=recovery LOOK=recovery JUMP=recovery HANDS=- | recovery running 3/42}.
      */
     String snapshot() {
         StringBuilder sb = new StringBuilder();
@@ -103,16 +99,9 @@ final class Arbiter {
         controllers.get(i).stop(why);
     }
 
-    /** The higher-priority runner holding one of {@code i}'s channels, as a reason, or null. */
-    private String heldByHigher(int i) {
-        Controller c = controllers.get(i);
-        for (int j = 0; j < i; j++)
-            if (running[j] && overlaps(controllers.get(j), c)) return "channel held by " + controllers.get(j).name();
+    /** The controller already holding one of {@code c}'s channels this tick, or null. */
+    private Controller holderOf(Controller c, Set<Channel> taken) {
+        for (Channel ch : c.channels()) if (taken.contains(ch)) return owner[ch.ordinal()];
         return null;
-    }
-
-    private static boolean overlaps(Controller x, Controller y) {
-        for (Channel ch : x.channels()) if (y.channels().contains(ch)) return true;
-        return false;
     }
 }

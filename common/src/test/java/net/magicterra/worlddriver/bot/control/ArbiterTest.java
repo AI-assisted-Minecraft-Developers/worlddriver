@@ -21,6 +21,7 @@ class ArbiterTest {
         final int priority, maxTicks;
         int wanted;
         int ticked;
+        boolean letGo;
         final List<String> stops = new ArrayList<>();
 
         Fake(String name, int priority, int maxTicks, Channel... channels) {
@@ -38,7 +39,12 @@ class ArbiterTest {
             return wanted > 0 ? null : "not wanted";
         }
         @Override public boolean canContinue(Walker wk, WalkerTickCtx cx, WorldView world) { return wanted > 0; }
-        @Override public void tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) { ticked++; wanted--; }
+        @Override public boolean tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+            if (letGo) return false;
+            ticked++;
+            wanted--;
+            return true;
+        }
         @Override public void stop(String why) { stops.add(why); wanted = 0; }
     }
 
@@ -84,6 +90,22 @@ class ArbiterTest {
         low.wanted = 10;
         tick(arb);
         assertTrue(arb.snapshot().contains("low idle (channel held by high)"), arb.snapshot());
+    }
+
+    @Test
+    void aControllerThatLetsGoLeavesItsChannelsToTheNextOneThisTick() {
+        Fake high = new Fake("high", 1, 50, Channel.MOVE, Channel.LOOK);
+        Fake low = new Fake("low", 5, 50, Channel.MOVE);
+        Arbiter arb = new Arbiter(List.of(high, low));
+        high.wanted = 5;
+        low.wanted = 5;
+        assertEquals(EnumSet.of(Channel.MOVE, Channel.LOOK), tick(arb));
+        assertEquals(0, low.ticked);
+
+        high.letGo = true;
+        assertEquals(EnumSet.of(Channel.MOVE), tick(arb));
+        assertEquals(List.of("let go"), high.stops);
+        assertEquals(1, low.ticked);
     }
 
     @Test

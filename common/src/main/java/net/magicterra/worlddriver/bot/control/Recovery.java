@@ -32,7 +32,8 @@ final class Recovery implements Controller {
     /** A back-off, a burst, and one burst asked for again while the first ran: no run is longer. */
     private static final int MAX_TICKS = BACKOFF_TICKS + WEDGE_BURST_TICKS + CHURN_BURST_TICKS;
 
-    private static final Set<Channel> CHANNELS = EnumSet.of(Channel.MOVE, Channel.JUMP);
+    /** Look too, though it never turns the head: nothing else may turn it under a push it has converted. */
+    private static final Set<Channel> CHANNELS = EnumSet.of(Channel.MOVE, Channel.LOOK, Channel.JUMP);
 
     private int backOffLeft;
     private float backOffYaw;
@@ -98,7 +99,7 @@ final class Recovery implements Controller {
         return remaining() > 0;
     }
 
-    @Override public void tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    @Override public boolean tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         LivingEntity p = cx.frame.p;
         if (backOffLeft > 0) {
             backOffLeft--;
@@ -116,6 +117,7 @@ final class Recovery implements Controller {
             wk.avatarJump(a, hop);
         }
         p.setSprinting(false);
+        return true;
     }
 
     @Override public void stop(String why) {

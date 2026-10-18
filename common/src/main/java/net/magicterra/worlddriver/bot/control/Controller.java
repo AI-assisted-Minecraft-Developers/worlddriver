@@ -8,12 +8,11 @@ import net.magicterra.worlddriver.game.body.Body;
 /**
  * Something that takes over some of a walking tick's {@link Channel}s for a while: it starts when its
  * condition holds, drives the channels it claims every tick it runs, and stops when it can no longer go on,
- * has run its longest, or a higher-priority controller needs one of its channels. {@link Arbiter} runs the
- * lifecycle; a controller only answers the questions.
+ * has run its longest, lets go, or a higher-priority controller needs one of its channels. {@link Arbiter}
+ * runs the lifecycle; a controller only answers the questions.
  *
- * <p>A controller's state is its own, and {@link #stop} is where it is cleared: a stopped controller holds
- * nothing that could leak into the next run or the next goal. Run lengths are fixed, so a replay or a scene
- * repeats tick for tick.
+ * <p>A controller's state is its own, and {@link #stop} is where its run state is cleared. Run lengths are
+ * fixed, so a replay or a scene repeats tick for tick.
  */
 interface Controller {
 
@@ -26,6 +25,13 @@ interface Controller {
     /** Lower runs first; a controller may take a channel from a running one with a higher number. */
     int priority();
 
+    /**
+     * Read the world for this tick, whether running or not. Called for every controller before any of
+     * them is asked anything, so the counters a controller keeps about its situation (how long it has
+     * been stalled, whether it was in water lately) advance on every tick, not only on ticks it runs.
+     */
+    default void sense(Walker wk, WalkerTickCtx cx, WorldView world) {}
+
     /** Null when it may start this tick, otherwise the condition that does not hold, for the snapshot. */
     String whyNot(Walker wk, WalkerTickCtx cx, WorldView world);
 
@@ -35,8 +41,12 @@ interface Controller {
     /** The most ticks one run may last; the arbiter stops it after that many. */
     int maxTicks();
 
-    /** Drive the claimed channels for one tick, through {@code a}. */
-    void tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world);
+    /**
+     * Drive the claimed channels for one tick, through {@code a}. False when it found, part-way through
+     * the tick, that it has nothing to do after all: it is stopped and its channels go to the next
+     * controller down, this same tick, as if it had not started.
+     */
+    boolean tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world);
 
     /** Stop and clear the run's state. */
     void stop(String why);

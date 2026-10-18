@@ -1234,11 +1234,11 @@ public final class Walker implements Locomotor {
         r = WalkerTickPrelude.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickStallDetect.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickRepath.run(this, c, a, world); if (r != null) return r;
-        // Until the regular walk drives only the channels no controller took, a controller on MOVE
-        // ends the tick's decisions here.
-        if (arbiter.tick(this, c, a, world).contains(Channel.MOVE)) return Step.WALKING;
         r = WalkerTickSearch.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickProgress.run(this, c, a, world); if (r != null) return r;
+        // The route is settled for this tick; now the controllers. Until the regular walk drives only
+        // the channels no controller took, a controller on MOVE ends the tick's decisions here.
+        if (arbiter.tick(this, c, a, world).contains(Channel.MOVE)) return Step.WALKING;
         r = WalkerTickClimb.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickEdgeGuards.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickAim.run(this, c, a, world); if (r != null) return r;
