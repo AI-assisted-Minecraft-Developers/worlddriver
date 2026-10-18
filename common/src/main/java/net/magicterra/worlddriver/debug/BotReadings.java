@@ -22,9 +22,12 @@ import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.NodeQuery;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.PlanCursor;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.Reach;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.bot.Bot;
+import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.ServerBot;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
@@ -54,19 +57,32 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * {@code mc.debug.navigator}, {@code mc.debug.body} and {@code mc.debug.cells}: a server-side bot's insides read
- * on the server thread, in the shapes {@code BotDebugContracts} declares.
+ * on the server thread, in the shapes {@code BotDebugContracts} declares; self's navigator on the client thread.
  */
 final class BotReadings {
     private BotReadings() {}
 
+    /** A server bot's navigator, on the server thread. */
     static NavigatorReading navigator(NavigatorParams p) {
         ServerBot bot = serverBot(p.bot());
-        LivingEntity e = bot.entity();
+        BotProcess process = bot.lastAskedProcess();
+        return navigator(p, bot.entity(), process, process != null && bot.busy() && process.kind().equals(bot.activeKind()));
+    }
+
+    /** self's navigator, on the client thread. */
+    static NavigatorReading selfNavigator(NavigatorParams p, BotApi self) {
+        LivingEntity e = self.selfEntity();
+        if (e == null) throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
+        BotProcess process = self.lastAskedProcess();
+        ControlContracts.BotStatus status = self.botStatus();
+        boolean running = process != null && status.busy() && status.activeProcess().map(process.kind()::equals).orElse(false);
+        return navigator(p, e, process, running);
+    }
+
+    private static NavigatorReading navigator(NavigatorParams p, LivingEntity e, BotProcess process, boolean running) {
         NavigatorTelemetry tel = NavigatorTelemetry.of(e);
         if (p.newLeg()) tel.newLeg();
-        BotProcess process = bot.lastAskedProcess();
         Navigator nav = process instanceof Navigating n ? n.navigator() : null;
-        boolean running = process != null && bot.busy() && process.kind().equals(bot.activeKind());
 
         Map<String, Long> counters = new LinkedHashMap<>();
         Map<String, Boolean> flags = new LinkedHashMap<>();

@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   view's dimension and, on request, reach and blast safety; `mc.debug.cells` how the planner's view
   classifies cells, and the pose facts of a node. They are hidden from tool lists. The `mc.debug`
   batch is now published on a dedicated server too; `replay` still reads the client's world.
+  `mc.debug.navigator` also reads self's navigator, on the client.
 - **`mc.debug.plan` plans for a server bot and takes any goto target.** `goal: {x, z}` became
   `target`, the same union `mc.bot.goto` takes; `bot` names a server bot to plan for in the server's
   world with its own bag; `route` plans as `mc.bot.goto` would with that route; `maxNodes` and

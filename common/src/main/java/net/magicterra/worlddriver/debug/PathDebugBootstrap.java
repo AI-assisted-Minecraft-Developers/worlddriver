@@ -11,6 +11,7 @@ import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
+import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.planning.MultiTrace;
@@ -107,7 +108,13 @@ public final class PathDebugBootstrap {
 
         @Override
         public CompletionStage<BotDebugContracts.NavigatorReading> navigator(BotDebugContracts.NavigatorParams p, CallContext ctx) {
-            return onServer(() -> BotReadings.navigator(p), ctx);
+            if (!BotRegistry.isSelf(p.bot())) return onServer(() -> BotReadings.navigator(p), ctx);
+            BotApi self = BotHooks.impl();
+            if (self == null) {
+                return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
+                        "self is this client's own player, and there is no client here; name a server bot"));
+            }
+            return self.clientHop().submit(() -> BotReadings.selfNavigator(p, self), ctx);
         }
 
         @Override

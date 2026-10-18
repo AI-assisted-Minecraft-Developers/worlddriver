@@ -180,6 +180,9 @@ public interface BotApi {
     /** This client's player, or null with none. <b>Client thread only.</b> */
     net.minecraft.world.entity.LivingEntity selfEntity();
 
+    /** The process the last caller-started task ran, kept after it ended; null before any. <b>Client thread only.</b> */
+    BotProcess lastAskedProcess();
+
     /**
      * One self-consistent reading of the user task {@link #runProcess} started:
      * {@code {seq:long, busy:bool, kind:String|null, error:String|null}}.

@@ -411,6 +411,7 @@ public final class ClientBot implements BotApi {
     @Override public java.util.concurrent.Executor clientExecutor() { return Minecraft.getInstance(); }
 
     @Override public net.minecraft.world.entity.LivingEntity selfEntity() { return Minecraft.getInstance().player; }
+    @Override public BotProcess lastAskedProcess() { return brain.lastAskedProcess(); }
 
     /** The client left its server. Client thread only. */
     public void onDisconnect() {
