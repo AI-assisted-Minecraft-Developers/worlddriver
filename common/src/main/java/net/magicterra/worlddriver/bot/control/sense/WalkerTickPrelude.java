@@ -2,6 +2,8 @@ package net.magicterra.worlddriver.bot.control.sense;
 
 import net.magicterra.worlddriver.bot.control.steer.DriveLatches;
 import net.magicterra.worlddriver.bot.control.TickStep;
+import net.magicterra.worlddriver.bot.control.ResetScope;
+import net.magicterra.worlddriver.bot.control.controller.StickyDig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
@@ -32,6 +34,20 @@ import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
 public final class WalkerTickPrelude {
+    /** Sticky planned-break dig (task#96 step B7): held across ticks so an interleaved
+     *  travel tick can't release attack (a single released tick resets vanilla mining
+     *  progress to zero; C28-J1 DIG-slow @-258,81,338: 200t of dig ticks interleaved with
+     *  attack=false travel ticks never completed one block). Engaged by Climb/Drive,
+     *  released by WalkerTickPrelude when the planned break is gone; deliberately NO
+     *  journey reset (release is world-state-driven). */
+    public final StickyDig stickyDig = new StickyDig();
+
+    public boolean descending;       // ending creative flight; wait to land before pathing
+
+    /** Forget what this phase keeps for the walk, as far as {@code scope} reaches. */
+    public void reset(ResetScope scope) {
+        descending = false;
+    }
 
     /** Progress-aware sticky-dig watchdog (see the release block): a dig may
      *  legitimately need 450-3750 CONSECUTIVE ticks under vanilla's stacked
@@ -39,7 +55,6 @@ public final class WalkerTickPrelude {
      *  backstop; the real release signal is destroyProgress stalling. */
     private static final int STICKY_DIG_STALL_TICKS = 60;
     private static final int STICKY_DIG_ABS_CAP_TICKS = 4000;
-    private WalkerTickPrelude() {}
 
     /**
      * The dig claim's RELEASE POLICY, and the only place it lives.
@@ -66,23 +81,23 @@ public final class WalkerTickPrelude {
      * old time box byte for byte: stall-only there would release at 60 ticks and be TIGHTER than what
      * it has today, which is a regression dressed as a fix.
      */
-    private static void expireDigClaim(Walker wk, Body a, WorldView world, LivingEntity p) {
-        if (!ControlConfig.walkerDigAimPriority || wk.stickyDig.pos == null) return;
+    private void expireDigClaim(Walker wk, Body a, WorldView world, LivingEntity p) {
+        if (!ControlConfig.walkerDigAimPriority || stickyDig.pos == null) return;
         float prog = wk.blocks.destroyProgress();
         boolean spent;
         if (prog < 0) {
-            spent = ++wk.stickyDig.ticks > Math.min(ControlConfig.breakTimeoutTicks, 300);
+            spent = ++stickyDig.ticks > Math.min(ControlConfig.breakTimeoutTicks, 300);
         } else {
-            if (prog > wk.stickyDig.lastProgress + 1e-4f) {
-                wk.stickyDig.lastProgress = prog;
-                wk.stickyDig.stallTicks = 0;
+            if (prog > stickyDig.lastProgress + 1e-4f) {
+                stickyDig.lastProgress = prog;
+                stickyDig.stallTicks = 0;
             } else {
-                if (prog < wk.stickyDig.lastProgress - 0.05f)
-                    wk.stickyDig.lastProgress = prog;   // vanilla re-based it — follow
-                wk.stickyDig.stallTicks++;
+                if (prog < stickyDig.lastProgress - 0.05f)
+                    stickyDig.lastProgress = prog;   // vanilla re-based it — follow
+                stickyDig.stallTicks++;
             }
-            spent = wk.stickyDig.stallTicks > STICKY_DIG_STALL_TICKS
-                    || ++wk.stickyDig.ticks > STICKY_DIG_ABS_CAP_TICKS;
+            spent = stickyDig.stallTicks > STICKY_DIG_STALL_TICKS
+                    || ++stickyDig.ticks > STICKY_DIG_ABS_CAP_TICKS;
         }
         // Out of mining reach — measured EYE to block centre against the range the game grants
         // this bot, which is the same question ServerPlayerBody.canBreakFromHere asks before
@@ -93,13 +108,13 @@ public final class WalkerTickPrelude {
         // above is 5.0 from the feet but only 3.4 from the eye (so it revoked the claim on a
         // block still well in reach, which is exactly the stand-under-and-mine-up case
         // MineProcess.findReachStand scans dy to −5 to create).
-        if (!world.isSolid(wk.stickyDig.pos) || spent
-                || !eyeWithin(p, wk.stickyDig.pos, blockReachToCentre(p))) {
+        if (!world.isSolid(stickyDig.pos) || spent
+                || !eyeWithin(p, stickyDig.pos, blockReachToCentre(p))) {
             if (GameConfig.walkerDebug)
                 LOG.info("[walker] dig-aim RELEASE {} solid={} ticks={} stall={} prog={}",
-                        wk.stickyDig.pos, world.isSolid(wk.stickyDig.pos), wk.stickyDig.ticks,
-                        wk.stickyDig.stallTicks, String.format("%.2f", wk.stickyDig.lastProgress));
-            wk.stickyDig.revoke();
+                        stickyDig.pos, world.isSolid(stickyDig.pos), stickyDig.ticks,
+                        stickyDig.stallTicks, String.format("%.2f", stickyDig.lastProgress));
+            stickyDig.revoke();
         }
     }
 
@@ -107,8 +122,8 @@ public final class WalkerTickPrelude {
      *  the level it left, so floor(y) read a row up and every "node below the foot" branch (aim at the node, the
      *  descent hold) took the heading over mid-flight and swung it 40° (R1 1422,64,-403). Until it lands the hop is
      *  judged from its take-off level. The keying tick itself may still be grounded, so landing counts after it. */
-    static BlockPos hopFoot(Walker wk, LivingEntity p, BlockPos foot) {
-        DriveLatches l = wk.driveLatch;
+    BlockPos hopFoot(Walker wk, LivingEntity p, BlockPos foot) {
+        DriveLatches l = wk.drive.driveLatch;
         if (l.hopY == Integer.MIN_VALUE) return foot;
         if (p.isInWater() || foot.getY() < l.hopY || p.onGround() && p.tickCount > l.hopTick + 1) {
             l.hopY = Integer.MIN_VALUE;
@@ -118,7 +133,7 @@ public final class WalkerTickPrelude {
     }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    public static TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    public TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         LivingEntity p = a.entity();
         if (p == null) { wk.error = "player vanished"; return wk.terminalReport(TickStep.FAILED, PathTrace.Outcome.ERROR, wk.error, "failed:" + wk.error, null); }
         wk.safety.guardParkourTick = false;
@@ -132,17 +147,17 @@ public final class WalkerTickPrelude {
         // depth-penalty (PathTuning.escalatedWhen) so A* commits a climb-OVER route instead of
         // re-committing a cheap shallow/cave segment. Off (back to configured defaults)
         // once the timer lapses, so easy-terrain searches are never slowed.
-        wk.escal.tick++;
-        boolean wasEscalating = wk.escal.wasArmed;
-        boolean escalating = wk.escal.armed();
-        wk.escal.wasArmed = escalating;
+        wk.stallDetect.escal.tick++;
+        boolean wasEscalating = wk.stallDetect.escal.wasArmed;
+        boolean escalating = wk.stallDetect.escal.armed();
+        wk.stallDetect.escal.wasArmed = escalating;
         if (escalating && !wasEscalating && GameConfig.walkerDebug)
             LOG.info("[walker] steep-barrier escalation ARMED (boxed churn) → horizon=0 depthPenalty>=25 softCommit>=35000 for {} ticks",
-                    wk.escal.untilTick - wk.escal.tick);
+                    wk.stallDetect.escal.untilTick - wk.stallDetect.escal.tick);
 
         // Expectation alarms read LAST tick's pressed state vs THIS tick's world response —
         // run before the per-tick input baseline below clears anything.
-        if (ControlConfig.walkerExpectAlarm) wk.exAlarms.tick(wk.blocks, a, world, p, wk.route.path(), wk.route.step(), wk.stepProg.noStepProgressTicks);
+        if (ControlConfig.walkerExpectAlarm) wk.exAlarms.tick(wk.blocks, a, world, p, wk.route.path(), wk.route.step(), wk.progress.stepProg.noStepProgressTicks);
 
         // Per-tick baseline for the jump/sneak channel: default to "not jumping / not
         // sneaking" so any path that returns without setting them can't leak a stale
@@ -161,16 +176,16 @@ public final class WalkerTickPrelude {
         if (flyer != null && flyer.getAbilities().flying) {
             flyer.getAbilities().flying = false;
             flyer.onUpdateAbilities();
-            if (!wk.descending && GameConfig.walkerDebug)
+            if (!descending && GameConfig.walkerDebug)
                 LOG.info(
                         "[walker] creative flight detected → disabling, will descend (y={})", p.getY());
-            wk.descending = true;
+            descending = true;
         }
         // Let the post-flight free-fall settle before we path — A* from a
         // mid-air foot finds no neighbours and reports "no path". Scoped to
         // this one-shot descent so the legitimately-airborne ticks of
         // jump / parkour / fall moves are untouched.
-        if (wk.descending) {
+        if (descending) {
             if (!p.onGround() && !world.isWater(new BlockPos(
                     (int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ())))) {
                 Walker.avatarForward(a, false);
@@ -181,7 +196,7 @@ public final class WalkerTickPrelude {
                             "[walker] descending… y={} onGround={}", p.getY(), p.onGround());
                 return TickStep.WALKING;
             }
-            wk.descending = false;
+            descending = false;
             if (GameConfig.walkerDebug)
                 LOG.info(
                         "[walker] landed at y={} → resume ground pathing", p.getY());

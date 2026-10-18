@@ -30,10 +30,11 @@ import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
 public final class WalkerTickEdgeGuards {
-    private WalkerTickEdgeGuards() {}
+    public int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
+    public int dbgTicksOnStep = 0;   // walkerDebug: ticks spent on the current step
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    public static TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    public TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
@@ -106,9 +107,9 @@ public final class WalkerTickEdgeGuards {
      * gate that together decide `within`), how many ticks on this step, the move and its break/place needs,
      * and the live bot state. Read it top to bottom to see which condition fails tick after tick.
      */
-    private static void trace(Walker wk, LivingEntity p, WorldView world, Move.Edge edge) {
-        if (wk.route.step() != wk.dbgPrevStep) { wk.dbgPrevStep = wk.route.step(); wk.dbgTicksOnStep = 0; }
-        wk.dbgTicksOnStep++;
+    private void trace(Walker wk, LivingEntity p, WorldView world, Move.Edge edge) {
+        if (wk.route.step() != dbgPrevStep) { dbgPrevStep = wk.route.step(); dbgTicksOnStep = 0; }
+        dbgTicksOnStep++;
         BlockPos nd = wk.route.path().get(wk.route.step());
         double ddx = (nd.getX() + 0.5) - p.getX();
         double ddz = (nd.getZ() + 0.5) - p.getZ();
@@ -123,7 +124,7 @@ public final class WalkerTickEdgeGuards {
         double bearing = Math.toDegrees(Math.atan2(-ddx, ddz));
         double yawErr = angleDiff(p.getYRot(), (float) bearing);
         LOG.info("[walker] t={} step={}/{} move={} node={},{},{} p=({},{},{}) pitch={} yaw={} bear={} yawErr={} hCol={} lastAim={} cur2={} (gate {}) |dY|={} (gate 1.2) within={} onG={} inW={} undW={} stuck={} totStuck={} pend={} break0={}{}",
-                wk.dbgTicksOnStep, wk.route.step(), wk.route.path().size(), edge != null ? edge.move : "-",
+                dbgTicksOnStep, wk.route.step(), wk.route.path().size(), edge != null ? edge.move : "-",
                 nd.getX(), nd.getY(), nd.getZ(),
                 String.format(Locale.ROOT, "%.2f", p.getX()), String.format(Locale.ROOT, "%.2f", p.getY()), String.format(Locale.ROOT, "%.2f", p.getZ()),
                 String.format(Locale.ROOT, "%.0f", p.getXRot()),
@@ -131,7 +132,7 @@ public final class WalkerTickEdgeGuards {
                 String.format(Locale.ROOT, "%.0f", bearing),
                 String.format(Locale.ROOT, "%.0f", yawErr),
                 p.horizontalCollision,
-                String.format(Locale.ROOT, "%.0f", wk.aimSmooth.lastAimYaw),
+                String.format(Locale.ROOT, "%.0f", wk.aim.aimSmooth.lastAimYaw),
                 String.format(Locale.ROOT, "%.3f", cur2), REACH_DIST_SQ,
                 String.format(Locale.ROOT, "%.2f", Math.abs(dY)), within,
                 p.onGround(), p.isInWater(), p.isUnderWater(),

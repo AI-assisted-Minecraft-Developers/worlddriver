@@ -61,7 +61,7 @@ public final class RouteAdoption {
                 edges = Collections.unmodifiableList(new ArrayList<>(edges.subList(0, cut + 1)));
             }
         }
-        wk.searchGov.noPathWaitTicks = 0;            // a segment was found → the no-path wait starts over
+        wk.search.gov.noPathWaitTicks = 0;            // a segment was found → the no-path wait starts over
         // A segment that ends FARTHER from the goal than it starts can only be
         // the last-resort ESCAPE (every other selector is strictly goal-ward):
         // its start is a PROVEN dead pocket. Charge it now so subsequent searches
@@ -227,9 +227,9 @@ public final class RouteAdoption {
      */
     private static void restartFollowing(Walker wk, boolean stub) {
         wk.stuckTicks = 0;
-        wk.stepProg.stuckStep = -1;        // new path geometry → restart the progress window
-        wk.stepProg.noStepProgressTicks = 0;   // new path → restart the wedge timer (else a same-index step re-triggers instantly)
-        wk.stepProg.noProgressStep = -1;
+        wk.progress.stepProg.stuckStep = -1;        // new path geometry → restart the progress window
+        wk.progress.stepProg.noStepProgressTicks = 0;   // new path → restart the wedge timer (else a same-index step re-triggers instantly)
+        wk.progress.stepProg.noProgressStep = -1;
         // A freshly adopted PROGRESSIVE stub (quick-start / open-water bee-line —
         // the only adopts with foot==null) is a brand-new runway in a NEW
         // direction, so the wedge-burst counter accrued against the stale segment
@@ -243,8 +243,8 @@ public final class RouteAdoption {
         // (foot != null) keeps its burst intact — that's the deterministic
         // same-segment deadlock breaker and must not be reset away.
         if (stub) wk.recovery.dropWedgeAnchor();
-        wk.stepProg.bestStepDist = Double.POSITIVE_INFINITY;
-        wk.stepProg.stuckStepHigh = wk.route.step() - 1;   // new path, new index semantics: one fresh window on the first tick, then high-water applies
+        wk.progress.stepProg.bestStepDist = Double.POSITIVE_INFINITY;
+        wk.progress.stepProg.stuckStepHigh = wk.route.step() - 1;   // new path, new index semantics: one fresh window on the first tick, then high-water applies
         wk.actionTicks = 0;
     }
 

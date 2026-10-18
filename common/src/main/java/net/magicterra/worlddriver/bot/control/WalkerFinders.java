@@ -24,14 +24,14 @@ public final class WalkerFinders {
                 // escalation is a sticky TIMER and a time-sliced search outlives it: a search that
                 // starts escalated must pick the re-capped horizon back up when the clock lapses, or
                 // it grinds on easy terrain instead of stopping early.
-                .withTuning(PathTuning.escalatedWhen(wk.escal::armed));
+                .withTuning(PathTuning.escalatedWhen(wk.stallDetect.escal::armed));
         return scoped(wk, pf).withOwner(wk.owner);
     }
 
     /** The quick-start finder: a small node cap, one call, on the same escalation as the deep one. */
     public static PathFinder quick(Walker wk, WorldView world, long maxMs) {
         PathFinder pf = new PathFinder(world, ControlConfig.pathfinderQuickNodes, maxMs, wk.profile)
-                .withTuning(PathTuning.escalatedWhen(wk.escal::armed));
+                .withTuning(PathTuning.escalatedWhen(wk.stallDetect.escal::armed));
         return scoped(wk, pf).withOwner(wk.owner);
     }
 

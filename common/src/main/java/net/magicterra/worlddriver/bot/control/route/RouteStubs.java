@@ -40,7 +40,7 @@ final class RouteStubs {
      *  @return true if a stub segment was adopted (path != null, step = 1). */
     static boolean quickStart(Walker wk, WorldView world, BlockPos foot, Goal goal) {
         if (ControlConfig.pathfinderQuickNodes <= 0) return false;
-        if (wk.searchGov.quickCooldown > 0) { wk.searchGov.quickCooldown--; return false; }
+        if (wk.search.gov.quickCooldown > 0) { wk.search.gov.quickCooldown--; return false; }
         PathFinder.Search q = WalkerFinders.quick(wk, world, QUICK_MAX_MS).newSearch(foot, goal);
         while (!q.advance(QUICK_MAX_MS)) { /* bounded by the node cap / QUICK_MAX_MS */ }
         PathFinder.Result res = q.result();
@@ -48,7 +48,7 @@ final class RouteStubs {
                 && goal.estimate(foot)
                    - goal.estimate(res.path().get(res.path().size() - 1)) >= 2.0;
         if (!useful) {
-            wk.searchGov.quickCooldown = QUICK_RETRY_TICKS;
+            wk.search.gov.quickCooldown = QUICK_RETRY_TICKS;
             return false;
         }
         if (GameConfig.walkerDebug)

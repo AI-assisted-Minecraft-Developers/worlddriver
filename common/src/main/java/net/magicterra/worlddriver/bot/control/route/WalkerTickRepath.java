@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.control.route;
 
 import net.magicterra.worlddriver.bot.control.TickStep;
+import net.magicterra.worlddriver.bot.control.ResetScope;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.body.Body;
@@ -29,10 +30,14 @@ import net.magicterra.worlddriver.bot.control.controller.Recovery;
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
 public final class WalkerTickRepath {
-    private WalkerTickRepath() {}
+    public int ticksSinceRepath;
+
+    public void reset(ResetScope scope) {
+        ticksSinceRepath = 0;
+    }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    public static TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    public TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
@@ -60,7 +65,7 @@ public final class WalkerTickRepath {
                     || (nbE != null && "bridgePlace".equals(nbE.move));
         }
         boolean fullPeriodic = !wk.route.seg.pathBestEffort && wk.route.path() != null && !bridgingNow
-                && wk.ticksSinceRepath > ControlConfig.walkerRepathEveryTicks;
+                && ticksSinceRepath > ControlConfig.walkerRepathEveryTicks;
         // ANTI-STUCK (forced displacement, Baritone-UnstuckChain-style): a
         // re-search from the SAME foot is deterministic — when the blocker is
         // a gap the executor can't thread but the planner prices passable
@@ -128,14 +133,14 @@ public final class WalkerTickRepath {
         // Futile-cycle backoff (gap #49-③): while cooling down after a futile search,
         // don't kick off another one — the churn loop otherwise relaunches a full-budget
         // A* every tick from the same foot toward the same unreachable goal.
-        if (wk.searchGov.searchBackoffTicks > 0) wk.searchGov.searchBackoffTicks--;
+        if (wk.search.gov.searchBackoffTicks > 0) wk.search.gov.searchBackoffTicks--;
         // A block on the plan ahead changed shape (someone built across it, broke the bridge, a door
         // shut). Whatever search is in flight was started on the old shape, so it goes too.
         boolean blockChanged = wk.route.blockChangeDue(p)
-                && wk.searchGov.searchBackoffTicks == 0 && !wk.searchGov.futileLatched(foot);
+                && wk.search.gov.searchBackoffTicks == 0 && !wk.search.gov.futileLatched(foot);
         if (blockChanged) wk.route.abortSearch();
         if (!wk.route.replay() && (safetyRepath || fullPeriodic || blockChanged) && wk.route.seg.activeSearch == null
-                && wk.searchGov.searchBackoffTicks == 0 && !wk.searchGov.futileLatched(foot)) {
+                && wk.search.gov.searchBackoffTicks == 0 && !wk.search.gov.futileLatched(foot)) {
             // Stuck too long on a move the Walker can't execute (a steep stepUp it
             // slides off, a pillar it can't ground)? Blacklist that node so this
             // re-search routes AROUND the wedge instead of re-planning into it —
@@ -147,14 +152,14 @@ public final class WalkerTickRepath {
             PathFinder.Search search = wk.newPathFinder(world).newSearch(searchFoot, wk.goal);
             if (blockChanged) noteBlockChange(wk, wk.route.searchAfterBlockChange(search), foot);
             else wk.route.searchFromFoot(search, false);   // placing allowed; budget re-checked on result
-            wk.ticksSinceRepath = 0;
+            ticksSinceRepath = 0;
         } else if (!wk.route.replay() && wk.route.seg.pathBestEffort && wk.route.seg.commitEnd != null
                 && wk.route.seg.activeSearch == null && wk.route.seg.pendingSegment == null
-                && wk.searchGov.searchBackoffTicks == 0 && !wk.searchGov.futileLatched(foot)
+                && wk.search.gov.searchBackoffTicks == 0 && !wk.search.gov.futileLatched(foot)
                 && continuationInLoadedReach(wk, p)) {
             // Eagerly precompute the next best-effort segment from the committed end.
             wk.route.searchFromEnd(wk, world);
-            wk.ticksSinceRepath = 0;
+            ticksSinceRepath = 0;
         }
         // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
         return null;
@@ -167,7 +172,7 @@ public final class WalkerTickRepath {
      * 8-10 s slower. Waiting until the body is within {@code walkerContinuationMaxLead} of the end
      * keeps end + horizon inside what the body has loaded.
      */
-    private static boolean continuationInLoadedReach(Walker wk, LivingEntity p) {
+    private boolean continuationInLoadedReach(Walker wk, LivingEntity p) {
         int lead = ControlConfig.walkerContinuationMaxLead;
         if (lead <= 0) return true;
         double dx = wk.route.seg.commitEnd.getX() + 0.5 - p.getX(), dz = wk.route.seg.commitEnd.getZ() + 0.5 - p.getZ();
@@ -175,7 +180,7 @@ public final class WalkerTickRepath {
     }
 
     /** One line per block-change replan, the first few per walker; {@link WalkerTallies#blockReplans} counts all. */
-    private static void noteBlockChange(Walker wk, String where, BlockPos foot) {
+    private void noteBlockChange(Walker wk, String where, BlockPos foot) {
         if (++wk.tallies.blockReplans <= BLOCK_REPLANS_LOGGED)
             LOG.info("[walker] block changed at {} → replanning from {} (owner={})", where, foot.toShortString(), wk.owner);
     }
@@ -206,7 +211,7 @@ public final class WalkerTickRepath {
      *  wedge penalty. A search that supersedes a route the walker had just adopted is otherwise
      *  invisible — the log shows the search, never the reason — and every trigger here looks the
      *  same from outside (client lane 2026-09-06: an adopted lane re-searched on its first tick). */
-    private static void kickoff(Walker wk, LivingEntity p, WorldView world, BlockPos foot, boolean wedged,
+    private void kickoff(Walker wk, LivingEntity p, WorldView world, BlockPos foot, boolean wedged,
                                 boolean fellOffPath, boolean offPath, boolean fellBelowRoute, boolean periodic) {
         if (GameConfig.walkerDebug)
             LOG.info("[walker] foot-search kickoff: pathNull={} stuck={} wedged={} offPath={} fellOff={} belowRoute={} periodic={} step={}/{}",
@@ -215,7 +220,7 @@ public final class WalkerTickRepath {
         penalizeWedgeNodes(wk, p, world, foot, wedged, fellOffPath);
     }
 
-    private static void penalizeWedgeNodes(Walker wk, LivingEntity p, WorldView world, BlockPos foot,
+    private void penalizeWedgeNodes(Walker wk, LivingEntity p, WorldView world, BlockPos foot,
                                            boolean wedged, boolean fellOffPath) {
         if (!((wk.stuckTicks > STUCK_TICKS || wedged || fellOffPath)
                 && wk.route.path() != null && wk.route.step() < wk.route.path().size())) return;

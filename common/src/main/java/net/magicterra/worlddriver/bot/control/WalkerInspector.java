@@ -66,9 +66,9 @@ public final class WalkerInspector {
         return (wk.route.path() == null ? "path=null" : "step=" + wk.route.step() + "/" + wk.route.path().size()
                 + " wp=" + (wp == null ? "-" : wp.getX() + "," + wp.getY() + "," + wp.getZ())
                 + (wk.route.seg.pathBestEffort ? " bestEffort" : ""))
-                + " recovery=" + wk.recovery.remaining() + " churnEsc=" + wk.churn.escapes
-                + " escal=" + (wk.escal.armed() ? "ON" : "off")
-                + " noStep=" + wk.stepProg.noStepProgressTicks
+                + " recovery=" + wk.recovery.remaining() + " churnEsc=" + wk.stallDetect.churn.escapes
+                + " escal=" + (wk.stallDetect.escal.armed() ? "ON" : "off")
+                + " noStep=" + wk.progress.stepProg.noStepProgressTicks
                 + " digFloat=" + wk.waterClimb.digFloatTicks + " gaveUp=" + wk.waterClimb.pillarGaveUp;
     }
 
@@ -82,7 +82,7 @@ public final class WalkerInspector {
         return "p#" + String.format("%03d", Math.floorMod(System.identityHashCode(wk.route.path()), 1000))
                 + " s" + wk.route.step() + "/" + wk.route.path().size()
                 + (wp == null ? "" : " w" + wp.getX() + "," + wp.getY() + "," + wp.getZ())
-                + " st" + wk.stuckTicks + "/" + wk.physStall.stallTicks;
+                + " st" + wk.stuckTicks + "/" + wk.progress.physStall.stallTicks;
     }
 
     /** Read-only compact dump of the CURRENT plan (nodes + move labels) for the same
@@ -265,7 +265,7 @@ public final class WalkerInspector {
      *  <b>sprint-jump maximum</b>, so {@code sprinting=false} at takeoff means the executor attempted
      *  a leap the planner priced for a run-up it was not allowed to take. Deliberately not read from
      *  {@code onGround}: this bot's is wrong in both directions. */
-    public String parkourTakeoff() { return wk.parkourTakeoff == null ? "none" : wk.parkourTakeoff; }
+    public String parkourTakeoff() { return wk.drive.parkourTakeoff == null ? "none" : wk.drive.parkourTakeoff; }
 
     /**
      * Every cell the plan's straight lines actually cross, for the first few segments — the reading

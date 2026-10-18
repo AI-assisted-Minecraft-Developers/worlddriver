@@ -42,9 +42,10 @@ method in this repository. Follow it rather than inventing a new shape.
 
 ## The pipeline
 
-`Walker#tickInner` constructs a fresh `WalkerTickCtx` and calls the phases in a fixed
-order. Each phase returns a `Step` to terminate the tick, or null to fall through to the
-next:
+Each phase is an object the walker holds in a field (`prelude`, `stallDetect`, `repath`,
+`search`, `progress`, `edgeGuards`, `aim`, `drive`). `Walker#tickInner` constructs a fresh
+`WalkerTickCtx` and calls the phases in a fixed order. Each phase returns a `TickStep` to
+terminate the tick, or null to fall through to the next:
 
 1. `WalkerTickPrelude`
 2. `WalkerTickStallDetect`
@@ -91,9 +92,14 @@ returns, and a fatal step came from a branch that never reached it.
 ## What crosses a phase boundary
 
 `WalkerTickCtx` is the per-tick handoff. A fresh instance is built every tick and nothing
-in it survives the tick; cross-tick state stays in `Walker` fields and in the typed state
-holders those fields are grouped into. The context is organised by the phase that
-*produces* each group:
+in it survives the tick. State that does survive lives with the phase that keeps it: the
+step-progress clocks and the arc shadow in `progress`, the churn window and the escalation
+clock in `stallDetect`, the sprint brakes in `drive`, and so on. Another phase reads it
+through the owner (`wk.progress.stepProg`). Each phase's `reset(ResetScope)` clears what it
+keeps when the walk gets a new goal or a replan. Only what belongs to the whole walk, such as
+the stall counter, the route and the error, stays on `Walker`.
+
+The context is organised by the phase that *produces* each group:
 
 | Group | Produced by | What it carries |
 |---|---|---|

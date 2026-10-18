@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The {@link WalkerTickCtx} handoff contract, as assertions instead of a javadoc.
  *
  * <p>{@code WalkerTickCtx} says "a phase writes its OWN product group ... a phase's
- * rehydrate block names exactly what it consumes", and the driver runs the nine phases
+ * rehydrate block names exactly what it consumes", and the driver runs the eight phases
  * in a fixed order. Nothing enforced either half. The failure that costs the most is
  * silent: a phase that reads {@code cx.aim.diving} before {@link WalkerTickAim} has run
  * gets {@code false} every single tick — no exception, no log, just a guard that never
@@ -167,13 +167,22 @@ class WalkerTickDataflowTest {
         }
     }
 
+    /** The phases are Walker fields ({@code prelude = new WalkerTickPrelude()}); the order is that of their
+     *  {@code run} calls, mapped back through the declarations to the phase names. */
     private static List<String> driverOrder() {
         assertTrue(Files.isDirectory(MOVEMENT),
                 "expected the module dir as cwd; got " + Path.of(".").toAbsolutePath());
-        Matcher m = Pattern.compile("WalkerTick(\\w+)\\.run\\s*\\(")
-                .matcher(strip(read(MOVEMENT.resolve("Walker.java"))));
+        String walker = strip(read(MOVEMENT.resolve("Walker.java")));
+        Map<String, String> phaseOfField = new LinkedHashMap<>();
+        Matcher d = Pattern.compile("final\\s+WalkerTick(\\w+)\\s+(\\w+)\\s*=\\s*new\\s+WalkerTick\\1\\s*\\(")
+                .matcher(walker);
+        while (d.find()) phaseOfField.put(d.group(2), d.group(1));
+        Matcher m = Pattern.compile("\\b(\\w+)\\.run\\s*\\(\\s*this\\b").matcher(walker);
         List<String> order = new ArrayList<>();
-        while (m.find()) order.add(m.group(1));
+        while (m.find()) {
+            String phase = phaseOfField.get(m.group(1));
+            if (phase != null) order.add(phase);
+        }
         return List.copyOf(order);
     }
 

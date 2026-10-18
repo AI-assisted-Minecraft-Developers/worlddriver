@@ -174,7 +174,7 @@ public final class WaterClimb implements Controller {
         }
         // The surface cruise's dip sinks the foot under its (water) node on purpose; that is not a
         // climb-out, and this takeover's jump + sprint cancel would undo the pose every stroke.
-        wantClimbNow = edge != null && !wk.driveLatch.cruiseOn
+        wantClimbNow = edge != null && !wk.drive.driveLatch.cruiseOn
                 && ((cwp.getY() > foot.getY() && climbTargetBeside) || floatingBankRam || surfaceClimbIntent);
         if (touchingWater) wk.waterClimb.touchRecent = WATER_TOUCH_STICKY;
         else if (wk.waterClimb.touchRecent > 0) wk.waterClimb.touchRecent--;
@@ -214,7 +214,7 @@ public final class WaterClimb implements Controller {
         // rung, so the old isWater(foot.below()) test missed it and let the futile pillar
         // re-engage (live 2026-06-24 -67x pit: 264 climbout-place ticks, foot.below() solid,
         // pillar↔dig↔repath thrash ~105 s). Ride the isInWater bob-blink with the latch.
-        boolean buoyantFloat = !p.onGround() && (p.isInWater() || wk.surfaceWaterLatch > 0);
+        boolean buoyantFloat = !p.onGround() && (p.isInWater() || wk.aim.surfaceWaterLatch > 0);
         deepDig = (world.isWater(foot.below()) || buoyantFloat)
                 && wk.mayBreak() && WorldConfig.allowSwimEscapeBreak;   // mayBreak(): honor per-goto forbidDig, not just the global switch
         // The climb context's inputs, one row per wet tick: the takeover and the bank dig are
@@ -824,7 +824,7 @@ public final class WaterClimb implements Controller {
                         // (0.08) closes on a node bearing that rotates as fast as it turns — the
                         // bot orbits the node a block out, for hundreds of ticks
                         // (wd.clientFlowingChannelPlaceOut, run 22: yaw wound from 69 to -817).
-                        if (ControlConfig.walkerClimbOutResyncsAim) wk.aimSmooth.reset();
+                        if (ControlConfig.walkerClimbOutResyncsAim) wk.aim.aimSmooth.reset();
                         if (GameConfig.walkerDebug)
                             LOG.info("[walker] water climb-out: topped out dry at y={} → flush walk, repath", foot.getY());
                         return TickStep.WALKING;

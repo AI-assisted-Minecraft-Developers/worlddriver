@@ -31,6 +31,8 @@ import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
  * <p>Hands are not claimed: climbing holds nothing.
  */
 public final class VineClimb implements Controller {
+    private float freeHangDriveYaw = Float.NaN;             // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter ±180° flips that would circle the bot off a narrow column — self-resyncing (no journey reset)
+
 
     private static final Set<Channel> CHANNELS = EnumSet.of(Channel.MOVE, Channel.LOOK, Channel.JUMP);
 
@@ -158,7 +160,7 @@ public final class VineClimb implements Controller {
                 // Climb PURE-VERTICAL — hold the camera, no horizontal drive, just the jump.
                 vYaw = p.getYRot();
                 freeHangDrive = false;
-                wk.freeHangDriveYaw = Float.NaN;            // resync the slew when a real bearing returns
+                freeHangDriveYaw = Float.NaN;            // resync the slew when a real bearing returns
             } else {
                 // SLEW-LIMIT the drive heading: turn a persistent heading at most ~30°/tick toward the
                 // bearing to wp. When `step` advances and wp flips, the heading averages the flip into
@@ -166,16 +168,16 @@ public final class VineClimb implements Controller {
                 // narrow-column flake). On the live -711 curtain the bearing is steady (the climb tracks
                 // the exit) so the slewed value just hugs it — the proven up-and-across path is intact.
                 float target = (float) Math.toDegrees(Math.atan2(-tx, tz));
-                if (Float.isNaN(wk.freeHangDriveYaw)) {
-                    wk.freeHangDriveYaw = target;            // snap on the first tick of the climb
+                if (Float.isNaN(freeHangDriveYaw)) {
+                    freeHangDriveYaw = target;            // snap on the first tick of the climb
                 } else {
-                    float dyaw = angleDiff(wk.freeHangDriveYaw, target);   // shortest turn toward target
+                    float dyaw = angleDiff(freeHangDriveYaw, target);   // shortest turn toward target
                     if (Math.abs(dyaw) > WALKER_MAX_YAW_SLEW_DEG) dyaw = Math.copySign(WALKER_MAX_YAW_SLEW_DEG, dyaw);
-                    wk.freeHangDriveYaw += dyaw;
+                    freeHangDriveYaw += dyaw;
                 }
                 freeHangDrive = true;
-                fhBearing = (float) Math.toRadians(wk.freeHangDriveYaw);   // drive along the slewed heading
-                vYaw = wk.freeHangDriveYaw;                  // camera follows the same slewed heading
+                fhBearing = (float) Math.toRadians(freeHangDriveYaw);   // drive along the slewed heading
+                vYaw = freeHangDriveYaw;                  // camera follows the same slewed heading
             }
         } else if (wallYaw != null) {
             vYaw = wallYaw;

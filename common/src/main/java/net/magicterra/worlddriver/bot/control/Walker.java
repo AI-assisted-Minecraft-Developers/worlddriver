@@ -1,15 +1,5 @@
 package net.magicterra.worlddriver.bot.control;
 
-import net.magicterra.worlddriver.bot.control.controller.StickyDig;
-import net.magicterra.worlddriver.bot.control.route.ArcShadow;
-import net.magicterra.worlddriver.bot.control.route.PhysicalStall;
-import net.magicterra.worlddriver.bot.control.route.StepProgress;
-import net.magicterra.worlddriver.bot.control.sense.BoxedChurn;
-import net.magicterra.worlddriver.bot.control.sense.EscalationClock;
-import net.magicterra.worlddriver.bot.control.sense.GoalSpin;
-import net.magicterra.worlddriver.bot.control.steer.DiveLatches;
-import net.magicterra.worlddriver.bot.control.steer.DriveLatches;
-import net.magicterra.worlddriver.bot.control.steer.RamFold;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.RulesConfig;
@@ -56,17 +46,14 @@ import net.magicterra.worlddriver.bot.control.controller.VineClimb;
 import net.magicterra.worlddriver.bot.control.controller.WalkerDig;
 import net.magicterra.worlddriver.bot.control.controller.WaterClimb;
 import net.magicterra.worlddriver.bot.control.medium.MediumLocomotor;
-import net.magicterra.worlddriver.bot.control.route.PathProjection;
 import net.magicterra.worlddriver.bot.control.route.PathSmoothing;
 import net.magicterra.worlddriver.bot.control.route.Route;
 import net.magicterra.worlddriver.bot.control.route.RouteAdoption;
-import net.magicterra.worlddriver.bot.control.route.SearchGovernors;
 import net.magicterra.worlddriver.bot.control.route.WalkerTickProgress;
 import net.magicterra.worlddriver.bot.control.route.WalkerTickRepath;
 import net.magicterra.worlddriver.bot.control.route.WalkerTickSearch;
 import net.magicterra.worlddriver.bot.control.sense.WalkerTickPrelude;
 import net.magicterra.worlddriver.bot.control.sense.WalkerTickStallDetect;
-import net.magicterra.worlddriver.bot.control.steer.AimSmoothing;
 import net.magicterra.worlddriver.bot.control.steer.StandToWork;
 import net.magicterra.worlddriver.bot.control.steer.WalkerTickAim;
 import net.magicterra.worlddriver.bot.control.steer.WalkerTickDrive;
@@ -152,48 +139,25 @@ public final class Walker implements Locomotor {
     public boolean mayBreak() {
         return WorldConfig.allowBreak && !profileForbidsBreak;
     }
-    /** Ticks the pointer has been HELD on a final node that is the goal while the foot is not yet
-     *  in it (walkerHoldLastNodeUntilStanding); keyed to the path and step it counts for. */
-    public int finalNodeHold;
-    public Object finalNodeHoldPath;
-    public int finalNodeHoldStep = -1;
     public boolean goalSnapChecked;   // one-shot per goal: snap an unstandable Goal.Block target to the nearest standable cell (see snapGoalToStandable) — needs a live WorldView so it runs on the first tick, not at start
     /** The plan and the searches for it; the only writer of either. */
     public final Route route = new Route();
     /** The guards that get the last word on a walking tick's input. */
     public final Safety safety = new Safety(this);
+    /** The tick's phases in pipeline order ({@link #tickInner}); each holds what it keeps from one tick to the next. */
+    public final WalkerTickPrelude prelude = new WalkerTickPrelude();
+    public final WalkerTickStallDetect stallDetect = new WalkerTickStallDetect();
+    public final WalkerTickRepath repath = new WalkerTickRepath();
+    public final WalkerTickSearch search = new WalkerTickSearch();
+    public final WalkerTickProgress progress = new WalkerTickProgress();
+    public final WalkerTickEdgeGuards edgeGuards = new WalkerTickEdgeGuards();
+    public final WalkerTickAim aim = new WalkerTickAim();
+    public final WalkerTickDrive drive = new WalkerTickDrive();
     /** The A* result before stringPull, as a tally — see {@link WalkerInspector#rawPlanTally()}. */
     public String rawPlan;
-    /** The first parkour takeoff this walk ever made — see WalkerTickDrive's latch. */
-    String parkourTakeoff;
-    public int ticksSinceRepath;
     public int stuckTicks;
-    /** Physical stall clock (§84): XZ-anchor ticks-without-displacement, fully
-     *  DECOUPLED from path/step/repath — the acceptance rig's "worst movement
-     *  stall" metric mirrored into the executor. WHY: a safety-repath loop swaps
-     *  the path every ~3s and each swap fires stepWindowFresh → stuckTicks=0, so
-     *  a physically frozen bot never accumulates past the stuckT>40 gates and
-     *  every stuck-gated recovery (wall-dig, ram-release) starves — the canopy
-     *  jump-ram pin (C97-J1 replay: 1200t frozen, leaves one instabreak punch
-     *  away, attack=false the whole time) is the third occurrence of this class
-     *  (§71 wall-pin, §80 pin were the first two, masked there because the path
-     *  happened to be stable). Anchor resets on >1.5 XZ blocks moved; vertical
-     *  bob (jump-ram) deliberately does not count as movement.
-     *  <p>Physical-stall anchor (task#96 step B7), owned by WalkerTickProgress; the stall
-     *  verdict is read by the aim/drive gates. Self-managing (re-anchors on real motion)
-     *  — no journey reset ever touched it. */
-    public final PhysicalStall physStall = new PhysicalStall();
     public int totalTicks;
     public int actionTicks;          // ticks spent on the current break/place edge
-    /** Sticky planned-break dig (task#96 step B7): held across ticks so an interleaved
-     *  travel tick can't release attack (a single released tick resets vanilla mining
-     *  progress to zero; C28-J1 DIG-slow @-258,81,338: 200t of dig ticks interleaved with
-     *  attack=false travel ticks never completed one block). Engaged by Climb/Drive,
-     *  released by WalkerTickPrelude when the planned break is gone; deliberately NO
-     *  journey reset (release is world-state-driven). */
-    public final StickyDig stickyDig = new StickyDig();
-    public boolean digDrivenThisTick, digKeyOwned;   // a dig drove the avatar this tick / the dig latch is a walker dig's (see DIG_KEY_RELEASE_TICKS)
-    public int digIdleTicks;                         // consecutive tick-ends with the latch owned and no dig driven
     /** The controllers, each holding its own state; the phases read some of it through these fields. */
     public final WaterClimb waterClimb = new WaterClimb();
     public final Pillar pillar = new Pillar();
@@ -208,79 +172,6 @@ public final class Walker implements Locomotor {
     // Extracted to WalkerExpectAlarms (all the ex* sentinel state + the observers) — purely
     // observational, never drives movement. Fed via exAlarms.tick / .notePlace / .noteRepathFlip.
     public final WalkerExpectAlarms exAlarms = new WalkerExpectAlarms();
-    /** Submerged-descent dive latches (task#96 step B), owned by WalkerTickAim; both
-     *  cleared on every journey reset via {@link DiveLatches#reset()}. */
-    public final DiveLatches dive = new DiveLatches();
-    public final AscendMovement ascendMovement = new AscendMovement();   // task#82 per-move machine (drives only when walkerAscendMovement is ON)
-    public boolean forceFellOffPath;   // task#82: AscendMovement returned UNREACHABLE/FAILED last delegated tick → OR into fellOffPath (line 1042) so the proven re-route fires
-    /** Riser-ram fold counters (task#96 step B7): the four stepUpFreeze/bank-follow
-     *  feeders, counted by WalkerTickAim (bankFollowRamTicks also driven in Drive).
-     *  All self-zero on their own disengage conditions — no journey reset ever
-     *  touched them. */
-    public final RamFold ramFold = new RamFold();
-    public boolean descending;       // ending creative flight; wait to land before pathing
-    /** Water anti-spin governor (task#96 step B9): consumed by the search/stall gates.
-     *  {@link GoalSpin#resetForNewGoal()} (start only) clears the baselines;
-     *  goalSpin.churnResets deliberately PERSISTS across goals (fresh-baseline grants are a
-     *  per-bot budget, not per-journey — do NOT add it to the reset). */
-    public final GoalSpin goalSpin = new GoalSpin();
-    /** Land boxed-pocket churn window (task#96 step B4), owned by WalkerTickStallDetect;
-     *  Walker's carrot logic reads hColRamTicks (walkerCarrotHColShrink).
-     *  {@link BoxedChurn#resetForNewGoal()} runs in start only (replan never
-     *  cleared this window); hColRamTicks has NO reset site anywhere — it self-zeroes
-     *  on every collision-free tick. The water anti-spin's goalSpin.churnResets stays a loose
-     *  field (cross-goal persistence — see its doc). */
-    public final BoxedChurn churn = new BoxedChurn();
-    /** Sticky steep-barrier escalation clock (task#96 step B4): tick is the monotonic
-     *  per-walker tick counter (incremented by WalkerTickPrelude, NEVER reset — the
-     *  sticky timer compares against it); armed by the churn window (WalkerTickStallDetect)
-     *  and the proactive pinch check ({@link #maybeArmPinchEscalation}); read live by this
-     *  walker's finders through {@link WalkerFinders}. Both journey resets
-     *  {@link EscalationClock#disarm()} so the escalation never leaks into the next goto. */
-    public final EscalationClock escal = new EscalationClock();
-    /** Per-step progress clocks (task#96 step B6), owned by WalkerTickProgress (the
-     *  per-tick updater); their verdicts feed StallDetect's wedge/ram folds and the
-     *  aim/drive stall gates, and WalkerTickPrelude forwards noStepProgressTicks to the
-     *  expectation alarms. {@link StepProgress#restartWindows()} is the journey reset
-     *  (start + replan — exactly the five fields both cleared); adoption and
-     *  beginScriptedFollow keep their DIFFERENT partial restarts as direct writes
-     *  (adoption re-bases stuckStepHigh to step-1, not -1). The dwell/orbit counters
-     *  self-manage on step/path change inside WalkerTickProgress. */
-    public final StepProgress stepProg = new StepProgress();
-    /** Phase-3: |ds| (blocks of arc-length per tick) at/under which the bot counts as making NO forward
-     *  path progress. A normal walk is ~1.0/tick, the slowest legit water-creep still clears ~0.1, so 0.05
-     *  flags a true wall-ram (literally pinned) without misfiring on slow-but-moving travel. */
-    private static final double ARC_WEDGE_DS = 0.05;
-    /** Phase-3: consecutive ARC_WEDGE_DS+horizontalCollision ticks before the arc-wedge folds into fellOffPath.
-     *  30 ticks (1.5 s) cuts the legacy ~100-tick (5 s) wedge wait by 70% while sitting well past a legit
-     *  stepUp/diagUp jump-mount (which presses the riser only ~5-10 t before it tops out and ds jumps). */
-    public static final int ARC_WEDGE_TICKS = 30;
-    /** Phase-3b net-arc-progress window (walkerArcProgressWedge). 40 ticks (2 s): a healthy walk advances ~8 blocks
-     *  of arc-length, the slowest legit climb still clears several, so requiring ≥ ARC_PROG_MIN net progress over the
-     *  window flags an oscillating/frozen limit cycle (net ≈ 0) without misfiring on slow-but-moving travel. Shorter
-     *  than the legacy 100-tick wedge so it recovers ~2.5× sooner. */
-    static final int ARC_PROG_WINDOW = 40;
-    static final double ARC_PROG_MIN = 2.0;
-    // ===== Phase-0 SHADOW arc-length pursuit (walkerArcLengthShadow) — DRIVES NOTHING, logged only =====
-    /** Arc-length shadow pursuit (task#96 step B8): updated ONLY by {@link #arcShadowTick}
-     *  (called per tick from WalkerTickProgress); the wedge/stall verdicts are consumed by
-     *  StallDetect/Drive, the projection by Aim/Progress. NO journey reset — everything
-     *  self-resets on a path-identity change (shadowPath != path), and Progress clears the
-     *  windows on a no-projection tick. */
-    public final ArcShadow arc = new ArcShadow();
-    public float freeHangDriveYaw = Float.NaN;             // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter ±180° flips that would circle the bot off a narrow column — EdgeGuards-owned, self-resyncing (no journey reset)
-    public int surfaceWaterLatch = 0;                      // ticks the open-water swim stays latched after a surface bob lifts the foot out of the fluid (rides out the isInWater blink) — read across Aim/Climb/Progress; belongs to a future water-state family
-    /** Aim/heading smoothing state — see {@link AimSmoothing}. */
-    public final AimSmoothing aimSmooth = new AimSmoothing();
-    /** Descent/water sprint-brake latches + drive debouncers (task#96 step B5), owned by
-     *  WalkerTickDrive. {@link DriveLatches#reset()} clears only the two sprint-brake
-     *  latches (exactly what both journey resets cleared); the debounce counters
-     *  self-manage per tick. */
-    public final DriveLatches driveLatch = new DriveLatches();
-    /** @see SearchGovernors */
-    public final SearchGovernors searchGov = new SearchGovernors();
-    public int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
-    public int dbgTicksOnStep = 0;   // walkerDebug: ticks spent on the current step
     /** Why the walk failed, or why a branch last threw the route away; the failing branch's text is
      *  what {@link #result()} reports. */
     public String error;
@@ -310,21 +201,21 @@ public final class Walker implements Locomotor {
      * segment end goes, since the path it would extend is cleared.
      */
     @Override public void retarget(Goal g) {
-        double bestDist = searchGov.futileBestDist;
-        BlockPos bestFoot = searchGov.futileFoot;
-        Goal yardstick = searchGov.futileGoal;
-        BlockPos latchFoot = searchGov.futileLatchFoot;
-        int searches = searchGov.futileSearches;
-        int backoff = searchGov.searchBackoffTicks;
+        double bestDist = search.gov.futileBestDist;
+        BlockPos bestFoot = search.gov.futileFoot;
+        Goal yardstick = search.gov.futileGoal;
+        BlockPos latchFoot = search.gov.futileLatchFoot;
+        int searches = search.gov.futileSearches;
+        int backoff = search.gov.searchBackoffTicks;
         PathFinder.Search running = route.seg.searchFromEnd ? null : route.seg.activeSearch;
         boolean placeSuppressed = route.seg.searchSuppressedPlace;
         start(g);
-        searchGov.futileBestDist = bestDist;
-        searchGov.futileFoot = bestFoot;
-        searchGov.futileGoal = yardstick;
-        searchGov.futileLatchFoot = latchFoot;
-        searchGov.futileSearches = searches;
-        searchGov.searchBackoffTicks = backoff;
+        search.gov.futileBestDist = bestDist;
+        search.gov.futileFoot = bestFoot;
+        search.gov.futileGoal = yardstick;
+        search.gov.futileLatchFoot = latchFoot;
+        search.gov.futileSearches = searches;
+        search.gov.searchBackoffTicks = backoff;
         if (running != null) route.searchFromFoot(running, placeSuppressed);
         if (medium != null) medium.retarget(g);
     }
@@ -340,26 +231,22 @@ public final class Walker implements Locomotor {
 
 
     private void reset(ResetScope scope, String why) {
-        ticksSinceRepath = 0;
         stuckTicks = 0;
         actionTicks = 0;
         arbiter.reset(scope, why);
-        dive.reset();
-        driveLatch.reset();
-        descending = false;
-        escal.disarm();
-        stepProg.restartWindows();
-        aimSmooth.reset();
+        prelude.reset(scope);
+        stallDetect.reset(scope);
+        repath.reset(scope);
+        search.reset(scope);
+        progress.reset(scope);
+        aim.reset(scope);
+        drive.reset(scope);
         if (scope == ResetScope.REPLAN) {
             route.clear();
-            searchGov.quickCooldown = 0;
             return;
         }
         route.restart();
         totalTicks = 0;
-        goalSpin.resetForNewGoal();
-        searchGov.reset();
-        churn.resetForNewGoal();
         safety.guardPlugCell = null;    // plug arming is per-journey; a stale cell must not pre-arm the next goal
         safety.guardPlugFires = 0;
         // The pin itself is kept: it is about the lip the bot stands at, not the goal, and releasing a
@@ -469,8 +356,8 @@ public final class Walker implements Locomotor {
         start(endGoal);
         RouteAdoption.adopt(this, new PathFinder.Result(plan, planEdges, false, 0, 0L, 0.0), world, null);
         route.seek(startStep);
-        this.stepProg.noProgressStep = -1;          // force a fresh noStepProgressTicks baseline at the injected step
-        this.stepProg.noStepProgressTicks = 0;
+        progress.stepProg.noProgressStep = -1;          // force a fresh noStepProgressTicks baseline at the injected step
+        progress.stepProg.noStepProgressTicks = 0;
     }
 
     /**
@@ -493,63 +380,6 @@ public final class Walker implements Locomotor {
     }
     @Override public int pathStep() { return medium != null ? medium.pathStep() : route.step(); }
 
-    /** Latch the FIRST parkour takeoff of this walk. The sprint decision is taken a tick before the
-     *  jump, so {@code isSprinting()} here is the state the leap actually launches with. Only the
-     *  first is kept: a bot that has already fallen keeps producing these.
-     *
-     *  <p><b>The five samples are not guaranteed to be five CONSECUTIVE ticks.</b> This call sits in
-     *  the drive tail, which a dozen branches (dig, pillar, escape, step-up) return before reaching,
-     *  so "t+0..t+4" means "the first five ticks the drive got this far". A run of five with
-     *  {@code onGround=false} therefore does NOT by itself distinguish a bot that was standing and
-     *  refused the jump from a bot that was already falling when the parkour edge became current —
-     *  the exact y and the sole area are what separate them, which is why both are printed. */
-    public void noteParkourTakeoff(WorldView world, Body a, LivingEntity p, boolean jump, BlockPos foot) {
-        if (parkourSamples >= 5) return;
-        double h = Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z);
-        if (parkourSamples == 0) parkourTakeoffBuf = new StringBuilder();
-        long now = p.level().getGameTime();
-        long lastJump = a.dbgLastJumpTick();
-        parkourTakeoffBuf.append(parkourSamples == 0 ? "" : " | ")
-                // The SAMPLE index and the GAME TICK, because they are not the same thing: this
-                // latch sits in the drive tail, which a dozen branches return before reaching, so
-                // "t+2" is the third sample, not the third tick. Without the absolute tick the
-                // phrase "N ticks before takeoff" has no meaning to argue over.
-                .append("t+").append(parkourSamples).append("@").append(now)
-                // Ticks since the bot last actually EMITTED an impulse (not since one was asked
-                // for). This is what separates a bot that jumped ITSELF off the platform — the
-                // parkour edge became current mid-arc — from one that simply walked off the lip:
-                // the first has a small number here, the second has "none".
-                .append(" sinceLastJump=").append(lastJump < 0 ? "none" : String.valueOf(now - lastJump))
-                .append(" jump=").append(jump)
-                .append(" sprinting=").append(p.isSprinting())
-                .append(String.format(java.util.Locale.ROOT, " h=%.4f", h))
-                // ASK THE ATTRIBUTE, do not extrapolate the curve. Sprint is ×1.3 through
-                // Attributes.MOVEMENT_SPEED (verified in 1.21.1: SPEED_MODIFIER_SPRINTING = 0.3,
-                // ADD_MULTIPLIED_TOTAL), so 0.13 here means the channel works and 0.1 means the
-                // modifier never took. The expected steady-state cap is printed beside it so nobody
-                // has to redo the arithmetic.
-                .append(String.format(java.util.Locale.ROOT, " speedAttr=%.4f(expected steady-state cap %.4f)",
-                        p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED),
-                        p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED) * 2.1585))
-                // THE QUANTITY THE JUMP BRANCHES ON (vanilla's gate, on both bots), kept as an
-                // input rather than as truth: onGround IS vanilla's verticalCollisionBelow
-                // (Entity.move assigns one from the other in a single statement), so it describes the
-                // previous MOVE and is wrong in both directions about where the bot is.
-                .append(" onGround=").append(p.onGround())
-                // THE SOLE READING the walker's own footing guards use. Printed beside onGround
-                // so a run says which of the two was lying, and printed with the EXACT y because
-                // that is the only thing that tells a standing bot from a falling one when the
-                // block coordinate below is the same for both (a bot falling from y=49.9 spends
-                // three ticks inside block y=49, exactly like a bot resting on y=49.0).
-                .append(String.format(java.util.Locale.ROOT, " soleOnSolid=%.4f y=%.4f",
-                        WalkerGeometry.soleOnSolid(world, p), p.getY()))
-                .append(" foot=").append(foot.toShortString());
-        parkourSamples++;
-        parkourTakeoff = parkourTakeoffBuf.toString();
-    }
-
-    private int parkourSamples;
-    private StringBuilder parkourTakeoffBuf;
 
     /** TEST SEAM — run {@link RouteAdoption#adopt} with an explicit {@code foot} so a harness can exercise the
      *  segment anchor-gate (the {@code mis-anchored segment} reject vs the deep-water-float open-water
@@ -824,7 +654,7 @@ public final class Walker implements Locomotor {
         // gap #53 death strode over a well mouth from a branch that never reached it. Run the
         // stride floor-guard here, after EVERY decision path, before the avatar integrates.
         TickStep s = tickInner(a, world);
-        WalkerTickDrive.settleDigKey(this, a);   // a walker-held attack key outlives its dig by DIG_KEY_RELEASE_TICKS only
+        drive.settleDigKey(this, a);   // a walker-held attack key outlives its dig by DIG_KEY_RELEASE_TICKS only
         LivingEntity tp = a.entity();
         tel.lastTickTrace = "step=" + s + " jumpTag=" + (jumpTag == null ? "untagged" : jumpTag)
                 + (tp == null ? "" : " pos=" + String.format(java.util.Locale.ROOT, "%.2f,%.2f,%.2f",
@@ -970,11 +800,11 @@ public final class Walker implements Locomotor {
     private TickStep tickInner(Body a, WorldView world) {
         WalkerTickCtx c = new WalkerTickCtx();
         TickStep r;
-        r = WalkerTickPrelude.run(this, c, a, world); if (r != null) return r;
-        r = WalkerTickStallDetect.run(this, c, a, world); if (r != null) return r;
-        r = WalkerTickRepath.run(this, c, a, world); if (r != null) return r;
-        r = WalkerTickSearch.run(this, c, a, world); if (r != null) return r;
-        r = WalkerTickProgress.run(this, c, a, world); if (r != null) return r;
+        r = prelude.run(this, c, a, world); if (r != null) return r;
+        r = stallDetect.run(this, c, a, world); if (r != null) return r;
+        r = repath.run(this, c, a, world); if (r != null) return r;
+        r = search.run(this, c, a, world); if (r != null) return r;
+        r = progress.run(this, c, a, world); if (r != null) return r;
         // The route is settled for this tick; now the controllers.
         Set<Channel> taken = arbiter.tick(this, c, a, world);
         if (!taken.contains(Channel.HANDS)) {
@@ -985,9 +815,9 @@ public final class Walker implements Locomotor {
         // ends the tick's decisions here, and one on LOOK leaves the walk standing to let it work.
         if (taken.contains(Channel.MOVE)) return TickStep.WALKING;
         if (taken.contains(Channel.LOOK)) return StandToWork.run(this, c, a, routeDig.work());
-        r = WalkerTickEdgeGuards.run(this, c, a, world); if (r != null) return r;
-        r = WalkerTickAim.run(this, c, a, world); if (r != null) return r;
-        r = WalkerTickDrive.run(this, c, a, world);
+        r = edgeGuards.run(this, c, a, world); if (r != null) return r;
+        r = aim.run(this, c, a, world); if (r != null) return r;
+        r = drive.run(this, c, a, world);
         if (r == TickStep.WALKING) WalkerDig.preDigNextBreak(this, a, world);
         return r;
     }
@@ -1040,8 +870,8 @@ public final class Walker implements Locomotor {
         if (res.goalReached() || route.seg.commitEnd == null) return;      // healthy full route → no escalation
         double progress = goal.estimate(foot) - goal.estimate(route.seg.commitEnd);
         if (progress >= PINCH_MIN_PROGRESS) return;              // real headway → not a pinch
-        boolean wasArmed = escal.armed();
-        escal.arm(BOXED_ESCALATE_STICKY_TICKS);
+        boolean wasArmed = stallDetect.escal.armed();
+        stallDetect.escal.arm(BOXED_ESCALATE_STICKY_TICKS);
         if (GameConfig.walkerDebug && !wasArmed)
             LOG.info("[walker] proactive pinch escalation ARMED: best-effort commit gained only {} blocks toward goal → deepen next search",
                     String.format("%.1f", progress));
@@ -1085,55 +915,6 @@ public final class Walker implements Locomotor {
         return "stepUp".equals(move) || "stairUpBreak".equals(move) || "diagUp".equals(move);
     }
 
-    /** Phase-0 SHADOW arc-length pursuit (walkerArcLengthShadow). Projects the continuous foot XZ onto the
-     *  path polyline within a FORWARD window [step, step+W] (so it can't snap backward onto a self-overlapping
-     *  earlier segment — the dominant projection risk), honouring the adoption's overlap barriers (a submerged
-     *  below-node is a hard dive barrier; a pending break/place edge stops the scan). Reports the projected
-     *  segment, cumulative XZ arc-length s (from path[0]), horizontal perpendicular distance, and the tangent
-     *  heading at s+lookahead — and counts backward-snap events (ds&lt;-0.5). DRIVES NOTHING; this only proves
-     *  (via replay) that s is monotonic and the projected segment tracks the live {@code step} on clean runs,
-     *  the precondition for Phase 1 driving the step pointer off the projection. */
-    public void arcShadowTick(WorldView world, BlockPos foot, double px, double pz, float liveYaw, boolean inW, boolean hCol) {
-        arc.proj.compute(route.path(), route.edges(), world, route.step(), foot.getY(), px, pz, 16, 2.5);
-        // Monotonic / backward-snap check vs the previous tick (reset on a fresh path object).
-        boolean reset = (route.path() != arc.shadowPath);
-        double ds = (reset || Double.isNaN(arc.shadowS)) ? 0.0 : arc.proj.s - arc.shadowS;
-        if (!reset && ds < -0.5) arc.monoViol++;
-        // Phase-3 arc-wedge accumulator: a grounded DRY forward-RAM that makes no arc progress. Excluded when the
-        // forward window is blocked by a pending vertical edge (arc.proj.barrierHit = a legit pillar/bridge/parkour
-        // hold where zero ds is expected) or on a fresh path. The horizontalCollision gate keeps it off deliberate
-        // non-ramming pauses (brakes, goal-dwell). EXCLUDES water: in water |ds|≈0 while hCol is the NORMAL state of
-        // a swim-into-bank / climb-out, which owns its own dedicated recovery (waterCellTax / swimBankClimb / dig);
-        // firing the wedge there repath-storms the climb-out and resets its aim every reroute (live -665 water-gap:
-        // 7× arc-wedge at step 1 in water, dYaw stuck 95°, repeated turning back and side-to-side swerving). The targeted ram is the DRY mountain
-        // wall-ram. Bob/jitter-immune: vertical motion doesn't move the XZ projection.
-        if (reset || inW || arc.proj.barrierHit || !hCol || Math.abs(ds) > ARC_WEDGE_DS) arc.wedgeTicks = 0;
-        else arc.wedgeTicks++;
-        // Phase-3b NET arc-progress window: an oscillating limit cycle makes per-tick |ds| > ARC_WEDGE_DS (so the ram
-        // counter above resets) yet zero NET path progress. Measure s over a whole window instead. Excludes water
-        // (own recovery) and a legit pending-vertical-edge hold (barrierHit = expected zero ds). No hCol/onGround gate
-        // — a bob-jumping airborne churn has neither.
-        if (reset || inW) { arc.progBaseS = arc.proj.s; arc.progWindowTicks = 0; arc.progStall = false; }
-        else if (++arc.progWindowTicks >= ARC_PROG_WINDOW) {
-            arc.progStall = !arc.proj.barrierHit && (arc.proj.s - arc.progBaseS) < ARC_PROG_MIN;
-            if (arc.progStall && GameConfig.walkerDebug)
-                LOG.info("[walker] arc-progress-wedge: net s={} < {} over {} ticks at step={} node={} → fellOffPath",
-                        String.format("%.2f", arc.proj.s - arc.progBaseS), ARC_PROG_MIN, ARC_PROG_WINDOW, route.step(),
-                        (route.step() < route.path().size() ? route.path().get(route.step()) : null));
-            arc.progBaseS = arc.proj.s;
-            arc.progWindowTicks = 0;
-        }
-        arc.shadowPath = route.path();
-        arc.shadowS = arc.proj.s;
-        float dYaw = angleDiff(arc.proj.tangentYaw, liveYaw);    // the camera-vs-tangent gap
-        if (GameConfig.walkerDebug)
-            LOG.info("[walker] arc-shadow step={} projSeg={} segFrac={} s={} ds={} perp={} tanYaw={} liveYaw={} dYaw={} monoViol={} inW={}",
-                    route.step(), arc.proj.segIdx, String.format("%.2f", arc.proj.segFrac), String.format("%.2f", arc.proj.s),
-                    String.format("%.2f", ds), String.format("%.2f", arc.proj.perp),
-                    String.format("%.1f", arc.proj.tangentYaw), String.format("%.1f", liveYaw),
-                    String.format("%.1f", Math.abs(dYaw)),
-                    arc.monoViol, inW);
-    }
 
     /** A continuously-sliding aim point {@code CARROT_DIST} blocks ahead
      *  along the path (interpolated between nodes), capped by line-of-sight —
@@ -1147,7 +928,7 @@ public final class Walker implements Locomotor {
         // Sustained wall collision → the far carrot is steering the bot at a gap only
         // the LOS ray fits (jungle trunks). Collapse pursuit to the immediate node —
         // the A* chain is walkable at player width by construction (walkerCarrotHColShrink).
-        if (ControlConfig.walkerCarrotHColShrink && churn.hColRamTicks >= 8) remaining = 0.01;
+        if (ControlConfig.walkerCarrotHColShrink && stallDetect.churn.hColRamTicks >= 8) remaining = 0.01;
         // No LOS even to the current node falls back to that node, not to the bot itself: a zero aim
         // vector holds the stale yaw, and a bot that walked off a pulled diagonal kept ramming the
         // corner it had drifted onto (live 2026-09-28, 1389.57,66,-478.70: 38 ticks, bearing to wp -131, yaw -178).

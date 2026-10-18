@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.control.route;
 
 import net.magicterra.worlddriver.bot.control.TickStep;
+import net.magicterra.worlddriver.bot.control.ResetScope;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.body.Body;
@@ -33,7 +34,14 @@ import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
 public final class WalkerTickSearch {
-    private WalkerTickSearch() {}
+    /** @see SearchGovernors */
+    public final SearchGovernors gov = new SearchGovernors();
+
+    /** A replan only lifts the quick cooldown; a new goal starts every governor afresh. */
+    public void reset(ResetScope scope) {
+        if (scope == ResetScope.REPLAN) gov.quickCooldown = 0;
+        else gov.reset();
+    }
 
     /**
      * Tally WHY the futile-search gate is skipping this completed search, and say whether it is.
@@ -46,7 +54,7 @@ public final class WalkerTickSearch {
      * the gate's, in the gate's order, so nothing here changes what the gate does; the only reason
      * this is one method and not an expression is {@code run()}'s per-method budget.
      */
-    private static boolean futileGateExcluded(PathFinder.Result res, Body a, Walker wk,
+    private boolean futileGateExcluded(PathFinder.Result res, Body a, Walker wk,
                                               WorldView world, BlockPos foot, boolean dugLastTick) {
         int bucket = -1;
         if (ControlConfig.walkerFutileSearchCap <= 0) bucket = 0;
@@ -83,50 +91,50 @@ public final class WalkerTickSearch {
      *
      * @return non-null Step to end the tick, or null to fall through.
      */
-    private static TickStep futileGateJudge(PathFinder.Result res, Body a, Walker wk,
+    private TickStep futileGateJudge(PathFinder.Result res, Body a, Walker wk,
                                                WorldView world, BlockPos foot, LivingEntity p,
                                                boolean dugLastTick) {
         if (futileGateExcluded(res, a, wk, world, foot, dugLastTick)) return null;
         // An unseeded baseline is +INFINITY, which makes the first comparison after every reset
         // trivially "got closer" — a free zeroing donated by the reset itself. The first judged
         // search has nothing to compare against: it SEEDS, it does not judge.
-        boolean seeded = wk.searchGov.futileGoal != null
-                && wk.searchGov.futileBestDist != Double.POSITIVE_INFINITY;
+        boolean seeded = gov.futileGoal != null
+                && gov.futileBestDist != Double.POSITIVE_INFINITY;
         // Judge today's foot with YESTERDAY's goal. A pursuit re-goals as its quarry moves and every
         // re-goal resets goalSpin, so measured against the CURRENT goal the quarry drifting closer
         // reads as the bot having earned ground. Against the goal that set the baseline it does
         // not — and this holds for every goal shape, with no per-shape arithmetic to get wrong.
         boolean gotCloser = seeded
-                && wk.searchGov.futileGoal.estimate(foot) < wk.searchGov.futileBestDist - 0.5;
-        boolean moved = wk.searchGov.futileFoot != null && wk.searchGov.futileFoot.distSqr(foot) > 4;
+                && gov.futileGoal.estimate(foot) < gov.futileBestDist - 0.5;
+        boolean moved = gov.futileFoot != null && gov.futileFoot.distSqr(foot) > 4;
         wk.tel.futileGateBuckets.incrementAndGet(!seeded ? 9 : gotCloser ? 6 : moved ? 7 : 8);
         if (!seeded || gotCloser || moved) {
-            if (seeded) wk.searchGov.futileSearches = 0;
-            wk.searchGov.futileBestDist = wk.goalSpin.bestDistToGoal;
-            wk.searchGov.futileFoot = foot;
-            wk.searchGov.futileGoal = wk.goal;
-            wk.searchGov.futileLatchFoot = null;
-        } else if (++wk.searchGov.futileSearches >= ControlConfig.walkerFutileSearchCap) {
-            wk.error = "no route progress after " + wk.searchGov.futileSearches
+            if (seeded) gov.futileSearches = 0;
+            gov.futileBestDist = wk.stallDetect.goalSpin.bestDistToGoal;
+            gov.futileFoot = foot;
+            gov.futileGoal = wk.goal;
+            gov.futileLatchFoot = null;
+        } else if (++gov.futileSearches >= ControlConfig.walkerFutileSearchCap) {
+            wk.error = "no route progress after " + gov.futileSearches
                     + " consecutive searches — goal unreachable from here (best dist="
-                    + Math.round(wk.goalSpin.bestDistToGoal) + ")";
+                    + Math.round(wk.stallDetect.goalSpin.bestDistToGoal) + ")";
             // Latch on the foot, not on the goal: this terminal costs a full A* every tick it is
             // re-reported, and a caller that ignores the return value (or re-goals at a moving
             // quarry) would otherwise pay it forever.
-            wk.searchGov.futileLatchFoot = foot;
+            gov.futileLatchFoot = foot;
             return wk.terminalReport(TickStep.FAILED, PathTrace.Outcome.NO_PATH, wk.error,
                     "failed:" + wk.error, p.blockPosition());
         } else {
             // Cool down before the next kickoff so the wait between futile cycles stops burning
             // full search budgets (4→8→16→32-tick backoff).
-            wk.searchGov.searchBackoffTicks = Math.min(40, 4 << Math.min(wk.searchGov.futileSearches, 3));
+            gov.searchBackoffTicks = Math.min(40, 4 << Math.min(gov.futileSearches, 3));
         }
         return null;
     }
 
     /** A landed search the adoption refused: the old plan stays (or, with none, the next tick searches
      *  again from the feet), so the only trace a refusal leaves is the one written here. */
-    private static void refused(Walker wk, Route.Adoption adoption, BlockPos foot) {
+    private void refused(Walker wk, Route.Adoption adoption, BlockPos foot) {
         wk.tallies.refusals++;
         wk.tallies.lastRefusal = adoption.refusal();
         if (wk.tallies.refusals <= REFUSALS_LOGGED)
@@ -139,7 +147,7 @@ public final class WalkerTickSearch {
     private static final int REFUSALS_LOGGED = 8;
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    public static TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    public TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
@@ -249,15 +257,15 @@ public final class WalkerTickSearch {
                 // CHURN_REPATH_CAP) so the churn stops winding the camera while the bot
                 // keeps pressing toward the climb-out; only after a long stall with no
                 // progress at all do we give up best-effort instead of pressing forever.
-                if (d < wk.goalSpin.bestGoalDist - 5.0) { wk.goalSpin.bestGoalDist = d; wk.goalSpin.repathsNoProgress = 0; wk.goalSpin.churnResets = 0; }
-                else wk.goalSpin.repathsNoProgress++;
+                if (d < wk.stallDetect.goalSpin.bestGoalDist - 5.0) { wk.stallDetect.goalSpin.bestGoalDist = d; wk.stallDetect.goalSpin.repathsNoProgress = 0; wk.stallDetect.goalSpin.churnResets = 0; }
+                else wk.stallDetect.goalSpin.repathsNoProgress++;
                 // Only a bot actually AFLOAT counts as a water repath: the old
                 // `|| isWater(foot.below())` arm also matched a bot standing on dry
                 // ground beside a waterfall, so a canyon pacing loop was misread as
                 // water churn and the goto ended in a FAKE ARRIVED at (420,-349)
                 // (live 2026-06-09, "anti-spin: 13/15 water repaths" on dry land).
                 boolean overWaterRepath = p.isInWater() && !p.onGround();
-                if (overWaterRepath && !res.goalReached() && wk.goalSpin.repathsNoProgress > CHURN_GIVEUP_CAP) {
+                if (overWaterRepath && !res.goalReached() && wk.stallDetect.goalSpin.repathsNoProgress > CHURN_GIVEUP_CAP) {
                     // A LEGITIMATE go-around also reads as "no progress" here: rounding a
                     // lava arm via the river pushed d above the pre-detour best for 13+
                     // repaths and the give-up fired mid-journey with 440 blocks to go
@@ -267,17 +275,17 @@ public final class WalkerTickSearch {
                     // detour soon improves on the new baseline (and any true progress
                     // resets churnResets); only a churn that stalls through several fresh
                     // baselines is the genuine unwinnable spin.
-                    if (wk.goalSpin.churnResets < CHURN_MAX_RESETS) {
-                        wk.goalSpin.churnResets++;
-                        wk.goalSpin.bestGoalDist = d;
-                        wk.goalSpin.repathsNoProgress = 0;
+                    if (wk.stallDetect.goalSpin.churnResets < CHURN_MAX_RESETS) {
+                        wk.stallDetect.goalSpin.churnResets++;
+                        wk.stallDetect.goalSpin.bestGoalDist = d;
+                        wk.stallDetect.goalSpin.repathsNoProgress = 0;
                         if (GameConfig.walkerDebug)
                             LOG.info("[walker] anti-spin: stalled in water (d={}) → re-baseline {}/{}",
-                                    String.format(Locale.ROOT, "%.0f", d), wk.goalSpin.churnResets, CHURN_MAX_RESETS);
+                                    String.format(Locale.ROOT, "%.0f", d), wk.stallDetect.goalSpin.churnResets, CHURN_MAX_RESETS);
                     } else {
                         if (GameConfig.walkerDebug)
                             LOG.info("[walker] anti-spin: {} water repaths w/o progress after {} re-baselines (d={}) → end best-effort",
-                                    wk.goalSpin.repathsNoProgress, wk.goalSpin.churnResets, String.format(Locale.ROOT, "%.0f", d));
+                                    wk.stallDetect.goalSpin.repathsNoProgress, wk.stallDetect.goalSpin.churnResets, String.format(Locale.ROOT, "%.0f", d));
                         Walker.avatarForward(a, false);
                         wk.avatarJump(a, false);
                         p.setSprinting(false);
@@ -318,11 +326,11 @@ public final class WalkerTickSearch {
                     uTurnLeg = (cax * nax + caz * naz) < 0;
                     // Not after a block change: the plan being kept is the one the change cut, and turning
                     // back may be exactly what the new shape asks for.
-                    keepCurrent = ControlConfig.walkerRouteHysteresis && uTurnLeg && wk.stepProg.noStepProgressTicks < 20
+                    keepCurrent = ControlConfig.walkerRouteHysteresis && uTurnLeg && wk.progress.stepProg.noStepProgressTicks < 20
                             && !afterChange;
                     if (keepCurrent && GameConfig.walkerDebug)
                         LOG.info("[walker] route-hysteresis: KEEP current path (new route U-turns behind a healthy walk, noStepProg={})",
-                                wk.stepProg.noStepProgressTicks);
+                                wk.progress.stepProg.noStepProgressTicks);
                 }
                 // Dig-commit hold (walkerDigCommitHoldRepath): an underwater bank dig takes
                 // 100-200t (25x mining penalty) but the periodic repath re-routes faster than
@@ -341,7 +349,7 @@ public final class WalkerTickSearch {
                 }
                 if (!keepCurrent) {
                     if (ControlConfig.walkerExpectAlarm && uTurnLeg) {
-                        wk.exAlarms.noteRepathFlip(wk.escal.tick, foot);
+                        wk.exAlarms.noteRepathFlip(wk.stallDetect.escal.tick, foot);
                     }
                     Route.Adoption adoption = RouteAdoption.adopt(wk, res, world, foot);
                     if (adoption.adopted()) wk.maybeArmPinchEscalation(foot, res);
@@ -370,11 +378,11 @@ public final class WalkerTickSearch {
                 // segments from the same foot). Penalties decay in 15 s; hold and
                 // let the regular path==null kickoff retry instead of failing the
                 // whole goto. Bounded so a genuinely walled-in bot still fails.
-                if (world.hasStuckPenalties() && wk.searchGov.noPathWaitTicks < NO_PATH_WAIT_CAP) {
-                    wk.searchGov.noPathWaitTicks++;
-                    if (GameConfig.walkerDebug && wk.searchGov.noPathWaitTicks % 100 == 1)
+                if (world.hasStuckPenalties() && gov.noPathWaitTicks < NO_PATH_WAIT_CAP) {
+                    gov.noPathWaitTicks++;
+                    if (GameConfig.walkerDebug && gov.noPathWaitTicks % 100 == 1)
                         LOG.info("[walker] no path but stuck-penalties still live → waiting out decay ({}/{})",
-                                wk.searchGov.noPathWaitTicks, NO_PATH_WAIT_CAP);
+                                gov.noPathWaitTicks, NO_PATH_WAIT_CAP);
                     Walker.avatarForward(a, false);
                     wk.avatarJump(a, false);
                     p.setSprinting(false);

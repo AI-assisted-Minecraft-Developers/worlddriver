@@ -46,8 +46,8 @@ public final class WalkerDig {
     public static BlockPos avatarDig(Walker wk, Body a, BlockPos cell, boolean selectTool) {
         BlockPos target = cell;
         if (wk != null && cell != null && ControlConfig.walkerDigAimPriority) {
-            wk.stickyDig.engage(cell);
-            if (wk.stickyDig.pos != null) target = wk.stickyDig.pos;
+            wk.prelude.stickyDig.engage(cell);
+            if (wk.prelude.stickyDig.pos != null) target = wk.prelude.stickyDig.pos;
         }
         // Tool and crosshair go on the cell actually being driven, never on the cell that was merely
         // requested: vanilla's sameDestroyTarget compares the HELD ITEM as well as the position, so
@@ -57,8 +57,8 @@ public final class WalkerDig {
         wk.blocks.breakHold(true);
         wk.blocks.continueDestroy(target);
         if (wk != null) {
-            wk.digDrivenThisTick = true;
-            wk.digKeyOwned = true;
+            wk.drive.digDrivenThisTick = true;
+            wk.drive.digKeyOwned = true;
             wk.tallies.dig(target);
         }
         return target;
@@ -79,7 +79,7 @@ public final class WalkerDig {
      * not the burned delay.
      */
     public static void preDigNextBreak(Walker wk, Body a, WorldView world) {
-        if (!ControlConfig.walkerPreDigNextBreak || wk.route.path() == null || wk.stickyDig.pos != null) return;
+        if (!ControlConfig.walkerPreDigNextBreak || wk.route.path() == null || wk.prelude.stickyDig.pos != null) return;
         LivingEntity p = a.entity();
         if (p == null || p.onGround() || p.isInWater() || wk.blocks.destroyProgress() < 0) return;
         if (wk.route.step() + 1 >= wk.route.path().size()) return;
@@ -98,13 +98,13 @@ public final class WalkerDig {
         a.aimAtBlock(b);
         wk.blocks.breakHold(true);
         wk.blocks.continueDestroy(b);
-        wk.digDrivenThisTick = true;
-        wk.digKeyOwned = true;
+        wk.drive.digDrivenThisTick = true;
+        wk.drive.digKeyOwned = true;
     }
 
     /** {@link #avatarDig} for a dig that must not queue: suffocation. Takes the slot, then digs. */
     static BlockPos avatarDigPreempt(Walker wk, Body a, BlockPos cell, boolean selectTool) {
-        if (wk != null) wk.stickyDig.revoke();
+        if (wk != null) wk.prelude.stickyDig.revoke();
         return avatarDig(wk, a, cell, selectTool);
     }
 

@@ -123,7 +123,7 @@ public final class Pillar implements Controller {
                 && !parkourEdge && !p.isInWater();
         boolean slowDiagUpPillar = "diagUp".equals(edge != null ? edge.move : null)
                 && diagUp && upDy == 1 && p.onGround() && !p.isInWater()
-                && wk.stepProg.noStepProgressTicks > DIAGUP_PILLAR_TICKS;
+                && wk.progress.stepProg.noStepProgressTicks > DIAGUP_PILLAR_TICKS;
         if ((overJump || slowDiagUpPillar) && WorldConfig.allowPlace && wk.equipment.holdPillarBlock()) {
             wk.pillar.recoverLatch = PILLAR_RECOVER_TICKS;
             wk.pillar.recoverCell = foot;                 // grounded feet cell = the rung we fill
