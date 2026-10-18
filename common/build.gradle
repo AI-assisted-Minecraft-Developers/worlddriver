@@ -182,6 +182,32 @@ def checkApiTypes = tasks.register('checkApiTypes', com.github.gradle.node.npm.t
 }
 tasks.named('check') { dependsOn checkApiTypes }
 
+// The skill's method manual is generated but committed, so an agent reads it without a build. See docs/dev/api-artifacts.md.
+def skillManual = rootProject.file('.agents/skills/worlddriver-rpc/references/methods.md')
+tasks.register('updateSkillManual', Copy) {
+    group = 'build'
+    description = 'Writes the generated method manual into the worlddriver-rpc skill.'
+    dependsOn generateApiArtifacts
+    from(generatedApiDir) { include 'skill-methods.md'; rename { 'methods.md' } }
+    into skillManual.parentFile
+}
+def checkSkillManual = tasks.register('checkSkillManual') {
+    group = 'verification'
+    description = 'Fails when the committed skill manual differs from the generated one.'
+    dependsOn generateApiArtifacts
+    mustRunAfter 'updateSkillManual'
+    def generated = generatedApiDir.map { it.file('skill-methods.md') }
+    inputs.file(generated)
+    inputs.file(skillManual)
+    def committed = skillManual
+    doLast {
+        if (generated.get().asFile.text != committed.text) {
+            throw new GradleException("${committed} is stale; run ./gradlew :common:updateSkillManual and commit it")
+        }
+    }
+}
+tasks.named('check') { dependsOn checkSkillManual }
+
 tasks.named('processResources') {
     dependsOn generateApiArtifacts
     from(generatedApiDir) {
@@ -189,7 +215,7 @@ tasks.named('processResources') {
         into 'data/worlddriver/scripts/generated'
     }
     from(generatedApiDir) {
-        exclude 'driver-api.js'
+        exclude 'driver-api.js', 'skill-methods.md'
         into 'worlddriver-api'
     }
 }

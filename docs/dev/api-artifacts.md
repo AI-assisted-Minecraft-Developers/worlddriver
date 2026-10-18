@@ -17,17 +17,25 @@ code.
 | `methods.json` | Each method's input and output schema and its execution profile | `worlddriver-api/` in the jar |
 | `events.json` | Each built-in event type's payload schema, severity and trust, from `EventCatalog` | `worlddriver-api/` in the jar |
 | `api-reference.md` | The same two, for a person | `worlddriver-api/` in the jar |
+| `skill-methods.md` | The agent skill's method manual: every method, every setting key with its range and default, every event type, each type declared once | committed as `.agents/skills/worlddriver-rpc/references/methods.md` |
 
 `processResources` depends on the task, so a normal build always ships current files. The
 generated files are not committed: a change to the API shows up in review as a change to the
 `MethodSpec` that caused it.
 
+The skill manual is the exception, because an agent reads it without building. After changing a
+contract, run `./gradlew :common:updateSkillManual` and commit the result; `check` runs
+`checkSkillManual`, which fails while the committed copy differs from the generated one. What the
+contracts cannot say (the envelope, availability, pitfalls, the test-only methods) is written by
+hand beside it in `references/tips.md`.
+
 ## Why it runs without Minecraft
 
 The generator's classpath is the compiled classes plus DataFixerUpper and its four libraries, and
 nothing else. It loads `CoreMethods`, which lists only the descriptions. A description that reached
-into the game (read `BotConfig`, named a client class, needed a registry) fails the build here, which
-is the check that keeps the contract layer separate from the game.
+into the game (named a client class, needed a registry) fails the build here, which is the check that
+keeps the contract layer separate from the game. The settings' defaults are read from the config
+classes, which name no game class either.
 
 ## Adding a method
 

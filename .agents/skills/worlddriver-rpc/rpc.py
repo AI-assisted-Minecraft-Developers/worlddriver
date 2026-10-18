@@ -21,13 +21,14 @@ Reach for THIS script when the MCP tools can't express what you need:
 Wire format (JSON-RPC 2.0; the server does not require the "jsonrpc" member on requests):
     send {"id": N, "method": "mc.x.y", "params": {...}}
     recv {"jsonrpc": "2.0", "id": N, "result": <any>}                          on success
-    recv {"jsonrpc": "2.0", "id": N, "error": {"code": -326xx, "message": "<msg>",
+    recv {"jsonrpc": "2.0", "id": N, "error": {"code": <int>, "message": "<msg>",
           "data": {"code", "message", "issues": [{"path", "code", "message"}], "execution"}}}
     recv {"jsonrpc": "2.0", "id": null, "error": {"code": -32700, "message": "<msg>"}}
                                                        too malformed to echo an id
     recv {"method": "notifications/message", ...}      an event push, no "id" key
 The "id" KEY is on every response and absent from every notification — that, not
-the id's value, is how the two are told apart.
+the id's value, is how the two are told apart. Switch on error.data.code, the error's
+name; the numeric codes are listed in references/tips.md.
 
 Usage
 -----
@@ -48,7 +49,8 @@ Usage
 
 Options
 -------
-    --port N        RPC port (default: $AGENT_RPC_PORT, else worlddriver-rpc.port file, else 39801)
+    --port N        RPC port (default: $AGENT_RPC_PORT, else the worlddriver-rpc.port file the mod
+                    writes, else 39801, the port the dev launchers ask for with -Dworlddriver.rpcPort)
     --host H        RPC host (default: $AGENT_RPC_HOST, else 127.0.0.1; the mod binds
                     127.0.0.1 unless launched with -Dworlddriver.rpcHost). IPv6 literals OK.
     --raw           print the full {id,result|error} envelope, not just result
@@ -182,7 +184,7 @@ async def run(args):
     except Exception as e:  # noqa: BLE001 — surface a clear, actionable message
         sys.exit(f"could not connect to {uri}: {e}\n"
                  f"  • is the client/server up? probe with: python3 rpc.py mc.system.version\n"
-                 f"  • wrong port? pass --port or set AGENT_RPC_PORT (default 39801)\n"
+                 f"  • wrong port? pass --port or set AGENT_RPC_PORT; the mod writes its port to worlddriver-rpc.port\n"
                  f"  • bound to a non-loopback host? pass --host or set AGENT_RPC_HOST")
 
     failed = False

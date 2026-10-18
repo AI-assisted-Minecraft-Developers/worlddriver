@@ -2,7 +2,7 @@
 name: worlddriver-rpc
 description: >-
   Live-control the worlddriver Minecraft mod over its JSON-RPC websocket
-  (port 39801) with the bundled rpc.py client and a complete method reference.
+  (port in <rundir>/worlddriver-rpc.port) with the bundled rpc.py client and a complete method reference.
   CONSULT THIS SKILL before doing anything with the worlddriver mod's runtime
   API: any mc.bot.* / mc.action.* / mc.observe.* / mc.world.* / mc.client.* /
   mc.query / mc.events / mc.wait.* / mc.recipe.* / mc.plan.acquire /
@@ -47,7 +47,7 @@ way:
 Bundled next to this file. Wire format is JSON-RPC 2.0: send
 `{"id":N,"method":"mc.x.y","params":{…}}`, receive `{"jsonrpc":"2.0","id":N,"result":…}` or
 `{"jsonrpc":"2.0","id":N,"error":{"code":<int>,"message":…,"data":{code,message,issues,execution}}}`
-(the codes and `data` are in `references/methods.md` § Envelope & errors).
+(the codes and `data` are in `references/tips.md`).
 
 **Interpreter.** Needs `websockets`. On the Linux host that's `python3 rpc.py …`;
 on a Windows/Git Bash checkout there is no `python3` — use `python` (or the
@@ -78,7 +78,7 @@ EOF
 Useful flags: `--jq <dotted.path>` projects the result (`--jq blockPos.y`),
 `--raw` prints the full envelope, `--compact` for one-line JSON, `--port N` /
 `$AGENT_RPC_PORT` override (default resolves the live `worlddriver-rpc.port` file, else
-39801), `--keep-going` to continue a batch past errors. `python3 rpc.py -h` for
+falls back to 39801, the port the dev launchers ask for), `--keep-going` to continue a batch past errors. `python3 rpc.py -h` for
 the rest. The mod binds **`127.0.0.1`** by default; if it was launched with
 `-Dworlddriver.rpcHost=0.0.0.0` (or an IPv6 `::`) to accept remote clients, reach it
 with `--host <addr>` / `$AGENT_RPC_HOST` (IPv6 literals are auto-bracketed). For
@@ -91,8 +91,12 @@ mod runs) plus the client-only `mc.debug.*` methods, every one a typed contract 
 MCP tool. The only hidden methods — callable by name on every transport but absent from MCP
 `tools/list` — belong to the testmod (`worlddriver.*`) and the StageWright runtime
 (`mc.test.*`) and exist only while those are loaded. No total is
-given here because it depends on what is loaded. Full per-method params + returns
-are in **`references/methods.md`** — read it before composing an unfamiliar call.
+given here because it depends on what is loaded. Two references sit next to this file:
+**`references/methods.md`**, generated from the contracts at build time (every method's
+description, params and reply, every setting key with its range and default, every event
+type), and **`references/tips.md`**, written by hand (the envelope and errors, what needs a
+client, how actions and refusals work, pitfalls, and the test-only methods the generated
+file cannot see). Read both before composing an unfamiliar call.
 
 | namespace | what's there |
 |---|---|
@@ -165,7 +169,8 @@ Two related building blocks for conditions the raw event types don't cover:
   `until ss -ltnp | grep -q ":$PORT"; do sleep 3; done` (Linux) — on Windows there
   is no `ss`, use `netstat -ano | grep -q ":$PORT.*LISTENING"` instead. Take `$PORT`
   from `<rundir>/worlddriver-rpc.port`, which the client writes with the port it
-  actually got; 39801 is only the default and launchers do move it.
+  actually got. Unless launched with `-Dworlddriver.rpcPort=N` the mod takes any free
+  port, so 39801 is only what the dev launchers ask for.
 - **A port that never opens may be a client that never started.** The mod opens its
   ports at client init, so a client that hangs *before* mod loading looks exactly
   like a firewall or a wrong port. Tell them apart in the client's own log:
@@ -177,9 +182,9 @@ Two related building blocks for conditions the raw event types don't cover:
   ships as `Mium 麦吉克服务器 1.21.1`, with no "Minecraft" anywhere in it, so
   `xdotool search --name Minecraft` comes back empty and reads as "there is no
   window". The PID is not something a pack can change, and the RPC port names it —
-  but take the port from the file the client itself writes, not from 39801: that
-  default is overridable and one launcher here runs on 39811 to stay clear of a
-  single-player instance. `ss -tlnp | grep ":$(cat <rundir>/worlddriver-rpc.port)"`
+  but take the port from the file the client itself writes, not from 39801: without
+  `-Dworlddriver.rpcPort` the port is whatever was free, and one launcher here asks for
+  39811 to stay clear of a single-player instance. `ss -tlnp | grep ":$(cat <rundir>/worlddriver-rpc.port)"`
   → that PID → `xdotool search --pid <pid>`. (Usually `_NET_CLIENT_LIST` holds one
   window anyway, so enumerating is cheap.)
 - **`mc.client.*` / `mc.bot.*` need a client.** On a dedicated server `mc.client.*`

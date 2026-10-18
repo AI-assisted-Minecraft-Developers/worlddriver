@@ -31,7 +31,8 @@ import net.magicterra.worlddriver.protocol.JsonCodec;
  *   <li>{@code driver-api.js}: the named wrappers the script prelude loads;</li>
  *   <li>{@code methods.json}: each method's schemas and execution profile, for clients outside the JVM;</li>
  *   <li>{@code events.json}: each built-in event type's payload schema, severity and trust;</li>
- *   <li>{@code api-reference.md}: the same for a person.</li>
+ *   <li>{@code api-reference.md}: the same for a person;</li>
+ *   <li>{@code skill-methods.md}: the agent skill's method manual, with the settings and events tables.</li>
  * </ul>
  *
  * <p>Runs with the contract classes and DataFixerUpper only; it never starts Minecraft.
@@ -55,6 +56,7 @@ public final class ApiArtifacts {
         Files.writeString(dir.resolve("methods.json"), JsonCodec.encode(methodTable(methods)), StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("events.json"), JsonCodec.encode(eventTable()), StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("api-reference.md"), reference(methods) + eventReference(), StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("skill-methods.md"), SkillManual.render(methods), StandardCharsets.UTF_8);
     }
 
     /** Each built-in event type's payload schema, severity and trust. */
