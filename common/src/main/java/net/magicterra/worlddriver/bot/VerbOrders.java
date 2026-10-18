@@ -193,10 +193,6 @@ public final class VerbOrders {
             case BuildContracts.Tower t -> {
                 int startY = (int) Math.floor(self.getY());
                 int targetY = t.targetY().orElseGet(() -> startY + t.height().orElseThrow());
-                if (targetY <= startY) {
-                    return new Refuse<>(RefusalReason.INVALID_WORLD_TARGET, "targetY " + targetY + " is not above the feet (y "
-                            + startY + ")");
-                }
                 if (targetY - startY > 256) {
                     return new Refuse<>(RefusalReason.INVALID_WORLD_TARGET, "a tower rises at most 256; targetY " + targetY
                             + " is " + (targetY - startY) + " above the feet");
@@ -204,7 +200,8 @@ public final class VerbOrders {
                 if (targetY >= self.level().getMaxBuildHeight()) {
                     return new Refuse<>(RefusalReason.INVALID_WORLD_TARGET, "targetY " + targetY + " is above this world's build height");
                 }
-                TowerProcess tower = new TowerProcess(targetY, t.block().orElse(null));
+                // At or below the feet already, the process reports "not needed" on its first tick and places nothing.
+                TowerProcess tower = new TowerProcess(targetY, t.block().orElse(null), t.fromBag());
                 return new Start<>(tower, () -> new BuildContracts.Towered(startY, targetY, t.block(), tower.placed()));
             }
             case BuildContracts.Bridge b -> {

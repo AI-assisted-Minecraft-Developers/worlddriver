@@ -1426,9 +1426,11 @@ type Construction =
     | { kind: 'tower';
         /** Blocks above the feet. */
         height?: number;
-        /** Feet Y to reach, above the current one by at most 256. */
+        /** Feet Y to reach, above the current one by at most 256. At or below the feet already, the tower is done at once with nothing placed. */
         targetY?: number;
         block?: string;
+        /** With block: fetch it from the backpack too, not only the hotbar. */
+        fromBag?: boolean;
     }
     | { kind: 'bridge';
         direction?: BridgeDirection;

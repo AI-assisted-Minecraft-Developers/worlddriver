@@ -124,8 +124,16 @@ public final class BuildContracts {
 
     public sealed interface Construction permits Tower, Bridge {}
 
-    /** Exactly one of {@code height} (above the feet) and {@code targetY} (absolute). */
-    public record Tower(Optional<Integer> height, Optional<Integer> targetY, Optional<String> block) implements Construction {}
+    /**
+     * Exactly one of {@code height} (above the feet) and {@code targetY} (absolute). {@code fromBag}: a named
+     * {@code block} may be fetched from the backpack, not only the hotbar.
+     */
+    public record Tower(Optional<Integer> height, Optional<Integer> targetY, Optional<String> block, boolean fromBag)
+            implements Construction {
+        public Tower(Optional<Integer> height, Optional<Integer> targetY, Optional<String> block) {
+            this(height, targetY, block, false);
+        }
+    }
 
     public record Bridge(BridgeDirection direction, int distance, Optional<String> block) implements Construction {}
 
@@ -146,15 +154,23 @@ public final class BuildContracts {
             ApiTypes.variant("tower", Tower.class, ApiTypes.record(Tower.class, null,
                     ApiField.field("height", ApiTypes.integer(1, 256)).describe("Blocks above the feet.")
                             .optional().forGetter(Tower::height),
-                    ApiField.field("targetY", ApiTypes.integer()).describe("Feet Y to reach, above the current one by at most 256.")
+                    ApiField.field("targetY", ApiTypes.integer())
+                            .describe("Feet Y to reach, above the current one by at most 256. At or below the feet already, "
+                                    + "the tower is done at once with nothing placed.")
                             .optional().forGetter(Tower::targetY),
                     ApiField.field("block", PLACE_BLOCK).optional().forGetter(Tower::block),
+                    ApiField.field("fromBag", ApiTypes.bool())
+                            .describe("With block: fetch it from the backpack too, not only the hotbar.")
+                            .defaulted(false).forGetter(Tower::fromBag),
                     Tower::new)
                     .checked((t, at) -> {
                         if (t.height().isPresent() == t.targetY().isPresent()) {
                             at.field(t.height().isPresent() ? "targetY" : "height").fail(
                                     t.height().isPresent() ? ApiIssue.Code.INVALID_VALUE : ApiIssue.Code.REQUIRED,
                                     "give exactly one of height and targetY");
+                        }
+                        if (t.fromBag() && t.block().isEmpty()) {
+                            at.field("fromBag").fail(ApiIssue.Code.INVALID_VALUE, "fromBag fetches a named block; name it in block");
                         }
                     })),
             ApiTypes.variant("bridge", Bridge.class, ApiTypes.record(Bridge.class, null,

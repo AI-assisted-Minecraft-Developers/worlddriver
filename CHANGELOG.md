@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **A tower already at its height is done, not refused.** `mc.bot.construct` with a `targetY` at or
+  below the feet used to answer `invalid_world_target`; it now succeeds at once with nothing placed.
+  `fromBag` lets a tower with a named `block` fetch it from the backpack as well as the hotbar.
 - **`mc.bot.mine` breaks one named cell with `pos`.** Instead of `blocks` to look for, `pos` walks the
   bot within reach unless it is there already and holds the dig on that cell with the best tool;
   it fails when the walk ends out of reach or the block has not given after ten seconds, and
