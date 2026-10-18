@@ -57,7 +57,7 @@ import net.minecraft.world.phys.Vec3;
  * pre-jumps to crit; ranged (bow/crossbow in hand) keeps {@link BehaviorConfig#kiteDistance},
  * drawing and releasing at full charge.
  */
-public final class CombatProcess implements BotProcess {
+public final class CombatProcess implements BotProcess, Navigating {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
     private Attack attack;
@@ -85,6 +85,7 @@ public final class CombatProcess implements BotProcess {
     private final String targetType;    // KILL by entity type id (nullable)
 
     private final Navigator navigator = new Navigator(NavigatorSettings.named("combat"));
+    @Override public Navigator navigator() { return navigator; }
     private Integer lockedId;
     private boolean lockWasAlive;       // last-seen liveness of the locked target
     private int lostTicks;              // consecutive ticks the locked target was unseen

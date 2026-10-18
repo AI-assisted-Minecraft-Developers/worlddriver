@@ -447,6 +447,9 @@ public final class BotBrain {
     /** The foreground user process, held or suspended, or null when there is none. */
     public BotProcess userProcess() { return userTask.process(); }
 
+    /** The last process a caller started, running or ended; null if none ever was. */
+    public BotProcess lastAskedProcess() { return userTask.lastAsked(); }
+
     /** {@code {kind, error}} of the last ending of a process a caller started, or null. */
     public Map<String, Object> lastProcessEnd() { return userTask.lastEnd(); }
 

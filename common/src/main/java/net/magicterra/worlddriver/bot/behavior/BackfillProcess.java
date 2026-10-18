@@ -28,7 +28,7 @@ import java.util.Set;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
-public final class BackfillProcess implements BotProcess {
+public final class BackfillProcess implements BotProcess, Navigating {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
     private BlockInteraction blocks;
@@ -40,6 +40,7 @@ public final class BackfillProcess implements BotProcess {
 
     private final BackfillTracker tracker;
     private final Navigator navigator = new Navigator(NavigatorSettings.named("backfill").withProfile(NO_DIG));
+    @Override public Navigator navigator() { return navigator; }
     private final Set<BlockPos> failed = new HashSet<>();
     private String failure;
 

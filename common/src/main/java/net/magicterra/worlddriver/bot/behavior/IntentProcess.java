@@ -38,7 +38,7 @@ import java.util.List;
  * <p>{@code kind()} stays {@code "goto"} so the {@link BotState#mc_goto} slot,
  * status reporting, and {@code UserTaskChain} mapping are unchanged.
  */
-public final class IntentProcess implements BotProcess {
+public final class IntentProcess implements BotProcess, Navigating {
     private static final Logger LOG = LoggerFactory.getLogger("WorldDriver");
 
     /**
@@ -55,7 +55,7 @@ public final class IntentProcess implements BotProcess {
     private final Navigator navigator;
     /** The navigator driving this intent, for its {@link NavigatorInspector#tallies()}: a scene that holds the
      *  process reads the counts of the player it handed the process to, on either helm. */
-    public Navigator navigator() { return navigator; }
+    @Override public Navigator navigator() { return navigator; }
     /** Which of {@link Intent#targets()} the navigator is on. The waypoints ({@code route.via}) come
      *  first; arriving at one moves to the next, and only the last one ends the process. */
     private int leg;

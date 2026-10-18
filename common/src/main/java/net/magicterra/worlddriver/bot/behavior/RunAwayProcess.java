@@ -12,7 +12,7 @@ import net.minecraft.core.BlockPos;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
-public final class RunAwayProcess implements BotProcess {
+public final class RunAwayProcess implements BotProcess, Navigating {
     private final BlockPos from;
     private final int minDist;
     /** Status slot to report into. Lets the AUTO-retreat reflex (RetreatChain) use
@@ -22,6 +22,7 @@ public final class RunAwayProcess implements BotProcess {
      *  user-verb default ({@code state.runAway}). */
     private final BotState.ProcessSlot reportSlot;
     private final Navigator navigator;
+    @Override public Navigator navigator() { return navigator; }
 
     public RunAwayProcess(BlockPos from, int minDist) { this(from, minDist, null); }
 

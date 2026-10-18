@@ -21,7 +21,7 @@ import java.util.Locale;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
-public final class FollowProcess implements BotProcess {
+public final class FollowProcess implements BotProcess, Navigating {
     /** Consecutive Navigator.FAILED replans before we give up. Each represents one full pathfinder attempt. */
     private static final int MAX_CONSECUTIVE_FAILS = 5;
     private final String entityType;
@@ -155,7 +155,7 @@ public final class FollowProcess implements BotProcess {
         lastTargetId = targetId;
     }
 
-    Navigator navigator() { return navigator; }
+    @Override public Navigator navigator() { return navigator; }
 
     /**
      * Whether the chase is still getting anywhere. The navigator's futile-search guard cannot say: a

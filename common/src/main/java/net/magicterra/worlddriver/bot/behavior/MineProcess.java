@@ -49,7 +49,7 @@ import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Deque;
 import java.util.ArrayDeque;
 
-public final class MineProcess implements BotProcess {
+public final class MineProcess implements BotProcess, Navigating {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
     private BlockInteraction blocks;
@@ -68,7 +68,7 @@ public final class MineProcess implements BotProcess {
     // blacklist — see NavigatorSettings.withSearchBudget.
     private final Navigator navigator = new Navigator(NavigatorSettings.named("mine").withSearchBudget(8_000, 400));
     /** The approach navigator, for its {@link NavigatorInspector#tallies()} (the collect navigator's are not summed). */
-    public Navigator navigator() { return navigator; }
+    @Override public Navigator navigator() { return navigator; }
     private final Set<BlockPos> blacklist = new HashSet<>();
     private int broken;
     // When the last SEARCH returned no usable target ONLY because every in-range

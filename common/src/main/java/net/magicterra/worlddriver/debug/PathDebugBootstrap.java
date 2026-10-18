@@ -1,28 +1,33 @@
 package net.magicterra.worlddriver.debug;
 
-import net.magicterra.worlddriver.debug.PathArchiveRecorder;
-import net.magicterra.worlddriver.debug.PathDebugRecorder;
 import net.magicterra.worlddriver.api.call.CallContext;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
 import net.magicterra.worlddriver.api.registry.ApiBatch;
 import net.magicterra.worlddriver.api.registry.ApiHandlers;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.methods.debug.DebugApi;
 import net.magicterra.worlddriver.api.methods.debug.DebugApiBinding;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
+import net.magicterra.worlddriver.api.schema.ApiError;
+import net.magicterra.worlddriver.api.schema.ApiException;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.planning.MultiTrace;
 import net.magicterra.worlddriver.bot.planning.PathTraceHolder;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.function.Supplier;
+import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * One-time wiring for the path-debug subsystem: installs the recorder as the active
- * {@link PathTraceHolder#SINK} and publishes {@code mc.debug.*} as a batch of their own.
+ * One-time wiring for the debug subsystem: publishes {@code mc.debug.*} as a batch of their own wherever the
+ * driver runs, and on a client also installs the path recorders as the active {@link PathTraceHolder#SINK}.
  *
- * Release strip: delete the {@code debug} package and the single call to this method
- * in {@code WorldDriverClientEvents.install}. Core compiles unchanged.
+ * Release strip: delete the {@code debug} package, the call to {@link #publish} in {@code WorldDriverCommon} and
+ * the call to {@link #init} in {@code WorldDriverClientEvents.install}. Core compiles unchanged.
  */
 public final class PathDebugBootstrap {
     private static final Logger LOG = LoggerFactory.getLogger("agent-pathdebug");
@@ -30,7 +35,17 @@ public final class PathDebugBootstrap {
 
     private PathDebugBootstrap() {}
 
-    /** Install the recorders once per JVM; publish the methods on {@code api}, which ignores a repeat. */
+    /** Publish the methods on {@code api}, reaching the server through {@code server}; a repeat is ignored. */
+    public static synchronized void publish(ApiRegistry api, Supplier<ServerThreadHop> server, Supplier<MinecraftServer> level) {
+        Objects.requireNonNull(api, "WorldDriver API is not ready");
+        serverHop = server;
+        serverOf = level;
+        if (api.registerBatch(batch(api))) {
+            LOG.info("[debug] mc.debug.* ready (patch pathDebug on to capture path charts)");
+        }
+    }
+
+    /** Install the path recorders once per JVM, and publish the methods on {@code api} if they are not yet. */
     public static synchronized void init(ApiRegistry api) {
         Objects.requireNonNull(api, "WorldDriver API is not ready");
         if (!recordersInstalled) {
@@ -41,11 +56,11 @@ public final class PathDebugBootstrap {
             PathChartTool.bind(recorder);
             recordersInstalled = true;
         }
-        if (api.registerBatch(batch(api))) {
-            LOG.info("[pathdebug] initialised — mc.debug.pathChart + mc.debug.plan + mc.debug.replay ready (patch pathDebug on to capture)");
-        }
+        api.registerBatch(batch(api));
     }
 
+    private static Supplier<ServerThreadHop> serverHop = () -> null;
+    private static Supplier<MinecraftServer> serverOf = () -> null;
     private static ApiRegistry batchApi;
     private static ApiBatch batch;
 
@@ -56,6 +71,16 @@ public final class PathDebugBootstrap {
             batch = new ApiBatch(ApiRegistry.CORE_OWNER, "debug", DebugApiBinding.methods(new Methods(api)));
         }
         return batch;
+    }
+
+    /** {@code read} on the server thread: inline there, hopped from anywhere else. */
+    private static <T> CompletionStage<T> onServer(Supplier<T> read, CallContext ctx) {
+        ServerThreadHop hop = serverHop.get();
+        if (hop == null) {
+            return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
+                    "mc.debug readings of a bot are the server's, and no server is attached"));
+        }
+        return hop.submit(read, ctx);
     }
 
     private record Methods(ApiRegistry api) implements DebugApi {
@@ -73,6 +98,21 @@ public final class PathDebugBootstrap {
         @Override
         public CompletionStage<DebugContracts.ReplayReply> replay(DebugContracts.ReplayParams p, CallContext ctx) {
             return ReplayTool.replay(api, p, ctx);
+        }
+
+        @Override
+        public CompletionStage<BotDebugContracts.NavigatorReading> navigator(BotDebugContracts.NavigatorParams p, CallContext ctx) {
+            return onServer(() -> BotReadings.navigator(p), ctx);
+        }
+
+        @Override
+        public CompletionStage<BotDebugContracts.BodyReading> body(BotDebugContracts.BodyParams p, CallContext ctx) {
+            return onServer(() -> BotReadings.body(p), ctx);
+        }
+
+        @Override
+        public CompletionStage<BotDebugContracts.CellsReading> cells(BotDebugContracts.CellsParams p, CallContext ctx) {
+            return onServer(() -> BotReadings.cells(p, serverOf.get()), ctx);
         }
     }
 }

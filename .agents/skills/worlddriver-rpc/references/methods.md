@@ -13,7 +13,7 @@ Every method, `mc.bot.setting` key and event type the driver itself publishes, f
 - [`mc.client.chat`](#mcclientchat) — history, send
 - [`mc.client.input`](#mcclientinput) — click, key, keybind, mouseMove, replaceText, setHotbarSlot, slider, slotClick, typeText
 - [`mc.client.screen`](#mcclientscreen) — close, info, tree
-- [`mc.debug`](#mcdebug) — pathChart, plan, replay
+- [`mc.debug`](#mcdebug) — body, cells, navigator, pathChart, plan, replay
 - [`mc.observe`](#mcobserve) — boss, container, cursor, eventsSince, map, player, scene, threats
 - [`mc.plan`](#mcplan) — acquire
 - [`mc.recipe`](#mcrecipe) — lookup, resolve
@@ -402,6 +402,27 @@ Every widget, list row and menu slot on the open screen, with its box in GUI coo
 - Effects: snapshot_read
 
 ## mc.debug
+
+### `mc.debug.body`
+
+A server-side bot's body as the driver judges it: its footing, its hands, its world view's dimension, and on request whether a block is in reach or a swing is blast-safe. Read on the server thread.
+
+- Params: `BodyParams`; reply: `BodyReading`
+- Effects: snapshot_read; not in MCP tools/list
+
+### `mc.debug.cells`
+
+Cells as the planner's world view classifies them, a bot's or the server level's, and on request the pose and fall facts of standing at one. Read on the server thread.
+
+- Params: `CellsParams` (may be omitted); reply: `CellsReading`
+- Effects: snapshot_read; not in MCP tools/list
+
+### `mc.debug.navigator`
+
+A server-side bot's navigator as it stands: the plan cursor, the last search, and every tally, telemetry counter and trace by name. Read on the server thread.
+
+- Params: `NavigatorParams`; reply: `NavigatorReading`
+- Effects: snapshot_read; not in MCP tools/list
 
 ### `mc.debug.pathChart`
 
@@ -3250,6 +3271,44 @@ interface ScreenInfo {
     /** On the death screen: what killed the player. */
     causeOfDeath?: string;
 }
+interface BodyParams {
+    bot: BotRef;
+    reach?: BlockPosition;
+    /** An entity id. */
+    blastFrom?: number;
+}
+interface Footing { onGround: boolean; soleOnSolid: number; footingMin: number; soleRow: string; foot: BlockPosition; lethalDropAdjacent: boolean; }
+interface Hands { breakHeld: boolean; lookingAt?: BlockPosition; placeTally: string; placeableBlocks: number; canPlace: boolean; lastAttackRefusal?: string; }
+interface Reach { pos: BlockPosition; canBreak: boolean; exposedFace: boolean; eyeToCentre: number; reach: number; }
+interface Blast { entityId: number; refusal?: string; need: number; stands: BlockPosition[]; }
+interface BodyReading {
+    bot: BotRef;
+    dimension: string;
+    footing: Footing;
+    hands: Hands;
+    /** The mine's log-cost waiver is held. */
+    logWaiver: boolean;
+    reach?: Reach;
+    blast?: Blast;
+}
+interface NodeQuery { foot: BlockPosition; prev?: BlockPosition; next?: BlockPosition; toBreak?: BlockPosition[]; toPlace?: BlockPosition[]; }
+interface CellsParams {
+    /** Omitted: the overworld as the server level reads it. */
+    bot?: BotRef;
+    cells?: BlockPosition[];
+    node?: NodeQuery;
+}
+interface DebugCell { pos: BlockPosition; known: boolean; solid: boolean; passable: boolean; hazard: boolean; water: boolean; climbable: boolean; leaves: boolean; fallingBlock: boolean; breakableObstruction: boolean; standOn: boolean; standAt: boolean; }
+interface NodeFacts { fitStand: boolean; fitCrouch: boolean; fitCrawl: boolean; ceilingForces: string; inWaterFoot: boolean; submergedEye: boolean; underfootSolid: boolean; footHazard: string; fallFromPrev: number; fallSurvivable: boolean; jumpNeeded: boolean; jumpFeasible: boolean; }
+interface CellsReading { view: string; dimension: string; cells: DebugCell[]; node?: NodeFacts; }
+interface NavigatorParams {
+    bot: BotRef;
+    /** Start a new leg on the telemetry before reading it. */
+    newLeg?: boolean;
+}
+interface PlanCursor { node?: BlockPosition; move?: string; step: number; len: number; parkourTakeoff?: string; driveTag?: string; jumpTag?: string; aimTag?: string; }
+interface LastSearch { expanded: number; ms: number; goalReached: boolean; finalCost: number; pathLen: number; sightBudgetExhausted: boolean; snapshotTruncated: boolean; }
+interface NavigatorReading { bot: BotRef; process?: string; running: boolean; plan?: PlanCursor; lastSearch?: LastSearch; counters: Record<string, number>; flags: Record<string, boolean>; traces: Record<string, string>; }
 type ChartView = 'dashboard' | 'threeview';
 interface ChartParams {
     /** dashboard: A* candidates, every planned route and the walked trajectory on a top-down map, with an elevation profile and speed / heading series. threeview: front, side and top projections of planned against actual. */

@@ -44,7 +44,7 @@ public final class ApiArtifacts {
         if (args.length != 1) throw new IllegalArgumentException("usage: ApiArtifacts <output dir>");
         SettingDefaults.install();
         List<MethodSpec<?, ?>> methods = new ArrayList<>(CoreMethods.all());
-        methods.addAll(DebugApiBinding.specs());   // published only where the path-debug subsystem runs
+        methods.addAll(DebugApiBinding.specs());   // published only where the debug subsystem is
         write(Path.of(args[0]), methods);
     }
 

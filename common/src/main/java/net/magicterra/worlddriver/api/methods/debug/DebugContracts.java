@@ -15,8 +15,8 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 
 /**
  * The path-debugging methods: {@code mc.debug.pathChart}, {@code mc.debug.plan} and {@code mc.debug.replay}.
- * They belong to a strippable subsystem, so they are published as their own batch when it starts, on a
- * client only; a game without it answers {@code method_not_found}.
+ * They belong to a strippable subsystem, so they are published as their own batch when it starts; a game
+ * without it answers {@code method_not_found}. {@code plan} and {@code replay} read the client's world.
  */
 public final class DebugContracts {
     private DebugContracts() {}

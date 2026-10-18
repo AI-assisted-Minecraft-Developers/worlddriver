@@ -265,6 +265,8 @@ public final class NavigatorInspector {
      *  <b>sprint-jump maximum</b>, so {@code sprinting=false} at takeoff means the executor attempted
      *  a leap the planner priced for a run-up it was not allowed to take. Deliberately not read from
      *  {@code onGround}: this bot's is wrong in both directions. */
+    public boolean bestEffort() { return nav.route.seg.pathBestEffort; }
+
     public String parkourTakeoff() { return nav.drive.parkourTakeoff == null ? "none" : nav.drive.parkourTakeoff; }
 
     /**

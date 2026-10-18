@@ -24,7 +24,7 @@ import java.util.Set;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
-public final class BboxFillProcess implements BotProcess {
+public final class BboxFillProcess implements BotProcess, Navigating {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
     private BlockInteraction blocks;
@@ -35,6 +35,7 @@ public final class BboxFillProcess implements BotProcess {
     private final String fillId;        // null = no placement
     private final String filterFromId;  // null = any non-air; else only this id
     private final Navigator navigator = new Navigator(NavigatorSettings.named("fill"));
+    @Override public Navigator navigator() { return navigator; }
     private final Set<BlockPos> blacklist = new HashSet<>();
     private final Set<BlockPos> done = new HashSet<>();
     private final int totalEstimate;

@@ -75,7 +75,14 @@ public final class UserTaskChain implements Chain {
         this.asked = asked;
         action = nextAction;
         process = next;
+        if (asked) lastAsked = next;
     }
+
+    /** The last process a caller started, kept after it ends, so its navigator can still be read. */
+    private volatile BotProcess lastAsked;
+
+    /** The held process if a caller started it, else the last one a caller started; null if none ever was. */
+    public BotProcess lastAsked() { return lastAsked; }
 
     /** The accepted action the held process carries out, or null (none held, or one nobody can name). */
     private volatile Ticket action;

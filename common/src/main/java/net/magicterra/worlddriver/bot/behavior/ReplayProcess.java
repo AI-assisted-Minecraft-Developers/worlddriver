@@ -25,9 +25,10 @@ import java.util.List;
  * captured by the {@code PathArchiveRecorder} that was armed before this process
  * was installed.</p>
  */
-public final class ReplayProcess implements BotProcess {
+public final class ReplayProcess implements BotProcess, Navigating {
 
     private final Navigator navigator = new Navigator(NavigatorSettings.named("replay"));
+    @Override public Navigator navigator() { return navigator; }
     private final List<BlockPos> plan;
     private final List<Move.Edge> edges;
     private final Goal endGoal;

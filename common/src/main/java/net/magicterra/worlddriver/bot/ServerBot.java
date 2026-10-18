@@ -109,6 +109,12 @@ public abstract class ServerBot implements Bot {
         return p != null ? p.kind() : null;
     }
 
+    /** The held task, or else the last one a caller started; null if none ever was. For a reading of its walk. */
+    public BotProcess lastAskedProcess() {
+        BotProcess held = brain.userProcess();
+        return held != null ? held : brain.lastAskedProcess();
+    }
+
     /** A bot that is off the tick list is not moving, whatever it last held. */
     @Override public boolean busy() {
         return activeKind() != null && BotTicker.isRegistered(this);

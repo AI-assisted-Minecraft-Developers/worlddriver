@@ -26,7 +26,7 @@ import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import net.magicterra.worlddriver.game.observe.RegistryIds;
 
-public final class BuildProcess implements BotProcess {
+public final class BuildProcess implements BotProcess, Navigating {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
     private BlockInteraction blocks;
@@ -35,6 +35,7 @@ public final class BuildProcess implements BotProcess {
     private final BlockPos origin;
     private final Schematic schematic;
     private final Navigator navigator = new Navigator(NavigatorSettings.named("build"));
+    @Override public Navigator navigator() { return navigator; }
     private int idx;
     private int placed;
     private int skipped;

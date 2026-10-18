@@ -255,13 +255,13 @@ public final class DriverApplication implements DriverHost {
     }
 
     /** The hop onto the attached server's thread, or null with no server attached. */
-    ServerThreadHop serverHop() {
+    public ServerThreadHop serverHop() {
         MinecraftServer s = server;
         return s == null ? null : new ServerThreadHop(s, s::isSameThread, SERVER_THREAD_TIMEOUT_MS);
     }
 
     /** The attached server, or null. */
-    MinecraftServer server() { return server; }
+    public MinecraftServer server() { return server; }
 
     /** The server hop, or the capability error a detached application answers with. */
     ServerThreadHop requireServerHop() {

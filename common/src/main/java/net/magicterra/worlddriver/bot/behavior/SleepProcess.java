@@ -18,7 +18,7 @@ import net.minecraft.world.phys.Vec3;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
-public final class SleepProcess implements BotProcess {
+public final class SleepProcess implements BotProcess, Navigating {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private BlockInteraction blocks;
     private static final int USE_TIMEOUT_TICKS = 40;        // ~2 s — bed reply is one tick after the click
@@ -27,6 +27,7 @@ public final class SleepProcess implements BotProcess {
     private final BlockPos explicit;
     private final int searchRadius;
     private final Navigator navigator = new Navigator(NavigatorSettings.named("sleep"));
+    @Override public Navigator navigator() { return navigator; }
 
     private BlockPos bedPos;
     private int useTicks;

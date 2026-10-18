@@ -25,7 +25,7 @@ import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import net.minecraft.world.level.block.CropBlock;
 
-public final class FarmProcess implements BotProcess {
+public final class FarmProcess implements BotProcess, Navigating {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Equipment equipment;
     private BlockInteraction blocks;
@@ -37,6 +37,7 @@ public final class FarmProcess implements BotProcess {
     private final Set<String> crops;
     private final boolean replant;
     private final Navigator navigator = new Navigator(NavigatorSettings.named("farm"));
+    @Override public Navigator navigator() { return navigator; }
     private final Set<BlockPos> blacklist = new HashSet<>();
     private final int totalEstimate;
 

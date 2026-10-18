@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver;
 
+import net.magicterra.worlddriver.debug.PathDebugBootstrap;
 import net.magicterra.worlddriver.application.DriverApplication;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -65,6 +66,7 @@ public final class WorldDriverCommon {
                 // before a socket listens. StageWright publishes mc.test.* as its own batch at
                 // SERVER_STARTED; a server without it simply has no mc.test.* surface.
                 WorldDriver.up(app.registry(), app);
+                PathDebugBootstrap.publish(app.registry(), app::serverHop, app::server);
             }
         } catch (Exception e) {
             LOG.error("[{}] failed to start RPC server", MOD_ID, e);

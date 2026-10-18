@@ -16,11 +16,12 @@ import java.util.Set;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
-public final class ExploreProcess implements BotProcess {
+public final class ExploreProcess implements BotProcess, Navigating {
     private final int centerChunkX, centerChunkZ;
     private final int maxChunks;
     private final Set<Long> visited = new HashSet<>();
     private final Navigator navigator = new Navigator(NavigatorSettings.named("explore"));
+    @Override public Navigator navigator() { return navigator; }
     private int visitedCount;
     private BlockPos currentChunkCenter;
     private int currentChunkX, currentChunkZ;
