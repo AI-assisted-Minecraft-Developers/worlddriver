@@ -3,8 +3,8 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 import java.util.ArrayList;
 import java.util.List;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
@@ -811,7 +811,7 @@ final class JourneyStairwell {
                 foot.above().toShortString(), level.getBlockState(foot.above()).getBlock(),
                 foot.above(2).toShortString(), level.getBlockState(foot.above(2)).getBlock(),
                 rig.body().avatar().canBreak(foot),
-                WorldConfig.allowBreak, WorldConfig.allowPlace));
+                Harness.flag("allowBreak"), Harness.flag("allowPlace")));
     }
 
     private static void cutStairCells(JourneyRig rig, List<BlockPos> cells, int i, Runnable then) {
@@ -896,7 +896,7 @@ final class JourneyStairwell {
 
     private static void returnToTheForge(SceneContext ctx, JourneyRig rig, int floorY, String tag,
                                          int tries, Runnable then) {
-        WorldConfig.allowPlace = false;
+        Harness.set("allowPlace", false);
         BlockPos at = rig.player().blockPosition();
         // HOME IS THE ALCOVE, not a height. Height was a fine proxy while the only way to be in the
         // mould was to be standing on its floor, and `liftInPlace` broke that: a bot up a
@@ -967,7 +967,7 @@ final class JourneyStairwell {
                     // pathing, then the same cell. What gets a bot out of a hole is the scripted
                     // pillar the shaft already owns, and it needs placing, which is why this walk is
                     // the one place in the casting phase that turns it back on.
-                    WorldConfig.allowPlace = true;
+                    Harness.set("allowPlace", true);
                     JourneyShaft.climbOut(rig, stairTop.getY(), tag + ".returnStuck" + tries, () ->
                         rig.settle(new IntentProcess(new Intent(new Goal.Block(stairTop))), 2_000, () -> {
                             rig.evidence(tag + ".backToMouth", rig.player().blockPosition().toShortString()

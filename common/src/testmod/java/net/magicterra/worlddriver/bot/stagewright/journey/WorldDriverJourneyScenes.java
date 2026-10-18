@@ -5,11 +5,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
@@ -979,9 +979,9 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // five times over, and it timed out at 10 000 ticks with the task still running. Sinking
             // once and mining sideways is what a player does, and it puts every drop at foot level.
             rig.attempting("dig a shaft down to the stone layer: the bot did not descend with the shaft");
-            WorldConfig.allowPlace = false;    // see the iron rung: a paving navigator will not sink
+            Harness.set("allowPlace", false);    // see the iron rung: a paving navigator will not sink
             JourneyShaft.descendByMining(rig, stone.getY() + 1, () -> {
-                WorldConfig.allowPlace = true;
+                Harness.set("allowPlace", true);
                 rig.evidence("descent.landedY", rig.player().blockPosition().getY());
 
             rig.attempting("mine stone: MineProcess did not obtain cobblestone");
@@ -1410,12 +1410,12 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // Restore explicitly rather than trusting the scene pin: the pin does restore at scene end,
         // but this rung has rungs' worth of work left after the descent and a paving navigator in the
         // middle of it is the pathology being fixed, not a tidy-up detail.
-        boolean place = WorldConfig.allowPlace;
+        boolean place = Harness.flag("allowPlace");
         if (off > 0) {
             rig.attempting("descend from the bot's own pillar: the shaft that removes it could not be dug");
-            WorldConfig.allowPlace = false;      // a paving navigator will not sink — see the stone rung
+            Harness.set("allowPlace", false);      // a paving navigator will not sink — see the stone rung
             JourneyShaft.descendByMining(rig, ground, () -> {
-                WorldConfig.allowPlace = place;
+                Harness.set("allowPlace", place);
                 // Mining a tower back is not a side effect, it is the point: every course is a
                 // block the navigator spent, and the rungs above this one are the ones that needed it.
                 rig.evidence(key + ".towerRecovered", "descended to y=" + rig.player().blockPosition().getY()
@@ -1426,7 +1426,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // Standing part-way down a wet column beats standing on the tower, so this ends the
                 // descent and carries on rather than failing the rung: the rung's contract is the
                 // bed, and this whole routine is about what the NEXT rung inherits.
-                WorldConfig.allowPlace = place;
+                Harness.set("allowPlace", place);
                 rig.evidence(key + ".towerDescentWet", "water part-way down the column, stopped at " + wet.toShortString()
                         + " — digging no further; the next rung starts from here");
                 then.run();
@@ -1771,9 +1771,9 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // sinks and one that does not. A navigator permitted to place treats the hole it just dug
             // as terrain to bridge, and it is carrying dirt from four rungs of digging — so it
             // paves over its own shaft and steps around it.
-            WorldConfig.allowPlace = false;
+            Harness.set("allowPlace", false);
             JourneyShaft.descendByMining(rig, ore.getY() + 1, () -> {
-                WorldConfig.allowPlace = true;    // the miner below wants it back to reach the vein
+                Harness.set("allowPlace", true);    // the miner below wants it back to reach the vein
                 BlockPos landed = rig.player().blockPosition();
                 rig.evidence(tag + ".landedY", landed.getY());
                 rig.evidence(tag + ".column", landed.getX() + "," + landed.getZ());
@@ -2124,9 +2124,9 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             rig.evidence("gravel.arrivedY", at.getY());
             final int surfaceY = JourneyTerrain.daylightY(rig, at);
             rig.attempting("dig a shaft down to the gravel layer");
-            WorldConfig.allowPlace = false;    // as on the ore rungs: a paving navigator will not sink
+            Harness.set("allowPlace", false);    // as on the ore rungs: a paving navigator will not sink
             JourneyShaft.descendByMining(rig, gravel.getY() + 1, () -> {
-                WorldConfig.allowPlace = true;
+                Harness.set("allowPlace", true);
                 rig.evidence("gravel.landedY", rig.player().blockPosition().getY());
                 // Quota 64: flint is a 10% drop, so this is a dice-roll budget, not a haul target.
                 // The assertion below is 1 — one flint is all a flint-and-steel costs, and asking
@@ -2310,7 +2310,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // pool — the one outcome this whole rung is arranged to avoid.
         stepOntoDiggableColumn(rig, dig, lava, surfaceY, MAX_WALK_ATTEMPTS, wetColumns, () -> {
             rig.attempting("dig down " + (rig.player().blockPosition().getY() - (lava.getY() + 1)) + " blocks to the lava level");
-            WorldConfig.allowPlace = false;      // as on every mining rung: a paving navigator will not sink
+            Harness.set("allowPlace", false);      // as on every mining rung: a paving navigator will not sink
             // The same generous cap the PORTAL rung gives its identical descent, and for the reason
             // recorded when that one was added: `shaftAttemptsFor` grants depth*3+20 = 128 for these
             // 36 blocks, and the attempts are eaten by the ticks between "the block broke" and "the
@@ -2323,7 +2323,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             rig.evidence("shaft.descentCap", depth + " blocks deep, allowing " + cap + " attempts (the default formula allows only "
                     + JourneyShaft.shaftAttemptsFor(depth) + ")");
             JourneyShaft.descendByMining(rig, lava.getY() + 1, cap, cap, () -> {
-                WorldConfig.allowPlace = true;
+                Harness.set("allowPlace", true);
                 rig.evidence("shaft.landedY", rig.player().blockPosition().getY());
                 reachLava(ctx, rig, MAX_TUNNEL_STEPS, () -> JourneyCast.leaveWithTheLava(ctx, rig, surfaceY));
             }, afloat -> swapWetColumn(ctx, rig, lava, surfaceY, wetColumns, swapsLeft, afloat));
@@ -2688,7 +2688,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             if (climbBacks > 0 && below > 2) {
                 rig.evidence("tunnel.fell", rig.player().blockPosition().toShortString()
                         + ", " + below + " blocks below the lava level (dug through a cave roof)");
-                WorldConfig.allowPlace = true;
+                Harness.set("allowPlace", true);
                 JourneyShaft.ascendByTowering(rig, pool.getY() + 1, JourneyShaft.climbCoursesFor(below),
                         JourneyShaft.climbCoursesFor(below), "tunnel.fell", () -> {
                             rig.evidence("tunnel.climbedBackTo", rig.player().blockPosition().toShortString());

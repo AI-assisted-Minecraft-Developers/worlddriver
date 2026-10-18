@@ -3,10 +3,9 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.function.BiConsumer;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.reflex.AntiSuffocateGate;
 import net.magicterra.worlddriver.bot.control.Navigator;
@@ -767,11 +766,10 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         // Scrub the whole dirt slab + dig shaft on any exit (#40 persistent-world lesson).
@@ -818,7 +816,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         // for the root cause, from the real world:
         BlockPos foot = fp.blockPosition();
         HazardField hf = HazardField.compute(driver.world(), foot, 1,
-                SurvivalMath.survivableFall(fp.getHealth()), WorldConfig.deepWaterMax);
+                SurvivalMath.survivableFall(fp.getHealth()), Harness.integer("deepWaterMax"));
         boolean cornered = SurvivalFacts.cornered(hf);
         // "Still exposed" ground truth as a direct block scan — canSeeSky would read
         // the light engine, which hasn't recomputed the freshly-carved column within

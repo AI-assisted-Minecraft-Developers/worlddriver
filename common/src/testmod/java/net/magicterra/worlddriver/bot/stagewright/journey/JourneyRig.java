@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.bot.BotApi;
@@ -704,12 +705,12 @@ public final class JourneyRig {
      */
     private static String armedReflexes() {
         var on = new java.util.ArrayList<String>();
-        if (ArbitrationConfig.autoRetreat) on.add("autoRetreat(HP≤" + ArbitrationConfig.retreatHpThreshold + ")");
-        if (ArbitrationConfig.autoFight) on.add("autoFight(threat≥" + ArbitrationConfig.autoFightThreatThreshold + ")");
-        if (ArbitrationConfig.autoDodge) on.add("autoDodge");
-        if (BotConfig.autoHeal) on.add("autoHeal(HP≤" + BehaviorConfig.healHpThreshold + ")");
-        if (BotConfig.autoShield) on.add("autoShield");
-        if (BotConfig.autoEquip) on.add("autoEquip");
+        if (Harness.flag("autoRetreat")) on.add("autoRetreat(HP≤" + (float) Harness.number("retreatHpThreshold") + ")");
+        if (Harness.flag("autoFight")) on.add("autoFight(threat≥" + Harness.number("autoFightThreatThreshold") + ")");
+        if (Harness.flag("autoDodge")) on.add("autoDodge");
+        if (Harness.flag("autoHeal")) on.add("autoHeal(HP≤" + (float) Harness.number("healHpThreshold") + ")");
+        if (Harness.flag("autoShield")) on.add("autoShield");
+        if (Harness.flag("autoEquip")) on.add("autoEquip");
         return on.isEmpty()
                 ? "none armed (autoRetreat/autoFight/autoDodge/autoHeal/autoShield/autoEquip are all false,"
                         + " the shipped defaults, so an attack preempts nothing)"
@@ -1087,7 +1088,7 @@ public final class JourneyRig {
             // bound and dies on the framework's generic "await step exceeded", which is the exact
             // failure this method was extracted to stop.
             // NoBreak, because THIS WALK IS NOT ALLOWED TO MINE ITS OWN WAY. A* is asked for a
-            // route while `WorldConfig.allowBreak` is globally true (JourneyRig:1409), so the cheapest
+            // route while `Harness.flag("allowBreak")` is globally true (JourneyRig:1409), so the cheapest
             // route to a cell the bot cannot swing at is regularly a tunnel — and the rock it
             // tunnels through belongs to whatever the rung has already built.
             //
@@ -2070,12 +2071,11 @@ public final class JourneyRig {
      *
      * <p>The suite's default slice caps a search at a few milliseconds so no scene can stall a tick.
      * A journey walk is a kilometre of real terrain and legitimately needs more, so it is raised
-     * here and handed back through {@code BotConfig.pinnedBaseline()} — which snapshots every
+     * here and handed back through {@code Harness.pin()} — which snapshots every
      * mutable field, so a stage cannot leave any of it changed for the next one.
      */
     public void generousPathfinding() {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         // ⚠️ AND THEN UNDO ITS TABLE. `pinnedBaseline()` does two things — it snapshots the
         // pre-scene config (keep that: it is what isolates one rung from the next) and it applies
         // `applyGameTestBaseline()`, a flag set frozen for the ARENA suite, whose assertions were
@@ -2126,7 +2126,7 @@ public final class JourneyRig {
         // "tunnel through stone" cheap. One variable at a time — if rung 3 still comes up short with
         // the no-approach rows collapsed, that multiplier is the named suspect and will have evidence
         // behind it rather than a guess. TODO.md carries the 38-flag delta and the reading criteria.
-        BotConfig.applyCompiledDefaults();
+        Harness.compiledDefaults(ctx);
         // Off by default because a journey walk is thousands of ticks and this logs per-tick, but
         // openable, because the things it prints are the only account of what the CLIENT helm is
         // doing to the player. `AutoSwim`'s shore search — the code that owns a submerged real player
@@ -2135,7 +2135,7 @@ public final class JourneyRig {
         //     ./gradlew :fabric:runJourneyIntegratedServer -PnavigatorDebug=true
         // Empty when not asked for, default here in Java: the build file holding a lever
         // permanently open is a mistake this block has made once already (see the rehearse budget).
-        GameConfig.navigatorDebug = "true".equals(System.getProperty("worlddriver.journey.navigatorDebug", ""));
+        Harness.set("navigatorDebug", "true".equals(System.getProperty("worlddriver.journey.navigatorDebug", "")));
         // FIVE TIMES THE SHIPPED DEFAULT (6 ms), on the axis the freeze complaint is about — and
         // until now the only line here without a reason. 6 ms is chosen to keep a search well
         // inside one 16 ms frame WHILE WALKING; 30 ms is what the product spends only when the
@@ -2149,7 +2149,8 @@ public final class JourneyRig {
         // would confound the rung timings the ladder is being read for — but it must be one arm of
         // the A/B when the repeat-search suppression lands, or that fix will be credited with a
         // change this line could have made on its own.
-        ControlConfig.pathfinderSliceMs = 30;
+        Harness.untimed(ctx);   // no wall-clock budget, as below; it lifts the slice too, which the next line sets
+        Harness.set("pathfinder.sliceMs", 30);
         // Bound by NODES, not by the wall clock — the shape 58 scene sites across nine files
         // already use, and for the reason PathFinder's own comment gives: a millisecond cap makes
         // the same search answer differently depending on how busy the box is that day, while a
@@ -2170,13 +2171,12 @@ public final class JourneyRig {
         // 208 on MineProcess's, 927 on a 600/80 pair nobody has yet traced. A rung whose task is a
         // mine is therefore NOT running with the budget set here, and a change to these two lines
         // can never explain a change in its behaviour.
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxNodes = 100_000;
+        Harness.set("pathfinder.maxNodes", 100_000);
         // Both are compiled-default ON, so these two are re-assertions rather than overrides. They
         // stay written out because a playthrough without them is not a playthrough, and a reader
         // asking "is this ladder allowed to mine?" should find the answer here, not two files away.
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
     }
 
     // ---- reading the bot ----

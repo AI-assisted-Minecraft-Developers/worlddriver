@@ -4,15 +4,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.bot.behavior.Readiness;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.PlanningConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
@@ -156,8 +152,8 @@ public final class WorldDriverNpcScenes implements SceneProvider {
         BlockPos o = ctx.origin().above(20);
         BlockPos lo = o.offset(-3, -1, -3), hi = o.offset(3, 3, 3);
         stage(ctx, lo, hi);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
         fill(level, lo, o.offset(3, -1, 3), STONE);
         LivingBody npc = SceneBody.npc(ctx, o);
         LevelWorldView view = LevelWorldView.forBody(level, npc.entity());
@@ -245,13 +241,11 @@ public final class WorldDriverNpcScenes implements SceneProvider {
 
     /** Pin the baseline with break and place off, and clear the footprint now and when the scene resolves. */
     private static void stage(SceneContext ctx, BlockPos lo, BlockPos hi) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = true;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", true);
+        Harness.untimed(ctx);
         ServerLevel level = ctx.level();
         fill(level, lo, hi, AIR);
         ctx.cleanup(() -> fill(level, lo, hi, AIR));

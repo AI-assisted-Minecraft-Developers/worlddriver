@@ -12,6 +12,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -20,8 +21,6 @@ import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
@@ -239,10 +238,9 @@ public final class WorldDriverFlyingMobScenes implements SceneProvider {
     }
 
     private static void pin(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
     }
 
     /** An invulnerable mob of {@code type} at {@code at}, facing +x. */

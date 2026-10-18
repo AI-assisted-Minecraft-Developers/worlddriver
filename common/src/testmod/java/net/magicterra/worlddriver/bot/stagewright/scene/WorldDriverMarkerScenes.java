@@ -2,11 +2,10 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
@@ -84,10 +83,9 @@ public final class WorldDriverMarkerScenes implements SceneProvider {
             ctx.fail("marker: the block has no MarkerBlockEntity at " + probe.toShortString());
         }
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
 
         BlockPos goal = new BlockPos(cx + 5, standY, cz);
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 1 + 0.5, standY, cz + 0.5);

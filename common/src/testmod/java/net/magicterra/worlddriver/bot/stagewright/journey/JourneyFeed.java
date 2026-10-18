@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -18,7 +19,7 @@ import net.minecraft.world.item.ItemStack;
  * rungs behaved correctly.
  * What was missing is that nobody spends the five raw beef the food rung banked.
  *
- * <p><b>Why not the engine's own toggles.</b> {@code BotConfig.autoHeal} and {@code autoEat} exist
+ * <p><b>Why not the engine's own toggles.</b> {@code Harness.flag("autoHeal")} and {@code autoEat} exist
  * and are off by default. Turning them on arms a preemption for all twenty rungs at once, so every
  * change in the next run becomes unattributable — that, and not the use key itself, is the
  * objection. ⚠️ Holding the use key is not "a key press in a tick": {@link #startBite} holds it,

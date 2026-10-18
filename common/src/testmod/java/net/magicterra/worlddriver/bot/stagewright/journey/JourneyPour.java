@@ -3,8 +3,8 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 import java.util.List;
 import java.util.Map;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
@@ -331,7 +331,7 @@ final class JourneyPour {
     private static void raiseInColumn(JourneyRig rig, BlockPos target, BlockPos col, int wantY,
                                       boolean pin, boolean pouring, String tag, Runnable then) {
         Runnable done = () -> {
-            WorldConfig.allowPlace = false;          // the casting phase is place-free again
+            Harness.set("allowPlace", false);          // the casting phase is place-free again
             // THE COLUMN AS WELL AS THE HEIGHT. `water9.raisedY=60/60` was a true statement about a
             // bot two cells out of the column its aim had been computed for, and reading it alone
             // is what made a lost raise look like a finished one.
@@ -920,9 +920,9 @@ final class JourneyPour {
             }
             rig.evidence(tag + ".liftTower", "the staircase could not be built past y="
                     + rig.player().blockPosition().getY() + "; handing over to the tower as a fallback");
-            WorldConfig.allowPlace = true;
+            Harness.set("allowPlace", true);
             JourneyShaft.climbOut(rig, wantY, tag + ".lift", () -> {
-                WorldConfig.allowPlace = false;
+                Harness.set("allowPlace", false);
                 rig.evidence(tag + ".liftedY", rig.player().blockPosition().getY() + "/" + wantY);
                 then.run();
             });

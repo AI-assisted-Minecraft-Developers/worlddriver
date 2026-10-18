@@ -3,13 +3,11 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.TowerProcess;
 import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
@@ -231,11 +229,10 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
     /** The switches both arms share. Breaking is off: a bot that can dig has a second way up, and
      *  an arm about what a tower PLACES must not be able to answer with a staircase. */
     private static void config(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowPlace = true;
-        WorldConfig.allowBreak = false;
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("allowPlace", true);
+        Harness.set("allowBreak", false);
+        Harness.set("navigatorDebug", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         // The flight is a static of the ladder's own code. A gate scene that left one behind would

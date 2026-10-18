@@ -3,13 +3,11 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
@@ -182,9 +180,8 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     // ---------------------------------------------------------------- the copy of rung 14's pocket
 
     private static void stepsDownAPerchItPlanned(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = true;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", true);
         ctx.cleanup(() -> clearBox(ctx));
 
         stageBox(ctx);
@@ -309,7 +306,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      */
     private static Leg drive(SceneContext ctx, String arm, boolean hold) {
         ServerLevel level = ctx.level();
-        ControlConfig.navigatorDescentNodeHold = hold;
+        Harness.set("navigatorDescentNodeHold", hold);
 
         BlockPos foot = ctx.rel(0, BOX_Y0 + PERCH_LAYER, 0);
         double x0 = foot.getX() + PERCH_DX, z0 = foot.getZ() + PERCH_DZ;
@@ -461,9 +458,8 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      * STAIR_TOP + 3]} — inside the default one-chunk window.
      */
     private static void stillWalksDownAStaircase(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = true;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", true);
         ctx.cleanup(() -> clearStair(ctx));
 
         stageStair(ctx);
@@ -504,7 +500,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
 
     private static Stair stairDrive(SceneContext ctx, String arm, boolean hold) {
         ServerLevel level = ctx.level();
-        ControlConfig.navigatorDescentNodeHold = hold;
+        Harness.set("navigatorDescentNodeHold", hold);
 
         BlockPos top = ctx.rel(0, STAIR_TOP + 1, 0);
         ServerPlayerBody av = SceneBody.avatar(ctx, level,
@@ -744,14 +740,13 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
 
     /** Both doorway arms: stage the copy, drive it twice, and judge on standing ON the doorstep. */
     private static void walkTheDoorstep(SceneContext ctx, Doorway dw) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = true;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", true);
         // The pathfinder's own breaking/placing is OFF on the dogfood server and the NETHER rung never
         // turns it on, so this is what the ladder walked with: the alcove's cobblestone is a wall, not
         // something A* tunnels through.
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
         // Registered before anything is built: a LIT portal left standing in the shared dogfood world
         // would take the next scene's bot to the Nether.
         ctx.cleanup(() -> clearDoorway(ctx, dw));
@@ -829,7 +824,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      */
     private static Door doorDrive(SceneContext ctx, Doorway dw, String arm, boolean hold) {
         ServerLevel level = ctx.level();
-        ControlConfig.navigatorDescentNodeHold = hold;
+        Harness.set("navigatorDescentNodeHold", hold);
 
         BlockPos perch = doorPerch(ctx, dw);
         BlockPos step = doorstep(ctx, dw);

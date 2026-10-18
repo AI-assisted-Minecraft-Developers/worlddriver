@@ -7,9 +7,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
@@ -1921,8 +1921,8 @@ public final class JourneyNetherRungs {
      * is this rung's policy and not the suite's — the six gates never see it.
      */
     private static void dontCutCornersOverLava(JourneyRig rig) {
-        RulesConfig.pathfinderDiagAscendPenalty = DIAG_ASCEND_PENALTY;
-        rig.evidence("crossing.diagAscendPenalty", RulesConfig.pathfinderDiagAscendPenalty
+        Harness.set("pathfinderDiagAscendPenalty", DIAG_ASCEND_PENALTY);
+        rig.evidence("crossing.diagAscendPenalty", Harness.number("pathfinderDiagAscendPenalty")
                 + " (extra cost of a diagonal ascent; whether it took effect is shown by the walked edges at"
                 + " the end of the flight rows, not by this row)");
     }

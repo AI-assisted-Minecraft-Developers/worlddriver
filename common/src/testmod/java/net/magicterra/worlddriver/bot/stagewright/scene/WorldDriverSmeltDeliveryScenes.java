@@ -1,8 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.GameConfig;
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.bot.behavior.SmeltProcess;
 import net.magicterra.worlddriver.bot.PlayerBot;
 import net.magicterra.worlddriver.bot.BotTicker;
@@ -73,9 +72,8 @@ public final class WorldDriverSmeltDeliveryScenes {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         // Empty the furnace BEFORE the block goes, or AbstractFurnaceBlock.onRemove drops its

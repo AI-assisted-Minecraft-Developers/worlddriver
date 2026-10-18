@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
@@ -282,7 +282,7 @@ public final class JourneyPortalRung {
             }
             WorldDriverJourneyScenes.stepOntoDiggableColumn(rig, dig, lava, surfaceY,
                     WorldDriverJourneyScenes.MAX_WALK_ATTEMPTS, () -> {
-                WorldConfig.allowPlace = false;
+                Harness.set("allowPlace", false);
                 BlockPos start = rig.player().blockPosition();
                 JourneyStairwell.stairTop = start;
                 JourneyStairs.reset(level, start);
@@ -379,7 +379,7 @@ public final class JourneyPortalRung {
                 // behaviour and it severed the route the moment it was used: the stairs ended at
                 // y=56 and the alcove at y=51, with nothing walkable between them, which is exactly
                 // the disconnection this whole redesign exists to remove.
-                WorldConfig.allowPlace = false;
+                Harness.set("allowPlace", false);
                 int cap = FORGE_DEEPEN_BY * JourneyStairwell.STAIR_ATTEMPTS_PER_BLOCK + 20;
                 JourneyStairwell.digStairsDown(ctx, rig, deeper, cap, cap,
                         () -> carveTheForge(ctx, rig, lava, surfaceY, deepenings - 1));
@@ -422,7 +422,7 @@ public final class JourneyPortalRung {
         }
         rig.evidence("forge.toCarve", todo.size() + "/" + cells.size() + " cells");
         rig.attempting("Carving the casting alcove and the twelve frame cells");
-        WorldConfig.allowPlace = false;
+        Harness.set("allowPlace", false);
         int swungBefore = rig.swungInPlace();
         int cobbleBefore = rig.carrying("minecraft:cobblestone");
         carveNext(ctx, rig, todo, 0, new ArrayList<>(), () -> {
@@ -438,7 +438,7 @@ public final class JourneyPortalRung {
             //
             // The only place that still needs to build is the ascent, and climbOut turns it back on
             // for itself; returnToTheForge turns it off again on the way down.
-            WorldConfig.allowPlace = false;
+            Harness.set("allowPlace", false);
             // NOT "DONE" WHEN IT IS NOT. The ladder run of 2026-08-15 printed `forge.carved` as done
             // directly under a `carve.stuck` row reporting 12 cells that would not break, and the
             // two rows were written by the same method one line apart. A caption that says the
@@ -896,7 +896,7 @@ public final class JourneyPortalRung {
      * Dig one cell of the mould WITHOUT letting the walk to it dig anything else.
      *
      * <p>{@code PlayerBot.mine} is a navigator goal plus a swing, and the navigator plans with
-     * {@code WorldConfig.allowBreak} on for the whole casting phase — so when the cell it is sent to
+     * {@code Harness.flag("allowBreak")} on for the whole casting phase — so when the cell it is sent to
      * has no walkable approach, it invents one THROUGH the mould. {@link #standBehind} was the first
      * answer to that and it only covers the case where a corridor stand exists; when it reports
      * {@code .noStand} the dig still runs, and the route it then takes is the one nothing was
@@ -918,10 +918,10 @@ public final class JourneyPortalRung {
      * {@code .stillShut} / {@code dig.*} instead of quietly paying for itself with a cast cell.
      */
     private static void digWithoutTunnelling(JourneyRig rig, BlockPos cell, int ticks, Runnable then) {
-        boolean was = WorldConfig.allowBreak;
-        WorldConfig.allowBreak = false;
+        boolean was = Harness.flag("allowBreak");
+        Harness.set("allowBreak", false);
         rig.mineCellOrGiveUp(cell, ticks, () -> {
-            WorldConfig.allowBreak = was;
+            Harness.set("allowBreak", was);
             then.run();
         });
     }
@@ -1878,13 +1878,13 @@ public final class JourneyPortalRung {
                 // tick the server processed the use (`handTrace.t0.server` lava_bucket at
                 // gameTime=28476, `t1.server` cobblestone ×29 at 28477, `inv.selected` never
                 // moving). The swap is `BotInteract.ensureHoldingPillarBlock`'s main-inventory tail;
-                // its call sites all short-circuit on `WorldConfig.allowPlace` first, so the flag is
+                // its call sites all short-circuit on `Harness.flag("allowPlace")` first, so the flag is
                 // what makes it unreachable rather than merely unlikely. The comment above already
                 // named the tower's hold as the displacer — this is what stops it, rather than
                 // re-taking the bucket after it has struck.
-                boolean placeWas = WorldConfig.allowPlace;
-                WorldConfig.allowPlace = false;
-                ctx.cleanup(() -> WorldConfig.allowPlace = placeWas);
+                boolean placeWas = Harness.flag("allowPlace");
+                Harness.set("allowPlace", false);
+                ctx.cleanup(() -> Harness.set("allowPlace", placeWas));
                 rig.evidence(tag + ".placeHeldOff", "placement disabled for the duration of the pour"
                         + " (previous value " + placeWas + ")");
                 boolean gripped = JourneyHands.regripBeforeUse(rig, held, tag);
@@ -1895,7 +1895,7 @@ public final class JourneyPortalRung {
                 // later on `recover6.hand`, which could not find an empty bucket (bucket stock
                 // empty=0, water=0, lava=1) — a message about the wrong step entirely.
                 if (!gripped) {
-                    WorldConfig.allowPlace = placeWas;
+                    Harness.set("allowPlace", placeWas);
                     ctx.fail("The hand about to pour is not holding " + BuiltInRegistries.ITEM.getKey(held)
                             + ", and one re-grip did not fix it: " + JourneyHands.heldOnBoth(rig)
                             + "; " + JourneyHands.bucketStock(rig)
@@ -1926,7 +1926,7 @@ public final class JourneyPortalRung {
                 // false and every reading between them has to be re-dated. It costs no tick to ask.
                 //
                 // Re-aim, then re-ask, and no retry branch: `clearPourLine`/`liftInPlace` both need
-                // `WorldConfig.allowPlace`, which is off from here down, so a repair launched from here
+                // `Harness.flag("allowPlace")`, which is off from here down, so a repair launched from here
                 // could not place. Naming the failure beats running a fix that cannot work.
                 JourneyHands.aimBoth(rig, at);
                 var atUseHit = JourneyHands.aimedAt(rig.avatar().asPlayer(), JourneyFill.BUCKET_REACH, false);
@@ -1942,7 +1942,7 @@ public final class JourneyPortalRung {
                         + target.toShortString() + ", bot at " + rig.player().blockPosition().toShortString()
                         + ", " + JourneyFill.eyeNow(rig) + ")");
                 if (atUseLands == null || !atUseLands.equals(target)) {
-                    WorldConfig.allowPlace = placeWas;
+                    Harness.set("allowPlace", placeWas);
                     ctx.fail("The ray drifted at the last moment before the pour: pouring into "
                             + target.toShortString() + ", but after re-aiming at " + at.toShortString()
                             + " immediately before the use the ray lands in "
@@ -1978,7 +1978,7 @@ public final class JourneyPortalRung {
                     if (traced[0] < JourneyHands.TRACE_TICKS) JourneyHands.handTrace(rig, tag, traced[0]++);
                 }, () -> {
                     // The pour is over; everything downstream — the lift, the walk home — pillars.
-                    WorldConfig.allowPlace = placeWas;
+                    Harness.set("allowPlace", placeWas);
                     // HOW MANY TICKS THE INSTRUMENT SAW, so silence can be read. Missing entirely ⇒
                     // the run never reached this pour (not triggered, evidence for neither side);
                     // present with 0 ⇒ the settle was skipped and the instrument never fired, so its

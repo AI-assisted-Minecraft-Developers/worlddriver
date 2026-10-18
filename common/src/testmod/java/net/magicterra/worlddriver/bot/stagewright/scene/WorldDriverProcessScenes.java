@@ -3,12 +3,9 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.ArrayList;
 import java.util.List;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.PlanningConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
@@ -316,8 +313,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -336,9 +332,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx, floorY + 2, cz + 9);   // foot on the ledge
 
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.gotoGoal(new Goal.Block(goal));
@@ -372,8 +367,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -387,11 +381,10 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BlockPos target = new BlockPos(cx + 3, floorY + 1, cz);   // a block on the floor, away from the bot
         level.setBlockAndUpdate(target, Blocks.STONE.defaultBlockState());
 
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx - 3 + 0.5, floorY + 1, cz + 0.5);
         driver.mine(target);
@@ -419,8 +412,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -435,9 +427,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx, floorY + 1, cz + 9);
 
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.runProcess(new IntentProcess(new Intent(new Goal.Block(goal))));   // the REAL client process, server-side
@@ -468,8 +459,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20, R = 10;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -485,9 +475,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BlockPos from = new BlockPos(cx, floorY + 1, cz);
         final int minDist = 6;
 
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.runProcess(new RunAwayProcess(from, minDist));
@@ -520,8 +509,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -542,11 +530,10 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         };
         for (BlockPos t : targets) level.setBlockAndUpdate(t, Blocks.STONE.defaultBlockState());
 
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         // Hold a pickaxe: stone requiresCorrectToolForDrops, and the tool gate (gap#2)
@@ -640,8 +627,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -661,11 +647,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
                             Blocks.STONE.defaultBlockState());
 
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = false;    // placing would let it pillar back up and muddy the reading
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = 20;
-        PlanningConfig.pathfinderMaxMs = 2000;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", false);    // placing would let it pillar back up and muddy the reading
+        Harness.set("navigatorDebug", false);
+        Harness.set("pathfinder.sliceMs", 20);
+        Harness.set("pathfinder.maxMs", 2000);
 
         PlayerBot driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
@@ -743,8 +729,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -766,9 +751,9 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         for (BlockPos at : List.of(sealed, far, adjacent))
             level.setBlockAndUpdate(at, Blocks.IRON_ORE.defaultBlockState());
 
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = false;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", false);
 
         PlayerBot driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
@@ -825,8 +810,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -847,11 +831,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         for (int dy = -4; dy <= 0; dy++)
             level.setBlockAndUpdate(new BlockPos(cx, floorY + dy, cz), Blocks.AIR.defaultBlockState());
 
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;      // pillaring is the point; forbidding it would be circular
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = 20;
-        PlanningConfig.pathfinderMaxMs = 2000;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);      // pillaring is the point; forbidding it would be circular
+        Harness.set("navigatorDebug", false);
+        Harness.set("pathfinder.sliceMs", 20);
+        Harness.set("pathfinder.maxMs", 2000);
 
         final int pitFloorY = floorY - 4;
         PlayerBot driver = SceneBody.bare(ctx, level, cx + 0.5, pitFloorY, cz + 0.5);
@@ -911,8 +895,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -936,11 +919,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         for (int dy = -9; dy <= -8; dy++)
             level.setBlockAndUpdate(new BlockPos(cx + 1, floorY + dy, cz), Blocks.AIR.defaultBlockState());
 
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = 20;
-        PlanningConfig.pathfinderMaxMs = 2000;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", false);
+        Harness.set("pathfinder.sliceMs", 20);
+        Harness.set("pathfinder.maxMs", 2000);
 
         final int shaftFloorY = floorY - 9;
         PlayerBot driver = SceneBody.bare(ctx, level, cx + 1.5, shaftFloorY, cz + 0.5);
@@ -1028,8 +1011,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -1054,11 +1036,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         // Unarmed: nothing to dig or pave with, so the only answer the navigator can give is about
         // the pit. Armed: exactly what MineProcess.COLLECT runs under, dirt in hand included.
-        WorldConfig.allowBreak = armed;
-        WorldConfig.allowPlace = armed;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = 20;
-        PlanningConfig.pathfinderMaxMs = 2000;
+        Harness.set("allowBreak", armed);
+        Harness.set("allowPlace", armed);
+        Harness.set("navigatorDebug", false);
+        Harness.set("pathfinder.sliceMs", 20);
+        Harness.set("pathfinder.maxMs", 2000);
 
         PlayerBot driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
@@ -1108,8 +1090,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -1141,13 +1122,13 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         level.setBlockAndUpdate(oreB, Blocks.IRON_ORE.defaultBlockState());
         level.setBlockAndUpdate(oreC, Blocks.IRON_ORE.defaultBlockState());
 
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;      // the hazard: placing is what makes the hand hold dirt
-        GameConfig.navigatorDebug = false;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);      // the hazard: placing is what makes the hand hold dirt
+        Harness.set("navigatorDebug", false);
         // Real ticks — a pathfinder slice that blocks the server thread would stall the suite,
         // so these stay the generous-but-bounded values the journey rig uses, not MAX_VALUE/2.
-        ControlConfig.pathfinderSliceMs = 20;
-        PlanningConfig.pathfinderMaxMs = 2000;
+        Harness.set("pathfinder.sliceMs", 20);
+        Harness.set("pathfinder.maxMs", 2000);
 
         PlayerBot driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
@@ -1231,8 +1212,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -1253,11 +1233,10 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         };
         for (BlockPos t : targets) level.setBlockAndUpdate(t, Blocks.STONE.defaultBlockState());
 
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         // NO pickaxe — empty-handed, matching the campaign soft-lock (broken pickaxe, no craft path).
@@ -1294,8 +1273,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         boolean ofb = ServerPlayerBody.faithfulBreak;
         ctx.cleanup(() -> ServerPlayerBody.faithfulBreak = ofb);
         BotTicker.clear();
@@ -1333,11 +1311,10 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         level.setBlockAndUpdate(plugHead, Blocks.DEEPSLATE.defaultBlockState());
         BlockPos goal = new BlockPos(cx, floorY + 1, cz + 4);
 
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
         ServerPlayerBody.faithfulBreak = true;         // REAL destroy-progress: bare-hand deepslate ~650t (else instant destroyBlock masks the timing)
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
@@ -1385,8 +1362,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         final int standDz = 9;                             // stand sits 3 cells BEYOND the plug
         final double leashRadius = 16.0;                   // stand ~9 from start → inside → PULL forward, not hold back
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -1424,12 +1400,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         };
         BlockPos standCell = new BlockPos(cx, floorY + 1, cz + standDz);
 
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.navigatorWallDigFallback = true;          // match the live default that produced day6
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", false);
+        Harness.set("navigatorWallDigFallback", true);          // match the live default that produced day6
+        Harness.untimed(ctx);
         final int BUDGET = 1600;                          // > navigatorTotalTickBudget(1200); wallDig fires within ~40t of engaging
         buildShell.run();
         var stand = new ArmorStand(level, cx + 0.5, floorY + 1, cz + standDz + 0.5);   // BEYOND the plug
@@ -1503,8 +1478,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -1525,11 +1499,10 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         es.add(new Schematic.Entry(3, 1, 0, "minecraft:cobblestone"));
         Schematic schem = new Schematic(4, 2, 1, es);
 
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().items.set(0, new ItemStack(Blocks.COBBLESTONE, 64));
@@ -1562,8 +1535,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -1606,8 +1578,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         // Ground-anchored slot (a fresh entity must promote into getEntities); floorY=220 → origin.y+20.
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -1625,9 +1596,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         level.addFreshEntity(stand);
         ctx.cleanup(() -> stand.discard());
 
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         // ENTITY-VISIBILITY WAIT (wave-5) replacing the legacy `for(3) level.tick(()->true)` index
         // loop: a freshly-added entity isn't in the queryable section index until the level indexes
@@ -1664,8 +1634,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -1691,9 +1660,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         level.addFreshEntity(stand);
         ctx.cleanup(stand::discard);
 
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class, entityBox(cx, floorY, cz)).isEmpty())
                 .within(100).then(() -> {
@@ -1728,8 +1696,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         // Ground-anchored slot (a fresh entity must promote into getEntities); floorY=220 → origin.y+20.
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -1754,9 +1721,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         // No night pin here any more: StageWright freezes every scene at midnight and says so in the
         // run's results header, so the zombie cannot sun-burn to a false fire-kill.
 
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         // ENTITY-VISIBILITY WAIT (wave-5) replacing the legacy `for(3) level.tick(()->true)` index
         // loop: poll (bounded) until the fresh zombie is queryable, then run the fight VERBATIM.
@@ -1799,7 +1765,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
     // ==================================================================================
     // wd.serverCombatCollectDrops — after the kill, the combat loop must SWEEP the drops
-    // near the kill spot before terminating (BehaviorConfig.combatCollectDrops; live 01:32
+    // near the kill spot before terminating (Harness.flag("combatCollectDrops"); live 01:32
     // 2026-07-21: six hunt kills banked one porkchop — melee kites away from the corpse
     // and the old loop ended wherever it stood).
     // ==================================================================================
@@ -1816,8 +1782,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -1846,9 +1811,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ctx.cleanup(() -> drop.discard());
         // Night comes from StageWright's suite-wide world pin, not from here.
 
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         ctx.await(() -> !level.getEntitiesOfClass(Zombie.class, entityBox(cx, floorY, cz)).isEmpty()
                         && !level.getEntitiesOfClass(ItemEntity.class, entityBox(cx, floorY, cz)).isEmpty())
@@ -1908,8 +1872,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -1924,7 +1887,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos track = new BlockPos(cx + 5, floorY + 1, cz);
 
-        GameConfig.navigatorDebug = false;
+        Harness.set("navigatorDebug", false);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.runProcess(new LookProcess(track, 0f, 0f));
@@ -1956,8 +1919,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -1978,11 +1940,10 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             level.setBlockAndUpdate(new BlockPos(x, floorY + 4, cz), Blocks.STONE.defaultBlockState());
         level.setBlockAndUpdate(logPos, Blocks.OAK_LOG.defaultBlockState());
 
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         // Phase 1 — radius=16 (regression: already worked before the fix, must still work after it).
         PlayerBot driver16 = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
@@ -2022,11 +1983,10 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     // ==================================================================================
 
     private static void serverBridgePillarStartScene(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
-        GameConfig.navigatorDebug = false;
+        Harness.set("navigatorDebug", false);
 
         // Arm A: live death-#24 shape — sneak-overhang start (center 1.05 east of the pillar cell
         // origin => floor(center) is already the void column) + yaw 90° off. Arm B: centered start.
@@ -2165,15 +2125,14 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     private static void mineLogWaiverEngagesScene(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         if (waiverLeakedIn(ctx, "mineLogWaiverEngages")) return;
 
         BlockPos logPos = stageOneLog(ctx, level, cx, cz, floorY);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = false;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", false);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().items.set(0, new ItemStack(Items.WOODEN_AXE));
@@ -2213,8 +2172,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     private static void mineStoneLeavesTheWaiverOffScene(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         if (waiverLeakedIn(ctx, "mineStoneLeavesTheWaiverOff")) return;
@@ -2224,8 +2182,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BlockPos logPos = stageOneLog(ctx, level, cx, cz, floorY);
         BlockPos stonePos = new BlockPos(cx + 3, floorY + 1, cz);
         level.setBlockAndUpdate(stonePos, Blocks.STONE.defaultBlockState());
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = false;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", false);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
@@ -2260,15 +2218,14 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     private static void mineLogWaiverReleasedOnSupersedeScene(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         if (waiverLeakedIn(ctx, "mineLogWaiverReleasedOnSupersede")) return;
 
         stageOneLog(ctx, level, cx, cz, floorY);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = false;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", false);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().items.set(0, new ItemStack(Items.WOODEN_AXE));

@@ -2,12 +2,9 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.PlanningConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
@@ -164,8 +161,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         buildWaterColumn(level, cx, cz, floorY, depth);
         double surface = floorY + depth;            // water surface Y
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
 
         // (1) Submerged, no input → slow sink (NOT free-fall to the floor).
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + depth - 4, cz + 0.5);
@@ -257,14 +253,12 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             }
         BlockPos goal = new BlockPos(cx, plateauTop + 1, cz + 3);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = true;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", true);
         // Determinism: A* unbounded by wall-clock (one-shot repath, bounded only by node count).
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
@@ -350,9 +344,8 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         for (int y = base; y <= base + 5; y++)
             level.setBlockAndUpdate(new BlockPos(cx, y, cz), vineState);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = true;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", true);
 
         BlockPos vineFoot = new BlockPos(cx, base, cz);
         BlockPos vineMid = new BlockPos(cx, base + 3, cz);
@@ -487,17 +480,15 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         }
         BlockPos goal = new BlockPos(cx, plateauTop + 1, plateauZ);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = true;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", true);
         // Determinism: A* unbounded by wall-clock (one-shot repath, bounded only by node count).
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.untimed(ctx);
         // Hold the FIRST plan through the whole climb (no periodic repath) so the executor is tested on a
         // FIXED node path — matching the live deterministic A/B (mc.debug.replay replan:false).
-        ControlConfig.navigatorRepathEveryTicks = 1_000_000;
+        Harness.set("navigator.repathEveryTicks", 1_000_000);
 
         // #1 SILENT-NO-OP GUARD: the vine base MUST be present + climbable, else the repro is vacuous.
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, footY, cz - 1 + 0.5);
@@ -606,15 +597,14 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                             (y >= plateauTop ? Blocks.DIRT : Blocks.STONE).defaultBlockState());
         BlockPos goal = new BlockPos(cx, plateauTop + 1, cz + 5);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = true;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", true);
         // Bound the A* budget (live-realistic): with faithfulBreak ON the plateau goal stays UNREACHABLE for
         // hundreds of ticks, so a small cap gives up fast on the not-yet-reachable goal, as the live client does.
-        ControlConfig.pathfinderSliceMs = 20;
-        PlanningConfig.pathfinderMaxMs = 250;
+        Harness.set("pathfinder.sliceMs", 20);
+        Harness.set("pathfinder.maxMs", 250);
         // faithfulBreak is a ServerPlayerBody static (NOT a BotConfig field), so it is not covered by the
         // pin — save/restore it via its own cleanup.
         boolean ofb = ServerPlayerBody.faithfulBreak;
@@ -693,13 +683,11 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             }
         BlockPos goal = new BlockPos(cx, bankTop + 1, cz + 4);   // on the dry land behind the +2 bank
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;          // live: bot had NO pickaxe → cannot carve the bank
-        WorldConfig.allowPlace = true;           // foothold-place is the only climb-out
-        GameConfig.navigatorDebug = true;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each repath completes in one go
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);          // live: bot had NO pickaxe → cannot carve the bank
+        Harness.set("allowPlace", true);           // foothold-place is the only climb-out
+        Harness.set("navigatorDebug", true);
+        Harness.untimed(ctx);   // deterministic: each repath completes in one go
         // Predicate-level guard for the root-cause fix: falling blocks stay rejected, mud accepted.
         if (BuildBlocks.isUsableBuildBlock(Blocks.SAND))
             ctx.fail("waterLowBank: isUsableBuildBlock: SAND (FallingBlock) must NOT be a usable foothold");
@@ -823,13 +811,11 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Goal diagonally SE on the low land (live bearing ≈ 40°SE).
         BlockPos goal = new BlockPos(cx + riverLen - 2, surface + 1, cz + 16);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = true;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", true);
+        Harness.untimed(ctx);
 
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the bot — the takeover's entry gate
@@ -912,13 +898,11 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         BlockPos goal = new BlockPos(cx + span + 2, surface + 1, cz);   // dry land beyond the far bank
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = true;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each repath completes in one go
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", true);
+        Harness.untimed(ctx);   // deterministic: each repath completes in one go
 
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the bot — the takeover's entry gate
@@ -1007,14 +991,12 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         BlockPos goal = new BlockPos(cx + span + 2, bankTop + 1, cz);   // dry land atop the bank
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        WorldConfig.allowSwimEscapeBreak = true;
-        GameConfig.navigatorDebug = true;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("allowSwimEscapeBreak", true);
+        Harness.set("navigatorDebug", true);
+        Harness.untimed(ctx);
 
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the bot — the takeover's entry gate
@@ -1101,14 +1083,12 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         BlockPos goal = new BlockPos(cx + span + 2, bankTop + 1, cz + 6);   // OFFSET along the face → diagonal
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        WorldConfig.allowSwimEscapeBreak = true;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("allowSwimEscapeBreak", true);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the bot — the takeover's entry gate
@@ -1175,15 +1155,13 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         Goal.XZ goal = new Goal.XZ(cx + 11, cz);       // east of the wall, SAME Z as the bot
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
-        WorldConfig.allowSwimEscapeBreak = false;
-        ControlConfig.allowSwimEscapePlace = false;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
+        Harness.set("allowSwimEscapeBreak", false);
+        Harness.set("allowSwimEscapePlace", false);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -1294,12 +1272,11 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         final int floorY = ctx.origin().getY(), surface = floorY + 8;
         BlockPos goal = buildLedgerBasin(level, cx, cz, floorY, surface);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowPlace = true;
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowSwimEscapeBreak = true;        // digFallbackHere, else placeFutile hands off to nothing
-        ControlConfig.allowSwimEscapePlace = true;        // on the ENTRY gate (WalkerTickClimb:457) — pinned explicitly, not inherited
+        Harness.pin(ctx);
+        Harness.set("allowPlace", true);
+        Harness.set("allowBreak", true);
+        Harness.set("allowSwimEscapeBreak", true);        // digFallbackHere, else placeFutile hands off to nothing
+        Harness.set("allowSwimEscapePlace", true);        // on the ENTRY gate (WalkerTickClimb:457) — pinned explicitly, not inherited
         // FALSE, explicitly, and not because that is the default. This flag is NOT the gate on the
         // ledger path: the entry condition at WalkerTickClimb:455-457 does not mention it, so the
         // climbout-place branch is live either way. Turning it ON would ADD a second placement
@@ -1307,7 +1284,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // fills cells WITHOUT touching pillarNoPlaceTicks. That route would quietly falsify this
         // scene's premise that nothing ever gets placed, and it would also flip the phase-class
         // semantics J24b just settled. One moving part, not three.
-        ControlConfig.navigatorPillarSurfacePlace = false;
+        Harness.set("navigatorPillarSurfacePlace", false);
         // TRUE, explicitly, because the pinned baseline turns it off and the takeover never engages
         // without it. With it off, `deepDig` sends the bank to the dig at stall 21, nine ticks before
         // the pillar may engage at 30. The hand-integrated player bobbed low enough that the dig was
@@ -1316,11 +1293,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // takes the riser and walks out (`climb-ctx … stall=20 deepDig=true` → `block-less bank dig`,
         // ARRIVED in 55 ticks).
         // It is also the production default, so this pins the order the navigator ships with.
-        ControlConfig.navigatorFootholdBeforeBankDig = true;
+        Harness.set("navigatorFootholdBeforeBankDig", true);
         // The climb-ctx rows are what told that staging failure apart from a ledger one; keep them.
-        GameConfig.navigatorDebug = true;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("navigatorDebug", true);
+        Harness.untimed(ctx);
 
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the bot — the takeover's entry gate
@@ -1460,22 +1436,20 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         final int floorY = ctx.origin().getY(), surface = floorY + 8;
         BlockPos goal = buildLedgerBasin(level, cx, cz, floorY, surface);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowPlace = true;
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowSwimEscapeBreak = true;
-        ControlConfig.allowSwimEscapePlace = true;     // on the ENTRY gate (WalkerTickClimb:457)
+        Harness.pin(ctx);
+        Harness.set("allowPlace", true);
+        Harness.set("allowBreak", true);
+        Harness.set("allowSwimEscapeBreak", true);
+        Harness.set("allowSwimEscapePlace", true);     // on the ENTRY gate (WalkerTickClimb:457)
         // FALSE for the same reason as the positive scene: this flag does not gate the ledger path,
         // and turning it on adds the :921 crest-place, which fills cells WITHOUT going through the
         // ledger — the one route that would let this scene see a fill it is not measuring.
-        ControlConfig.navigatorPillarSurfacePlace = false;
+        Harness.set("navigatorPillarSurfacePlace", false);
         // TRUE for the same reason as the positive scene: off, the bank dig beats the takeover to the
         // bank and the pumped server-side player walks out before a single place is clicked.
-        ControlConfig.navigatorFootholdBeforeBankDig = true;
-        GameConfig.navigatorDebug = true;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("navigatorFootholdBeforeBankDig", true);
+        Harness.set("navigatorDebug", true);
+        Harness.untimed(ctx);
 
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the bot — the takeover's entry gate

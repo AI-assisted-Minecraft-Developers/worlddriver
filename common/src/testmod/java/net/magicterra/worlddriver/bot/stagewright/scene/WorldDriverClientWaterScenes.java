@@ -3,12 +3,10 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.minecraft.core.BlockPos;
@@ -183,17 +181,17 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         helm.hold(new ItemStack(Items.DIRT, 30));
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = true;
-        ControlConfig.navigatorFootholdBeforeBankDig = true;
-        ControlConfig.navigatorClimbIntentFromSurface = true;
-        ControlConfig.navigatorPillarTopsOutAtFlushExit = true;
-        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
-        ControlConfig.navigatorShallowWaterSideFoothold = true;
-        ControlConfig.navigatorClimbOutResyncsAim = true;
-        ControlConfig.navigatorOrbitBreaksAimLag = true;
-        ControlConfig.navigatorSurfaceSprintSwim = true;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", true);
+        Harness.set("navigatorFootholdBeforeBankDig", true);
+        Harness.set("navigatorClimbIntentFromSurface", true);
+        Harness.set("navigatorPillarTopsOutAtFlushExit", true);
+        Harness.set("navigatorHoldLastNodeUntilStanding", true);
+        Harness.set("navigatorShallowWaterSideFoothold", true);
+        Harness.set("navigatorClimbOutResyncsAim", true);
+        Harness.set("navigatorOrbitBreaksAimLag", true);
+        Harness.set("navigatorSurfaceSprintSwim", true);
         ServerPlayer body = helm.player();
 
         // The source needs ~5 ticks per cell to reach the far end; wait for the current to exist.
@@ -262,17 +260,17 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         helm.hold(new ItemStack(Items.DIRT, 16));
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = true;
-        ControlConfig.navigatorFootholdBeforeBankDig = true;
-        ControlConfig.navigatorClimbIntentFromSurface = true;
-        ControlConfig.navigatorPillarTopsOutAtFlushExit = true;
-        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
-        ControlConfig.navigatorShallowWaterSideFoothold = true;
-        ControlConfig.navigatorClimbOutResyncsAim = true;
-        ControlConfig.navigatorOrbitBreaksAimLag = true;
-        ControlConfig.navigatorSurfaceSprintSwim = true;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", true);
+        Harness.set("navigatorFootholdBeforeBankDig", true);
+        Harness.set("navigatorClimbIntentFromSurface", true);
+        Harness.set("navigatorPillarTopsOutAtFlushExit", true);
+        Harness.set("navigatorHoldLastNodeUntilStanding", true);
+        Harness.set("navigatorShallowWaterSideFoothold", true);
+        Harness.set("navigatorClimbOutResyncsAim", true);
+        Harness.set("navigatorOrbitBreaksAimLag", true);
+        Harness.set("navigatorSurfaceSprintSwim", true);
         ServerPlayer body = helm.player();
 
         helm.sync(SYNC_TICKS, () -> {
@@ -346,19 +344,19 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         if (hand.length > 0) helm.hold(hand);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = true;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", true);
         // Shipped default, restored over the pinned baseline: the place arm is the scene that
         // exercises it, and the budget above is what would notice it going missing.
-        ControlConfig.navigatorFootholdBeforeBankDig = true;
-        ControlConfig.navigatorClimbIntentFromSurface = true;
-        ControlConfig.navigatorPillarTopsOutAtFlushExit = true;
-        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
-        ControlConfig.navigatorShallowWaterSideFoothold = true;
-        ControlConfig.navigatorClimbOutResyncsAim = true;
-        ControlConfig.navigatorOrbitBreaksAimLag = true;
-        ControlConfig.navigatorSurfaceSprintSwim = true;
+        Harness.set("navigatorFootholdBeforeBankDig", true);
+        Harness.set("navigatorClimbIntentFromSurface", true);
+        Harness.set("navigatorPillarTopsOutAtFlushExit", true);
+        Harness.set("navigatorHoldLastNodeUntilStanding", true);
+        Harness.set("navigatorShallowWaterSideFoothold", true);
+        Harness.set("navigatorClimbOutResyncsAim", true);
+        Harness.set("navigatorOrbitBreaksAimLag", true);
+        Harness.set("navigatorSurfaceSprintSwim", true);
         ServerPlayer body = helm.player();
 
         helm.sync(SYNC_TICKS, () -> {

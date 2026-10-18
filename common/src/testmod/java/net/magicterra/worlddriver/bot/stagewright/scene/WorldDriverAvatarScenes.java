@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Attack;
 import net.magicterra.worlddriver.application.PlayerSnapshots;
 
@@ -14,11 +15,6 @@ import com.mojang.authlib.GameProfile;
 import dev.architectury.event.events.common.PlayerEvent;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.BehaviorConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.PlanningConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.ElytraProcess;
 import net.magicterra.worlddriver.game.body.JoinedPlayers;
 import net.magicterra.worlddriver.bot.PlayerBot;
@@ -112,15 +108,14 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         final int ax = ctx.origin().getX(), az = ctx.origin().getZ();
         final int bx = ax + 20, bz = az + 20, floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
             SceneArena.clearBox(level, ax, floorY, az, 6, 8);
             SceneArena.clearBox(level, bx, floorY, bz, 6, 8);
         });
-        GameConfig.navigatorDebug = false;
+        Harness.set("navigatorDebug", false);
 
         SceneArena.clearBox(level, ax, floorY + 1, az, 6, 6);
         SceneArena.clearBox(level, bx, floorY + 1, bz, 6, 6);
@@ -163,12 +158,11 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> SceneArena.clearBox(level, cx, floorY, cz, 3, 5));
-        GameConfig.navigatorDebug = false;
+        Harness.set("navigatorDebug", false);
 
         SceneArena.clearBox(level, cx, floorY + 1, cz, 3, 3);
         for (int dx = -1; dx <= 1; dx++)
@@ -233,12 +227,11 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> SceneArena.clearBox(level, cx, floorY, cz, 3, 5));
-        GameConfig.navigatorDebug = false;
+        Harness.set("navigatorDebug", false);
 
         SceneArena.clearBox(level, cx, floorY + 1, cz, 3, 3);
         for (int dx = -1; dx <= 1; dx++)
@@ -313,8 +306,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         ctx.cleanup(() -> {
             for (int dx = -5; dx <= 5; dx++)
                 for (int dy = 0; dy <= 18; dy++)
@@ -326,8 +318,8 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         BlockPos breakTarget = new BlockPos(cx + 2, floorY, cz);     // a floor block to mine
         BlockPos placeCell = new BlockPos(cx - 2, floorY + 1, cz);   // empty cell (its floor neighbour is solid)
 
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ctx.cleanup(() -> av.fakePlayer().discard());
@@ -361,8 +353,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY();
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -376,10 +367,9 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
 
-        GameConfig.navigatorDebug = false;
-        BehaviorConfig.elytraDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("navigatorDebug", false);
+        Harness.set("elytraDebug", false);
+        Harness.untimed(ctx);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 40, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();

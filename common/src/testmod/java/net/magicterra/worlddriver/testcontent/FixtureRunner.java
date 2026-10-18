@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.contract.SceneFailure;
 import net.magicterra.stagewright.contract.SceneSkipped;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -263,8 +264,7 @@ public final class FixtureRunner {
                 TestMod.LOG.info("[scene.run] {}: restored {} markers at {}", name, lifted.size(), origin.toShortString());
             });
 
-            var pin = BotConfig.pinnedBaseline();
-            ctx.cleanup(pin::close);
+            Harness.pin(ctx);
 
             BlockPos foot = FixtureIO.at(origin, start.pos());
             if (isNpc(bodyKind) && (!f.hand().isEmpty() || !f.equip().isEmpty())) {

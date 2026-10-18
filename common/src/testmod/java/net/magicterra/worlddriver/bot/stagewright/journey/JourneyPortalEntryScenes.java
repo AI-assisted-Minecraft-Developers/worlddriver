@@ -3,13 +3,12 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.Intent;
@@ -245,11 +244,10 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
 
     /** The switches both arms share — see the class note on why the pathfinder's breaking stays off. */
     private static void config(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowPlace = false;
-        WorldConfig.allowBreak = false;
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("allowPlace", false);
+        Harness.set("allowBreak", false);
+        Harness.set("navigatorDebug", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         // Registered BEFORE anything is built, so an arm that fails mid-drive still hands the shared

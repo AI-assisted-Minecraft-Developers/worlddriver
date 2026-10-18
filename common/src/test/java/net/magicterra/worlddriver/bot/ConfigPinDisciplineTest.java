@@ -21,8 +21,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Scene config discipline: a testmod method that writes a {@code BotConfig} static must have a
- * {@link BotConfig#pinnedBaseline()} on every path that reaches it.
+ * Scene config discipline: a testmod method that writes a setting ({@code Harness.set}) must have a
+ * pin ({@code Harness.pin}, {@code pinUntimed}, {@code untimed} or {@code compiledDefaults}) on every
+ * path that reaches it.
  *
  * <h2>⚠️ ACCEPTANCE CONDITION — read this before believing a green run</h2>
  *
@@ -30,11 +31,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * neither is hypothetical — both were run against the compiled tree before the test was written:
  *
  * <ol>
- *   <li><b>Direct pin.</b> Delete the {@code var pin = BotConfig.pinnedBaseline();} line from
+ *   <li><b>Direct pin.</b> Delete the {@code Harness.pin(ctx);} line from
  *       {@code WorldDriverTerrainScenes.summit}. This test MUST then name {@code summit}.
  *       Measured on the prototype: the unprotected set grew 8 → 9 and {@code summit} was the
  *       new entry.</li>
- *   <li><b>Delegated pin.</b> Delete the {@code pinnedBaseline()} line from
+ *   <li><b>Delegated pin.</b> Delete the {@code Harness.pin(ctx);} line from
  *       {@code JourneyRig.generousPathfinding()}. This test MUST then name the rungs that lean
  *       on it — {@code digToTheRoom}, {@code descendToTheForge}, {@code topUpAtTheSurveyedStone}
  *       and the rest. Measured: 8 → 26, eighteen newly named.</li>
@@ -78,23 +79,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <h2>What "protected" means here</h2>
  *
  * <ul>
- *   <li>A method TAKES a pin if it calls {@code pinnedBaseline()}, or calls a testmod method that
+ *   <li>A method TAKES a pin if it calls one of {@code Harness}'s pins, or calls a testmod method that
  *       does (a rung calls {@code rig.generousPathfinding()}, which is the pinner).</li>
  *   <li>A method is PROTECTED if it takes a pin, or EVERY caller of it is protected. Every, not
  *       any: one unpinned entry into a shared helper is a real hole, and "any" is how it would be
  *       hidden.</li>
  * </ul>
  *
- * <p>A pin closes through {@code ctx.cleanup(pin::close)}, which runs when the scene FAILS as well
+ * <p>A pin closes through the scene's cleanup, which runs when the scene FAILS as well
  * as when it passes — that is the whole reason a pin beats an assignment at the end of the bot.
  */
 class ConfigPinDisciplineTest {
 
     private static final Path TESTMOD_CLASSES = Path.of("build/classes/java/testmod");
-    private static final String BOTCONFIG = "net/magicterra/worlddriver/config/BotConfig";
-    private static final String PIN = "pinnedBaseline";
+    private static final String HARNESS = "net/magicterra/worlddriver/bot/stagewright/Harness";
+    private static final Set<String> PINS = Set.of("pin", "pinUntimed", "untimed", "compiledDefaults");
 
-    /** A write to any of the per-layer config classes is a config write; the pin is BotConfig's alone. */
+    /** A write to any of the per-layer config classes is a config write too, for code not yet moved to Harness. */
     private static boolean isConfig(String owner) {
         return owner.startsWith("net/magicterra/worlddriver/config/") && owner.endsWith("Config");
     }
@@ -150,10 +151,10 @@ class ConfigPinDisciplineTest {
             cf.scan(writes, pins, calls);
         }
 
-        assertFalse(writes.isEmpty(), "found no BotConfig field write anywhere in the testmod "
-                + "classes. Either the scenes stopped writing config (then delete this test) or the "
-                + "putstatic scan is broken (then fix it) — but do not read this as discipline.");
-        assertFalse(pins.isEmpty(), "found no pinnedBaseline() call. Same reading as above: an empty "
+        assertFalse(writes.isEmpty(), "found no Harness.set call anywhere in the testmod "
+                + "classes. Either the scenes stopped writing settings (then delete this test) or the "
+                + "scan is broken (then fix it) — but do not read this as discipline.");
+        assertFalse(pins.isEmpty(), "found no Harness pin call. Same reading as above: an empty "
                 + "pin set makes every method below unprotected, so a red here would be the "
                 + "instrument, not the code.");
 
@@ -178,7 +179,7 @@ class ConfigPinDisciplineTest {
         String control = "net/magicterra/worlddriver/bot/stagewright/scene/WorldDriverAvatarScenes"
                 + "#serverCapabilityScene";
         assertTrue(g.protectedMethod(control, new HashSet<>()),
-                "the positive control is not protected: " + control + " calls pinnedBaseline() in "
+                "the positive control is not protected: " + control + " calls Harness.pin in "
                         + "its own body. Reachability is broken; fix it before trusting any verdict "
                         + "here.");
 
@@ -192,18 +193,17 @@ class ConfigPinDisciplineTest {
         Set<String> unexpected = new TreeSet<>(unprotected.keySet());
         unexpected.removeAll(ACCOUNTED_FOR.keySet());
         assertTrue(unexpected.isEmpty(), () -> {
-            StringBuilder sb = new StringBuilder("scene methods write BotConfig with no "
-                    + "pinnedBaseline() on every path into them:\n");
+            StringBuilder sb = new StringBuilder("scene methods write settings with no "
+                    + "Harness pin on every path into them:\n");
             for (String k : unexpected) {
                 sb.append("  ").append(k).append("  fields=")
                         .append(new TreeSet<>(unprotected.get(k))).append('\n');
             }
             sb.append("\nA pin is not decoration. Without one, whatever this method leaves changed is "
-                    + "what the NEXT scene starts with, because applyGameTestBaseline() runs once at "
-                    + "server start and nothing resets config between scenes. The fix is normally one "
+                    + "what the NEXT scene starts with, because the test baseline is put in place once at "
+                    + "server start and nothing resets settings between scenes. The fix is normally one "
                     + "line at the top of the scene body:\n"
-                    + "    var pin = BotConfig.pinnedBaseline();\n"
-                    + "    ctx.cleanup(pin::close);\n"
+                    + "    Harness.pin(ctx);\n"
                     + "If the method restores by hand on a path that survives a FAILURE (try/finally, "
                     + "or ctx.cleanup), add it to ACCOUNTED_FOR with the line that does it. Restoring "
                     + "at the end of the body does not count — that is the path a failing scene skips.");
@@ -431,7 +431,10 @@ class ConfigPinDisciplineTest {
                             String rn = refName(idx);
                             if (op == 0xb3 && isConfig(ro)) {
                                 writes.computeIfAbsent(key, k -> new TreeSet<>()).add(rn);
-                            } else if (op == 0xb8 && BOTCONFIG.equals(ro) && PIN.equals(rn)) {
+                            } else if (op == 0xb8 && HARNESS.equals(ro) && "set".equals(rn)
+                                    && !HARNESS.equals(thisClass)) {
+                                writes.computeIfAbsent(key, k -> new TreeSet<>()).add("Harness.set");
+                            } else if (op == 0xb8 && HARNESS.equals(ro) && PINS.contains(rn)) {
                                 pins.add(key);
                             } else if (op != 0xb2 && op != 0xb3 && op != 0xb4 && op != 0xb5
                                     && ro.startsWith(TESTMOD_PKG)) {

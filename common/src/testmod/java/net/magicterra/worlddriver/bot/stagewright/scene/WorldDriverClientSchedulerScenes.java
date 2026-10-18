@@ -5,6 +5,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -15,7 +16,6 @@ import net.magicterra.worlddriver.api.methods.control.ControlContracts.ProcessEn
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.ProcessName;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.StatusParams;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Status;
-import net.magicterra.worlddriver.config.ArbitrationConfig;
 import net.magicterra.worlddriver.bot.behavior.SleepProcess;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
@@ -98,8 +98,8 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
         ctx.record("test setup", "one-deep strip of water at x in [-1,1], the bot standing in the water at " + start.toShortString() + ", two motionless husks 4 blocks away on the east bank");
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
-        ArbitrationConfig.autoBunker = true;
-        ArbitrationConfig.autoRetreat = true;
+        Harness.set("autoBunker", true);
+        Harness.set("autoRetreat", true);
         ServerPlayer body = helm.player();
         // Below the bunker threshold (10) and the retreat one, and too hungry to regenerate out of it.
         body.setHealth(5f);
@@ -150,9 +150,9 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
         ctx.record("test setup", "beach, the bot standing at " + start.toShortString() + ", water directly to the east at x in [1,4]; time 15000 (night)");
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
-        ArbitrationConfig.autoSecureAtDusk = true;
-        ArbitrationConfig.duskUrgent = true;
-        ArbitrationConfig.duskUrgentDryRun = false;
+        Harness.set("autoSecureAtDusk", true);
+        Harness.set("duskUrgent", true);
+        Harness.set("duskUrgentDryRun", false);
         // Time packets reach the client once a second; wait for the night to be the client's too.
         helm.sync(40, () -> {
             helm.bot().runProcess(new HoldStill(1_000));

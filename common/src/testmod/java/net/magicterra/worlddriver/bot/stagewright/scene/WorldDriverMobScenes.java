@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -13,10 +14,6 @@ import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.MobBot;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
-import net.magicterra.worlddriver.config.BehaviorConfig;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.testcontent.CastingMob;
 import net.magicterra.worlddriver.testcontent.NpcContent;
 import net.minecraft.core.BlockPos;
@@ -225,9 +222,9 @@ public final class WorldDriverMobScenes implements SceneProvider {
         BlockPos o = ctx.origin().above(20);
         Mob listed = stage(ctx, o, EntityType.WOLF);
         Mob noAi = spawnStill(ctx, EntityType.ZOMBIE, o.offset(0, 0, 2));
-        var before = BotConfig.undrivableMobs;
-        ctx.cleanup(() -> BotConfig.undrivableMobs = before);
-        BotConfig.undrivableMobs = java.util.Set.of("minecraft:wolf");
+        var before = Harness.list("undrivableMobs");
+        ctx.cleanup(() -> Harness.set("undrivableMobs", java.util.List.copyOf(before)));
+        Harness.set("undrivableMobs", java.util.List.copyOf(java.util.Set.of("minecraft:wolf")));
 
         ctx.await(() -> settled(listed) && noAi.tickCount > 5).within(SETTLE_TICKS).then(() -> {
             Map<String, Object> listedGo = call(api, "mc.bot.goto", Map.of("bot", BotRegistry.ENTITY_PREFIX + listed.getUUID(),
@@ -253,7 +250,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
     private static void stepsOffMagmaUnordered(SceneContext ctx) {
         BlockPos o = ctx.origin().above(20);
         Mob wolf = stage(ctx, o, EntityType.WOLF);
-        BehaviorConfig.contactDamageEscape = true;
+        Harness.set("contactDamageEscape", true);
         String ref = MobBot.KIND + ":scene-magma";
         ctx.cleanup(() -> BotRegistry.unregister(ref));
 
@@ -436,12 +433,11 @@ public final class WorldDriverMobScenes implements SceneProvider {
     /** A flat stone course along +x under a pinned baseline, and an invulnerable mob of {@code type} at its start. */
     private static Mob stage(SceneContext ctx, BlockPos o, EntityType<? extends Mob> type) {
         ServerLevel level = ctx.level();
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
         // The shipped arrival rule, which the pinned baseline turns off.
-        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
+        Harness.set("navigatorHoldLastNodeUntilStanding", true);
         BlockPos lo = o.offset(-2, -1, -3), hi = o.offset(COURSE + 2, 3, 3);
         fill(level, lo, hi, AIR);
         ctx.cleanup(() -> fill(level, lo, hi, AIR));

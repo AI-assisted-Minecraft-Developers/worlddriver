@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.minecraft.core.BlockPos;
@@ -37,7 +38,7 @@ import net.minecraft.world.level.levelgen.structure.BuiltinStructures;
  * measurement is cheap, so it is taken rather than assumed.
  *
  * <p><b>Why removal rather than a reflex.</b> The driver ships every threat reflex OFF
- * ({@code ArbitrationConfig.autoRetreat/autoFight/autoDodge/autoHeal/autoShield} are all {@code false},
+ * ({@code Harness.flag("autoRetreat")/autoFight/autoDodge/autoHeal/autoShield} are all {@code false},
  * each with a "so a quiet bot stays quiet" note), so the bot took six poison ticks and two potions
  * without reacting — not because a reflex failed but because none was armed. Arming them is a
  * different topology's question: the world-pin javadoc already committed to "a topology that runs

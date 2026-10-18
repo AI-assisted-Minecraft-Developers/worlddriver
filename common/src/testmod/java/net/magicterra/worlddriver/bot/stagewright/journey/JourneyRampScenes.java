@@ -7,12 +7,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.BotTicker;
@@ -185,13 +183,12 @@ public final class JourneyRampScenes implements SceneProvider {
     /** The switches every arm shares, plus the statics these scenes have to hand back. A step set or
      *  a mould left behind would give a ladder run in the same process a flight it never built. */
     private static void config(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         // Placement stays ON: this arena's whole subject is a loop that places blocks, and every
         // course it claims is read back off the world rather than off the call.
-        WorldConfig.allowPlace = true;
-        WorldConfig.allowBreak = false;
-        GameConfig.navigatorDebug = false;
+        Harness.set("allowPlace", true);
+        Harness.set("allowBreak", false);
+        Harness.set("navigatorDebug", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(JourneyRamp::reset);

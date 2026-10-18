@@ -3,13 +3,10 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
@@ -159,14 +156,13 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * never reproduced the stop and the arm says so instead of passing.
      */
     private static void waitsOutASurvivableDrop(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         // The guards keep their live values — this arm is a claim about them staying out of the way,
         // and an arm that switched them off could not make it. Placement is off because a plug under
         // the bot would change the geometry the arms differ in; the shore pair owns that question.
-        WorldConfig.allowPlace = false;
-        WorldConfig.allowBreak = false;
-        GameConfig.navigatorDebug = false;
+        Harness.set("allowPlace", false);
+        Harness.set("allowBreak", false);
+        Harness.set("navigatorDebug", false);
         ctx.cleanup(() -> clear(ctx));
 
         stage(ctx);
@@ -226,11 +222,10 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * being right about something else.
      */
     private static void stillStopsForALongFall(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowPlace = false;
-        WorldConfig.allowBreak = false;
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("allowPlace", false);
+        Harness.set("allowBreak", false);
+        Harness.set("navigatorDebug", false);
         ctx.cleanup(() -> clear(ctx));
 
         stage(ctx);
@@ -311,12 +306,11 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * had anything to read.
      */
     private static void repathSeparatesARimWalkFromALivelock(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowPlace = false;      // paving the trench is another answer; the pin is the subject
-        WorldConfig.allowBreak = false;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.lethalEdgeBrake = false; // isolate the STRIDE guard, as the shore/rim pairs do
+        Harness.pin(ctx);
+        Harness.set("allowPlace", false);      // paving the trench is another answer; the pin is the subject
+        Harness.set("allowBreak", false);
+        Harness.set("navigatorDebug", false);
+        Harness.set("lethalEdgeBrake", false); // isolate the STRIDE guard, as the shore/rim pairs do
         ctx.cleanup(() -> clearTrench(ctx));
 
         stageTrench(ctx);
@@ -542,11 +536,10 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * byte-identical and the first check cannot pass.
      */
     private static void rowSeparatesAPerchFromMidAir(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowPlace = false;
-        WorldConfig.allowBreak = false;
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("allowPlace", false);
+        Harness.set("allowBreak", false);
+        Harness.set("navigatorDebug", false);
         ctx.cleanup(() -> clearShaft(ctx));
 
         stageShaft(ctx);

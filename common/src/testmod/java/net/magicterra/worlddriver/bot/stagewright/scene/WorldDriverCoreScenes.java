@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.game.Positions;
@@ -31,10 +32,7 @@ import net.magicterra.worlddriver.api.methods.system.SystemApi;
 import net.magicterra.worlddriver.api.methods.setting.SettingsApi;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.PlanningConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.BotLevelHolder;
@@ -1260,8 +1258,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y+20
         SceneArena.buildFloor(level, cx, cz, floorY);
 
-        Set<String> savedWl = GameConfig.buildBlockWhitelist;
-        ctx.cleanup(() -> GameConfig.buildBlockWhitelist = savedWl);
+        List<String> savedWl = Harness.list("buildBlockWhitelist");
+        ctx.cleanup(() -> Harness.set("buildBlockWhitelist", java.util.List.copyOf(savedWl)));
 
         // Default heuristic: full cube → usable; bamboo (thin column) / sand (FallingBlock) → NOT usable.
         if (!BuildBlocks.isUsableBuildBlock(Blocks.DIRT))
@@ -1285,7 +1283,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.fail("buildBlockWhitelist: placeableBlockCount should ignore bamboo, expected 10 got " + w.placeableBlockCount());
 
         // Whitelist override: pin to bamboo only → dirt now rejected, bamboo allowed by explicit id.
-        GameConfig.buildBlockWhitelist = Set.of("minecraft:bamboo");
+        Harness.set("buildBlockWhitelist", java.util.List.copyOf(Set.of("minecraft:bamboo")));
         if (!BuildBlocks.isUsableBuildBlock(Blocks.BAMBOO))
             ctx.fail("buildBlockWhitelist: whitelisted bamboo must be usable when explicitly listed");
         if (BuildBlocks.isUsableBuildBlock(Blocks.DIRT))
@@ -1321,13 +1319,11 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         PathTraceHolder.SINK = new MultiTrace(archive, PathTrace.NOOP);
         ctx.cleanup(() -> PathTraceHolder.SINK = previousSink);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        ControlConfig.pathArchive = true;
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("pathArchive", true);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
+        Harness.untimed(ctx);
 
         BlockPos goal = new BlockPos(cx + 8, floorY + 1, cz);
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
@@ -1382,13 +1378,11 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         PathTraceHolder.SINK = new MultiTrace(archive, PathTrace.NOOP);
         ctx.cleanup(() -> PathTraceHolder.SINK = previousSink);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        ControlConfig.pathArchive = true;     // gates sampleTick for BOTH record + replay capture
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("pathArchive", true);     // gates sampleTick for BOTH record + replay capture
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
+        Harness.untimed(ctx);
 
         final BlockPos goal = new BlockPos(cx + 8, floorY + 1, cz);
         BotLevelHolder.current = level;
@@ -1567,8 +1561,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * handler, so the rejection has to arrive even though the handler would have run.
      */
     private static void clientSettingSchema(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         var settings = SettingsApi.of(WorldDriver.registry());
         SceneCalls.askFailure(ctx, "unknownKey", settings.setting(SettingsContracts.Patch.of(Map.of("definitelyNotAKnob", true))), refused -> {
             List<ApiIssue> issues = refused.issues();

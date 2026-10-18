@@ -3,15 +3,11 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ArbitrationConfig;
-import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.bot.PlayerBot;
@@ -275,12 +271,11 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         ctx.record("setup.cellInTheWay", gap.toShortString() + " = " + level.getBlockState(gap).getBlock()
                 + " (blocks the only step toward the bait column)");
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        ArbitrationConfig.autoDrownEscape = true;
-        BehaviorConfig.autoFloatWhenDrowning = true;
-        GameConfig.navigatorDebug = true;
-        WorldConfig.allowBreak = true;                     // without this the lid arm is a no-op
+        Harness.pin(ctx);
+        Harness.set("autoDrownEscape", true);
+        Harness.set("autoFloatWhenDrowning", true);
+        Harness.set("navigatorDebug", true);
+        Harness.set("allowBreak", true);                     // without this the lid arm is a no-op
 
         final double homeX = body.getX(), homeY = body.getY(), homeZ = body.getZ();
         final int homeAir = body.getAirSupply();
@@ -443,12 +438,11 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         ctx.record("column.blocker", pinNeighbour ? straddled.toShortString() + "=stone (no scan ever reads this column)" : "none");
 
         // ---- config, restored by the pin ----------------------------------------------
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        ArbitrationConfig.autoDrownEscape = armed;
-        BehaviorConfig.autoFloatWhenDrowning = armed;
-        GameConfig.navigatorDebug = true;            // the arm's per-tick row is gated on it
-        WorldConfig.allowBreak = true;             // so a lid the scan DOES see would be broken
+        Harness.pin(ctx);
+        Harness.set("autoDrownEscape", armed);
+        Harness.set("autoFloatWhenDrowning", armed);
+        Harness.set("navigatorDebug", true);            // the arm's per-tick row is gated on it
+        Harness.set("allowBreak", true);             // so a lid the scan DOES see would be broken
 
         // ---- the player, restored on the way out (a minted bot is discarded instead) ----
         if (!serverBody) {

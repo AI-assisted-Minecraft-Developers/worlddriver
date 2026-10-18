@@ -2,12 +2,9 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.PlanningConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
@@ -97,11 +94,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + 2, floorY + dy, cz + dz), Blocks.DIRT.defaultBlockState());
         BlockPos goal = new BlockPos(cx + 4, standY + 1, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = true;
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", true);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -150,11 +146,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx + 4, standY + 1, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        ControlConfig.navigatorExpectAlarm = true;
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorExpectAlarm", true);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -233,11 +228,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         }
         BlockPos goal = new BlockPos(cx + 4, standY, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        ControlConfig.navigatorDrowningEscape = true;   // pinnedBaseline() turns it off for arenas
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDrowningEscape", true);   // pinnedBaseline() turns it off for arenas
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 3 + 0.5, floorY - 3, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -299,11 +293,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             }
         BlockPos goal = new BlockPos(cx + 12, standY, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        PlanningConfig.pathfinderMaxNodes = 120;   // ~half the corridor per search → forced best-effort
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.pin(ctx);
+        Harness.set("pathfinder.maxNodes", 120);   // ~half the corridor per search → forced best-effort
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -342,11 +335,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1 + i, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx + 5, standY + 4, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        ControlConfig.navigatorAscendMovement = true;
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorAscendMovement", true);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -422,21 +414,20 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         }
         BlockPos goal = new BlockPos(cx + 9, standY, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = true;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", true);
         // Horizon soft-commit (the live boxed-pocket mechanism): a short receding horizon
         // best-effort-commits INTO the pocket (nearest-to-goal frontier is the dead end).
         // maxNodes starvation was tried and starves the escape too (v1/v2 postmortems).
-        PlanningConfig.pathfinderHorizonBlocks = 8;
-        ControlConfig.navigatorFasterChurnRepath = true; // 240t churn window
-        ControlConfig.navigatorWallCornerFastChurn = true; // hCol-pinned press → 160t window
+        Harness.set("pathfinderHorizonBlocks", 8);
+        Harness.set("navigatorFasterChurnRepath", true); // 240t churn window
+        Harness.set("navigatorWallCornerFastChurn", true); // hCol-pinned press → 160t window
         // In a TRULY sealed pocket the futile-search cap (5 consecutive no-progress
         // searches → FAILED, gap#49-③) races the churn windows and won in v6 (t=279).
         // This scene is about the churn machinery, so give the cap headroom.
-        ControlConfig.navigatorFutileSearchCap = 60;
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.set("navigatorFutileSearchCap", 60);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -524,17 +515,16 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             }
         BlockPos goal = new BlockPos(cx + 12, standY, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = true;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", true);
         // BOTH slice knobs must be pinned: with path==null the search runs at
         // max(pathfinderSliceMs, pathfinderIdleSliceMs) — v1-v4 pinned only the walking
         // slice, the 30ms idle slice finished the big search ON TICK 1 and the
         // quick-start branch never executed.
-        ControlConfig.pathfinderSliceMs = 0;
-        ControlConfig.pathfinderIdleSliceMs = 0;
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.set("pathfinder.sliceMs", 0);
+        Harness.set("pathfinder.idleSliceMs", 0);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -551,7 +541,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             // The pre-path quick-start branch runs while the big search is in flight; 40
             // pinned ticks are ample for it (stub adoption is tick-1). Then restore the
             // slice budgets so the big search can actually LAND and supersede the stub.
-            if (t == 40) { ControlConfig.pathfinderSliceMs = 6; ControlConfig.pathfinderIdleSliceMs = 30; }
+            if (t == 40) { Harness.set("pathfinder.sliceMs", 6); Harness.set("pathfinder.idleSliceMs", 30); }
             s = navigator.tick(av, w);
             av.step();
             if (t % 60 == 0)
@@ -653,12 +643,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
      *  sits ≥2 above the dropped bot, rawStepDwell passes RAM_JITTER_RECOVER_TICKS (30)
      *  long before the 100t wedge burst → fold → re-route → ARRIVED on the plateau. */
     private static void ascentRamSlideBack(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = true;
-        ControlConfig.navigatorAscentRamJitterImmune = true;
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", true);
+        Harness.set("navigatorAscentRamJitterImmune", true);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
         String err = slideBackCourse(ctx, 900);
         if (err != null) ctx.fail("ascentRamSlideBack: " + err);
     }
@@ -736,12 +725,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
      *  crossing. navigatorVerticalResync stays at its default OFF so this scene pins the
      *  above-node branch alone. */
     private static void aboveNodeStallPitFill(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = true;
-        ControlConfig.navigatorAboveNodeStallRecover = true;   // pinnedBaseline turns it off
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", true);
+        Harness.set("navigatorAboveNodeStallRecover", true);   // pinnedBaseline turns it off
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
         String err = pitFillCourse(ctx, 700);
         if (err != null) ctx.fail("aboveNodeStallPitFill: " + err);
     }
@@ -755,12 +743,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
      *  navigatorAscentRamJitterImmune stays default-OFF so the resync branch is the one that
      *  folds. */
     private static void verticalResyncSlideBack(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = true;
-        ControlConfig.navigatorVerticalResync = true;
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", true);
+        Harness.set("navigatorVerticalResync", true);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
         String err = slideBackCourse(ctx, 900);
         if (err != null) ctx.fail("verticalResyncSlideBack: " + err);
     }
@@ -782,12 +769,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx + 4, standY + 1, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = true;
-        ControlConfig.navigatorStepUpBackoffRetry = true;   // pinnedBaseline turns it off
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", true);
+        Harness.set("navigatorStepUpBackoffRetry", true);   // pinnedBaseline turns it off
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -891,11 +877,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         final BlockPos dest = new BlockPos(cx, standY + 1, cz);    // path.get(step) — the waypoint
         final BlockPos support = foot;                             // edge.toPlace.get(0)
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        ControlConfig.navigatorPillarSurfacePlace = true;   // pinnedBaseline() turns it off for arenas
-        WorldConfig.allowPlace = true;                 // ditto, and the subject here IS a placement
-        WorldConfig.allowBreak = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorPillarSurfacePlace", true);   // pinnedBaseline() turns it off for arenas
+        Harness.set("allowPlace", true);                 // ditto, and the subject here IS a placement
+        Harness.set("allowBreak", false);
         // Also baseline-disabled (BotConfig:2326 production ON, :2968 arena OFF). Production runs
         // with it ON and this scene is about pillaring, so ON is the right world to test in.
         //
@@ -907,7 +892,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // and the destination IS water, so the third term exempts it from needing a support ⇒
         // canStandAt(dest) is true ⇒ snapGoalToStandable returns on its own first line. Confirmed
         // by walk.goalSnapped=false. The real cause was the plan's shape (see the plan below).
-        ControlConfig.navigatorPillarReachGoalNoSnap = true;
+        Harness.set("navigatorPillarReachGoalNoSnap", true);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -926,7 +911,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         if (w.isWater(dest.above()))
             ctx.fail("surfacePillar: " + dest.above().toShortString() + " is water, so this is a FLOODED shaft, "
                     + "not a water-surface shaft; the carve-out condition does not hold and the assertion degenerates to 0==0.");
-        if (!ControlConfig.navigatorPillarSurfacePlace)
+        if (!Harness.flag("navigatorPillarSurfacePlace"))
             ctx.fail("surfacePillar: navigatorPillarSurfacePlace is off, so the WalkerTickClimb carve-out is "
                     + "dead code and the two phase classes must agree by construction.");
 

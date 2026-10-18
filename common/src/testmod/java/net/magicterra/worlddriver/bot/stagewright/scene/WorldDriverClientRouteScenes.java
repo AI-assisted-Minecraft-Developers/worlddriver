@@ -5,14 +5,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
@@ -112,10 +111,10 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         BlockPos start = ctx.rel(0, GROUND + 1, 0);
         BlockPos goal = ctx.rel(12, GROUND + 1, 0);
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
-        GameConfig.navigatorDebug = true;
+        Harness.set("navigatorDebug", true);
         // The baseline spends the goal node from 0.67 away, which ends the walk a cell short and fails
         // the action before its result can say whether the plan was adopted.
-        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
+        Harness.set("navigatorHoldLastNodeUntilStanding", true);
         helm.sync(30, () -> goTo(ctx, "preview.reply", goal, Map.of("plan", "preview", "route", Map.of("risk", "normal")), planned -> {
             ctx.check(!action(planned).isEmpty()).as("A: the preview is accepted as an action: " + planned).isTrue();
             awaitEnd(ctx, actionId(planned), 200, t -> { }, preview -> {

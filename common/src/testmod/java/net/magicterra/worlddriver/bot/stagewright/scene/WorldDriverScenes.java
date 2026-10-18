@@ -5,14 +5,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.RulesConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
 import net.magicterra.worlddriver.api.methods.setting.SettingDefs;
@@ -327,11 +324,10 @@ public final class WorldDriverScenes implements SceneProvider {
         BlockPos goal = new BlockPos(cx + 2 * stepCount + 10, topSurf + 1, cz);
 
         // pin FIRST → closes LAST (after the avatar discard); then the SAME keys legacy set.
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false; WorldConfig.allowPlace = false;
-        ControlConfig.navigatorAscendMovement = false;             // OFF arm → machine must be inert
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2; PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false); Harness.set("allowPlace", false);
+        Harness.set("navigatorAscendMovement", false);             // OFF arm → machine must be inert
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -361,8 +357,7 @@ public final class WorldDriverScenes implements SceneProvider {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), baseY = ctx.origin().getY();
         // Baseline pin for cross-scene isolation (legacy rode the GameTestServer baseline);
         // pin FIRST → closes LAST, after the avatar discard.
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         for (int dx = -2; dx <= 2; dx++)
             for (int dz = -2; dz <= 2; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
@@ -453,13 +448,11 @@ public final class WorldDriverScenes implements SceneProvider {
         BlockPos goal = new BlockPos(cx + span, topSurf + 1, cz + span);
 
         // pin FIRST → closes LAST (after the avatar discard); then the SAME keys legacy set.
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, baseY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -600,11 +593,9 @@ public final class WorldDriverScenes implements SceneProvider {
         // The yaw metric is config-sensitive — pinnedBaseline() snapshots EVERY mutable key so no
         // leaked flag from a neighbour scene can shift the trajectory (the legacy "flaky P0.9"
         // signature was exactly such leaks landing on byte-identical-but-different baselines).
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -729,13 +720,11 @@ public final class WorldDriverScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx, baseY + 2, cz), Blocks.AIR.defaultBlockState());
 
         // pin FIRST → closes LAST (after the avatar discard); then the SAME keys legacy set.
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = true;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", true);
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, baseY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -769,9 +758,9 @@ public final class WorldDriverScenes implements SceneProvider {
         //   rung before the player lands on it; inherent to EVERY pillar rung, not a shaft
         //   fall) — comfortably under the bound (margin ~3.75). A real backslide down the
         //   hollow column (the gap #53 death) is >=20 and blows the bound loudly.
-        if (worstBackslide > RulesConfig.pathfinderMaxDryFall + 1)
+        if (worstBackslide > Harness.integer("pathfinderMaxDryFall") + 1)
             ctx.fail("selfShaftDigUp: dig-up FELL back down its own shaft: worstBackslide="
-                    + worstBackslide + " (> maxDryFall+1=" + (RulesConfig.pathfinderMaxDryFall + 1)
+                    + worstBackslide + " (> maxDryFall+1=" + (Harness.integer("pathfinderMaxDryFall") + 1)
                     + ") — the gap #53 death, reproduced");
         if (fp.getY() < targetY - 1.5)
             ctx.fail("selfShaftDigUp: did not reach the level: pos=(" + fp.getX() + ","
@@ -812,9 +801,8 @@ public final class WorldDriverScenes implements SceneProvider {
 
         // pin FIRST → closes LAST (after the driver unregister + avatar discard); then the
         // SAME single key the legacy body flipped (navigatorDebug).
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
 
         // clearBox(cx, floorY+1, cz, 6, 6) inlined (the legacy helper is private to
         // AgentGameTestServer): 13×13 air box, height 6.
@@ -991,13 +979,11 @@ public final class WorldDriverScenes implements SceneProvider {
 
         // pin FIRST → closes LAST (after the driver unregister + avatar discard); then the
         // SAME keys the legacy body flipped.
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         // createIsolated (NOT create) — a sanctioned deviation, the driver's own FakePlayer.
         PlayerBot driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
@@ -1256,11 +1242,9 @@ public final class WorldDriverScenes implements SceneProvider {
 
         // pin FIRST → closes LAST (after the driver unregister + avatar + stand discard);
         // then the SAME keys the legacy body flipped.
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         EntityLeash leash = new EntityLeash("minecraft:armor_stand", leashRadius, 0, true);
         // Near(1), not Block: guiding semantics are "reach the destination AREA" — exact-cell
@@ -1523,11 +1507,9 @@ public final class WorldDriverScenes implements SceneProvider {
         // persistent dogfood world (see wd.entityLeash javadoc); await-1 waits for the natural
         // server tick to index the fresh stand.
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         EntityLeash leash = new EntityLeash("minecraft:armor_stand", leashRadius, 0, true);
         Intent intent = new Intent(new Goal.Near(goal, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);

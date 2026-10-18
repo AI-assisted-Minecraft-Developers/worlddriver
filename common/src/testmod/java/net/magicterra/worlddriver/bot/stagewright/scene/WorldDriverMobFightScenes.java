@@ -1,12 +1,8 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import java.util.List;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.PlanningConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
@@ -102,8 +98,7 @@ public final class WorldDriverMobFightScenes {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         SceneArena.buildFloor(level, cx, cz, floorY);
@@ -113,9 +108,8 @@ public final class WorldDriverMobFightScenes {
         ctx.record("gamerule.doMobLoot", String.valueOf(
                 level.getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_DOMOBLOOT)));
 
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         var fp = driver.fakePlayer();
@@ -202,8 +196,7 @@ public final class WorldDriverMobFightScenes {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         SceneArena.buildFloor(level, cx, cz, floorY);
@@ -215,9 +208,8 @@ public final class WorldDriverMobFightScenes {
         level.addFreshEntity(dragon);
         ctx.cleanup(() -> dragon.discard());
 
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         ctx.await(() -> !level.getEntitiesOfClass(
                         net.minecraft.world.entity.boss.enderdragon.EnderDragon.class,
@@ -314,8 +306,7 @@ public final class WorldDriverMobFightScenes {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         SceneArena.buildFloor(level, cx, cz, floorY);
@@ -327,9 +318,8 @@ public final class WorldDriverMobFightScenes {
                                 Blocks.AIR.defaultBlockState());
         });
 
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         var fp = driver.fakePlayer();
@@ -436,7 +426,7 @@ public final class WorldDriverMobFightScenes {
      * <p><b>What this reproduces.</b> On the 2026-08-24 run that fight chased its blaze off an 11x11
      * floor; the bot fell 282 blocks to the world bottom and then spent 29 consecutive searches,
      * each ~64k nodes and over a second, on a goal 267 blocks straight up. The gate that exists to
-     * stop exactly that ({@code ControlConfig.navigatorFutileSearchCap}) never fired, and the log carried no
+     * stop exactly that ({@code Harness.integer("navigatorFutileSearchCap")}) never fired, and the log carried no
      * "no route progress" row to explain why. Two candidate doors survive a code read and cannot be
      * told apart by one: the gate may never have judged those searches at all (bucket 5), or the
      * counter may have been wiped from OUTSIDE — {@code CombatProcess.approach} re-goals whenever the
@@ -476,8 +466,7 @@ public final class WorldDriverMobFightScenes {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         SceneArena.buildFloor(level, cx, cz, floorY);
         ctx.cleanup(() -> {
             for (int dx = -6; dx <= 6; dx++)
@@ -487,16 +476,16 @@ public final class WorldDriverMobFightScenes {
                                 Blocks.AIR.defaultBlockState());
         });
 
-        GameConfig.navigatorDebug = false;
+        Harness.set("navigatorDebug", false);
         // The goal has to be UNREACHABLE, not merely far. With either of these left on, the bot
         // pillars up to it or digs its way somewhere, the search succeeds, and the gate is never
         // asked the question this scene exists to ask.
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
         // Small on purpose. Whether the gate counts a search does not depend on how many nodes that
         // search burned, and the live case burned ~64k of them per tick — reproducing the COST here
         // would buy nothing and spend a minute of every gate run.
-        PlanningConfig.pathfinderMaxNodes = 2_000;
+        Harness.set("pathfinder.maxNodes", 2_000);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -531,7 +520,7 @@ public final class WorldDriverMobFightScenes {
         // unjudged seeding search plus the five it counts; anything past that means the bot is
         // still paying for a goal it cannot reach — either the counter is being wiped from outside
         // again, or the latched terminal is re-searching every tick.
-        int cap = ControlConfig.navigatorFutileSearchCap;
+        int cap = Harness.integer("navigatorFutileSearchCap");
         if (retargetArm.searches() > cap + 2)
             ctx.fail("chasing an unreachable goal ran " + retargetArm.searches() + " searches in 240 ticks"
                     + " (cap " + cap + ", allowed " + (cap + 2) + "): " + retargetArm.line());
@@ -772,7 +761,7 @@ public final class WorldDriverMobFightScenes {
      * iteration count (3000 open / 40 roofed) and NeoForge is the faster one per iteration (0.26 ms
      * vs 0.45 ms). It is <i>not</i> one runaway search either: a guard that reports any single
      * pathfinder expansion over 100 ms printed nothing at all during a tick that lasted 60 seconds.
-     * What is left is the sum. {@code ControlConfig.pathfinderIdleSliceMs} is 30 ms and
+     * What is left is the sum. {@code Harness.int64("pathfinder.idleSliceMs")} is 30 ms and
      * {@code SearchPhase} deliberately spends that idle slice on a tick where the bot has no
      * walkable path — which is every tick of a bot chasing a blaze hovering out of reach. 3000
      * iterations x ~20 ms lands exactly on the 60 s the watchdog measured. The slice cap was working
@@ -787,7 +776,7 @@ public final class WorldDriverMobFightScenes {
      * <p><b>⚠️ That budget bounds the ITERATION COUNT per tick, never the tick. It cannot.</b> The
      * deadline can only be read between iterations, so a pump costs its slice <i>plus one whole
      * iteration's overrun</i> — and the overrun is unbounded here, because every one of these scenes
-     * sets {@code ControlConfig.pathfinderSliceMs} and {@code pathfinderMaxMs} to {@code Long.MAX_VALUE
+     * sets {@code Harness.int64("pathfinder.sliceMs")} and {@code pathfinderMaxMs} to {@code Long.MAX_VALUE
      * / 2} (see the four setup blocks) so that a search is never truncated mid-measurement. Bounded
      * iterations, unbounded cost per iteration: a single slow search inside {@code tickAll()} blows
      * the slice on its own, with nothing underneath to catch it. Measured on the NeoForge jumpfix
@@ -922,12 +911,12 @@ public final class WorldDriverMobFightScenes {
             fellAt = t;
             fellY = fp.getY();
             futileAtFall = futileSnapshot(fp);
-            sliceWas = ControlConfig.pathfinderSliceMs;
-            maxWas = PlanningConfig.pathfinderMaxMs;
+            sliceWas = Harness.int64("pathfinder.sliceMs");
+            maxWas = Harness.int64("pathfinder.maxMs");
             // Production values, not this scene's MAX_VALUE/2. The probe below wants a bounded
             // search far more than it wants an untruncated one.
-            ControlConfig.pathfinderSliceMs = 6;
-            PlanningConfig.pathfinderMaxMs = 500;
+            Harness.set("pathfinder.sliceMs", 6);
+            Harness.set("pathfinder.maxMs", 500);
             net.magicterra.worlddriver.testcontent.TestMod.LOG.warn(
                     "[blazefight] {} BOT LEFT THE ARENA at iter={} — y={} is {} below floor {};"
                             + " blaze at y={}. Ending the round after {} probe iterations under a"
@@ -943,8 +932,8 @@ public final class WorldDriverMobFightScenes {
         private void reportTheFall() {
             if (fallReported || fellAt < 0) return;
             fallReported = true;
-            ControlConfig.pathfinderSliceMs = sliceWas;
-            PlanningConfig.pathfinderMaxMs = maxWas;
+            Harness.set("pathfinder.sliceMs", sliceWas);
+            Harness.set("pathfinder.maxMs", maxWas);
             postFallCensus = futileGateLine(futileAtFall, futileSnapshot(fp));
             net.magicterra.worlddriver.testcontent.TestMod.LOG.warn(
                     "[blazefight] {} POST-FALL CENSUS over {} iterations — {}", tag, t - fellAt,
@@ -1098,8 +1087,7 @@ public final class WorldDriverMobFightScenes {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
         final int padY = floorY - 200;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         SceneArena.buildFloor(level, cx, cz, floorY);
@@ -1119,11 +1107,10 @@ public final class WorldDriverMobFightScenes {
                             Blocks.AIR.defaultBlockState());
         });
 
-        GameConfig.navigatorDebug = false;
+        Harness.set("navigatorDebug", false);
         // The same MAX_VALUE/2 the real scene uses. Staging the fall under a budget the real scene
         // does not have would test a guard nobody ships.
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.untimed(ctx);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         var fp = driver.fakePlayer();
@@ -1203,8 +1190,7 @@ public final class WorldDriverMobFightScenes {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         SceneArena.buildFloor(level, cx, cz, floorY);
@@ -1227,9 +1213,8 @@ public final class WorldDriverMobFightScenes {
                             Blocks.STONE.defaultBlockState());
                 }
 
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         var fp = driver.fakePlayer();
@@ -1326,8 +1311,7 @@ public final class WorldDriverMobFightScenes {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         SceneArena.buildFloor(level, cx, cz, floorY);

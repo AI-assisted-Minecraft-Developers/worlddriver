@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 
 import java.util.List;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -14,9 +15,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
 
 /**
  * Where a movement task leaves the bot, and the two recoveries that put it back on ground it can
@@ -535,9 +533,8 @@ public final class JourneyLandingScenes implements SceneProvider {
         // The ladder this guards walks on the shipped navigator, which holds the last node until the
         // foot stands in it. The arena baseline spends it from the air, mid-way up the bank, and an
         // idle bot that lets go of its keys there drops back into the cell it was leaving.
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
+        Harness.pin(ctx);
+        Harness.set("navigatorHoldLastNodeUntilStanding", true);
         flatGround(ctx);
 
         // The seat, one below the surface. The bank is the untouched stone at dx=-1.
@@ -799,10 +796,10 @@ public final class JourneyLandingScenes implements SceneProvider {
      */
     private static BlockPos stageLipArena(SceneContext ctx) {
         ServerLevel level = ctx.level();
-        boolean debugWas = net.magicterra.worlddriver.config.GameConfig.navigatorDebug;
-        net.magicterra.worlddriver.config.GameConfig.navigatorDebug = true;
+        boolean debugWas = Harness.flag("navigatorDebug");
+        Harness.set("navigatorDebug", true);
         ctx.cleanup(() -> {
-            net.magicterra.worlddriver.config.GameConfig.navigatorDebug = debugWas;
+            Harness.set("navigatorDebug", debugWas);
             JourneyStairs.forget();
             JourneyStairwell.stairTop = null;
             JourneyStairwell.stairBottom = null;

@@ -3,15 +3,11 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.PlanningConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
@@ -195,9 +191,9 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      *  a second way up, and a scene about placing blocks that accepts a staircase is measuring
      *  something else. */
     private static void towerConfig() {
-        WorldConfig.allowPlace = true;
-        WorldConfig.allowBreak = false;
-        GameConfig.navigatorDebug = false;
+        Harness.set("allowPlace", true);
+        Harness.set("allowBreak", false);
+        Harness.set("navigatorDebug", false);
     }
 
     private static void clearBox(ServerLevel level, int cx, int cz, int y0,
@@ -425,8 +421,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         final int floorY = floorY(ctx), standY = floorY + 1;
         final int courses = 12, stock = 64;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         towerConfig();
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
@@ -492,13 +487,12 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         final int floorY = floorY(ctx), standY = floorY + 1;
         final int runway = 12, courses = 8, stock = 64;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         towerConfig();
         // The only arm that plans. Real slices over real server ticks — a synchronous A* inside one
         // server tick is the shape that has wedged this suite before.
-        ControlConfig.pathfinderSliceMs = 20;
-        PlanningConfig.pathfinderMaxMs = 2000;
+        Harness.set("pathfinder.sliceMs", 20);
+        Harness.set("pathfinder.maxMs", 2000);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
 
@@ -582,8 +576,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         final int topY = ctx.origin().getY() + 30, standY = topY + 1;
         final int courses = 10, stock = 16, drop = 25;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         towerConfig();
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
@@ -677,8 +670,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         final int floorY = floorY(ctx), standY = floorY + 1;
         final int stock = 64;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         towerConfig();
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
@@ -751,8 +743,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         final int floorY = floorY(ctx), standY = floorY + 1;
         final int courses = 6, stock = 64, bagSlot = 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         towerConfig();
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
@@ -893,8 +884,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         final int courses = 4, stock = 64;
         final int ceilY = standY + 2;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         towerConfig();
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
@@ -1008,8 +998,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         final BlockPos lid = new BlockPos(cx - 1, ceilY, cz);
         final BlockPos own = new BlockPos(cx, ceilY, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         towerConfig();
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);

@@ -3,11 +3,9 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.EnumSet;
 import java.util.List;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.route.PathSmoothing;
 import net.magicterra.worlddriver.bot.rules.Capability;
@@ -187,10 +185,9 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         fp.getInventory().selected = 0;
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
 
         PathFinder.Result r = new PathFinder(w, SearchProfile.NONE)
                 .findPath(start, new Goal.YLevel(targetY));
@@ -229,13 +226,12 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         fp.getInventory().selected = 0;
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
 
         double probeCost = w.breakCost(new BlockPos(cx, top, cz), start);
         TestMod.LOG.info("[wd.digDownY] probe allowBreak={} breakCost(topBlock)={}",
-                WorldConfig.allowBreak, probeCost);
+                Harness.flag("allowBreak"), probeCost);
 
         PathFinder.Result r = new PathFinder(w, SearchProfile.NONE)
                 .findPath(start, new Goal.YLevel(targetY));
@@ -287,10 +283,9 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         double colCx = cx + 0.5, colCz = cz + 0.5;
         final double radius = 0.9;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
 
         PathFinder.Result plain = new PathFinder(w, SearchProfile.NONE)
                 .findPath(start, new Goal.YLevel(targetY));
@@ -534,9 +529,8 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         fp.getInventory().selected = 0;
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
 
         PathFinder.Result plain = new PathFinder(w, SearchProfile.NONE)
                 .findPath(start, new Goal.YLevel(targetY));
@@ -546,7 +540,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         TestMod.LOG.info(
                 "[wd.forbidDig] allowBreak={} plain.goalReached={} minPathY(plain)={} plainLen={} | "
                 + "held.goalReached={} heldLen={}",
-                WorldConfig.allowBreak, plain.goalReached(), minPathY(plain), plain.path().size(),
+                Harness.flag("allowBreak"), plain.goalReached(), minPathY(plain), plain.path().size(),
                 held.goalReached(), held.path().size());
 
         if (!plain.goalReached() || minPathY(plain) != targetY)
@@ -554,7 +548,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
                     + plain.goalReached() + " minY=" + minPathY(plain));
         if (held.goalReached())
             ctx.fail("forbidDig: NoBreak did NOT hold: constrained plan still reached YLevel(" + targetY
-                    + ") with allowBreak=" + WorldConfig.allowBreak + " — path=" + held.path());
+                    + ") with allowBreak=" + Harness.flag("allowBreak") + " — path=" + held.path());
     }
 
     /** Ported from {@code AgentGameTestBias#shorelineHugArena}: A3b {@link ShorelineHug} cost-bias.
@@ -668,9 +662,8 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         List<CostModifier> bias = List.of(new ShorelineHug(30.0));
         SearchProfile hug = new SearchProfile(bias, CapabilityProfile.ALL, List.of(new NoWater()));
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        ControlConfig.navigatorDiagonalStringPull = true;
+        Harness.pin(ctx);
+        Harness.set("navigatorDiagonalStringPull", true);
 
         PathFinder.Result hugged = new PathFinder(w, hug).findPath(start, new Goal.Block(goal));
         BlockPos rawWorst = firstOutOfBand(hugged, 2, w);
@@ -728,10 +721,9 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         fp.getInventory().selected = 0;
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
 
         PathFinder.Result r = new PathFinder(w, 200, 100, SearchProfile.NONE)
                 .findPath(start, new Goal.Block(new BlockPos(cx, top + 2, cz)));
@@ -778,11 +770,10 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         fp.getInventory().selected = 0;
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = true;   // STOP line names the committing branch
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", true);   // STOP line names the committing branch
 
         PathFinder.Result r = new PathFinder(w, 200, 100, SearchProfile.NONE)
                 .findPath(start, new Goal.Block(goalPos));

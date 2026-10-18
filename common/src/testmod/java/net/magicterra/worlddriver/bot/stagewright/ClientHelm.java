@@ -87,8 +87,7 @@ public final class ClientHelm {
         }
         BotApi bot = BotHooks.impl();
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
 
         ServerLevel from = body.serverLevel();
         final double hx = body.getX(), hy = body.getY(), hz = body.getZ();

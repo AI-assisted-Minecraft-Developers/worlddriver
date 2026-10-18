@@ -8,13 +8,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.application.PlayerSnapshots;
 import net.magicterra.worlddriver.application.RecipeService;
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.BehaviorConfig;
-import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.bot.behavior.CraftProcess;
 import net.magicterra.worlddriver.game.observe.RecipeResolver;
 import net.magicterra.worlddriver.bot.behavior.SmeltProcess;
@@ -150,9 +149,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
         ctx.cleanup(() -> scrub(level, cx, cz, floorY, 2, 3));
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
 
@@ -317,10 +315,9 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
-        BehaviorConfig.craftReclaimTable = true;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
+        Harness.set("craftReclaimTable", true);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
 
@@ -403,9 +400,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> scrub(level, cx, cz, floorY, 3, 4));
@@ -487,9 +483,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> scrub(level, cx, cz, floorY, 3, 4));
@@ -568,9 +563,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
         });
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
 
@@ -617,10 +611,9 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
-        BehaviorConfig.craftReclaimTable = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
+        Harness.set("craftReclaimTable", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         // Legacy scrubbed [-3,3] × dy[0,4] on exit; the two-layer floor reaches [-2,2], so this covers it.
@@ -670,9 +663,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -842,9 +834,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.STONE.defaultBlockState());
         ctx.cleanup(() -> level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState()));
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
 
@@ -926,9 +917,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         coreLogger.setAdditive(true);
         ctx.cleanup(() -> { coreLogger.removeAppender(catcher); catcher.stop(); coreLogger.setAdditive(true); });
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
 
@@ -986,9 +976,8 @@ public final class WorldDriverStationScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.STONE.defaultBlockState());
         ctx.cleanup(() -> level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState()));
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("navigatorDebug", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
 

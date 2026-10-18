@@ -3,12 +3,9 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.PlanningConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
@@ -139,11 +136,10 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
             level.setBlockAndUpdate(new BlockPos(cx - 1, y, cz), Blocks.OAK_LEAVES.defaultBlockState());
         BlockPos goal = new BlockPos(cx, standY + 3, cz);   // 3 pillars up
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        WorldConfig.allowPlace = true;
-        ControlConfig.navigatorPillarReachGoalNoSnap = true;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorPillarReachGoalNoSnap", true);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.06, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -197,11 +193,10 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         }
         BlockPos goal = new BlockPos(cx, topY + 1, cz + 3);   // first plateau cell behind the wall
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = true;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", true);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -248,11 +243,10 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         }
         BlockPos goal = new BlockPos(cx, standY, cz + 4);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;   // force the bridge — no dig-around
-        WorldConfig.allowPlace = true;
-        GameConfig.navigatorDebug = true;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);   // force the bridge — no dig-around
+        Harness.set("allowPlace", true);
+        Harness.set("navigatorDebug", true);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz - 4 + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -293,13 +287,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, launchY + 1, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx + 4, launchY + 2, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = true;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", true);
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 5 + 0.5, launchY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -350,13 +342,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, plainY, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx, plainY + 1, cz + 12);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = true;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", true);
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz - 3.5);
         ServerPlayer fp = av.fakePlayer();
@@ -418,12 +408,10 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         final double poseY = footY;                       // foot at the node block-Y (|dyNode| ≈ 0)
         final double poseZ = node.getZ() + 0.5;           // centred in Z
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;          // no carving — the stall must be the crest orbit, not a dig
-        WorldConfig.allowPlace = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);          // no carving — the stall must be the crest orbit, not a dig
+        Harness.set("allowPlace", false);
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, poseX, poseY, poseZ);
         ServerPlayer fp = av.fakePlayer();
@@ -436,8 +424,8 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         boolean[] advanced = new boolean[2];
         double[] obsCur2 = { Double.NaN, Double.NaN };
         for (int leg = 0; leg < 2; leg++) {
-            ControlConfig.navigatorStepUpCrestReach = (leg == 1);
-            GameConfig.navigatorDebug = true;
+            Harness.set("navigatorStepUpCrestReach", (leg == 1));
+            Harness.set("navigatorDebug", true);
             fp.setPos(poseX, poseY, poseZ);
             fp.setDeltaMovement(0, 0, 0);
             Navigator navigator = new Navigator();
@@ -504,13 +492,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
             level.setBlockAndUpdate(new BlockPos(cx, topY - i, cz + i), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx, topY - steps + 1, cz + steps);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = true;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", true);
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -570,13 +556,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, topSurf, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx + 2 * stepCount + 10, topSurf + 1, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -642,13 +626,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(x, y, z), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx + RUN + 16, H - DROP, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, H, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -705,9 +687,8 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
             for (int y = H; y <= H + 1; y++)
                 level.setBlockAndUpdate(new BlockPos(x, y, cz + 2), Blocks.STONE.defaultBlockState());
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, H, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -745,13 +726,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx + 12, baseY + 1, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = true;                 // bridging needs placement
-        GameConfig.navigatorDebug = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", true);                 // bridging needs placement
+        Harness.set("navigatorDebug", false);
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, baseY + 2, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -796,12 +775,10 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         BlockPos wallFeet = new BlockPos(cx + 1, base + 1, cz);
         BlockPos wallHead = new BlockPos(cx + 1, base + 2, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = true;
-        GameConfig.navigatorDebug = true;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", true);
+        Harness.set("navigatorDebug", true);
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, base + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();

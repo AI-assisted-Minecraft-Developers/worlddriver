@@ -7,13 +7,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.PlayerBot;
@@ -354,11 +352,10 @@ public final class JourneyPourLineScenes implements SceneProvider {
     /** The switches every arm shares, plus the statics these scenes have to hand back. A step set or
      *  a mould left behind would give a ladder run in the same process a flight it never built. */
     private static void config(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowPlace = false;
-        WorldConfig.allowBreak = false;
-        GameConfig.navigatorDebug = false;
+        Harness.pin(ctx);
+        Harness.set("allowPlace", false);
+        Harness.set("allowBreak", false);
+        Harness.set("navigatorDebug", false);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(JourneyRamp::reset);

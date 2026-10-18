@@ -8,9 +8,9 @@ import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
@@ -928,12 +928,12 @@ public final class JourneyEndRungs {
             // The shaft must not be bridged over. A navigator allowed to place while descending fills
             // in the hole it is standing in, which reads as "the block broke but the bot did not
             // sink" — the same confusion the overworld shafts already had to disarm.
-            WorldConfig.allowPlace = false;
+            Harness.set("allowPlace", false);
             int depth = Math.max(0, rig.player().blockPosition().getY() - stand.getY());
             int cap = depth * 4 + 40;
             rig.evidence("shaft.depth", depth + " blocks, allowed " + cap + " attempts");
             digDownTo(ctx, rig, stand.getY(), cap, cap, () -> {
-                WorldConfig.allowPlace = true;
+                Harness.set("allowPlace", true);
                 judgeTheRoom(ctx, rig, centre);
             });
         }, () -> ctx.fail("cannot reach the surface directly above the portal room: target "
@@ -1377,7 +1377,7 @@ public final class JourneyEndRungs {
                     + " is still at " + at + ", " + Math.round(away) + " blocks from the centre. There"
                     + " is void between the arrival platform and the main island, so crossing it needs"
                     + " a bridge — the bot carries " + pillar + " x" + stock + ", allowPlace="
-                    + WorldConfig.allowPlace + ". Which segment spent blocks and which had no plan at"
+                    + Harness.flag("allowPlace") + ". Which segment spent blocks and which had no plan at"
                     + " all is in island.*.plan");
             return;
         }
@@ -1468,7 +1468,7 @@ public final class JourneyEndRungs {
                 + " not slow walking. The arrival platform is 5x5 and the main island is "
                 + Math.round(Math.hypot(at.getX(), at.getZ())) + " blocks away, so the gap needs a"
                 + " bridge; the bot still carries " + pillar + " x" + stock + ", allowPlace="
-                + WorldConfig.allowPlace + ". island.*.plan tells which failure it was: placed >0"
+                + Harness.flag("allowPlace") + ". island.*.plan tells which failure it was: placed >0"
                 + " blocks = placed but not stepped onto (footing criterion); placed 0 blocks with a"
                 + " bridge in the plan = stepped out without placing (execution order); placed 0"
                 + " blocks with move=walk or no path at all = the pathfinder never intended to bridge"

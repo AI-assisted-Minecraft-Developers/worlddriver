@@ -4,11 +4,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
@@ -124,8 +123,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
      * definition of a cluster, not "how far the nearest mob is").
      */
     private static void avoidsMobCluster(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), y = ctx.origin().getY() + 40;
         slab(level, cx, cz, y, -2, 22, -7, 7);
@@ -167,8 +165,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
      * the ticks the skeleton could see it.
      */
     private static void staysOutOfSkeletonSight(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), y = ctx.origin().getY() + 40;
         slab(level, cx, cz, y, -3, 23, -6, 10);
@@ -246,8 +243,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
      * whatever the built-in filters pruned meanwhile.
      */
     private static void blockedNamesTheConstraint(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), y = ctx.origin().getY() + 40;
         slab(level, cx, cz, y, -3, 13, -4, 4);
@@ -270,8 +266,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
 
     /** A hard corridor along a bent polyline: every cell of the route within its radius, the straight route not. */
     private static void corridorHolds(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), y = ctx.origin().getY() + 40;
         slab(level, cx, cz, y, -3, 23, -9, 4);
@@ -304,8 +299,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
      * pruning every first edge, and once the route is out of the cluster it never re-enters one.
      */
     private static void rejoinsFromInsideACluster(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), y = ctx.origin().getY() + 40;
         slab(level, cx, cz, y, -6, 18, -6, 6);
@@ -346,10 +340,9 @@ public final class WorldDriverRouteScenes implements SceneProvider {
      * it, and then walk around. Dig and place are off so the way around is the only way.
      */
     private static void replansWhenWalledOff(SceneContext ctx) {
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), y = ctx.origin().getY() + 40;
         slab(level, cx, cz, y, -2, 30, -6, 6);

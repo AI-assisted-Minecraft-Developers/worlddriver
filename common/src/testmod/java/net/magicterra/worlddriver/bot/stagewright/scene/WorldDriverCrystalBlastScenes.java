@@ -3,11 +3,11 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.game.body.BlastFooting;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
@@ -268,8 +268,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         clearAndCatch(level, cx, cz, standY);
         buildSpike(level, cx, cz, topY, standY);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
+        Harness.pin(ctx);
 
         EndCrystal crystal = new EndCrystal(level, cx + 0.5, standY + 1, cz + 0.5);
         crystal.setShowBottom(true);

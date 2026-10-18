@@ -4,15 +4,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.BotTicker;
@@ -70,14 +68,13 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
     private static Bodies stage(SceneContext ctx, BlockPos o, BlockPos playerStart, BlockPos npcStart) {
         ServerLevel level = ctx.level();
         BlockPos lo = o.offset(-2, -1, -4), hi = o.offset(COURSE + 2, 3, 4);
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        WorldConfig.allowPlace = false;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowPlace", false);
         // The shipped arrival rule, which the pinned baseline turns off: without it the navigator spends the
         // last node from 0.67 out, and a server-side player ended path-consumed a cell short (x=…329.984,
         // finalDist 10) on both loaders while the NPC arrived.
-        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
+        Harness.set("navigatorHoldLastNodeUntilStanding", true);
         fill(level, lo, hi, AIR);
         ctx.cleanup(() -> fill(level, lo, hi, AIR));
         fill(level, lo, o.offset(COURSE + 2, -1, 4), STONE);

@@ -3,13 +3,8 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.config.ControlConfig;
-import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.config.PlanningConfig;
-import net.magicterra.worlddriver.config.RulesConfig;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
@@ -297,14 +292,12 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
         buildPadGapDeck(level, cx, cz, padY, padLen, halfW);
         BlockPos goal = new BlockPos(cx - GAP - 6, standY, cz);
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowPlace = true;               // bridging is a legitimate way across
-        WorldConfig.allowBreak = false;              // digging around it is not
-        RulesConfig.allowParkour4 = false;           // the gap is a parkour3; 4-cell leaps stay off
-        GameConfig.navigatorDebug = true;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowPlace", true);               // bridging is a legitimate way across
+        Harness.set("allowBreak", false);              // digging around it is not
+        Harness.set("allowParkour4", false);           // the gap is a parkour3; 4-cell leaps stay off
+        Harness.set("navigatorDebug", true);
+        Harness.untimed(ctx);
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + spawnDx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -445,12 +438,10 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
         final int padY = padY(ctx), standY = padY + 1;
         final int shortDz = -4, longDz = 4;        // two 1-wide lanes, 8 cells apart across the void
 
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        WorldConfig.allowBreak = false;
-        RulesConfig.allowParkour4 = false;
-        ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
-        PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+        Harness.pin(ctx);
+        Harness.set("allowBreak", false);
+        Harness.set("allowParkour4", false);
+        Harness.untimed(ctx);
 
         clearAndCatch(level, cx, cz, padY, 6);
         buildPadGapDeck(level, cx, cz + shortDz, padY, 1, 0);

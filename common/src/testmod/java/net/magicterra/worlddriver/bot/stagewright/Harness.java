@@ -42,6 +42,12 @@ public final class Harness {
     /** {@link #pin(SceneContext)} with the planner's wall-clock budgets lifted, so it plans the same on any machine. */
     public static void pinUntimed(SceneContext ctx) { pin(ctx, Baseline.TEST, true); }
 
+    /** Lift the planner's wall-clock budgets until the scene ends, leaving every other setting as it is. */
+    public static void untimed(SceneContext ctx) { pin(ctx, Baseline.CURRENT, true); }
+
+    /** Put this build's defaults in place until the scene ends; for a scene about the bot as it ships. */
+    public static void compiledDefaults(SceneContext ctx) { pin(ctx, Baseline.COMPILED, false); }
+
     /** Save every setting and put {@code baseline} in place; the scene's cleanup restores the saved ones. */
     public static void pin(SceneContext ctx, Baseline baseline, boolean untimed) {
         int id = pinId(baseline, untimed);
@@ -77,6 +83,17 @@ public final class Harness {
     }
 
     public static boolean flag(String key) { return (Boolean) get(key); }
+
+    public static int integer(String key) { return ((Number) get(key)).intValue(); }
+
+    public static long int64(String key) { return ((Number) get(key)).longValue(); }
+
+    public static double number(String key) { return ((Number) get(key)).doubleValue(); }
+
+    public static String text(String key) { return (String) get(key); }
+
+    @SuppressWarnings("unchecked")
+    public static java.util.List<String> list(String key) { return (java.util.List<String>) get(key); }
 
     // ---------------------------------------------------------------- bots
 

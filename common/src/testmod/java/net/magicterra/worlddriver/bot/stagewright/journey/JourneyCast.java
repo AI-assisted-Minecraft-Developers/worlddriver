@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
+import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
@@ -554,20 +554,20 @@ final class JourneyCast {
             // `StallDetectPhase.run` — grep `holdPillarBlock`) and the two
             // `ensureHoldingPlaceableAny` ones (`Safety.widenFooting`, `Safety.strideFloorGuard` —
             // grep `holdPlaceable`) ALL short-circuit on
-            // `WorldConfig.allowPlace` before they touch the hand, so turning it off for these twelve
+            // `Harness.flag("allowPlace")` before they touch the hand, so turning it off for these twelve
             // ticks makes the swap unreachable rather than merely unlikely. Nothing here needs to
             // place: the bot is standing still, aimed, about to empty a bucket.
             //
             // Restored on every exit below — the fail branch and the settle's completion — because
             // the walk that follows the pour DOES need to pillar.
-            boolean placeWas = WorldConfig.allowPlace;
-            WorldConfig.allowPlace = false;
+            boolean placeWas = Harness.flag("allowPlace");
+            Harness.set("allowPlace", false);
             // AND A NET UNDER IT. The two restores below cover every path this method can take, but
             // not the one it cannot: `cast.handTrace.samples` documents that a bot which leaves the
             // world skips the settle outright, and then the flag would stay false for whatever runs
             // after — a global flipped by a scene that never came back. Cleanups drain on every exit,
             // including a timeout, so the flag cannot outlive the scene that turned it off.
-            ctx.cleanup(() -> WorldConfig.allowPlace = placeWas);
+            ctx.cleanup(() -> Harness.set("allowPlace", placeWas));
             rig.evidence("cast.placeHeldOff", "placement disabled for the duration of the pour"
                     + " (previous value " + placeWas + "); the pillar hold is the code that SWAPs"
                     + " the slot contents, and all three of its call sites short-circuit on"
@@ -583,7 +583,7 @@ final class JourneyCast {
             // must be recorded.
             JourneyHands.handsAtUse(rig, "cast");
             if (!gripped) {
-                WorldConfig.allowPlace = placeWas;
+                Harness.set("allowPlace", placeWas);
                 ctx.fail("the hand about to pour does not hold minecraft:lava_bucket, and one"
                         + " re-grip did not fix it: " + JourneyHands.heldOnBoth(rig)
                         + ". Not poured: a use without the lava bucket in hand only returns PASS,"
@@ -636,7 +636,7 @@ final class JourneyCast {
             }, () -> {
                 // FIRST LINE OF THE CALLBACK, before anything can fail or return: the pour is over,
                 // and everything after it — the walk home, the next fetch — is allowed to pillar.
-                WorldConfig.allowPlace = placeWas;
+                Harness.set("allowPlace", placeWas);
                 // HOW MANY TICKS THE INSTRUMENT ACTUALLY SAW, so that silence can be read. Three
                 // outcomes have to look different on disk and this row is what separates them:
                 // this row missing entirely ⇒ the run never reached the pour (not triggered,
