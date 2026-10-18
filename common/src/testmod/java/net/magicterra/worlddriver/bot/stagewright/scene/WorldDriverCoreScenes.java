@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 
 import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.worlddriver.testcontent.TestMod;
+import net.magicterra.worlddriver.api.game.ScriptChecks;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
@@ -33,7 +34,6 @@ import net.magicterra.worlddriver.api.methods.setting.SettingsApi;
 import net.magicterra.worlddriver.api.methods.setting.SettingsContracts;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.PlanningConfig;
-import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.BotLevelHolder;
 import net.magicterra.worlddriver.debug.HorizonArena;
@@ -55,7 +55,6 @@ import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.game.ui.ClientChatLog;
 import net.magicterra.worlddriver.mcp.McpTools;
-import net.magicterra.worlddriver.test.ScriptTest;
 import net.magicterra.worlddriver.testcontent.TestArena;
 import net.magicterra.worlddriver.testcontent.ValidationSuite;
 import net.magicterra.stagewright.scene.Scene;
@@ -268,7 +267,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // wd.drownEscapeClientStaysDownDisarmed needs to keep under. Cancel everything on the way
         // out, on FAIL and TIMEOUT too. A dedicated server has no bot. Sent without waiting: self's
         // cancel runs on the client thread, which a cleanup on the server thread may not wait for.
-        if (BotHooks.isAvailable()) {
+        if (!ctx.server().isDedicatedServer()) {
             ctx.cleanup(() -> ControlApi.of(WorldDriver.registry()).cancel(CancelParams.all()));
         }
 
@@ -288,11 +287,10 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             Integer v = result.get();
             if (v == null) { ctx.fail("agentRpcSmoke: validation still running"); return; } // cond guarantees non-null
 
-            // Read the per-check results the worker just recorded (single source:
-            // ScriptTest's static snapshot, set by ValidationSuite.run()). Assert the full
-            // suite ran with the expected coverage, zero failures, and only NAMED
-            // task#92 topology-skips — on WHICHEVER topology this scene is running.
-            List<ScriptTest.Result> results = ScriptTest.snapshot();
+            // Read the per-check results the worker just recorded (ValidationSuite.run() keeps
+            // them). Assert the full suite ran with the expected coverage, zero failures, and
+            // only NAMED task#92 topology-skips — on WHICHEVER topology this scene is running.
+            List<ScriptChecks.Check> results = ValidationSuite.lastResults();
             List<String> failures = new ArrayList<>();
             List<String> skips = new ArrayList<>();
             List<String> unexpectedSkips = new ArrayList<>();
@@ -301,11 +299,11 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             // the allow-list catches marked skips, but a check silently converted to a
             // passing no-op WITHOUT this marker escapes both gates — any new skip MUST
             // carry the marker (and a task citation) or it is dishonest coverage.
-            for (ScriptTest.Result r : results) {
-                if (!r.passed) { failures.add(r.name); continue; }
-                if (r.name.contains("SKIP(task#92)")) {
-                    skips.add(r.name);
-                    if (RPC_SMOKE_NAMED_SKIPS.stream().noneMatch(r.name::contains)) unexpectedSkips.add(r.name);
+            for (ScriptChecks.Check r : results) {
+                if (!r.passed()) { failures.add(r.name()); continue; }
+                if (r.name().contains("SKIP(task#92)")) {
+                    skips.add(r.name());
+                    if (RPC_SMOKE_NAMED_SKIPS.stream().noneMatch(r.name()::contains)) unexpectedSkips.add(r.name());
                 }
             }
             boolean dedicated = ctx.level().getServer().isDedicatedServer();

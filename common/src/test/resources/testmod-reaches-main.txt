@@ -249,7 +249,6 @@ bot/stagewright/scene/WorldDriverClientRouteScenes -> bot/control/NavigatorTelem
 bot/stagewright/scene/WorldDriverClientSchedulerScenes -> bot/behavior/SleepProcess
 bot/stagewright/scene/WorldDriverClientWaterScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverCombatScenes -> bot/world/ThreatScanner
-bot/stagewright/scene/WorldDriverCoreScenes -> bot/BotHooks
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/BotLevelHolder
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverCoreScenes -> bot/control/Navigator
@@ -272,7 +271,6 @@ bot/stagewright/scene/WorldDriverCoreScenes -> game/ui/ClientChatLog
 bot/stagewright/scene/WorldDriverCoreScenes -> game/ui/InputReleaseGate
 bot/stagewright/scene/WorldDriverCoreScenes -> game/ui/MouseYieldGate
 bot/stagewright/scene/WorldDriverCoreScenes -> mcp/McpTools
-bot/stagewright/scene/WorldDriverCoreScenes -> test/ScriptTest
 bot/stagewright/scene/WorldDriverCoverageScenes -> bot/control/ExpectAlarms
 bot/stagewright/scene/WorldDriverCoverageScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverCoverageScenes -> bot/control/Navigator
@@ -517,7 +515,3 @@ bot/stagewright/scene/WorldDriverWaterCrossScenes -> game/body/ServerPlayerBody
 bot/stagewright/scene/WorldDriverWaterMobScenes -> bot/Bot
 bot/stagewright/scene/WorldDriverWaterMobScenes -> bot/BotRegistry
 bot/stagewright/scene/WorldDriverWaterMobScenes -> bot/control/NavigatorTelemetry
-testcontent/ValidationSuite -> script/McpBridge
-testcontent/ValidationSuite -> script/RpcBridge
-testcontent/ValidationSuite -> script/ScriptManager
-testcontent/ValidationSuite -> test/ScriptTest
