@@ -39,10 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A bot no longer drifts off its heading while it aims a dig.** The walker worked out which way
   to push, then turned the head toward the next block to dig in the same tick, and the push turned
   with the head. A tick's movement is now held until the tick is decided and then given along the
-  bearing it was meant for, whichever way the head ended up facing. On the R1 route the final
-  cliff, where the bot digs its way up, took 31 to 34 s in six runs out of six, against 32 to 97 s
-  in six runs before (three of them stuck re-digging and re-placing for a minute or more), and the
-  whole route's median went from 171 s to 158 s.
+  bearing it was meant for, whichever way the head ended up facing. The R1 route times the same
+  before and after (median 156 s against 157 s over six runs each, every run starting from the same
+  untouched world).
 - **A bot digging itself out of deep water is no longer given up on for searching too often.** A
   walk that keeps searching without getting closer is ended, except while the bot is digging, when
   standing still is expected. For the dig a bot does to climb out of deep water that exception never
