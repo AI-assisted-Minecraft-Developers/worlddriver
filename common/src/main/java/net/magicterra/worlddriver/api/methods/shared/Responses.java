@@ -37,6 +37,36 @@ public final class Responses {
         @Override public String wireName() { return wire; }
     }
 
+    /**
+     * With {@code bot_unavailable}: what stops the bot from acting, for a program to switch on. The bot's
+     * layers spell these words themselves ({@code Readiness.Reason}), since they may not name the api.
+     */
+    public enum Unready implements WireName {
+        /** No world is open on the client, or it has no player. */
+        NO_PLAYER("no_player"),
+        LOADING("loading"),
+        DEAD("dead"),
+        /** The singleplayer game is paused by a screen. */
+        PAUSED("paused"),
+        SLEEPING("sleeping"),
+        /** The chunk under the bot has not arrived. */
+        CHUNK_UNLOADED("chunk_unloaded"),
+        /** The bot's entity lacks a capability the verb needs: equipment, block interaction, menus. */
+        NO_HANDS("no_hands"),
+        /** The name given for the bot names no registered bot. */
+        UNKNOWN_BOT("unknown_bot");
+
+        private final String wire;
+        Unready(String wire) { this.wire = wire; }
+        @Override public String wireName() { return wire; }
+
+        /** The word {@code wire} spells, or empty for one this list does not have. */
+        public static Optional<Unready> of(String wire) {
+            for (Unready u : values()) if (u.wire.equals(wire)) return Optional.of(u);
+            return Optional.empty();
+        }
+    }
+
     public enum FailureReason implements WireName {
         PROCESS_FAILED("process_failed");
 
@@ -87,7 +117,10 @@ public final class Responses {
 
     /** {@code waitTimedOut}: the call's wait ran out with the action still running; always false for awaitMs 0. */
     public record Accepted<R>(ActionSnapshot<R> action, boolean waitTimedOut) implements ActionResponse<R> {}
-    public record Refused<R>(RefusalReason reason, String message) implements ActionResponse<R>, ImmediateResponse {}
+    public record Refused<R>(RefusalReason reason, String message, Optional<Unready> unready)
+            implements ActionResponse<R>, ImmediateResponse {
+        public Refused(RefusalReason reason, String message) { this(reason, message, Optional.empty()); }
+    }
 
     // The families' own answers to the two unions. A sealed interface's variants must share its package, so
     // they are declared here; each family's contract still defines how its variant is written.
@@ -142,6 +175,7 @@ public final class Responses {
                     + "running when the wait runs out.");
 
     public static final ApiType<RefusalReason> REFUSAL_REASON = ApiTypes.enumOf("RefusalReason", RefusalReason.class);
+    public static final ApiType<Unready> UNREADY = ApiTypes.enumOf("Unready", Unready.class);
     public static final ApiType<FailureReason> FAILURE_REASON = ApiTypes.enumOf("FailureReason", FailureReason.class);
     public static final ApiType<CancelReason> CANCEL_REASON = ApiTypes.enumOf("CancelReason", CancelReason.class);
 
@@ -217,6 +251,9 @@ public final class Responses {
         return (RecordType) ApiTypes.record((Class) Refused.class, null,
                 ApiField.field("reason", REFUSAL_REASON).required().forGetter(Refused<?>::reason),
                 ApiField.field("message", ApiTypes.string()).required().forGetter(Refused<?>::message),
-                (RefusalReason r, String m) -> new Refused<>(r, m));
+                ApiField.field("unready", UNREADY)
+                        .describe("With bot_unavailable: what stops the bot from acting now, when the driver can tell.")
+                        .optional().forGetter(Refused<?>::unready),
+                (RefusalReason r, String m, Optional<Unready> u) -> new Refused<>(r, m, u));
     }
 }

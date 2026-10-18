@@ -4,7 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+
+import net.magicterra.worlddriver.api.methods.shared.Responses.Unready;
+import net.magicterra.worlddriver.api.schema.WireName;
 
 import org.junit.jupiter.api.Test;
 
@@ -61,5 +69,16 @@ class ReadinessTest {
         assertEquals("the player is dead", r.get("error"));
         assertEquals("dead", r.get("reason"));
         assertEquals(3, r.size());
+    }
+
+    /** The words this layer spells are the api's {@link Unready}, both ways. */
+    @Test
+    void theReasonWordsAreTheApisUnreadyWords() throws IllegalAccessException {
+        Set<String> here = new TreeSet<>();
+        for (Field f : Readiness.Reason.class.getDeclaredFields()) {
+            if (Modifier.isStatic(f.getModifiers()) && f.getType() == String.class) here.add((String) f.get(null));
+        }
+        Set<String> api = new TreeSet<>(Arrays.stream(Unready.values()).map(WireName::wireName).toList());
+        assertEquals(api, here);
     }
 }

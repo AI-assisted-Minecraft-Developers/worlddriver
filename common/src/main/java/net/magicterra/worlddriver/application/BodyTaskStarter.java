@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.application;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
@@ -23,11 +24,13 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.ActionResponse;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ActionSnapshot;
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Unready;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
@@ -123,10 +126,7 @@ final class BodyTaskStarter {
             actions.requireGeneration(ActionHandle.Scope.CLIENT, generation);
             Map<String, Object> refusal = bot.bodyRefusal();
             LivingEntity self = bot.selfEntity();
-            if (refusal != null || self == null) {
-                return new Refused<R>(RefusalReason.BOT_UNAVAILABLE, refusal == null ? "self has no player"
-                        : String.valueOf(refusal.get("error")));
-            }
+            if (refusal != null || self == null) return unavailable(refusal);
             return admitAndStart(BotRegistry.SELF, ActionHandle.Scope.CLIENT, ctx, planner.plan(self), (process, h) -> {
                 h.bindStopper(why -> client.execute(() -> bot.cancelAction(h, "cancelled: " + why.wireName())));
                 bot.startAction(process, h);
@@ -144,9 +144,9 @@ final class BodyTaskStarter {
         return hop.submit(() -> {
             actions.requireGeneration(ActionHandle.Scope.SERVER, generation);
             Bot host = BotRegistry.resolve(body, server);
-            if (host == null) return new Refused<R>(RefusalReason.BOT_UNAVAILABLE, BotRegistry.unresolved(body, server));
+            if (host == null) return unknown(body, server);
             Map<String, Object> refusal = host.refusal();
-            if (refusal != null) return new Refused<R>(RefusalReason.BOT_UNAVAILABLE, String.valueOf(refusal.get("error")));
+            if (refusal != null) return unavailable(refusal);
             return admitAndStart(host.id(), ActionHandle.Scope.SERVER, ctx, planner.plan(host.entity()), (process, h) -> {
                 h.bindStopper(why -> {
                     try { server.execute(() -> host.cancelAction(h, "cancelled: " + why.wireName())); }
@@ -162,35 +162,47 @@ final class BodyTaskStarter {
      * this client's player, {@code onHost} on the server thread with a named bot. A body that cannot act,
      * or that another run holds, is answered through {@code refuse} with nothing done.
      */
-    <T> CompletionStage<T> within(String body, CallContext ctx, BiFunction<RefusalReason, String, T> refuse,
+    <T, R> CompletionStage<T> within(String body, CallContext ctx, Function<Refused<R>, T> refuse,
                                   BiFunction<BotApi, LivingEntity, T> onSelf, Function<Bot, T> onHost) {
         if (BotRegistry.isSelf(body)) {
             BotApi bot = BotHooks.impl();
-            if (bot == null) return CompletableFuture.completedFuture(refuse.apply(RefusalReason.BOT_UNAVAILABLE, NO_CLIENT));
+            if (bot == null) {
+                return CompletableFuture.completedFuture(refuse.apply(new Refused<>(RefusalReason.BOT_UNAVAILABLE, NO_CLIENT)));
+            }
             return bot.clientHop().submit(() -> {
                 Map<String, Object> refusal = bot.bodyRefusal();
                 LivingEntity self = bot.selfEntity();
-                if (refusal != null || self == null) {
-                    return refuse.apply(RefusalReason.BOT_UNAVAILABLE, refusal == null ? "self has no player"
-                            : String.valueOf(refusal.get("error")));
-                }
+                if (refusal != null || self == null) return refuse.apply(unavailable(refusal));
                 ActionRegistry.Denied busy = actions.claim(BotRegistry.SELF, ctx.run());
-                return busy != null ? refuse.apply(busy.reason(), busy.message()) : onSelf.apply(bot, self);
+                return busy != null ? refuse.apply(new Refused<>(busy.reason(), busy.message())) : onSelf.apply(bot, self);
             }, ctx);
         }
         ServerThreadHop hop = app.serverHop();
         if (hop == null) {
-            return CompletableFuture.completedFuture(refuse.apply(RefusalReason.BOT_UNAVAILABLE,
-                    body + " is unavailable: no server is attached"));
+            return CompletableFuture.completedFuture(refuse.apply(new Refused<>(RefusalReason.BOT_UNAVAILABLE,
+                    body + " is unavailable: no server is attached")));
         }
         return hop.submit(() -> {
             Bot host = BotRegistry.resolve(body, app.server());
-            if (host == null) return refuse.apply(RefusalReason.BOT_UNAVAILABLE, BotRegistry.unresolved(body, app.server()));
+            if (host == null) return refuse.apply(unknown(body, app.server()));
             Map<String, Object> refusal = host.refusal();
-            if (refusal != null) return refuse.apply(RefusalReason.BOT_UNAVAILABLE, String.valueOf(refusal.get("error")));
+            if (refusal != null) return refuse.apply(unavailable(refusal));
             ActionRegistry.Denied busy = actions.claim(host.id(), ctx.run());
-            return busy != null ? refuse.apply(busy.reason(), busy.message()) : onHost.apply(host);
+            return busy != null ? refuse.apply(new Refused<>(busy.reason(), busy.message())) : onHost.apply(host);
         }, ctx);
+    }
+
+    /** {@code body} names no bot. */
+    private static <R> Refused<R> unknown(String body, MinecraftServer server) {
+        return new Refused<>(RefusalReason.BOT_UNAVAILABLE, BotRegistry.unresolved(body, server),
+                Optional.of(Unready.UNKNOWN_BOT));
+    }
+
+    /** The bot cannot act now; {@code refusal} is the facade's {@code {error, reason}}, null for no player. */
+    private static <R> Refused<R> unavailable(Map<String, Object> refusal) {
+        if (refusal == null) return new Refused<>(RefusalReason.BOT_UNAVAILABLE, "self has no player", Optional.of(Unready.NO_PLAYER));
+        return new Refused<>(RefusalReason.BOT_UNAVAILABLE, String.valueOf(refusal.get("error")),
+                Unready.of(String.valueOf(refusal.get("reason"))));
     }
 
     @FunctionalInterface

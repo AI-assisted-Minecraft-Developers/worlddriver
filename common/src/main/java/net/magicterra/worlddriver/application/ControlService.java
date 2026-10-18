@@ -63,7 +63,7 @@ final class ControlService implements ControlApi {
             return done(new Stopped(stopped ? List.of(id) : List.of(), Optional.of(h == null ? before : h.snapshot())));
         }
         String body = p.bot().orElse(BotRegistry.SELF);
-        String which = p.process().orElse("all");
+        String which = p.process().map(ControlContracts.ProcessName::wireName).orElse("all");
         if (BotRegistry.isSelf(body)) {
             BotApi bot = BotHooks.impl();
             if (bot == null) return refused(NO_CLIENT);

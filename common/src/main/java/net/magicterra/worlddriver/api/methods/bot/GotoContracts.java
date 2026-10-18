@@ -288,7 +288,8 @@ public final class GotoContracts {
 
     public static final UnionType<Result> RESULT = ApiTypes.taggedUnion("GotoResult", "kind",
             ApiTypes.variant("goto", Trip.class, ApiTypes.record(Trip.class, null,
-                    ApiField.field("goal", ApiTypes.string()).required().forGetter(Trip::goal),
+                    ApiField.field("goal", ApiTypes.string()).describe("For display only; its wording is not a format to parse.")
+                            .required().forGetter(Trip::goal),
                     ApiField.field("via", COUNT).required().forGetter(Trip::via),
                     ApiField.field("travel", ApiTypes.enumOf("Travel", Travel.class)).required().forGetter(Trip::travel),
                     ApiField.field("plan", ADOPTION).describe("Present when the walk was started by planId.")

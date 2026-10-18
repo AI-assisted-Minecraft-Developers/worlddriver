@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **Several free-text fields are closed word lists now.** `mc.bot.cancel`'s `process` accepts only
+  `all`, a process kind or a chain name (`ProcessName` in the declarations), so a misspelled name is
+  refused instead of cancelling nothing. A `bot_unavailable` refusal carries `unready` (`dead`,
+  `paused`, `loading`, `unknown_bot`, …) when the driver can tell what stops the bot, so a program
+  no longer has to read `message`. `mc.bot.status`'s `clutch` is one of `idle`, `lip`, `falling`.
+  `mc.debug.pathChart`'s `outcome` is lower-case (`running`, `success`, `no_path`, …) where it was
+  upper-case. The `goal` texts in the status and goto replies are described as display-only.
 - **A saved settings file that names no setting says so.** `worlddriver_bot.properties` lines whose
   key is no longer a setting, such as a `walker…` name from before the rename, used to be skipped in
   silence; the load now logs one warning listing them.

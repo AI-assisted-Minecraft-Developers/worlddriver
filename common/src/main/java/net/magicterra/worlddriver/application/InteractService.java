@@ -42,13 +42,13 @@ final class InteractService implements InteractApi {
 
     @Override
     public CompletionStage<ImmediateResponse> attackEntity(InteractContracts.AttackParams p, CallContext ctx) {
-        return actions.within(p.bot(), ctx, Refused::new,
+        return actions.within(p.bot(), ctx, r -> r,
                 (bot, self) -> bot.attackEntity(p), host -> BodyInteractions.attackEntity(host, p));
     }
 
     @Override
     public CompletionStage<ImmediateResponse> equip(InteractContracts.EquipParams p, CallContext ctx) {
-        return actions.within(BotRegistry.SELF, ctx, Refused::new,
+        return actions.within(BotRegistry.SELF, ctx, r -> r,
                 (bot, self) -> bot.equip(p), host -> { throw new IllegalStateException("equip is self's alone"); });
     }
 
@@ -61,14 +61,14 @@ final class InteractService implements InteractApi {
                 return BodyTaskStarter.Start.reporting(VerbOrders.look(track, aim[0], aim[1]), new Looked(aim[0], aim[1]));
             });
         }
-        return actions.within(p.bot(), ctx, Refused::new,
+        return actions.<ActionResponse<Looked>, Looked>within(p.bot(), ctx, r -> r,
                 (bot, self) -> BodyInteractions.turn(self, p), host -> BodyInteractions.turn(host.entity(), p));
     }
 
     @Override
     public CompletionStage<ImmediateResponse> holdItem(InteractContracts.HoldParams p, CallContext ctx) {
         BotTaskService.requireRegistered(BuiltInRegistries.ITEM, "item", "/item", p.item());
-        return actions.within(p.bot(), ctx, Refused::new, (bot, self) -> bot.holdItem(p), host -> BodyInteractions.holdItem(host, p));
+        return actions.within(p.bot(), ctx, r -> r, (bot, self) -> bot.holdItem(p), host -> BodyInteractions.holdItem(host, p));
     }
 
     /**
@@ -77,7 +77,7 @@ final class InteractService implements InteractApi {
      */
     @Override
     public CompletionStage<ImmediateResponse> useItem(InteractContracts.UseParams p, CallContext ctx) {
-        CompletionStage<ImmediateResponse> used = actions.within(p.bot(), ctx, Refused::new,
+        CompletionStage<ImmediateResponse> used = actions.within(p.bot(), ctx, r -> r,
                 (bot, self) -> bot.useItem(p), host -> BodyInteractions.useItem(host, p));
         if (!BotRegistry.isSelf(p.bot())) return used;
         return used.thenCompose(r -> r instanceof Used u && u.on() instanceof OnEntity before

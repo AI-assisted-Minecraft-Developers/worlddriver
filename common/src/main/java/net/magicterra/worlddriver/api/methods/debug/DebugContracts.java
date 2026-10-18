@@ -9,6 +9,7 @@ import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.UnionType;
+import net.magicterra.worlddriver.api.schema.WireName;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 
@@ -44,8 +45,18 @@ public final class DebugContracts {
     public record ChartParams(ChartView view, int width, int height, boolean includeCandidates, boolean save,
                               Optional<String> name) {}
 
+    /** How the charted goto ended, or that it still walks. */
+    public enum ChartOutcome implements WireName {
+        RUNNING("running"), SUCCESS("success"), NO_PATH("no_path"), STUCK("stuck"), TIMEOUT("timeout"),
+        CANCELLED("cancelled"), ERROR("error");
+
+        private final String wire;
+        ChartOutcome(String wire) { this.wire = wire; }
+        @Override public String wireName() { return wire; }
+    }
+
     /** {@code path} and {@code bytes} are present when the chart was saved. */
-    public record Chart(ChartView view, String outcome, int plans, int candidates, int samples, int width, int height,
+    public record Chart(ChartView view, ChartOutcome outcome, int plans, int candidates, int samples, int width, int height,
                         Optional<String> path, Optional<Long> bytes) {}
 
     private static final ApiType<ChartView> CHART_VIEW = ApiTypes.enumOf("ChartView", ChartView.class);
@@ -68,7 +79,8 @@ public final class DebugContracts {
 
     public static final ApiType<Chart> CHART = ApiTypes.record(Chart.class, "Chart",
             ApiField.field("view", CHART_VIEW).required().forGetter(Chart::view),
-            ApiField.field("outcome", ApiTypes.string()).describe("How the charted goto ended; RUNNING while it walks.")
+            ApiField.field("outcome", ApiTypes.enumOf("ChartOutcome", ChartOutcome.class))
+                    .describe("How the charted goto ended; running while it walks.")
                     .required().forGetter(Chart::outcome),
             ApiField.field("plans", COUNT).required().forGetter(Chart::plans),
             ApiField.field("candidates", COUNT).required().forGetter(Chart::candidates),
@@ -223,7 +235,8 @@ public final class DebugContracts {
     public static final UnionType<ReplayReply> REPLAY_REPLY = ApiTypes.taggedUnion("ReplayReply", "mode",
             ApiTypes.variant("replan", Replanned.class, ApiTypes.record(Replanned.class, null,
                     ApiField.field("file", ApiTypes.string()).required().forGetter(Replanned::file),
-                    ApiField.field("goal", ApiTypes.string()).required().forGetter(Replanned::goal),
+                    ApiField.field("goal", ApiTypes.string()).describe("For display only; its wording is not a format to parse.")
+                            .required().forGetter(Replanned::goal),
                     ApiField.field("envelopeCells", COUNT).required().forGetter(Replanned::envelopeCells),
                     ApiField.field("restoredBlocks", COUNT).required().forGetter(Replanned::restoredBlocks),
                     ApiField.field("fidelity", ApiTypes.string()).required().forGetter(Replanned::fidelity),

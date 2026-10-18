@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.UnionType;
+import net.magicterra.worlddriver.api.schema.WireName;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
@@ -25,15 +26,37 @@ public final class ControlContracts {
 
     // ------------------------------------------------------------------ cancel
 
-    public record CancelParams(Optional<String> actionId, Optional<String> bot, Optional<String> process) {
+    /**
+     * What {@code mc.bot.cancel} stops by name: everything, a process by its kind, or a reflex chain. The bot's
+     * layers spell these names themselves, since they may not name the api; {@code ProcessNameTest} holds the
+     * two lists equal.
+     */
+    public enum ProcessName implements WireName {
+        ALL("all"),
+        GOTO("goto"), MINE("mine"), CRAFT("craft"), SMELT("smelt"), SLEEP("sleep"), FOLLOW("follow"),
+        EXPLORE("explore"), ESCAPE("escape"), RUN_AWAY("runAway"), LOOK("look"), BUILDER("builder"),
+        ELYTRA("elytra"), REPLAY("replay"),
+        /** Both the fight process and its chain. */
+        COMBAT("combat"),
+        /** Both the dig-in process and its chain. */
+        BUNKER("bunker"),
+        USER("user"), PANIC("panic"), DUSK_SECURE("duskSecure"), DODGE("dodge"), RETREAT("retreat"),
+        DROWN_ESCAPE("drownEscape");
+
+        private final String wire;
+        ProcessName(String wire) { this.wire = wire; }
+        @Override public String wireName() { return wire; }
+    }
+
+    public record CancelParams(Optional<String> actionId, Optional<String> bot, Optional<ProcessName> process) {
 
         /** Cancel the action {@code actionId}, on whichever bot runs it. */
         public static CancelParams action(String actionId) {
             return new CancelParams(Optional.of(actionId), Optional.empty(), Optional.empty());
         }
 
-        /** Stop self's {@code process} ("all", a process kind, or a reflex chain). */
-        public static CancelParams process(String process) {
+        /** Stop self's {@code process}: all, a process kind, or a reflex chain. */
+        public static CancelParams process(ProcessName process) {
             return new CancelParams(Optional.empty(), Optional.empty(), Optional.of(process));
         }
 
@@ -43,7 +66,7 @@ public final class ControlContracts {
         }
     }
 
-    private static final ApiType<String> PROCESS_NAME = ApiTypes.pattern("[A-Za-z]{1,32}", "a process or chain name");
+    private static final ApiType<ProcessName> PROCESS_NAME = ApiTypes.enumOf("ProcessName", ProcessName.class);
 
     public static final ApiType<CancelParams> CANCEL_PARAMS = ApiTypes.record(CancelParams.class, "CancelParams",
             ApiField.field("actionId", Responses.ACTION_ID).describe("Cancel this action, on whichever bot runs it.")
@@ -117,12 +140,16 @@ public final class ControlContracts {
 
     private static final ApiType<Slot> SLOT = ApiTypes.record(Slot.class, "ProcessSlot",
             ApiField.field("active", ApiTypes.bool()).required().forGetter(Slot::active),
-            ApiField.field("goal", ApiTypes.string()).optional().forGetter(Slot::goal),
+            ApiField.field("goal", ApiTypes.string()).describe("For display only; its wording is not a format to parse.").optional()
+                    .forGetter(Slot::goal),
             ApiField.field("target", CommonTypes.BLOCK_POSITION).optional().forGetter(Slot::target),
             ApiField.field("pathLen", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Slot::pathLen),
             ApiField.field("pathStep", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Slot::pathStep),
             ApiField.field("startedAtMs", ApiTypes.int64(0, Long.MAX_VALUE)).optional().forGetter(Slot::startedAtMs),
-            ApiField.field("lastError", ApiTypes.string()).optional().forGetter(Slot::lastError),
+            ApiField.field("lastError", ApiTypes.string())
+                    .describe("Why the slot last stopped: an Unready word when the bot could not act (no_hands), "
+                            + "else a message for display.")
+                    .optional().forGetter(Slot::lastError),
             ApiField.field("goalReached", ApiTypes.bool()).optional().forGetter(Slot::goalReached),
             ApiField.field("endReason", ApiTypes.string()).optional().forGetter(Slot::endReason),
             ApiField.field("finalDist", ApiTypes.number()).optional().forGetter(Slot::finalDist),
@@ -182,7 +209,8 @@ public final class ControlContracts {
             ApiField.field("chains", ApiTypes.map(CHAIN_STATE, 64)).required().forGetter(Reflexes::chains),
             ApiField.field("lastPath", PATH_STATS).describe("The most recent search, by any process.")
                     .optional().forGetter(Reflexes::lastPath),
-            ApiField.field("clutch", ApiTypes.string()).describe("The water-bucket clutch: idle, lip or falling.")
+            ApiField.field("clutch", ApiTypes.stringEnum("ClutchPhase", "idle", "lip", "falling"))
+                    .describe("The water-bucket clutch: idle, lip (planned, waiting to walk off) or falling.")
                     .required().forGetter(Reflexes::clutch),
             ApiField.field("combat", ApiTypes.record(CombatTally.class, "CombatTally",
                     ApiField.field("swings", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(CombatTally::swings),

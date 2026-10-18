@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.debug;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.Chart;
+import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ChartOutcome;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ChartParams;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts.ChartView;
 import net.magicterra.worlddriver.debug.PathChartRenderer;
@@ -30,7 +31,7 @@ final class PathChartTool {
         PathSession s = r.snapshot();
         PathChartRenderer.Opts opts = new PathChartRenderer.Opts(p.width(), p.height(), 0, p.includeCandidates());
         var img = p.view() == ChartView.THREE_VIEW ? PathChartRenderer.renderThreeView(s, opts) : PathChartRenderer.render(s, opts);
-        String outcome = s.outcome() == null ? "RUNNING" : s.outcome().toString();
+        ChartOutcome outcome = s.outcome() == null ? ChartOutcome.RUNNING : ChartOutcome.valueOf(s.outcome().name());
         if (!p.save()) {
             return new Chart(p.view(), outcome, s.plannedRoutes().size(), s.candidates().size(), s.trajectory().size(),
                     img.getWidth(), img.getHeight(), Optional.empty(), Optional.empty());

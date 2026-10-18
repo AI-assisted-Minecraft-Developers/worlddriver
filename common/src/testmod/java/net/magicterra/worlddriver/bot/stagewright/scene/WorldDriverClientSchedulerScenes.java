@@ -12,6 +12,7 @@ import net.magicterra.worlddriver.api.methods.control.ControlApi;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.BotStatus;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.CancelParams;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.ProcessEnd;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts.ProcessName;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts.StatusParams;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Status;
 import net.magicterra.worlddriver.config.ArbitrationConfig;
@@ -214,7 +215,7 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
                         gap, helm.slot("goto")));
                 ctx.check(gap > 2.0).as("test setup: at cancellation the bot is still on its way to the bed (" + gap + " blocks from the bed)").isTrue();
                 var control = ControlApi.of(api());
-                ask(ctx, "cancel", control.cancel(CancelParams.process("sleep")), stopped -> helm.sync(5, () ->
+                ask(ctx, "cancel", control.cancel(CancelParams.process(ProcessName.SLEEP)), stopped -> helm.sync(5, () ->
                         ask(ctx, "afterCancel.status", control.status(StatusParams.self()), reply -> {
                     Optional<BotStatus> status = reply instanceof Status s ? s.status() : Optional.empty();
                     Map<?, ?> go = helm.slot("goto");

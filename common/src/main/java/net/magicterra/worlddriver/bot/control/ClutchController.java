@@ -76,8 +76,8 @@ public final class ClutchController {
         body.commandSprint(false);
     }
 
-    /** One-word state for {@code mc.bot.status.clutch}: idle / lip (planned,
-     *  awaiting walk-off) / falling (placing water) / landed (scooping). */
+    /** One-word state for {@code mc.bot.status.clutch}: idle / lip (planned, awaiting walk-off) /
+     *  falling (placing water, then scooping). The status contract lists these three words. */
     public String phase() {
         if (!armed) return "idle";
         if (airborne) return "falling";

@@ -43,7 +43,7 @@ class ParamFactoriesTest {
     @Test
     void controlFactoriesMatchTheContractsDefaults() {
         same(ControlContracts.CANCEL.input(), "{\"actionId\":\"a-1\"}", ControlContracts.CancelParams.action("a-1"));
-        same(ControlContracts.CANCEL.input(), "{\"process\":\"sleep\"}", ControlContracts.CancelParams.process("sleep"));
+        same(ControlContracts.CANCEL.input(), "{\"process\":\"sleep\"}", ControlContracts.CancelParams.process(ControlContracts.ProcessName.SLEEP));
         same(ControlContracts.CANCEL.input(), "{}", ControlContracts.CancelParams.all());
         same(ControlContracts.STATUS.input(), "{}", ControlContracts.StatusParams.self());
     }
