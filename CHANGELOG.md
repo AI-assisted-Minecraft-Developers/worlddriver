@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-18
 
+- **The `walkerStickyDig` setting is gone.** It switched on an older dig hold that took over the
+  whole tick, off by default and replaced long ago by `walkerDigAimPriority`, which stays.
 - **`mc.bot.status` reports the bot's own last search in `lastPath`.** It used to be the last
   search any bot in the game had finished, so with a client bot and a server bot both walking, each
   could show the other's. The walker counters the test scenes read are kept per player the same way.

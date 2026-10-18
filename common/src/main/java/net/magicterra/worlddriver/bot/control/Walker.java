@@ -163,7 +163,7 @@ public final class Walker implements Locomotor {
     boolean digDrivenThisTick, digKeyOwned;   // a dig drove the avatar this tick / the dig latch is a walker dig's (see DIG_KEY_RELEASE_TICKS)
     int digIdleTicks;                         // consecutive tick-ends with the latch owned and no dig driven
     static final class StickyDig {
-        BlockPos pos;         // walkerStickyDig: planned-break cell being mined
+        BlockPos pos;         // planned-break cell being mined
         int ticks;            // watchdog for pos
         // PROGRESS-AWARE release (2026-07-21, Mountains bank live + 23 RELEASE
         // loops): a fixed tick cap cannot work because vanilla stacks the x5 (eye in

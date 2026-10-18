@@ -943,18 +943,7 @@ public final class ControlConfig {
      *  fellOffPath (foot-search re-routes from the real, higher position). Default ON. */
     public static volatile boolean walkerAboveNodeStallRecover = true;
 
-    /** Sticky planned-break (Task#5 dig aim-drift root, C28-J1 @-258,81,338): once a
-     *  planned break starts swinging, own every tick (exclusive selectTool+aim+attack)
-     *  until the block breaks. Ticks where the break-edge gate flickers (buoyant bob off
-     *  the within stance, projection jitter) fall through to the travel drive, which
-     *  releases attack — and ONE released tick resets vanilla mining progress to zero, so
-     *  a 25×-slow underwater dig interleaved with travel ticks never completes (200t held
-     *  in aggregate, block still solid, walk-keys showed attack=false travel ticks
-     *  threaded through the dig). Solid-gone / breakTimeoutTicks / >5-block drift
-     *  releases the latch. Default OFF. */
-    public static volatile boolean walkerStickyDig = false;
-
-    /** Dig aim priority — the NON-exclusive successor to walkerStickyDig (killed §66):
+    /** Dig aim priority — the NON-exclusive successor to an exclusive dig latch that starved travel (§66):
      *  after the travel tick fully runs (drive, recovery, repath untouched), re-hold
      *  ONLY the crosshair + attack on the committed dig cell, so an interleaved travel
      *  tick can't release attack and zero vanilla mining progress. A human holding

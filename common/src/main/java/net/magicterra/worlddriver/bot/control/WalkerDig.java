@@ -37,7 +37,7 @@ final class WalkerDig {
      */
     static BlockPos avatarDig(Walker wk, Body a, BlockPos cell, boolean selectTool) {
         BlockPos target = cell;
-        if (wk != null && cell != null && (ControlConfig.walkerStickyDig || ControlConfig.walkerDigAimPriority)) {
+        if (wk != null && cell != null && ControlConfig.walkerDigAimPriority) {
             wk.stickyDig.engage(cell);
             if (wk.stickyDig.pos != null) target = wk.stickyDig.pos;
         }

@@ -39,25 +39,15 @@ final class WalkerTickPrelude {
     /**
      * The dig claim's RELEASE POLICY, and the only place it lives.
      *
-     * <p>{@code walkerStickyDig}: a planned break, once started, OWNS the tick until the block breaks
-     * (or the watchdog/range check bails). Without it, ticks where the break-edge gate flickers
-     * (buoyant bob off the within stance, projection jitter) fall through to the travel drive, which
-     * releases attack for that tick — and ONE released tick resets vanilla mining progress to zero,
-     * so an underwater 25×-slow dig interleaved with travel ticks NEVER completes (C28-J1 DIG-slow:
-     * 200t held in aggregate, block still solid, walk-keys showed attack=false travel ticks threaded
-     * through the dig). Exclusive aim+attack until done. Default OFF.
+     * <p>{@code walkerDigAimPriority}: ONE released tick resets vanilla mining progress to zero, so an
+     * underwater 25×-slow dig interleaved with travel ticks never completes (C28-J1 DIG-slow: 200t held in
+     * aggregate, block still solid). An earlier latch owned the whole tick until the block broke, and starved
+     * travel and recovery when the latched block was not the way out. This one lets the entire travel tick
+     * run, then re-holds only crosshair and attack at the end of Drive — a human holding W+LMB against the
+     * wall being dug. Here we only EXPIRE the claim.
      *
-     * <p>{@code walkerDigAimPriority} — the NON-exclusive successor (KILLED §66: owning the whole
-     * tick starved travel/recovery when the latched block wasn't the way out). Same disease, opposite
-     * temperament: the ENTIRE travel tick runs (drive, recovery, repath), then digAimReassert at the
-     * end of walkTick re-holds only crosshair+attack — a human holding W+LMB against the wall being
-     * dug. Here we only EXPIRE the claim; the re-assert happens after the tick body.
-     *
-     * <p><b>Release on a stall, not on a clock</b> — the lesson this branch's own predecessor
-     * (walkerStickyDig, below) learned and wrote down, and that this successor never inherited. It
-     * mattered because of which one runs: digAimPriority defaults ON and stickyDig defaults OFF, so
-     * the progress-aware watchdog underneath was dead code and the fixed clock was the only release
-     * anyone ever executed.
+     * <p><b>Release on a stall, not on a clock</b> — the lesson the exclusive latch learned and wrote down,
+     * and that this successor did not inherit at first.
      *
      * <p>Measured 2026-08-22, real-client ladder, rung 3: a bare-handed bank dig while AFLOAT advances
      * vanilla's destroyProgress by 0.00333/tick — 300 ticks per block, because the ×5 (eye in water)
@@ -278,69 +268,6 @@ final class WalkerTickPrelude {
         }
 
         expireDigClaim(wk, a, world, p);
-        if (ControlConfig.walkerStickyDig && !ControlConfig.walkerDigAimPriority && wk.stickyDig.pos != null) {
-            // Tightened after C31-J1 (-325,64,-47): the 25 (5-block) drift radius held the
-            // latch on a cell 5 below the bot — OUTSIDE mining reach (~4.5) — so the latch
-            // owned every tick swinging at an unreachable block until the full break
-            // timeout while the travel drive was starved (the 85s badlands stall). Release
-            // at reach (20 ≈ 4.5²).
-            // gap#66: this legacy EXCLUSIVE latch must not run alongside its successor
-            // walkerDigAimPriority — with both on, the two release checks each ran
-            // ++stickyDig.ticks on the same counter, so the 150t watchdog fired at ~75
-            // REAL ticks. A bare-hand stone dig needs 150 CONSECUTIVE held ticks
-            // (vanilla zeroes progress on any released tick).
-            //
-            // PROGRESS-AWARE watchdog (2026-07-21 Mountains live, 23 RELEASE loops at
-            // one bank cell): the old fixed 150t cap assumed any reachable block
-            // completes inside it — but vanilla stacks x5 (eye in water) and x5
-            // (airborne) dig penalties multiplicatively, so a swimAshoreClimb bank
-            // dig needs 450t (dirt) to 3750t (stone/wrong tool). The cap released
-            // at 151t with the block still solid; vanilla zeroed the progress and
-            // the walker re-acquired the SAME cell forever — the exact
-            // proxy-metric disease family (time as a proxy for progress) as the
-            // descend/drive watchdogs fixed the same day. Now: hold while the
-            // REAL vanilla destroyProgress climbs, release on a true stall
-            // (STICKY_DIG_STALL_TICKS with no increase) or the absolute backstop
-            // (a cyclically-resetting aim never stalls but must not own forever).
-            // destroyProgress()==-1 (no reflection / server avatar) degrades to
-            // the stall counter alone, which then equals the legacy cap behavior.
-            float prog = wk.blocks.destroyProgress();
-            if (prog > wk.stickyDig.lastProgress + 1e-4f) {
-                wk.stickyDig.lastProgress = prog;
-                wk.stickyDig.stallTicks = 0;
-            } else {
-                if (prog >= 0 && prog < wk.stickyDig.lastProgress - 0.05f)
-                    wk.stickyDig.lastProgress = prog;   // vanilla reset — re-baseline
-                wk.stickyDig.stallTicks++;
-            }
-            // Same eye-to-centre reach test as expireDigClaim above — see the note there for why
-            // the old feet-based `distToCenterSqr(p.position()) > 20` measured a different
-            // quantity in both directions.
-            if (!world.isSolid(wk.stickyDig.pos)
-                    || wk.stickyDig.stallTicks > STICKY_DIG_STALL_TICKS
-                    || ++wk.stickyDig.ticks > STICKY_DIG_ABS_CAP_TICKS
-                    || !eyeWithin(p, wk.stickyDig.pos, blockReachToCentre(p))) {
-                if (GameConfig.walkerDebug)
-                    LOG.info("[walker] sticky-dig RELEASE {} solid={} ticks={} stall={} prog={}",
-                            wk.stickyDig.pos, world.isSolid(wk.stickyDig.pos), wk.stickyDig.ticks,
-                            wk.stickyDig.stallTicks, String.format("%.2f", wk.stickyDig.lastProgress));
-                wk.stickyDig.engage(null);
-            } else {
-                world.signals().digging = true;   // dig-priority: AutoSwim's backstop yields while this hold is live and air is healthy
-                wk.equipment.selectTool(wk.stickyDig.pos);
-                a.aimAtBlock(wk.stickyDig.pos);
-                // The drive advances the exact cell regardless of where the crosshair is — while
-                // bobbing in water the eye raycast dips behind the bank lip on some ticks, and
-                // vanilla's crosshair-driven continueAttack used to retarget and ZERO the progress
-                // on those ticks. It cannot any more: the drive makes that pass stand aside (see
-                // ClientIntents), so the raycast-miss latch this used to keep is gone with the key.
-                wk.blocks.breakHold(true);
-                wk.blocks.continueDestroy(wk.stickyDig.pos);
-                wk.digDrivenThisTick = true;
-                wk.digKeyOwned = true;
-                return Walker.Step.WALKING;
-            }
-        }
         // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
         cx.frame.p = p;
         cx.frame.foot = foot;
