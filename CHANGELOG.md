@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **The API is published on its own.** `net.magicterra:worlddriver-api` holds only the `api` and
+  `protocol` classes and the generated declarations and schemas, so another mod compiles against
+  the contracts without the rest of the driver; `check` fails if a class in it reaches outside.
 - **Code in the game finds the driver through `api/game/WorldDriver`.** `registry()`, `host()`,
   `rpcPort()` and `mcpPort()` moved there from `WorldDriverCommon`, which no longer has them, and
   `whenReady` runs a callback once the driver is up, for a mod whose setup runs before it.

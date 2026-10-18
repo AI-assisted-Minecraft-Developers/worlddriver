@@ -29,6 +29,23 @@ contract, run `./gradlew :common:updateSkillManual` and commit the result; `chec
 contracts cannot say (the envelope, availability, pitfalls, the test-only methods) is written by
 hand beside it in `references/tips.md`.
 
+## The API jar
+
+Another mod that calls the driver, registers a driver for a mob, or adds a body task compiles
+against `net.magicterra:worlddriver-api`, not against the whole mod. `./gradlew :common:apiJar` packs
+it: the classes under `api/` and `protocol/` (the generated bindings included) and the files above
+that land in `worlddriver-api/`, with a sources jar beside it. Both are published with `:common`
+under the mod's version.
+
+The classes are in named mappings, as in a development environment. `api/game` names Minecraft
+types, so a consumer still needs Minecraft (and DataFixerUpper, Gson) on its compile classpath, which
+a mod build has anyway; the POM declares no dependencies. At run time the classes come from the mod
+itself, so a consumer depends on the jar for compiling only.
+
+`check` runs `verifyApiJar`, which reads every class in the jar and fails if one refers to a driver
+class outside `api/` and `protocol/`. `ArchitectureTest` holds the same rule over the sources;
+this one checks what is actually packed.
+
 ## Why it runs without Minecraft
 
 The generator's classpath is the compiled classes plus DataFixerUpper and its four libraries, and

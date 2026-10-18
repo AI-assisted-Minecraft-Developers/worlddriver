@@ -39,7 +39,7 @@ For someone adding or changing code here.
 |---|---|
 | [Architecture](dev/architecture.md) | How a verb travels from a socket to the game and back: the single dispatch point, the registration seams, the boot invariant, the thread discipline. |
 | [The `api` layers](dev/api-layers.md) | How the method surface is layered and why, the rules the architecture check holds it to, and what changing a type StageWright links against obliges you to do. |
-| [Generated API artifacts](dev/api-artifacts.md) | The d.ts, script wrappers, schemas and reference the build produces from the method descriptions, and how to add a method. |
+| [Generated API artifacts](dev/api-artifacts.md) | The d.ts, script wrappers, schemas and reference the build produces from the method descriptions, how to add a method, and the `worlddriver-api` jar other mods compile against. |
 | [Calling the API from Java](dev/java-api.md) | The typed interfaces Java code calls methods through, how to implement one, what the annotation processor refuses at compile time, and how another mod registers a driver for a mob of its own or a body task. |
 | [The `bot/` layers](dev/bot-layering.md) | The autonomous layer behind `mc.bot.*` — the seams between facade, scheduler, process, navigator and pathfinder, and the invariants across them. |
 | [The movement tick phases](dev/movement-tick-phases.md) | How the per-tick navigator decision is decomposed into phase classes, and what crosses a tick boundary. |
