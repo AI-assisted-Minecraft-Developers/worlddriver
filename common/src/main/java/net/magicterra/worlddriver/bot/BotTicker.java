@@ -46,6 +46,8 @@ public final class BotTicker {
         for (Bot d : ACTIVE) if (d.busy()) n++;
         return n;
     }
+    /** How many bots are on the tick list, idle or not. */
+    public static int size() { return ACTIVE.size(); }
     public static void clear() { ACTIVE.clear(); }
 
     /** Advance every registered bot one tick; drop the ones whose entity is gone, and the crashed. */
