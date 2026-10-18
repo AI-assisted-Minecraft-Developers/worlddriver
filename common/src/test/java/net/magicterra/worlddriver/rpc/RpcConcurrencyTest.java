@@ -73,7 +73,10 @@ class RpcConcurrencyTest {
         int waits = TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION + 4;
         try (RpcServer server = TestTransports.rpc(app());
              WsTestClient client = new WsTestClient(server.port())) {
+            // A full cap first, and the rest only once those have suspended: a wait holds its worker until its
+            // first poll has run, so a burst of more than the cap can race ahead of the suspensions.
             for (int i = 1; i <= waits; i++) {
+                if (i == TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION + 1) Thread.sleep(300);
                 client.send("{\"id\":" + i + ",\"method\":\"mc.wait.condition\",\"params\":{\"invoke\":\"probe.echo\","
                         + "\"field\":\"nope\",\"timeoutMs\":4000,\"pollMs\":200}}");
             }
