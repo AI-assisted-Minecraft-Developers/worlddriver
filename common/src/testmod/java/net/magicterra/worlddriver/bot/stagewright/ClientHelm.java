@@ -3,8 +3,14 @@ package net.magicterra.worlddriver.bot.stagewright;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletionStage;
+import java.util.function.Consumer;
 
 import net.magicterra.stagewright.scene.SceneContext;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
@@ -60,13 +66,12 @@ public final class ClientHelm {
     public static ClientHelm adopt(SceneContext ctx, BlockPos foot, float yaw) {
         MinecraftServer server = ctx.server();
         boolean integrated = server != null && !server.isDedicatedServer();
-        ctx.record("helm.topology", (integrated ? "integratedServer" : "dedicatedServer")
-                + ", mc.bot.* available in this JVM=" + BotHooks.isAvailable());
-        if (!integrated || !BotHooks.isAvailable()) {
-            ctx.skip("This scene drives the client's real player (BotApi.runProcess) and runs only on the "
+        ctx.record("helm.topology", integrated ? "integratedServer" : "dedicatedServer");
+        if (!integrated) {
+            ctx.skip("This scene drives the client's real player (bot self) and runs only on the "
                     + "integrated topology; on a dedicated server its coverage is zero, not merely weak.");
         }
-        List<ServerPlayer> humans = SceneBody.humanPlayers(ctx);
+        List<ServerPlayer> humans = SceneBot.humanPlayers(ctx);
         if (humans.isEmpty()) {
             ctx.skip("The integrated server has no real player: the client has not joined the world yet, "
                     + "or has disconnected");
@@ -94,9 +99,8 @@ public final class ClientHelm {
         final float hYaw = body.getYRot(), hPitch = body.getXRot();
         final GameType hadMode = body.gameMode.getGameModeForPlayer();
         ctx.cleanup(() -> {
-            // NOT bot.cancel(): that marshals onto the client thread and WAITS, and this is the
-            // thread the client ticks against. runProcess supersedes without waiting.
-            try { bot.runProcess(new HoldStill(1)); } catch (RuntimeException ignored) { }
+            // Not waited for: the answer comes from the client thread, which ticks against this one.
+            Legs.cancel(SELF);
             body.setGameMode(hadMode);
             body.teleportTo(from, hx, hy, hz, java.util.Set.of(), hYaw, hPitch);
         });
@@ -112,6 +116,36 @@ public final class ClientHelm {
 
     /** The server's view of the adopted player. Position lags the client by a packet, never more. */
     public ServerPlayer player() { return player; }
+
+    /** What every call on the real player names. */
+    public static final String SELF = "self";
+
+    /** {@link #SELF}. */
+    public String ref() { return SELF; }
+
+    /**
+     * Start {@code order} on the real player and continue when it lets go of the task or {@code ticks} run out,
+     * whichever is first. One evidence row per walk: where the player stopped, how far from {@code goal} (when
+     * the walk has a point goal), and how the task ended.
+     */
+    public <R> void leg(String tag, CompletionStage<Responses.ActionResponse<R>> order, BlockPos goal, int ticks,
+                        Legs.Watcher watcher, Consumer<Legs.End> then) {
+        Legs.run(ctx, tag, SELF, order, ticks, watcher, end -> {
+            ctx.record(tag + ".chain", end.ended() ? "idle at tick " + end.ticks()
+                    : "the task was still running when the " + ticks + "-tick budget ran out; cancelled");
+            ControlContracts.BotStatus s = end.status();
+            ctx.record(tag + ".leg", where() + ", " + gap(goal) + "; "
+                    + (s == null ? "no status landed" : "last ending " + s.lastProcessEnd().map(String::valueOf).orElse("none")));
+            then.accept(end);
+        });
+    }
+
+    /** {@link #leg} walking to {@code target}, whose foot cell is {@code goalFoot}. */
+    public void goTo(String tag, GotoContracts.Target target, BlockPos goalFoot, int ticks, Legs.Watcher watcher,
+                     Consumer<Legs.End> then) {
+        leg(tag, SceneBot.tasks().goTo(new GotoContracts.Params(SELF, Optional.of(target), false, Optional.empty(),
+                Optional.empty(), false, Optional.empty(), 0)), goalFoot, ticks, watcher, then);
+    }
 
     /** The client half of the driver. */
     public BotApi bot() { return bot; }
@@ -147,7 +181,7 @@ public final class ClientHelm {
     }
 
     /** Something that reads the player on every tick of a walk. */
-    public interface TickWatcher { void tick(int tick); }
+    public interface TickWatcher extends Legs.Watcher {}
 
     /**
      * Run {@code process} on the client's user-task chain and continue when the chain lets go of it

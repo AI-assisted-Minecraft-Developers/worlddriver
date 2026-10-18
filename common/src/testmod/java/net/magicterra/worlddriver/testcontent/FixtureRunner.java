@@ -7,45 +7,45 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
-import net.magicterra.worlddriver.bot.stagewright.Harness;
 import net.magicterra.stagewright.contract.SceneFailure;
 import net.magicterra.stagewright.contract.SceneSkipped;
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.config.BotConfig;
-import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.RouteParams;
-import net.magicterra.worlddriver.bot.control.Navigator;
-import net.magicterra.worlddriver.bot.control.NavigatorTallies;
-import net.magicterra.worlddriver.bot.behavior.BotProcess;
-import net.magicterra.worlddriver.bot.behavior.DescendProcess;
-import net.magicterra.worlddriver.bot.behavior.ElytraProcess;
-import net.magicterra.worlddriver.bot.behavior.EscapeProcess;
-import net.magicterra.worlddriver.bot.behavior.Intent;
-import net.magicterra.worlddriver.bot.behavior.IntentProcess;
-import net.magicterra.worlddriver.bot.behavior.MineProcess;
-import net.magicterra.worlddriver.bot.BotTicker;
-import net.magicterra.worlddriver.bot.PlayerBot;
+import net.magicterra.worlddriver.api.methods.bot.BuildContracts;
+import net.magicterra.worlddriver.api.methods.bot.GatherContracts;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.bot.MoveContracts;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
+import net.magicterra.worlddriver.api.methods.control.ControlApi;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
+import net.magicterra.worlddriver.api.methods.debug.DebugApi;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
+import net.magicterra.worlddriver.bot.stagewright.Calls;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
-import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.stagewright.Harness;
+import net.magicterra.worlddriver.bot.stagewright.Legs;
+import net.magicterra.worlddriver.bot.stagewright.Routes;
+import net.magicterra.worlddriver.bot.stagewright.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.Targets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.magicterra.worlddriver.game.observe.RegistryIds;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
-import net.magicterra.worlddriver.bot.stagewright.LivingBody;
-import net.magicterra.worlddriver.bot.stagewright.NpcBot;
 
 /**
  * Runs one hand-built scene: puts a bot at the start marker, runs each task in {@code legs}, and
@@ -54,17 +54,18 @@ import net.magicterra.worlddriver.bot.stagewright.NpcBot;
  * in-place run from the chat bar or RPC ({@link #startInPlace}, driven by {@link #tickInPlace}
  * off Architectury's server tick) — so what a tester watched is what the gate later judges.
  *
- * <p>The kind of player is chosen by the topology, not by the file: a dedicated server mints a
- * headless server-side player ({@link SceneBody#mint}), an integrated server adopts the real player
+ * <p>The kind of player is chosen by the topology, not by the file: a dedicated server spawns a
+ * server-side player ({@link SceneBot#spawn}), an integrated server adopts the real player
  * ({@link ClientHelm#adopt}); each refuses on the other and the scene skips saying so. An in-place
- * run may ask for one explicitly and gets the same refusal as an error. An NPC ({@link SceneBody#npc})
- * is legal on every topology, so a file whose {@code body} is {@code npc} or {@code npc:<name>} runs
- * on one, and so does an in-place run that asks for it.
+ * run may ask for one explicitly and gets the same refusal as an error. An NPC (a driven piglin the
+ * roster adopts) is legal on every topology, so a file whose {@code body} is {@code npc} or
+ * {@code npc:<name>} runs on one, and so does an in-place run that asks for it.
  *
- * <p>Counts come off the process's own {@link NavigatorInspector#tallies()} — the navigator the task actually
- * ran, on whichever helm — never off the JVM-wide statics, so two bots in one process cannot
- * pollute each other's numbers. A task whose process has no navigator (escape, elytra) contributes
- * nothing and the auto lines say so.
+ * <p>Each task is the {@code mc.bot.*} verb its {@code verb} names, sent to the bot by name, so a task
+ * runs exactly as an order from a client would. Counts come off {@code mc.debug.navigator} for that bot
+ * after each task: the navigator the task actually ran, so two bots in one process cannot pollute each
+ * other's numbers. A task whose process has no navigator (escape, elytra) contributes nothing and the
+ * auto lines say so.
  */
 public final class FixtureRunner {
     private FixtureRunner() {}
@@ -95,12 +96,11 @@ public final class FixtureRunner {
         return b.equals("npc") || b.startsWith("npc:");
     }
 
-    /** Which kind of bot this JVM can drive: the integrated server with the client half present adopts the
-     *  real player, anything else mints. The same two facts {@code SceneBody} and {@code ClientHelm}
-     *  decide on, asked once here so the two helpers' skips name the same reason. */
+    /** Which kind of bot this JVM can drive: an integrated server adopts the real player, a dedicated one
+     *  spawns. The fact {@code SceneBot} and {@code ClientHelm} decide on, asked once here so the two
+     *  helpers' skips name the same reason. */
     public static String bodyForTopology(MinecraftServer server) {
-        boolean integrated = server != null && !server.isDedicatedServer();
-        return integrated && BotHooks.isAvailable() ? "self" : "server";
+        return server != null && !server.isDedicatedServer() ? "self" : "server";
     }
 
     // ------------------------------------------------------------------ in-place runs
@@ -174,7 +174,7 @@ public final class FixtureRunner {
 
     /** Settles an in-place run through every exit the context has: DONE, a soft-violation failure
      *  at drain, a step timeout, a skip, or an exception from a step. Cleanups always run — a pin
-     *  left closed keeps {@code BotConfig} in the scene's state for the next thing on the server. */
+     *  left closed keeps the settings in the scene's state for the next thing on the server. */
     private static void resolve(InPlace ip, RuntimeException error) {
         String status;
         String reason;
@@ -190,10 +190,13 @@ public final class FixtureRunner {
 
     // ------------------------------------------------------------------ the run
 
-    /** What a task's process is driven by: the three helms behind one face. */
+    /** How long a reading may take to answer, in server ticks. */
+    private static final int REPLY_TICKS = 40;
+
+    /** The bot the tasks are sent to, and what differs between the three kinds. */
     private interface Helm {
-        void start(BotProcess p);
-        boolean busy();
+        /** What every order names. */
+        String ref();
         /** A player for {@code server} and {@code self}, the driven mob for {@code npc}. */
         LivingEntity entity();
         String describe();
@@ -228,7 +231,7 @@ public final class FixtureRunner {
         private final List<SceneFixture.Pass> pass;
         private final boolean[] passed;
         private int ticks;
-        private int searches, hops, digs;
+        private long searches, hops, digs;
         private boolean tallied = true;
 
         Run(SceneContext ctx, SceneFixture f, BlockPos origin, String bodyKind, Consumer<String> progress, String name) {
@@ -272,9 +275,9 @@ public final class FixtureRunner {
             }
             helm = isNpc(bodyKind) ? npcHelm(foot, start.yaw())
                     : bodyKind.equals("self") ? clientHelm(foot, start.yaw()) : serverHelm(foot, start.yaw());
-            // After the helm: adopting the real player pins the baseline again, so a config applied
+            // After the helm: adopting the real player pins the baseline again, so settings applied
             // before it never reached the navigator that player's tasks run on.
-            applyConfig(f.config());
+            Harness.set(f.config());
             LivingEntity body = helm.entity();
             body.setHealth(body.getMaxHealth());
             if (body instanceof ServerPlayer player) {
@@ -289,41 +292,35 @@ public final class FixtureRunner {
         // ---- helms
 
         private Helm serverHelm(BlockPos foot, float yaw) {
-            PlayerBot driver = SceneBody.mint(ctx, ctx.level(), foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5);
-            ServerPlayer fp = driver.fakePlayer();
+            SceneBot bot = SceneBot.spawn(ctx, foot);
+            ServerPlayer fp = bot.player();
             fp.setYRot(yaw);
             fp.setYHeadRot(yaw);
             fp.getInventory().clearContent();
-            ctx.cleanup(() -> BotTicker.unregister(driver));
             return new Helm() {
-                // Registering again is a no-op unless the cleanup or a crash took the driver off.
-                @Override public void start(BotProcess p) { driver.runProcess(p); BotTicker.register(driver); }
-                @Override public boolean busy() { return !driver.finished(); }
+                @Override public String ref() { return bot.ref(); }
                 @Override public LivingEntity entity() { return fp; }
-                @Override public String describe() { return "server-side player " + fp.getGameProfile().getName() + " (BotTicker)"; }
+                @Override public String describe() { return "server-side player " + fp.getGameProfile().getName() + " (" + bot.ref() + ")"; }
             };
         }
 
         private Helm clientHelm(BlockPos foot, float yaw) {
             ClientHelm helm = ClientHelm.adopt(ctx, foot, yaw);
             return new Helm() {
-                @Override public void start(BotProcess p) { helm.bot().runProcess(p); }
-                @Override public boolean busy() { return Boolean.TRUE.equals(helm.bot().userTaskLeg().get("busy")); }
+                @Override public String ref() { return helm.ref(); }
                 // The client trails the teleport by the move packets the server has not consumed
                 // (six ticks measured); a navigator that snapshots before that plans from the old cell.
                 @Override public void settle(Runnable then) { helm.sync(10, then); }
                 // The same packets trail a task's last steps; ten ticks outlast the six measured.
                 @Override public void caughtUp(Runnable then) { helm.sync(10, then); }
                 @Override public LivingEntity entity() { return helm.player(); }
-                @Override public String describe() { return "real player " + helm.player().getGameProfile().getName() + " (BotApi.runProcess)"; }
+                @Override public String describe() { return "real player " + helm.player().getGameProfile().getName() + " (self)"; }
             };
         }
 
         /**
-         * A driven piglin under the {@link NpcBot} the {@code body} param reaches NPCs through, so a
-         * task runs on it the way an order by name does. {@code npc:<name>} names the mob;
-         * {@code npc:worlddriver:driven_piglin} is the one type there is. Not put in the registry: a
-         * run is not something to send orders to.
+         * A driven piglin the roster adopts, so a task runs on it the way an order by name does.
+         * {@code npc:<name>} names the mob; {@code npc:worlddriver:driven_piglin} is the one type there is.
          */
         private Helm npcHelm(BlockPos foot, float yaw) {
             String label = bodyKind.equals("npc") ? "" : bodyKind.substring("npc:".length());
@@ -333,21 +330,35 @@ public final class FixtureRunner {
                 }
                 label = "";
             }
-            LivingBody npc = SceneBody.npc(ctx, foot);
-            LivingEntity mob = npc.entity();
-            mob.setYRot(yaw);
+            ServerLevel level = ctx.level();
+            DrivenPiglin mob = NpcContent.DRIVEN_PIGLIN.get().create(level);
+            if (mob == null) throw new SceneFailure("worlddriver:driven_piglin created no entity");
+            mob.moveTo(foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5, yaw, 0f);
             mob.setYHeadRot(yaw);
+            // Invulnerable, so the run measures the walk and not whether a fall or a pool kills the NPC.
+            mob.setInvulnerable(true);
+            level.addFreshEntity(mob);
+            ctx.cleanup(mob::discard);
             if (!label.isBlank()) mob.setCustomName(Component.literal(label));
-            NpcBot host = new NpcBot(label.isBlank() ? name : label, npc);
-            ctx.cleanup(() -> BotTicker.unregister(host));
+            String rosterName = rosterName(label.isBlank() ? name : label);
+            Responses.ImmediateResponse r = Calls.now(ControlApi.of(Calls.api()).roster(
+                    new ControlContracts.Adopt(mob.getId(), Optional.of(rosterName))));
+            if (!(r instanceof Responses.Rostered rostered)) throw new SceneFailure("mc.bot.roster adopt answered " + r);
+            String ref = rostered.bot();
+            ctx.cleanup(() -> Calls.now(ControlApi.of(Calls.api()).roster(new ControlContracts.Remove(ref))));
             return new Helm() {
-                @Override public void start(BotProcess p) { host.start(p); }
-                @Override public boolean busy() { return host.busy(); }
+                @Override public String ref() { return ref; }
                 // A mob put on a cell's floor takes a few steps with no input before its first move finds it.
-                @Override public void settle(Runnable then) { for (int i = 0; i < 5; i++) npc.step(); then.run(); }
+                @Override public void settle(Runnable then) { Harness.step(ref, 5); then.run(); }
                 @Override public LivingEntity entity() { return mob; }
-                @Override public String describe() { return "npc " + host.id() + " (NpcBot)"; }
+                @Override public String describe() { return "npc " + ref; }
             };
+        }
+
+        /** A roster name from a free label: letters, digits and underscores, sixteen at most. */
+        private static String rosterName(String label) {
+            String n = label.replaceAll("[^A-Za-z0-9_]", "_");
+            return n.isEmpty() ? "npc" : n.substring(0, Math.min(16, n.length()));
         }
 
         // ---- tasks
@@ -355,111 +366,130 @@ public final class FixtureRunner {
         private void leg(int i) {
             if (i >= f.legs().size()) { finish(); return; }
             SceneFixture.Leg leg = f.legs().get(i);
-            BotProcess process = process(leg, i);
-            Navigator navigator = process instanceof IntentProcess ip ? ip.navigator()
-                    : process instanceof MineProcess mp ? mp.navigator() : null;
-            if (navigator == null) tallied = false;
+            String verb = verb(leg);
             BlockPos goal = leg.goal() == null ? null : FixtureIO.at(origin, leg.goal());
             String tag = "leg." + i;
-            helm.start(process);
-            ctx.record(tag + ".started", leg.verb() + (goal == null ? "" : " → " + goal.toShortString()));
-            final int[] waited = { 0 };
-            final boolean[] ended = { false };
-            ctx.await(() -> {
-                watch(waited[0]);
-                if (!helm.busy()) { ended[0] = true; return true; }
-                return ++waited[0] >= leg.budget();
-            }).within(leg.budget() + 100).then(() -> {
+            ctx.record(tag + ".order", leg.verb() + (goal == null ? "" : " → " + goal.toShortString()));
+            Legs.run(ctx, tag, helm.ref(), order(verb, leg, i), leg.budget(), this::watch, end -> {
                 // Where the server had the bot the tick the task ended, before a client's last move
                 // packets land: the reading this runner judged by until it waited for them.
                 LivingEntity seen = helm.entity();
                 String endedAt = String.format(Locale.ROOT, "%.2f,%.2f,%.2f", seen.getX(), seen.getY(), seen.getZ());
-                helm.caughtUp(() -> {
-                    ticks += waited[0];
-                    if (navigator != null) {
-                        NavigatorTallies t = navigator.inspect().tallies();
-                        searches += t.searches;
-                        hops += t.recoveryHops;
-                        digs += t.digs;
-                    }
-                    LivingEntity body = helm.entity();
-                    String where = String.format(Locale.ROOT, "%.2f,%.2f,%.2f", body.getX(), body.getY(), body.getZ());
-                    boolean arrived = goal != null && arrived(body, goal, leg.goalKind());
-                    String how = ended[0] ? "ended at tick " + waited[0] : "budget " + leg.budget() + " spent, process still busy";
-                    // The navigator's own end beside the task's: arrived here allows a cell of slack, and a walk
-                    // that stopped a cell short reads arrived=true with the navigator saying why it stopped.
-                    ctx.record(tag, how + ", at " + where + (where.equals(endedAt) ? "" : " (" + endedAt + " as it ended)")
-                            + (goal == null ? "" : ", arrived=" + arrived)
-                            + (navigator == null ? "" : ", navigator ended " + navigator.result().endReason()));
-                    // What the fixture's config reads when the task ends, not when it was applied.
-                    if (!f.config().isEmpty()) {
-                        Map<String, Object> now = new LinkedHashMap<>();
-                        for (String k : f.config().keySet()) {
-                            try { now.put(k, BotConfig.field(k).get(null)); }
-                            catch (ReflectiveOperationException | RuntimeException e) { now.put(k, "unreadable"); }
-                        }
-                        ctx.record(tag + ".config", String.valueOf(now));
-                    }
-                    if (goal != null) {
-                        auto.put("arrive." + i, arrived);
-                        line(arrived, "task " + i + " " + leg.verb() + " arrived at " + goal.toShortString()
-                                + " (" + how + ")");
-                        if (!arrived) failures.add("task " + i + " did not arrive at " + goal.toShortString() + ": " + how);
-                    } else if (!ended[0]) {
-                        auto.put("finish." + i, false);
-                        line(false, "task " + i + " " + leg.verb() + " did not finish within " + leg.budget() + " ticks");
-                        failures.add("task " + i + " " + leg.verb() + " did not finish");
-                    } else {
-                        auto.put("finish." + i, true);
-                        line(true, "task " + i + " " + leg.verb() + " finished at tick " + waited[0]);
-                    }
-                    leg(i + 1);
-                });
+                helm.caughtUp(() -> read(DebugApi.of(Calls.api()).navigator(BotDebugContracts.NavigatorParams.of(helm.ref())),
+                        nav -> judgeLeg(i, leg, verb, goal, end, endedAt, nav)));
             });
         }
 
-        private BotProcess process(SceneFixture.Leg leg, int i) {
-            String verb = leg.verb() == null ? "goto" : leg.verb().trim().toLowerCase(Locale.ROOT);
+        private void judgeLeg(int i, SceneFixture.Leg leg, String verb, BlockPos goal, Legs.End end, String endedAt,
+                              BotDebugContracts.NavigatorReading nav) {
+            String tag = "leg." + i;
+            ticks += end.ticks();
+            if (nav.counters().containsKey("searches")) {
+                searches += nav.counter("searches");
+                hops += nav.counter("recoveryHops");
+                digs += nav.counter("digs");
+            } else {
+                tallied = false;
+            }
+            LivingEntity body = helm.entity();
+            String where = String.format(Locale.ROOT, "%.2f,%.2f,%.2f", body.getX(), body.getY(), body.getZ());
+            boolean arrived = goal != null && arrived(body, goal, leg.goalKind());
+            String how = end.ended() ? "ended at tick " + end.ticks() : "budget " + leg.budget() + " spent, task still running";
+            // The task's own end beside the run's: arrived here allows a cell of slack, and a walk that
+            // stopped a cell short reads arrived=true with the task saying why it stopped.
+            String endReason = end.slot(slotOf(verb)).flatMap(ControlContracts.Slot::endReason).orElse("unavailable");
+            ctx.record(tag, how + ", at " + where + (where.equals(endedAt) ? "" : " (" + endedAt + " as it ended)")
+                    + (goal == null ? "" : ", arrived=" + arrived) + ", task ended " + endReason);
+            // What the fixture's settings read when the task ends, not when they were applied.
+            if (!f.config().isEmpty()) {
+                Map<String, Object> now = new LinkedHashMap<>();
+                for (String k : f.config().keySet()) {
+                    try { now.put(k, Harness.get(k)); }
+                    catch (RuntimeException e) { now.put(k, "unreadable"); }
+                }
+                ctx.record(tag + ".config", String.valueOf(now));
+            }
+            if (goal != null) {
+                auto.put("arrive." + i, arrived);
+                line(arrived, "task " + i + " " + leg.verb() + " arrived at " + goal.toShortString() + " (" + how + ")");
+                if (!arrived) failures.add("task " + i + " did not arrive at " + goal.toShortString() + ": " + how);
+            } else if (!end.ended()) {
+                auto.put("finish." + i, false);
+                line(false, "task " + i + " " + leg.verb() + " did not finish within " + leg.budget() + " ticks");
+                failures.add("task " + i + " " + leg.verb() + " did not finish");
+            } else {
+                auto.put("finish." + i, true);
+                line(true, "task " + i + " " + leg.verb() + " finished at tick " + end.ticks());
+            }
+            leg(i + 1);
+        }
+
+        /** Continues with {@code call}'s answer; a call that fails fails the scene. */
+        private <R> void read(CompletionStage<R> call, Consumer<R> then) {
+            CompletableFuture<R> reply = call.toCompletableFuture();
+            ctx.await(reply::isDone).within(REPLY_TICKS).then(() -> then.accept(Calls.now(reply)));
+        }
+
+        private static String verb(SceneFixture.Leg leg) {
+            return leg.verb() == null ? "goto" : leg.verb().trim().toLowerCase(Locale.ROOT);
+        }
+
+        private static Function<ControlContracts.Slots, ControlContracts.Slot> slotOf(String verb) {
+            return switch (verb) {
+                case "mine" -> ControlContracts.Slots::mine;
+                case "escape" -> ControlContracts.Slots::escape;
+                case "elytra" -> ControlContracts.Slots::elytra;
+                default -> ControlContracts.Slots::goTo;
+            };
+        }
+
+        /** The {@code mc.bot.*} order a leg names, sent to the helm's bot. */
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        private CompletionStage<Responses.ActionResponse<Object>> order(String verb, SceneFixture.Leg leg, int i) {
+            String ref = helm.ref();
             LegParams p = new LegParams(leg.params() == null ? Map.of() : leg.params());
-            switch (verb) {
+            CompletionStage<? extends Responses.ActionResponse<?>> order = switch (verb) {
                 case "goto" -> {
                     if (leg.goal() == null) throw new SceneFailure("task " + i + ": goto needs a goal");
                     Map<String, Object> route = new LinkedHashMap<>(leg.route() == null ? Map.of() : leg.route());
-                    List<Goal> targets = new ArrayList<>();
-                    if (route.get("via") instanceof List<?> vl) {
-                        for (Object o : vl) targets.add(new Goal.Near(FixtureIO.at(origin, SceneFixture.intsOf(o, "route.via[]", 3)), 1));
-                        route.remove("via");
+                    List<BlockPos> legVia = new ArrayList<>();
+                    if (route.remove("via") instanceof List<?> vl) {
+                        for (Object o : vl) legVia.add(FixtureIO.at(origin, SceneFixture.intsOf(o, "route.via[]", 3)));
                     }
-                    RouteParams.Parsed r = RouteParams.parse(route);
+                    RouteContracts.Route r = RouteContracts.ROUTE.decode(route);
                     if (r.fly()) throw new SceneFailure("task " + i + ": route.mode fly is the elytra verb here");
-                    targets.add(goal(FixtureIO.at(origin, leg.goal()), leg.goalKind()));
-                    return new IntentProcess(new Intent(targets, r.profile().bias(), r.profile().capability(),
-                            r.profile().constraints(), r.entityLeash()));
+                    r = Routes.of(r).via(legVia.toArray(BlockPos[]::new)).build();
+                    yield SceneBot.tasks().goTo(new GotoContracts.Params(ref,
+                            Optional.of(target(FixtureIO.at(origin, leg.goal()), leg.goalKind())), false, Optional.of(r),
+                            Optional.empty(), false, Optional.empty(), 0));
                 }
                 case "mine" -> {
                     List<String> ids = p.getStringList("block");
                     if (ids.isEmpty()) ids = p.getStringList("blocks");
                     if (ids.isEmpty()) throw new SceneFailure("task " + i + ": mine needs params.block");
-                    return new MineProcess(ids, Math.max(1, p.getInt("count", 1)), p.getIntClamped("radius", 16, 1, 64));
+                    yield SceneBot.tasks().mine(new GatherContracts.MineParams(ref, ids, Optional.empty(),
+                            Math.max(1, p.getInt("count", 1)), p.getIntClamped("radius", 16, 1, 64), 0));
                 }
                 case "escape" -> {
                     if (!(p.get("targetY") instanceof Number n)) throw new SceneFailure("task " + i + ": escape needs params.targetY (origin-relative)");
-                    int targetY = origin.getY() + n.intValue();
-                    boolean down = targetY < helm.entity().blockPosition().getY();
-                    return down ? new DescendProcess(targetY) : new EscapeProcess(targetY);
+                    yield SceneBot.tasks().escape(new BuildContracts.EscapeParams(ref, Optional.of(origin.getY() + n.intValue()), 0));
                 }
                 case "elytra" -> {
-                    BlockPos target = p.get("pos") == null ? null : FixtureIO.at(origin, SceneFixture.intsOf(p.get("pos"), "params.pos", 3));
-                    Float yaw = p.get("yaw") instanceof Number n ? n.floatValue() : null;
-                    boolean hasPitch = p.get("pitch") instanceof Number;
-                    float pitch = (float) p.getDouble("pitch", 0.0);
-                    boolean reactive = target != null && p.getBool("reactive", !hasPitch);
-                    boolean fireworks = reactive ? !Boolean.FALSE.equals(p.get("fireworks")) : p.getBool("fireworks");
-                    return new ElytraProcess(target, yaw, pitch, fireworks, p.getIntClamped("fireworkEveryTicks", 40, 5, 400),
-                            p.getIntClamped("ticks", reactive ? 2000 : 200, 1, 20_000), p.getDouble("stopXZDist", 3.0), reactive);
+                    // The file's params are the verb's own, with pos origin-relative.
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("bot", ref);
+                    if (p.get("pos") != null) {
+                        BlockPos target = FixtureIO.at(origin, SceneFixture.intsOf(p.get("pos"), "params.pos", 3));
+                        m.put("pos", Map.of("x", target.getX(), "y", target.getY(), "z", target.getZ()));
+                    }
+                    for (String k : List.of("yaw", "pitch", "reactive", "fireworks", "fireworkEveryTicks", "ticks", "stopXZDist")) {
+                        if (p.get(k) != null) m.put(k, p.get(k));
+                    }
+                    yield SceneBot.tasks().elytraFly(MoveContracts.ELYTRA_PARAMS.decode(m));
                 }
                 default -> throw new SceneFailure("task " + i + ": unknown verb '" + verb + "' (goto|mine|escape|elytra)");
-            }
+            };
+            return (CompletionStage) order;
         }
 
         /** A leg's {@code params} as the fixture file wrote them: a missing or mistyped field reads as its default. */
@@ -467,9 +497,6 @@ public final class FixtureRunner {
             Object get(String key) { return m.get(key); }
             int getInt(String key, int dflt) { return m.get(key) instanceof Number n ? n.intValue() : dflt; }
             int getIntClamped(String key, int dflt, int lo, int hi) { return Math.max(lo, Math.min(hi, getInt(key, dflt))); }
-            double getDouble(String key, double dflt) { return m.get(key) instanceof Number n ? n.doubleValue() : dflt; }
-            boolean getBool(String key) { return Boolean.TRUE.equals(m.get(key)); }
-            boolean getBool(String key, boolean dflt) { return m.get(key) instanceof Boolean b ? b : dflt; }
 
             /** A list's strings, or a lone string as a list of one. */
             List<String> getStringList(String key) {
@@ -483,11 +510,11 @@ public final class FixtureRunner {
             }
         }
 
-        private static Goal goal(BlockPos abs, String kind) {
+        private static GotoContracts.Target target(BlockPos abs, String kind) {
             String k = kind == null ? "block" : kind.trim();
-            if (k.startsWith("near:")) return new Goal.Near(abs, Integer.parseInt(k.substring(5).trim()));
-            if (k.equals("y:") || k.equals("y")) return new Goal.YLevel(abs.getY());
-            return new Goal.Block(abs);
+            if (k.startsWith("near:")) return Targets.near(abs, Integer.parseInt(k.substring(5).trim()));
+            if (k.equals("y:") || k.equals("y")) return Targets.level(abs.getY());
+            return Targets.block(abs);
         }
 
         /** Arrival as the marker meant it: a near goal within its radius, a y goal on its level,
@@ -573,9 +600,9 @@ public final class FixtureRunner {
 
             observed.put("ticks", ticks);
             if (tallied) {
-                observed.put("repaths", searches);
-                observed.put("hops", hops);
-                observed.put("digs", digs);
+                observed.put("repaths", (int) searches);
+                observed.put("hops", (int) hops);
+                observed.put("digs", (int) digs);
             } else {
                 line(true, "repaths/hops/digs not observed: a task's process has no navigator");
             }
@@ -602,25 +629,6 @@ public final class FixtureRunner {
 
         // ---- staging helpers
 
-        /** {@code config} keys are config field names ({@link BotConfig#field}); the pin restores them all. */
-        private static void applyConfig(Map<String, Object> config) {
-            for (var e : config.entrySet()) {
-                try {
-                    var field = BotConfig.field(e.getKey());
-                    Object v = e.getValue();
-                    Class<?> t = field.getType();
-                    if (t == boolean.class) field.setBoolean(null, Boolean.TRUE.equals(v) || "true".equals(String.valueOf(v)));
-                    else if (t == int.class) field.setInt(null, ((Number) v).intValue());
-                    else if (t == long.class) field.setLong(null, ((Number) v).longValue());
-                    else if (t == double.class) field.setDouble(null, ((Number) v).doubleValue());
-                    else if (t == float.class) field.setFloat(null, ((Number) v).floatValue());
-                    else field.set(null, v);
-                } catch (ReflectiveOperationException | RuntimeException ex) {
-                    throw new SceneFailure("config." + e.getKey() + ": " + ex.getMessage());
-                }
-            }
-        }
-
         /** {@code "minecraft:dirt 16"} per hotbar slot, slot 0 selected. */
         private static void giveHand(ServerPlayer body, List<String> hand) {
             int slot = 0;
@@ -642,7 +650,9 @@ public final class FixtureRunner {
         }
 
         private static Item item(String id) {
-            return RegistryIds.lookup(BuiltInRegistries.ITEM, id).orElseThrow(() -> new SceneFailure("unknown item '" + id + "'"));
+            ResourceLocation key = ResourceLocation.tryParse(id);
+            Optional<Item> item = key == null ? Optional.empty() : BuiltInRegistries.ITEM.getOptional(key);
+            return item.orElseThrow(() -> new SceneFailure("unknown item '" + id + "'"));
         }
     }
 

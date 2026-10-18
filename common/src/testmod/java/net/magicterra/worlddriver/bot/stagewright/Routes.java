@@ -44,6 +44,9 @@ public final class Routes {
     /** No conditions: plain walking. */
     public static Routes plain() { return new Routes(Route.NONE); }
 
+    /** {@code route}'s conditions, to add more to. */
+    public static Routes of(Route route) { return new Routes(route); }
+
     public Route build() {
         return new Route(via, mode, breakPolicy, place, parkour, risk, yRange, hug, leash, regions, mobs, sight,
                 corridor, ledge, requireTool);

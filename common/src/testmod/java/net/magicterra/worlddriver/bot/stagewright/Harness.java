@@ -103,6 +103,11 @@ public final class Harness {
         return ticked(TestHarnessContracts.Tick.bot(bot, ticks)).busy();
     }
 
+    /** Advance {@code bot} alone until it is idle or {@code maxTicks} ran out; the ticks it took. */
+    public static int tickUntilIdle(String bot, int maxTicks) {
+        return ticked(new TestHarnessContracts.Tick(maxTicks, true, java.util.Optional.of(bot), false)).ticks();
+    }
+
     /** Step only {@code bot}'s body {@code ticks} times: its physics, with no perceiving, reflexes or task. */
     public static void step(String bot, int ticks) {
         ticked(TestHarnessContracts.Tick.body(bot, ticks));

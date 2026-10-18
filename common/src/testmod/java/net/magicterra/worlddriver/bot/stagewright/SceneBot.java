@@ -106,6 +106,39 @@ public final class SceneBot {
     }
 
     /**
+     * Everyone on this server who is a person rather than a bot. On a server a client hosts, its owner; on a
+     * dedicated one, every player no bot on the roster is. Server scope, not level scope: a bot in another
+     * dimension is still not a person.
+     */
+    public static List<ServerPlayer> humanPlayers(SceneContext ctx) {
+        MinecraftServer server = ctx.server();
+        List<ServerPlayer> out = new java.util.ArrayList<>();
+        if (server == null) return out;
+        // An integrated server's status call asks self too, which answers on the client thread later; its owner
+        // is the person there.
+        java.util.Set<Integer> bots = server.isDedicatedServer() ? botEntityIds() : java.util.Set.of();
+        for (ServerPlayer p : ctx.players()) {
+            boolean human = server.isDedicatedServer() ? !bots.contains(p.getId()) : server.isSingleplayerOwner(p.getGameProfile());
+            if (human) out.add(p);
+        }
+        return out;
+    }
+
+    /** Whether {@code p} is one of the driver's bots rather than a person's player. */
+    public static boolean isBot(SceneContext ctx, ServerPlayer p) {
+        return !humanPlayers(ctx).contains(p);
+    }
+
+    /** The entity ids of the roster's bots: a dedicated server's status call, which answers within itself. */
+    private static java.util.Set<Integer> botEntityIds() {
+        Responses.ImmediateResponse r = Calls.now(ControlApi.of(Calls.api()).status(new ControlContracts.StatusParams(Optional.empty())));
+        if (!(r instanceof Responses.Status status)) throw new SceneFailure("mc.bot.status answered " + r);
+        java.util.Set<Integer> out = new java.util.HashSet<>();
+        for (ControlContracts.BotSummary b : status.bots()) b.entityId().ifPresent(out::add);
+        return out;
+    }
+
+    /**
      * An integrated server has a real client, and a headless player bot must not be created beside it: the scene
      * is skipped there, and its coverage counted on the dedicated server.
      */
@@ -129,6 +162,9 @@ public final class SceneBot {
 
     /** {@code ticks} full ticks of this bot alone; the bots still busy after. */
     public int tick(int ticks) { return Harness.tick(ref, ticks); }
+
+    /** Full ticks of this bot alone until it is idle or {@code maxTicks} ran out; the ticks it took. */
+    public int tickUntilIdle(int maxTicks) { return Harness.tickUntilIdle(ref, maxTicks); }
 
     /** Only the body's physics step, {@code ticks} times: the posed-body tick, with no perceiving, reflexes or task. */
     public void step(int ticks) { Harness.step(ref, ticks); }
