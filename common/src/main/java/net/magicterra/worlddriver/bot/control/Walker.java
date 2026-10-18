@@ -301,7 +301,7 @@ public final class Walker implements Locomotor {
     /** The back-off and the burst that move a stuck bot; asked for by the phases, driven by {@link #arbiter}. */
     final Recovery recovery = new Recovery();
     /** Who drives which channel this tick; {@link Arbiter#snapshot} says. */
-    final Arbiter arbiter = new Arbiter(List.of(recovery));
+    final Arbiter arbiter = new Arbiter(List.of(new DrownEscape(), recovery));
     // --- expectation alarms (walkerExpectAlarm): live actual-vs-expected divergence detectors ---
     // Extracted to WalkerExpectAlarms (all the ex* sentinel state + the observers) — purely
     // observational, never drives movement. Fed via exAlarms.tick / .notePlace / .noteRepathFlip.
