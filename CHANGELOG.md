@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or failure. The caller stops ticking the walker there, so a pin raised on that tick stayed held
   with nothing left to release it. They now run only on ticks that keep walking, and the final tick
   lets go of a pin still held.
+- **A bot no longer drifts off its heading while it aims a dig.** The walker worked out which way
+  to push, then turned the head toward the next block to dig in the same tick, and the push turned
+  with the head. A tick's movement is now held until the tick is decided and then given along the
+  bearing it was meant for, whichever way the head ended up facing. On the R1 route the final
+  cliff, where the bot digs its way up, took 31 to 34 s in six runs out of six, against 32 to 97 s
+  in six runs before (three of them stuck re-digging and re-placing for a minute or more), and the
+  whole route's median went from 171 s to 158 s.
 
 ## 2026-10-17
 

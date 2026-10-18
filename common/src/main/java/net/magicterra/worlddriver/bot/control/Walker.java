@@ -1066,7 +1066,20 @@ public final class Walker implements Locomotor {
      *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */
     static void avatarForward(Body a, boolean v) { a.commandForward(v ? 1f : 0f); }
 
-    @Override public Status tick(Body a, WorldView world) {
+    /** The body the tick drives, recording movement into this tick's frame; see {@link Actuate}. */
+    private final Actuate.FrameBody frameBody = new Actuate.FrameBody();
+
+    /** Decide the tick against a recording body, then hand what it decided to the real one. */
+    @Override public Status tick(Body body, WorldView world) {
+        Actuate.FrameBody a = frameBody.begin(body);
+        try {
+            return decide(a, world);
+        } finally {
+            Actuate.apply(a.frame, body);
+        }
+    }
+
+    private Status decide(Body a, WorldView world) {
         body = a.entity();
         if (body != null) tel = WalkerTelemetry.of(body);
         equipment = a.equipment().orElse(WalkerNoHands.INSTANCE);
