@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.schema.ApiField;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
@@ -244,19 +245,22 @@ public final class ObserveContracts {
 
     // ------------------------------------------------------------------ threats
 
-    public record ThreatsParams(int radius) {}
+    /** {@code bot}: whose threats; omitted or {@code self}, the client's player. */
+    public record ThreatsParams(int radius, Optional<String> bot) {}
 
     public record Threat(int id, String type, Point pos, double distance, boolean canSeeMe, boolean facingMe,
                          boolean charging, double creeperSwell, boolean attackedMe, double threat) {}
 
     public record Projectile(int id, String type, Point pos, Point vel, boolean willHit, int ticksToImpact) {}
 
-    /** Both lists are empty where there is no client: the scan reads what only a client renders. */
+    /** For self, both lists are empty where there is no client: the scan reads what only a client renders. */
     public record Threats(List<Threat> threats, List<Projectile> incomingProjectiles) {}
 
     public static final ApiType<ThreatsParams> THREATS_PARAMS = ApiTypes.record(ThreatsParams.class, "ThreatsParams",
             ApiField.field("radius", ApiTypes.integer(1, 64)).describe("Blocks around the player.")
                     .defaulted(24).forGetter(ThreatsParams::radius),
+            ApiField.field("bot", Responses.BOT_REF).describe("A server player bot: the threats its own scan sees. Omitted: self.")
+                    .optional().forGetter(ThreatsParams::bot),
             ThreatsParams::new);
 
     private static final ApiType<Threat> THREAT = ApiTypes.record(Threat.class, "Threat",
@@ -295,8 +299,8 @@ public final class ObserveContracts {
     // Pollable: one bounded scan of the client's own entity set, on the client thread.
     public static final MethodSpec<ThreatsParams, Threats> THREATS = MethodSpec.of("mc.observe.threats", THREATS_PARAMS,
                     THREATS_REPLY,
-                    "Scored hostiles and incoming projectiles around this client's player, as the bot's own reflexes "
-                            + "see them. Client only: empty lists without a client.")
+                    "Scored hostiles and incoming projectiles around this client's player, or a named server player "
+                            + "bot, as that bot's own reflexes see them. For self, empty lists without a client.")
             .asPollable();
 
     // ------------------------------------------------------------------ boss

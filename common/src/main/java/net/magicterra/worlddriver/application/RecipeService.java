@@ -27,6 +27,8 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.magicterra.worlddriver.bot.Bot;
+import net.magicterra.worlddriver.bot.BotRegistry;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -76,6 +78,15 @@ public final class RecipeService implements RecipeApi {
         if (api.server == null) return null;
         List<ServerPlayer> all = api.server.getPlayerList().getPlayers();
         return all.isEmpty() ? null : all.get(0);
+    }
+
+    /** The player body of the bot {@code ref}; invalid_params at {@code /bot} when it names none. Server thread. */
+    private static Player namedPlayer(String ref) {
+        Bot bot = BotRegistry.get(ref);
+        if (bot == null || !(bot.entity() instanceof Player player)) {
+            throw ApiException.invalidParam("/bot", ApiIssue.Code.INVALID_VALUE, "no player bot named " + ref);
+        }
+        return player;
     }
 
     // === mc.recipe.lookup ====================================================
@@ -193,9 +204,10 @@ public final class RecipeService implements RecipeApi {
         }
         ServerLevel level = api.level();
         return api.requireServerHop().submit(() -> {
-            Map<String, Integer> have = resolveHave(p.have(), botPlayer());   // reads the bag: server thread only
+            Player who = p.bot().isPresent() ? namedPlayer(p.bot().get()) : botPlayer();
+            Map<String, Integer> have = resolveHave(p.have(), who);   // reads the bag: server thread only
             return body.plan(target, p.count(), have, level.getRecipeManager(), level.registryAccess(),
-                    Stations.available(botPlayer(), level));
+                    Stations.available(who, level));
         }, ctx);
     }
 

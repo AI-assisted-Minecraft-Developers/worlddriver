@@ -498,7 +498,7 @@ The server's hazard grid around a center: lethal cells, whether the center is co
 
 ### `mc.observe.threats`
 
-Scored hostiles and incoming projectiles around this client's player, as the bot's own reflexes see them. Client only: empty lists without a client.
+Scored hostiles and incoming projectiles around this client's player, or a named server player bot, as that bot's own reflexes see them. For self, empty lists without a client.
 
 - Params: `ThreatsParams` (may be omitted); reply: `Threats`
 - Effects: snapshot_read
@@ -1819,11 +1819,11 @@ interface GotoParams {
     invert?: boolean;
     /** Omitted: plain walking. */
     route?: Route;
-    /** preview searches without walking; score prices route.corridor.points. self only. */
+    /** preview searches without walking; score prices route.corridor.points, for self only. */
     plan?: PlanMode;
     /** With plan: 'preview', also return the route's cells. */
     includePath?: boolean;
-    /** Walk a preview's route; its target and route come from the preview. self only. */
+    /** Walk a preview's route; its target and route come from the preview, which the same bot made. */
     planId?: string;
     awaitMs?: number;
 }
@@ -2723,7 +2723,7 @@ interface BotStatus {
     activeProcess?: string;
     lastProcessEnd?: ProcessEnd;
     slots: ProcessSlots;
-    /** self only. */
+    /** self and the server's bots. */
     reflexes?: Reflexes;
 }
 type StatusResponse =
@@ -3719,6 +3719,8 @@ interface Scene {
 interface ThreatsParams {
     /** Blocks around the player. */
     radius?: number;
+    /** A server player bot: the threats its own scan sees. Omitted: self. */
+    bot?: BotRef;
 }
 interface Threat {
     id: number;
@@ -3757,6 +3759,8 @@ interface PlanParams {
     count?: number;
     /** Item id → count to plan against, as mc.observe.player's items gives it. Omitted: the real bag mc.bot.craft would consume from; {} supposes nothing at all. */
     have?: Record<string, number>;
+    /** A server player bot whose bag and nearby stations to plan against. Omitted: the first player. */
+    bot?: BotRef;
 }
 type AcquireAction = 'mine' | 'farm' | 'smelt' | 'craft';
 type CraftingStation = 'inventory2x2' | 'crafting_table' | 'furnace' | 'blast_furnace' | 'smoker' | 'campfire' | 'stonecutter' | 'smithing_table' | 'unknown';

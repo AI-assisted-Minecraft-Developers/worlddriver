@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **Server bots answer what only self used to.** `mc.bot.goto` with `plan: 'preview'` and `planId`
+  works for a named server bot, whose brain keeps its previews as the client's keeps self's (a
+  waypoint target and `plan: 'score'` stay self's). `mc.bot.status` carries `reflexes` (chains,
+  clutch, last search, combat tally) for a server bot. `mc.observe.threats` takes `bot` and answers
+  that player bot's own threat scan. `mc.recipe.resolve` and `mc.plan.acquire` take `bot`, whose bag
+  and nearby stations they plan against instead of the first player's.
 - **A server-side bot's insides can be read through `mc.debug`.** `mc.debug.navigator` answers the plan
   cursor, the last search and every navigator tally, telemetry counter and trace by name, for the
   running task or the last one a caller started; `mc.debug.body` the footing, the hands, the world

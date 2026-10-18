@@ -32,6 +32,7 @@ import net.magicterra.worlddriver.bot.Roster;
 import net.magicterra.worlddriver.bot.StatusView;
 import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.bot.BotRegistry;
+import net.magicterra.worlddriver.bot.ServerBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
@@ -108,7 +109,8 @@ final class ControlService implements ControlApi {
             Bot host = BotRegistry.get(body);
             if (host == null) return unknown(body);
             BotStatus s = new BotStatus(host.id(), host.busy(), Optional.ofNullable(host.botState().activeName()),
-                    StatusView.end(host.lastProcessEnd()), StatusView.slots(host.botState()), Optional.empty());
+                    StatusView.end(host.lastProcessEnd()), StatusView.slots(host.botState()),
+                    host instanceof ServerBot server ? Optional.of(server.reflexes()) : Optional.empty());
             return new Status(summaries(), Optional.of(s));
         }, ctx);
     }

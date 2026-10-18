@@ -230,7 +230,7 @@ public final class ControlContracts {
             ApiField.field("activeProcess", ApiTypes.string()).optional().forGetter(BotStatus::activeProcess),
             ApiField.field("lastProcessEnd", PROCESS_END).optional().forGetter(BotStatus::lastProcessEnd),
             ApiField.field("slots", SLOTS).required().forGetter(BotStatus::slots),
-            ApiField.field("reflexes", REFLEXES).describe("self only.").optional().forGetter(BotStatus::reflexes),
+            ApiField.field("reflexes", REFLEXES).describe("self and the server's bots.").optional().forGetter(BotStatus::reflexes),
             BotStatus::new);
 
     private static final ApiType<BotSummary> BOT_SUMMARY = ApiTypes.record(BotSummary.class, "BotSummary",

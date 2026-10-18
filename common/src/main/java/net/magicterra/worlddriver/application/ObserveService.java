@@ -25,6 +25,8 @@ import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.Threats;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.bot.BotRegistry;
+import net.magicterra.worlddriver.bot.ServerBot;
 import net.magicterra.worlddriver.bot.WorldReadings;
 import net.magicterra.worlddriver.application.client.ClientDriverApi;
 import net.magicterra.worlddriver.application.client.ClientHooks;
@@ -68,6 +70,15 @@ public final class ObserveService implements ObserveApi {
 
     @Override
     public CompletionStage<Threats> threats(ObserveContracts.ThreatsParams p, CallContext ctx) {
+        if (p.bot().isPresent() && !BotRegistry.isSelf(p.bot().get())) {
+            String ref = p.bot().get();
+            return api.requireServerHop().submit(() -> {
+                if (!(BotRegistry.get(ref) instanceof ServerBot bot) || !(bot.entity() instanceof Player self)) {
+                    throw ApiException.invalidParam("/bot", ApiIssue.Code.INVALID_VALUE, "no server player bot named " + ref);
+                }
+                return WorldReadings.threats(self.level(), self, p.radius(), bot.threatVelocities());
+            }, ctx);
+        }
         return onClient(ctx, c -> c.observeThreats(p.radius()), new Threats(List.of(), List.of()));
     }
 

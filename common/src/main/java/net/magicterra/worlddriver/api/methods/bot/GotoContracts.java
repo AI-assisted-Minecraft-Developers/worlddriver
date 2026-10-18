@@ -198,12 +198,12 @@ public final class GotoContracts {
             ApiField.field("invert", ApiTypes.bool()).describe("Flee the target instead of reaching it.")
                     .defaulted(false).forGetter(Params::invert),
             ApiField.field("route", RouteContracts.ROUTE).describe("Omitted: plain walking.").optional().forGetter(Params::route),
-            ApiField.field("plan", PLAN_MODE).describe("preview searches without walking; score prices route.corridor.points. "
-                    + "self only.").optional().forGetter(Params::plan),
+            ApiField.field("plan", PLAN_MODE).describe("preview searches without walking; score prices route.corridor.points, "
+                    + "for self only.").optional().forGetter(Params::plan),
             ApiField.field("includePath", ApiTypes.bool()).describe("With plan: 'preview', also return the route's cells.")
                     .defaulted(false).forGetter(Params::includePath),
             ApiField.field("planId", ApiTypes.string(1, 64))
-                    .describe("Walk a preview's route; its target and route come from the preview. self only.")
+                    .describe("Walk a preview's route; its target and route come from the preview, which the same bot made.")
                     .optional().forGetter(Params::planId),
             ApiField.field("awaitMs", Responses.AWAIT_MS).defaulted(0).forGetter(Params::awaitMs),
             Params::new)

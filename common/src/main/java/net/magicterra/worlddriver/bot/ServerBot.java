@@ -1,5 +1,10 @@
 package net.magicterra.worlddriver.bot;
 
+import net.minecraft.world.phys.Vec3;
+import net.magicterra.worlddriver.api.methods.control.ControlContracts;
+import java.util.function.Function;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.minecraft.world.entity.Entity;
 import java.util.Map;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
@@ -114,6 +119,22 @@ public abstract class ServerBot implements Bot {
         BotProcess held = brain.userProcess();
         return held != null ? held : brain.lastAskedProcess();
     }
+
+    /**
+     * {@code mc.bot.goto} with a preview or a {@code planId}, which this bot's brain keeps as the client's keeps
+     * self's. A preview searches in slices on the bot's own ticks, so a parked bot's never finishes.
+     */
+    public GotoOrders.Order planGoto(GotoContracts.Params p, Function<String, Entity> nearestOfType) {
+        return brain.planGoto(p, entity(), nearestOfType);
+    }
+
+    /** The chains, the clutch, the last search and the combat tally, as the client reports self's. */
+    public ControlContracts.Reflexes reflexes() {
+        return brain.botStatus(id()).reflexes().orElseThrow();
+    }
+
+    /** The velocities the bot's threat scan last saw on each projectile, by entity id. */
+    public Map<Integer, Vec3> threatVelocities() { return brain.threatVelocities(); }
 
     /** A bot that is off the tick list is not moving, whatever it last held. */
     @Override public boolean busy() {

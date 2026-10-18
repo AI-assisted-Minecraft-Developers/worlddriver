@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.schema.ApiField;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
@@ -90,8 +91,15 @@ public final class RecipeContracts {
 
     // ------------------------------------------------------------------ resolve and acquire
 
-    /** {@code have} omitted: plan against the real bag of the first player, empty with nobody on. */
-    public record PlanParams(String target, int count, Optional<Map<String, Integer>> have) {}
+    /**
+     * {@code have} omitted: plan against the real bag of {@code bot}, or of the first player when that is omitted too,
+     * empty with nobody on. The stations in reach are {@code bot}'s, or the first player's.
+     */
+    public record PlanParams(String target, int count, Optional<Map<String, Integer>> have, Optional<String> bot) {
+        public PlanParams(String target, int count, Optional<Map<String, Integer>> have) {
+            this(target, count, have, Optional.empty());
+        }
+    }
 
     public record ItemNeed(String item, int count) {}
 
@@ -125,6 +133,9 @@ public final class RecipeContracts {
                     + "id the registry does not know is invalid_params.").required().forGetter(PlanParams::target),
             ApiField.field("count", ApiTypes.integer(1, 4096)).defaulted(1).forGetter(PlanParams::count),
             ApiField.field("have", ApiTypes.map(COUNT, 4096)).describe(HAVE).optional().forGetter(PlanParams::have),
+            ApiField.field("bot", Responses.BOT_REF)
+                    .describe("A server player bot whose bag and nearby stations to plan against. Omitted: the first player.")
+                    .optional().forGetter(PlanParams::bot),
             PlanParams::new);
 
     private static final ApiType<ItemNeed> ITEM_NEED = ApiTypes.record(ItemNeed.class, "ItemNeed",

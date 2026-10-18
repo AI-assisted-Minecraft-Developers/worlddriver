@@ -56,6 +56,7 @@ import net.magicterra.worlddriver.bot.GotoOrders;
 import net.magicterra.worlddriver.bot.TaskStepProcess;
 import net.magicterra.worlddriver.bot.VerbOrders;
 import net.magicterra.worlddriver.bot.BotRegistry;
+import net.magicterra.worlddriver.bot.ServerBot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -280,10 +281,15 @@ final class BotTaskService implements BotTaskApi {
         if (p.plan().orElse(null) == GotoContracts.PlanMode.SCORE) return score(p, self, ctx);
         return actions.start(p.bot(), p.awaitMs(), ctx, body -> {
             if (self) return plan(BotHooks.impl().planGoto(p));
-            String selfOnly = p.target().orElse(null) instanceof GotoContracts.Waypoint ? "a waypoint target"
-                    : p.planId().isPresent() ? "planId" : p.plan().isPresent() ? "a preview" : null;
-            if (selfOnly != null) {
-                return BodyTaskStarter.unsupported(selfOnly + " is only taken by self: waypoints, previews and plans are the client's");
+            if (p.target().orElse(null) instanceof GotoContracts.Waypoint) {
+                return BodyTaskStarter.unsupported("a waypoint target is only taken by self: waypoints are the client's");
+            }
+            if (p.planId().isPresent() || p.plan().isPresent()) {
+                if (!(BotRegistry.get(p.bot()) instanceof ServerBot server)) {
+                    return BodyTaskStarter.unsupported("previews and plans are kept by a server bot's or the client's brain, and "
+                            + p.bot() + " has neither");
+                }
+                return plan(server.planGoto(p, type -> nearestOfType(body, type)));
             }
             GotoOrders.Resolution r = GotoOrders.resolve(p, body, Map.of(), type -> nearestOfType(body, type));
             if (r instanceof GotoOrders.Refuse refuse) return plan(refuse);
