@@ -38,9 +38,9 @@ final class Route {
     final SegmentCommit seg = new SegmentCommit();
 
     /** Async search + best-effort segment commit: the in-flight time-sliced A* and the partial-segment
-     *  plumbing around it. {@link #reset()} clears the search and continuation state;
-     *  {@code pathBestEffort}/{@code searchSuppressedPlace} follow adoption, and
-     *  {@code frontierWaitTicks} restarts when an adoption makes progress. */
+     *  plumbing around it. {@link #reset()} clears all of it with the plan: {@code pathBestEffort}
+     *  describes a plan that is gone, and the two search flags a search that is gone. Adoption sets
+     *  them again, and {@code frontierWaitTicks} also restarts when an adoption makes progress. */
     static final class SegmentCommit {
         PathFinder.Search activeSearch;             // in-flight time-sliced A* (null = none)
         boolean pathBestEffort;                     // current path is a best-effort partial (goal NOT reached) → commit to it before re-searching
@@ -52,9 +52,13 @@ final class Route {
         int frontierWaitTicks;                      // bounded retries re-searching at a loaded-chunk frontier before giving up (pathfinderFrontierCommit)
         void reset() {
             activeSearch = null;
+            pathBestEffort = false;
             commitEnd = null;
             searchFromEnd = false;
             pendingSegment = null;
+            searchSuppressedPlace = false;
+            afterBlockChange = false;
+            frontierWaitTicks = 0;
         }
     }
 

@@ -508,6 +508,8 @@ public final class Walker implements Locomotor {
         churn.resetForNewGoal();
         safety.guardPlugCell = null;    // plug arming is per-journey; a stale cell must not pre-arm the next goal
         safety.guardPlugFires = 0;
+        // The pin itself is kept: it is about the lip the bot stands at, not the goal, and releasing a
+        // hold mid-overhang dropped the bot (r9). A walk that ends lets go of it in Safety#stand.
         error = null;
     }
 
