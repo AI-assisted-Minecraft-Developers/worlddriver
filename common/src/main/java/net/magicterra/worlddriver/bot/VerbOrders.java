@@ -47,6 +47,7 @@ import net.magicterra.worlddriver.bot.behavior.FollowProcess;
 import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.magicterra.worlddriver.bot.behavior.LookProcess;
+import net.magicterra.worlddriver.bot.behavior.MineCellProcess;
 import net.magicterra.worlddriver.bot.behavior.MineProcess;
 import net.magicterra.worlddriver.bot.behavior.RunAwayProcess;
 import net.magicterra.worlddriver.bot.behavior.Schematic;
@@ -101,8 +102,12 @@ public final class VerbOrders {
 
     public static Order<GatherContracts.Mined> mine(MineParams p, LivingEntity self) {
         if (!hasHands(self)) return handless("mine", self);
+        if (p.pos().isPresent()) {
+            MineCellProcess c = new MineCellProcess(Positions.blockPos(p.pos().get()));
+            return new Start<>(c, () -> new GatherContracts.Mined(p.blocks(), p.pos(), 1, 0, c.broken() ? 1 : 0));
+        }
         MineProcess m = new MineProcess(p.blocks(), p.quantity(), p.radius());
-        return new Start<>(m, () -> new GatherContracts.Mined(p.blocks(), p.quantity(), p.radius(), m.broken()));
+        return new Start<>(m, () -> new GatherContracts.Mined(p.blocks(), Optional.empty(), p.quantity(), p.radius(), m.broken()));
     }
 
     public static Order<BuildContracts.Bunkered> bunker(BunkerParams p, LivingEntity self) {

@@ -192,7 +192,7 @@ Aim the view at a block or at explicit angles. Answers done, already facing that
 
 ### `mc.bot.mine`
 
-Mine matching blocks until quantity are broken or none is reachable: walk beside each, swap to the best tool, break it, then walk the break spots to collect the drops. A target that fails is skipped. Pre-stage tools: broken counts blocks, not items gained.
+Mine matching blocks until quantity are broken or none is reachable: walk beside each, swap to the best tool, break it, then walk the break spots to collect the drops. A target that fails is skipped. Pre-stage tools: broken counts blocks, not items gained. With pos, break that one cell and collect nothing; it fails when the cell is out of reach where the walk ends.
 
 - Params: `MineParams`; reply: `MineResponse`
 - Effects: body_task, inventory_write, world_write; may wait
@@ -1300,7 +1300,7 @@ type ActionResult =
         ms: number;
         path?: BlockPosition[];
     }
-    | { kind: 'mine'; blocks: string[]; quantity: number; radius: number; broken: number; }
+    | { kind: 'mine'; blocks: string[]; pos?: BlockPosition; quantity: number; radius: number; broken: number; }
     | { kind: 'craft'; item: string; count: number; crafted: number; }
     | { kind: 'smelt'; item: string; count: number; fuel?: string; }
     | { kind: 'farm'; from: BlockPosition; to: BlockPosition; crops: Crop[]; replant: boolean; harvested: number; replanted: number; }
@@ -1917,8 +1917,10 @@ type LookAtResponse =
     | { outcome: 'done'; yaw: number; pitch: number; };
 interface MineParams {
     bot?: BotRef;
-    /** Block ids or #tags to mine, e.g. ['minecraft:iron_ore', '#minecraft:logs']. */
-    blocks: string[];
+    /** Block ids or #tags to mine, e.g. ['minecraft:iron_ore', '#minecraft:logs']. Required unless pos. */
+    blocks?: string[];
+    /** Break this one cell instead: walk within reach unless already there, then dig it. */
+    pos?: BlockPosition;
     /** How many blocks to break. */
     quantity?: number;
     /** Horizontal scan radius; the vertical one is the mine.searchVerticalRadius setting. */
@@ -1926,7 +1928,7 @@ interface MineParams {
     awaitMs?: number;
 }
 type MineResult =
-    | { kind: 'mine'; blocks: string[]; quantity: number; radius: number; broken: number; };
+    | { kind: 'mine'; blocks: string[]; pos?: BlockPosition; quantity: number; radius: number; broken: number; };
 type MineAction =
     | { state: 'running'; actionId: string; bot: BotRef; }
     | { state: 'succeeded'; actionId: string; bot: BotRef; result: MineResult; }

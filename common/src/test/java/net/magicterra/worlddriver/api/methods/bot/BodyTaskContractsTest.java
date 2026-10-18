@@ -131,9 +131,18 @@ class BodyTaskContractsTest {
     }
 
     @Test
+    void aMineNamesEitherBlocksOrOneCell() {
+        assertEquals("/blocks", issue(GatherContracts.MINE_PARAMS, "{}").path());
+        assertEquals("/pos", issue(GatherContracts.MINE_PARAMS,
+                "{\"blocks\":[\"minecraft:stone\"],\"pos\":{\"x\":1,\"y\":2,\"z\":3}}").path());
+        GatherContracts.MineParams cell = decode(GatherContracts.MINE_PARAMS, "{\"pos\":{\"x\":1,\"y\":2,\"z\":3}}");
+        assertEquals(List.of(), cell.blocks());
+    }
+
+    @Test
     void resultsEncodeUnderTheirOwnKind() {
         assertEquals("{\"kind\":\"mine\",\"blocks\":[\"minecraft:stone\"],\"quantity\":2,\"radius\":16,\"broken\":2}",
-                JsonCodec.encode(GatherContracts.MINE_RESULT.encode(new GatherContracts.Mined(List.of("minecraft:stone"), 2, 16, 2))));
+                JsonCodec.encode(GatherContracts.MINE_RESULT.encode(new GatherContracts.Mined(List.of("minecraft:stone"), Optional.empty(), 2, 16, 2))));
         assertEquals("tower", ((Map<?, ?>) BuildContracts.CONSTRUCT_RESULT.encode(
                 new BuildContracts.Towered(64, 70, Optional.empty(), 6))).get("kind"));
         assertEquals("groundFallback", ((Map<?, ?>) MoveContracts.ELYTRA_RESULT.encode(

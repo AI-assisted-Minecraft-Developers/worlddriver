@@ -7,6 +7,7 @@ import net.magicterra.worlddriver.api.schema.ApiField;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import net.magicterra.worlddriver.api.schema.ApiTypes;
+import net.magicterra.worlddriver.api.schema.DecodeContext;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.schema.WireName;
@@ -21,27 +22,45 @@ public final class GatherContracts {
 
     // ------------------------------------------------------------------ mine
 
-    public record MineParams(String bot, List<String> blocks, int quantity, int radius, int awaitMs) {}
+    /** Either {@code blocks} to look for, or the one cell {@code pos} to break. */
+    public record MineParams(String bot, List<String> blocks, Optional<BlockPosition> pos, int quantity, int radius,
+                             int awaitMs) {
+        public static MineParams cell(String bot, BlockPosition pos) {
+            return new MineParams(bot, List.of(), Optional.of(pos), 1, 16, 0);
+        }
+    }
 
-    /** {@code broken} counts blocks destroyed, not items picked up. */
-    public record Mined(List<String> blocks, int quantity, int radius, int broken) {}
+    /** {@code broken} counts blocks destroyed, not items picked up; {@code pos} echoes a one-cell mine. */
+    public record Mined(List<String> blocks, Optional<BlockPosition> pos, int quantity, int radius, int broken) {}
 
     public static final ApiType<MineParams> MINE_PARAMS = ApiTypes.record(MineParams.class, "MineParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(MineParams::bot),
-            ApiField.field("blocks", ApiTypes.list(CommonTypes.BLOCK_OR_TAG, 1, 64))
-                    .describe("Block ids or #tags to mine, e.g. ['minecraft:iron_ore', '#minecraft:logs'].")
-                    .required().forGetter(MineParams::blocks),
+            ApiField.field("blocks", ApiTypes.list(CommonTypes.BLOCK_OR_TAG, 64))
+                    .describe("Block ids or #tags to mine, e.g. ['minecraft:iron_ore', '#minecraft:logs']. Required unless pos.")
+                    .defaulted(List.of()).forGetter(MineParams::blocks),
+            ApiField.field("pos", CommonTypes.BLOCK_POSITION)
+                    .describe("Break this one cell instead: walk within reach unless already there, then dig it.")
+                    .optional().forGetter(MineParams::pos),
             ApiField.field("quantity", ApiTypes.integer(1, 256)).describe("How many blocks to break.")
                     .defaulted(1).forGetter(MineParams::quantity),
             ApiField.field("radius", ApiTypes.integer(1, 64))
                     .describe("Horizontal scan radius; the vertical one is the mine.searchVerticalRadius setting.")
                     .defaulted(16).forGetter(MineParams::radius),
             ApiField.field("awaitMs", Responses.AWAIT_MS).defaulted(0).forGetter(MineParams::awaitMs),
-            MineParams::new);
+            MineParams::new)
+            .checked(GatherContracts::checkMine);
+
+    private static void checkMine(MineParams p, DecodeContext at) {
+        if (p.pos().isPresent() == !p.blocks().isEmpty()) {
+            at.field(p.pos().isPresent() ? "pos" : "blocks")
+                    .fail(ApiIssue.Code.INVALID_VALUE, "give either blocks to look for or one pos to break, not both or neither");
+        }
+    }
 
     public static final UnionType<Mined> MINE_RESULT = ApiTypes.taggedUnion("MineResult", "kind",
             ApiTypes.variant("mine", Mined.class, ApiTypes.record(Mined.class, null,
                     ApiField.field("blocks", ApiTypes.list(CommonTypes.BLOCK_OR_TAG, 64)).required().forGetter(Mined::blocks),
+                    ApiField.field("pos", CommonTypes.BLOCK_POSITION).optional().forGetter(Mined::pos),
                     ApiField.field("quantity", ApiTypes.integer(1, 256)).required().forGetter(Mined::quantity),
                     ApiField.field("radius", ApiTypes.integer(1, 64)).required().forGetter(Mined::radius),
                     ApiField.field("broken", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Mined::broken),
@@ -51,7 +70,8 @@ public final class GatherContracts {
                     Responses.response("Mine", MINE_RESULT),
                     "Mine matching blocks until quantity are broken or none is reachable: walk beside each, swap to the "
                             + "best tool, break it, then walk the break spots to collect the drops. A target that fails is "
-                            + "skipped. Pre-stage tools: broken counts blocks, not items gained.")
+                            + "skipped. Pre-stage tools: broken counts blocks, not items gained. With pos, break that one "
+                            + "cell and collect nothing; it fails when the cell is out of reach where the walk ends.")
             .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE, MethodSpec.Effect.INVENTORY_WRITE)
             .mayWait();
 

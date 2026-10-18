@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **`mc.bot.mine` breaks one named cell with `pos`.** Instead of `blocks` to look for, `pos` walks the
+  bot within reach unless it is there already and holds the dig on that cell with the best tool;
+  it fails when the walk ends out of reach or the block has not given after ten seconds, and
+  collects nothing. The result echoes `pos`.
 - **Server bots answer what only self used to.** `mc.bot.goto` with `plan: 'preview'` and `planId`
   works for a named server bot, whose brain keeps its previews as the client's keeps self's (a
   waypoint target and `plan: 'score'` stay self's). `mc.bot.status` carries `reflexes` (chains,
