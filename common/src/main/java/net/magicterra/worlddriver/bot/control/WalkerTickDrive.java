@@ -225,19 +225,6 @@ final class WalkerTickDrive {
     }
 
     /**
-     * The block capping a pillar-recover rung, or null. The ceiling is every cell the 0.6-wide box
-     * meets rising one rung from the rung it stands on, not cell+2 alone: a bot straddling a column
-     * boundary bonks on the NEIGHBOUR's block (live 2026-09-28, x=1389.9: stone at 1390,71 capped
-     * every jump at +0.2 for ~15 s while 1389,71 was air). Anchored at the rung so an airborne tick
-     * asks the same question.
-     */
-    private static BlockPos pillarRecoverCeiling(Walker wk, LivingEntity p) {
-        List<BlockPos> ceiling = BodyGeometry.riseBlockers(p,
-                wk.pillarRecover.cell.getY() + BodyGeometry.PILLAR_RISE - p.getY());
-        return ceiling.isEmpty() ? null : ceiling.get(0);
-    }
-
-    /**
      * Offset from the body to the nearest point of the planned segment into {@code wp}, or null when
      * there is no reason to steer back onto it. Drifted off a string-pulled segment, foot→wp reads
      * diagonal and no lane is held, but the segment is the line that was checked clear: pinned on a
@@ -404,82 +391,6 @@ final class WalkerTickDrive {
                 && !parkourEdge && !p.isInWater();
         // A jump is needed only to rise BEYOND the auto-step height.
         boolean needJumpForStep = upDy >= 1 && upDy > maxStepUp;
-        // A step taller than we could clear even WITH a jump — we slid back below a
-        // +1 start so it now reads +2, or terrain demands a height we can't make.
-        // Don't bob against it: accelerate the stuck timer so the search blacklists
-        // the node and reroutes (the steep-climb wedge), instead of jumping forever.
-        boolean overJump = needJumpForStep && upDy > maxJumpUp && p.onGround() && !p.isInWater()
-                && edge != null && !"pillarUp".equals(edge.move) && !parkourEdge && !isDescentEdge(edge);
-        if (overJump) wk.stuckTicks += 3;
-        // Vertical recovery (execution hardening): the bot is BELOW the next node by more
-        // than it can jump — it slid/fell below the committed climb path, and a plain stepUp
-        // here just RAMS the wall (jump is suppressed for an unreachable height) → the
-        // stall where a tall block in front holds the bot in place. If we carry blocks, PILLAR UP in place to regain
-        // the height instead of ramming: look down, jump off the ground, and place a support
-        // in the feet cell once risen clear of it — the same actuation as a planned pillarUp.
-        // Latched across the jump's airborne phase (overJump needs onGround, so one tick
-        // can't both jump and place) and re-armed each grounded tick while still too low;
-        // ends when back within jump reach (overJump clears) or blocks run out, after which
-        // the normal step logic resumes. Reuses ensureHolding + clientUseItemOn.
-        // holdPillarBlock (not world.canPlace): pillar-recover places on the solid rung below the
-        // grounded foot, so supported sand/gravel work here (see fellBelowRoute note above).
-        // SLOW DIAGUP → PILLAR-UP (steep-diagonal stutter): a planned +1 diagUp that bob-rams the
-        // riser past DIAGUP_PILLAR_TICKS (the √2 jump-traverse ~47 ticks/step sawtooth) escalates to
-        // a deterministic pillar — place a support under the foot, jump +1, walk the now-level node —
-        // via the SAME actuator as overJump/fellBelowRoute (no new placement code). Scoped hard: a
-        // true +1 diagUp by planner intent AND geometry, grounded, dry, blocks in hand, slower than
-        // the freeze-breaker's first attempt; dy==1 keeps it disjoint from the ≥2 ascentRamSlide.
-        boolean slowDiagUpPillar = "diagUp".equals(edge != null ? edge.move : null)
-                && diagUp && upDy == 1 && p.onGround() && !p.isInWater()
-                && wk.stepProg.noStepProgressTicks > DIAGUP_PILLAR_TICKS;
-        if ((overJump || slowDiagUpPillar) && WorldConfig.allowPlace && wk.equipment.holdPillarBlock()) {
-            wk.pillarRecover.latch = PILLAR_RECOVER_TICKS;
-            wk.pillarRecover.cell = foot;                 // grounded feet cell = the rung we fill
-        }
-        // Standing on the filled rung ends the recovery; a further rung re-armed it on the new foot
-        // above. The latch used to run out its ticks here, jumping in place and re-placing into the
-        // full cell (live R1 cliff 1390,82,-520: ~12 ticks of refused places, every run).
-        if (wk.pillarRecover.latch > 0 && wk.pillarRecover.cell != null && p.onGround()
-                && p.getY() >= wk.pillarRecover.cell.getY() + 1.0 - 1e-3) wk.pillarRecover.latch = 0;
-        if (wk.pillarRecover.latch > 0 && wk.pillarRecover.cell != null) {
-            wk.pillarRecover.latch--;
-            Walker.avatarForward(a, false);
-            p.setSprinting(false);
-            Walker.avatarSneak(a, false);
-            p.setShiftKeyDown(false);
-            // Clear the ceiling FIRST: a block where the head rises (tree-canopy leaves at
-            // rung+2, a dirt overhang) makes the recovery jump RAM it — the bot can't gain
-            // height, can't place, and wedges (a pillar-up under a tree stuck against the leaves). The planned
-            // pillarUp actuator clears its toBreak the same way; this recovery path had none.
-            // Only with allowBreak, and only the single head cell, so it digs no more than the
-            // one block needed to rise this rung (re-checked each rung as pillarRecover.cell rises).
-            // DELIBERATELY on the global allowBreak switch, NOT mayBreak(): this is the
-            // anti-suffocation safety dig, and it is EXEMPT from per-goto forbidDig — suffocation is
-            // death, forbidDig is only a navigation preference, so safety wins over the constraint.
-            BlockPos recCeiling = WorldConfig.allowBreak ? pillarRecoverCeiling(wk, p) : null;
-            if (recCeiling != null) {
-                wk.avatarJump(a, false);
-                // Preempting: suffocation is death, a navigation claim is a preference. The other
-                // six walker digs queue behind whoever holds the slot; this one takes it.
-                WalkerDig.avatarDigPreempt(wk, a, recCeiling, true);
-                return Walker.Step.WALKING;
-            }
-            wk.blocks.breakHold(false);
-            p.setXRot(89.5f);                         // look straight down to aim the support
-            if (p.onGround()) {
-                wk.jumpTag = "pillarRecoverRung";
-                wk.avatarJump(a, true);     // jump off the current rung
-            } else {
-                wk.avatarJump(a, false);
-                // Place into the feet cell once risen clear of it (vanilla rejects the place
-                // while the player AABB still overlaps the target cell — gate on real height).
-                if (p.getY() >= wk.pillarRecover.cell.getY() + 1.0 && !world.isSolid(wk.pillarRecover.cell)) {
-                    wk.blocks.placeOn(wk.pillarRecover.cell.offset(0, -1, 0), Direction.UP);
-                    wk.exAlarms.notePlace(wk.pillarRecover.cell);
-                }
-            }
-            return Walker.Step.WALKING;
-        }
         // task#82 per-move ASCENT machine (plan B1 2026-07-16). Flag FIRST so OFF short-circuits with
         // no allocation. isMigratedAscent is a cheap string check; !isInWater keeps water ascents on
         // legacy dig-recovery. B1 weave: the machine NEVER early-returns — PREP/RUNNING/SUCCESS fall

@@ -50,11 +50,24 @@ tick it runs, and stops when it cannot go on, has run its longest, or a higher-p
 controller needs one of its channels. A controller can also find mid-tick that it has
 nothing to do and let go, and the next one down gets its channels the same tick. Each
 channel goes to the highest-priority running controller that claims it. The phases only ask
-a controller for something; they do not drive the body themselves. `Recovery` backs the bot
-off a riser it keeps failing to mount and pushes it out of a wedge or a churn pocket. While
-a controller holds the move channel the rest of the pipeline is skipped for that tick.
-`WalkerInspector#channels` prints who held which channel and why each idle controller did
-not start.
+a controller for something; they do not drive the body themselves.
+
+| Priority | Controller | Channels | What it does |
+|---|---|---|---|
+| 1 | `DrownEscape` | all | Surfaces for air when the air runs low under water |
+| 2 | `Recovery` | move, look, jump | Backs off a riser the bot keeps failing to mount; pushes it out of a wedge or a churn pocket |
+| 3 | `WaterClimb` | all | Gets a floating bot onto a bank: a foothold from the hand, or a notch dug into the bank |
+| 4 | `Pillar` | all | Jumps and places under itself: a planned pillar, the settle onto it, and the climb back up to a route the bot fell below |
+| 5 | `ParkourPlace` | all | A leap that places its own landing block mid-air |
+| 6 | `VineClimb` | move, look, jump | Climbs or slides down a vine the bot hangs on |
+| 7 | `RouteDig` | look, hands | Breaks and places the blocks the current edge needs |
+
+While a controller holds the move channel the rest of the pipeline is skipped for that tick.
+The regular walk (Aim and Drive) cannot yet run without the look, so while `RouteDig` holds
+it the walk only decides how to stand (`StandToWork`): still, pressing into a bank it is
+breaking from the water, or sneaking at a lip it is placing below. With no controller on
+the hands, the dig key is released. `WalkerInspector#channels` prints who held which
+channel and why each idle controller did not start.
 
 `tickInner` is not the whole tick. `Walker#tick` wraps it so that the safety guards run
 after *every* decision path rather than only the paths that reach the end of the pipeline:

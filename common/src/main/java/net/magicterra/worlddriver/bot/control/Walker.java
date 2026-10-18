@@ -29,6 +29,7 @@ import static net.magicterra.worlddriver.bot.control.PathSmoothing.*;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Locale;
+import java.util.Set;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
 import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
@@ -300,8 +301,11 @@ public final class Walker implements Locomotor {
     }
     /** The back-off and the burst that move a stuck bot; asked for by the phases, driven by {@link #arbiter}. */
     final Recovery recovery = new Recovery();
+    /** Breaking and placing the route's own blocks; its work this tick tells the walk how to stand. */
+    final RouteDig routeDig = new RouteDig();
     /** Who drives which channel this tick; {@link Arbiter#snapshot} says. */
-    final Arbiter arbiter = new Arbiter(List.of(new DrownEscape(), recovery, new WaterClimb()));
+    final Arbiter arbiter = new Arbiter(List.of(new DrownEscape(), recovery, new WaterClimb(), new Pillar(),
+            new ParkourPlace(), new VineClimb(), routeDig));
     // --- expectation alarms (walkerExpectAlarm): live actual-vs-expected divergence detectors ---
     // Extracted to WalkerExpectAlarms (all the ex* sentinel state + the observers) — purely
     // observational, never drives movement. Fed via exAlarms.tick / .notePlace / .noteRepathFlip.
@@ -1236,9 +1240,16 @@ public final class Walker implements Locomotor {
         r = WalkerTickRepath.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickSearch.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickProgress.run(this, c, a, world); if (r != null) return r;
-        // The route is settled for this tick; now the controllers. Until the regular walk drives only
-        // the channels no controller took, a controller on MOVE ends the tick's decisions here.
-        if (arbiter.tick(this, c, a, world).contains(Channel.MOVE)) return Step.WALKING;
+        // The route is settled for this tick; now the controllers.
+        Set<Channel> taken = arbiter.tick(this, c, a, world);
+        if (!taken.contains(Channel.HANDS)) {
+            blocks.breakHold(false);   // nothing is breaking or placing this tick
+            actionTicks = 0;
+        }
+        // The regular walk cannot yet drive only the channels no controller took: a controller on MOVE
+        // ends the tick's decisions here, and one on LOOK leaves the walk standing to let it work.
+        if (taken.contains(Channel.MOVE)) return Step.WALKING;
+        if (taken.contains(Channel.LOOK)) return StandToWork.run(this, c, a, routeDig.work());
         r = WalkerTickClimb.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickEdgeGuards.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickAim.run(this, c, a, world); if (r != null) return r;
