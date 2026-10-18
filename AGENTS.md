@@ -49,21 +49,18 @@ links to; read that page before arguing with the rule.
    `neoforge/src/main/resources/META-INF/accesstransformer.cfg`.
    Check: `./gradlew :fabric:build && python3 scripts/check_remap_safety.py`.
    Why: `docs/dev/loader-glue.md`.
-10. **Do not change a `[navigator]` or `[expect]` log format without its consumers.**
-    Check: `python3 scripts/check_log_contract.py` after a dedicated-server gate run.
-    Why: `docs/dev/testing.md`.
-11. **A scene's terrain must fit its force-loaded arena**; prefer `ctx.setBlock(dx, dy, dz, …)`.
+10. **A scene's terrain must fit its force-loaded arena**; prefer `ctx.setBlock(dx, dy, dz, …)`.
     Check: `python3 scripts/check_scene_arena.py`. Why: `docs/dev/testing.md`.
-12. **Never hand a client type to a wider parameter (`Player`, `Entity`) from a class a
+11. **Never hand a client type to a wider parameter (`Player`, `Entity`) from a class a
     dedicated server loads.** Check: `./gradlew :common:test` (`SchedulerClientCallSurfaceTest`)
     and both dedicated-server gate tasks, before landing any change that alters the shape of a
     call. Why: `docs/dev/loader-glue.md`.
-13. **A scene that writes a setting (any `config/*Config` class) must hold a pin**:
+12. **A scene that writes a setting (any `config/*Config` class) must hold a pin**:
     `var pin = BotConfig.pinnedBaseline(); ctx.cleanup(pin::close);` at the top of the body.
     Check: `./gradlew :common:test` (`ConfigPinDisciplineTest`). Why: `docs/dev/testing.md`.
 
 Do not compile under a live run or a gate run: development runs load classes lazily from
-`build/classes`, and the bytecode checks in rules 12 and 13 recompile `:common`.
+`build/classes`, and the bytecode checks in rules 11 and 12 recompile `:common`.
 
 ## Common commands
 

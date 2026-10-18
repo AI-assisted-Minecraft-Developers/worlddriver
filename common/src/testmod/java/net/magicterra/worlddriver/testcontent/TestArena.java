@@ -39,7 +39,7 @@ public final class TestArena {
      * Keeps the test arena's chunks loaded, entities and all, for as long as the server runs.
      *
      * <p>Nothing else does. {@code StageWrightHarness} force-loads a window around each SCENE's
-     * arena (AGENTS.md hard rule #11), and this arena is not one — the test origin is an absolute
+     * arena (AGENTS.md hard rule #10), and this arena is not one — the test origin is an absolute
      * position outside every scene's grid cell, so the harness's window never covers it. Left
      * unpinned it stays loaded only while a player happens to be standing near 0,200,0, and
      * {@code seed} is called from scenes that then walk the player 130,000 blocks away.

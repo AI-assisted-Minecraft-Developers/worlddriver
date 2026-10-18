@@ -284,22 +284,13 @@ reasoning is in [`loader-glue.md`](loader-glue.md#no-reflection-on-a-mojang-mapp
 | Script | What it verifies |
 |---|---|
 | `scripts/check_remap_safety.py` | No reflective member lookup uses a Mojang-mapped name against a class the shipped jar remaps. Dev runs and every gate see Mojang names; the published Fabric jar does not, and a string constant is not rewritten with the reference around it. |
-| `scripts/check_log_contract.py` | The game-log formats that development tools parse still parse. Reads a real run's log, so run it after a dedicated-server gate. |
 | `scripts/check_scene_arena.py` | Every scene's block footprint fits inside the chunk window its arena force-loads. |
 | `scripts/check_baseline_coverage.py` | The flag baseline the scene suite pins has not silently diverged from the defaults users actually run. |
 | `scripts/check_stacked_javadoc.py` | No javadoc block is discarded by `javac` because a second one follows it. |
 | `scripts/check_packaging.py` | Every `maven.latvian.dev` repository the build declares is fenced to `dev.latvian.mods`. Gradle takes the first repository that answers, so an unfenced one whose domain starts answering 200 to every path shadows every repository declared after it. Every published jar carries `META-INF/COPYING` and `META-INF/COPYING.LESSER`, and every POM declares the licence, url and scm. The loader jars' mod metadata carries the licence, description, authors and dependency ranges `gradle.properties` gives, and both templates expand them rather than repeating a literal. Each loader's `-sources` jar holds every source file of `:common`'s, which its binary bundles. All but the repository check read built artifacts; the script's docstring names the tasks to run first. |
 
-The log-format check deserves its own note, because the failure it prevents is silent.
-Several development tools recover bot state by matching regular expressions against
-`[navigator]` and `[expect]` lines. The producing side is a pair of format strings deep in
-the tick path, and nothing connects the two. Renaming a field there compiles, passes every
-scene, and turns each of those tools into a no-op — a regular expression that matches
-nothing does not raise, it yields an empty result, and the tool reports "no ticks" as
-though the bot had never moved. The emitters are `EdgeGuardsPhase` and `DrivePhase`; the
-consumers are `scripts/forensic.py`, `scripts/pmcs/telemetry.py`, `scripts/pmcs/run_case.py` and
-`scripts/accept_cycle.py`. The check imports the consumers' own patterns rather than copying
-them, so it cannot pass while the tool it protects is broken.
+No tool parses the game log. The `[navigator]` and `[expect]` lines are for a person reading
+it; a program that needs the bot's state reads it through the API, whose shapes are checked.
 
 ### A scene's terrain must fit its force-loaded arena
 

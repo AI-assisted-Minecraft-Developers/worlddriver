@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `wd.serverWalkerDeepslateNoTool` are `wd.navigatorTerminalReportMatrix` and
   `wd.serverNavigatorDeepslateNoTool`. The class was renamed because it no longer only walks: it
   searches, digs, builds, and hands a swimming or flying body to another way of moving.
+- **No tool reads the game log any more.** The replay-corpus harness (`scripts/pmcs/`), the
+  single-replay tracker, `forensic.py`, `accept_cycle.py`, `wjourney.py` and the check that pinned
+  the `[navigator]` and `[expect]` line formats for them are deleted. Each recovered bot state by
+  matching those lines, so any change to a log line could silently empty its results; a program
+  that needs the bot's state reads it through the API, and the log lines are free to change.
 
 ## 2026-10-18
 

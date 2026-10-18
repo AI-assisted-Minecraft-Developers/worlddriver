@@ -68,19 +68,14 @@ read alongside the terminal reason, never alone.
 
 ## Current state
 
-The mechanism exists and the scripts are in the tree, but **the corpus it judges against is not in
-version control**, and the tooling's paths have not matched where the archives actually live since the
-project was renamed. In other words this gate is designed, implemented, and not currently running.
-That is worth knowing before citing a corpus result as evidence for anything.
-
-The log line the telemetry reads is a contract: `docs/dev/testing.md` names the scripts as consumers of the
-navigator's step line, so its format cannot be changed casually.
+The rule stands, but **nothing runs it**. The harness read its measurements by scraping the
+navigator's log lines; it was removed when programs stopped reading the log, and the measurement
+has not yet moved into a replay's API result. The corpus it would judge against is also not in
+version control. That is worth knowing before citing a corpus result as evidence for anything.
 
 ## Where to look
 
-- `scripts/pmcs/` — telemetry parsing, per-move conformance, the acceptance gate, and the corpus
-  runners.
-- `docs/dev/pathfinding-conformance.md` — how to run it.
+- `docs/dev/pathfinding-conformance.md` — telling a planner problem from an executor problem.
 - `docs/dev/replay-corpus.md` — the living record of what has been measured, including the lever
   matrix summarised above and the rerun-variance investigation.
 - `docs/design/observing-the-executor.md` — the archive format the corpus is made of.

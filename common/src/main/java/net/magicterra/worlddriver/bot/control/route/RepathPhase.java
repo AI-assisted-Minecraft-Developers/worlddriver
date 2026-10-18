@@ -202,7 +202,7 @@ public final class RepathPhase {
      *
      * <p><b>The parameter that had to be checked before moving anything.</b> {@code p} is already
      * declared {@code Player} at the call site ({@code cx.frame.p}), so this signature is NOT a
-     * widening. Hard rule 12 exists because handing a client type to a wider formal from a
+     * widening. Hard rule 11 exists because handing a client type to a wider formal from a
      * dual-loaded class kills the dedicated server at class-load time, and "extract a method" is
      * exactly the tidy-up that disguise hides in — {@code bot/movement/**} is dual-loaded, so this
      * is safe only because the local was never the client type. Re-check it, do not assume it.

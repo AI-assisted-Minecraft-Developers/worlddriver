@@ -149,6 +149,12 @@ single `beginRun()`; it changes an observable surface, so it needs a check.
 in real navigation. Each of them needs either a scene that exercises it or deletion. Leaving them as
 features awaiting activation is the outcome to avoid.
 
+### Nothing runs the replay corpus's acceptance rule
+
+The harness scraped `[navigator]` log lines and was deleted. `mc.debug.replay`'s result has to carry
+the peak stall and arrival itself before a tool can compare a candidate against a baseline again
+(`docs/dev/replay-corpus.md`, "The regression check").
+
 ### The head-cell hazard test covers three parkour moves out of nine
 
 The ascending, descending and diagonally ascending moves test `isHazard` two cells above the origin.

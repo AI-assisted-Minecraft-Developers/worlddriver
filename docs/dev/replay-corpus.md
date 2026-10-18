@@ -64,7 +64,7 @@ The archive is terrain and trajectory, and nothing else:
 - **No world outside the corridor.** Roughly five blocks wide, six tall, along the route.
 - **No driver configuration.** The settings in force while the run was recorded are not
   stored, so a replay runs under whatever settings are set at replay time. That is why the
-  harness sets them explicitly before every replay rather than trusting the session.
+  settings have to be set explicitly before every replay rather than trusted from the session.
 - The world seed may be absent, and is on captures taken where the seed was never exposed.
 
 ## Where the corpus is
@@ -75,23 +75,14 @@ version control when the runtime `config/` tree was purged from history; `/confi
 byte, in a plain directory outside any repository: a manifest, eight recorded runs, and
 several baseline matrices, around 58 MB in total.
 
-To use it, copy the archives into `config/worlddriver/replays/` under the repository root.
-The harness copies each archive on from there into the game's own run directory the first
-time it needs it, because the mod resolves archive names relative to the running game's
-working directory. Both locations are ignored by git.
+To use it, copy the archives into `config/worlddriver/replays/` under the running game's
+directory (`fabric/run/` for `runClient`): the mod resolves archive names relative to the
+game's working directory. That location is ignored by git.
 
-Archives recorded before the project was renamed sat under a directory named for the old
-project, while the tooling has always resolved `config/worlddriver/replays/`. That mismatch
-is why the check went unrun for a long stretch: nothing was broken, the two halves simply
-named different directories.
-
-The manifest, `corpus.json`, is what the harness reads: one entry per archive, with the
-archive filename, the x coordinate that counts as arrival, whether arrival means crossing it
-upward or downward, a failure class, and the region the route covers. It also records the
-stall threshold and the tolerance the gate uses, but only as documentation — the loader does
-not read them, and the harness carries the same two values as its own defaults. Changing
-them in the manifest alone changes nothing. The eight entries and what each was selected
-for:
+The manifest, `corpus.json`, has one entry per archive: the archive filename, the x
+coordinate that counts as arrival, whether arrival means crossing it upward or downward, a
+failure class, and the region the route covers. It also records the stall threshold and the
+tolerance of the acceptance rule below. The eight entries and what each was selected for:
 
 | Archive | Failure class | Route |
 |---|---|---|
@@ -153,44 +144,18 @@ since then is stripped on the way through.
 
 ## The regression check
 
-`scripts/pmcs/` is the harness. It has no dependency on a build and runs from the repository
-root as a package:
-
-```bash
-python3 -m scripts.pmcs.sweep --flags '{}' --save baseline.json --repeat 3
-python3 -m scripts.pmcs.sweep --flags '{"someSetting":true}' --baseline baseline.json
-python3 -m scripts.pmcs.run_corpus --flags '{...}' --baseline baseline.json
-```
-
-Both entry points default to `config/worlddriver/replays/corpus.json` for the manifest.
-`sweep` additionally takes `--timeout` (seconds per case, default 160) and `--repeat`, and
-can save the matrix it produced.
-
-The modules divide as follows.
-
-- `corpus.py` loads and validates the manifest.
-- `run_case.py` is the live link for one archive: it copies the archive into the game's run
-  directory if it is not there, sets the candidate settings over the websocket — together
-  with the telemetry switch `navigatorDebug`, which has to be on for any of this to be
-  measurable and is not part of what is being tested — issues `mc.debug.replay`, then polls
-  the game log for navigator telemetry until the bot crosses the arrival coordinate or the
-  timeout expires, and parses that slice of the log.
-- `telemetry.py` parses the `[navigator]` lines into tick records.
-- `conformance.py` aggregates those ticks per move kind.
-- `gate.py` decides accept or reject.
-- `sweep.py` and `run_corpus.py` drive the whole manifest.
-
-`scripts/replay_regression_track.sh` is the single-case half of the same thing, for when the
-replay is triggered by hand rather than from Python. It takes a stall threshold, an arrival
-x and the comparison direction, tracks the live log, and prints a verdict.
+The corpus exists to answer one question: does a candidate change make any recorded run
+worse? The harness that answered it scraped the navigator's log telemetry and has been
+removed; programs read the bot through the API, not the log. Until a replay's own result
+carries the measurement below, the comparison has no tool, and the rule is what remains.
 
 ### What the check compares, and what counts as a difference
 
-The measured quantity is **`maxStuck`**: the peak of the navigator telemetry's running stall
-counter over the run, in ticks. Twenty ticks is a second. A run whose peak stays under the
-silky threshold of 120 ticks — about six seconds — never visibly stalled. The comparison is
-per archive against a baseline matrix, plus a boolean for whether the bot arrived, where
-arrival means its x crossing the manifest's coordinate in the manifest's direction.
+The measured quantity is **`maxStuck`**: the peak of the navigator's running stall counter over
+the run, in ticks. Twenty ticks is a second. A run whose peak stays under the silky threshold
+of 120 ticks — about six seconds — never visibly stalled. The comparison is per archive
+against a baseline matrix, plus a boolean for whether the bot arrived, where arrival means its
+x crossing the manifest's coordinate in the manifest's direction.
 
 A candidate is accepted only when all three of these hold:
 
@@ -198,7 +163,7 @@ A candidate is accepted only when all three of these hold:
 2. no archive regressed by more than the tolerance of ten per cent; and
 3. no archive crossed from below the silky threshold to at or above it.
 
-The second and third conditions are what the gate is for. A change tuned on the archives
+The second and third conditions are what the rule is for. A change tuned on the archives
 that churn can trade a large improvement there for a disastrous regression on an archive
 that was already fine, and the aggregate alone will call that a win.
 
@@ -207,26 +172,11 @@ configuration, which is a stack of previously validated changes. A baseline matr
 comparable to a candidate run under the same premise, so it must be recaptured whenever that
 stack changes, and a saved matrix is worthless without knowing which stack produced it.
 
-`conformance.py` answers a different question from the gate: not "is this change good" but
-"where is the planner wrong about the executor". One *execution* of a move is a contiguous
-run of ticks on the same plan step; an execution whose peak stall reaches the silky
-threshold is *churned*. A move kind with churned executions is a point where the planner's
-predicate for that move is more permissive than what the executor can actually do. The
-divergent set is reported as a union across the corpus.
-
-### The telemetry contract
-
-The harness recovers everything from log lines a format string in the navigator's tick path
-emits. Nothing in the compiler connects the two. Renaming a field, adding one, or moving one
-compiles, passes every scene, and silently turns every scraper into a no-op — a regex that
-matches nothing does not raise, it yields an empty iterator, and the tool then reports "no
-ticks" exactly as if the bot had never moved. `scripts/check_log_contract.py` is the only
-thing that pins the two ends together: it feeds a real run log to the same regexes and fails
-if any of them stops matching. Run it after touching either side. It reads a log that a gate
-run is actively writing, so do not run it while one is in progress.
-
-`scripts/pmcs/tests/` covers the pure logic — manifest loading, telemetry parsing,
-conformance aggregation, the gate rule — with no game involved.
+A second question the same runs can answer is not "is this change good" but "where is the
+planner wrong about the executor". One *execution* of a move is a contiguous run of ticks on
+the same plan step; an execution whose peak stall reaches the silky threshold is *churned*. A
+move kind with churned executions is a point where the planner's predicate for that move is
+more permissive than what the executor can actually do.
 
 ## The limits of replay as evidence
 
@@ -257,7 +207,7 @@ replays from the first node.
 **Deterministic is not the same as repeatable.** The terrain and the start are identical on
 every replay, but the executor is not a pure function of them. On the archives that churn, a
 single run's `maxStuck` has been measured to swing by close to a factor of eight, which is
-why `sweep` takes a median over repeats and why a single replay cannot decide anything on
+why a comparison takes a median over repeats and why a single replay cannot decide anything on
 those entries. Three repeats is the working minimum.
 
 **Some live failures do not reproduce at all.** The value of the check is that it can reject
@@ -273,8 +223,8 @@ the purpose.
 
 - [`path-replay/README.md`](../../path-replay/README.md) — the record, replay and analyse
   commands in full, with every flag.
-- [pathfinding-conformance.md](pathfinding-conformance.md) — the planner-executor
-  conformance loop this corpus feeds.
+- [pathfinding-conformance.md](pathfinding-conformance.md) — telling a planner problem from
+  an executor problem.
 - [movement-tick-phases.md](movement-tick-phases.md) — what the telemetry line is reporting.
 - [fake-player-parity.md](fake-player-parity.md) — why a client-side replay cannot speak for
   a headless server-side player.

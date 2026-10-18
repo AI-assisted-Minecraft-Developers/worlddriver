@@ -88,14 +88,12 @@ and a green result means nothing. The details are in [`docs/dev/testing.md`](doc
 python3 scripts/check_source_budget.py   # no Java source file over 3000 lines, comment-only lines not counted
 python3 scripts/check_scene_arena.py     # a scene's terrain fits its force-loaded arena
 python3 scripts/check_remap_safety.py    # no new reflection on a Mojang-mapped member
-python3 scripts/check_log_contract.py    # the log formats the analysis tools parse still match
 python3 scripts/check_packaging.py       # what the published jars and POMs carry; repository fences
 ```
 
 `check_remap_safety.py` reads the remapped jar, so run `./gradlew :fabric:build` first.
 `check_packaging.py` reads the assembled jars and generated POMs; its docstring names the tasks
 that produce them.
-`check_log_contract.py` reads a dedicated-server run's log, so run that gate first.
 
 ## Running a client interactively
 
