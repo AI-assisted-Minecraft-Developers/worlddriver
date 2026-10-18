@@ -31,6 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ArchitectureTest {
 
     private static final Path SOURCE = Path.of("src/main/java/net/magicterra/worlddriver");
+    private static final Path TESTMOD = Path.of("src/testmod/java/net/magicterra/worlddriver");
+    private static final Path TESTMOD_LIST = Path.of("src/test/resources/testmod-reaches-main.txt");
     private static final List<Path> LOADER_SOURCES = List.of(
             Path.of("../fabric/src/main/java"), Path.of("../neoforge/src/main/java"));
 
@@ -156,6 +158,40 @@ class ArchitectureTest {
             }
         }
         assertNone(found);
+    }
+
+    /**
+     * The scenes and test content use the driver as another mod would: through {@code api/} and {@code protocol/},
+     * and StageWright. What they still reach past that is listed in {@link #TESTMOD_LIST}, one
+     * {@code <testmod file> -> <driver class>} per line, and the list only shrinks: a new line fails, and so
+     * does a line that is no longer true.
+     */
+    @Test
+    void theTestmodUsesOnlyTheApiAndStageWright() throws IOException {
+        Set<String> found = new TreeSet<>();
+        for (Path p : javaFiles(TESTMOD)) {
+            String name = TESTMOD.relativize(p).toString().replace('\\', '/').replaceAll("\\.java$", "");
+            for (String target : usedClasses(PACKAGE_LINE.matcher(code(p)).replaceAll(""))) {
+                if (apiLayer(target) == null) found.add(name + " -> " + target);
+            }
+        }
+        Set<String> listed = new TreeSet<>();
+        for (String line : Files.readAllLines(TESTMOD_LIST)) {
+            if (!line.isBlank() && !line.startsWith("#")) listed.add(line.trim());
+        }
+        Set<String> added = new TreeSet<>(found);
+        added.removeAll(listed);
+        Set<String> gone = new TreeSet<>(listed);
+        gone.removeAll(found);
+        if (!added.isEmpty() || !gone.isEmpty()) {
+            Path actual = Path.of("build/architecture/testmod-reaches-main.txt");
+            Files.createDirectories(actual.getParent());
+            Files.write(actual, found);
+        }
+        assertTrue(added.isEmpty(), "testmod code reaches past the api; go through api/ or StageWright instead:\n  "
+                + String.join("\n  ", added));
+        assertTrue(gone.isEmpty(), "no longer true; delete these lines from " + TESTMOD_LIST + ":\n  "
+                + String.join("\n  ", gone));
     }
 
     @Test

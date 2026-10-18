@@ -63,6 +63,12 @@ implementation.
 only in the game layer, each `api/` layer using only what the table allows, no transport using the
 game layer.
 
+It also holds the testmod (the scenes and their test content) to what another mod could use: `api/`,
+`protocol/` and StageWright. The uses still past that are listed in
+`common/src/test/resources/testmod-reaches-main.txt`, one `<testmod file> -> <driver class>` per
+line. The list may only shrink: a use not on it fails the test, and so does a line that is no longer
+true, which the failure names so it can be deleted.
+
 ## Changing a public type
 
 StageWright links against the schema, the method contracts and the registry. Java links lazily,
