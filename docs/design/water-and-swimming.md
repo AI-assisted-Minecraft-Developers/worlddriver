@@ -18,7 +18,7 @@ Every one of them was a patch on the same false premise.
 There was a second fiction alongside it. `SwimUp` was allowed to surface from a water cell
 into the air cell above it whenever anything solid sat nearby. That edge was the
 pathfinder's way of saying "get out of the water here", and the executor's water climb-out
-takeover in `WalkerTickClimb.pillarTakeoverTick` is what actually performs it — placing a
+takeover in `WaterClimb.pillarTakeoverTick` is what actually performs it — placing a
 foothold, pressing against a bank, or digging the bank away. The edge asked neither whether
 the bot held a block nor whether it could end up standing, so A* could site an exit on an
 open column of water where the bot could only bob.
@@ -200,7 +200,7 @@ bot passes its goal. An earlier version cleared on that, and a 929-tick orbit in
 - `bot/world/WorldView.java` — `surfaceWaterNodes()` and `diveSearch()`.
 - `bot/control/WalkerTickDrive.java` — the cruise state machine; its constants are in
   `bot/control/WalkerConstants.java`.
-- `bot/control/WalkerTickClimb.java` — `pillarTakeoverTick`, the executor half of the exit.
+- `bot/control/WaterClimb.java` — the climb-out controller; `pillarTakeoverTick` is the executor half of the exit.
 - `bot/control/WalkerTickAim.java` — the orbit break.
 - `config/WorldConfig.java` — `pathfinderSurfaceWaterNodes`, `pathfinderDeepWaterPriced`, `waterDangerPenalty`;
   `config/ControlConfig.java` — `walkerSurfaceSprintSwim`, `walkerOrbitBreaksAimLag`.

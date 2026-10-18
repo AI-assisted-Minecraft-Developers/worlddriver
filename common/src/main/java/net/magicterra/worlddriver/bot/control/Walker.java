@@ -230,15 +230,15 @@ public final class Walker implements Locomotor {
             sinceJump = -1;
         }
     }
-    /** Water climb-out machine (task#96 step B10), owned by WalkerTickClimb (digging is
-     *  read by Search/StallDetect for the breakingEdge OR). {@link WaterClimb#reset()}
+    /** Water climb-out machine (task#96 step B10), owned by {@link WaterClimb} (digging is
+     *  read by StallDetect for the breakingEdge OR). {@link WaterClimbState#reset()}
      *  clears the fourteen fields both journey resets cleared (a resume mid climb-out
      *  otherwise carries a stale window base-Y / armed stall). NOT in the reset — all
      *  latch-gated or self-managing: lastDigAimEyeY (re-snaps per dig aim), the LOCKED
      *  engage column/heading (targetY/colX/colZ/yaw — only read while pillaring), and
      *  digGroundedStreak (per-commit blip counter). */
-    final WaterClimb waterClimb = new WaterClimb();
-    static final class WaterClimb {
+    final WaterClimbState waterClimb = new WaterClimbState();
+    static final class WaterClimbState {
         int stall;                // armed flag (>WATER_CLIMB_STALL) once net-displacement window shows a bob-stall climbing out of water
         int touchRecent;          // sticky countdown: >0 while in a water climb-out, kept latched through bob-peak surface breaches (see WATER_TOUCH_STICKY)
         int wantClimbRecent;      // sticky countdown: >0 while a higher node sits ahead, latched through bob-peak/repath flicker (see WANT_CLIMB_STICKY)
@@ -282,7 +282,7 @@ public final class Walker implements Locomotor {
         }
     }
     /** Drowning-escape override (task#96 step B): walkerDrowningEscape — air critically
-     *  low while submerged → surface-for-air until air recovers. Owned by WalkerTickClimb.
+     *  low while submerged → surface-for-air until air recovers. Owned by {@link DrownEscape}.
      *  {@link DrownGuard#reset()} clears only the latch and the heading-hold timer (exactly
      *  what both journey resets cleared): heading is scratch (only read while turnTicks>0)
      *  and probe deliberately PERSISTS across goals so a falsely-open pocket direction is
@@ -301,7 +301,7 @@ public final class Walker implements Locomotor {
     /** The back-off and the burst that move a stuck bot; asked for by the phases, driven by {@link #arbiter}. */
     final Recovery recovery = new Recovery();
     /** Who drives which channel this tick; {@link Arbiter#snapshot} says. */
-    final Arbiter arbiter = new Arbiter(List.of(new DrownEscape(), recovery));
+    final Arbiter arbiter = new Arbiter(List.of(new DrownEscape(), recovery, new WaterClimb()));
     // --- expectation alarms (walkerExpectAlarm): live actual-vs-expected divergence detectors ---
     // Extracted to WalkerExpectAlarms (all the ex* sentinel state + the observers) — purely
     // observational, never drives movement. Fed via exAlarms.tick / .notePlace / .noteRepathFlip.

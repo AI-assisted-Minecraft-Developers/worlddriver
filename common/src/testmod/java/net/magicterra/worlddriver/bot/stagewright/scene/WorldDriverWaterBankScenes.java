@@ -299,7 +299,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, everDry, onPlateau, bobTicks);
         // THE FIRST EVIDENCE THIS FAMILY HAS EVER RECORDED. All eleven water-climb scenes published
         // nothing but their own colour, which is why a safety bail that was UNCONDITIONALLY FALSE
-        // (see WalkerTickClimb.engagePillar) survived here unnoticed: a guard that cannot fire
+        // (see WaterClimb.engagePillar) survived here unnoticed: a guard that cannot fire
         // changes no colour, and colour was the only channel. Recorded on every run, PASS included —
         // a PASS prints no failure text, so this is the only place a reader can see whether the
         // pillar branch was even entered.
