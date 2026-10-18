@@ -60,19 +60,19 @@ public final class WorldContracts {
     public record BlockReading(BlockPosition pos, String type, Optional<Map<String, String>> state, Light light,
                                Optional<String> blockEntity) {}
 
-    public static final ApiType<BlockParams> BLOCK_PARAMS = ApiTypes.record("WorldBlockParams",
+    public static final ApiType<BlockParams> BLOCK_PARAMS = ApiTypes.record(BlockParams.class, "WorldBlockParams",
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(BlockParams::pos),
             ApiField.field("nbt", ApiTypes.bool()).describe("Also the block entity's full NBT, as SNBT.")
                     .defaulted(false).forGetter(BlockParams::nbt),
             BlockParams::new);
 
-    public static final ApiType<BlockReading> BLOCK_READING = ApiTypes.record("BlockReading",
+    public static final ApiType<BlockReading> BLOCK_READING = ApiTypes.record(BlockReading.class, "BlockReading",
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(BlockReading::pos),
             ApiField.field("type", CommonTypes.RESOURCE_ID).required().forGetter(BlockReading::type),
             ApiField.field("state", ApiTypes.map(ApiTypes.string(), 64))
                     .describe("Blockstate properties as /setblock spells them; absent for a state without any.")
                     .optional().forGetter(BlockReading::state),
-            ApiField.field("light", ApiTypes.record("Light",
+            ApiField.field("light", ApiTypes.record(Light.class, "Light",
                     ApiField.field("block", ApiTypes.integer(0, 15)).required().forGetter(Light::block),
                     ApiField.field("sky", ApiTypes.integer(0, 15)).required().forGetter(Light::sky),
                     Light::new)).required().forGetter(BlockReading::light),
@@ -95,7 +95,7 @@ public final class WorldContracts {
 
     private static final ApiType<String> SNAPSHOT_ID = ApiTypes.string(1, 128);
 
-    public static final ApiType<SnapshotParams> SNAPSHOT_PARAMS = ApiTypes.record("SnapshotParams",
+    public static final ApiType<SnapshotParams> SNAPSHOT_PARAMS = ApiTypes.record(SnapshotParams.class, "SnapshotParams",
             ApiField.field("from", CommonTypes.BLOCK_POSITION).describe("A corner, inclusive.").required().forGetter(SnapshotParams::from),
             ApiField.field("to", CommonTypes.BLOCK_POSITION).describe("The opposite corner, inclusive.")
                     .required().forGetter(SnapshotParams::to),
@@ -107,7 +107,7 @@ public final class WorldContracts {
             SnapshotParams::new)
             .checked((p, at) -> withinVolume(p.from(), p.to(), at));
 
-    public static final ApiType<Snapshotted> SNAPSHOTTED = ApiTypes.record("Snapshotted",
+    public static final ApiType<Snapshotted> SNAPSHOTTED = ApiTypes.record(Snapshotted.class, "Snapshotted",
             ApiField.field("id", SNAPSHOT_ID).required().forGetter(Snapshotted::id),
             ApiField.field("from", CommonTypes.BLOCK_POSITION).required().forGetter(Snapshotted::from),
             ApiField.field("to", CommonTypes.BLOCK_POSITION).required().forGetter(Snapshotted::to),
@@ -131,7 +131,7 @@ public final class WorldContracts {
 
     public record Restored(String id, int restored, int blockEntities, Optional<List<EventContracts.Event>> events) {}
 
-    public static final ApiType<RestoreParams> RESTORE_PARAMS = ApiTypes.record("RestoreParams",
+    public static final ApiType<RestoreParams> RESTORE_PARAMS = ApiTypes.record(RestoreParams.class, "RestoreParams",
             ApiField.field("id", SNAPSHOT_ID).describe("An id mc.world.snapshot answered; an unknown one is invalid_params.")
                     .required().forGetter(RestoreParams::id),
             ApiField.field("discard", ApiTypes.bool()).describe("Forget the snapshot once it is put back.")
@@ -139,7 +139,7 @@ public final class WorldContracts {
             ApiField.field("returnEvents", ApiTypes.bool()).describe(RETURN_EVENTS).defaulted(false).forGetter(RestoreParams::returnEvents),
             RestoreParams::new);
 
-    public static final ApiType<Restored> RESTORED = ApiTypes.record("Restored",
+    public static final ApiType<Restored> RESTORED = ApiTypes.record(Restored.class, "Restored",
             ApiField.field("id", SNAPSHOT_ID).required().forGetter(Restored::id),
             ApiField.field("restored", COUNT).describe("Cells written.").required().forGetter(Restored::restored),
             ApiField.field("blockEntities", COUNT).required().forGetter(Restored::blockEntities),

@@ -38,14 +38,14 @@ public final class SceneContracts {
     private static final ApiType<MarkerRole> ROLE = ApiTypes.enumOf("MarkerRole", MarkerRole.class, MarkerRole::getSerializedName);
 
     public static final MethodSpec<MarkParams, Marked> MARK = MethodSpec.of("worlddriver.mark",
-                    ApiTypes.record("MarkParams",
+                    ApiTypes.record(MarkParams.class, "MarkParams",
                             ApiField.field("role", ROLE).required().forGetter(MarkParams::role),
                             ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(MarkParams::pos),
                             ApiField.field("label", ApiTypes.string())
                                     .describe("goal: block|near:<r>|y:<y>; via/pass: a number; watch: same|<block id>; "
                                             + "an anchor's scene name.")
                                     .defaulted("").forGetter(MarkParams::label),
-                            ApiField.field("args", ApiTypes.record("MarkArgs",
+                            ApiField.field("args", ApiTypes.record(MarkArgs.class, "MarkArgs",
                                     ApiField.field("yaw", ApiTypes.number()).describe("The bot's facing, on start.")
                                             .optional().forGetter(MarkArgs::yaw),
                                     ApiField.field("box", ApiTypes.list(ApiTypes.integer(), 6, 6))
@@ -54,7 +54,7 @@ public final class SceneContracts {
                                             .optional().forGetter(MarkArgs::box),
                                     MarkArgs::new)).describe("Entity args.").optional().forGetter(MarkParams::args),
                             MarkParams::new),
-                    ApiTypes.record("Marked",
+                    ApiTypes.record(Marked.class, "Marked",
                             ApiField.field("placed", ApiTypes.trueOnly()).required().forGetter(Marked::placed),
                             ApiField.field("role", ROLE).required().forGetter(Marked::role),
                             ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(Marked::pos),
@@ -72,7 +72,7 @@ public final class SceneContracts {
     public record Saved(boolean saved, String json, String nbt, JsonValue fixture) {}
 
     public static final MethodSpec<SaveParams, Saved> SAVE = MethodSpec.of("worlddriver.scene.save",
-                    ApiTypes.record("SceneSaveParams",
+                    ApiTypes.record(SaveParams.class, "SceneSaveParams",
                             ApiField.field("name", NAME).required().forGetter(SaveParams::name),
                             ApiField.field("verb", WALK_VERB).defaulted("goto").forGetter(SaveParams::verb),
                             ApiField.field("budget", BUDGET).describe("Each walk's tick budget.")
@@ -83,7 +83,7 @@ public final class SceneContracts {
                             ApiField.field("author", ApiTypes.string()).describe("Omitted: the first player's name.")
                                     .optional().forGetter(SaveParams::author),
                             SaveParams::new),
-                    ApiTypes.record("SceneSaved",
+                    ApiTypes.record(Saved.class, "SceneSaved",
                             ApiField.field("saved", ApiTypes.trueOnly()).required().forGetter(Saved::saved),
                             ApiField.field("json", PATH).required().forGetter(Saved::json),
                             ApiField.field("nbt", PATH).required().forGetter(Saved::nbt),
@@ -107,17 +107,17 @@ public final class SceneContracts {
     public record SceneList(String dir, List<SceneRow> scenes) {}
 
     public static final MethodSpec<ListParams, SceneList> LIST = MethodSpec.of("worlddriver.scene.list",
-                    ApiTypes.record("SceneListParams", ListParams::new),
-                    ApiTypes.record("SceneList",
+                    ApiTypes.record(ListParams.class, "SceneListParams", ListParams::new),
+                    ApiTypes.record(SceneList.class, "SceneList",
                             ApiField.field("dir", PATH).required().forGetter(SceneList::dir),
-                            ApiField.field("scenes", ApiTypes.list(ApiTypes.record("SceneRow",
+                            ApiField.field("scenes", ApiTypes.list(ApiTypes.record(SceneRow.class, "SceneRow",
                                     ApiField.field("file", ApiTypes.string()).required().forGetter(SceneRow::file),
                                     ApiField.field("name", ApiTypes.string()).optional().forGetter(SceneRow::name),
                                     ApiField.field("size", SIZE).optional().forGetter(SceneRow::size),
                                     ApiField.field("chunkRadius", COUNT).optional().forGetter(SceneRow::chunkRadius),
                                     ApiField.field("legs", COUNT).optional().forGetter(SceneRow::legs),
                                     ApiField.field("hasNbt", ApiTypes.bool()).optional().forGetter(SceneRow::hasNbt),
-                                    ApiField.field("lastVerdict", ApiTypes.record("SceneLastVerdict",
+                                    ApiField.field("lastVerdict", ApiTypes.record(LastVerdict.class, "SceneLastVerdict",
                                             ApiField.field("when", ApiTypes.string()).optional().forGetter(LastVerdict::when),
                                             ApiField.field("who", ApiTypes.string()).optional().forGetter(LastVerdict::who),
                                             ApiField.field("human", ApiTypes.string()).required().forGetter(LastVerdict::human),
@@ -136,12 +136,12 @@ public final class SceneContracts {
     public record Placed(boolean placed, String name, BlockPosition origin, BlockPosition min, List<Integer> size) {}
 
     public static final MethodSpec<PlaceParams, Placed> PLACE = MethodSpec.of("worlddriver.scene.place",
-                    ApiTypes.record("ScenePlaceParams",
+                    ApiTypes.record(PlaceParams.class, "ScenePlaceParams",
                             ApiField.field("name", NAME).required().forGetter(PlaceParams::name),
                             ApiField.field("pos", CommonTypes.BLOCK_POSITION).optional().forGetter(PlaceParams::pos),
                             ApiField.field("around", CommonTypes.BLOCK_POSITION).optional().forGetter(PlaceParams::around),
                             PlaceParams::new),
-                    ApiTypes.record("ScenePlaced",
+                    ApiTypes.record(Placed.class, "ScenePlaced",
                             ApiField.field("placed", ApiTypes.trueOnly()).required().forGetter(Placed::placed),
                             ApiField.field("name", ApiTypes.string()).required().forGetter(Placed::name),
                             ApiField.field("origin", CommonTypes.BLOCK_POSITION).required().forGetter(Placed::origin),
@@ -164,7 +164,7 @@ public final class SceneContracts {
                            Optional<List<String>> lines) {}
 
     public static final MethodSpec<RunParams, RunReply> RUN = MethodSpec.of("worlddriver.scene.run",
-                    ApiTypes.record("SceneRunParams",
+                    ApiTypes.record(RunParams.class, "SceneRunParams",
                             ApiField.field("name", NAME).describe("A saved scene, or `here` for the markers in the world.")
                                     .required().forGetter(RunParams::name),
                             ApiField.field("body", ApiTypes.string(1, 64))
@@ -184,7 +184,7 @@ public final class SceneContracts {
                                     .describe("Wait this long for the outcome; refused from a game thread.")
                                     .defaulted(0).forGetter(RunParams::awaitMs),
                             RunParams::new),
-                    ApiTypes.record("SceneRunReply",
+                    ApiTypes.record(RunReply.class, "SceneRunReply",
                             ApiField.field("started", ApiTypes.trueOnly()).required().forGetter(RunReply::started),
                             ApiField.field("name", ApiTypes.string()).required().forGetter(RunReply::name),
                             ApiField.field("origin", CommonTypes.BLOCK_POSITION).required().forGetter(RunReply::origin),
@@ -213,13 +213,13 @@ public final class SceneContracts {
     public record Recorded(boolean recorded, String file, JsonValue record) {}
 
     public static final MethodSpec<VerdictParams, Recorded> VERDICT = MethodSpec.of("worlddriver.scene.verdict",
-                    ApiTypes.record("SceneVerdictParams",
+                    ApiTypes.record(VerdictParams.class, "SceneVerdictParams",
                             ApiField.field("name", NAME).required().forGetter(VerdictParams::name),
                             ApiField.field("verdict", ApiTypes.stringEnum("SceneVerdict", "pass", "fail", "flaky"))
                                     .required().forGetter(VerdictParams::verdict),
                             ApiField.field("note", ApiTypes.string()).optional().forGetter(VerdictParams::note),
                             VerdictParams::new),
-                    ApiTypes.record("SceneVerdictRecorded",
+                    ApiTypes.record(Recorded.class, "SceneVerdictRecorded",
                             ApiField.field("recorded", ApiTypes.trueOnly()).required().forGetter(Recorded::recorded),
                             ApiField.field("file", PATH).required().forGetter(Recorded::file),
                             ApiField.field("record", ApiTypes.jsonObject()).describe("The line appended to the file.")
@@ -236,10 +236,10 @@ public final class SceneContracts {
     public record Accepted(boolean accepted, String json, JsonValue expect) {}
 
     public static final MethodSpec<AcceptParams, Accepted> ACCEPT = MethodSpec.of("worlddriver.scene.accept",
-                    ApiTypes.record("SceneAcceptParams",
+                    ApiTypes.record(AcceptParams.class, "SceneAcceptParams",
                             ApiField.field("name", NAME).required().forGetter(AcceptParams::name),
                             AcceptParams::new),
-                    ApiTypes.record("SceneAccepted",
+                    ApiTypes.record(Accepted.class, "SceneAccepted",
                             ApiField.field("accepted", ApiTypes.trueOnly()).required().forGetter(Accepted::accepted),
                             ApiField.field("json", PATH).required().forGetter(Accepted::json),
                             ApiField.field("expect", ApiTypes.jsonObject()).describe("The bounds now in the fixture.")

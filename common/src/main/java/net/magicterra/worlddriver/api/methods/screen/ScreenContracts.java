@@ -49,7 +49,7 @@ public final class ScreenContracts {
                              Optional<String> type, Optional<String> title, Optional<Integer> width,
                              Optional<Integer> height, Optional<String> causeOfDeath) {}
 
-    public static final RecordType<ScreenInfo> SCREEN_INFO = ApiTypes.record("ScreenInfo",
+    public static final RecordType<ScreenInfo> SCREEN_INFO = ApiTypes.record(ScreenInfo.class, "ScreenInfo",
             ApiField.field("contextId", ClientContracts.CONTEXT_ID).required().forGetter(ScreenInfo::contextId),
             ApiField.field("hasScreen", ApiTypes.bool()).required().forGetter(ScreenInfo::hasScreen),
             ApiField.field("worldOpen", ApiTypes.bool()).required().forGetter(ScreenInfo::worldOpen),
@@ -100,19 +100,19 @@ public final class ScreenContracts {
                              Optional<Integer> width, Optional<Integer> height, Optional<String> causeOfDeath,
                              Optional<String> error, Optional<String> slotsError, List<WidgetNode> nodes) {}
 
-    private static final RecordType<Box> BOX = ApiTypes.record("ScreenBox",
+    private static final RecordType<Box> BOX = ApiTypes.record(Box.class, "ScreenBox",
             ApiField.field("x", GUI).required().forGetter(Box::x),
             ApiField.field("y", GUI).required().forGetter(Box::y),
             ApiField.field("width", GUI).required().forGetter(Box::width),
             ApiField.field("height", GUI).required().forGetter(Box::height),
             Box::new);
 
-    private static final RecordType<SlotItem> SLOT_ITEM = ApiTypes.record("SlotItem",
+    private static final RecordType<SlotItem> SLOT_ITEM = ApiTypes.record(SlotItem.class, "SlotItem",
             ApiField.field("id", CommonTypes.RESOURCE_ID).required().forGetter(SlotItem::id),
             ApiField.field("count", COUNT).required().forGetter(SlotItem::count),
             SlotItem::new);
 
-    private static final RecordType<WidgetNode> WIDGET_NODE = ApiTypes.record("WidgetNode",
+    private static final RecordType<WidgetNode> WIDGET_NODE = ApiTypes.record(WidgetNode.class, "WidgetNode",
             ApiField.field("ref", COUNT)
                     .describe("What input.click's ref takes. The same for this widget, row or slot in every read while "
                             + "it lives, never reused; a rebuilt screen's widgets get new ones.")
@@ -143,7 +143,7 @@ public final class ScreenContracts {
                     .optional().forGetter(WidgetNode::error),
             WidgetNode::new);
 
-    public static final RecordType<ScreenTree> SCREEN_TREE = ApiTypes.record("ScreenTree",
+    public static final RecordType<ScreenTree> SCREEN_TREE = ApiTypes.record(ScreenTree.class, "ScreenTree",
             ApiField.field("contextId", ClientContracts.CONTEXT_ID).required().forGetter(ScreenTree::contextId),
             ApiField.field("hasScreen", ApiTypes.bool()).required().forGetter(ScreenTree::hasScreen),
             ApiField.field("type", ApiTypes.string()).optional().forGetter(ScreenTree::type),
@@ -206,8 +206,8 @@ public final class ScreenContracts {
     }
 
     public static final MethodSpec<CloseParams, Closed> CLOSE = MethodSpec.of("mc.client.screen.close",
-                    ApiTypes.record("ScreenCloseParams", contextParam(CloseParams::contextId), CloseParams::new),
-                    ApiTypes.record("ScreenClosed",
+                    ApiTypes.record(CloseParams.class, "ScreenCloseParams", contextParam(CloseParams::contextId), CloseParams::new),
+                    ApiTypes.record(Closed.class, "ScreenClosed",
                             ApiField.field("closed", ApiTypes.string()).describe("The screen it closed; absent when none was open.")
                                     .optional().forGetter(Closed::closed),
                             contextAfter(Closed::contextId),
@@ -221,7 +221,7 @@ public final class ScreenContracts {
                               Optional<String> contextId) {}
 
     public static final MethodSpec<ClickParams, ClientReply> CLICK = MethodSpec.of("mc.client.input.click",
-                    ApiTypes.record("ClickParams",
+                    ApiTypes.record(ClickParams.class, "ClickParams",
                             ApiField.field("ref", COUNT).describe("A node's ref from screen.tree: clicks the centre of its box as it is now.")
                                     .optional().forGetter(ClickParams::ref),
                             ApiField.field("x", ApiTypes.number()).describe("Without ref: GUI coordinates, as screen.tree gives them.")
@@ -241,7 +241,7 @@ public final class ScreenContracts {
                                             "give ref, or both x and y");
                                 }
                             }),
-                    ClientContracts.reply("Click", Clicked.class, ApiTypes.record(null,
+                    ClientContracts.reply("Click", Clicked.class, ApiTypes.record(Clicked.class, null,
                             ApiField.field("handled", ApiTypes.bool()).describe("A widget took it; false is empty space.")
                                     .required().forGetter(Clicked::handled),
                             treeChangedAfter(Clicked::treeChanged),
@@ -260,11 +260,11 @@ public final class ScreenContracts {
     public record Moved(double wx, double wy, double scale) {}
 
     public static final MethodSpec<MoveParams, Moved> MOUSE_MOVE = MethodSpec.of("mc.client.input.mouseMove",
-                    ApiTypes.record("MouseMoveParams",
+                    ApiTypes.record(MoveParams.class, "MouseMoveParams",
                             ApiField.field("x", ApiTypes.number()).required().forGetter(MoveParams::x),
                             ApiField.field("y", ApiTypes.number()).required().forGetter(MoveParams::y),
                             MoveParams::new),
-                    ApiTypes.record("MouseMoved",
+                    ApiTypes.record(Moved.class, "MouseMoved",
                             ApiField.field("wx", ApiTypes.number()).required().forGetter(Moved::wx),
                             ApiField.field("wy", ApiTypes.number()).required().forGetter(Moved::wy),
                             ApiField.field("scale", ApiTypes.number()).describe("The GUI scale.").required().forGetter(Moved::scale),
@@ -290,7 +290,7 @@ public final class ScreenContracts {
     private static final ApiType<ClickKind> CLICK_KIND = ApiTypes.enumOf("ClickKind", ClickKind.class);
 
     public static final MethodSpec<SlotClickParams, ClientReply> SLOT_CLICK = MethodSpec.of("mc.client.input.slotClick",
-                    ApiTypes.record("SlotClickParams",
+                    ApiTypes.record(SlotClickParams.class, "SlotClickParams",
                             ApiField.field("slot", COUNT).describe("The menu's slot index, from observe.container or screen.tree.")
                                     .required().forGetter(SlotClickParams::slot),
                             ApiField.field("button", ApiTypes.integer(0, 8))
@@ -300,7 +300,7 @@ public final class ScreenContracts {
                             returnTreeParam(SlotClickParams::returnTree),
                             contextParam(SlotClickParams::contextId),
                             SlotClickParams::new),
-                    ClientContracts.reply("SlotClick", SlotClicked.class, ApiTypes.record(null,
+                    ClientContracts.reply("SlotClick", SlotClicked.class, ApiTypes.record(SlotClicked.class, null,
                             ApiField.field("slot", COUNT).required().forGetter(SlotClicked::slot),
                             ApiField.field("button", ApiTypes.integer(0, 8)).required().forGetter(SlotClicked::button),
                             ApiField.field("type", CLICK_KIND).required().forGetter(SlotClicked::type),
@@ -320,12 +320,12 @@ public final class ScreenContracts {
     public record HotbarParams(int slot, Optional<String> contextId) {}
 
     public static final MethodSpec<HotbarParams, ClientReply> SET_HOTBAR_SLOT = MethodSpec.of("mc.client.input.setHotbarSlot",
-                    ApiTypes.record("SetHotbarSlotParams",
+                    ApiTypes.record(HotbarParams.class, "SetHotbarSlotParams",
                             ApiField.field("slot", ApiTypes.integer(0, 8)).describe("0 is leftmost.").required()
                                     .forGetter(HotbarParams::slot),
                             contextParam(HotbarParams::contextId),
                             HotbarParams::new),
-                    ClientContracts.reply("SetHotbarSlot", HotbarSelected.class, ApiTypes.record(null,
+                    ClientContracts.reply("SetHotbarSlot", HotbarSelected.class, ApiTypes.record(HotbarSelected.class, null,
                             ApiField.field("slot", ApiTypes.integer(0, 8)).required().forGetter(HotbarSelected::slot),
                             ApiField.field("previous", ApiTypes.integer(0, 8)).required().forGetter(HotbarSelected::previous),
                             contextAfter(HotbarSelected::contextId),
@@ -339,11 +339,11 @@ public final class ScreenContracts {
     public record TypeParams(String text, Optional<String> contextId) {}
 
     public static final MethodSpec<TypeParams, ClientReply> TYPE_TEXT = MethodSpec.of("mc.client.input.typeText",
-                    ApiTypes.record("TypeTextParams",
+                    ApiTypes.record(TypeParams.class, "TypeTextParams",
                             ApiField.field("text", ApiTypes.string(0, 4096)).required().forGetter(TypeParams::text),
                             contextParam(TypeParams::contextId),
                             TypeParams::new),
-                    ClientContracts.reply("TypeText", Typed.class, ApiTypes.record(null,
+                    ClientContracts.reply("TypeText", Typed.class, ApiTypes.record(Typed.class, null,
                             ApiField.field("typed", COUNT).required().forGetter(Typed::typed),
                             ApiField.field("length", COUNT).required().forGetter(Typed::length),
                             contextAfter(Typed::contextId),
@@ -355,7 +355,7 @@ public final class ScreenContracts {
     public record ReplaceParams(String text, Optional<String> match, Optional<String> contextId) {}
 
     public static final MethodSpec<ReplaceParams, ClientReply> REPLACE_TEXT = MethodSpec.of("mc.client.input.replaceText",
-                    ApiTypes.record("ReplaceTextParams",
+                    ApiTypes.record(ReplaceParams.class, "ReplaceTextParams",
                             ApiField.field("text", ApiTypes.string(0, 4096)).describe("The box's new whole contents.")
                                     .required().forGetter(ReplaceParams::text),
                             ApiField.field("match", ApiTypes.string(1, 256))
@@ -364,7 +364,7 @@ public final class ScreenContracts {
                                     .optional().forGetter(ReplaceParams::match),
                             contextParam(ReplaceParams::contextId),
                             ReplaceParams::new),
-                    ClientContracts.reply("ReplaceText", Replaced.class, ApiTypes.record(null,
+                    ClientContracts.reply("ReplaceText", Replaced.class, ApiTypes.record(Replaced.class, null,
                             ApiField.field("value", ApiTypes.string()).required().forGetter(Replaced::value),
                             ApiField.field("previous", ApiTypes.string()).required().forGetter(Replaced::previous),
                             contextAfter(Replaced::contextId),
@@ -383,7 +383,7 @@ public final class ScreenContracts {
 
     @SuppressWarnings("unchecked")
     public static final MethodSpec<SliderParams, ClientReply> SLIDER = MethodSpec.of("mc.client.input.slider",
-                    ApiTypes.record("SliderParams",
+                    ApiTypes.record(SliderParams.class, "SliderParams",
                             ApiField.field("match", ApiTypes.string(1, 256)).describe("Case-insensitive part of the slider's label.")
                                     .optional().forGetter(SliderParams::match),
                             ApiField.field("index", COUNT).describe("Its place among the screen's sliders, without match.")
@@ -398,15 +398,15 @@ public final class ScreenContracts {
                                 }
                             }),
                     ApiTypes.taggedUnion("SliderResponse", "outcome",
-                            ApiTypes.<ClientReply, SlidersRead>variant("read", SlidersRead.class, ApiTypes.record(null,
-                                    ApiField.field("sliders", ApiTypes.list(ApiTypes.record("SliderValue",
+                            ApiTypes.<ClientReply, SlidersRead>variant("read", SlidersRead.class, ApiTypes.record(SlidersRead.class, null,
+                                    ApiField.field("sliders", ApiTypes.list(ApiTypes.record(Slider.class, "SliderValue",
                                             ApiField.field("index", COUNT).required().forGetter(Slider::index),
                                             ApiField.field("label", ApiTypes.string()).required().forGetter(Slider::label),
                                             ApiField.field("value", ApiTypes.number(0, 1)).required().forGetter(Slider::value),
                                             Slider::new), 1024)).required().forGetter(SlidersRead::sliders),
                                     contextAfter(SlidersRead::contextId),
                                     SlidersRead::new)),
-                            ApiTypes.<ClientReply, SliderSet>variant("set", SliderSet.class, ApiTypes.record(null,
+                            ApiTypes.<ClientReply, SliderSet>variant("set", SliderSet.class, ApiTypes.record(SliderSet.class, null,
                                     ApiField.field("label", ApiTypes.string()).required().forGetter(SliderSet::label),
                                     ApiField.field("value", ApiTypes.number(0, 1)).required().forGetter(SliderSet::value),
                                     ApiField.field("previousLabel", ApiTypes.string()).required().forGetter(SliderSet::previousLabel),
@@ -461,7 +461,7 @@ public final class ScreenContracts {
     private static final ApiType<KeyVia> KEY_VIA = ApiTypes.enumOf("KeyVia", KeyVia.class);
 
     public static final MethodSpec<KeyParams, ClientReply> KEY = MethodSpec.of("mc.client.input.key",
-                    ApiTypes.record("KeyParams",
+                    ApiTypes.record(KeyParams.class, "KeyParams",
                             ApiField.field("key", ApiTypes.pattern("[A-Za-z0-9_]{1,16}", "a key name such as ENTER"))
                                     .describe("ENTER, ESCAPE, TAB, BACKSPACE, DELETE, SPACE, LEFT, RIGHT, UP, DOWN, HOME, "
                                             + "END, PAGEUP, PAGEDOWN, F1-F25, A-Z, 0-9, or a modifier key (LEFT_SHIFT, "
@@ -475,7 +475,7 @@ public final class ScreenContracts {
                             returnTreeParam(KeyParams::returnTree),
                             contextParam(KeyParams::contextId),
                             KeyParams::new),
-                    ClientContracts.reply("Key", KeySent.class, ApiTypes.record(null,
+                    ClientContracts.reply("Key", KeySent.class, ApiTypes.record(KeySent.class, null,
                             ApiField.field("key", ApiTypes.string()).required().forGetter(KeySent::key),
                             ApiField.field("code", ApiTypes.integer()).describe("The GLFW key code.").required().forGetter(KeySent::code),
                             ApiField.field("action", KEY_ACTION).required().forGetter(KeySent::action),
@@ -518,7 +518,7 @@ public final class ScreenContracts {
 
 
     public static final MethodSpec<KeybindParams, ClientReply> KEYBIND = MethodSpec.of("mc.client.input.keybind",
-                    ApiTypes.record("KeybindParams",
+                    ApiTypes.record(KeybindParams.class, "KeybindParams",
                             ApiField.field("name", ApiTypes.string(1, 256))
                                     .describe("A mapping id (key.inventory) or part of an id or title. Omitted: list every mapping.")
                                     .optional().forGetter(KeybindParams::name),
@@ -527,8 +527,8 @@ public final class ScreenContracts {
                             contextParam(KeybindParams::contextId),
                             KeybindParams::new),
                     ApiTypes.taggedUnion("KeybindResponse", "outcome",
-                            ApiTypes.<ClientReply, KeybindsListed>variant("listed", KeybindsListed.class, ApiTypes.record(null,
-                                    ApiField.field("keybinds", ApiTypes.list(ApiTypes.record("Keybinding",
+                            ApiTypes.<ClientReply, KeybindsListed>variant("listed", KeybindsListed.class, ApiTypes.record(KeybindsListed.class, null,
+                                    ApiField.field("keybinds", ApiTypes.list(ApiTypes.record(Keybinding.class, "Keybinding",
                                             ApiField.field("name", ApiTypes.string()).required().forGetter(Keybinding::name),
                                             ApiField.field("title", ApiTypes.string()).required().forGetter(Keybinding::title),
                                             ApiField.field("key", ApiTypes.string()).required().forGetter(Keybinding::key),
@@ -538,7 +538,7 @@ public final class ScreenContracts {
                                             ApiField.field("down", ApiTypes.bool()).required().forGetter(Keybinding::down),
                                             Keybinding::new), 4096)).required().forGetter(KeybindsListed::keybinds),
                                     KeybindsListed::new)),
-                            ApiTypes.<ClientReply, KeybindDriven>variant("done", KeybindDriven.class, ApiTypes.record(null,
+                            ApiTypes.<ClientReply, KeybindDriven>variant("done", KeybindDriven.class, ApiTypes.record(KeybindDriven.class, null,
                                     ApiField.field("name", ApiTypes.string()).required().forGetter(KeybindDriven::name),
                                     ApiField.field("title", ApiTypes.string()).required().forGetter(KeybindDriven::title),
                                     ApiField.field("key", ApiTypes.string()).required().forGetter(KeybindDriven::key),
@@ -593,7 +593,7 @@ public final class ScreenContracts {
     public record MenuContainer(String contextId, boolean present, Optional<String> screen,
                                 Optional<List<SlotRow>> slots) implements ContainerView {}
 
-    private static final ApiType<List<SlotRow>> SLOTS = ApiTypes.list(ApiTypes.record("ContainerSlot",
+    private static final ApiType<List<SlotRow>> SLOTS = ApiTypes.list(ApiTypes.record(SlotRow.class, "ContainerSlot",
             ApiField.field("index", COUNT).describe("Vanilla's slot index; furnace 0 input, 1 fuel, 2 output.")
                     .required().forGetter(SlotRow::index),
             ApiField.field("id", CommonTypes.RESOURCE_ID).describe("Absent for an empty slot.").optional().forGetter(SlotRow::id),
@@ -605,14 +605,14 @@ public final class ScreenContracts {
             (i, id, count, max, dmg, dur) -> new SlotRow(i, id, count, new ClientContracts.Wear(max, dmg, dur))), 4096);
 
     public static final UnionType<ContainerView> CONTAINER_VIEW = ApiTypes.taggedUnion("ContainerView", "source",
-            ApiTypes.variant("block", BlockContainer.class, ApiTypes.record(null,
+            ApiTypes.variant("block", BlockContainer.class, ApiTypes.record(BlockContainer.class, null,
                     ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(BlockContainer::pos),
                     ApiField.field("present", ApiTypes.bool()).required().forGetter(BlockContainer::present),
                     ApiField.field("blockEntity", CommonTypes.RESOURCE_ID).describe("The block entity's type.")
                             .optional().forGetter(BlockContainer::blockEntity),
                     ApiField.field("slots", SLOTS).optional().forGetter(BlockContainer::slots),
                     BlockContainer::new)),
-            ApiTypes.variant("menu", MenuContainer.class, ApiTypes.record(null,
+            ApiTypes.variant("menu", MenuContainer.class, ApiTypes.record(MenuContainer.class, null,
                     ApiField.field("contextId", ClientContracts.CONTEXT_ID)
                             .describe("The screen these slots belong to; input.slotClick can be held to it.")
                             .required().forGetter(MenuContainer::contextId),
@@ -622,7 +622,7 @@ public final class ScreenContracts {
                     MenuContainer::new)));
 
     public static final MethodSpec<ContainerParams, ContainerView> CONTAINER = MethodSpec.of("mc.observe.container",
-                    ApiTypes.record("ContainerParams",
+                    ApiTypes.record(ContainerParams.class, "ContainerParams",
                             ApiField.field("pos", CommonTypes.BLOCK_POSITION)
                                     .describe("A chest, barrel, hopper, furnace… Omitted: the menu open on this client.")
                                     .optional().forGetter(ContainerParams::pos),

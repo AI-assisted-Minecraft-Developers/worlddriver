@@ -108,7 +108,7 @@ public final class ClientContracts {
             .describe("The screen context from screen.info, screen.tree or observe.container. Given, the write "
                     + "is refused as context_changed, with nothing done, unless that same screen is still open.");
 
-    private static final RecordType<Refused> REFUSED = ApiTypes.record(null,
+    private static final RecordType<Refused> REFUSED = ApiTypes.record(Refused.class, null,
             ApiField.field("reason", ApiTypes.enumOf("ClientRefusal", ClientRefusal.class)).required()
                     .forGetter(Refused::reason),
             ApiField.field("message", ApiTypes.string()).required().forGetter(Refused::message),
@@ -178,7 +178,7 @@ public final class ClientContracts {
         return ApiField.field(name, COUNT).describe(text).optional().forGetter(o -> part.apply(wear.apply(o)));
     }
 
-    private static final ApiType<Stack> STACK = ApiTypes.record("ItemStack",
+    private static final ApiType<Stack> STACK = ApiTypes.record(Stack.class, "ItemStack",
             ApiField.field("id", CommonTypes.RESOURCE_ID).required().forGetter(Stack::id),
             ApiField.field("count", COUNT).required().forGetter(Stack::count),
             wearField("maxDamage", Stack::wear, Wear::maxDamage, "Damageable items only."),
@@ -187,7 +187,7 @@ public final class ClientContracts {
                     "Points left (maxDamage - damage); damageable items only. Unbreaking stretches a point over several uses."),
             (id, count, max, dmg, dur) -> new Stack(id, count, new Wear(max, dmg, dur)));
 
-    private static final ApiType<InventorySlot> INVENTORY_SLOT = ApiTypes.record("InventorySlot",
+    private static final ApiType<InventorySlot> INVENTORY_SLOT = ApiTypes.record(InventorySlot.class, "InventorySlot",
             ApiField.field("slot", COUNT).describe("Vanilla inventory index: 0-8 hotbar, 9-35 main, 36-39 armour, 40 offhand.")
                     .required().forGetter(InventorySlot::slot),
             ApiField.field("id", CommonTypes.RESOURCE_ID).required().forGetter(InventorySlot::id),
@@ -198,32 +198,32 @@ public final class ClientContracts {
             (slot, id, count, max, dmg, dur) -> new InventorySlot(slot, id, count, new Wear(max, dmg, dur)));
 
     private static final ApiType<Hit> HIT = ApiTypes.taggedUnion("CrosshairHit", "type",
-            ApiTypes.variant("miss", Miss.class, ApiTypes.record(null, Miss::new)),
-            ApiTypes.variant("block", BlockHit.class, ApiTypes.record(null,
+            ApiTypes.variant("miss", Miss.class, ApiTypes.record(Miss.class, null, Miss::new)),
+            ApiTypes.variant("block", BlockHit.class, ApiTypes.record(BlockHit.class, null,
                     ApiField.field("blockPos", CommonTypes.BLOCK_POSITION).required().forGetter(BlockHit::blockPos),
                     ApiField.field("face", ApiTypes.string()).required().forGetter(BlockHit::face),
                     ApiField.field("block", CommonTypes.RESOURCE_ID).required().forGetter(BlockHit::block),
                     ApiField.field("distance", ApiTypes.number()).describe("From the eyes.").required().forGetter(BlockHit::distance),
                     BlockHit::new)),
-            ApiTypes.variant("entity", EntityHit.class, ApiTypes.record(null,
+            ApiTypes.variant("entity", EntityHit.class, ApiTypes.record(EntityHit.class, null,
                     ApiField.field("entityId", CommonTypes.ENTITY_ID).required().forGetter(EntityHit::entityId),
                     ApiField.field("entityType", CommonTypes.RESOURCE_ID).required().forGetter(EntityHit::entityType),
                     ApiField.field("pos", CommonTypes.POINT).required().forGetter(EntityHit::pos),
                     ApiField.field("distance", ApiTypes.number()).required().forGetter(EntityHit::distance),
                     EntityHit::new)));
 
-    public static final ApiType<ClientPlayer> CLIENT_PLAYER = ApiTypes.record("ClientPlayer",
+    public static final ApiType<ClientPlayer> CLIENT_PLAYER = ApiTypes.record(ClientPlayer.class, "ClientPlayer",
             ApiField.field("present", ApiTypes.bool()).describe("A player is in a world on this client.")
                     .required().forGetter(ClientPlayer::present),
             ApiField.field("name", ApiTypes.string()).optional().forGetter(ClientPlayer::name),
             ApiField.field("uuid", ApiTypes.string()).optional().forGetter(ClientPlayer::uuid),
             ApiField.field("dimension", CommonTypes.RESOURCE_ID).optional().forGetter(ClientPlayer::dimension),
             ApiField.field("pos", CommonTypes.POINT).describe("The feet.").optional().forGetter(ClientPlayer::pos),
-            ApiField.field("look", ApiTypes.record("ClientLook",
+            ApiField.field("look", ApiTypes.record(Look.class, "ClientLook",
                     ApiField.field("yaw", ApiTypes.number()).required().forGetter(Look::yaw),
                     ApiField.field("pitch", ApiTypes.number()).required().forGetter(Look::pitch),
                     Look::new)).optional().forGetter(ClientPlayer::look),
-            ApiField.field("body", ApiTypes.record("ClientBody",
+            ApiField.field("body", ApiTypes.record(ClientBody.class, "ClientBody",
                     ApiField.field("onGround", ApiTypes.bool()).required().forGetter(ClientBody::onGround),
                     ApiField.field("eyePos", CommonTypes.POINT).required().forGetter(ClientBody::eyePos),
                     ApiField.field("pose", ApiTypes.string()).describe("STANDING, CROUCHING, SWIMMING, FALL_FLYING, SLEEPING, …")
@@ -237,7 +237,7 @@ public final class ClientContracts {
                     ApiField.field("feetBlock", CommonTypes.RESOURCE_ID).describe("The client's block in the feet cell.")
                             .optional().forGetter(ClientBody::feetBlock),
                     ClientBody::new)).optional().forGetter(ClientPlayer::body),
-            ApiField.field("vitals", ApiTypes.record("ClientVitals",
+            ApiField.field("vitals", ApiTypes.record(Vitals.class, "ClientVitals",
                     ApiField.field("health", ApiTypes.number()).required().forGetter(Vitals::health),
                     ApiField.field("maxHealth", ApiTypes.number()).required().forGetter(Vitals::maxHealth),
                     ApiField.field("air", ApiTypes.integer()).required().forGetter(Vitals::air),
@@ -245,13 +245,13 @@ public final class ClientContracts {
                     ApiField.field("food", ApiTypes.integer()).required().forGetter(Vitals::food),
                     ApiField.field("saturation", ApiTypes.number()).required().forGetter(Vitals::saturation),
                     ApiField.field("xpLevel", ApiTypes.integer()).required().forGetter(Vitals::xpLevel),
-                    ApiField.field("effects", ApiTypes.list(ApiTypes.record("ActiveEffect",
+                    ApiField.field("effects", ApiTypes.list(ApiTypes.record(ActiveEffect.class, "ActiveEffect",
                             ApiField.field("id", CommonTypes.RESOURCE_ID).required().forGetter(ActiveEffect::id),
                             ApiField.field("amplifier", ApiTypes.integer()).required().forGetter(ActiveEffect::amplifier),
                             ApiField.field("durationTicks", ApiTypes.integer()).required().forGetter(ActiveEffect::durationTicks),
                             ActiveEffect::new), 256)).required().forGetter(Vitals::effects),
                     Vitals::new)).optional().forGetter(ClientPlayer::vitals),
-            ApiField.field("time", ApiTypes.record("WorldTime",
+            ApiField.field("time", ApiTypes.record(Time.class, "WorldTime",
                     ApiField.field("dayTime", ApiTypes.int64(Long.MIN_VALUE, Long.MAX_VALUE)).required().forGetter(Time::dayTime),
                     ApiField.field("dayOfWorld", ApiTypes.int64(Long.MIN_VALUE, Long.MAX_VALUE)).required().forGetter(Time::dayOfWorld),
                     ApiField.field("timeOfDay", ApiTypes.int64(0, 23_999)).required().forGetter(Time::timeOfDay),
@@ -261,7 +261,7 @@ public final class ClientContracts {
                     Time::new)).optional().forGetter(ClientPlayer::time),
             ApiField.field("gameMode", ApiTypes.string()).describe("survival, creative, adventure or spectator.")
                     .optional().forGetter(ClientPlayer::gameMode),
-            ApiField.field("attack", ApiTypes.record("ClientAttackReadiness",
+            ApiField.field("attack", ApiTypes.record(Attack.class, "ClientAttackReadiness",
                     ApiField.field("strengthScale", ApiTypes.number(0, 1))
                             .describe("The share of the weapon's damage a swing would land now.")
                             .required().forGetter(Attack::strengthScale),
@@ -271,7 +271,7 @@ public final class ClientContracts {
                     ApiField.field("fullCooldownTicks", COUNT).describe("The held weapon's whole recharge.")
                             .required().forGetter(Attack::fullCooldownTicks),
                     Attack::new)).optional().forGetter(ClientPlayer::attack),
-            ApiField.field("inventory", ApiTypes.record("ClientInventory",
+            ApiField.field("inventory", ApiTypes.record(Inventory.class, "ClientInventory",
                     ApiField.field("selectedSlot", ApiTypes.integer(0, 8)).required().forGetter(Inventory::selectedSlot),
                     ApiField.field("mainHand", STACK).describe("Absent when the hand is empty.")
                             .optional().forGetter(Inventory::mainHand),
@@ -300,7 +300,7 @@ public final class ClientContracts {
                               Optional<String> dayPhase, Optional<Boolean> skyExposed, Optional<Boolean> exposedAtNight,
                               Optional<Boolean> cornered, Optional<Integer> lethalCount, Optional<List<String>> rows) {}
 
-    public static final ApiType<ClientScene> CLIENT_SCENE = ApiTypes.record("ClientScene",
+    public static final ApiType<ClientScene> CLIENT_SCENE = ApiTypes.record(ClientScene.class, "ClientScene",
             ApiField.field("present", ApiTypes.bool()).required().forGetter(ClientScene::present),
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).optional().forGetter(ClientScene::pos),
             ApiField.field("health", ApiTypes.number()).optional().forGetter(ClientScene::health),
@@ -345,7 +345,7 @@ public final class ClientContracts {
 
     public record BlockScan(List<BlockRow> blocks, BlockPosition center, int radius, Optional<List<ChunkRef>> unloaded) {}
 
-    public static final ApiType<BlocksParams> BLOCKS_PARAMS = ApiTypes.record("ClientBlocksParams",
+    public static final ApiType<BlocksParams> BLOCKS_PARAMS = ApiTypes.record(BlocksParams.class, "ClientBlocksParams",
             ApiField.field("center", CommonTypes.BLOCK_POSITION).describe("Omitted: the player's feet.")
                     .optional().forGetter(BlocksParams::center),
             ApiField.field("radius", ApiTypes.integer(0, 16)).describe("Chebyshev radius.").defaulted(4)
@@ -354,8 +354,8 @@ public final class ClientContracts {
                     .optional().forGetter(BlocksParams::type),
             BlocksParams::new);
 
-    public static final ApiType<BlockScan> BLOCK_SCAN = ApiTypes.record("ClientBlockScan",
-            ApiField.field("blocks", ApiTypes.list(ApiTypes.record("ClientBlock",
+    public static final ApiType<BlockScan> BLOCK_SCAN = ApiTypes.record(BlockScan.class, "ClientBlockScan",
+            ApiField.field("blocks", ApiTypes.list(ApiTypes.record(BlockRow.class, "ClientBlock",
                     ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(BlockRow::pos),
                     ApiField.field("type", CommonTypes.RESOURCE_ID).required().forGetter(BlockRow::type),
                     ApiField.field("state", ApiTypes.map(ApiTypes.string(), 64))
@@ -364,7 +364,7 @@ public final class ClientContracts {
                     BlockRow::new), 40_000)).describe("Every non-air cell, air skipped.").required().forGetter(BlockScan::blocks),
             ApiField.field("center", CommonTypes.BLOCK_POSITION).required().forGetter(BlockScan::center),
             ApiField.field("radius", ApiTypes.integer(0, 16)).required().forGetter(BlockScan::radius),
-            ApiField.field("unloaded", ApiTypes.list(ApiTypes.record("ChunkRef",
+            ApiField.field("unloaded", ApiTypes.list(ApiTypes.record(ChunkRef.class, "ChunkRef",
                     ApiField.field("x", ApiTypes.integer()).required().forGetter(ChunkRef::x),
                     ApiField.field("z", ApiTypes.integer()).required().forGetter(ChunkRef::z),
                     ChunkRef::new), 64)).describe("Chunks the client has not loaded, whose cells read as air.")
@@ -407,7 +407,7 @@ public final class ClientContracts {
     private static final ApiType<ChatKind> CHAT_KIND = ApiTypes.enumOf("ChatKind", ChatKind.class);
     private static final ApiType<Long> SEQ = ApiTypes.int64(0, Long.MAX_VALUE);
 
-    private static final RecordType<ChatLine> CHAT_LINE = ApiTypes.record("ChatLine",
+    private static final RecordType<ChatLine> CHAT_LINE = ApiTypes.record(ChatLine.class, "ChatLine",
             ApiField.field("seq", SEQ).required().forGetter(ChatLine::seq),
             ApiField.field("kind", CHAT_KIND).required().forGetter(ChatLine::kind),
             ApiField.field("text", ApiTypes.string()).describe("Plain text, formatting stripped.").required().forGetter(ChatLine::text),
@@ -415,7 +415,7 @@ public final class ClientContracts {
                     .required().forGetter(ChatLine::self),
             ChatLine::new);
 
-    public static final ApiType<ChatSendParams> CHAT_SEND_PARAMS = ApiTypes.record("ChatSendParams",
+    public static final ApiType<ChatSendParams> CHAT_SEND_PARAMS = ApiTypes.record(ChatSendParams.class, "ChatSendParams",
             ApiField.field("text", ApiTypes.string(1, 256)).describe("A leading / sends it as a command.")
                     .required().forGetter(ChatSendParams::text),
             ApiField.field("awaitReplyMs", ApiTypes.integer(0, 30_000))
@@ -424,10 +424,10 @@ public final class ClientContracts {
             ChatSendParams::new);
 
     public static final MethodSpec<ChatSendParams, ClientReply> CHAT_SEND = MethodSpec.of("mc.client.chat.send", CHAT_SEND_PARAMS,
-                    reply("ChatSend", ChatSent.class, ApiTypes.record(null,
+                    reply("ChatSend", ChatSent.class, ApiTypes.record(ChatSent.class, null,
                             ApiField.field("kind", ApiTypes.enumOf("SentAs", SentAs.class)).required().forGetter(ChatSent::kind),
                             ApiField.field("length", COUNT).required().forGetter(ChatSent::length),
-                            ApiField.field("later", ApiTypes.record("LaterChat",
+                            ApiField.field("later", ApiTypes.record(LaterChat.class, "LaterChat",
                                     ApiField.field("lines", ApiTypes.list(CHAT_LINE, 512)).required().forGetter(LaterChat::lines),
                                     ApiField.field("timedOut", ApiTypes.bool()).describe("No line arrived within awaitReplyMs.")
                                             .required().forGetter(LaterChat::timedOut),
@@ -452,7 +452,7 @@ public final class ClientContracts {
     /** {@code nextSeq}: pass it as sinceSeq next time to read only the lines after these. */
     public record ChatHistory(long nextSeq, List<HistoryLine> messages) {}
 
-    public static final ApiType<ChatHistoryParams> CHAT_HISTORY_PARAMS = ApiTypes.record("ChatHistoryParams",
+    public static final ApiType<ChatHistoryParams> CHAT_HISTORY_PARAMS = ApiTypes.record(ChatHistoryParams.class, "ChatHistoryParams",
             ApiField.field("limit", ApiTypes.integer(1, 256)).describe("The newest this many lines.").defaulted(50)
                     .forGetter(ChatHistoryParams::limit),
             ApiField.field("sinceSeq", SEQ).describe("Only lines with seq at or after this.").defaulted(0L)
@@ -461,10 +461,10 @@ public final class ClientContracts {
 
     public static final MethodSpec<ChatHistoryParams, ChatHistory> CHAT_HISTORY = MethodSpec.of("mc.client.chat.history",
                     CHAT_HISTORY_PARAMS,
-                    ApiTypes.record("ChatHistory",
+                    ApiTypes.record(ChatHistory.class, "ChatHistory",
                             ApiField.field("nextSeq", SEQ).describe("The seq the next line will get; pass it as sinceSeq to poll.")
                                     .required().forGetter(ChatHistory::nextSeq),
-                            ApiField.field("messages", ApiTypes.list(ApiTypes.record("HistoryLine",
+                            ApiField.field("messages", ApiTypes.list(ApiTypes.record(HistoryLine.class, "HistoryLine",
                                     ApiField.field("seq", SEQ).required().forGetter(HistoryLine::seq),
                                     ApiField.field("kind", CHAT_KIND).required().forGetter(HistoryLine::kind),
                                     ApiField.field("text", ApiTypes.string()).required().forGetter(HistoryLine::text),
@@ -488,14 +488,14 @@ public final class ClientContracts {
                                   Optional<String> toastsError) {}
 
     public static final MethodSpec<OverlaysParams, OverlaysCleared> OVERLAYS = MethodSpec.of("mc.client.overlays",
-                    ApiTypes.record("OverlaysParams",
+                    ApiTypes.record(OverlaysParams.class, "OverlaysParams",
                             ApiField.field("tutorial", ApiTypes.bool())
                                     .describe("Turn the tutorial hints (Move with W,A,S,D…) off for good.")
                                     .defaulted(true).forGetter(OverlaysParams::tutorial),
                             ApiField.field("toasts", ApiTypes.bool()).describe("Clear the toast queue: advancements, recipes, system.")
                                     .defaulted(true).forGetter(OverlaysParams::toasts),
                             OverlaysParams::new),
-                    ApiTypes.record("OverlaysCleared",
+                    ApiTypes.record(OverlaysCleared.class, "OverlaysCleared",
                             ApiField.field("tutorial", ApiTypes.bool()).required().forGetter(OverlaysCleared::tutorial),
                             ApiField.field("toasts", ApiTypes.bool()).required().forGetter(OverlaysCleared::toasts),
                             ApiField.field("tutorialError", ApiTypes.string()).optional().forGetter(OverlaysCleared::tutorialError),
@@ -520,7 +520,7 @@ public final class ClientContracts {
     private static final ApiType<ImageFormat> IMAGE_FORMAT = ApiTypes.enumOf("ImageFormat", ImageFormat.class);
 
     public static final MethodSpec<ScreenshotParams, Screenshot> SCREENSHOT = MethodSpec.of("mc.client.screenshot",
-                    ApiTypes.record("ScreenshotParams",
+                    ApiTypes.record(ScreenshotParams.class, "ScreenshotParams",
                             ApiField.field("maxWidth", ApiTypes.integer(16, 8192)).describe("Shrink, keeping the aspect, to at most this wide.")
                                     .optional().forGetter(ScreenshotParams::maxWidth),
                             ApiField.field("maxHeight", ApiTypes.integer(16, 8192)).describe("Shrink, keeping the aspect, to at most this high.")
@@ -529,7 +529,7 @@ public final class ClientContracts {
                             ApiField.field("quality", ApiTypes.integer(1, 100)).describe("JPEG only.").defaulted(85)
                                     .forGetter(ScreenshotParams::quality),
                             ScreenshotParams::new),
-                    ApiTypes.record("Screenshot",
+                    ApiTypes.record(Screenshot.class, "Screenshot",
                             ApiField.field("format", IMAGE_FORMAT).required().forGetter(Screenshot::format),
                             ApiField.field("width", COUNT).required().forGetter(Screenshot::width),
                             ApiField.field("height", COUNT).required().forGetter(Screenshot::height),

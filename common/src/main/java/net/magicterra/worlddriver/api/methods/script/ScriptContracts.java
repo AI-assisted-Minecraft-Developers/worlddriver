@@ -73,13 +73,13 @@ public final class ScriptContracts {
         return ApiTypes.stringEnum("ScriptExecution", words.toArray(String[]::new));
     }
 
-    private static final ApiType<Issue> ISSUE = ApiTypes.record("ScriptIssue",
+    private static final ApiType<Issue> ISSUE = ApiTypes.record(Issue.class, "ScriptIssue",
             ApiField.field("path", ApiTypes.string()).required().forGetter(Issue::path),
             ApiField.field("code", issueCode()).required().forGetter(Issue::code),
             ApiField.field("message", ApiTypes.string()).required().forGetter(Issue::message),
             Issue::new);
 
-    public static final ApiType<ScriptError> SCRIPT_ERROR_TYPE = ApiTypes.record("ScriptError",
+    public static final ApiType<ScriptError> SCRIPT_ERROR_TYPE = ApiTypes.record(ScriptError.class, "ScriptError",
             ApiField.field("code", errorCode()).required().forGetter(ScriptError::code),
             ApiField.field("message", ApiTypes.string()).required().forGetter(ScriptError::message),
             ApiField.field("issues", ApiTypes.list(ISSUE, Integer.MAX_VALUE)).required().forGetter(ScriptError::issues),
@@ -93,7 +93,7 @@ public final class ScriptContracts {
 
     private static final ApiType<List<String>> LOG = ApiTypes.list(ApiTypes.string(), Integer.MAX_VALUE);
 
-    public static final ApiType<Outcome> OUTCOME = ApiTypes.record("ScriptOutcome",
+    public static final ApiType<Outcome> OUTCOME = ApiTypes.record(Outcome.class, "ScriptOutcome",
             ApiField.field("runId", RUN_ID).required().forGetter(Outcome::runId),
             ApiField.field("result", ApiTypes.json()).describe("Absent when the value is null or undefined, or the script failed.")
                     .optional().forGetter(Outcome::result),
@@ -111,7 +111,7 @@ public final class ScriptContracts {
 
     public record EvalParams(String source, int timeoutMs) {}
 
-    public static final ApiType<EvalParams> EVAL_PARAMS = ApiTypes.record("EvalParams",
+    public static final ApiType<EvalParams> EVAL_PARAMS = ApiTypes.record(EvalParams.class, "EvalParams",
             ApiField.field("source", SOURCE).describe("JavaScript. The value of its last expression is the result.")
                     .required().forGetter(EvalParams::source),
             ApiField.field("timeoutMs", TIMEOUT_MS).describe("The run's budget; when it runs out the run is stopped.")
@@ -143,21 +143,21 @@ public final class ScriptContracts {
     public record DeleteSkill(String name) implements SkillOp {}
 
     public static final UnionType<SkillOp> SKILL_PARAMS = ApiTypes.taggedUnion("SkillParams", "op",
-            ApiTypes.variant("save", SaveSkill.class, ApiTypes.record(null,
+            ApiTypes.variant("save", SaveSkill.class, ApiTypes.record(SaveSkill.class, null,
                     ApiField.field("name", SKILL_NAME).required().forGetter(SaveSkill::name),
                     ApiField.field("source", SOURCE).describe("Checked for syntax before it is saved; reads its args from SKILL.")
                             .required().forGetter(SaveSkill::source),
                     SaveSkill::new)),
-            ApiTypes.variant("list", ListSkills.class, ApiTypes.record(null, ListSkills::new)),
-            ApiTypes.variant("get", GetSkill.class, ApiTypes.record(null,
+            ApiTypes.variant("list", ListSkills.class, ApiTypes.record(ListSkills.class, null, ListSkills::new)),
+            ApiTypes.variant("get", GetSkill.class, ApiTypes.record(GetSkill.class, null,
                     ApiField.field("name", SKILL_NAME).required().forGetter(GetSkill::name), GetSkill::new)),
-            ApiTypes.variant("run", RunSkill.class, ApiTypes.record(null,
+            ApiTypes.variant("run", RunSkill.class, ApiTypes.record(RunSkill.class, null,
                     ApiField.field("name", SKILL_NAME).required().forGetter(RunSkill::name),
                     ApiField.field("args", ApiTypes.json()).describe("The SKILL global. Omitted: an empty object.")
                             .optional().forGetter(RunSkill::args),
                     ApiField.field("timeoutMs", TIMEOUT_MS).defaulted(DEFAULT_TIMEOUT_MS).forGetter(RunSkill::timeoutMs),
                     RunSkill::new)),
-            ApiTypes.variant("delete", DeleteSkill.class, ApiTypes.record(null,
+            ApiTypes.variant("delete", DeleteSkill.class, ApiTypes.record(DeleteSkill.class, null,
                     ApiField.field("name", SKILL_NAME).required().forGetter(DeleteSkill::name), DeleteSkill::new)));
 
     public sealed interface SkillReply permits SkillSaved, SkillList, SkillSource, SkillRan, SkillDeleted {}
@@ -168,29 +168,29 @@ public final class ScriptContracts {
     public record SkillRan(String name, Outcome outcome) implements SkillReply {}
     public record SkillDeleted(String name, boolean existed) implements SkillReply {}
 
-    private static final ApiType<SkillEntry> SKILL_ENTRY = ApiTypes.record("SkillEntry",
+    private static final ApiType<SkillEntry> SKILL_ENTRY = ApiTypes.record(SkillEntry.class, "SkillEntry",
             ApiField.field("name", SKILL_NAME).required().forGetter(SkillEntry::name),
             ApiField.field("bytes", ApiTypes.int64(0, Long.MAX_VALUE)).required().forGetter(SkillEntry::bytes),
             SkillEntry::new);
 
     public static final UnionType<SkillReply> SKILL_REPLY = ApiTypes.taggedUnion("SkillReply", "op",
-            ApiTypes.variant("save", SkillSaved.class, ApiTypes.record(null,
+            ApiTypes.variant("save", SkillSaved.class, ApiTypes.record(SkillSaved.class, null,
                     ApiField.field("name", SKILL_NAME).required().forGetter(SkillSaved::name),
                     ApiField.field("bytes", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(SkillSaved::bytes),
                     SkillSaved::new)),
-            ApiTypes.variant("list", SkillList.class, ApiTypes.record(null,
+            ApiTypes.variant("list", SkillList.class, ApiTypes.record(SkillList.class, null,
                     ApiField.field("skills", ApiTypes.list(SKILL_ENTRY, Integer.MAX_VALUE)).describe("By name.")
                             .required().forGetter(SkillList::skills),
                     SkillList::new)),
-            ApiTypes.variant("get", SkillSource.class, ApiTypes.record(null,
+            ApiTypes.variant("get", SkillSource.class, ApiTypes.record(SkillSource.class, null,
                     ApiField.field("name", SKILL_NAME).required().forGetter(SkillSource::name),
                     ApiField.field("source", ApiTypes.string()).required().forGetter(SkillSource::source),
                     SkillSource::new)),
-            ApiTypes.variant("run", SkillRan.class, ApiTypes.record(null,
+            ApiTypes.variant("run", SkillRan.class, ApiTypes.record(SkillRan.class, null,
                     ApiField.field("name", SKILL_NAME).required().forGetter(SkillRan::name),
                     ApiField.field("outcome", OUTCOME).required().forGetter(SkillRan::outcome),
                     SkillRan::new)),
-            ApiTypes.variant("delete", SkillDeleted.class, ApiTypes.record(null,
+            ApiTypes.variant("delete", SkillDeleted.class, ApiTypes.record(SkillDeleted.class, null,
                     ApiField.field("name", SKILL_NAME).required().forGetter(SkillDeleted::name),
                     ApiField.field("existed", ApiTypes.bool()).required().forGetter(SkillDeleted::existed),
                     SkillDeleted::new)));
@@ -214,7 +214,7 @@ public final class ScriptContracts {
     public record CancelPlaybook() implements PlaybookOp {}
 
     public static final UnionType<PlaybookOp> PLAYBOOK_PARAMS = ApiTypes.taggedUnion("PlaybookParams", "op",
-            ApiTypes.variant("start", StartPlaybook.class, ApiTypes.record(null,
+            ApiTypes.variant("start", StartPlaybook.class, ApiTypes.record(StartPlaybook.class, null,
                     ApiField.field("name", PLAYBOOK_NAME).describe("Built in: dragon, wither.").required()
                             .forGetter(StartPlaybook::name),
                     ApiField.field("budgetMs", ApiTypes.integer(1, MAX_PLAYBOOK_BUDGET_MS))
@@ -225,8 +225,8 @@ public final class ScriptContracts {
                                     + "(default true; false only checks the gear). Omitted: an empty object.")
                             .optional().forGetter(StartPlaybook::args),
                     StartPlaybook::new)),
-            ApiTypes.variant("status", PlaybookStatus.class, ApiTypes.record(null, PlaybookStatus::new)),
-            ApiTypes.variant("cancel", CancelPlaybook.class, ApiTypes.record(null, CancelPlaybook::new)));
+            ApiTypes.variant("status", PlaybookStatus.class, ApiTypes.record(PlaybookStatus.class, null, PlaybookStatus::new)),
+            ApiTypes.variant("cancel", CancelPlaybook.class, ApiTypes.record(CancelPlaybook.class, null, CancelPlaybook::new)));
 
     public sealed interface PlaybookReply permits PlaybookStarted, PlaybookState, PlaybookCancelled {}
     public record PlaybookStarted(String name, String runId) implements PlaybookReply {}
@@ -242,11 +242,11 @@ public final class ScriptContracts {
     public record PlaybookCancelled(Optional<String> stopped) implements PlaybookReply {}
 
     public static final UnionType<PlaybookReply> PLAYBOOK_REPLY = ApiTypes.taggedUnion("PlaybookReply", "op",
-            ApiTypes.variant("start", PlaybookStarted.class, ApiTypes.record(null,
+            ApiTypes.variant("start", PlaybookStarted.class, ApiTypes.record(PlaybookStarted.class, null,
                     ApiField.field("name", PLAYBOOK_NAME).required().forGetter(PlaybookStarted::name),
                     ApiField.field("runId", RUN_ID).required().forGetter(PlaybookStarted::runId),
                     PlaybookStarted::new)),
-            ApiTypes.variant("status", PlaybookState.class, ApiTypes.record(null,
+            ApiTypes.variant("status", PlaybookState.class, ApiTypes.record(PlaybookState.class, null,
                     ApiField.field("active", ApiTypes.bool()).required().forGetter(PlaybookState::active),
                     ApiField.field("name", PLAYBOOK_NAME).optional().forGetter(PlaybookState::name),
                     ApiField.field("runId", RUN_ID).optional().forGetter(PlaybookState::runId),
@@ -256,7 +256,7 @@ public final class ScriptContracts {
                             .required().forGetter(PlaybookState::stopping),
                     ApiField.field("outcome", OUTCOME).optional().forGetter(PlaybookState::outcome),
                     PlaybookState::new)),
-            ApiTypes.variant("cancel", PlaybookCancelled.class, ApiTypes.record(null,
+            ApiTypes.variant("cancel", PlaybookCancelled.class, ApiTypes.record(PlaybookCancelled.class, null,
                     ApiField.field("stopped", RUN_ID).optional().forGetter(PlaybookCancelled::stopped),
                     PlaybookCancelled::new)));
 

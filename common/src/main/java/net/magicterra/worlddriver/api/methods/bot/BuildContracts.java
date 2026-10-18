@@ -44,7 +44,7 @@ public final class BuildContracts {
     public record Built(BlockPosition origin, Size size, int blocks, int placed, int skipped) {}
 
     public static final UnionType<Schematic> SCHEMATIC = ApiTypes.taggedUnion("Schematic", "kind",
-            ApiTypes.variant("blocks", Blocks.class, ApiTypes.record(null,
+            ApiTypes.variant("blocks", Blocks.class, ApiTypes.record(Blocks.class, null,
                     ApiField.field("w", ApiTypes.integer(1, MAX_SCHEMATIC_CELLS)).describe("X extent.").required().forGetter(Blocks::w),
                     ApiField.field("h", ApiTypes.integer(1, MAX_SCHEMATIC_CELLS)).describe("Y extent.").required().forGetter(Blocks::h),
                     ApiField.field("d", ApiTypes.integer(1, MAX_SCHEMATIC_CELLS)).describe("Z extent.").required().forGetter(Blocks::d),
@@ -72,12 +72,12 @@ public final class BuildContracts {
                             }
                         }
                     })),
-            ApiTypes.variant("sponge", Sponge.class, ApiTypes.record(null,
+            ApiTypes.variant("sponge", Sponge.class, ApiTypes.record(Sponge.class, null,
                     ApiField.field("base64", ApiTypes.pattern("[A-Za-z0-9+/=\\s]+", "base64").maxLength(8_000_000))
                             .required().forGetter(Sponge::base64),
                     Sponge::new)));
 
-    public static final ApiType<BuildParams> BUILD_PARAMS = ApiTypes.record("BuildParams",
+    public static final ApiType<BuildParams> BUILD_PARAMS = ApiTypes.record(BuildParams.class, "BuildParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(BuildParams::bot),
             ApiField.field("origin", CommonTypes.BLOCK_POSITION).describe("Where offset 0,0,0 goes.")
                     .required().forGetter(BuildParams::origin),
@@ -85,14 +85,14 @@ public final class BuildContracts {
             ApiField.field("awaitMs", Responses.AWAIT_MS).defaulted(0).forGetter(BuildParams::awaitMs),
             BuildParams::new);
 
-    private static final ApiType<Size> SIZE = ApiTypes.record("SchematicSize",
+    private static final ApiType<Size> SIZE = ApiTypes.record(Size.class, "SchematicSize",
             ApiField.field("w", ApiTypes.integer(1, Integer.MAX_VALUE)).required().forGetter(Size::w),
             ApiField.field("h", ApiTypes.integer(1, Integer.MAX_VALUE)).required().forGetter(Size::h),
             ApiField.field("d", ApiTypes.integer(1, Integer.MAX_VALUE)).required().forGetter(Size::d),
             Size::new);
 
     public static final UnionType<Built> BUILD_RESULT = ApiTypes.taggedUnion("BuildResult", "kind",
-            ApiTypes.variant("build", Built.class, ApiTypes.record(null,
+            ApiTypes.variant("build", Built.class, ApiTypes.record(Built.class, null,
                     ApiField.field("origin", CommonTypes.BLOCK_POSITION).required().forGetter(Built::origin),
                     ApiField.field("size", SIZE).required().forGetter(Built::size),
                     ApiField.field("blocks", ApiTypes.integer(0, Integer.MAX_VALUE)).describe("Blocks to place, air excluded.")
@@ -143,7 +143,7 @@ public final class BuildContracts {
             .describe("The block to place. Omitted: the first block item in the hotbar.");
 
     public static final UnionType<Construction> CONSTRUCTION = ApiTypes.taggedUnion("Construction", "kind",
-            ApiTypes.variant("tower", Tower.class, ApiTypes.record(null,
+            ApiTypes.variant("tower", Tower.class, ApiTypes.record(Tower.class, null,
                     ApiField.field("height", ApiTypes.integer(1, 256)).describe("Blocks above the feet.")
                             .optional().forGetter(Tower::height),
                     ApiField.field("targetY", ApiTypes.integer()).describe("Feet Y to reach, above the current one by at most 256.")
@@ -157,14 +157,14 @@ public final class BuildContracts {
                                     "give exactly one of height and targetY");
                         }
                     })),
-            ApiTypes.variant("bridge", Bridge.class, ApiTypes.record(null,
+            ApiTypes.variant("bridge", Bridge.class, ApiTypes.record(Bridge.class, null,
                     ApiField.field("direction", BRIDGE_DIRECTION).defaulted(BridgeDirection.FORWARD).forGetter(Bridge::direction),
                     ApiField.field("distance", ApiTypes.integer(1, 64)).describe("Cells to advance.")
                             .required().forGetter(Bridge::distance),
                     ApiField.field("block", PLACE_BLOCK).optional().forGetter(Bridge::block),
                     Bridge::new)));
 
-    public static final ApiType<ConstructParams> CONSTRUCT_PARAMS = ApiTypes.record("ConstructParams",
+    public static final ApiType<ConstructParams> CONSTRUCT_PARAMS = ApiTypes.record(ConstructParams.class, "ConstructParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(ConstructParams::bot),
             ApiField.field("structure", CONSTRUCTION)
                     .describe("tower: pillar straight up. bridge: sneak forward placing a block under each step.")
@@ -173,13 +173,13 @@ public final class BuildContracts {
             ConstructParams::new);
 
     public static final UnionType<Constructed> CONSTRUCT_RESULT = ApiTypes.taggedUnion("ConstructResult", "kind",
-            ApiTypes.variant("tower", Towered.class, ApiTypes.record(null,
+            ApiTypes.variant("tower", Towered.class, ApiTypes.record(Towered.class, null,
                     ApiField.field("startY", ApiTypes.integer()).required().forGetter(Towered::startY),
                     ApiField.field("targetY", ApiTypes.integer()).required().forGetter(Towered::targetY),
                     ApiField.field("block", CommonTypes.RESOURCE_ID).optional().forGetter(Towered::block),
                     ApiField.field("placed", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Towered::placed),
                     Towered::new)),
-            ApiTypes.variant("bridge", Bridged.class, ApiTypes.record(null,
+            ApiTypes.variant("bridge", Bridged.class, ApiTypes.record(Bridged.class, null,
                     ApiField.field("direction", BRIDGE_DIRECTION).required().forGetter(Bridged::direction),
                     ApiField.field("face", COMPASS).describe("The compass direction it was resolved to.")
                             .required().forGetter(Bridged::face),
@@ -202,7 +202,7 @@ public final class BuildContracts {
     /** {@code sealed}: the roof was plugged; a bunker that dug but could not seal ends as failed. */
     public record Bunkered(int depth, boolean sealed) {}
 
-    public static final ApiType<BunkerParams> BUNKER_PARAMS = ApiTypes.record("BunkerParams",
+    public static final ApiType<BunkerParams> BUNKER_PARAMS = ApiTypes.record(BunkerParams.class, "BunkerParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(BunkerParams::bot),
             ApiField.field("depth", ApiTypes.integer(1, 5)).describe("Blocks to dig down. Omitted: the bunkerDepth setting.")
                     .optional().forGetter(BunkerParams::depth),
@@ -210,7 +210,7 @@ public final class BuildContracts {
             BunkerParams::new);
 
     public static final UnionType<Bunkered> BUNKER_RESULT = ApiTypes.taggedUnion("BunkerResult", "kind",
-            ApiTypes.variant("bunker", Bunkered.class, ApiTypes.record(null,
+            ApiTypes.variant("bunker", Bunkered.class, ApiTypes.record(Bunkered.class, null,
                     ApiField.field("depth", ApiTypes.integer(1, 5)).required().forGetter(Bunkered::depth),
                     ApiField.field("sealed", ApiTypes.bool()).required().forGetter(Bunkered::sealed),
                     Bunkered::new)));
@@ -235,7 +235,7 @@ public final class BuildContracts {
     /** {@code y}: the feet Y it ended at. */
     public record Escaped(Vertical direction, int targetY, int y) {}
 
-    public static final ApiType<EscapeParams> ESCAPE_PARAMS = ApiTypes.record("EscapeParams",
+    public static final ApiType<EscapeParams> ESCAPE_PARAMS = ApiTypes.record(EscapeParams.class, "EscapeParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(EscapeParams::bot),
             ApiField.field("targetY", ApiTypes.integer(-4096, 4096))
                     .describe("Feet Y to reach. Below the feet digs a stair down instead. Omitted: 32 above the feet; "
@@ -245,7 +245,7 @@ public final class BuildContracts {
             EscapeParams::new);
 
     public static final UnionType<Escaped> ESCAPE_RESULT = ApiTypes.taggedUnion("EscapeResult", "kind",
-            ApiTypes.variant("escape", Escaped.class, ApiTypes.record(null,
+            ApiTypes.variant("escape", Escaped.class, ApiTypes.record(Escaped.class, null,
                     ApiField.field("direction", ApiTypes.enumOf("Vertical", Vertical.class)).required().forGetter(Escaped::direction),
                     ApiField.field("targetY", ApiTypes.integer()).required().forGetter(Escaped::targetY),
                     ApiField.field("y", ApiTypes.integer()).required().forGetter(Escaped::y),

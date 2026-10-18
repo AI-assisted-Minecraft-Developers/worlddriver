@@ -45,14 +45,14 @@ public final class ActionContracts {
     public record CommandResult(boolean ok, Optional<Via> via, Optional<String> error, boolean success, int value,
                                 List<String> feedback, Optional<List<EventContracts.Event>> events) {}
 
-    public static final ApiType<CommandParams> COMMAND_PARAMS = ApiTypes.record("RunCommandParams",
+    public static final ApiType<CommandParams> COMMAND_PARAMS = ApiTypes.record(CommandParams.class, "RunCommandParams",
             ApiField.field("cmd", ApiTypes.string(1, 32_767)).describe("The command, leading slash optional.")
                     .required().forGetter(CommandParams::cmd),
             ApiField.field("returnEvents", ApiTypes.bool()).describe(WorldContracts.RETURN_EVENTS).defaulted(false)
                     .forGetter(CommandParams::returnEvents),
             CommandParams::new);
 
-    public static final ApiType<CommandResult> COMMAND_RESULT = ApiTypes.record("CommandResult",
+    public static final ApiType<CommandResult> COMMAND_RESULT = ApiTypes.record(CommandResult.class, "CommandResult",
             ApiField.field("ok", ApiTypes.bool()).describe("Dispatched without throwing.").required().forGetter(CommandResult::ok),
             ApiField.field("via", ApiTypes.enumOf("CommandVia", Via.class))
                     .describe("fast-path: a plain setblock written directly, emitting block.place or block.break.")
@@ -79,7 +79,7 @@ public final class ActionContracts {
 
     public record Filled(int placed, Optional<List<EventContracts.Event>> events) {}
 
-    public static final ApiType<FillParams> FILL_PARAMS = ApiTypes.record("FillParams",
+    public static final ApiType<FillParams> FILL_PARAMS = ApiTypes.record(FillParams.class, "FillParams",
             ApiField.field("from", CommonTypes.BLOCK_POSITION).describe("A corner, inclusive.").required().forGetter(FillParams::from),
             ApiField.field("to", CommonTypes.BLOCK_POSITION).describe("The opposite corner, inclusive.").required().forGetter(FillParams::to),
             ApiField.field("type", CommonTypes.RESOURCE_ID).describe("A block id.").required().forGetter(FillParams::type),
@@ -88,7 +88,7 @@ public final class ActionContracts {
             FillParams::new)
             .checked((p, at) -> WorldContracts.withinVolume(p.from(), p.to(), at));
 
-    public static final ApiType<Filled> FILLED = ApiTypes.record("Filled",
+    public static final ApiType<Filled> FILLED = ApiTypes.record(Filled.class, "Filled",
             ApiField.field("placed", COUNT).required().forGetter(Filled::placed),
             ApiField.field("events", WorldContracts.EVENTS).optional().forGetter(Filled::events),
             Filled::new);
@@ -107,8 +107,8 @@ public final class ActionContracts {
 
     public record Placed(int placed, Optional<List<EventContracts.Event>> events) {}
 
-    public static final ApiType<PlaceManyParams> PLACE_MANY_PARAMS = ApiTypes.record("PlaceManyParams",
-            ApiField.field("blocks", ApiTypes.list(ApiTypes.record("Placement",
+    public static final ApiType<PlaceManyParams> PLACE_MANY_PARAMS = ApiTypes.record(PlaceManyParams.class, "PlaceManyParams",
+            ApiField.field("blocks", ApiTypes.list(ApiTypes.record(Placement.class, "Placement",
                             ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(Placement::pos),
                             ApiField.field("type", CommonTypes.RESOURCE_ID).describe("A block id.").required().forGetter(Placement::type),
                             Placement::new), 1, 4096))
@@ -118,7 +118,7 @@ public final class ActionContracts {
                     .forGetter(PlaceManyParams::returnEvents),
             PlaceManyParams::new);
 
-    public static final ApiType<Placed> PLACED = ApiTypes.record("Placed",
+    public static final ApiType<Placed> PLACED = ApiTypes.record(Placed.class, "Placed",
             ApiField.field("placed", COUNT).required().forGetter(Placed::placed),
             ApiField.field("events", WorldContracts.EVENTS).optional().forGetter(Placed::events),
             Placed::new);

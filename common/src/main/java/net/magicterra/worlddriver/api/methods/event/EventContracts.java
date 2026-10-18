@@ -46,7 +46,7 @@ public final class EventContracts {
         return ApiTypes.string(1, 128);
     }
 
-    public static final RecordType<Event> EVENT = ApiTypes.record("DriverEvent",
+    public static final RecordType<Event> EVENT = ApiTypes.record(Event.class, "DriverEvent",
             ApiField.field("seq", ApiTypes.int64String(1))
                     .describe("Its place in the stream, increasing by one per event; a decimal string.")
                     .required().forGetter(Event::seq),
@@ -67,8 +67,8 @@ public final class EventContracts {
     public record Cursor(long cursor) {}
 
     public static final MethodSpec<CommonTypes.NoParams, Cursor> CURSOR = MethodSpec.of("mc.observe.cursor",
-                    ApiTypes.record("CursorParams", CommonTypes.NoParams::new),
-                    ApiTypes.record("Cursor",
+                    ApiTypes.record(CommonTypes.NoParams.class, "CursorParams", CommonTypes.NoParams::new),
+                    ApiTypes.record(Cursor.class, "Cursor",
                             ApiField.field("cursor", cursor()).describe("The seq of the newest event so far.")
                                     .required().forGetter(Cursor::cursor),
                             Cursor::new),
@@ -89,14 +89,14 @@ public final class EventContracts {
     public record Page(List<Event> events, long cursor) {}
 
     public static final MethodSpec<SinceParams, Page> EVENTS_SINCE = MethodSpec.of("mc.observe.eventsSince",
-                    ApiTypes.record("EventsSinceParams",
+                    ApiTypes.record(SinceParams.class, "EventsSinceParams",
                             ApiField.field("cursor", cursor()).describe("Events after this seq; \"0\" for all retained.")
                                     .defaulted(0L).forGetter(SinceParams::cursor),
                             ApiField.field("types", typeFilter()).describe("Only these types; omit or [] for every type.")
                                     .optional().forGetter(SinceParams::types),
                             ApiField.field("limit", ApiTypes.integer(1, 4096)).defaulted(256).forGetter(SinceParams::limit),
                             SinceParams::new),
-                    ApiTypes.record("EventPage",
+                    ApiTypes.record(Page.class, "EventPage",
                             ApiField.field("events", ApiTypes.list(EVENT, 4096)).describe("Oldest first.")
                                     .required().forGetter(Page::events),
                             ApiField.field("cursor", cursor()).describe("Pass back as the next call's cursor.")
@@ -156,7 +156,7 @@ public final class EventContracts {
 
     public static final ApiType<Integer> WATCHER_ID = ApiTypes.integer(1, Integer.MAX_VALUE);
 
-    private static final RecordType<Watch> WATCH_FIELDS = ApiTypes.record(null,
+    private static final RecordType<Watch> WATCH_FIELDS = ApiTypes.record(Watch.class, null,
             ApiField.field("invoke", pollTarget())
                     .describe("A pollable method (mc.bot.status, mc.observe.*, …); writes, scripts and waits are refused.")
                     .required().forGetter(Watch::invoke),
@@ -185,19 +185,19 @@ public final class EventContracts {
             });
 
     public static final UnionType<EventsOp> EVENTS_PARAMS = ApiTypes.taggedUnion("EventsParams", "op",
-            ApiTypes.variant("emit", Emit.class, ApiTypes.record(null,
+            ApiTypes.variant("emit", Emit.class, ApiTypes.record(Emit.class, null,
                     ApiField.field("type", eventType()).required().forGetter(Emit::type),
                     ApiField.field("data", ApiTypes.json()).describe("Any JSON payload; omitted: none.")
                             .optional().forGetter(Emit::data),
                     ApiField.field("pos", CommonTypes.BLOCK_POSITION).optional().forGetter(Emit::pos),
                     Emit::new)),
             ApiTypes.variant("watch", Watch.class, WATCH_FIELDS),
-            ApiTypes.variant("unwatch", Unwatch.class, ApiTypes.record(null,
+            ApiTypes.variant("unwatch", Unwatch.class, ApiTypes.record(Unwatch.class, null,
                     ApiField.field("id", WATCHER_ID).required().forGetter(Unwatch::id),
                     Unwatch::new)),
-            ApiTypes.variant("list", ListWatchers.class, ApiTypes.record(null, ListWatchers::new)));
+            ApiTypes.variant("list", ListWatchers.class, ApiTypes.record(ListWatchers.class, null, ListWatchers::new)));
 
-    private static final RecordType<Watcher> WATCHER = ApiTypes.record("EventWatcher",
+    private static final RecordType<Watcher> WATCHER = ApiTypes.record(Watcher.class, "EventWatcher",
             ApiField.field("id", WATCHER_ID).required().forGetter(Watcher::id),
             ApiField.field("invoke", ApiTypes.string(1, 128)).required().forGetter(Watcher::invoke),
             ApiField.field("field", ApiTypes.string(1, 256)).optional().forGetter(Watcher::field),
@@ -208,21 +208,21 @@ public final class EventContracts {
             Watcher::new);
 
     public static final UnionType<EventsReply> EVENTS_REPLY = ApiTypes.taggedUnion("EventsReply", "op",
-            ApiTypes.variant("emit", Emitted.class, ApiTypes.record(null,
+            ApiTypes.variant("emit", Emitted.class, ApiTypes.record(Emitted.class, null,
                     ApiField.field("seq", ApiTypes.int64String(1)).required().forGetter(Emitted::seq),
                     ApiField.field("type", eventType()).required().forGetter(Emitted::type),
                     Emitted::new)),
-            ApiTypes.variant("watch", Watching.class, ApiTypes.record(null,
+            ApiTypes.variant("watch", Watching.class, ApiTypes.record(Watching.class, null,
                     ApiField.field("id", WATCHER_ID).required().forGetter(Watching::id),
                     ApiField.field("invoke", ApiTypes.string(1, 128)).required().forGetter(Watching::invoke),
                     ApiField.field("emitAs", eventType()).required().forGetter(Watching::emitAs),
                     ApiField.field("everyMs", ApiTypes.integer(200, 60_000)).required().forGetter(Watching::everyMs),
                     Watching::new)),
-            ApiTypes.variant("unwatch", Unwatched.class, ApiTypes.record(null,
+            ApiTypes.variant("unwatch", Unwatched.class, ApiTypes.record(Unwatched.class, null,
                     ApiField.field("removed", ApiTypes.bool()).describe("False when no such watcher was alive.")
                             .required().forGetter(Unwatched::removed),
                     Unwatched::new)),
-            ApiTypes.variant("list", Watchers.class, ApiTypes.record(null,
+            ApiTypes.variant("list", Watchers.class, ApiTypes.record(Watchers.class, null,
                     ApiField.field("watchers", ApiTypes.list(WATCHER, MAX_WATCHERS)).required().forGetter(Watchers::watchers),
                     ApiField.field("count", ApiTypes.integer(0, MAX_WATCHERS)).required().forGetter(Watchers::count),
                     Watchers::new)));

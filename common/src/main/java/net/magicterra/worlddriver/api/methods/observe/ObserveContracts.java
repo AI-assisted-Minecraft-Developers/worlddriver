@@ -84,14 +84,14 @@ public final class ObserveContracts {
 
     public record ClientView(Crosshair hit, int fps) {}
 
-    public static final ApiType<Effect> EFFECT = ApiTypes.record("MobEffect",
+    public static final ApiType<Effect> EFFECT = ApiTypes.record(Effect.class, "MobEffect",
             ApiField.field("id", ApiTypes.string()).required().forGetter(Effect::id),
             ApiField.field("amplifier", ApiTypes.integer()).required().forGetter(Effect::amplifier),
             ApiField.field("durationTicks", ApiTypes.integer()).describe("-1: infinite.")
                     .required().forGetter(Effect::durationTicks),
             Effect::new);
 
-    public static final ApiType<Item> ITEM = ApiTypes.record("PlayerItem",
+    public static final ApiType<Item> ITEM = ApiTypes.record(Item.class, "PlayerItem",
             ApiField.field("id", CommonTypes.RESOURCE_ID).required().forGetter(Item::id),
             ApiField.field("count", COUNT).required().forGetter(Item::count),
             ApiField.field("maxDamage", COUNT).optional().forGetter(Item::maxDamage),
@@ -101,7 +101,7 @@ public final class ObserveContracts {
                     .optional().forGetter(Item::durability),
             Item::new);
 
-    private static final ApiType<InventorySlot> INVENTORY_SLOT = ApiTypes.record("PlayerInventorySlot",
+    private static final ApiType<InventorySlot> INVENTORY_SLOT = ApiTypes.record(InventorySlot.class, "PlayerInventorySlot",
             ApiField.field("slot", COUNT).describe("Vanilla index: 0–8 hotbar, 9–35 main, 36–39 armor, 40 offhand.")
                     .required().forGetter(InventorySlot::slot),
             ApiField.field("id", CommonTypes.RESOURCE_ID).required().forGetter(InventorySlot::id),
@@ -111,12 +111,12 @@ public final class ObserveContracts {
             ApiField.field("durability", ApiTypes.integer()).optional().forGetter(InventorySlot::durability),
             InventorySlot::new);
 
-    private static final RecordType<Look> LOOK = ApiTypes.record("Look",
+    private static final RecordType<Look> LOOK = ApiTypes.record(Look.class, "Look",
             ApiField.field("yaw", ApiTypes.number()).required().forGetter(Look::yaw),
             ApiField.field("pitch", ApiTypes.number()).required().forGetter(Look::pitch),
             Look::new);
 
-    private static final ApiType<BodyState> BODY_STATE = ApiTypes.record("PlayerBodyState",
+    private static final ApiType<BodyState> BODY_STATE = ApiTypes.record(BodyState.class, "PlayerBodyState",
             ApiField.field("onGround", ApiTypes.bool()).required().forGetter(BodyState::onGround),
             ApiField.field("eyePos", CommonTypes.POINT).required().forGetter(BodyState::eyePos),
             ApiField.field("pose", ApiTypes.string()).describe("STANDING, CROUCHING, SWIMMING, FALL_FLYING, SLEEPING, …")
@@ -129,7 +129,7 @@ public final class ObserveContracts {
             ApiField.field("feetBlock", CommonTypes.RESOURCE_ID).required().forGetter(BodyState::feetBlock),
             BodyState::new);
 
-    private static final ApiType<Vitals> VITALS = ApiTypes.record("Vitals",
+    private static final ApiType<Vitals> VITALS = ApiTypes.record(Vitals.class, "Vitals",
             ApiField.field("health", ApiTypes.number()).required().forGetter(Vitals::health),
             ApiField.field("maxHealth", ApiTypes.number()).required().forGetter(Vitals::maxHealth),
             ApiField.field("air", ApiTypes.integer()).describe("Ticks of breath left; drowning starts below 0.")
@@ -140,7 +140,7 @@ public final class ObserveContracts {
             ApiField.field("xpLevel", ApiTypes.integer()).required().forGetter(Vitals::xpLevel),
             Vitals::new);
 
-    private static final ApiType<TimeOfDay> TIME = ApiTypes.record("TimeOfDay",
+    private static final ApiType<TimeOfDay> TIME = ApiTypes.record(TimeOfDay.class, "TimeOfDay",
             ApiField.field("dayTime", ApiTypes.int64(Long.MIN_VALUE, Long.MAX_VALUE)).describe("The world's raw day time.")
                     .required().forGetter(TimeOfDay::dayTime),
             ApiField.field("dayOfWorld", ApiTypes.int64(Long.MIN_VALUE, Long.MAX_VALUE)).required().forGetter(TimeOfDay::dayOfWorld),
@@ -150,7 +150,7 @@ public final class ObserveContracts {
                     .required().forGetter(TimeOfDay::phase),
             TimeOfDay::new);
 
-    private static final ApiType<Attack> ATTACK = ApiTypes.record("AttackReadiness",
+    private static final ApiType<Attack> ATTACK = ApiTypes.record(Attack.class, "AttackReadiness",
             ApiField.field("strengthScale", ApiTypes.number(0, 1))
                     .describe("The share of the held weapon's damage a swing would land now.")
                     .required().forGetter(Attack::strengthScale),
@@ -162,14 +162,14 @@ public final class ObserveContracts {
                     .required().forGetter(Attack::fullCooldownTicks),
             Attack::new);
 
-    private static final ApiType<Armor> ARMOR = ApiTypes.record("Armor",
+    private static final ApiType<Armor> ARMOR = ApiTypes.record(Armor.class, "Armor",
             ApiField.field("head", ITEM).optional().forGetter(Armor::head),
             ApiField.field("chest", ITEM).optional().forGetter(Armor::chest),
             ApiField.field("legs", ITEM).optional().forGetter(Armor::legs),
             ApiField.field("feet", ITEM).optional().forGetter(Armor::feet),
             Armor::new);
 
-    private static final ApiType<Equipment> EQUIPMENT = ApiTypes.record("Equipment",
+    private static final ApiType<Equipment> EQUIPMENT = ApiTypes.record(Equipment.class, "Equipment",
             ApiField.field("selectedSlot", ApiTypes.integer(0, 8)).required().forGetter(Equipment::selectedSlot),
             ApiField.field("mainHand", ITEM).describe("Absent: empty hand.").optional().forGetter(Equipment::mainHand),
             ApiField.field("offHand", ITEM).optional().forGetter(Equipment::offHand),
@@ -177,26 +177,26 @@ public final class ObserveContracts {
             Equipment::new);
 
     public static final UnionType<Crosshair> CROSSHAIR = ApiTypes.taggedUnion("Crosshair", "type",
-            ApiTypes.variant("miss", Miss.class, ApiTypes.record(null, Miss::new)),
-            ApiTypes.variant("block", BlockHit.class, ApiTypes.record(null,
+            ApiTypes.variant("miss", Miss.class, ApiTypes.record(Miss.class, null, Miss::new)),
+            ApiTypes.variant("block", BlockHit.class, ApiTypes.record(BlockHit.class, null,
                     ApiField.field("blockPos", CommonTypes.BLOCK_POSITION).required().forGetter(BlockHit::blockPos),
                     ApiField.field("face", ApiTypes.string()).required().forGetter(BlockHit::face),
                     ApiField.field("block", CommonTypes.RESOURCE_ID).required().forGetter(BlockHit::block),
                     ApiField.field("distance", ApiTypes.number(0, Double.MAX_VALUE)).required().forGetter(BlockHit::distance),
                     BlockHit::new)),
-            ApiTypes.variant("entity", EntityHit.class, ApiTypes.record(null,
+            ApiTypes.variant("entity", EntityHit.class, ApiTypes.record(EntityHit.class, null,
                     ApiField.field("entityId", CommonTypes.ENTITY_ID).required().forGetter(EntityHit::entityId),
                     ApiField.field("entityType", CommonTypes.RESOURCE_ID).required().forGetter(EntityHit::entityType),
                     ApiField.field("pos", CommonTypes.POINT).required().forGetter(EntityHit::pos),
                     ApiField.field("distance", ApiTypes.number(0, Double.MAX_VALUE)).required().forGetter(EntityHit::distance),
                     EntityHit::new)));
 
-    private static final ApiType<ClientView> CLIENT_VIEW = ApiTypes.record("ClientView",
+    private static final ApiType<ClientView> CLIENT_VIEW = ApiTypes.record(ClientView.class, "ClientView",
             ApiField.field("hit", CROSSHAIR).describe("What the camera aims at.").required().forGetter(ClientView::hit),
             ApiField.field("fps", COUNT).required().forGetter(ClientView::fps),
             ClientView::new);
 
-    public static final ApiType<PlayerState> PLAYER_STATE = ApiTypes.record("PlayerState",
+    public static final ApiType<PlayerState> PLAYER_STATE = ApiTypes.record(PlayerState.class, "PlayerState",
             ApiField.field("name", ApiTypes.string()).required().forGetter(PlayerState::name),
             ApiField.field("uuid", ApiTypes.string()).required().forGetter(PlayerState::uuid),
             ApiField.field("dimension", CommonTypes.RESOURCE_ID).required().forGetter(PlayerState::dimension),
@@ -222,13 +222,13 @@ public final class ObserveContracts {
             ApiField.field("view", CLIENT_VIEW).describe("Client fallback only.").optional().forGetter(PlayerState::view),
             PlayerState::new);
 
-    public static final ApiType<PlayerParams> PLAYER_PARAMS = ApiTypes.record("ObservePlayerParams",
+    public static final ApiType<PlayerParams> PLAYER_PARAMS = ApiTypes.record(PlayerParams.class, "ObservePlayerParams",
             ApiField.field("name", ApiTypes.string(1, 64))
                     .describe("A player's profile name. Omitted: the first player on the server, or this client's own.")
                     .optional().forGetter(PlayerParams::name),
             PlayerParams::new);
 
-    public static final ApiType<PlayerReading> PLAYER_REPLY = ApiTypes.record("PlayerReading",
+    public static final ApiType<PlayerReading> PLAYER_REPLY = ApiTypes.record(PlayerReading.class, "PlayerReading",
             ApiField.field("player", PLAYER_STATE).describe("Absent when nobody matches.")
                     .optional().forGetter(PlayerReading::player),
             PlayerReading::new);
@@ -254,12 +254,12 @@ public final class ObserveContracts {
     /** Both lists are empty where there is no client: the scan reads what only a client renders. */
     public record Threats(List<Threat> threats, List<Projectile> incomingProjectiles) {}
 
-    public static final ApiType<ThreatsParams> THREATS_PARAMS = ApiTypes.record("ThreatsParams",
+    public static final ApiType<ThreatsParams> THREATS_PARAMS = ApiTypes.record(ThreatsParams.class, "ThreatsParams",
             ApiField.field("radius", ApiTypes.integer(1, 64)).describe("Blocks around the player.")
                     .defaulted(24).forGetter(ThreatsParams::radius),
             ThreatsParams::new);
 
-    private static final ApiType<Threat> THREAT = ApiTypes.record("Threat",
+    private static final ApiType<Threat> THREAT = ApiTypes.record(Threat.class, "Threat",
             ApiField.field("id", CommonTypes.ENTITY_ID).required().forGetter(Threat::id),
             ApiField.field("type", CommonTypes.RESOURCE_ID).required().forGetter(Threat::type),
             ApiField.field("pos", CommonTypes.POINT).required().forGetter(Threat::pos),
@@ -276,7 +276,7 @@ public final class ObserveContracts {
                     .required().forGetter(Threat::threat),
             Threat::new);
 
-    private static final ApiType<Projectile> PROJECTILE = ApiTypes.record("IncomingProjectile",
+    private static final ApiType<Projectile> PROJECTILE = ApiTypes.record(Projectile.class, "IncomingProjectile",
             ApiField.field("id", CommonTypes.ENTITY_ID).required().forGetter(Projectile::id),
             ApiField.field("type", CommonTypes.RESOURCE_ID).required().forGetter(Projectile::type),
             ApiField.field("pos", CommonTypes.POINT).required().forGetter(Projectile::pos),
@@ -285,7 +285,7 @@ public final class ObserveContracts {
             ApiField.field("ticksToImpact", ApiTypes.integer()).required().forGetter(Projectile::ticksToImpact),
             Projectile::new);
 
-    public static final ApiType<Threats> THREATS_REPLY = ApiTypes.record("Threats",
+    public static final ApiType<Threats> THREATS_REPLY = ApiTypes.record(Threats.class, "Threats",
             ApiField.field("threats", ApiTypes.list(THREAT, 1024)).describe("Most dangerous first.")
                     .required().forGetter(Threats::threats),
             ApiField.field("incomingProjectiles", ApiTypes.list(PROJECTILE, 1024)).required()
@@ -339,12 +339,12 @@ public final class ObserveContracts {
     /** {@code boss}: the nearest dragon or wither in range, absent when none is. */
     public record BossReading(List<Crystal> crystals, Optional<Boss> boss) {}
 
-    public static final ApiType<BossParams> BOSS_PARAMS = ApiTypes.record("BossParams",
+    public static final ApiType<BossParams> BOSS_PARAMS = ApiTypes.record(BossParams.class, "BossParams",
             ApiField.field("radius", ApiTypes.integer(1, 256)).describe("Blocks around the player; 64 covers the End pillars.")
                     .defaulted(64).forGetter(BossParams::radius),
             BossParams::new);
 
-    private static final ApiType<Crystal> CRYSTAL = ApiTypes.record("EndCrystal",
+    private static final ApiType<Crystal> CRYSTAL = ApiTypes.record(Crystal.class, "EndCrystal",
             ApiField.field("id", CommonTypes.ENTITY_ID).required().forGetter(Crystal::id),
             ApiField.field("pos", CommonTypes.POINT).required().forGetter(Crystal::pos),
             ApiField.field("distance", DISTANCE).required().forGetter(Crystal::distance),
@@ -353,7 +353,7 @@ public final class ObserveContracts {
             Crystal::new);
 
     private static final UnionType<Boss> BOSS = ApiTypes.taggedUnion("Boss", "type",
-            ApiTypes.variant("ender_dragon", Dragon.class, ApiTypes.record(null,
+            ApiTypes.variant("ender_dragon", Dragon.class, ApiTypes.record(Dragon.class, null,
                     ApiField.field("id", CommonTypes.ENTITY_ID).required().forGetter(Dragon::id),
                     ApiField.field("health", ApiTypes.number()).required().forGetter(Dragon::health),
                     ApiField.field("maxHealth", ApiTypes.number()).required().forGetter(Dragon::maxHealth),
@@ -363,14 +363,14 @@ public final class ObserveContracts {
                     ApiField.field("phase", ApiTypes.enumOf("DragonPhase", DragonPhase.class)).required().forGetter(Dragon::phase),
                     ApiField.field("perched", ApiTypes.bool()).describe("Sitting on the portal: the melee window.")
                             .required().forGetter(Dragon::perched),
-                    ApiField.field("head", ApiTypes.record("DragonHead",
+                    ApiField.field("head", ApiTypes.record(DragonHead.class, "DragonHead",
                             ApiField.field("id", CommonTypes.ENTITY_ID).required().forGetter(DragonHead::id),
                             ApiField.field("pos", CommonTypes.POINT).required().forGetter(DragonHead::pos),
                             DragonHead::new)).describe("The part that takes full damage.").required().forGetter(Dragon::head),
                     ApiField.field("crystalsAlive", COUNT).describe("The dragon heals while any remain.")
                             .required().forGetter(Dragon::crystalsAlive),
                     Dragon::new)),
-            ApiTypes.variant("wither", Wither.class, ApiTypes.record(null,
+            ApiTypes.variant("wither", Wither.class, ApiTypes.record(Wither.class, null,
                     ApiField.field("id", CommonTypes.ENTITY_ID).required().forGetter(Wither::id),
                     ApiField.field("health", ApiTypes.number()).required().forGetter(Wither::health),
                     ApiField.field("maxHealth", ApiTypes.number()).required().forGetter(Wither::maxHealth),
@@ -384,7 +384,7 @@ public final class ObserveContracts {
                     ApiField.field("powered", ApiTypes.bool()).describe("At or below half health.").required().forGetter(Wither::powered),
                     Wither::new)));
 
-    public static final ApiType<BossReading> BOSS_REPLY = ApiTypes.record("BossReading",
+    public static final ApiType<BossReading> BOSS_REPLY = ApiTypes.record(BossReading.class, "BossReading",
             ApiField.field("crystals", ApiTypes.list(CRYSTAL, 1024)).describe("Every End crystal in range, boss or not.")
                     .required().forGetter(BossReading::crystals),
             ApiField.field("boss", BOSS).optional().forGetter(BossReading::boss),
@@ -442,7 +442,7 @@ public final class ObserveContracts {
                         Optional<HazardMap> map, Optional<HeightStats> height, Optional<SightOverlay> sight,
                         Optional<DensityOverlay> mobDensity) {}
 
-    public static final ApiType<SceneParams> SCENE_PARAMS = ApiTypes.record("SceneParams",
+    public static final ApiType<SceneParams> SCENE_PARAMS = ApiTypes.record(SceneParams.class, "SceneParams",
             ApiField.field("center", CommonTypes.BLOCK_POSITION)
                     .describe("Omitted: the first player, or mc.system.testOrigin with nobody on.")
                     .optional().forGetter(SceneParams::center),
@@ -462,31 +462,31 @@ public final class ObserveContracts {
                     .optional().forGetter(SceneParams::route),
             SceneParams::new);
 
-    private static final ApiType<HazardSummary> HAZARD_SUMMARY = ApiTypes.record("HazardSummary",
+    private static final ApiType<HazardSummary> HAZARD_SUMMARY = ApiTypes.record(HazardSummary.class, "HazardSummary",
             ApiField.field("lethalCount", COUNT).describe("Cells that would kill a 20-HP body.")
                     .required().forGetter(HazardSummary::lethalCount),
             ApiField.field("cornered", ApiTypes.bool()).describe("No safe step out.").required().forGetter(HazardSummary::cornered),
-            ApiField.field("safeFleeStep", ApiTypes.record("FleeStep",
+            ApiField.field("safeFleeStep", ApiTypes.record(FleeStep.class, "FleeStep",
                     ApiField.field("dx", ApiTypes.integer(-1, 1)).required().forGetter(FleeStep::dx),
                     ApiField.field("dz", ApiTypes.integer(-1, 1)).required().forGetter(FleeStep::dz),
                     FleeStep::new)).describe("The safest step away from a threat to the south.")
                     .optional().forGetter(HazardSummary::safeFleeStep),
             HazardSummary::new);
 
-    private static final ApiType<HazardMap> HAZARD_MAP = ApiTypes.record("HazardMap",
+    private static final ApiType<HazardMap> HAZARD_MAP = ApiTypes.record(HazardMap.class, "HazardMap",
             ApiField.field("rows", ApiTypes.list(ApiTypes.string(), 1024))
                     .describe("North first; glyphs space-separated, @ the center.").required().forGetter(HazardMap::rows),
             ApiField.field("legend", ApiTypes.map(ApiTypes.string(), 64)).describe("Glyph → meaning.")
                     .required().forGetter(HazardMap::legend),
             HazardMap::new);
 
-    private static final ApiType<HeightStats> HEIGHT_STATS = ApiTypes.record("HeightStats",
+    private static final ApiType<HeightStats> HEIGHT_STATS = ApiTypes.record(HeightStats.class, "HeightStats",
             ApiField.field("centerY", ApiTypes.integer()).required().forGetter(HeightStats::centerY),
             ApiField.field("minY", ApiTypes.integer()).describe("Absent: no standable cell.").optional().forGetter(HeightStats::minY),
             ApiField.field("maxY", ApiTypes.integer()).optional().forGetter(HeightStats::maxY),
             HeightStats::new);
 
-    private static final ApiType<Observer> OBSERVER = ApiTypes.record("SightObserver",
+    private static final ApiType<Observer> OBSERVER = ApiTypes.record(Observer.class, "SightObserver",
             ApiField.field("id", CommonTypes.ENTITY_ID).required().forGetter(Observer::id),
             ApiField.field("type", ApiTypes.string()).required().forGetter(Observer::type),
             ApiField.field("name", ApiTypes.string()).describe("A custom or player name.").optional().forGetter(Observer::name),
@@ -495,7 +495,7 @@ public final class ObserveContracts {
     private static final ApiType<List<String>> OVERLAY_ROWS = ApiTypes.list(ApiTypes.string(), 1024)
             .describe("Like the map's rows: a digit per cell, + for ten or more, . no footing, ? beyond the ray budget.");
 
-    private static final ApiType<SightOverlay> SIGHT_OVERLAY = ApiTypes.record("SightOverlay",
+    private static final ApiType<SightOverlay> SIGHT_OVERLAY = ApiTypes.record(SightOverlay.class, "SightOverlay",
             ApiField.field("observers", ApiTypes.list(OBSERVER, 4096)).required().forGetter(SightOverlay::observers),
             ApiField.field("rows", OVERLAY_ROWS).required().forGetter(SightOverlay::rows),
             ApiField.field("exposedCells", COUNT).required().forGetter(SightOverlay::exposedCells),
@@ -503,7 +503,7 @@ public final class ObserveContracts {
             ApiField.field("snapshotTruncated", ApiTypes.trueOnly()).optional().forGetter(SightOverlay::snapshotTruncated),
             SightOverlay::new);
 
-    private static final ApiType<DensityOverlay> DENSITY_OVERLAY = ApiTypes.record("DensityOverlay",
+    private static final ApiType<DensityOverlay> DENSITY_OVERLAY = ApiTypes.record(DensityOverlay.class, "DensityOverlay",
             ApiField.field("mobs", COUNT).describe("Counted mobs near enough to matter.").required().forGetter(DensityOverlay::mobs),
             ApiField.field("radius", ApiTypes.number(0, Double.MAX_VALUE)).describe("The cluster radius.")
                     .required().forGetter(DensityOverlay::radius),
@@ -514,7 +514,7 @@ public final class ObserveContracts {
             ApiField.field("snapshotTruncated", ApiTypes.trueOnly()).optional().forGetter(DensityOverlay::snapshotTruncated),
             DensityOverlay::new);
 
-    public static final ApiType<Scene> SCENE_REPLY = ApiTypes.record("Scene",
+    public static final ApiType<Scene> SCENE_REPLY = ApiTypes.record(Scene.class, "Scene",
             ApiField.field("center", CommonTypes.BLOCK_POSITION).required().forGetter(Scene::center),
             ApiField.field("radius", ApiTypes.integer(1, Integer.MAX_VALUE)).required().forGetter(Scene::radius),
             ApiField.field("requestedRadius", ApiTypes.integer(1, Integer.MAX_VALUE)).optional().forGetter(Scene::requestedRadius),
@@ -551,7 +551,7 @@ public final class ObserveContracts {
     public record AsciiMap(Plane plane, BlockPosition center, int radius, int width, int height, int threats, String legend,
                            String map) {}
 
-    public static final ApiType<MapParams> MAP_PARAMS = ApiTypes.record("MapParams",
+    public static final ApiType<MapParams> MAP_PARAMS = ApiTypes.record(MapParams.class, "MapParams",
             ApiField.field("center", CommonTypes.BLOCK_POSITION).describe("Omitted: the first player's cell.")
                     .optional().forGetter(MapParams::center),
             ApiField.field("radius", ApiTypes.integer(1, 24)).describe("Horizontal half-extent.")
@@ -563,7 +563,7 @@ public final class ObserveContracts {
                     .defaulted(Plane.XZ).forGetter(MapParams::plane),
             MapParams::new);
 
-    public static final ApiType<AsciiMap> MAP_REPLY = ApiTypes.record("AsciiMap",
+    public static final ApiType<AsciiMap> MAP_REPLY = ApiTypes.record(AsciiMap.class, "AsciiMap",
             ApiField.field("plane", PLANE).required().forGetter(AsciiMap::plane),
             ApiField.field("center", CommonTypes.BLOCK_POSITION).required().forGetter(AsciiMap::center),
             ApiField.field("radius", ApiTypes.integer(1, 24)).required().forGetter(AsciiMap::radius),

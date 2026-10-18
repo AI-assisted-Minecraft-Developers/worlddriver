@@ -58,7 +58,7 @@ public final class InteractContracts {
     /** The aim a smooth look reached, as its action's result. */
     public record Looked(double yaw, double pitch) {}
 
-    public static final ApiType<LookParams> LOOK_PARAMS = ApiTypes.record("LookAtParams",
+    public static final ApiType<LookParams> LOOK_PARAMS = ApiTypes.record(LookParams.class, "LookAtParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(LookParams::bot),
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).describe("Face the middle of this block.")
                     .optional().forGetter(LookParams::pos),
@@ -81,7 +81,7 @@ public final class InteractContracts {
             });
 
     public static final UnionType<Looked> LOOK_RESULT = ApiTypes.taggedUnion("LookAtResult", "kind",
-            ApiTypes.variant("lookAt", Looked.class, ApiTypes.record(null,
+            ApiTypes.variant("lookAt", Looked.class, ApiTypes.record(Looked.class, null,
                     ApiField.field("yaw", ApiTypes.number()).required().forGetter(Looked::yaw),
                     ApiField.field("pitch", ApiTypes.number()).required().forGetter(Looked::pitch),
                     Looked::new)));
@@ -89,7 +89,7 @@ public final class InteractContracts {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static final MethodSpec<LookParams, ActionResponse<Looked>> LOOK_AT = MethodSpec.of("mc.bot.lookAt", LOOK_PARAMS,
                     Responses.response("LookAt", LOOK_RESULT,
-                            (UnionType.Variant) ApiTypes.variant("done", Turned.class, ApiTypes.record(null,
+                            (UnionType.Variant) ApiTypes.variant("done", Turned.class, ApiTypes.record(Turned.class, null,
                                     ApiField.field("yaw", ApiTypes.number()).required().forGetter(Turned::yaw),
                                     ApiField.field("pitch", ApiTypes.number()).required().forGetter(Turned::pitch),
                                     Turned::new))),
@@ -104,13 +104,13 @@ public final class InteractContracts {
 
     public record HoldParams(String bot, String item) {}
 
-    public static final ApiType<HoldParams> HOLD_PARAMS = ApiTypes.record("HoldItemParams",
+    public static final ApiType<HoldParams> HOLD_PARAMS = ApiTypes.record(HoldParams.class, "HoldItemParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(HoldParams::bot),
             ApiField.field("item", CommonTypes.RESOURCE_ID).required().forGetter(HoldParams::item),
             HoldParams::new);
 
     public static final MethodSpec<HoldParams, ImmediateResponse> HOLD_ITEM = MethodSpec.of("mc.bot.holdItem", HOLD_PARAMS,
-                    Responses.immediate("HoldItem", Held.class, ApiTypes.record(null,
+                    Responses.immediate("HoldItem", Held.class, ApiTypes.record(Held.class, null,
                             ApiField.field("held", CommonTypes.RESOURCE_ID).describe("The item now in the main hand.")
                                     .required().forGetter(Held::held),
                             Held::new)),
@@ -135,7 +135,7 @@ public final class InteractContracts {
     public record OnEntity(int entityId, String type, double distance, Optional<String> riding, Optional<String> screen,
                            Optional<String> menu) implements UsedOn {}
 
-    public static final ApiType<UseParams> USE_PARAMS = ApiTypes.record("UseItemParams",
+    public static final ApiType<UseParams> USE_PARAMS = ApiTypes.record(UseParams.class, "UseItemParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(UseParams::bot),
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).describe("Use on this block's face. Omit pos and entityId to use in the air.")
                     .optional().forGetter(UseParams::pos),
@@ -162,12 +162,12 @@ public final class InteractContracts {
             });
 
     public static final UnionType<UsedOn> USED_ON = ApiTypes.taggedUnion("UsedOn", "kind",
-            ApiTypes.variant("air", InAir.class, ApiTypes.record(null, InAir::new)),
-            ApiTypes.variant("block", OnBlock.class, ApiTypes.record(null,
+            ApiTypes.variant("air", InAir.class, ApiTypes.record(InAir.class, null, InAir::new)),
+            ApiTypes.variant("block", OnBlock.class, ApiTypes.record(OnBlock.class, null,
                     ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(OnBlock::pos),
                     ApiField.field("face", FACE).required().forGetter(OnBlock::face),
                     OnBlock::new)),
-            ApiTypes.variant("entity", OnEntity.class, ApiTypes.record(null,
+            ApiTypes.variant("entity", OnEntity.class, ApiTypes.record(OnEntity.class, null,
                     ApiField.field("entityId", CommonTypes.ENTITY_ID).required().forGetter(OnEntity::entityId),
                     ApiField.field("type", CommonTypes.RESOURCE_ID).required().forGetter(OnEntity::type),
                     ApiField.field("distance", ApiTypes.number()).required().forGetter(OnEntity::distance),
@@ -177,7 +177,7 @@ public final class InteractContracts {
                     OnEntity::new)));
 
     public static final MethodSpec<UseParams, ImmediateResponse> USE_ITEM = MethodSpec.of("mc.bot.useItem", USE_PARAMS,
-                    Responses.immediate("UseItem", Used.class, ApiTypes.record(null,
+                    Responses.immediate("UseItem", Used.class, ApiTypes.record(Used.class, null,
                             ApiField.field("hand", HAND).required().forGetter(Used::hand),
                             ApiField.field("result", INTERACTION).required().forGetter(Used::result),
                             ApiField.field("consumed", ApiTypes.bool()).describe("The click did something.")
@@ -193,14 +193,14 @@ public final class InteractContracts {
 
     public record AttackParams(String bot, int entityId) {}
 
-    public static final ApiType<AttackParams> ATTACK_PARAMS = ApiTypes.record("AttackEntityParams",
+    public static final ApiType<AttackParams> ATTACK_PARAMS = ApiTypes.record(AttackParams.class, "AttackEntityParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(AttackParams::bot),
             ApiField.field("entityId", CommonTypes.ENTITY_ID).required().forGetter(AttackParams::entityId),
             AttackParams::new);
 
     public static final MethodSpec<AttackParams, ImmediateResponse> ATTACK_ENTITY = MethodSpec.of("mc.bot.attackEntity",
                     ATTACK_PARAMS,
-                    Responses.immediate("AttackEntity", Attacked.class, ApiTypes.record(null,
+                    Responses.immediate("AttackEntity", Attacked.class, ApiTypes.record(Attacked.class, null,
                             ApiField.field("entityId", CommonTypes.ENTITY_ID).required().forGetter(Attacked::entityId),
                             ApiField.field("type", CommonTypes.RESOURCE_ID).required().forGetter(Attacked::type),
                             ApiField.field("alive", ApiTypes.bool()).required().forGetter(Attacked::alive),
@@ -236,14 +236,14 @@ public final class InteractContracts {
 
     private static final ApiType<Profile> PROFILE = ApiTypes.enumOf("EquipProfile", Profile.class);
 
-    public static final ApiType<EquipParams> EQUIP_PARAMS = ApiTypes.record("EquipParams",
+    public static final ApiType<EquipParams> EQUIP_PARAMS = ApiTypes.record(EquipParams.class, "EquipParams",
             ApiField.field("profile", PROFILE).defaulted(Profile.BEST)
                     .forGetter(EquipParams::profile),
             ApiField.field("armorOnly", ApiTypes.bool()).describe("The same as profile armor.")
                     .defaulted(false).forGetter(EquipParams::armorOnly),
             EquipParams::new);
 
-    private static final ApiType<Loadout> LOADOUT = ApiTypes.record("Loadout",
+    private static final ApiType<Loadout> LOADOUT = ApiTypes.record(Loadout.class, "Loadout",
             ApiField.field("head", CommonTypes.RESOURCE_ID).optional().forGetter(Loadout::head),
             ApiField.field("chest", CommonTypes.RESOURCE_ID).optional().forGetter(Loadout::chest),
             ApiField.field("legs", CommonTypes.RESOURCE_ID).optional().forGetter(Loadout::legs),
@@ -252,7 +252,7 @@ public final class InteractContracts {
             Loadout::new);
 
     public static final MethodSpec<EquipParams, ImmediateResponse> EQUIP = MethodSpec.of("mc.bot.equip", EQUIP_PARAMS,
-                    Responses.immediate("Equip", Equipped.class, ApiTypes.record(null,
+                    Responses.immediate("Equip", Equipped.class, ApiTypes.record(Equipped.class, null,
                             ApiField.field("profile", PROFILE).required().forGetter(Equipped::profile),
                             ApiField.field("equipped", ApiTypes.list(CommonTypes.RESOURCE_ID, 16))
                                     .describe("What it put on or took in hand.").required().forGetter(Equipped::equipped),

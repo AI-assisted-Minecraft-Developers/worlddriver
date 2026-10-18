@@ -90,7 +90,7 @@ public final class QueryContracts {
                     "an entity id such as minecraft:zombie; a bare path means minecraft:")
             .maxLength(256);
 
-    private static final ApiType<BlockFilter> BLOCK_FILTER = ApiTypes.record("BlockQueryFilter",
+    private static final ApiType<BlockFilter> BLOCK_FILTER = ApiTypes.record(BlockFilter.class, "BlockQueryFilter",
             ApiField.field("in_radius", ApiTypes.integer(0, MAX_BLOCK_RADIUS))
                     .describe("Chebyshev radius; 0 is the center cell alone.").defaulted(0).forGetter(BlockFilter::inRadius),
             ApiField.field("type", CommonTypes.BLOCK_OR_TAG).describe("Only this block, or any block in a #tag.")
@@ -99,7 +99,7 @@ public final class QueryContracts {
 
     private static final BlockFilter NO_BLOCK_FILTER = new BlockFilter(0, Optional.empty());
 
-    private static final ApiType<EntityFilter> ENTITY_FILTER = ApiTypes.record("EntityQueryFilter",
+    private static final ApiType<EntityFilter> ENTITY_FILTER = ApiTypes.record(EntityFilter.class, "EntityQueryFilter",
             ApiField.field("in_radius", ApiTypes.integer(0, 128))
                     .describe("Cells around the center cell; an entity overlapping one counts. The client caps it at 32.")
                     .defaulted(16).forGetter(EntityFilter::inRadius),
@@ -115,13 +115,13 @@ public final class QueryContracts {
     private static final String CENTER = "Omitted: mc.system.testOrigin; on a client with no server, its player.";
 
     public static final UnionType<Query> PARAMS = ApiTypes.taggedUnion("QueryParams", "q",
-            ApiTypes.variant("blocks", Blocks.class, ApiTypes.record(null,
+            ApiTypes.variant("blocks", Blocks.class, ApiTypes.record(Blocks.class, null,
                     ApiField.field("center", CommonTypes.BLOCK_POSITION).describe(CENTER).optional().forGetter(Blocks::center),
                     ApiField.field("filter", BLOCK_FILTER).defaulted(NO_BLOCK_FILTER).forGetter(Blocks::filter),
                     ApiField.field("select", ApiTypes.list(ApiTypes.enumOf("BlockField", BlockField.class), 3))
                             .describe("Keep only these row fields.").optional().forGetter(Blocks::select),
                     Blocks::new)),
-            ApiTypes.variant("entities", Entities.class, ApiTypes.record(null,
+            ApiTypes.variant("entities", Entities.class, ApiTypes.record(Entities.class, null,
                     ApiField.field("center", CommonTypes.BLOCK_POSITION).describe(CENTER).optional().forGetter(Entities::center),
                     ApiField.field("filter", ENTITY_FILTER).defaulted(NO_ENTITY_FILTER).forGetter(Entities::filter),
                     ApiField.field("select", ApiTypes.list(ApiTypes.enumOf("EntityField", EntityField.class), 10))
@@ -130,7 +130,7 @@ public final class QueryContracts {
 
     // ------------------------------------------------------------------ reply
 
-    private static final ApiType<BlockRow> BLOCK_ROW = ApiTypes.record("BlockRow",
+    private static final ApiType<BlockRow> BLOCK_ROW = ApiTypes.record(BlockRow.class, "BlockRow",
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).optional().forGetter(BlockRow::pos),
             ApiField.field("type", CommonTypes.RESOURCE_ID).optional().forGetter(BlockRow::type),
             ApiField.field("state", ApiTypes.map(ApiTypes.string(), 64))
@@ -138,7 +138,7 @@ public final class QueryContracts {
                     .optional().forGetter(BlockRow::state),
             BlockRow::new);
 
-    private static final ApiType<EntityRow> ENTITY_ROW = ApiTypes.record("EntityRow",
+    private static final ApiType<EntityRow> ENTITY_ROW = ApiTypes.record(EntityRow.class, "EntityRow",
             ApiField.field("pos", CommonTypes.POINT).optional().forGetter(EntityRow::pos),
             ApiField.field("blockPos", CommonTypes.BLOCK_POSITION).describe("The cell pos is in.")
                     .optional().forGetter(EntityRow::blockPos),
@@ -157,11 +157,11 @@ public final class QueryContracts {
             EntityRow::new);
 
     public static final UnionType<Rows> REPLY = ApiTypes.taggedUnion("QueryReply", "q",
-            ApiTypes.variant("blocks", BlockRows.class, ApiTypes.record(null,
+            ApiTypes.variant("blocks", BlockRows.class, ApiTypes.record(BlockRows.class, null,
                     ApiField.field("blocks", ApiTypes.list(BLOCK_ROW, 32_768)).describe("Every non-air cell that matched.")
                             .required().forGetter(BlockRows::blocks),
                     BlockRows::new)),
-            ApiTypes.variant("entities", EntityRows.class, ApiTypes.record(null,
+            ApiTypes.variant("entities", EntityRows.class, ApiTypes.record(EntityRows.class, null,
                     ApiField.field("entities", ApiTypes.list(ENTITY_ROW, 65_536)).required().forGetter(EntityRows::entities),
                     EntityRows::new)));
 

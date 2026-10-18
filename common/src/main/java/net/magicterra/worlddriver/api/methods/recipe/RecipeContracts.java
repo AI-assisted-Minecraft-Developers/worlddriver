@@ -40,7 +40,7 @@ public final class RecipeContracts {
 
     public record Recipes(List<Recipe> recipes) {}
 
-    public static final ApiType<LookupParams> LOOKUP_PARAMS = ApiTypes.record("RecipeLookupParams",
+    public static final ApiType<LookupParams> LOOKUP_PARAMS = ApiTypes.record(LookupParams.class, "RecipeLookupParams",
             ApiField.field("result", CommonTypes.RESOURCE_ID).describe("Recipes that make this item.")
                     .optional().forGetter(LookupParams::result),
             ApiField.field("ingredient", CommonTypes.RESOURCE_ID).describe("Recipes that consume this item.")
@@ -53,12 +53,12 @@ public final class RecipeContracts {
                 }
             });
 
-    private static final ApiType<Stack> STACK = ApiTypes.record("ItemCount",
+    private static final ApiType<Stack> STACK = ApiTypes.record(Stack.class, "ItemCount",
             ApiField.field("id", CommonTypes.RESOURCE_ID).required().forGetter(Stack::id),
             ApiField.field("count", COUNT).required().forGetter(Stack::count),
             Stack::new);
 
-    private static final ApiType<Ingredient> INGREDIENT = ApiTypes.record("RecipeIngredient",
+    private static final ApiType<Ingredient> INGREDIENT = ApiTypes.record(Ingredient.class, "RecipeIngredient",
             ApiField.field("slot", COUNT).describe("Its index in the recipe; a shaped grid reads row by row.")
                     .required().forGetter(Ingredient::slot),
             ApiField.field("accepts", ApiTypes.list(CommonTypes.RESOURCE_ID, 4096)).describe("Every item that fits this slot.")
@@ -66,7 +66,7 @@ public final class RecipeContracts {
             ApiField.field("tag", CommonTypes.RESOURCE_ID).optional().forGetter(Ingredient::tag),
             Ingredient::new);
 
-    private static final ApiType<Recipe> RECIPE = ApiTypes.record("Recipe",
+    private static final ApiType<Recipe> RECIPE = ApiTypes.record(Recipe.class, "Recipe",
             ApiField.field("id", CommonTypes.RESOURCE_ID).required().forGetter(Recipe::id),
             ApiField.field("type", ApiTypes.string()).describe("The recipe serializer's id.").required().forGetter(Recipe::type),
             ApiField.field("station", STATION).required().forGetter(Recipe::station),
@@ -80,7 +80,7 @@ public final class RecipeContracts {
                     .optional().forGetter(Recipe::pattern),
             Recipe::new);
 
-    public static final ApiType<Recipes> RECIPES = ApiTypes.record("Recipes",
+    public static final ApiType<Recipes> RECIPES = ApiTypes.record(Recipes.class, "Recipes",
             ApiField.field("recipes", ApiTypes.list(RECIPE, 200)).required().forGetter(Recipes::recipes),
             Recipes::new);
 
@@ -120,19 +120,19 @@ public final class RecipeContracts {
     private static final String HAVE = "Item id → count to plan against, as mc.observe.player's items gives it. Omitted: "
             + "the real bag mc.bot.craft would consume from; {} supposes nothing at all.";
 
-    public static final ApiType<PlanParams> PLAN_PARAMS = ApiTypes.record("PlanParams",
+    public static final ApiType<PlanParams> PLAN_PARAMS = ApiTypes.record(PlanParams.class, "PlanParams",
             ApiField.field("target", CommonTypes.RESOURCE_ID).describe("The item to make, e.g. minecraft:iron_pickaxe; an "
                     + "id the registry does not know is invalid_params.").required().forGetter(PlanParams::target),
             ApiField.field("count", ApiTypes.integer(1, 4096)).defaulted(1).forGetter(PlanParams::count),
             ApiField.field("have", ApiTypes.map(COUNT, 4096)).describe(HAVE).optional().forGetter(PlanParams::have),
             PlanParams::new);
 
-    private static final ApiType<ItemNeed> ITEM_NEED = ApiTypes.record("ItemNeed",
+    private static final ApiType<ItemNeed> ITEM_NEED = ApiTypes.record(ItemNeed.class, "ItemNeed",
             ApiField.field("item", CommonTypes.RESOURCE_ID).required().forGetter(ItemNeed::item),
             ApiField.field("count", COUNT).required().forGetter(ItemNeed::count),
             ItemNeed::new);
 
-    private static final ApiType<CraftStep> CRAFT_STEP = ApiTypes.record("CraftStep",
+    private static final ApiType<CraftStep> CRAFT_STEP = ApiTypes.record(CraftStep.class, "CraftStep",
             ApiField.field("craft", CommonTypes.RESOURCE_ID).required().forGetter(CraftStep::craft),
             ApiField.field("count", COUNT).describe("Items this step makes.").required().forGetter(CraftStep::count),
             ApiField.field("recipe", CommonTypes.RESOURCE_ID).required().forGetter(CraftStep::recipe),
@@ -140,7 +140,7 @@ public final class RecipeContracts {
             ApiField.field("from", ApiTypes.string()).required().forGetter(CraftStep::from),
             CraftStep::new);
 
-    public static final ApiType<CraftPlan> CRAFT_PLAN = ApiTypes.record("CraftPlan",
+    public static final ApiType<CraftPlan> CRAFT_PLAN = ApiTypes.record(CraftPlan.class, "CraftPlan",
             ApiField.field("target", CommonTypes.RESOURCE_ID).required().forGetter(CraftPlan::target),
             ApiField.field("count", COUNT).required().forGetter(CraftPlan::count),
             ApiField.field("steps", ApiTypes.list(CRAFT_STEP, 4096)).describe("In dependency order: do the first first.")
@@ -156,7 +156,7 @@ public final class RecipeContracts {
                     + "yields, tag substitution and cycles worked out, against the bag and the stations within reach. "
                     + "Call it before crafting.");
 
-    private static final ApiType<AcquireStep> ACQUIRE_STEP = ApiTypes.record("AcquireStep",
+    private static final ApiType<AcquireStep> ACQUIRE_STEP = ApiTypes.record(AcquireStep.class, "AcquireStep",
             ApiField.field("action", ApiTypes.enumOf("AcquireAction", AcquireAction.class))
                     .describe("Which of mc.bot.mine, farm, smelt or craft does this step.").required().forGetter(AcquireStep::action),
             ApiField.field("item", CommonTypes.RESOURCE_ID).required().forGetter(AcquireStep::item),
@@ -169,7 +169,7 @@ public final class RecipeContracts {
             ApiField.field("from", ApiTypes.string()).describe("craft: the inputs.").optional().forGetter(AcquireStep::from),
             AcquireStep::new);
 
-    public static final ApiType<AcquirePlan> ACQUIRE_PLAN = ApiTypes.record("AcquirePlan",
+    public static final ApiType<AcquirePlan> ACQUIRE_PLAN = ApiTypes.record(AcquirePlan.class, "AcquirePlan",
             ApiField.field("target", CommonTypes.RESOURCE_ID).required().forGetter(AcquirePlan::target),
             ApiField.field("count", COUNT).required().forGetter(AcquirePlan::count),
             ApiField.field("feasible", ApiTypes.bool()).describe("Nothing is unobtainable.").required().forGetter(AcquirePlan::feasible),

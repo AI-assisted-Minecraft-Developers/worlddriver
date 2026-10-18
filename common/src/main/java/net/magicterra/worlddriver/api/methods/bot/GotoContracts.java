@@ -133,44 +133,44 @@ public final class GotoContracts {
             .describe("Accept any cell within this Euclidean radius; 0 is exact.");
 
     public static final UnionType<Target> TARGET = ApiTypes.taggedUnion("GotoTarget", "kind",
-            ApiTypes.variant("position", Position.class, ApiTypes.record(null,
+            ApiTypes.variant("position", Position.class, ApiTypes.record(Position.class, null,
                     ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(Position::pos),
                     ApiField.field("near", NEAR).defaulted(0).forGetter(Position::near),
                     ApiField.field("goalMode", GOAL_MODE).defaulted(GoalMode.IN).forGetter(Position::goalMode),
                     Position::new)),
-            ApiTypes.variant("column", Column.class, ApiTypes.record(null,
+            ApiTypes.variant("column", Column.class, ApiTypes.record(Column.class, null,
                     ApiField.field("x", ApiTypes.integer()).required().forGetter(Column::x),
                     ApiField.field("z", ApiTypes.integer()).required().forGetter(Column::z),
                     ApiField.field("near", NEAR).defaulted(0).forGetter(Column::near),
                     Column::new)),
-            ApiTypes.variant("level", Level.class, ApiTypes.record(null,
+            ApiTypes.variant("level", Level.class, ApiTypes.record(Level.class, null,
                     ApiField.field("y", ApiTypes.integer(-4096, 4096))
                             .describe("Alone it drowns in sideways branches: add a hard column leash to dig straight.")
                             .required().forGetter(Level::y),
                     Level::new)),
-            ApiTypes.variant("block", BlockTarget.class, ApiTypes.record(null,
+            ApiTypes.variant("block", BlockTarget.class, ApiTypes.record(BlockTarget.class, null,
                     ApiField.field("block", CommonTypes.BLOCK_OR_TAG).required().forGetter(BlockTarget::block),
                     ApiField.field("radius", ApiTypes.integer(1, 64)).defaulted(32).forGetter(BlockTarget::radius),
                     BlockTarget::new)),
-            ApiTypes.variant("entityType", EntityType.class, ApiTypes.record(null,
+            ApiTypes.variant("entityType", EntityType.class, ApiTypes.record(EntityType.class, null,
                     ApiField.field("type", CommonTypes.RESOURCE_ID).required().forGetter(EntityType::type),
                     ApiField.field("near", ENTITY_NEAR).defaulted(3).forGetter(EntityType::near),
                     ApiField.field("goalMode", GOAL_MODE).defaulted(GoalMode.IN).forGetter(EntityType::goalMode),
                     EntityType::new)),
-            ApiTypes.variant("entity", EntityTarget.class, ApiTypes.record(null,
+            ApiTypes.variant("entity", EntityTarget.class, ApiTypes.record(EntityTarget.class, null,
                     ApiField.field("entityId", ApiTypes.integer(0, Integer.MAX_VALUE))
                             .describe("The id mc.query entities reports.").required().forGetter(EntityTarget::entityId),
                     ApiField.field("near", ENTITY_NEAR).defaulted(3).forGetter(EntityTarget::near),
                     ApiField.field("goalMode", GOAL_MODE).defaulted(GoalMode.IN).forGetter(EntityTarget::goalMode),
                     EntityTarget::new)),
-            ApiTypes.variant("direction", DirectionTarget.class, ApiTypes.record(null,
+            ApiTypes.variant("direction", DirectionTarget.class, ApiTypes.record(DirectionTarget.class, null,
                     ApiField.field("direction", CommonTypes.DIRECTION)
                             .describe("A turning word follows the body's exact heading, diagonals included.")
                             .required().forGetter(DirectionTarget::direction),
                     ApiField.field("distance", ApiTypes.integer(1, 256)).defaulted(8).forGetter(DirectionTarget::distance),
                     ApiField.field("near", NEAR).defaulted(0).forGetter(DirectionTarget::near),
                     DirectionTarget::new)),
-            ApiTypes.variant("heading", Heading.class, ApiTypes.record(null,
+            ApiTypes.variant("heading", Heading.class, ApiTypes.record(Heading.class, null,
                     ApiField.field("direction", CommonTypes.DIRECTION)
                             .describe("Horizontal only. A turning word is snapped to the nearest compass direction.")
                             .required().forGetter(Heading::direction),
@@ -180,16 +180,16 @@ public final class GotoContracts {
                             at.field("direction").fail(ApiIssue.Code.INVALID_VALUE, "a heading is horizontal; use a level target to go up or down");
                         }
                     })),
-            ApiTypes.variant("waypoint", Waypoint.class, ApiTypes.record(null,
+            ApiTypes.variant("waypoint", Waypoint.class, ApiTypes.record(Waypoint.class, null,
                     ApiField.field("name", ApiTypes.string(1, 64)).required().forGetter(Waypoint::name),
                     ApiField.field("near", NEAR).defaulted(0).forGetter(Waypoint::near),
                     ApiField.field("goalMode", GOAL_MODE).defaulted(GoalMode.IN).forGetter(Waypoint::goalMode),
                     Waypoint::new)),
-            ApiTypes.variant("axis", Axis.class, ApiTypes.record(null, Axis::new)));
+            ApiTypes.variant("axis", Axis.class, ApiTypes.record(Axis.class, null, Axis::new)));
 
     public static final ApiType<PlanMode> PLAN_MODE = ApiTypes.enumOf("PlanMode", PlanMode.class);
 
-    public static final RecordType<Params> PARAMS = ApiTypes.record("GotoParams",
+    public static final RecordType<Params> PARAMS = ApiTypes.record(Params.class, "GotoParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(Params::bot),
             ApiField.field("target", TARGET).describe("Required unless planId or plan: 'score'.")
                     .optional().forGetter(Params::target),
@@ -259,7 +259,7 @@ public final class GotoContracts {
         };
     }
 
-    public static final RecordType<Adoption> ADOPTION = ApiTypes.record("PlanAdoption",
+    public static final RecordType<Adoption> ADOPTION = ApiTypes.record(Adoption.class, "PlanAdoption",
             ApiField.field("planId", ApiTypes.string(1, 64)).required().forGetter(Adoption::planId),
             ApiField.field("adopted", ApiTypes.bool()).describe("false: the walk searched again instead.")
                     .required().forGetter(Adoption::adopted),
@@ -267,13 +267,13 @@ public final class GotoContracts {
                     .optional().forGetter(Adoption::reason),
             Adoption::new);
 
-    public static final RecordType<Segment> SEGMENT = ApiTypes.record("RiskSegment",
+    public static final RecordType<Segment> SEGMENT = ApiTypes.record(Segment.class, "RiskSegment",
             ApiField.field("leg", ApiTypes.integer(0, 64)).describe("Which goal's route, when there were via points.")
                     .optional().forGetter(Segment::leg),
             ApiField.field("from", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Segment::from),
             ApiField.field("to", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Segment::to),
-            ApiField.field("risk", ApiTypes.record("SegmentRisk",
-                    ApiField.field("exposedTo", ApiTypes.list(ApiTypes.record("Exposure",
+            ApiField.field("risk", ApiTypes.record(SegmentRisk.class, "SegmentRisk",
+                    ApiField.field("exposedTo", ApiTypes.list(ApiTypes.record(Exposure.class, "Exposure",
                             ApiField.field("id", ApiTypes.integer()).required().forGetter(Exposure::id),
                             ApiField.field("type", ApiTypes.string()).required().forGetter(Exposure::type),
                             ApiField.field("cells", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Exposure::cells),
@@ -287,14 +287,14 @@ public final class GotoContracts {
     private static final ApiType<Integer> COUNT = ApiTypes.integer(0, Integer.MAX_VALUE);
 
     public static final UnionType<Result> RESULT = ApiTypes.taggedUnion("GotoResult", "kind",
-            ApiTypes.variant("goto", Trip.class, ApiTypes.record(null,
+            ApiTypes.variant("goto", Trip.class, ApiTypes.record(Trip.class, null,
                     ApiField.field("goal", ApiTypes.string()).required().forGetter(Trip::goal),
                     ApiField.field("via", COUNT).required().forGetter(Trip::via),
                     ApiField.field("travel", ApiTypes.enumOf("Travel", Travel.class)).required().forGetter(Trip::travel),
                     ApiField.field("plan", ADOPTION).describe("Present when the walk was started by planId.")
                             .optional().forGetter(Trip::plan),
                     Trip::new)),
-            ApiTypes.variant("routePreview", Preview.class, ApiTypes.record(null,
+            ApiTypes.variant("routePreview", Preview.class, ApiTypes.record(Preview.class, null,
                     ApiField.field("planId", ApiTypes.string(1, 64)).describe("Pass to goto within 60 s to walk this route.")
                             .required().forGetter(Preview::planId),
                     ApiField.field("reached", ApiTypes.bool()).required().forGetter(Preview::reached),
@@ -314,7 +314,7 @@ public final class GotoContracts {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static final ApiType<ActionResponse<Result>> RESPONSE = Responses.response("Goto", RESULT,
-            (UnionType.Variant) ApiTypes.variant("scored", Scored.class, ApiTypes.record(null,
+            (UnionType.Variant) ApiTypes.variant("scored", Scored.class, ApiTypes.record(Scored.class, null,
                     ApiField.field("cells", COUNT).required().forGetter(Scored::cells),
                     ApiField.field("segments", SEGMENTS).required().forGetter(Scored::segments),
                     ApiField.field("detourRatio", ApiTypes.number()).required().forGetter(Scored::detourRatio),

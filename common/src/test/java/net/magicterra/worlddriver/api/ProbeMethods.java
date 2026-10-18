@@ -27,7 +27,7 @@ public final class ProbeMethods {
 
     public record Slow(int ms) {}
 
-    private static final RecordType<Echo> ECHO_TYPE = ApiTypes.record("ProbeEcho",
+    private static final RecordType<Echo> ECHO_TYPE = ApiTypes.record(Echo.class, "ProbeEcho",
             ApiField.field("value", ApiTypes.integer(0, 1_000_000)).defaulted(1).forGetter(Echo::value),
             Echo::new);
 
@@ -35,14 +35,14 @@ public final class ProbeMethods {
             "Answers its own value.").asPollable();
 
     public static final MethodSpec<Slow, Echo> SLOW = MethodSpec.of("probe.slow",
-            ApiTypes.record("ProbeSlow",
+            ApiTypes.record(Slow.class, "ProbeSlow",
                     ApiField.field("ms", ApiTypes.integer(0, 60_000)).required().forGetter(Slow::ms),
                     Slow::new),
             ECHO_TYPE, "Holds the calling thread for ms, then answers {value: ms}.");
 
     public record None() {}
 
-    private static final RecordType<None> NONE = ApiTypes.record("ProbeNone", None::new);
+    private static final RecordType<None> NONE = ApiTypes.record(None.class, "ProbeNone", None::new);
 
     /** Publish {@code name} on {@code api}: no parameters, and every call fails with what {@code failure} makes. */
     public static void failing(ApiRegistry api, String name, Supplier<? extends RuntimeException> failure) {

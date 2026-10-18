@@ -56,12 +56,12 @@ public final class ClearAreaContracts {
 
     public static final ApiType<WidthBias> WIDTH_BIAS = ApiTypes.enumOf("WidthBias", WidthBias.class);
 
-    public static final RecordType<Box> BOX = ApiTypes.record("Box",
+    public static final RecordType<Box> BOX = ApiTypes.record(Box.class, "Box",
             ApiField.field("from", CommonTypes.BLOCK_POSITION).required().forGetter(Box::from),
             ApiField.field("to", CommonTypes.BLOCK_POSITION).required().forGetter(Box::to),
             Box::new);
 
-    public static final RecordType<Tunnel> TUNNEL = ApiTypes.record("Tunnel",
+    public static final RecordType<Tunnel> TUNNEL = ApiTypes.record(Tunnel.class, "Tunnel",
             ApiField.field("direction", CommonTypes.DIRECTION)
                     .describe("A turning word is snapped to the nearest compass direction.")
                     .defaulted(Direction.FORWARD).forGetter(Tunnel::direction),
@@ -91,17 +91,17 @@ public final class ClearAreaContracts {
             ApiTypes.variant("tunnel", Tunnel.class, TUNNEL));
 
     public static final UnionType<Edit> EDIT = ApiTypes.taggedUnion("Edit", "kind",
-            ApiTypes.variant("clear", Clear.class, ApiTypes.record(null, Clear::new)),
-            ApiTypes.variant("fill", Fill.class, ApiTypes.record(null,
+            ApiTypes.variant("clear", Clear.class, ApiTypes.record(Clear.class, null, Clear::new)),
+            ApiTypes.variant("fill", Fill.class, ApiTypes.record(Fill.class, null,
                     ApiField.field("block", CommonTypes.RESOURCE_ID).required().forGetter(Fill::block),
                     Fill::new)),
-            ApiTypes.variant("replace", Replace.class, ApiTypes.record(null,
+            ApiTypes.variant("replace", Replace.class, ApiTypes.record(Replace.class, null,
                     ApiField.field("from", CommonTypes.RESOURCE_ID).describe("Only cells holding this block are worked.")
                             .required().forGetter(Replace::from),
                     ApiField.field("to", CommonTypes.RESOURCE_ID).required().forGetter(Replace::to),
                     Replace::new)));
 
-    public static final ApiType<Params> PARAMS = ApiTypes.record("ClearAreaParams",
+    public static final ApiType<Params> PARAMS = ApiTypes.record(Params.class, "ClearAreaParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(Params::bot),
             ApiField.field("target", REGION).required().forGetter(Params::target),
             ApiField.field("edit", EDIT).defaulted(new Clear()).forGetter(Params::edit),
@@ -109,7 +109,7 @@ public final class ClearAreaContracts {
             Params::new);
 
     public static final UnionType<Summary> SUMMARY = ApiTypes.taggedUnion("ClearAreaSummary", "kind",
-            ApiTypes.variant("clearArea", Summary.class, ApiTypes.record(null,
+            ApiTypes.variant("clearArea", Summary.class, ApiTypes.record(Summary.class, null,
                     ApiField.field("from", CommonTypes.BLOCK_POSITION).required().forGetter(Summary::from),
                     ApiField.field("to", CommonTypes.BLOCK_POSITION).required().forGetter(Summary::to),
                     ApiField.field("widthBias", WIDTH_BIAS).describe("The bias a horizontal tunnel was cut with.")

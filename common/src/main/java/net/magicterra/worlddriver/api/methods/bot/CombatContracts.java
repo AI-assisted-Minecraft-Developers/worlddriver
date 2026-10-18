@@ -44,14 +44,14 @@ public final class CombatContracts {
     public static final ApiType<Mode> MODE = ApiTypes.enumOf("CombatMode", Mode.class);
 
     public static final UnionType<Foe> FOE = ApiTypes.taggedUnion("CombatTarget", "kind",
-            ApiTypes.variant("entity", FoeEntity.class, ApiTypes.record(null,
+            ApiTypes.variant("entity", FoeEntity.class, ApiTypes.record(FoeEntity.class, null,
                     ApiField.field("entityId", CommonTypes.ENTITY_ID).required().forGetter(FoeEntity::entityId),
                     FoeEntity::new)),
-            ApiTypes.variant("entityType", FoeType.class, ApiTypes.record(null,
+            ApiTypes.variant("entityType", FoeType.class, ApiTypes.record(FoeType.class, null,
                     ApiField.field("type", CommonTypes.RESOURCE_ID).required().forGetter(FoeType::type),
                     FoeType::new)));
 
-    public static final ApiType<Params> PARAMS = ApiTypes.record("CombatParams",
+    public static final ApiType<Params> PARAMS = ApiTypes.record(Params.class, "CombatParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(Params::bot),
             ApiField.field("mode", MODE).defaulted(Mode.ENGAGE).forGetter(Params::mode),
             ApiField.field("target", FOE).describe("kill only, and required there.").optional().forGetter(Params::target),
@@ -71,7 +71,7 @@ public final class CombatContracts {
             });
 
     public static final UnionType<Fought> RESULT = ApiTypes.taggedUnion("CombatResult", "kind",
-            ApiTypes.variant("combat", Fought.class, ApiTypes.record(null,
+            ApiTypes.variant("combat", Fought.class, ApiTypes.record(Fought.class, null,
                     ApiField.field("mode", MODE).required().forGetter(Fought::mode),
                     ApiField.field("target", FOE).optional().forGetter(Fought::target),
                     Fought::new)));

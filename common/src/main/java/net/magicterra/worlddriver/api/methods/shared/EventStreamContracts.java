@@ -25,13 +25,13 @@ public final class EventStreamContracts {
 
     public record Unsubscribed(boolean subscribed) {}
 
-    public static final RecordType<SubscribeParams> SUBSCRIBE_PARAMS = ApiTypes.record("SubscribeParams",
+    public static final RecordType<SubscribeParams> SUBSCRIBE_PARAMS = ApiTypes.record(SubscribeParams.class, "SubscribeParams",
             ApiField.field("types", ApiTypes.list(ApiTypes.string(1, 128), 256))
                     .describe("Event types to receive; omit or [] for every type.")
                     .optional().forGetter(SubscribeParams::types),
             SubscribeParams::new);
 
-    public static final ApiType<Subscription> SUBSCRIPTION = ApiTypes.record("Subscription",
+    public static final ApiType<Subscription> SUBSCRIPTION = ApiTypes.record(Subscription.class, "Subscription",
             ApiField.field("subscribed", ApiTypes.trueOnly()).required().forGetter(Subscription::subscribed),
             ApiField.field("types", ApiTypes.list(ApiTypes.string(1, 128), 256)).required().forGetter(Subscription::types),
             ApiField.field("allTypes", ApiTypes.bool())
@@ -39,7 +39,7 @@ public final class EventStreamContracts {
                     .required().forGetter(Subscription::allTypes),
             Subscription::new);
 
-    public static final ApiType<Unsubscribed> UNSUBSCRIBED = ApiTypes.record("Unsubscribed",
+    public static final ApiType<Unsubscribed> UNSUBSCRIBED = ApiTypes.record(Unsubscribed.class, "Unsubscribed",
             ApiField.field("subscribed", ApiTypes.bool()).required().forGetter(Unsubscribed::subscribed),
             Unsubscribed::new);
 }

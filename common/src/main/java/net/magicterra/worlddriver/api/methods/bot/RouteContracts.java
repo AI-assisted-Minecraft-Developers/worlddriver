@@ -109,7 +109,7 @@ public final class RouteContracts {
     public static final ApiType<TravelMode> TRAVEL_MODE = ApiTypes.enumOf("TravelMode", TravelMode.class);
     public static final ApiType<Enforcement> ENFORCEMENT = ApiTypes.enumOf("Enforcement", Enforcement.class);
 
-    public static final RecordType<YRange> Y_RANGE = ApiTypes.record("YRange",
+    public static final RecordType<YRange> Y_RANGE = ApiTypes.record(YRange.class, "YRange",
             ApiField.field("min", Y).optional().forGetter(YRange::min),
             ApiField.field("max", Y).optional().forGetter(YRange::max),
             ApiField.field("hard", ApiTypes.bool()).describe("true prunes cells outside; false charges weight per block outside.")
@@ -120,26 +120,26 @@ public final class RouteContracts {
                 if (r.min().isEmpty() && r.max().isEmpty()) at.fail(ApiIssue.Code.INVALID_VALUE, "needs min, max or both");
             });
 
-    public static final RecordType<Hug> HUG = ApiTypes.record("Hug",
+    public static final RecordType<Hug> HUG = ApiTypes.record(Hug.class, "Hug",
             ApiField.field("what", ApiTypes.enumOf(null, HugWhat.class)).defaulted(HugWhat.SHORE).forGetter(Hug::what),
             ApiField.field("weight", WEIGHT).describe("Cost of a cell with no adjacent water; keep it well above 10, a walked cell's cost.")
                     .defaulted(30.0).forGetter(Hug::weight),
             Hug::new);
 
     public static final UnionType<LeashAnchor> LEASH_ANCHOR = ApiTypes.taggedUnion("LeashAnchor", "kind",
-            ApiTypes.variant("point", PointAnchor.class, ApiTypes.record(null,
+            ApiTypes.variant("point", PointAnchor.class, ApiTypes.record(PointAnchor.class, null,
                     ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(PointAnchor::pos),
                     PointAnchor::new)),
-            ApiTypes.variant("column", ColumnAnchor.class, ApiTypes.record(null,
+            ApiTypes.variant("column", ColumnAnchor.class, ApiTypes.record(ColumnAnchor.class, null,
                     ApiField.field("x", ApiTypes.integer()).required().forGetter(ColumnAnchor::x),
                     ApiField.field("z", ApiTypes.integer()).required().forGetter(ColumnAnchor::z),
                     ColumnAnchor::new)),
-            ApiTypes.variant("entity", EntityAnchor.class, ApiTypes.record(null,
+            ApiTypes.variant("entity", EntityAnchor.class, ApiTypes.record(EntityAnchor.class, null,
                     ApiField.field("entity", NAME).describe("A player name, an entity type id or an entity id.")
                             .required().forGetter(EntityAnchor::entity),
                     EntityAnchor::new)));
 
-    public static final RecordType<Leash> LEASH = ApiTypes.record("Leash",
+    public static final RecordType<Leash> LEASH = ApiTypes.record(Leash.class, "Leash",
             ApiField.field("anchor", LEASH_ANCHOR).required().forGetter(Leash::anchor),
             ApiField.field("radius", RADIUS).required().forGetter(Leash::radius),
             ApiField.field("hard", ApiTypes.bool()).describe("true: the route may not leave the radius at all.")
@@ -149,13 +149,13 @@ public final class RouteContracts {
             Leash::new);
 
     public static final UnionType<RegionSpec> REGION = ApiTypes.taggedUnion("RouteRegion", "shape",
-            ApiTypes.variant("box", BoxRegion.class, ApiTypes.record(null,
+            ApiTypes.variant("box", BoxRegion.class, ApiTypes.record(BoxRegion.class, null,
                     ApiField.field("min", CommonTypes.BLOCK_POSITION).required().forGetter(BoxRegion::min),
                     ApiField.field("max", CommonTypes.BLOCK_POSITION).required().forGetter(BoxRegion::max),
                     ApiField.field("mode", ENFORCEMENT).defaulted(Enforcement.FORBID).forGetter(BoxRegion::mode),
                     ApiField.field("penalty", WEIGHT).defaulted(250.0).forGetter(BoxRegion::penalty),
                     BoxRegion::new)),
-            ApiTypes.variant("sphere", SphereRegion.class, ApiTypes.record(null,
+            ApiTypes.variant("sphere", SphereRegion.class, ApiTypes.record(SphereRegion.class, null,
                     ApiField.field("center", CommonTypes.BLOCK_POSITION).required().forGetter(SphereRegion::center),
                     ApiField.field("radius", RADIUS).defaulted(8.0).forGetter(SphereRegion::radius),
                     ApiField.field("mode", ENFORCEMENT).defaulted(Enforcement.FORBID).forGetter(SphereRegion::mode),
@@ -163,14 +163,14 @@ public final class RouteContracts {
                             .defaulted(250.0).forGetter(SphereRegion::penalty),
                     SphereRegion::new)));
 
-    public static final RecordType<Cluster> CLUSTER = ApiTypes.record("MobCluster",
+    public static final RecordType<Cluster> CLUSTER = ApiTypes.record(Cluster.class, "MobCluster",
             ApiField.field("count", ApiTypes.integer(1, 64)).defaulted(3).forGetter(Cluster::count),
             ApiField.field("radius", RADIUS).defaulted(6.0).forGetter(Cluster::radius),
             ApiField.field("mode", ENFORCEMENT).defaulted(Enforcement.FORBID).forGetter(Cluster::mode),
             ApiField.field("penalty", WEIGHT).defaulted(300.0).forGetter(Cluster::penalty),
             Cluster::new);
 
-    public static final RecordType<Mobs> MOBS = ApiTypes.record("Mobs",
+    public static final RecordType<Mobs> MOBS = ApiTypes.record(Mobs.class, "Mobs",
             ApiField.field("radius", WEIGHT).describe("Omitted: the mobAvoidRadius setting.").optional().forGetter(Mobs::radius),
             ApiField.field("rangedRadius", WEIGHT).describe("Omitted: the rangedAvoidRadius setting.")
                     .optional().forGetter(Mobs::rangedRadius),
@@ -181,7 +181,7 @@ public final class RouteContracts {
                     .defaulted(List.of()).forGetter(Mobs::types),
             Mobs::new);
 
-    public static final RecordType<Sight> SIGHT = ApiTypes.record("Sight",
+    public static final RecordType<Sight> SIGHT = ApiTypes.record(Sight.class, "Sight",
             ApiField.field("of", ApiTypes.enumOf("SightOf", SightOf.class)).describe("Omitted with no observers: ranged.")
                     .optional().forGetter(Sight::of),
             ApiField.field("observers", ApiTypes.list(NAME, 1, 64)).describe("Entity ids, player names or entity types.")
@@ -200,7 +200,7 @@ public final class RouteContracts {
                 }
             });
 
-    public static final RecordType<Corridor> CORRIDOR = ApiTypes.record("Corridor",
+    public static final RecordType<Corridor> CORRIDOR = ApiTypes.record(Corridor.class, "Corridor",
             ApiField.field("points", ApiTypes.list(CommonTypes.BLOCK_POSITION, 1, 256)).required().forGetter(Corridor::points),
             ApiField.field("radius", RADIUS).defaulted(3.0).forGetter(Corridor::radius),
             ApiField.field("mode", ENFORCEMENT).defaulted(Enforcement.FORBID).forGetter(Corridor::mode),
@@ -208,7 +208,7 @@ public final class RouteContracts {
                     .defaulted(20.0).forGetter(Corridor::penalty),
             Corridor::new);
 
-    public static final RecordType<Route> ROUTE = ApiTypes.record("Route",
+    public static final RecordType<Route> ROUTE = ApiTypes.record(Route.class, "Route",
             ApiField.field("via", ApiTypes.list(CommonTypes.BLOCK_POSITION, 64))
                     .describe("Cells reached in order, within one block each, before the goal.")
                     .defaulted(List.of()).forGetter(Route::via),

@@ -26,7 +26,7 @@ public final class DebugContracts {
 
     public record Column(int x, int z) {}
 
-    public static final ApiType<Column> COLUMN = ApiTypes.record("Column",
+    public static final ApiType<Column> COLUMN = ApiTypes.record(Column.class, "Column",
             ApiField.field("x", ApiTypes.integer()).required().forGetter(Column::x),
             ApiField.field("z", ApiTypes.integer()).required().forGetter(Column::z),
             Column::new);
@@ -54,7 +54,7 @@ public final class DebugContracts {
 
     private static final ApiType<ChartView> CHART_VIEW = ApiTypes.enumOf("ChartView", ChartView.class);
 
-    public static final ApiType<ChartParams> CHART_PARAMS = ApiTypes.record("ChartParams",
+    public static final ApiType<ChartParams> CHART_PARAMS = ApiTypes.record(ChartParams.class, "ChartParams",
             ApiField.field("view", CHART_VIEW)
                     .describe("dashboard: A* candidates, every planned route and the walked trajectory on a top-down "
                             + "map, with an elevation profile and speed / heading series. threeview: front, side and top "
@@ -70,7 +70,7 @@ public final class DebugContracts {
                     .describe("Omitted: pathchart-NNNN-<ms>.").optional().forGetter(ChartParams::name),
             ChartParams::new);
 
-    public static final ApiType<Chart> CHART = ApiTypes.record("Chart",
+    public static final ApiType<Chart> CHART = ApiTypes.record(Chart.class, "Chart",
             ApiField.field("view", CHART_VIEW).required().forGetter(Chart::view),
             ApiField.field("outcome", ApiTypes.string()).describe("How the charted goto ended; RUNNING while it walks.")
                     .required().forGetter(Chart::outcome),
@@ -118,7 +118,7 @@ public final class DebugContracts {
                             long maxRegression, long totalExpanded, long hStart, long hFinal, List<Segment> trail)
             implements PlanReply {}
 
-    public static final ApiType<PlanParams> PLAN_PARAMS = ApiTypes.record("PathPlanParams",
+    public static final ApiType<PlanParams> PLAN_PARAMS = ApiTypes.record(PlanParams.class, "PathPlanParams",
             ApiField.field("goal", COLUMN).required().forGetter(PlanParams::goal),
             ApiField.field("from", CommonTypes.BLOCK_POSITION).describe("The start foot. Omitted: where the player stands.")
                     .optional().forGetter(PlanParams::from),
@@ -130,19 +130,19 @@ public final class DebugContracts {
                     .forGetter(PlanParams::maxSegments),
             PlanParams::new);
 
-    private static final ApiType<MoveCost> MOVE_COST = ApiTypes.record("MoveCost",
+    private static final ApiType<MoveCost> MOVE_COST = ApiTypes.record(MoveCost.class, "MoveCost",
             ApiField.field("n", COUNT).required().forGetter(MoveCost::n),
             ApiField.field("cost", COST).required().forGetter(MoveCost::cost),
             MoveCost::new);
 
-    private static final ApiType<Search> SEARCH = ApiTypes.record("PlanSearch",
+    private static final ApiType<Search> SEARCH = ApiTypes.record(Search.class, "PlanSearch",
             ApiField.field("expanded", COUNT).required().forGetter(Search::expanded),
             ApiField.field("computeMs", LONG_COUNT).required().forGetter(Search::computeMs),
             ApiField.field("wallMs", LONG_COUNT).required().forGetter(Search::wallMs),
             ApiField.field("finalCost", COST).required().forGetter(Search::finalCost),
             Search::new);
 
-    private static final ApiType<Estimate> ESTIMATE = ApiTypes.record("PlanEstimate",
+    private static final ApiType<Estimate> ESTIMATE = ApiTypes.record(Estimate.class, "PlanEstimate",
             ApiField.field("hStart", COST).required().forGetter(Estimate::hStart),
             ApiField.field("hEnd", COST).required().forGetter(Estimate::hEnd),
             ApiField.field("hDelta", COST).required().forGetter(Estimate::hDelta),
@@ -150,7 +150,7 @@ public final class DebugContracts {
                     .required().forGetter(Estimate::forward),
             Estimate::new);
 
-    private static final ApiType<Segment> SEGMENT =ApiTypes.record("PlanSegment",
+    private static final ApiType<Segment> SEGMENT =ApiTypes.record(Segment.class, "PlanSegment",
             ApiField.field("end", CommonTypes.BLOCK_POSITION).required().forGetter(Segment::end),
             ApiField.field("hEnd", COST).required().forGetter(Segment::hEnd),
             ApiField.field("hDelta", COST).required().forGetter(Segment::hDelta),
@@ -162,7 +162,7 @@ public final class DebugContracts {
             Segment::new);
 
     public static final UnionType<PlanReply> PLAN_REPLY = ApiTypes.taggedUnion("PlanReply", "mode",
-            ApiTypes.variant("single", SinglePlan.class, ApiTypes.record(null,
+            ApiTypes.variant("single", SinglePlan.class, ApiTypes.record(SinglePlan.class, null,
                     ApiField.field("start", CommonTypes.BLOCK_POSITION).required().forGetter(SinglePlan::start),
                     ApiField.field("goal", COLUMN).required().forGetter(SinglePlan::goal),
                     ApiField.field("goalReached", ApiTypes.bool()).required().forGetter(SinglePlan::goalReached),
@@ -179,7 +179,7 @@ public final class DebugContracts {
                     ApiField.field("breaks", COUNT).required().forGetter(SinglePlan::breaks),
                     ApiField.field("places", COUNT).required().forGetter(SinglePlan::places),
                     SinglePlan::new)),
-            ApiTypes.variant("chain", ChainPlan.class, ApiTypes.record(null,
+            ApiTypes.variant("chain", ChainPlan.class, ApiTypes.record(ChainPlan.class, null,
                     ApiField.field("start", CommonTypes.BLOCK_POSITION).required().forGetter(ChainPlan::start),
                     ApiField.field("goal", COLUMN).required().forGetter(ChainPlan::goal),
                     ApiField.field("reached", ApiTypes.bool()).required().forGetter(ChainPlan::reached),
@@ -212,7 +212,7 @@ public final class DebugContracts {
     public record Replayed(String file, int segments, int plannedNodes, int restoredBlocks, String fidelity)
             implements ReplayReply {}
 
-    public static final ApiType<ReplayParams> REPLAY_PARAMS = ApiTypes.record("ReplayParams",
+    public static final ApiType<ReplayParams> REPLAY_PARAMS = ApiTypes.record(ReplayParams.class, "ReplayParams",
             ApiField.field("file", ApiTypes.pattern("[A-Za-z0-9_.-]{1,128}\\.json", "an archive file name"))
                     .describe("Under config/worlddriver/replays/. Omitted: the newest plan archive.")
                     .optional().forGetter(ReplayParams::file),
@@ -225,14 +225,14 @@ public final class DebugContracts {
             ReplayParams::new);
 
     public static final UnionType<ReplayReply> REPLAY_REPLY = ApiTypes.taggedUnion("ReplayReply", "mode",
-            ApiTypes.variant("replan", Replanned.class, ApiTypes.record(null,
+            ApiTypes.variant("replan", Replanned.class, ApiTypes.record(Replanned.class, null,
                     ApiField.field("file", ApiTypes.string()).required().forGetter(Replanned::file),
                     ApiField.field("goal", ApiTypes.string()).required().forGetter(Replanned::goal),
                     ApiField.field("envelopeCells", COUNT).required().forGetter(Replanned::envelopeCells),
                     ApiField.field("restoredBlocks", COUNT).required().forGetter(Replanned::restoredBlocks),
                     ApiField.field("fidelity", ApiTypes.string()).required().forGetter(Replanned::fidelity),
                     Replanned::new)),
-            ApiTypes.variant("plan", Replayed.class, ApiTypes.record(null,
+            ApiTypes.variant("plan", Replayed.class, ApiTypes.record(Replayed.class, null,
                     ApiField.field("file", ApiTypes.string()).required().forGetter(Replayed::file),
                     ApiField.field("segments", COUNT).required().forGetter(Replayed::segments),
                     ApiField.field("plannedNodes", COUNT).required().forGetter(Replayed::plannedNodes),

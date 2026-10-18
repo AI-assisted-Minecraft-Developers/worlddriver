@@ -89,7 +89,7 @@ public final class SettingsContracts {
     private static final Set<String> NON_NEGATIVE = Set.of(
             "pathfinderWaterCellCost", "pathfinderWaterClimbOutCost", "pathfinderSubmergedWaterCost");
 
-    private static final ApiType<AvoidPoint> AVOID_POINT = ApiTypes.record("AvoidPoint",
+    private static final ApiType<AvoidPoint> AVOID_POINT = ApiTypes.record(AvoidPoint.class, "AvoidPoint",
             ApiField.field("x", ApiTypes.number()).required().forGetter(AvoidPoint::x),
             ApiField.field("y", ApiTypes.number()).required().forGetter(AvoidPoint::y),
             ApiField.field("z", ApiTypes.number()).required().forGetter(AvoidPoint::z),
@@ -148,18 +148,18 @@ public final class SettingsContracts {
     private static final int MAX_KEYS = TYPES.size();
 
     public static final ApiType<SettingsOp> PARAMS = ApiTypes.<SettingsOp>taggedUnion("SettingsParams", "op",
-            ApiTypes.variant("read", Read.class, ApiTypes.record(null,
+            ApiTypes.variant("read", Read.class, ApiTypes.record(Read.class, null,
                     ApiField.field("keys", ApiTypes.list(SETTING_KEY, MAX_KEYS))
                             .describe("Omitted: every readable key. Empty: none.").optional().forGetter(Read::keys),
                     Read::new)),
-            ApiTypes.variant("patch", Patch.class, ApiTypes.record(null,
+            ApiTypes.variant("patch", Patch.class, ApiTypes.record(Patch.class, null,
                     ApiField.field("values", SETTING_VALUES.atLeast(1))
                             .describe("The keys to write and their new values, e.g. {autoEat: true}; validated together "
                                     + "and committed together, so nothing is written unless every value is valid. Keys not "
                                     + "named keep their values.")
                             .required().forGetter(Patch::values),
                     Patch::new)),
-            ApiTypes.variant("apply", Apply.class, ApiTypes.record(null,
+            ApiTypes.variant("apply", Apply.class, ApiTypes.record(Apply.class, null,
                     ApiField.field("control", CONTROL).required().forGetter(Apply::control),
                     ApiField.field("value", ApiTypes.bool()).required().forGetter(Apply::value),
                     Apply::new)))
@@ -191,11 +191,11 @@ public final class SettingsContracts {
     }
 
     public static final ApiType<SettingsReply> REPLY = ApiTypes.<SettingsReply>taggedUnion("SettingsReply", "op",
-            ApiTypes.variant("read", Values.class, ApiTypes.record(null,
+            ApiTypes.variant("read", Values.class, ApiTypes.record(Values.class, null,
                     ApiField.field("values", SETTING_VALUES).describe("In the order asked for.")
                             .required().forGetter(Values::values),
                     Values::new)),
-            ApiTypes.variant("patch", Patched.class, ApiTypes.record(null,
+            ApiTypes.variant("patch", Patched.class, ApiTypes.record(Patched.class, null,
                     ApiField.field("values", SETTING_VALUES)
                             .describe("What each written key holds after the commit, in the order sent.")
                             .required().forGetter(Patched::values),
@@ -204,7 +204,7 @@ public final class SettingsContracts {
                             .required().forGetter(Patched::persisted),
                     ApiField.field("persistError", ApiTypes.string()).optional().forGetter(Patched::persistError),
                     Patched::new)),
-            ApiTypes.variant("apply", Applied.class, ApiTypes.record(null,
+            ApiTypes.variant("apply", Applied.class, ApiTypes.record(Applied.class, null,
                     ApiField.field("control", CONTROL).required().forGetter(Applied::control),
                     ApiField.field("value", ApiTypes.bool()).required().forGetter(Applied::value),
                     Applied::new)));

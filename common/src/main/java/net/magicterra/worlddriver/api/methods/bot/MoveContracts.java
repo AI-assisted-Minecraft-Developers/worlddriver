@@ -37,14 +37,14 @@ public final class MoveContracts {
     public record Followed(Quarry target, int radius) {}
 
     public static final UnionType<Quarry> QUARRY = ApiTypes.taggedUnion("FollowTarget", "kind",
-            ApiTypes.variant("entityType", QuarryType.class, ApiTypes.record(null,
+            ApiTypes.variant("entityType", QuarryType.class, ApiTypes.record(QuarryType.class, null,
                     ApiField.field("type", CommonTypes.RESOURCE_ID).required().forGetter(QuarryType::type),
                     QuarryType::new)),
-            ApiTypes.variant("player", QuarryPlayer.class, ApiTypes.record(null,
+            ApiTypes.variant("player", QuarryPlayer.class, ApiTypes.record(QuarryPlayer.class, null,
                     ApiField.field("name", ApiTypes.string(1, 64)).required().forGetter(QuarryPlayer::name),
                     QuarryPlayer::new)));
 
-    public static final ApiType<FollowParams> FOLLOW_PARAMS = ApiTypes.record("FollowParams",
+    public static final ApiType<FollowParams> FOLLOW_PARAMS = ApiTypes.record(FollowParams.class, "FollowParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(FollowParams::bot),
             ApiField.field("target", QUARRY).required().forGetter(FollowParams::target),
             ApiField.field("radius", ApiTypes.integer(1, 16)).describe("Standoff distance.").defaulted(3)
@@ -71,7 +71,7 @@ public final class MoveContracts {
             }));
 
     public static final UnionType<Followed> FOLLOW_RESULT = ApiTypes.taggedUnion("FollowResult", "kind",
-            ApiTypes.variant("follow", Followed.class, ApiTypes.record(null,
+            ApiTypes.variant("follow", Followed.class, ApiTypes.record(Followed.class, null,
                     ApiField.field("target", QUARRY).required().forGetter(Followed::target),
                     ApiField.field("radius", ApiTypes.integer(1, 16)).required().forGetter(Followed::radius),
                     Followed::new)));
@@ -90,7 +90,7 @@ public final class MoveContracts {
 
     public record Explored(int centerX, int centerZ, int maxChunks, int visited) {}
 
-    public static final ApiType<ExploreParams> EXPLORE_PARAMS = ApiTypes.record("ExploreParams",
+    public static final ApiType<ExploreParams> EXPLORE_PARAMS = ApiTypes.record(ExploreParams.class, "ExploreParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(ExploreParams::bot),
             ApiField.field("centerX", ApiTypes.integer()).required().forGetter(ExploreParams::centerX),
             ApiField.field("centerZ", ApiTypes.integer()).required().forGetter(ExploreParams::centerZ),
@@ -100,7 +100,7 @@ public final class MoveContracts {
             ExploreParams::new);
 
     public static final UnionType<Explored> EXPLORE_RESULT = ApiTypes.taggedUnion("ExploreResult", "kind",
-            ApiTypes.variant("explore", Explored.class, ApiTypes.record(null,
+            ApiTypes.variant("explore", Explored.class, ApiTypes.record(Explored.class, null,
                     ApiField.field("centerX", ApiTypes.integer()).required().forGetter(Explored::centerX),
                     ApiField.field("centerZ", ApiTypes.integer()).required().forGetter(Explored::centerZ),
                     ApiField.field("maxChunks", ApiTypes.integer(1, 64)).required().forGetter(Explored::maxChunks),
@@ -121,7 +121,7 @@ public final class MoveContracts {
     /** {@code at}: the cell it stopped in. */
     public record RanAway(BlockPosition from, int minDist, BlockPosition at) {}
 
-    public static final ApiType<RunAwayParams> RUN_AWAY_PARAMS = ApiTypes.record("RunAwayParams",
+    public static final ApiType<RunAwayParams> RUN_AWAY_PARAMS = ApiTypes.record(RunAwayParams.class, "RunAwayParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(RunAwayParams::bot),
             ApiField.field("from", CommonTypes.BLOCK_POSITION).describe("Omitted: where the body stands.")
                     .optional().forGetter(RunAwayParams::from),
@@ -130,7 +130,7 @@ public final class MoveContracts {
             RunAwayParams::new);
 
     public static final UnionType<RanAway> RUN_AWAY_RESULT = ApiTypes.taggedUnion("RunAwayResult", "kind",
-            ApiTypes.variant("runAway", RanAway.class, ApiTypes.record(null,
+            ApiTypes.variant("runAway", RanAway.class, ApiTypes.record(RanAway.class, null,
                     ApiField.field("from", CommonTypes.BLOCK_POSITION).required().forGetter(RanAway::from),
                     ApiField.field("minDist", ApiTypes.integer(4, 64)).required().forGetter(RanAway::minDist),
                     ApiField.field("at", CommonTypes.BLOCK_POSITION).required().forGetter(RanAway::at),
@@ -148,7 +148,7 @@ public final class MoveContracts {
 
     public record Slept(BlockPosition bed) {}
 
-    public static final ApiType<SleepParams> SLEEP_PARAMS = ApiTypes.record("SleepParams",
+    public static final ApiType<SleepParams> SLEEP_PARAMS = ApiTypes.record(SleepParams.class, "SleepParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(SleepParams::bot),
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).describe("A bed to use instead of searching.")
                     .optional().forGetter(SleepParams::pos),
@@ -158,7 +158,7 @@ public final class MoveContracts {
             SleepParams::new);
 
     public static final UnionType<Slept> SLEEP_RESULT = ApiTypes.taggedUnion("SleepResult", "kind",
-            ApiTypes.variant("sleep", Slept.class, ApiTypes.record(null,
+            ApiTypes.variant("sleep", Slept.class, ApiTypes.record(Slept.class, null,
                     ApiField.field("bed", CommonTypes.BLOCK_POSITION).required().forGetter(Slept::bed),
                     Slept::new)));
 
@@ -191,7 +191,7 @@ public final class MoveContracts {
 
     public record Flown(FlightMode mode, boolean fireworks) {}
 
-    public static final ApiType<ElytraParams> ELYTRA_PARAMS = ApiTypes.record("ElytraFlyParams",
+    public static final ApiType<ElytraParams> ELYTRA_PARAMS = ApiTypes.record(ElytraParams.class, "ElytraFlyParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(ElytraParams::bot),
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).describe("Where to fly. Omitted: glide on the current heading.")
                     .optional().forGetter(ElytraParams::pos),
@@ -228,7 +228,7 @@ public final class MoveContracts {
             });
 
     public static final UnionType<Flown> ELYTRA_RESULT = ApiTypes.taggedUnion("ElytraFlyResult", "kind",
-            ApiTypes.variant("elytraFly", Flown.class, ApiTypes.record(null,
+            ApiTypes.variant("elytraFly", Flown.class, ApiTypes.record(Flown.class, null,
                     ApiField.field("mode", ApiTypes.enumOf("FlightMode", FlightMode.class)).required().forGetter(Flown::mode),
                     ApiField.field("fireworks", ApiTypes.bool()).required().forGetter(Flown::fireworks),
                     Flown::new)));

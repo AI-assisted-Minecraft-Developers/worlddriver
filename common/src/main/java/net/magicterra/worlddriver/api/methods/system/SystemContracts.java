@@ -26,7 +26,7 @@ public final class SystemContracts {
                           Optional<String> builtAt, Optional<Long> builtMs, Optional<Long> sizeBytes,
                           Optional<String> stampError) {}
 
-    public static final ApiType<Version> VERSION_REPLY = ApiTypes.record("Version",
+    public static final ApiType<Version> VERSION_REPLY = ApiTypes.record(Version.class, "Version",
             ApiField.field("modid", ApiTypes.string()).required().forGetter(Version::modid),
             ApiField.field("version", ApiTypes.string()).required().forGetter(Version::version),
             ApiField.field("uptimeMs", ApiTypes.int64(0, Long.MAX_VALUE)).required().forGetter(Version::uptimeMs),
@@ -64,12 +64,12 @@ public final class SystemContracts {
     /** {@code interrupted}: the call was cancelled or ran out of budget first, so fewer ticks passed. */
     public record Waited(int waited, Optional<Boolean> interrupted) {}
 
-    public static final ApiType<WaitTicksParams> WAIT_TICKS_PARAMS = ApiTypes.record("WaitTicksParams",
+    public static final ApiType<WaitTicksParams> WAIT_TICKS_PARAMS = ApiTypes.record(WaitTicksParams.class, "WaitTicksParams",
             ApiField.field("ticks", ApiTypes.integer(0, 200)).describe("Nominal ticks of 50 ms each.")
                     .required().forGetter(WaitTicksParams::ticks),
             WaitTicksParams::new);
 
-    public static final ApiType<Waited> WAITED = ApiTypes.record("Waited",
+    public static final ApiType<Waited> WAITED = ApiTypes.record(Waited.class, "Waited",
             ApiField.field("waited", ApiTypes.integer(0, 200)).required().forGetter(Waited::waited),
             ApiField.field("interrupted", ApiTypes.trueOnly()).optional().forGetter(Waited::interrupted),
             Waited::new);

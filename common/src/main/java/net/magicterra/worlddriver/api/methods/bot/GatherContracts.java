@@ -26,7 +26,7 @@ public final class GatherContracts {
     /** {@code broken} counts blocks destroyed, not items picked up. */
     public record Mined(List<String> blocks, int quantity, int radius, int broken) {}
 
-    public static final ApiType<MineParams> MINE_PARAMS = ApiTypes.record("MineParams",
+    public static final ApiType<MineParams> MINE_PARAMS = ApiTypes.record(MineParams.class, "MineParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(MineParams::bot),
             ApiField.field("blocks", ApiTypes.list(CommonTypes.BLOCK_OR_TAG, 1, 64))
                     .describe("Block ids or #tags to mine, e.g. ['minecraft:iron_ore', '#minecraft:logs'].")
@@ -40,7 +40,7 @@ public final class GatherContracts {
             MineParams::new);
 
     public static final UnionType<Mined> MINE_RESULT = ApiTypes.taggedUnion("MineResult", "kind",
-            ApiTypes.variant("mine", Mined.class, ApiTypes.record(null,
+            ApiTypes.variant("mine", Mined.class, ApiTypes.record(Mined.class, null,
                     ApiField.field("blocks", ApiTypes.list(CommonTypes.BLOCK_OR_TAG, 64)).required().forGetter(Mined::blocks),
                     ApiField.field("quantity", ApiTypes.integer(1, 256)).required().forGetter(Mined::quantity),
                     ApiField.field("radius", ApiTypes.integer(1, 64)).required().forGetter(Mined::radius),
@@ -62,7 +62,7 @@ public final class GatherContracts {
     /** {@code crafted}: items the crafting steps produced, intermediate ones included. */
     public record Crafted(String item, int count, int crafted) {}
 
-    public static final ApiType<CraftParams> CRAFT_PARAMS = ApiTypes.record("CraftParams",
+    public static final ApiType<CraftParams> CRAFT_PARAMS = ApiTypes.record(CraftParams.class, "CraftParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(CraftParams::bot),
             ApiField.field("item", CommonTypes.RESOURCE_ID).describe("The item to end up with, e.g. minecraft:wooden_pickaxe.")
                     .required().forGetter(CraftParams::item),
@@ -71,7 +71,7 @@ public final class GatherContracts {
             CraftParams::new);
 
     public static final UnionType<Crafted> CRAFT_RESULT = ApiTypes.taggedUnion("CraftResult", "kind",
-            ApiTypes.variant("craft", Crafted.class, ApiTypes.record(null,
+            ApiTypes.variant("craft", Crafted.class, ApiTypes.record(Crafted.class, null,
                     ApiField.field("item", CommonTypes.RESOURCE_ID).required().forGetter(Crafted::item),
                     ApiField.field("count", ApiTypes.integer(1, 256)).required().forGetter(Crafted::count),
                     ApiField.field("crafted", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Crafted::crafted),
@@ -93,7 +93,7 @@ public final class GatherContracts {
     /** {@code fuel}: what was loaded, absent when the furnace never got any. */
     public record Smelted(String item, int count, Optional<String> fuel) {}
 
-    public static final ApiType<SmeltParams> SMELT_PARAMS = ApiTypes.record("SmeltParams",
+    public static final ApiType<SmeltParams> SMELT_PARAMS = ApiTypes.record(SmeltParams.class, "SmeltParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(SmeltParams::bot),
             ApiField.field("item", CommonTypes.RESOURCE_ID).describe("The ingredient, e.g. minecraft:raw_iron.")
                     .required().forGetter(SmeltParams::item),
@@ -105,7 +105,7 @@ public final class GatherContracts {
             SmeltParams::new);
 
     public static final UnionType<Smelted> SMELT_RESULT = ApiTypes.taggedUnion("SmeltResult", "kind",
-            ApiTypes.variant("smelt", Smelted.class, ApiTypes.record(null,
+            ApiTypes.variant("smelt", Smelted.class, ApiTypes.record(Smelted.class, null,
                     ApiField.field("item", CommonTypes.RESOURCE_ID).required().forGetter(Smelted::item),
                     ApiField.field("count", ApiTypes.integer(1, 256)).required().forGetter(Smelted::count),
                     ApiField.field("fuel", ApiTypes.string(1, 256)).optional().forGetter(Smelted::fuel),
@@ -140,7 +140,7 @@ public final class GatherContracts {
 
     public static final ApiType<Crop> CROP = ApiTypes.enumOf("Crop", Crop.class);
 
-    public static final ApiType<FarmParams> FARM_PARAMS = ApiTypes.record("FarmParams",
+    public static final ApiType<FarmParams> FARM_PARAMS = ApiTypes.record(FarmParams.class, "FarmParams",
             ApiField.field("bot", Responses.BOT_REF).defaulted("self").forGetter(FarmParams::bot),
             ApiField.field("from", CommonTypes.BLOCK_POSITION).required().forGetter(FarmParams::from),
             ApiField.field("to", CommonTypes.BLOCK_POSITION).required().forGetter(FarmParams::to),
@@ -159,7 +159,7 @@ public final class GatherContracts {
             });
 
     public static final UnionType<Farmed> FARM_RESULT = ApiTypes.taggedUnion("FarmResult", "kind",
-            ApiTypes.variant("farm", Farmed.class, ApiTypes.record(null,
+            ApiTypes.variant("farm", Farmed.class, ApiTypes.record(Farmed.class, null,
                     ApiField.field("from", CommonTypes.BLOCK_POSITION).required().forGetter(Farmed::from),
                     ApiField.field("to", CommonTypes.BLOCK_POSITION).required().forGetter(Farmed::to),
                     ApiField.field("crops", ApiTypes.list(CROP, 1, 4)).required().forGetter(Farmed::crops),

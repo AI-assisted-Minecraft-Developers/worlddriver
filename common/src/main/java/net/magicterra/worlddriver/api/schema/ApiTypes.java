@@ -169,151 +169,151 @@ public final class ApiTypes {
     // ------------------------------------------------------------------ records
 
     /** A record with no fields: the parameters of a method that takes none. */
-    public static <R> RecordType<R> record(String name, Supplier<R> constructor) {
-        return new RecordType<>(name, List.of(), a -> constructor.get());
+    public static <R> RecordType<R> record(Class<R> type, String name, Supplier<R> constructor) {
+        return new RecordType<>(type, name, List.of(), a -> constructor.get());
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A> RecordType<R> record(String name, ApiField<R, A> f1, Function<A, R> constructor) {
-        return new RecordType<>(name, List.of(f1), a -> constructor.apply((A) a[0]));
+    public static <R, A> RecordType<R> record(Class<R> type, String name, ApiField<R, A> f1, Function<A, R> constructor) {
+        return new RecordType<>(type, name, List.of(f1), a -> constructor.apply((A) a[0]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B> RecordType<R> record(String name, ApiField<R, A> f1, ApiField<R, B> f2,
+    public static <R, A, B> RecordType<R> record(Class<R> type, String name, ApiField<R, A> f1, ApiField<R, B> f2,
                                                  BiFunction<A, B, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2), a -> constructor.apply((A) a[0], (B) a[1]));
+        return new RecordType<>(type, name, List.of(f1, f2), a -> constructor.apply((A) a[0], (B) a[1]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C> RecordType<R> record(String name,
+    public static <R, A, B, C> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3,
             Function3<A, B, C, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3), a -> constructor.apply((A) a[0], (B) a[1], (C) a[2]));
+        return new RecordType<>(type, name, List.of(f1, f2, f3), a -> constructor.apply((A) a[0], (B) a[1], (C) a[2]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C, D> RecordType<R> record(String name,
+    public static <R, A, B, C, D> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4,
             Function4<A, B, C, D, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3, f4), a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3]));
+        return new RecordType<>(type, name, List.of(f1, f2, f3, f4), a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C, D, E> RecordType<R> record(String name,
+    public static <R, A, B, C, D, E> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4, ApiField<R, E> f5,
             Function5<A, B, C, D, E, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3, f4, f5),
+        return new RecordType<>(type, name, List.of(f1, f2, f3, f4, f5),
                 a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3], (E) a[4]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C, D, E, F> RecordType<R> record(String name,
+    public static <R, A, B, C, D, E, F> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4, ApiField<R, E> f5,
             ApiField<R, F> f6,
             Function6<A, B, C, D, E, F, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3, f4, f5, f6),
+        return new RecordType<>(type, name, List.of(f1, f2, f3, f4, f5, f6),
                 a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3], (E) a[4], (F) a[5]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C, D, E, F, G> RecordType<R> record(String name,
+    public static <R, A, B, C, D, E, F, G> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4, ApiField<R, E> f5,
             ApiField<R, F> f6, ApiField<R, G> f7,
             Function7<A, B, C, D, E, F, G, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3, f4, f5, f6, f7),
+        return new RecordType<>(type, name, List.of(f1, f2, f3, f4, f5, f6, f7),
                 a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3], (E) a[4], (F) a[5], (G) a[6]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C, D, E, F, G, H> RecordType<R> record(String name,
+    public static <R, A, B, C, D, E, F, G, H> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4, ApiField<R, E> f5,
             ApiField<R, F> f6, ApiField<R, G> f7, ApiField<R, H> f8,
             Function8<A, B, C, D, E, F, G, H, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3, f4, f5, f6, f7, f8),
+        return new RecordType<>(type, name, List.of(f1, f2, f3, f4, f5, f6, f7, f8),
                 a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3], (E) a[4], (F) a[5], (G) a[6], (H) a[7]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C, D, E, F, G, H, I> RecordType<R> record(String name,
+    public static <R, A, B, C, D, E, F, G, H, I> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4, ApiField<R, E> f5,
             ApiField<R, F> f6, ApiField<R, G> f7, ApiField<R, H> f8, ApiField<R, I> f9,
             Function9<A, B, C, D, E, F, G, H, I, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9),
+        return new RecordType<>(type, name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9),
                 a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3], (E) a[4], (F) a[5], (G) a[6], (H) a[7], (I) a[8]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C, D, E, F, G, H, I, J> RecordType<R> record(String name,
+    public static <R, A, B, C, D, E, F, G, H, I, J> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4, ApiField<R, E> f5,
             ApiField<R, F> f6, ApiField<R, G> f7, ApiField<R, H> f8, ApiField<R, I> f9, ApiField<R, J> f10,
             Function10<A, B, C, D, E, F, G, H, I, J, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10),
+        return new RecordType<>(type, name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10),
                 a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3], (E) a[4], (F) a[5], (G) a[6], (H) a[7], (I) a[8], (J) a[9]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C, D, E, F, G, H, I, J, K> RecordType<R> record(String name,
+    public static <R, A, B, C, D, E, F, G, H, I, J, K> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4, ApiField<R, E> f5,
             ApiField<R, F> f6, ApiField<R, G> f7, ApiField<R, H> f8, ApiField<R, I> f9, ApiField<R, J> f10,
             ApiField<R, K> f11,
             Function11<A, B, C, D, E, F, G, H, I, J, K, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11),
+        return new RecordType<>(type, name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11),
                 a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3], (E) a[4], (F) a[5], (G) a[6], (H) a[7], (I) a[8], (J) a[9],
                         (K) a[10]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C, D, E, F, G, H, I, J, K, L> RecordType<R> record(String name,
+    public static <R, A, B, C, D, E, F, G, H, I, J, K, L> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4, ApiField<R, E> f5,
             ApiField<R, F> f6, ApiField<R, G> f7, ApiField<R, H> f8, ApiField<R, I> f9, ApiField<R, J> f10,
             ApiField<R, K> f11, ApiField<R, L> f12,
             Function12<A, B, C, D, E, F, G, H, I, J, K, L, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12),
+        return new RecordType<>(type, name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12),
                 a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3], (E) a[4], (F) a[5], (G) a[6], (H) a[7], (I) a[8], (J) a[9],
                         (K) a[10], (L) a[11]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C, D, E, F, G, H, I, J, K, L, M> RecordType<R> record(String name,
+    public static <R, A, B, C, D, E, F, G, H, I, J, K, L, M> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4, ApiField<R, E> f5,
             ApiField<R, F> f6, ApiField<R, G> f7, ApiField<R, H> f8, ApiField<R, I> f9, ApiField<R, J> f10,
             ApiField<R, K> f11, ApiField<R, L> f12, ApiField<R, M> f13,
             Function13<A, B, C, D, E, F, G, H, I, J, K, L, M, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13),
+        return new RecordType<>(type, name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13),
                 a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3], (E) a[4], (F) a[5], (G) a[6], (H) a[7], (I) a[8], (J) a[9],
                         (K) a[10], (L) a[11], (M) a[12]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C, D, E, F, G, H, I, J, K, L, M, N> RecordType<R> record(String name,
+    public static <R, A, B, C, D, E, F, G, H, I, J, K, L, M, N> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4, ApiField<R, E> f5,
             ApiField<R, F> f6, ApiField<R, G> f7, ApiField<R, H> f8, ApiField<R, I> f9, ApiField<R, J> f10,
             ApiField<R, K> f11, ApiField<R, L> f12, ApiField<R, M> f13, ApiField<R, N> f14,
             Function14<A, B, C, D, E, F, G, H, I, J, K, L, M, N, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14),
+        return new RecordType<>(type, name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14),
                 a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3], (E) a[4], (F) a[5], (G) a[6], (H) a[7], (I) a[8], (J) a[9],
                         (K) a[10], (L) a[11], (M) a[12], (N) a[13]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O> RecordType<R> record(String name,
+    public static <R, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4, ApiField<R, E> f5,
             ApiField<R, F> f6, ApiField<R, G> f7, ApiField<R, H> f8, ApiField<R, I> f9, ApiField<R, J> f10,
             ApiField<R, K> f11, ApiField<R, L> f12, ApiField<R, M> f13, ApiField<R, N> f14, ApiField<R, O> f15,
             Function15<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15),
+        return new RecordType<>(type, name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15),
                 a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3], (E) a[4], (F) a[5], (G) a[6], (H) a[7], (I) a[8], (J) a[9],
                         (K) a[10], (L) a[11], (M) a[12], (N) a[13], (O) a[14]));
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P> RecordType<R> record(String name,
+    public static <R, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4, ApiField<R, E> f5,
             ApiField<R, F> f6, ApiField<R, G> f7, ApiField<R, H> f8, ApiField<R, I> f9, ApiField<R, J> f10,
             ApiField<R, K> f11, ApiField<R, L> f12, ApiField<R, M> f13, ApiField<R, N> f14, ApiField<R, O> f15,
             ApiField<R, P> f16,
             Function16<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16),
+        return new RecordType<>(type, name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16),
                 a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3], (E) a[4], (F) a[5], (G) a[6], (H) a[7], (I) a[8], (J) a[9],
                         (K) a[10], (L) a[11], (M) a[12], (N) a[13], (O) a[14], (P) a[15]));
     }
@@ -325,13 +325,13 @@ public final class ApiTypes {
     }
 
     @SuppressWarnings("unchecked")
-    public static <R, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q> RecordType<R> record(String name,
+    public static <R, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q> RecordType<R> record(Class<R> type, String name,
             ApiField<R, A> f1, ApiField<R, B> f2, ApiField<R, C> f3, ApiField<R, D> f4, ApiField<R, E> f5,
             ApiField<R, F> f6, ApiField<R, G> f7, ApiField<R, H> f8, ApiField<R, I> f9, ApiField<R, J> f10,
             ApiField<R, K> f11, ApiField<R, L> f12, ApiField<R, M> f13, ApiField<R, N> f14, ApiField<R, O> f15,
             ApiField<R, P> f16, ApiField<R, Q> f17,
             Function17<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R> constructor) {
-        return new RecordType<>(name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17),
+        return new RecordType<>(type, name, List.of(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17),
                 a -> constructor.apply((A) a[0], (B) a[1], (C) a[2], (D) a[3], (E) a[4], (F) a[5], (G) a[6], (H) a[7], (I) a[8], (J) a[9],
                         (K) a[10], (L) a[11], (M) a[12], (N) a[13], (O) a[14], (P) a[15], (Q) a[16]));
     }

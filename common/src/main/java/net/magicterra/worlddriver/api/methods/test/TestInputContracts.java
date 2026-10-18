@@ -28,7 +28,7 @@ public final class TestInputContracts {
     public record HeldKeys(boolean up, boolean down, boolean left, boolean right, boolean jump, boolean sprint,
                            boolean attack, boolean shift) {}
 
-    public static final RecordType<HeldKeys> HELD_KEYS = ApiTypes.record("HeldKeys",
+    public static final RecordType<HeldKeys> HELD_KEYS = ApiTypes.record(HeldKeys.class, "HeldKeys",
             ApiField.field("up", ApiTypes.bool()).required().forGetter(HeldKeys::up),
             ApiField.field("down", ApiTypes.bool()).required().forGetter(HeldKeys::down),
             ApiField.field("left", ApiTypes.bool()).required().forGetter(HeldKeys::left),
@@ -45,12 +45,12 @@ public final class TestInputContracts {
     /** What the game made of it, which hand clicked, and the face clicked: the one nearest the player's eye. */
     public record UsedOnBlock(Interaction result, boolean consumed, Hand hand, Face face) {}
 
-    public static final RecordType<UseOnBlock> USE_ON_BLOCK = ApiTypes.record("UseOnBlock",
+    public static final RecordType<UseOnBlock> USE_ON_BLOCK = ApiTypes.record(UseOnBlock.class, "UseOnBlock",
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(UseOnBlock::pos),
             ApiField.field("hand", InteractContracts.HAND).defaulted(Hand.MAIN).forGetter(UseOnBlock::hand),
             UseOnBlock::new);
 
-    public static final RecordType<UsedOnBlock> USED_ON_BLOCK = ApiTypes.record("UsedOnBlock",
+    public static final RecordType<UsedOnBlock> USED_ON_BLOCK = ApiTypes.record(UsedOnBlock.class, "UsedOnBlock",
             ApiField.field("result", InteractContracts.INTERACTION).required().forGetter(UsedOnBlock::result),
             ApiField.field("consumed", ApiTypes.bool()).required().forGetter(UsedOnBlock::consumed),
             ApiField.field("hand", InteractContracts.HAND).required().forGetter(UsedOnBlock::hand),

@@ -45,7 +45,7 @@ public final class ControlContracts {
 
     private static final ApiType<String> PROCESS_NAME = ApiTypes.pattern("[A-Za-z]{1,32}", "a process or chain name");
 
-    public static final ApiType<CancelParams> CANCEL_PARAMS = ApiTypes.record("CancelParams",
+    public static final ApiType<CancelParams> CANCEL_PARAMS = ApiTypes.record(CancelParams.class, "CancelParams",
             ApiField.field("actionId", Responses.ACTION_ID).describe("Cancel this action, on whichever bot runs it.")
                     .optional().forGetter(CancelParams::actionId),
             ApiField.field("bot", Responses.BOT_REF).describe("Without actionId: whose processes. Omitted: self.")
@@ -62,7 +62,7 @@ public final class ControlContracts {
             });
 
     public static final MethodSpec<CancelParams, ImmediateResponse> CANCEL = MethodSpec.of("mc.bot.cancel", CANCEL_PARAMS,
-                    Responses.immediate("Cancel", Stopped.class, ApiTypes.record(null,
+                    Responses.immediate("Cancel", Stopped.class, ApiTypes.record(Stopped.class, null,
                             ApiField.field("cancelled", ApiTypes.list(ApiTypes.string(1, 64), 64)).required()
                                     .forGetter(Stopped::cancelled),
                             ApiField.field("action", WaitContracts.ANY_ACTION).optional().forGetter(Stopped::action),
@@ -110,12 +110,12 @@ public final class ControlContracts {
 
     public record BotSummary(String id, String kind, Optional<Integer> entityId, Optional<BlockPosition> pos, boolean busy) {}
 
-    public static final ApiType<StatusParams> STATUS_PARAMS = ApiTypes.record("StatusParams",
+    public static final ApiType<StatusParams> STATUS_PARAMS = ApiTypes.record(StatusParams.class, "StatusParams",
             ApiField.field("bot", Responses.BOT_REF).describe("Omitted: self when there is a client; the bots list either way.")
                     .optional().forGetter(StatusParams::bot),
             StatusParams::new);
 
-    private static final ApiType<Slot> SLOT = ApiTypes.record("ProcessSlot",
+    private static final ApiType<Slot> SLOT = ApiTypes.record(Slot.class, "ProcessSlot",
             ApiField.field("active", ApiTypes.bool()).required().forGetter(Slot::active),
             ApiField.field("goal", ApiTypes.string()).optional().forGetter(Slot::goal),
             ApiField.field("target", CommonTypes.BLOCK_POSITION).optional().forGetter(Slot::target),
@@ -128,7 +128,7 @@ public final class ControlContracts {
             ApiField.field("finalDist", ApiTypes.number()).optional().forGetter(Slot::finalDist),
             Slot::new);
 
-    private static final ApiType<Slots> SLOTS = ApiTypes.record("ProcessSlots",
+    private static final ApiType<Slots> SLOTS = ApiTypes.record(Slots.class, "ProcessSlots",
             ApiField.field("goto", SLOT).required().forGetter(Slots::goTo),
             ApiField.field("mine", SLOT).required().forGetter(Slots::mine),
             ApiField.field("builder", SLOT).describe("build, clearArea, farm and construct.").required().forGetter(Slots::builder),
@@ -146,12 +146,12 @@ public final class ControlContracts {
             ApiField.field("plan", SLOT).describe("A route preview's search.").required().forGetter(Slots::plan),
             Slots::new);
 
-    private static final ApiType<ProcessEnd> PROCESS_END = ApiTypes.record("ProcessEnd",
+    private static final ApiType<ProcessEnd> PROCESS_END = ApiTypes.record(ProcessEnd.class, "ProcessEnd",
             ApiField.field("kind", ApiTypes.string()).required().forGetter(ProcessEnd::kind),
             ApiField.field("error", ApiTypes.string()).optional().forGetter(ProcessEnd::error),
             ProcessEnd::new);
 
-    private static final ApiType<PathStats> PATH_STATS = ApiTypes.record("PathStats",
+    private static final ApiType<PathStats> PATH_STATS = ApiTypes.record(PathStats.class, "PathStats",
             ApiField.field("expanded", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(PathStats::expanded),
             ApiField.field("ms", ApiTypes.int64(0, Long.MAX_VALUE)).required().forGetter(PathStats::ms),
             ApiField.field("goalReached", ApiTypes.bool()).required().forGetter(PathStats::goalReached),
@@ -161,17 +161,17 @@ public final class ControlContracts {
             ApiField.field("snapshotTruncated", ApiTypes.bool()).required().forGetter(PathStats::snapshotTruncated),
             PathStats::new);
 
-    private static final ApiType<ChainState> CHAIN_STATE = ApiTypes.record("ChainState",
+    private static final ApiType<ChainState> CHAIN_STATE = ApiTypes.record(ChainState.class, "ChainState",
             ApiField.field("priority", ApiTypes.number()).describe("Its bid on the last tick; the highest steers.")
                     .required().forGetter(ChainState::priority),
             ApiField.field("episode", ApiTypes.string()).optional().forGetter(ChainState::episode),
-            ApiField.field("bail", ApiTypes.record("ChainBail",
+            ApiField.field("bail", ApiTypes.record(Bail.class, "ChainBail",
                     ApiField.field("reason", ApiTypes.string()).required().forGetter(Bail::reason),
                     ApiField.field("ticksLeft", ApiTypes.int64(Long.MIN_VALUE, Long.MAX_VALUE)).required().forGetter(Bail::ticksLeft),
                     Bail::new)).optional().forGetter(ChainState::bail),
             ChainState::new);
 
-    private static final ApiType<Reflexes> REFLEXES = ApiTypes.record("Reflexes",
+    private static final ApiType<Reflexes> REFLEXES = ApiTypes.record(Reflexes.class, "Reflexes",
             ApiField.field("paused", ApiTypes.bool()).required().forGetter(Reflexes::paused),
             ApiField.field("activeProcessDetail", ApiTypes.string()).describe("The task's phase, e.g. bunker SEALED.")
                     .optional().forGetter(Reflexes::activeProcessDetail),
@@ -184,7 +184,7 @@ public final class ControlContracts {
                     .optional().forGetter(Reflexes::lastPath),
             ApiField.field("clutch", ApiTypes.string()).describe("The water-bucket clutch: idle, lip or falling.")
                     .required().forGetter(Reflexes::clutch),
-            ApiField.field("combat", ApiTypes.record("CombatTally",
+            ApiField.field("combat", ApiTypes.record(CombatTally.class, "CombatTally",
                     ApiField.field("swings", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(CombatTally::swings),
                     ApiField.field("wellTimed", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(CombatTally::wellTimed),
                     ApiField.field("crits", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(CombatTally::crits),
@@ -192,7 +192,7 @@ public final class ControlContracts {
                     CombatTally::new)).describe("This engagement's counts.").required().forGetter(Reflexes::combat),
             Reflexes::new);
 
-    private static final ApiType<BotStatus> BOT_STATUS = ApiTypes.record("BotStatus",
+    private static final ApiType<BotStatus> BOT_STATUS = ApiTypes.record(BotStatus.class, "BotStatus",
             ApiField.field("bot", Responses.BOT_REF).required().forGetter(BotStatus::bot),
             ApiField.field("busy", ApiTypes.bool()).describe("A task holds it.").required().forGetter(BotStatus::busy),
             ApiField.field("activeProcess", ApiTypes.string()).optional().forGetter(BotStatus::activeProcess),
@@ -201,7 +201,7 @@ public final class ControlContracts {
             ApiField.field("reflexes", REFLEXES).describe("self only.").optional().forGetter(BotStatus::reflexes),
             BotStatus::new);
 
-    private static final ApiType<BotSummary> BOT_SUMMARY = ApiTypes.record("BotSummary",
+    private static final ApiType<BotSummary> BOT_SUMMARY = ApiTypes.record(BotSummary.class, "BotSummary",
             ApiField.field("id", Responses.BOT_REF).required().forGetter(BotSummary::id),
             ApiField.field("kind", ApiTypes.string()).required().forGetter(BotSummary::kind),
             ApiField.field("entityId", CommonTypes.ENTITY_ID).describe("Absent when its entity is gone.")
@@ -211,7 +211,7 @@ public final class ControlContracts {
             BotSummary::new);
 
     public static final MethodSpec<StatusParams, ImmediateResponse> STATUS = MethodSpec.of("mc.bot.status", STATUS_PARAMS,
-                    Responses.immediate("Status", Status.class, ApiTypes.record(null,
+                    Responses.immediate("Status", Status.class, ApiTypes.record(Status.class, null,
                             ApiField.field("bots", ApiTypes.list(BOT_SUMMARY, 256))
                                     .describe("The registered bots, server-side players and mobs; self is not among them.")
                                     .required().forGetter(Status::bots),
@@ -243,42 +243,42 @@ public final class ControlContracts {
     private static final ApiType<String> WAYPOINT_NAME = ApiTypes.string(1, 64);
 
     public static final UnionType<WaypointOp> WAYPOINT_PARAMS = ApiTypes.taggedUnion("WaypointParams", "op",
-            ApiTypes.variant("save", Save.class, ApiTypes.record(null,
+            ApiTypes.variant("save", Save.class, ApiTypes.record(Save.class, null,
                     ApiField.field("name", WAYPOINT_NAME).required().forGetter(Save::name),
                     ApiField.field("pos", CommonTypes.BLOCK_POSITION).describe("Omitted: where the player stands.")
                             .optional().forGetter(Save::pos),
                     Save::new)),
-            ApiTypes.variant("get", Get.class, ApiTypes.record(null,
+            ApiTypes.variant("get", Get.class, ApiTypes.record(Get.class, null,
                     ApiField.field("name", WAYPOINT_NAME).required().forGetter(Get::name), Get::new)),
-            ApiTypes.variant("list", ListAll.class, ApiTypes.record(null, ListAll::new)),
-            ApiTypes.variant("delete", Delete.class, ApiTypes.record(null,
+            ApiTypes.variant("list", ListAll.class, ApiTypes.record(ListAll.class, null, ListAll::new)),
+            ApiTypes.variant("delete", Delete.class, ApiTypes.record(Delete.class, null,
                     ApiField.field("name", WAYPOINT_NAME).required().forGetter(Delete::name), Delete::new)),
-            ApiTypes.variant("clear", Clear.class, ApiTypes.record(null, Clear::new)));
+            ApiTypes.variant("clear", Clear.class, ApiTypes.record(Clear.class, null, Clear::new)));
 
-    private static final ApiType<Waypoint> WAYPOINT = ApiTypes.record("Waypoint",
+    private static final ApiType<Waypoint> WAYPOINT = ApiTypes.record(Waypoint.class, "Waypoint",
             ApiField.field("name", WAYPOINT_NAME).required().forGetter(Waypoint::name),
             ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(Waypoint::pos),
             Waypoint::new);
 
     public static final UnionType<WaypointReply> WAYPOINT_REPLY = ApiTypes.taggedUnion("WaypointReply", "op",
-            ApiTypes.variant("save", Saved.class, ApiTypes.record(null,
+            ApiTypes.variant("save", Saved.class, ApiTypes.record(Saved.class, null,
                     ApiField.field("name", WAYPOINT_NAME).required().forGetter(Saved::name),
                     ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(Saved::pos),
                     ApiField.field("count", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Saved::count),
                     Saved::new)),
-            ApiTypes.variant("get", Got.class, ApiTypes.record(null,
+            ApiTypes.variant("get", Got.class, ApiTypes.record(Got.class, null,
                     ApiField.field("name", WAYPOINT_NAME).required().forGetter(Got::name),
                     ApiField.field("pos", CommonTypes.BLOCK_POSITION).required().forGetter(Got::pos),
                     Got::new)),
-            ApiTypes.variant("list", Listed.class, ApiTypes.record(null,
+            ApiTypes.variant("list", Listed.class, ApiTypes.record(Listed.class, null,
                     ApiField.field("waypoints", ApiTypes.list(WAYPOINT, Integer.MAX_VALUE)).required().forGetter(Listed::waypoints),
                     Listed::new)),
-            ApiTypes.variant("delete", Deleted.class, ApiTypes.record(null,
+            ApiTypes.variant("delete", Deleted.class, ApiTypes.record(Deleted.class, null,
                     ApiField.field("name", WAYPOINT_NAME).required().forGetter(Deleted::name),
                     ApiField.field("existed", ApiTypes.bool()).required().forGetter(Deleted::existed),
                     ApiField.field("count", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Deleted::count),
                     Deleted::new)),
-            ApiTypes.variant("clear", Cleared.class, ApiTypes.record(null,
+            ApiTypes.variant("clear", Cleared.class, ApiTypes.record(Cleared.class, null,
                     ApiField.field("cleared", ApiTypes.integer(0, Integer.MAX_VALUE)).required().forGetter(Cleared::cleared),
                     Cleared::new)));
 

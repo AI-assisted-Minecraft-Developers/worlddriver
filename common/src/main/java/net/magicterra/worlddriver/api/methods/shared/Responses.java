@@ -148,27 +148,27 @@ public final class Responses {
     /** The snapshot union for actions whose result is {@code result}, declared to TypeScript as {@code <name>Action}. */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static <R> UnionType<ActionSnapshot<R>> snapshot(String name, ApiType<R> result) {
-        RecordType<Running<R>> running = ApiTypes.record(null,
+        RecordType<Running<R>> running = ApiTypes.record(Running.class, null,
                 ApiField.field("actionId", ACTION_ID).required().forGetter(Running<R>::actionId),
                 ApiField.field("bot", BOT_REF).required().forGetter(Running<R>::bot),
                 Running::new);
-        RecordType<Succeeded<R>> succeeded = ApiTypes.record(null,
+        RecordType<Succeeded<R>> succeeded = ApiTypes.record(Succeeded.class, null,
                 ApiField.field("actionId", ACTION_ID).required().forGetter(Succeeded<R>::actionId),
                 ApiField.field("bot", BOT_REF).required().forGetter(Succeeded<R>::bot),
                 ApiField.field("result", result).required().forGetter(Succeeded<R>::result),
                 Succeeded::new);
-        RecordType<Failed<R>> failed = ApiTypes.record(null,
+        RecordType<Failed<R>> failed = ApiTypes.record(Failed.class, null,
                 ApiField.field("actionId", ACTION_ID).required().forGetter(Failed<R>::actionId),
                 ApiField.field("bot", BOT_REF).required().forGetter(Failed<R>::bot),
                 ApiField.field("reason", FAILURE_REASON).required().forGetter(Failed<R>::reason),
                 ApiField.field("message", ApiTypes.string()).required().forGetter(Failed<R>::message),
                 Failed::new);
-        RecordType<Cancelled<R>> cancelled = ApiTypes.record(null,
+        RecordType<Cancelled<R>> cancelled = ApiTypes.record(Cancelled.class, null,
                 ApiField.field("actionId", ACTION_ID).required().forGetter(Cancelled<R>::actionId),
                 ApiField.field("bot", BOT_REF).required().forGetter(Cancelled<R>::bot),
                 ApiField.field("reason", CANCEL_REASON).required().forGetter(Cancelled<R>::reason),
                 Cancelled::new);
-        RecordType<Superseded<R>> superseded = ApiTypes.record(null,
+        RecordType<Superseded<R>> superseded = ApiTypes.record(Superseded.class, null,
                 ApiField.field("actionId", ACTION_ID).required().forGetter(Superseded<R>::actionId),
                 ApiField.field("bot", BOT_REF).required().forGetter(Superseded<R>::bot),
                 ApiField.field("replacementActionId", ACTION_ID).required().forGetter(Superseded<R>::replacementActionId),
@@ -190,7 +190,7 @@ public final class Responses {
     public static <R> UnionType<ActionResponse<R>> response(String name, ApiType<R> result,
                                                             UnionType.Variant<ActionResponse<R>, ?>... extra) {
         UnionType<ActionSnapshot<R>> snap = snapshot(name, result);
-        RecordType<Accepted<R>> accepted = ApiTypes.record(null,
+        RecordType<Accepted<R>> accepted = ApiTypes.record(Accepted.class, null,
                 ApiField.field("action", snap).required().forGetter(Accepted<R>::action),
                 ApiField.field("waitTimedOut", ApiTypes.bool())
                         .describe("True only when awaitMs ran out with the action still running.")
@@ -214,7 +214,7 @@ public final class Responses {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static RecordType<Refused<?>> refused() {
-        return (RecordType) ApiTypes.record(null,
+        return (RecordType) ApiTypes.record((Class) Refused.class, null,
                 ApiField.field("reason", REFUSAL_REASON).required().forGetter(Refused<?>::reason),
                 ApiField.field("message", ApiTypes.string()).required().forGetter(Refused<?>::message),
                 (RefusalReason r, String m) -> new Refused<>(r, m));

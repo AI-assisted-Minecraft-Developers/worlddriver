@@ -15,7 +15,7 @@ public final class CommonTypes {
     public record NoParams() {}
 
     /** One shared object, so TypeScript sees one NoParams. */
-    public static final RecordType<NoParams> NO_PARAMS = ApiTypes.record("NoParams", NoParams::new);
+    public static final RecordType<NoParams> NO_PARAMS = ApiTypes.record(NoParams.class, "NoParams", NoParams::new);
 
     /** Which way a body faces, in degrees. */
     public record Look(double yaw, double pitch) {}
@@ -65,7 +65,7 @@ public final class CommonTypes {
     /** A block cell; each axis is any int, and whether the world holds it is checked where the world is known. */
     public record BlockPosition(int x, int y, int z) {}
 
-    public static final RecordType<BlockPosition> BLOCK_POSITION = ApiTypes.record("BlockPosition",
+    public static final RecordType<BlockPosition> BLOCK_POSITION = ApiTypes.record(BlockPosition.class, "BlockPosition",
             ApiField.field("x", ApiTypes.integer()).required().forGetter(BlockPosition::x),
             ApiField.field("y", ApiTypes.integer()).required().forGetter(BlockPosition::y),
             ApiField.field("z", ApiTypes.integer()).required().forGetter(BlockPosition::z),
@@ -88,7 +88,7 @@ public final class CommonTypes {
     /** A point anywhere, not snapped to a cell. */
     public record Point(double x, double y, double z) {}
 
-    public static final RecordType<Point> POINT = ApiTypes.record("Point",
+    public static final RecordType<Point> POINT = ApiTypes.record(Point.class, "Point",
             ApiField.field("x", ApiTypes.number()).required().forGetter(Point::x),
             ApiField.field("y", ApiTypes.number()).required().forGetter(Point::y),
             ApiField.field("z", ApiTypes.number()).required().forGetter(Point::z),
