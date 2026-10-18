@@ -185,8 +185,9 @@ public final class InteractContracts {
                             ApiField.field("on", USED_ON).required().forGetter(Used::on),
                             Used::new)),
                     "Right-click with the held item: in the air (eat, throw, draw a bow), on a block face with pos (place, "
-                            + "pour, bone-meal), or on an entity with entityId (an empty hand mounts). Out of reach is "
-                            + "refused as invalid_world_target.")
+                            + "pour, bone-meal), or on an entity with entityId (an empty hand mounts). A named bot "
+                            + "refuses a target out of reach as invalid_world_target; self clicks anyway and the server "
+                            + "ignores one out of reach, so read distance in the reply.")
             .effects(MethodSpec.Effect.INVENTORY_WRITE, MethodSpec.Effect.WORLD_WRITE);
 
     // ------------------------------------------------------------------ attackEntity
@@ -207,8 +208,10 @@ public final class InteractContracts {
                             ApiField.field("distance", ApiTypes.number()).required().forGetter(Attacked::distance),
                             Attacked::new)),
                     "One left click on an entity, facing it. Read attack on the player snapshot first: a swing before "
-                            + "the weapon recharges lands for a fraction of its damage. A missing entity, one out of "
-                            + "reach, or a blast that would take the block underfoot is refused as invalid_world_target.")
+                            + "the weapon recharges lands for a fraction of its damage. A missing entity, or a blast that "
+                            + "would take the block underfoot, is refused as invalid_world_target, and so is one out of "
+                            + "reach for a named bot; self swings anyway and the server ignores a target out of reach, so "
+                            + "read distance and alive in the reply.")
             .effects(MethodSpec.Effect.WORLD_WRITE);
 
     // ------------------------------------------------------------------ equip
