@@ -26,7 +26,7 @@ final class Recovery implements Controller {
 
     /** How long a back-off drives, and how long after it ends before another may be asked for: a riser
      *  that cannot be mounted at all would otherwise get a retreat every 12 ticks. */
-    static final int BACKOFF_TICKS = 12, BACKOFF_COOLDOWN = 60;
+    private static final int BACKOFF_TICKS = 12, BACKOFF_COOLDOWN = 60;
     /** A burst out of a wedge (repeated safety repaths at one spot) and out of a churn pocket. */
     static final int WEDGE_BURST_TICKS = 14, CHURN_BURST_TICKS = 16;
     /** A back-off, a burst, and one burst asked for again while the first ran: no run is longer. */
@@ -86,7 +86,7 @@ final class Recovery implements Controller {
     }
 
     /** Forget the back-off and its cooldown: the route it was backing off from is gone. */
-    void dropBackOff() {
+    private void dropBackOff() {
         backOffLeft = 0;
         backOffReadyAt = 0;
     }

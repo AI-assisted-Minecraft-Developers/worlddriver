@@ -64,7 +64,7 @@ final class Pillar implements Controller {
      * around tick 4, so a fixed 3-tick delay fired at ~+0.99 and the place no-op'd against the bot's own
      * box. Gate on real height. True when the click was made.
      */
-    static boolean placeRung(Walker wk, WorldView world, LivingEntity p, BlockPos cell) {
+    private static boolean placeRung(Walker wk, WorldView world, LivingEntity p, BlockPos cell) {
         if (!WalkerGeometry.feetClearOf(p, cell) || world.isSolid(cell)) return false;
         wk.blocks.placeOn(cell.below(), Direction.UP);
         wk.exAlarms.notePlace(cell);

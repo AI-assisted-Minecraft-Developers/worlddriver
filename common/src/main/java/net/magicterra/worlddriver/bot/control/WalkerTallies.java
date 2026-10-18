@@ -26,7 +26,7 @@ public final class WalkerTallies {
     public volatile int searches;
     public volatile int recoveryHops;
     public volatile int digs;
-    volatile BlockPos lastDigCell;
+    private volatile BlockPos lastDigCell;
     /** The result of the deep search {@link #searches} last counted, before any walker post-processing. */
     public volatile PathFinder.Result lastResult;
     /** The finished search that produced {@link #lastResult}. */

@@ -74,7 +74,7 @@ public final class Walker implements Locomotor {
     /** Cached from {@link #profile} in {@link #useProfile}: does the current profile carry a
      *  {@link NoBreak} (a per-goto {@code forbidDig})? Cached so the execution-layer dig gate
      *  ({@link #mayBreak}) is a field read, not a per-tick constraint scan at every fallback site. */
-    boolean profileForbidsBreak = false;
+    private boolean profileForbidsBreak = false;
 
     /** Deep-search budget (nodes, ms); -1 = the configured one. See {@link WalkerSettings#withSearchBudget}. */
     final int searchMaxNodes;
@@ -269,7 +269,7 @@ public final class Walker implements Locomotor {
         double bestGoalDist = Double.POSITIVE_INFINITY;  // anti-spin: best goal-estimate across repaths (5-block margin ignores micro-lunges)
         int repathsNoProgress;                           // anti-spin: consecutive in-water repaths that didn't improve goalSpin.bestGoalDist
         int churnResets;                                 // anti-spin: fresh baselines granted after a stall (tolerates water go-arounds; real progress clears it)
-        void resetForNewGoal() {
+        private void resetForNewGoal() {
             bestDistToGoal = Double.POSITIVE_INFINITY;
             bestGoalDist = Double.POSITIVE_INFINITY;
             repathsNoProgress = 0;
@@ -288,7 +288,7 @@ public final class Walker implements Locomotor {
         int escapes;           // consecutive windows that detected churn (escalates the charge radius)
         int hColRamTicks;      // wall-corner: consecutive ticks of sustained horizontalCollision (the signature of the bot pinned against a wall)
         int cycle;             // this window: -1 got nearer the goal, 0 near base, 1 left it, 2 came back to it (WalkerTickStallDetect.trackWindow)
-        void resetForNewGoal() {
+        private void resetForNewGoal() {
             base = null;
             windowTicks = 0;
             escapes = 0;
@@ -335,7 +335,7 @@ public final class Walker implements Locomotor {
         int crestOrbitStep = -1;                    // path index crestOrbitTicks tracks
         int rawStepDwellTicks;                      // PURELY step-tracked dwell (resets ONLY on step-change/path-change, NEVER on a 3D new-low) → jitter-immune wedge gate for the steep-ascent slide-back recovery (walkerAscentRamJitterImmune)
         int ramRecoverLastFireDwell = -1;           // rawStepDwellTicks at the last walkerAscentRamJitterImmune fold (-1 = none this episode); a RAM_RECOVER_DEBOUNCE gap caps the fold rate AND re-attempts a stubborn same-step ram; cleared on step/path change
-        void restartWindows() {
+        private void restartWindows() {
             bestStepDist = Double.POSITIVE_INFINITY;
             stuckStep = -1;
             stuckStepHigh = -1;
@@ -346,7 +346,7 @@ public final class Walker implements Locomotor {
     /** Phase-3: |ds| (blocks of arc-length per tick) at/under which the bot counts as making NO forward
      *  path progress. A normal walk is ~1.0/tick, the slowest legit water-creep still clears ~0.1, so 0.05
      *  flags a true wall-ram (literally pinned) without misfiring on slow-but-moving travel. */
-    static final double ARC_WEDGE_DS = 0.05;
+    private static final double ARC_WEDGE_DS = 0.05;
     /** Phase-3: consecutive ARC_WEDGE_DS+horizontalCollision ticks before the arc-wedge folds into fellOffPath.
      *  30 ticks (1.5 s) cuts the legacy ~100-tick (5 s) wedge wait by 70% while sitting well past a legit
      *  stepUp/diagUp jump-mount (which presses the riser only ~5-10 t before it tops out and ds jumps). */
@@ -366,9 +366,9 @@ public final class Walker implements Locomotor {
     final ArcShadow arc = new ArcShadow();
     static final class ArcShadow {
         final PathProjection proj = new PathProjection();  // reusable arc-length projector (the carved-out, fully-readable core; the executor only holds onto its result)
-        List<BlockPos> shadowPath;    // path identity the shadow s tracks (reset s/ds when the path object changes)
-        double shadowS = Double.NaN;  // last tick's cumulative arc-length (XZ, from path[0] to the foot's polyline projection); for ds/dt + monotonic-violation detection
-        long monoViol;                // count of backward-snap events (ds < -0.5) — must stay ~0 on clean runs for the projection to be trustworthy enough to drive in Phase 1
+        private List<BlockPos> shadowPath;    // path identity the shadow s tracks (reset s/ds when the path object changes)
+        private double shadowS = Double.NaN;  // last tick's cumulative arc-length (XZ, from path[0] to the foot's polyline projection); for ds/dt + monotonic-violation detection
+        private long monoViol;                // count of backward-snap events (ds < -0.5) — must stay ~0 on clean runs for the projection to be trustworthy enough to drive in Phase 1
         // Phase-3 (walkerArcLengthWedge): GROUNDED-RAM wedge timer measured in ARC-LENGTH, not 3D-new-low. The legacy
         // descentRamStuck/ascentRamSlide recoveries hang on noStepProgressTicks (a 3D-new-low counter) which the
         // buoyancy bob AND the sub-block ram-jitter (the bot sliding a few cm against a wall) ZERO every tick → the

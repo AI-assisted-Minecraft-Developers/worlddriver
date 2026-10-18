@@ -49,7 +49,7 @@ final class Route {
         PathFinder.Result pendingSegment;           // a finished continuation segment awaiting splice at the current segment's end
         boolean searchSuppressedPlace;              // the in-flight search dropped placing moves (block-budget reroute) → adopt its result without re-checking
         boolean afterBlockChange;                   // the in-flight foot-search was started because a block on the plan changed → its result replaces the plan even if it turns back
-        int frontierWaitTicks;                      // bounded retries re-searching at a loaded-chunk frontier before giving up (pathfinderFrontierCommit)
+        private int frontierWaitTicks;                      // bounded retries re-searching at a loaded-chunk frontier before giving up (pathfinderFrontierCommit)
         void reset() {
             activeSearch = null;
             pathBestEffort = false;
@@ -210,13 +210,13 @@ final class Route {
     /** Squared distance from the body's eyes within which a changed block may be the body's own work —
      *  a dig, a placed rung, a plug — and is left to the follower, which made it on purpose or will bump
      *  into it. Survival block reach is 4.5; the margin keeps a stretch of arm out of the question. */
-    static final double OWN_REACH_SQ = 6.0 * 6.0;
+    private static final double OWN_REACH_SQ = 6.0 * 6.0;
     /** How close, across, a changed cell's middle must be to a leg of the plan to be in the body's way: a
      *  cell's half-width plus a player's, so a block beside the corridor is not one in it. */
-    static final double IN_THE_WAY = 0.8;
+    private static final double IN_THE_WAY = 0.8;
     /** Ticks between two replans for block changes: water spreading or a farm cycling beside a route
      *  would otherwise start a search every tick. */
-    static final int CHANGE_REPLAN_GAP = 20;
+    private static final int CHANGE_REPLAN_GAP = 20;
 
     /** The level whose change log this plan reads, and the sequence number it has read up to. */
     private Level changesLevel;

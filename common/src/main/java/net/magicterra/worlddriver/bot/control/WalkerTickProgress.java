@@ -119,7 +119,7 @@ final class WalkerTickProgress {
      *  held (walkerTailConsumeDirectional) and the legacy distance-consume applies — a
      *  wedge-scale window: long enough to ride out a slow but real approach, short enough
      *  that walled pockets re-enter the repath/churn machinery promptly. */
-    static final int TAIL_HOLD_STALL_TICKS = 30;
+    private static final int TAIL_HOLD_STALL_TICKS = 30;
 
     /** Distance alone reads a tail still far ahead as blown past, so hold it until the foot is
      *  beyond it along the incoming segment. A stalled approach is not held, since walled pockets

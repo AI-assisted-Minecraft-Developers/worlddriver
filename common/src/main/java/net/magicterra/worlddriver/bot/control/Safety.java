@@ -227,7 +227,7 @@ final class Safety {
     /** The bar over a bottomless column: 5/6 of the 0.36 sole, against 1/2 beside an ordinary drop.
      *  Not "be careful" as a number — it is the smallest reading that still leaves the bot a whole
      *  half-cell of margin on every axis, and the void gives no second attempt. */
-    static final double VOID_FOOTING_MIN = 0.30;
+    private static final double VOID_FOOTING_MIN = 0.30;
 
     /**
      * True when any column NEXT TO {@code at} runs out of the world.
@@ -305,7 +305,7 @@ final class Safety {
 
     /** How many consecutive pinned ticks throw the plan away. Named rather than inlined twice: the
      *  two call sites are the fire path and the hold path and they must not be able to drift. */
-    static final int GUARD_PIN_REPATH = 30;
+    private static final int GUARD_PIN_REPATH = 30;
 
     /** The last stride cell this pin streak fired on, and how many times that cell has CHANGED
      *  during it. Not a distinct-cell count: an A→B→A→B oscillation reads 4, not 2. That is why
@@ -475,7 +475,7 @@ final class Safety {
     }
 
     /** Remaining hold-tail ticks after the last guard fire (pin hysteresis). */
-    int guardHoldTicks;
+    private int guardHoldTicks;
 
     /** Hold-tail length: long enough to outlast the drive re-acceleration between fires
      *  (~3-5 ticks observed), short enough that a false pin costs under half a second. */
@@ -504,7 +504,7 @@ final class Safety {
      *  and must decisively win the race against plug arming on a place-free plan
      *  (r32: 7 fires accumulated before the recovery steered off the cell — 2 dirt).
      *  Construction plans (see canPlug) bypass this entirely. */
-    static final int GUARD_PLUG_ARM_FIRES = 12;
+    private static final int GUARD_PLUG_ARM_FIRES = 12;
 
     /** How far down "no floor at all" is checked before a drop counts as bottomless. Below every
      *  dimension's floor (the End starts at 0, the Overworld at -64), so a column clear to here is
