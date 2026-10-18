@@ -8,11 +8,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
+import net.magicterra.worlddriver.api.schema.MethodSpec;
+import net.magicterra.worlddriver.api.schema.RecordType;
+import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.methods.shared.ActionResults;
+import net.magicterra.worlddriver.application.CoreMethods;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 import org.junit.jupiter.api.Test;
 
@@ -132,9 +138,36 @@ class BodyTaskContractsTest {
                 new MoveContracts.Flown(MoveContracts.FlightMode.GROUND_FALLBACK, false))).get("mode"));
     }
 
+    /**
+     * {@code ActionResults} lists the result unions by hand; a method that starts an action and is missing
+     * from it answers {@code mc.wait.result} with a kind the union cannot encode. A method starts an action
+     * when its response can be {@code accepted} (not every body task does: {@code mc.debug.replay} answers
+     * at once); its result is the succeeded snapshot's {@code result} field.
+     */
     @Test
-    void everyActionResultKindIsDistinct() {
+    void actionResultsHoldsExactlyTheActionMethodsResults() {
+        Set<String> fromMethods = new TreeSet<>();
+        for (MethodSpec<?, ?> spec : CoreMethods.all()) {
+            RecordType<?> accepted = variant(spec.output(), "accepted");
+            if (accepted == null) continue;
+            ApiType<?> action = field(accepted, "action");
+            ApiType<?> result = field(variant(action, "succeeded"), "result");
+            UnionType<?> kinds = assertInstanceOf(UnionType.class, result, spec.name() + "'s result");
+            for (UnionType.Variant<?, ?> v : kinds.variants()) fromMethods.add(v.tag());
+        }
+        Set<String> listed = new TreeSet<>();
         // The union throws on a tag two methods share; reading it builds it.
-        assertTrue(ActionResults.UNION.variants().size() >= 16);
+        for (UnionType.Variant<?, ?> v : ActionResults.UNION.variants()) listed.add(v.tag());
+        assertEquals(fromMethods, listed);
+    }
+
+    /** The variant tagged {@code tag}, or null when {@code type} is not a union or has no such variant. */
+    private static RecordType<?> variant(ApiType<?> type, String tag) {
+        if (!(type instanceof UnionType<?> u)) return null;
+        return u.variants().stream().filter(v -> v.tag().equals(tag)).findFirst().map(v -> v.type()).orElse(null);
+    }
+
+    private static ApiType<?> field(RecordType<?> record, String name) {
+        return record.fields().stream().filter(f -> f.name().equals(name)).findFirst().orElseThrow().type();
     }
 }
