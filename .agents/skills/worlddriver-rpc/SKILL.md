@@ -87,10 +87,11 @@ a local bot you never need `--host` — loopback is included in a wildcard bind.
 ## Method surface (overview)
 
 The core methods (the `worlddriver/core` batch in the API registry, present wherever the
-mod runs) plus the client-only `mc.debug.*` methods, every one a typed contract listed as an
-MCP tool. The only hidden methods — callable by name on every transport but absent from MCP
-`tools/list` — belong to the testmod (`worlddriver.*`) and the StageWright runtime
-(`mc.test.*`) and exist only while those are loaded. No total is
+mod runs) plus the `mc.debug.*` methods, every one a typed contract listed as an MCP tool.
+Hidden methods — callable by name on every transport but absent from MCP `tools/list` — are
+three of the `mc.debug.*` readings (`navigator`, `body`, `cells`) and those of the testmod
+(`worlddriver.*`) and the StageWright runtime (`mc.test.*`), which exist only while those are
+loaded. No total is
 given here because it depends on what is loaded. Two references sit next to this file:
 **`references/methods.md`**, generated from the contracts at build time (every method's
 description, params and reply, every setting key with its range and default, every event
@@ -113,7 +114,7 @@ file cannot see). Read both before composing an unfamiliar call.
 | `mc.client.input.*` | `click`, `slotClick`, `mouseMove`, `typeText`, `replaceText`, `keybind`, `key`, `setHotbarSlot`, `slider` |
 | `mc.client.*` | `player`, `scene`, `blocks` (client-authoritative reads), `overlays`, `screenshot` |
 | `mc.bot.*` | `goto`, `mine`, `bunker`, `escape`, `craft`, `smelt`, `combat`, `equip`, `build`, `clearArea`, `farm`, `construct`, `sleep`, `follow`, `explore`, `runAway`, `lookAt`, `holdItem`, `useItem`, `attackEntity`, `elytraFly`, `playbook`, `waypoint`, `status`, `cancel`, `setting` |
-| `mc.debug.*` | `pathChart`, `plan`, `replay` (client only: path-debug chart, read-only A* probe, archive replay) |
+| `mc.debug.*` | `pathChart`, `plan`, `replay` (path-debug chart, read-only A* probe, archive replay); hidden: `navigator`, `body`, `cells` (a bot's navigator, footing and hands, and how its world view classifies cells) |
 | `mc.script.eval` / `mc.skill` | JS snippet (one round-trip; **not sandboxed** unless `-Dworlddriver.sandbox=on`) + persistent skill library (`save`/`list`/`get`/`run`/`delete`) |
 
 ## Live event stream → Monitor (game-event notifications)

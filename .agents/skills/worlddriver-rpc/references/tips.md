@@ -81,9 +81,11 @@ can still observe and cancel.
 
 ## Availability
 
-- Which methods exist depends on what is loaded: the core set always; `mc.debug.*` only in a game
-  client (absent, `method_not_found`, on a dedicated server); `worlddriver.*` only with the testmod;
-  `mc.test.*` only with the StageWright runtime.
+- Which methods exist depends on what is loaded: the core set and `mc.debug.*` always;
+  `worlddriver.*` only with the testmod; `mc.test.*` only with the StageWright runtime.
+- `mc.debug.plan`, `navigator`, `body` and `cells` read a named server bot anywhere; `plan` and
+  `navigator` also read `self`, which needs a client. `pathChart` and `replay` read the client's
+  world and need a client.
 - `self` (the default bot) is this client's player and needs a client. Named bots (`player:`, `mob:`,
   `entity:`, `npc:`) run on the server tick and work on a dedicated server. `mc.bot.status` and
   `mc.bot.setting` read and patch work everywhere; the `paused` and `debugFly` controls need a client.
@@ -269,13 +271,15 @@ Key families:
   memory only and dropped when the world closes.
 - **Dig straight to a Y level**: goto `{kind:"level", y}` with `route.leash {anchor:{kind:"column", x, z}, radius:1, hard:true}`.
 - **Follow a shoreline without entering water**: `route.hug {what:"shore"}` with `route.mode ["walk"]`.
-- **Look before walking**: `plan:"preview"` (self only) searches without walking or interrupting the
-  current walk; pass the returned `planId` to a later goto within 60 s.
+- **Look before walking**: `plan:"preview"` searches without walking or interrupting the current
+  walk; pass the returned `planId` to a later goto by the same bot within 60 s. A waypoint target
+  and `plan:"score"` are self only.
 - **Path charts and replays**: `mc.debug.pathChart` needs `pathDebug` patched on before the goto;
   `mc.debug.replay` needs `pathArchive` on during the original goto. Replay moves the bot and rewrites
   blocks.
-- **Before crafting**: `mc.recipe.resolve` or `mc.plan.acquire` tells you what is missing;
-  `mc.bot.craft` fails up front with `missing N x <item>` otherwise.
+- **Before crafting**: `mc.recipe.resolve` or `mc.plan.acquire` tells you what is missing (pass
+  `bot` to plan against that bot's bag and nearby stations); `mc.bot.craft` fails up front with
+  `missing N x <item>` otherwise.
 - **`mc.client.blocks` is not a terrain reader**: underground a radius of 5 or more overflows a reply.
   Use `mc.observe.map` for terrain and `mc.query` for counts.
 
