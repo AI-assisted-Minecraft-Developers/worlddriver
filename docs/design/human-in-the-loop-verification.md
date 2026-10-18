@@ -156,7 +156,7 @@ of these can be added later; none was needed to make the loop work.
   file model, the reader and writer, the runner, and the verdict journal.
 - `common/src/testmod/java/net/magicterra/worlddriver/bot/stagewright/scene/HumanScenes.java` — the provider,
   and the local-directory gate.
-- `common/src/main/java/net/magicterra/worlddriver/TestContent.java` — the construction-time hook and the
+- `common/src/main/java/net/magicterra/worlddriver/api/game/TestContent.java` — the construction-time hook and the
   split-package note.
 - `common/src/testmod/resources/scenes/` — the index and the shipped scene.
 - `docs/guide/human-verification.md` — how to actually use it.

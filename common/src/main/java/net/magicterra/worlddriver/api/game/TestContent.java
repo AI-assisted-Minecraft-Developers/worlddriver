@@ -1,10 +1,10 @@
-package net.magicterra.worlddriver;
+package net.magicterra.worlddriver.api.game;
 
 /**
  * A construction-time entry for content that ships only with the testmod: registries
  * ({@code DeferredRegister.register()} must run while the mod is being constructed, on both
  * loaders) and any event subscriptions the test content wants. Discovered through
- * {@link java.util.ServiceLoader} by {@link WorldDriverCommon#installTestContent}, which both
+ * {@link java.util.ServiceLoader} by {@code WorldDriverCommon.installTestContent}, which both
  * loader entries call from their constructor.
  *
  * <p>The published jar carries no implementation, so the discovery loop is empty there and
@@ -13,11 +13,11 @@ package net.magicterra.worlddriver;
  * {@code CommandRegistrationEvent} itself and registers its own {@code worlddriver} literal, which
  * Brigadier merges under the driver's root.
  *
- * <p>This interface sits in the driver's root package rather than beside its implementations in
- * {@code testcontent}: on NeoForge the main and testmod outputs are two JPMS modules, and a package
- * present in both is a split package the module layer refuses to build ("Modules generated_… and
- * worlddriver export package … to module rhino"). Every testmod package must therefore be one the
- * main output does not have.
+ * <p>It sits in the api rather than beside its implementations in {@code testcontent}, so the testmod
+ * implements it through the api alone; and not in {@code testcontent} in any case, because on NeoForge the
+ * main and testmod outputs are two JPMS modules, and a package present in both is a split package the module
+ * layer refuses to build ("Modules generated_… and worlddriver export package … to module rhino"). Every
+ * testmod package must therefore be one the main output does not have.
  */
 public interface TestContent {
     /** Runs once, during mod construction, before any server or client exists. */

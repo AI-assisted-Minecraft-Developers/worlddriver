@@ -537,8 +537,6 @@ testcontent/FixtureRunner -> bot/control/NavigatorTallies
 testcontent/FixtureRunner -> bot/rules/Goal
 testcontent/FixtureRunner -> config/BotConfig
 testcontent/FixtureRunner -> game/observe/RegistryIds
-testcontent/MarkerContent -> TestContent
-testcontent/NpcContent -> TestContent
 testcontent/ValidationSuite -> script/McpBridge
 testcontent/ValidationSuite -> script/RpcBridge
 testcontent/ValidationSuite -> script/ScriptManager

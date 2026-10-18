@@ -66,7 +66,7 @@ with the rest of `WorldDriverEvents`.
 
 `WorldDriverCommon.installTestContent()` is called once from each loader's construction
 phase. It uses `ServiceLoader` to find implementations of
-`net.magicterra.worlddriver.TestContent` and calls `register()` on each. The test content
+`net.magicterra.worlddriver.api.game.TestContent` and calls `register()` on each. The test content
 is folded into the WorldDriver mod itself on both loaders, so the service file is visible
 to the same class loader; a published jar contains no implementation, and the loop does
 nothing. This exists because `DeferredRegister.register()` is only effective during

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **`TestContent` moved to `api/game`.** The construction-time service test content implements is
+  `net.magicterra.worlddriver.api.game.TestContent` now, and its service file is named after it.
 - **`faithfulBreak` is a setting.** Digging at the real speed for the tool on a server bot, instead
   of in one tick, used to be a field only code in the same JVM could flip; it is now
   `mc.bot.setting` key `faithfulBreak`, saved and restored with the others.
