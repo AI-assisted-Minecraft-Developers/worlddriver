@@ -288,9 +288,6 @@ bot/stagewright/scene/WorldDriverDescentNodeScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverDescentNodeScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverDescentNodeScenes -> config/ControlConfig
 bot/stagewright/scene/WorldDriverDescentNodeScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverFlyingMobScenes -> bot/Bot
-bot/stagewright/scene/WorldDriverFlyingMobScenes -> bot/BotRegistry
-bot/stagewright/scene/WorldDriverFlyingMobScenes -> bot/control/NavigatorTelemetry
 bot/stagewright/scene/WorldDriverMarkerScenes -> bot/control/Locomotor
 bot/stagewright/scene/WorldDriverMarkerScenes -> bot/control/Navigator
 bot/stagewright/scene/WorldDriverMarkerScenes -> bot/rules/Goal
@@ -305,10 +302,6 @@ bot/stagewright/scene/WorldDriverMobFightScenes -> bot/control/NavigatorTelemetr
 bot/stagewright/scene/WorldDriverMobFightScenes -> bot/rules/Goal
 bot/stagewright/scene/WorldDriverMobFightScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverMobFightScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverMobScenes -> bot/Bot
-bot/stagewright/scene/WorldDriverMobScenes -> bot/BotRegistry
-bot/stagewright/scene/WorldDriverMobScenes -> bot/MobBot
-bot/stagewright/scene/WorldDriverMobScenes -> bot/world/ThreatScanner
 bot/stagewright/scene/WorldDriverNpcScenes -> bot/behavior/BotProcess
 bot/stagewright/scene/WorldDriverNpcScenes -> bot/behavior/BotState
 bot/stagewright/scene/WorldDriverNpcScenes -> bot/behavior/BridgeProcess
@@ -507,9 +500,6 @@ bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/rules/moves/FallIntoWat
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> bot/world/LevelWorldView
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> config/BotConfig
 bot/stagewright/scene/WorldDriverWaterCrossScenes -> game/body/ServerPlayerBody
-bot/stagewright/scene/WorldDriverWaterMobScenes -> bot/Bot
-bot/stagewright/scene/WorldDriverWaterMobScenes -> bot/BotRegistry
-bot/stagewright/scene/WorldDriverWaterMobScenes -> bot/control/NavigatorTelemetry
 testcontent/ValidationSuite -> script/McpBridge
 testcontent/ValidationSuite -> script/RpcBridge
 testcontent/ValidationSuite -> script/ScriptManager

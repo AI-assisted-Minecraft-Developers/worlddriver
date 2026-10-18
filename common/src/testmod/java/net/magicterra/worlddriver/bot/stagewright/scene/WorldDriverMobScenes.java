@@ -10,10 +10,6 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.bot.Bot;
-import net.magicterra.worlddriver.bot.BotRegistry;
-import net.magicterra.worlddriver.bot.MobBot;
-import net.magicterra.worlddriver.bot.world.ThreatScanner;
 import net.magicterra.worlddriver.testcontent.CastingMob;
 import net.magicterra.worlddriver.testcontent.NpcContent;
 import net.minecraft.core.BlockPos;
@@ -44,6 +40,8 @@ public final class WorldDriverMobScenes implements SceneProvider {
     private static final BlockState STONE = Blocks.STONE.defaultBlockState();
     private static final BlockState AIR = Blocks.AIR.defaultBlockState();
     private static final int COURSE = 10;
+    /** The ref of a mob an order takes over by its uuid. */
+    static final String ENTITY = "entity:";
     /** Ticks for a fresh mob to be ticked at all and land: an arena chunk is not entity-ticking at once. */
     private static final int SETTLE_TICKS = 100;
 
@@ -71,8 +69,8 @@ public final class WorldDriverMobScenes implements SceneProvider {
         ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         Mob mob = stage(ctx, ctx.origin().above(20), NpcContent.VELOCITY_MOB.get());
-        String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = ENTITY + mob.getUUID();
+        releaseAtEnd(ctx, ref);
 
         ctx.await(() -> settled(mob)).within(SETTLE_TICKS).then(() -> {
             Map<String, Object> go = call(api, "testmod.tally", Map.of("bot", ref, "ticks", 5));
@@ -101,8 +99,8 @@ public final class WorldDriverMobScenes implements SceneProvider {
         BlockPos o = ctx.origin().above(20);
         BlockPos goal = o.offset(COURSE, 0, 0);
         Mob mob = stage(ctx, o, NpcContent.VELOCITY_MOB.get());
-        String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = ENTITY + mob.getUUID();
+        releaseAtEnd(ctx, ref);
 
         ctx.await(() -> settled(mob)).within(SETTLE_TICKS).then(() -> {
             Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(goal)));
@@ -134,8 +132,8 @@ public final class WorldDriverMobScenes implements SceneProvider {
         for (int z = -3; z <= 3; z++) {
             for (int y = 0; y < 3; y++) ctx.level().setBlockAndUpdate(o.offset(COURSE / 2, y, z), STONE);
         }
-        String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = ENTITY + mob.getUUID();
+        releaseAtEnd(ctx, ref);
 
         ctx.await(() -> settled(mob)).within(SETTLE_TICKS).then(() -> {
             Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(goal)));
@@ -165,16 +163,15 @@ public final class WorldDriverMobScenes implements SceneProvider {
         BlockPos o = ctx.origin().above(20);
         BlockPos goal = o.offset(COURSE, 0, 0);
         CastingMob mob = (CastingMob) stage(ctx, o, NpcContent.CASTING_MOB.get());
-        String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = ENTITY + mob.getUUID();
+        releaseAtEnd(ctx, ref);
 
         ctx.await(() -> settled(mob)).within(SETTLE_TICKS).then(() -> {
             int pulsesBefore = ((CastingMob.OwnMoveControl) mob.getMoveControl()).pulses();
             Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(goal)));
             ctx.record("goto", String.valueOf(go));
             if (actionId(go) == null) { ctx.fail("a goto naming the stand-in by entity ref did not start: " + go); return; }
-            Bot bot = BotRegistry.get(ref);
-            ctx.await(() -> !bot.busy()).within(400).then(() -> {
+            ctx.await(() -> !busy(api, ref)).within(400).then(() -> {
                 BlockPos stoppedAt = mob.blockPosition();
                 Map<?, ?> action = read(api, actionId(go));
                 int pulses = ((CastingMob.OwnMoveControl) mob.getMoveControl()).pulses() - pulsesBefore;
@@ -193,8 +190,8 @@ public final class WorldDriverMobScenes implements SceneProvider {
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         Mob mob = stage(ctx, o, NpcContent.SELF_MOVING_MOB.get());
-        String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = ENTITY + mob.getUUID();
+        releaseAtEnd(ctx, ref);
 
         ctx.await(() -> settled(mob)).within(SETTLE_TICKS).then(() -> {
             Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(o.offset(COURSE, 0, 0))));
@@ -227,15 +224,15 @@ public final class WorldDriverMobScenes implements SceneProvider {
         Harness.set("undrivableMobs", java.util.List.copyOf(java.util.Set.of("minecraft:wolf")));
 
         ctx.await(() -> settled(listed) && noAi.tickCount > 5).within(SETTLE_TICKS).then(() -> {
-            Map<String, Object> listedGo = call(api, "mc.bot.goto", Map.of("bot", BotRegistry.ENTITY_PREFIX + listed.getUUID(),
+            Map<String, Object> listedGo = call(api, "mc.bot.goto", Map.of("bot", ENTITY + listed.getUUID(),
                     "target", at(o.offset(COURSE, 0, 0))));
-            Map<String, Object> noAiGo = call(api, "mc.bot.goto", Map.of("bot", BotRegistry.ENTITY_PREFIX + noAi.getUUID(),
+            Map<String, Object> noAiGo = call(api, "mc.bot.goto", Map.of("bot", ENTITY + noAi.getUUID(),
                     "target", at(o.offset(COURSE, 0, 2))));
             int cmd = command(ctx.server(), "worlddriver mob " + listed.getUUID() + " scene-listed");
             ctx.record("refusals", listedGo + " / " + noAiGo + " / command=" + cmd);
             ctx.check(refusedAs(listedGo, "bot_unavailable") && String.valueOf(listedGo).contains("undrivableMobs")
                             && refusedAs(noAiGo, "bot_unavailable") && String.valueOf(noAiGo).contains("NoAI")
-                            && cmd == 0 && BotRegistry.get(MobBot.KIND + ":scene-listed") == null
+                            && cmd == 0 && !registered(api, "mob:scene-listed")
                             && !listed.goalSelector.getAvailableGoals().isEmpty())
                     .as("the listed wolf and the zombie with no AI are refused, say why, and keep their own goals: "
                             + listedGo + " / " + noAiGo + " / command=" + cmd)
@@ -251,8 +248,8 @@ public final class WorldDriverMobScenes implements SceneProvider {
         BlockPos o = ctx.origin().above(20);
         Mob wolf = stage(ctx, o, EntityType.WOLF);
         Harness.set("contactDamageEscape", true);
-        String ref = MobBot.KIND + ":scene-magma";
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = "mob:scene-magma";
+        releaseAtEnd(ctx, ref);
 
         ctx.await(() -> settled(wolf)).within(SETTLE_TICKS).then(() -> {
             int ok = command(ctx.server(), "worlddriver mob " + wolf.getUUID() + " scene-magma");
@@ -274,21 +271,26 @@ public final class WorldDriverMobScenes implements SceneProvider {
      * has none. The wolf's threat scan lists the first and not the second.
      */
     private static void seesOnlyWhatHuntsIt(SceneContext ctx) {
+        ApiRegistry api = WorldDriver.registry();
+        if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         Mob wolf = stage(ctx, o, EntityType.WOLF);
         Mob hunter = spawnStill(ctx, EntityType.ZOMBIE, o.offset(4, 0, -2));
         Mob idle = spawnStill(ctx, EntityType.ZOMBIE, o.offset(4, 0, 2));
-        String ref = MobBot.KIND + ":scene-prey";
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = "mob:scene-prey";
+        releaseAtEnd(ctx, ref);
 
         // The zombies have no AI, so they never update onGround; being ticked is enough for them.
         ctx.await(() -> settled(wolf) && hunter.tickCount > 5 && idle.tickCount > 5).within(SETTLE_TICKS).then(() -> {
             hunter.setTarget(wolf);
             int ok = command(ctx.server(), "worlddriver mob " + wolf.getUUID() + " scene-prey");
-            if (ok != 1 || !(BotRegistry.get(ref) instanceof MobBot bot)) { ctx.fail("/worlddriver mob did not adopt the wolf: result=" + ok); return; }
+            if (ok != 1 || !"mob".equals(entry(api, ref).get("kind"))) { ctx.fail("/worlddriver mob did not adopt the wolf: result=" + ok); return; }
             int at = ctx.ticks();
             ctx.await(() -> ctx.ticks() - at >= 3).within(20).then(() -> {
-                List<Integer> seen = bot.botState().threats.current().threats().stream().map(ThreatScanner.Threat::id).toList();
+                List<Integer> seen = new java.util.ArrayList<>();
+                if (call(api, "mc.observe.threats", Map.of("bot", ref)).get("threats") instanceof List<?> threats) {
+                    for (Object t : threats) if (t instanceof Map<?, ?> m && m.get("id") instanceof Number id) seen.add(id.intValue());
+                }
                 ctx.record("threats", seen + " hunter=" + hunter.getId() + " idle=" + idle.getId());
                 ctx.check(seen.contains(hunter.getId()) && !seen.contains(idle.getId()))
                         .as("the wolf's threats are the zombie hunting it and not the idle one: " + seen
@@ -317,16 +319,16 @@ public final class WorldDriverMobScenes implements SceneProvider {
         BlockPos o = ctx.origin().above(20);
         BlockPos goal = o.offset(COURSE, 0, 0);
         Mob zombie = stage(ctx, o, EntityType.ZOMBIE);
-        String ref = BotRegistry.ENTITY_PREFIX + zombie.getUUID();
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = ENTITY + zombie.getUUID();
+        releaseAtEnd(ctx, ref);
         int goals = zombie.goalSelector.getAvailableGoals().size(), targets = zombie.targetSelector.getAvailableGoals().size();
 
         ctx.await(() -> settled(zombie)).within(SETTLE_TICKS).then(() -> {
             Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(goal)));
             ctx.record("goto", String.valueOf(go));
-            Bot bot = BotRegistry.get(ref);
-            if (actionId(go) == null || !(bot instanceof MobBot)) {
-                ctx.fail("a goto naming the zombie by entity ref did not adopt it and start: " + go + ", registered=" + bot);
+            Map<?, ?> adopted = entry(api, ref);
+            if (actionId(go) == null || !"mob".equals(adopted.get("kind"))) {
+                ctx.fail("a goto naming the zombie by entity ref did not adopt it and start: " + go + ", registered=" + adopted);
                 return;
             }
             ctx.check(zombie.goalSelector.getAvailableGoals().isEmpty() && zombie.targetSelector.getAvailableGoals().isEmpty()
@@ -340,7 +342,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
             ctx.record("status", String.valueOf(listed));
             ctx.check("mob".equals(listed.get("kind"))).as("status lists the zombie under its ref as a mob: " + listed).isTrue();
 
-            ctx.await(() -> !bot.busy()).within(400).then(() -> {
+            ctx.await(() -> !busy(api, ref)).within(400).then(() -> {
                 BlockPos stoppedAt = zombie.blockPosition();
                 Map<?, ?> action = read(api, actionId(go));
                 ctx.record("arrived", stoppedAt.toShortString() + " " + action);
@@ -351,19 +353,19 @@ public final class WorldDriverMobScenes implements SceneProvider {
                 Map<String, Object> mine = call(api, "mc.bot.mine", Map.of("bot", ref, "blocks", List.of("minecraft:stone"), "radius", 4));
                 Map<String, Object> hold = call(api, "mc.bot.holdItem", Map.of("bot", ref, "item", "minecraft:stone"));
                 ctx.record("hands", mine + " / " + hold);
-                ctx.check(refusedAs(mine, "unsupported_capability") && refusedAs(hold, "unsupported_capability") && !bot.busy())
+                ctx.check(refusedAs(mine, "unsupported_capability") && refusedAs(hold, "unsupported_capability") && !busy(api, ref))
                         .as("a zombie has no hands, so mine and holdItem are refused before anything starts: " + mine + " / " + hold)
                         .isTrue();
 
                 int ok = command(ctx.server(), "worlddriver mob release " + ref);
                 ctx.record("release", "result=" + ok + " goals=" + zombie.goalSelector.getAvailableGoals().size()
                         + " targets=" + zombie.targetSelector.getAvailableGoals().size());
-                ctx.check(ok == 1 && BotRegistry.get(ref) == null
+                ctx.check(ok == 1 && !registered(api, ref)
                                 && zombie.goalSelector.getAvailableGoals().size() == goals
                                 && zombie.targetSelector.getAvailableGoals().size() == targets)
                         .as("/worlddriver mob release gives the zombie its " + goals + " goals and " + targets + " target goals back and frees the ref: result="
                                 + ok + ", goals=" + zombie.goalSelector.getAvailableGoals().size() + ", targets="
-                                + zombie.targetSelector.getAvailableGoals().size() + ", registered=" + BotRegistry.get(ref))
+                                + zombie.targetSelector.getAvailableGoals().size() + ", registered=" + entry(api, ref))
                         .isTrue();
             });
         });
@@ -375,14 +377,14 @@ public final class WorldDriverMobScenes implements SceneProvider {
         BlockPos o = ctx.origin().above(20);
         BlockPos goal = o.offset(COURSE, 0, 0);
         Mob wolf = stage(ctx, o, EntityType.WOLF);
-        String ref = MobBot.KIND + ":scene-wolf";
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = "mob:scene-wolf";
+        releaseAtEnd(ctx, ref);
 
         ctx.await(() -> settled(wolf)).within(SETTLE_TICKS).then(() -> {
             int ok = command(ctx.server(), "worlddriver mob " + wolf.getUUID() + " scene-wolf");
-            Bot bot = BotRegistry.get(ref);
+            Map<?, ?> bot = entry(api, ref);
             ctx.record("adopt", "result=" + ok + " registered=" + bot);
-            if (ok != 1 || !(bot instanceof MobBot) || bot.entity() != wolf) {
+            if (ok != 1 || !"mob".equals(bot.get("kind")) || !(bot.get("entityId") instanceof Number id) || id.intValue() != wolf.getId()) {
                 ctx.fail("/worlddriver mob did not adopt the wolf as " + ref + ": result=" + ok + ", registered=" + bot);
                 return;
             }
@@ -390,7 +392,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
             ctx.record("goto", String.valueOf(go));
             if (actionId(go) == null) { ctx.fail("a goto to the adopted wolf did not start: " + go); return; }
 
-            ctx.await(() -> !bot.busy()).within(400).then(() -> {
+            ctx.await(() -> !busy(api, ref)).within(400).then(() -> {
                 BlockPos stoppedAt = wolf.blockPosition();
                 Map<?, ?> action = read(api, actionId(go));
                 ctx.record("arrived", stoppedAt.toShortString() + " " + action);
@@ -407,8 +409,8 @@ public final class WorldDriverMobScenes implements SceneProvider {
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         Mob zombie = stage(ctx, o, EntityType.ZOMBIE);
-        String ref = BotRegistry.ENTITY_PREFIX + zombie.getUUID();
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = ENTITY + zombie.getUUID();
+        releaseAtEnd(ctx, ref);
 
         ctx.await(() -> settled(zombie)).within(SETTLE_TICKS).then(() -> {
             Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(o.offset(COURSE, 0, 0))));
@@ -419,11 +421,11 @@ public final class WorldDriverMobScenes implements SceneProvider {
                 zombie.discard();
                 ctx.await(() -> !"running".equals(read(api, actionId(go)).get("state"))).within(40).then(() -> {
                     Map<?, ?> action = read(api, actionId(go));
-                    ctx.record("removed", action + " registered=" + BotRegistry.get(ref));
+                    ctx.record("removed", action + " registered=" + entry(api, ref));
                     ctx.check("cancelled".equals(action.get("state")) && "bot_removed".equals(action.get("reason"))
-                                    && BotRegistry.get(ref) == null)
+                                    && !registered(api, ref))
                             .as("removing the driven zombie ends its walk as bot_removed and frees its ref: " + action
-                                    + ", registered=" + BotRegistry.get(ref))
+                                    + ", registered=" + entry(api, ref))
                             .isTrue();
                 });
             });
@@ -496,6 +498,31 @@ public final class WorldDriverMobScenes implements SceneProvider {
             for (Object o : bots) if (o instanceof Map<?, ?> m && id.equals(m.get("id"))) return m;
         }
         return Map.of();
+    }
+
+    /** What {@code mc.bot.status} lists for {@code ref}: id, kind, entityId, busy; empty when no bot answers to it. */
+    static Map<?, ?> entry(ApiRegistry api, String ref) {
+        return botEntry(call(api, "mc.bot.status", Map.of("bot", ref)), ref);
+    }
+
+    /** Whether a bot answers to {@code ref}. */
+    static boolean registered(ApiRegistry api, String ref) { return !entry(api, ref).isEmpty(); }
+
+    /** Whether the bot {@code ref} is on a task; a bot that is gone is not. */
+    static boolean busy(ApiRegistry api, String ref) { return Boolean.TRUE.equals(entry(api, ref).get("busy")); }
+
+    /** The navigator's last per-tick trace for the bot {@code ref}, from {@code mc.debug.navigator}. */
+    static String lastTickTrace(ApiRegistry api, String ref) {
+        return call(api, "mc.debug.navigator", Map.of("bot", ref)).get("traces") instanceof Map<?, ?> t
+                ? String.valueOf(t.get("lastTickTrace")) : "no navigator reading";
+    }
+
+    /** Give {@code ref} up when the scene ends, whether or not anything adopted it: a ref nobody holds is refused, and that is fine. */
+    static void releaseAtEnd(SceneContext ctx, String ref) {
+        ctx.cleanup(() -> {
+            ApiRegistry api = WorldDriver.registry();
+            if (api != null) api.route("mc.bot.roster", Map.of("op", "remove", "bot", ref));
+        });
     }
 
     static void fill(ServerLevel level, BlockPos a, BlockPos b, BlockState state) {

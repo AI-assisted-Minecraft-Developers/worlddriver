@@ -1,10 +1,14 @@
 package net.magicterra.worlddriver.bot.stagewright.scene;
 
+import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.ENTITY;
 import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.actionId;
 import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.at;
+import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.busy;
 import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.call;
 import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.fill;
+import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.lastTickTrace;
 import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.read;
+import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.releaseAtEnd;
 import static net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMobScenes.refusedAs;
 
 import java.util.ArrayDeque;
@@ -18,9 +22,6 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
-import net.magicterra.worlddriver.bot.Bot;
-import net.magicterra.worlddriver.bot.BotRegistry;
-import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
@@ -136,13 +137,12 @@ public final class WorldDriverFlyingMobScenes implements SceneProvider {
         ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         String name = mob.getType().toShortString();
-        String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = ENTITY + mob.getUUID();
+        releaseAtEnd(ctx, ref);
         ctx.await(() -> mob.tickCount > 5).within(SETTLE_TICKS).then(() -> {
             Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(goal)));
             ctx.record("goto", String.valueOf(go));
             if (actionId(go) == null) { ctx.fail("a goto naming the " + name + " did not start: " + go); return; }
-            Bot bot = BotRegistry.get(ref);
             int start = ctx.ticks();
             int[] highest = {mob.blockPosition().getY()};
             int[] widest = {mob.blockPosition().getZ()};
@@ -151,10 +151,10 @@ public final class WorldDriverFlyingMobScenes implements SceneProvider {
                 highest[0] = Math.max(highest[0], mob.blockPosition().getY());
                 if (Math.abs(mob.blockPosition().getZ() - goal.getZ()) > Math.abs(widest[0] - goal.getZ())) widest[0] = mob.blockPosition().getZ();
                 if ((ctx.ticks() - start) % 5 == 0) {
-                    trail.addLast("t" + (ctx.ticks() - start) + ": " + NavigatorTelemetry.of(mob).lastTickTrace);
+                    trail.addLast("t" + (ctx.ticks() - start) + ": " + lastTickTrace(api, ref));
                     if (trail.size() > TRAIL) trail.removeFirst();
                 }
-                return !bot.busy() || ctx.ticks() - start >= DEADLINE;
+                return !busy(api, ref) || ctx.ticks() - start >= DEADLINE;
             }).within(DEADLINE + 50).then(() -> {
                 BlockPos stoppedAt = mob.blockPosition();
                 Map<?, ?> action = read(api, actionId(go));
@@ -181,20 +181,19 @@ public final class WorldDriverFlyingMobScenes implements SceneProvider {
         ctx.cleanup(() -> fill(level, lo, hi, AIR));
         BlockPos goal = o.offset(4, 6, 0);
         Mob parrot = spawn(ctx, EntityType.PARROT, new Vec3(o.getX() + 0.5, o.getY() + 0.1, o.getZ() + 0.5));
-        String ref = BotRegistry.ENTITY_PREFIX + parrot.getUUID();
-        ctx.cleanup(() -> BotRegistry.unregister(ref));
+        String ref = ENTITY + parrot.getUUID();
+        releaseAtEnd(ctx, ref);
         ctx.await(() -> parrot.tickCount > 5).within(SETTLE_TICKS).then(() -> {
             Map<String, Object> go = call(api, "mc.bot.goto", Map.of("bot", ref, "target", at(goal)));
             ctx.record("goto", String.valueOf(go));
             if (actionId(go) == null) { ctx.fail("a goto naming the parrot did not start: " + go); return; }
-            Bot bot = BotRegistry.get(ref);
             int start = ctx.ticks();
-            ctx.await(() -> !bot.busy() || ctx.ticks() - start >= DEADLINE).within(DEADLINE + 50).then(() -> {
+            ctx.await(() -> !busy(api, ref) || ctx.ticks() - start >= DEADLINE).within(DEADLINE + 50).then(() -> {
                 Map<?, ?> action = read(api, actionId(go));
                 Vec3 arrived = parrot.position();
                 ctx.record("arrived", arrived + " ticks=" + (ctx.ticks() - start) + " " + action);
                 if (!"succeeded".equals(action.get("state"))) {
-                    ctx.fail("the parrot did not get to " + goal.toShortString() + ": " + action + " trace=" + NavigatorTelemetry.of(parrot).lastTickTrace);
+                    ctx.fail("the parrot did not get to " + goal.toShortString() + ": " + action + " trace=" + lastTickTrace(api, ref));
                     return;
                 }
                 int held = ctx.ticks();
@@ -224,9 +223,9 @@ public final class WorldDriverFlyingMobScenes implements SceneProvider {
         wither.setNoGravity(true);
         dragon.setNoGravity(true);
         ctx.await(() -> wither.tickCount > 1 && dragon.tickCount > 1).within(SETTLE_TICKS).then(() -> {
-            Map<String, Object> witherGo = call(api, "mc.bot.goto", Map.of("bot", BotRegistry.ENTITY_PREFIX + wither.getUUID(),
+            Map<String, Object> witherGo = call(api, "mc.bot.goto", Map.of("bot", ENTITY + wither.getUUID(),
                     "target", at(o.offset(5, 0, 0))));
-            Map<String, Object> dragonGo = call(api, "mc.bot.goto", Map.of("bot", BotRegistry.ENTITY_PREFIX + dragon.getUUID(),
+            Map<String, Object> dragonGo = call(api, "mc.bot.goto", Map.of("bot", ENTITY + dragon.getUUID(),
                     "target", at(o.offset(25, 0, 0))));
             ctx.record("refusals", witherGo + " / " + dragonGo);
             ctx.check(refusedAs(witherGo, "bot_unavailable") && String.valueOf(witherGo).contains("wither")
