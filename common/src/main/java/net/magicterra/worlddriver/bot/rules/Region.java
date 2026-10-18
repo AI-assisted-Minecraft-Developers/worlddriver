@@ -1,12 +1,12 @@
 package net.magicterra.worlddriver.bot.rules;
 
 /**
- * A box or a sphere in block coordinates, as {@code route.regions[]} describes one. Both answer
+ * A box, a sphere or a list of cells in block coordinates, as {@code route.regions[]} describes one. Both answer
  * two questions about a cell centre: how deep inside the region it is ({@link #depth}, 0 when
  * outside — the violation the {@code ForbidRegion} rejoin rule compares), and how strongly an
  * avoid should charge it ({@link #weight}, 0 outside, 1 at the worst point inside).
  */
-public sealed interface Region permits Region.Box, Region.Sphere {
+public sealed interface Region permits Region.Box, Region.Sphere, Region.Cells {
 
     /** Distance from the point to the nearest boundary face when inside; 0 when outside. */
     double depth(double x, double y, double z);
@@ -69,5 +69,26 @@ public sealed interface Region permits Region.Box, Region.Sphere {
             double d = dist(x, y, z);
             return d < radius ? (radius - d) / radius : 0;
         }
+    }
+
+    /** Exactly the listed cells; inside is inside, with depth 1 so a forbid lets a bot standing in one step out. */
+    record Cells(java.util.Set<Long> keys) implements Region {
+        public Cells {
+            keys = java.util.Set.copyOf(keys);
+        }
+
+        public static Cells of(java.util.Collection<net.minecraft.core.BlockPos> cells) {
+            java.util.Set<Long> keys = new java.util.HashSet<>();
+            for (net.minecraft.core.BlockPos c : cells) keys.add(c.asLong());
+            return new Cells(keys);
+        }
+
+        @Override public boolean contains(double x, double y, double z) {
+            return keys.contains(net.minecraft.core.BlockPos.asLong((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)));
+        }
+
+        @Override public double depth(double x, double y, double z) { return contains(x, y, z) ? 1 : 0; }
+
+        @Override public double weight(double x, double y, double z) { return contains(x, y, z) ? 1 : 0; }
     }
 }

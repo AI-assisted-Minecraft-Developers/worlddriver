@@ -30,6 +30,7 @@ import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
 import net.magicterra.worlddriver.bot.rules.constraints.YCeil;
 import net.magicterra.worlddriver.bot.rules.constraints.YFloor;
 import net.magicterra.worlddriver.bot.rules.modifiers.AvoidRegion;
+import net.magicterra.worlddriver.bot.rules.modifiers.LedgeTax;
 import net.magicterra.worlddriver.bot.rules.modifiers.ColumnAnchor;
 import net.magicterra.worlddriver.bot.rules.modifiers.LeashAnchor;
 import net.magicterra.worlddriver.bot.rules.modifiers.PreferBreak;
@@ -262,6 +263,25 @@ class RouteParamsTest {
         assertEquals(99, a.penalty(), 1e-9);
         assertTrue(a.region().contains(50.5, 64, 50.5));
         assertTrue(p.constraintNames().contains("ForbidRegion"));
+    }
+
+    @Test
+    void aCellsRegionChargesExactlyItsCells() {
+        RouteParams.Parsed p = parse("regions", List.of(Map.of("shape", "cells", "cells", List.of(at(1, 64, 2), at(3, 64, 2)),
+                "mode", "avoid", "penalty", 300)));
+        AvoidRegion a = only(p.profile().bias(), AvoidRegion.class);
+        assertEquals(300.0, a.penalty());
+        assertTrue(a.region().contains(1.5, 64, 2.5));
+        assertTrue(a.region().contains(3.5, 64, 2.5));
+        assertTrue(!a.region().contains(2.5, 64, 2.5));
+        assertEquals(List.of("/route/regions/0/cells"), issues(Map.of("regions", List.of(Map.of("shape", "cells", "cells", List.of())))));
+    }
+
+    @Test
+    void aLedgeBecomesItsTax() {
+        RouteParams.Parsed p = parse("ledge", Map.of("minDrop", 4, "penalty", 300));
+        assertEquals(new LedgeTax(4, 300), only(p.profile().bias(), LedgeTax.class));
+        assertEquals(new LedgeTax(4, 300), only(parse("ledge", Map.of()).profile().bias(), LedgeTax.class));
     }
 
     @Test

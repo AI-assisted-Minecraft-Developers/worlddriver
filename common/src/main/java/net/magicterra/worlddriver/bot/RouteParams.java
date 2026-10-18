@@ -22,6 +22,7 @@ import net.magicterra.worlddriver.api.methods.bot.RouteContracts.PointAnchor;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.RegionSpec;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Risk;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts.CellsRegion;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.SphereRegion;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.TravelMode;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.YRange;
@@ -45,6 +46,7 @@ import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
 import net.magicterra.worlddriver.bot.rules.constraints.YCeil;
 import net.magicterra.worlddriver.bot.rules.constraints.YFloor;
 import net.magicterra.worlddriver.bot.rules.modifiers.AvoidRegion;
+import net.magicterra.worlddriver.bot.rules.modifiers.LedgeTax;
 import net.magicterra.worlddriver.bot.rules.modifiers.ColumnAnchor;
 import net.magicterra.worlddriver.bot.rules.modifiers.LeashAnchor;
 import net.magicterra.worlddriver.bot.rules.modifiers.PreferBreak;
@@ -132,6 +134,7 @@ public final class RouteParams {
         r.hug().ifPresent(h -> bias.add(new ShorelineHug(h.weight())));
         EntityLeash entityLeash = r.leash().map(l -> leash(l, bias, cons)).orElse(null);
         for (RegionSpec spec : r.regions()) region(spec, bias, cons);
+        r.ledge().ifPresent(l -> bias.add(new LedgeTax(l.minDrop(), l.penalty())));
         r.corridor().ifPresent(c -> {
             List<Vec3> pts = new ArrayList<>();
             for (BlockPosition p : c.points()) pts.add(new Vec3(p.x() + 0.5, p.y(), p.z() + 0.5));
@@ -206,6 +209,13 @@ public final class RouteParams {
                 region = new Region.Sphere(s.center().x() + 0.5, s.center().y(), s.center().z() + 0.5, s.radius());
                 mode = s.mode();
                 penalty = s.penalty();
+            }
+            case CellsRegion c -> {
+                List<BlockPos> cells = new ArrayList<>(c.cells().size());
+                for (BlockPosition p : c.cells()) cells.add(Positions.blockPos(p));
+                region = Region.Cells.of(cells);
+                mode = c.mode();
+                penalty = c.penalty();
             }
         }
         if (mode == Enforcement.FORBID) cons.add(new ForbidRegion(region));

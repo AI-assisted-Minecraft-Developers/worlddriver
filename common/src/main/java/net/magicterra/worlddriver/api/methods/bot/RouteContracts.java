@@ -72,9 +72,13 @@ public final class RouteContracts {
 
     public record Leash(LeashAnchor anchor, double radius, boolean hard, double weight) {}
 
-    public sealed interface RegionSpec permits BoxRegion, SphereRegion {}
+    public sealed interface RegionSpec permits BoxRegion, SphereRegion, CellsRegion {}
     public record BoxRegion(BlockPosition min, BlockPosition max, Enforcement mode, double penalty) implements RegionSpec {}
     public record SphereRegion(BlockPosition center, double radius, Enforcement mode, double penalty) implements RegionSpec {}
+    public record CellsRegion(List<BlockPosition> cells, Enforcement mode, double penalty) implements RegionSpec {}
+
+    /** A flat {@code penalty} on each cell beside a drop deeper than {@code minDrop}, or a hazard at any depth. */
+    public record Ledge(int minDrop, double penalty) {}
 
     public record Cluster(int count, double radius, Enforcement mode, double penalty) {}
 
@@ -91,12 +95,12 @@ public final class RouteContracts {
     public record Route(List<BlockPosition> via, Optional<List<TravelMode>> mode, BreakPolicy breakPolicy,
                         PlacePolicy place, boolean parkour, Risk risk, Optional<YRange> yRange, Optional<Hug> hug,
                         Optional<Leash> leash, List<RegionSpec> regions, Optional<Mobs> mobs, Optional<Sight> sight,
-                        Optional<Corridor> corridor, Optional<String> requireTool) {
+                        Optional<Corridor> corridor, Optional<Ledge> ledge, Optional<String> requireTool) {
 
         /** No conditions: plain walking. */
         public static final Route NONE = new Route(List.of(), Optional.empty(), BreakPolicy.ALLOW, PlacePolicy.ALLOW,
                 true, Risk.NORMAL, Optional.empty(), Optional.empty(), Optional.empty(), List.of(), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
 
         public boolean fly() { return mode.map(m -> m.contains(TravelMode.FLY)).orElse(false); }
     }
@@ -161,7 +165,20 @@ public final class RouteContracts {
                     ApiField.field("mode", ENFORCEMENT).defaulted(Enforcement.FORBID).forGetter(SphereRegion::mode),
                     ApiField.field("penalty", WEIGHT).describe("Ramps to 0 at the sphere's edge.")
                             .defaulted(250.0).forGetter(SphereRegion::penalty),
-                    SphereRegion::new)));
+                    SphereRegion::new)),
+            ApiTypes.variant("cells", CellsRegion.class, ApiTypes.record(CellsRegion.class, null,
+                    ApiField.field("cells", ApiTypes.list(CommonTypes.BLOCK_POSITION, 1, 4096)).required()
+                            .forGetter(CellsRegion::cells),
+                    ApiField.field("mode", ENFORCEMENT).defaulted(Enforcement.FORBID).forGetter(CellsRegion::mode),
+                    ApiField.field("penalty", WEIGHT).describe("Charged in full on each listed cell.")
+                            .defaulted(250.0).forGetter(CellsRegion::penalty),
+                    CellsRegion::new)));
+
+    public static final RecordType<Ledge> LEDGE = ApiTypes.record(Ledge.class, "Ledge",
+            ApiField.field("minDrop", ApiTypes.integer(1, 64)).describe("Drops deeper than this are taxed.")
+                    .defaulted(4).forGetter(Ledge::minDrop),
+            ApiField.field("penalty", WEIGHT).defaulted(300.0).forGetter(Ledge::penalty),
+            Ledge::new);
 
     public static final RecordType<Cluster> CLUSTER = ApiTypes.record(Cluster.class, "MobCluster",
             ApiField.field("count", ApiTypes.integer(1, 64)).defaulted(3).forGetter(Cluster::count),
@@ -235,6 +252,7 @@ public final class RouteContracts {
             ApiField.field("sight", SIGHT).describe("Stay out of lines of sight; geometry only.").optional().forGetter(Route::sight),
             ApiField.field("corridor", CORRIDOR).describe("Keep within radius of your own polyline.")
                     .optional().forGetter(Route::corridor),
+            ApiField.field("ledge", LEDGE).describe("Keep off cells beside a deep drop.").optional().forGetter(Route::ledge),
             ApiField.field("requireTool", CommonTypes.RESOURCE_ID)
                     .describe("Refuse unless this item is in the inventory.").optional().forGetter(Route::requireTool),
             Route::new)

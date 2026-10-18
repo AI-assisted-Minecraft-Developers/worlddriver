@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **Routes can keep off ledges and out of a list of cells.** `route.ledge {minDrop, penalty}` charges
+  every cell beside a drop deeper than `minDrop` (or a hazard at any depth), for a walk that could
+  survive the lip but should not risk it. `route.regions` takes `shape: 'cells'` with up to 4096
+  cells, avoided or forbidden one by one, for a rim no box or sphere fits.
 - **A tower already at its height is done, not refused.** `mc.bot.construct` with a `targetY` at or
   below the feet used to answer `invalid_world_target`; it now succeeds at once with nothing placed.
   `fromBag` lets a tower with a named `block` fetch it from the backpack as well as the hotbar.

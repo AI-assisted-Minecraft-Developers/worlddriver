@@ -1690,6 +1690,12 @@ type RouteRegion =
         mode?: Enforcement;
         /** Ramps to 0 at the sphere's edge. */
         penalty?: number;
+    }
+    | { shape: 'cells';
+        cells: BlockPosition[];
+        mode?: Enforcement;
+        /** Charged in full on each listed cell. */
+        penalty?: number;
     };
 interface MobCluster { count?: number; radius?: number; mode?: Enforcement; penalty?: number; }
 interface Mobs {
@@ -1725,6 +1731,11 @@ interface Corridor {
     /** Cost per block beyond the radius when avoiding. */
     penalty?: number;
 }
+interface Ledge {
+    /** Drops deeper than this are taxed. */
+    minDrop?: number;
+    penalty?: number;
+}
 interface Route {
     /** Cells reached in order, within one block each, before the goal. */
     via?: BlockPosition[];
@@ -1748,6 +1759,8 @@ interface Route {
     sight?: Sight;
     /** Keep within radius of your own polyline. */
     corridor?: Corridor;
+    /** Keep off cells beside a deep drop. */
+    ledge?: Ledge;
     /** Refuse unless this item is in the inventory. */
     requireTool?: string;
 }
