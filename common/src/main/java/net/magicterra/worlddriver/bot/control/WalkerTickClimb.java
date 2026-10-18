@@ -808,7 +808,7 @@ final class WalkerTickClimb {
                 LOG.info("[walker] climb-ctx cwp={},{},{} wantNow={} (foot={} ram={} surface={}) want={} near={} climbing={} stall={} deepDig={} pillaring={} gaveUp={} digging={} riser={}",
                         cwp.getX(), cwp.getY(), cwp.getZ(), wantClimbNow, cwp.getY() > foot.getY() && climbTargetBeside,
                         floatingBankRam, surfaceClimbIntent, wantClimb, nearWater, waterClimbing, wk.waterClimb.stall,
-                        deepDig, wk.waterClimb.pillaring, wk.waterClimb.pillarGaveUp, wk.waterClimb.digging, wk.waterClimb.digRiser);
+                        deepDig, wk.waterClimb.pillaring, wk.waterClimb.pillarGaveUp, cx.stall.dugLastTick, wk.waterClimb.digRiser);
             if ((!wantClimb || !nearWater) && !digCommitted) {
                 // Left the climb context (grounded on the bank, or A* now routes
                 // down/along) → clear the per-attempt accounting AND the "pillar
@@ -878,7 +878,7 @@ final class WalkerTickClimb {
             // ~4 s dig window with NO dig swinging, fall back to the pillar despite deepDig so the
             // placeable lifts the bot onto the bank. Flag-gated; default OFF keeps this byte-identical.
             boolean swimAshorePillarFallback = ControlConfig.walkerSwimAshorePillarDespiteDeepDig
-                    && deepDig && !wk.waterClimb.digging && wk.waterClimb.stall > WATER_CLIMB_DIG_STALL;
+                    && deepDig && !cx.stall.dugLastTick && wk.waterClimb.stall > WATER_CLIMB_DIG_STALL;
             // FOOTHOLD FIRST. `deepDig` used to send a bot holding a block to the dig before the
             // pillar, on the belief that a buoyant bob can never lift its feet clear of the surface
             // fill cell. The real client refutes it: a bot pressed INTO the bank rides vanilla's

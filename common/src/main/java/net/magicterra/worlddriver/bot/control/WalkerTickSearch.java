@@ -43,12 +43,12 @@ final class WalkerTickSearch {
      * this is one method and not an expression is {@code run()}'s per-method budget.
      */
     private static boolean futileGateExcluded(PathFinder.Result res, Body a, Walker wk,
-                                              WorldView world, BlockPos foot) {
+                                              WorldView world, BlockPos foot, boolean dugLastTick) {
         int bucket = -1;
         if (ControlConfig.walkerFutileSearchCap <= 0) bucket = 0;
         else if (res.goalReached()) bucket = 1;
         else if (wk.blocks.breakHeld()) bucket = 2;
-        else if (wk.waterClimb.digging) bucket = 3;
+        else if (dugLastTick) bucket = 3;
         else if (world.isWater(foot)) bucket = 4;
         else if (!res.hasPath() && world.hasStuckPenalties()) bucket = 5;
         if (bucket < 0) return false;
@@ -80,8 +80,9 @@ final class WalkerTickSearch {
      * @return non-null Step to end the tick, or null to fall through.
      */
     private static Walker.Step futileGateJudge(PathFinder.Result res, Body a, Walker wk,
-                                               WorldView world, BlockPos foot, LivingEntity p) {
-        if (futileGateExcluded(res, a, wk, world, foot)) return null;
+                                               WorldView world, BlockPos foot, LivingEntity p,
+                                               boolean dugLastTick) {
+        if (futileGateExcluded(res, a, wk, world, foot, dugLastTick)) return null;
         // An unseeded baseline is +INFINITY, which makes the first comparison after every reset
         // trivially "got closer" — a free zeroing donated by the reset itself. The first judged
         // search has nothing to compare against: it SEEDS, it does not judge.
@@ -184,7 +185,7 @@ final class WalkerTickSearch {
                 LOG.info(
                         "[walker] repath from {} → goalReached={} pathLen={} expanded={} ms={}",
                         wasFromEnd ? wk.route.seg.commitEnd : foot, res.goalReached(), res.path().size(), res.expanded(), res.ms());
-            Walker.Step futile = futileGateJudge(res, a, wk, world, foot, p);
+            Walker.Step futile = futileGateJudge(res, a, wk, world, foot, p, cx.stall.dugLastTick);
             if (futile != null) return futile;
             // FROM-END continuation that makes NO goal progress beyond the committed end
             // (walkerFromEndNoProgressDiscard): with the goal SEALED, the continuation's

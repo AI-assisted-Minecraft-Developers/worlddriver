@@ -121,8 +121,9 @@ final class WalkerTickStallDetect {
         // breaking edge: extend the wedge leash and exempt it from the anti-stuck burst,
         // or the burst yanks the buoyant bot off the riser mid-dig and it never tops out
         // (the live continuous-context churn the clean single-bank arena can't reproduce).
+        cx.stall.dugLastTick = wk.waterClimb.digging;
         boolean breakingEdge = (wedgeEdge != null && !wedgeEdge.toBreak.isEmpty() && wk.blocks.breakHeld())
-                || wk.waterClimb.digging;
+                || cx.stall.dugLastTick;
         wk.waterClimb.digging = false;   // re-armed below only if the block-less dig actuator runs this tick
         int wedgeLimit = breakingEdge ? WEDGE_TICKS + ControlConfig.breakTimeoutTicks : WEDGE_TICKS;
         boolean wedged = wk.stepProg.noStepProgressTicks > wedgeLimit;

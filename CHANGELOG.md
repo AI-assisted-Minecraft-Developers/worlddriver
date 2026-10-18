@@ -43,6 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cliff, where the bot digs its way up, took 31 to 34 s in six runs out of six, against 32 to 97 s
   in six runs before (three of them stuck re-digging and re-placing for a minute or more), and the
   whole route's median went from 171 s to 158 s.
+- **A bot digging itself out of deep water is no longer given up on for searching too often.** A
+  walk that keeps searching without getting closer is ended, except while the bot is digging, when
+  standing still is expected. For the dig a bot does to climb out of deep water that exception never
+  applied: the walker forgot the dig before it asked. The same mistake kept an optional fallback,
+  pillaring up when no dig is swinging, from ever seeing a dig.
 
 ## 2026-10-17
 

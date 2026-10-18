@@ -133,7 +133,7 @@ class WalkerTickDataflowTest {
         assertEquals(9, ORDER.size(), "expected the nine-phase pipeline, got " + ORDER);
         assertEquals("Prelude", ORDER.get(0));
         assertEquals("Drive", ORDER.get(ORDER.size() - 1));
-        assertEquals(31, declaredFields().size(),
+        assertEquals(32, declaredFields().size(),
                 "WalkerTickCtx field census changed: " + declaredFields());
         assertEquals(declaredFields(), new TreeSet<>(WRITES.keySet()),
                 "the write scan and the ctx declaration disagree — one of the two parsers "

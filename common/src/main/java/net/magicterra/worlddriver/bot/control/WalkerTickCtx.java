@@ -36,6 +36,7 @@ final class WalkerTickCtx {
         double d;                  // goal.estimate(foot) this tick
         boolean offPath;
         boolean breakingEdge;      // a planned break edge is actively swinging
+        boolean dugLastTick;       // the block-less climb-out dig swung last tick (its flag is re-armed later this tick)
         boolean wedged;
         boolean fellOffPath;
         boolean fellBelowRoute;
