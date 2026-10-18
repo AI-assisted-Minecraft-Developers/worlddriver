@@ -12,6 +12,7 @@ import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.planning.MultiTrace;
 import net.magicterra.worlddriver.bot.planning.PathTraceHolder;
 import java.util.Objects;
@@ -91,8 +92,12 @@ public final class PathDebugBootstrap {
 
         @Override
         public CompletionStage<DebugContracts.PlanReply> plan(DebugContracts.PlanParams p, CallContext ctx) {
-            if (BotHooks.impl() == null) throw new IllegalStateException("mc.debug.plan reads this client's world, and there is none");
-            return BotHooks.impl().clientHop().submit(() -> PlanProbeTool.plan(p), ctx);
+            if (p.bot().isPresent() && !BotRegistry.isSelf(p.bot().get())) return onServer(() -> PlanProbeTool.onServer(p), ctx);
+            if (BotHooks.impl() == null) {
+                return CompletableFuture.failedFuture(ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE,
+                        "mc.debug.plan for self reads this client's world, and there is none; name a server bot"));
+            }
+            return BotHooks.impl().clientHop().submit(() -> PlanProbeTool.onClient(p), ctx);
         }
 
         @Override

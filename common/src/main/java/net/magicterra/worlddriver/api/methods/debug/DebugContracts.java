@@ -10,7 +10,10 @@ import net.magicterra.worlddriver.api.schema.ApiTypes;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.UnionType;
 import net.magicterra.worlddriver.api.schema.WireName;
+import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
+import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
+import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 
 /**
@@ -20,13 +23,6 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
  */
 public final class DebugContracts {
     private DebugContracts() {}
-
-    public record Column(int x, int z) {}
-
-    public static final ApiType<Column> COLUMN = ApiTypes.record(Column.class, "Column",
-            ApiField.field("x", ApiTypes.integer()).required().forGetter(Column::x),
-            ApiField.field("z", ApiTypes.integer()).required().forGetter(Column::z),
-            Column::new);
 
     private static final ApiType<Integer> COUNT = ApiTypes.integer(0, Integer.MAX_VALUE);
     private static final ApiType<Long> LONG_COUNT = ApiTypes.int64(0, Long.MAX_VALUE);
@@ -99,11 +95,36 @@ public final class DebugContracts {
 
     // ------------------------------------------------------------------ mc.debug.plan
 
-    public record PlanParams(Column goal, Optional<BlockPosition> from, boolean chain, int maxSegments) {}
+    /**
+     * {@code bot} absent or {@code self}: the client's player in the client's world; a named bot: that bot in the
+     * server's world, with its own bag deciding what it may place and dig with. {@code route} absent plans as a
+     * bare search does, with the settings' cost model; {@code maxNodes} and {@code maxMs} absent take the settings'.
+     */
+    public record PlanParams(Optional<String> bot, GotoContracts.Target target, Optional<BlockPosition> from,
+                             Optional<RouteContracts.Route> route, boolean chain, int maxSegments,
+                             Optional<Integer> maxNodes, Optional<Long> maxMs) {
+        public static PlanParams of(String bot, GotoContracts.Target target) {
+            return new PlanParams(Optional.of(bot), target, Optional.empty(), Optional.empty(), false, 40,
+                    Optional.empty(), Optional.empty());
+        }
+        public PlanParams from(BlockPosition start) {
+            return new PlanParams(bot, target, Optional.of(start), route, chain, maxSegments, maxNodes, maxMs);
+        }
+        public PlanParams route(RouteContracts.Route r) {
+            return new PlanParams(bot, target, from, Optional.of(r), chain, maxSegments, maxNodes, maxMs);
+        }
+        public PlanParams budget(int nodes, long ms) {
+            return new PlanParams(bot, target, from, route, chain, maxSegments, Optional.of(nodes), Optional.of(ms));
+        }
+    }
 
     public sealed interface PlanReply permits SinglePlan, ChainPlan {}
 
     public record MoveCost(int n, long cost) {}
+
+    /** The edge entering a node: its move, its cost, and the cells it digs and fills on the way. */
+    public record PlanEdge(BlockPosition to, Optional<String> move, long cost, List<BlockPosition> breaks,
+                           List<BlockPosition> places) {}
 
     public record Search(int expanded, long computeMs, long wallMs, long finalCost) {}
 
@@ -114,34 +135,52 @@ public final class DebugContracts {
      * One search. {@code maxStepDrop} is the largest single-node fall the planner routed; {@code moves} is
      * each move's count and summed cost.
      */
-    public record SinglePlan(BlockPosition start, Column goal, boolean goalReached, int pathLen, BlockPosition end,
+    public record SinglePlan(BlockPosition start, boolean goalReached, int pathLen, BlockPosition end,
                              Search search, Estimate estimate, int maxStepDrop, List<Integer> yProfile, List<String> nodes,
-                             Map<String, MoveCost> moves, int breaks, int places) implements PlanReply {}
+                             Map<String, MoveCost> moves, int breaks, int places, List<PlanEdge> edges) implements PlanReply {}
 
     public record Segment(BlockPosition end, long hEnd, long hDelta, int expanded, boolean goalReached,
                           Optional<BlockPosition> sunkTailCut) {}
 
     /** {@code maxRegression}: the worst overshoot back past the best progress so far (cost units; /10 ≈ blocks). */
-    public record ChainPlan(BlockPosition start, Column goal, boolean reached, int segments, int backwardSegments,
+    public record ChainPlan(BlockPosition start, boolean reached, int segments, int backwardSegments,
                             long maxRegression, long totalExpanded, long hStart, long hFinal, List<Segment> trail)
             implements PlanReply {}
 
     public static final ApiType<PlanParams> PLAN_PARAMS = ApiTypes.record(PlanParams.class, "PathPlanParams",
-            ApiField.field("goal", COLUMN).required().forGetter(PlanParams::goal),
-            ApiField.field("from", CommonTypes.BLOCK_POSITION).describe("The start foot. Omitted: where the player stands.")
+            ApiField.field("bot", Responses.BOT_REF)
+                    .describe("Omitted or self: the client's player and world. A named bot: that bot in the server's world.")
+                    .optional().forGetter(PlanParams::bot),
+            ApiField.field("target", GotoContracts.TARGET).required().forGetter(PlanParams::target),
+            ApiField.field("from", CommonTypes.BLOCK_POSITION).describe("The start foot. Omitted: where the bot stands.")
                     .optional().forGetter(PlanParams::from),
+            ApiField.field("route", RouteContracts.ROUTE)
+                    .describe("Plan as mc.bot.goto would with this route. Omitted: a bare search with the settings' cost model.")
+                    .optional().forGetter(PlanParams::route),
             ApiField.field("chain", ApiTypes.bool())
                     .describe("Feed each committed segment's end back in as the next start until the goal or no progress: "
                             + "the navigator's segment chain, simulated read-only.")
                     .defaulted(false).forGetter(PlanParams::chain),
             ApiField.field("maxSegments", ApiTypes.integer(1, 200)).describe("Chain cap.").defaulted(40)
                     .forGetter(PlanParams::maxSegments),
+            ApiField.field("maxNodes", ApiTypes.integer(1, 10_000_000)).describe("Omitted: pathfinder.maxNodes.")
+                    .optional().forGetter(PlanParams::maxNodes),
+            ApiField.field("maxMs", ApiTypes.int64(1, Long.MAX_VALUE / 2)).describe("Omitted: pathfinder.maxMs.")
+                    .optional().forGetter(PlanParams::maxMs),
             PlanParams::new);
 
     private static final ApiType<MoveCost> MOVE_COST = ApiTypes.record(MoveCost.class, "MoveCost",
             ApiField.field("n", COUNT).required().forGetter(MoveCost::n),
             ApiField.field("cost", COST).required().forGetter(MoveCost::cost),
             MoveCost::new);
+
+    private static final ApiType<PlanEdge> PLAN_EDGE = ApiTypes.record(PlanEdge.class, "PlanEdge",
+            ApiField.field("to", CommonTypes.BLOCK_POSITION).required().forGetter(PlanEdge::to),
+            ApiField.field("move", ApiTypes.string()).describe("Absent on the start node.").optional().forGetter(PlanEdge::move),
+            ApiField.field("cost", COST).required().forGetter(PlanEdge::cost),
+            ApiField.field("breaks", ApiTypes.list(CommonTypes.BLOCK_POSITION, 64)).required().forGetter(PlanEdge::breaks),
+            ApiField.field("places", ApiTypes.list(CommonTypes.BLOCK_POSITION, 64)).required().forGetter(PlanEdge::places),
+            PlanEdge::new);
 
     private static final ApiType<Search> SEARCH = ApiTypes.record(Search.class, "PlanSearch",
             ApiField.field("expanded", COUNT).required().forGetter(Search::expanded),
@@ -172,7 +211,6 @@ public final class DebugContracts {
     public static final UnionType<PlanReply> PLAN_REPLY = ApiTypes.taggedUnion("PlanReply", "mode",
             ApiTypes.variant("single", SinglePlan.class, ApiTypes.record(SinglePlan.class, null,
                     ApiField.field("start", CommonTypes.BLOCK_POSITION).required().forGetter(SinglePlan::start),
-                    ApiField.field("goal", COLUMN).required().forGetter(SinglePlan::goal),
                     ApiField.field("goalReached", ApiTypes.bool()).required().forGetter(SinglePlan::goalReached),
                     ApiField.field("pathLen", COUNT).required().forGetter(SinglePlan::pathLen),
                     ApiField.field("end", CommonTypes.BLOCK_POSITION).required().forGetter(SinglePlan::end),
@@ -186,10 +224,11 @@ public final class DebugContracts {
                     ApiField.field("moves", ApiTypes.map(MOVE_COST, 256)).required().forGetter(SinglePlan::moves),
                     ApiField.field("breaks", COUNT).required().forGetter(SinglePlan::breaks),
                     ApiField.field("places", COUNT).required().forGetter(SinglePlan::places),
+                    ApiField.field("edges", ApiTypes.list(PLAN_EDGE, Integer.MAX_VALUE))
+                            .describe("The edge entering each node, in path order.").required().forGetter(SinglePlan::edges),
                     SinglePlan::new)),
             ApiTypes.variant("chain", ChainPlan.class, ApiTypes.record(ChainPlan.class, null,
                     ApiField.field("start", CommonTypes.BLOCK_POSITION).required().forGetter(ChainPlan::start),
-                    ApiField.field("goal", COLUMN).required().forGetter(ChainPlan::goal),
                     ApiField.field("reached", ApiTypes.bool()).required().forGetter(ChainPlan::reached),
                     ApiField.field("segments", COUNT).required().forGetter(ChainPlan::segments),
                     ApiField.field("backwardSegments", COUNT).required().forGetter(ChainPlan::backwardSegments),
@@ -201,7 +240,7 @@ public final class DebugContracts {
                     ChainPlan::new)));
 
     public static final MethodSpec<PlanParams, PlanReply> PLAN = MethodSpec.of("mc.debug.plan", PLAN_PARAMS, PLAN_REPLY,
-                    "One read-only A* search from a fixed start to an XZ goal: no walking, no block edits. The measurement "
+                    "One read-only A* search from a fixed start to a goto target: no walking, no block edits. The measurement "
                             + "backbone for pathfinding A/B: patch pathfinder.maxNodes to a node budget and pathfinder.maxMs "
                             + "high so the search repeats exactly, then compare forward progress before and after a change. "
                             + "chain:true answers the whole segment chain (mode chain) instead of one search (mode single).")

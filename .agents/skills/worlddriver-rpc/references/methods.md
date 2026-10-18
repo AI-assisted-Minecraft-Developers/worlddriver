@@ -433,7 +433,7 @@ Render the current goto's pathfinding chart to a PNG under config/worlddriver/de
 
 ### `mc.debug.plan`
 
-One read-only A* search from a fixed start to an XZ goal: no walking, no block edits. The measurement backbone for pathfinding A/B: patch pathfinder.maxNodes to a node budget and pathfinder.maxMs high so the search repeats exactly, then compare forward progress before and after a change. chain:true answers the whole segment chain (mode chain) instead of one search (mode single).
+One read-only A* search from a fixed start to a goto target: no walking, no block edits. The measurement backbone for pathfinding A/B: patch pathfinder.maxNodes to a node budget and pathfinder.maxMs high so the search repeats exactly, then compare forward progress before and after a change. chain:true answers the whole segment chain (mode chain) instead of one search (mode single).
 
 - Params: `PathPlanParams`; reply: `PlanReply`
 - Effects: snapshot_read
@@ -3336,15 +3336,22 @@ interface Chart {
     path?: string;
     bytes?: number;
 }
-interface Column { x: number; z: number; }
 interface PathPlanParams {
-    goal: Column;
-    /** The start foot. Omitted: where the player stands. */
+    /** Omitted or self: the client's player and world. A named bot: that bot in the server's world. */
+    bot?: BotRef;
+    target: GotoTarget;
+    /** The start foot. Omitted: where the bot stands. */
     from?: BlockPosition;
+    /** Plan as mc.bot.goto would with this route. Omitted: a bare search with the settings' cost model. */
+    route?: Route;
     /** Feed each committed segment's end back in as the next start until the goal or no progress: the navigator's segment chain, simulated read-only. */
     chain?: boolean;
     /** Chain cap. */
     maxSegments?: number;
+    /** Omitted: pathfinder.maxNodes. */
+    maxNodes?: number;
+    /** Omitted: pathfinder.maxMs. */
+    maxMs?: number;
 }
 interface PlanSearch { expanded: number; computeMs: number; wallMs: number; finalCost: number; }
 interface PlanEstimate {
@@ -3355,6 +3362,14 @@ interface PlanEstimate {
     forward: boolean;
 }
 interface MoveCost { n: number; cost: number; }
+interface PlanEdge {
+    to: BlockPosition;
+    /** Absent on the start node. */
+    move?: string;
+    cost: number;
+    breaks: BlockPosition[];
+    places: BlockPosition[];
+}
 interface PlanSegment {
     end: BlockPosition;
     hEnd: number;
@@ -3367,7 +3382,6 @@ interface PlanSegment {
 type PlanReply =
     | { mode: 'single';
         start: BlockPosition;
-        goal: Column;
         goalReached: boolean;
         pathLen: number;
         end: BlockPosition;
@@ -3381,8 +3395,10 @@ type PlanReply =
         moves: Record<string, MoveCost>;
         breaks: number;
         places: number;
+        /** The edge entering each node, in path order. */
+        edges: PlanEdge[];
     }
-    | { mode: 'chain'; start: BlockPosition; goal: Column; reached: boolean; segments: number; backwardSegments: number; maxRegression: number; totalExpanded: number; hStart: number; hFinal: number; trail: PlanSegment[]; };
+    | { mode: 'chain'; start: BlockPosition; reached: boolean; segments: number; backwardSegments: number; maxRegression: number; totalExpanded: number; hStart: number; hFinal: number; trail: PlanSegment[]; };
 interface ReplayParams {
     /** Under config/worlddriver/replays/. Omitted: the newest plan archive. */
     file?: string;

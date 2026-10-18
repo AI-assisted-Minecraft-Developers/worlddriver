@@ -43,14 +43,15 @@ Two instruments, in order. The first narrows what the second has to explain.
 1. **`mc.observe.map` and `mc.client.blocks`** report the real geometry, so that the rest
    of the investigation argues about terrain that exists rather than terrain that was
    assumed.
-2. **`mc.debug.plan`** with `{goal:{x,z}, chain:true}` is a read-only probe: it runs
+2. **`mc.debug.plan`** with `{target:{kind:'column', x, z}, chain:true}` is a read-only probe: it runs
    searches without a navigator, without walking and without touching the world, feeding each
    committed segment endpoint back in as the next start. It returns `reached`,
    `segments`, `backwardSegments`, `maxRegression` (the worst overshoot back past the best
-   progress, in cost units, so roughly a tenth of that in blocks) and the trail. Pin the
-   node budget first (`pathfinder.maxNodes` with a generous `pathfinder.maxMs`) so the
+   progress, in cost units, so roughly a tenth of that in blocks) and the trail. Fix the
+   node budget first (`maxNodes` with a generous `maxMs`, in the call or in the settings) so the
    search is repeatable, then compare the same fixed set of start positions before and
-   after a change.
+   after a change. Naming a server bot (`bot: 'player:<name>'`) plans in the server's world with
+   that bot's bag; `route` plans as `mc.bot.goto` would with that route.
 
 The reading that follows:
 

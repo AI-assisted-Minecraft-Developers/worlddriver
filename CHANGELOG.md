@@ -12,7 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   running task or the last one a caller started; `mc.debug.body` the footing, the hands, the world
   view's dimension and, on request, reach and blast safety; `mc.debug.cells` how the planner's view
   classifies cells, and the pose facts of a node. They are hidden from tool lists. The `mc.debug`
-  batch is now published on a dedicated server too; `plan` and `replay` still read the client's world.
+  batch is now published on a dedicated server too; `replay` still reads the client's world.
+- **`mc.debug.plan` plans for a server bot and takes any goto target.** `goal: {x, z}` became
+  `target`, the same union `mc.bot.goto` takes; `bot` names a server bot to plan for in the server's
+  world with its own bag; `route` plans as `mc.bot.goto` would with that route; `maxNodes` and
+  `maxMs` set the budget for this call. A single plan also answers `edges`, the move, cost, digs and
+  placements entering each node. The reply no longer echoes `goal`.
 - **Three settings accept wider values.** `pathfinder.sliceMs` and `pathfinder.idleSliceMs` may be
   0, `navigator.repathEveryTicks` goes up to 1000000, so a trip can keep its first route, and
   `pathfinder.maxNodes` goes down to 100. The scenes set these through the settings checks now and
