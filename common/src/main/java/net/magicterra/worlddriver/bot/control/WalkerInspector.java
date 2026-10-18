@@ -33,6 +33,9 @@ public final class WalkerInspector {
     /** This tick's drive command; null when the tick returned before the drive. */
     public String driveTag() { return wk.driveTag; }
 
+    /** Which controller held each channel on the last tick, and why each idle one did not start. */
+    public String channels() { return wk.arbiter.snapshot(); }
+
     /** The water climb-out's place-futility ledger, for scenes that assert on the FALLBACK rather
      *  than on the climb: {@code > PILLAR_FUTILE_TICKS} is what hands the bank over to the dig.
      *  Exposed because the counter is the subject — a scene that could only watch the bot would
@@ -63,7 +66,7 @@ public final class WalkerInspector {
         return (wk.route.path() == null ? "path=null" : "step=" + wk.route.step() + "/" + wk.route.path().size()
                 + " wp=" + (wp == null ? "-" : wp.getX() + "," + wp.getY() + "," + wp.getZ())
                 + (wk.route.seg.pathBestEffort ? " bestEffort" : ""))
-                + " unstuck=" + wk.unstuck.burstTicks + " churnEsc=" + wk.churn.escapes
+                + " recovery=" + wk.recovery.remaining() + " churnEsc=" + wk.churn.escapes
                 + " escal=" + (wk.escal.armed() ? "ON" : "off")
                 + " noStep=" + wk.stepProg.noStepProgressTicks
                 + " digFloat=" + wk.waterClimb.digFloatTicks + " gaveUp=" + wk.waterClimb.pillarGaveUp;

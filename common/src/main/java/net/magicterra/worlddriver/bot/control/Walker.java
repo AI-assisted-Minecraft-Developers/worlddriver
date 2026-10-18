@@ -298,21 +298,10 @@ public final class Walker implements Locomotor {
             turnTicks = 0;
         }
     }
-    /** Grind-locked stepUp back-off (task#96 step B): walkerStepUpBackoffRetry — drive
-     *  straight BACK from a grind-locked riser to open sprint runway. Armed by
-     *  WalkerTickDrive, driven/decayed by WalkerTickRepath. {@link StepUpBackoff#reset()}
-     *  clears the drive and cooldown timers (exactly what both journey resets cleared);
-     *  yaw is scratch (only read while ticks>0). */
-    final StepUpBackoff stepUpBackoff = new StepUpBackoff();
-    static final class StepUpBackoff {
-        int ticks;         // ticks left driving straight BACK from the riser
-        float yaw;         // heading of the back-off drive (bearing away from the riser), camera-frame decoupled
-        int cooldown;      // ticks before the back-off may trigger again (prevents oscillating retreat at a genuinely unmountable riser)
-        void reset() {
-            ticks = 0;
-            cooldown = 0;
-        }
-    }
+    /** The back-off and the burst that move a stuck bot; asked for by the phases, driven by {@link #arbiter}. */
+    final Recovery recovery = new Recovery();
+    /** Who drives which channel this tick; {@link Arbiter#snapshot} says. */
+    final Arbiter arbiter = new Arbiter(List.of(recovery));
     // --- expectation alarms (walkerExpectAlarm): live actual-vs-expected divergence detectors ---
     // Extracted to WalkerExpectAlarms (all the ex* sentinel state + the observers) — purely
     // observational, never drives movement. Fed via exAlarms.tick / .notePlace / .noteRepathFlip.
@@ -513,14 +502,12 @@ public final class Walker implements Locomotor {
             steepDescentLatch = 0;
         }
     }
-    /** Anti-stuck forced displacement (task#96 step B): the wedge-repath counter anchored
-     *  at lastWedgeFoot (WalkerTickRepath is the ONLY setter of the anchor) and the
-     *  displacement burst it fires (burst driven by WalkerTickRepath; also armed directly
-     *  by WalkerTickStallDetect's riser-shove). Deliberately NOT touched by replan:
+    /** Anti-stuck wedge counter (task#96 step B): repeated safety repaths anchored at
+     *  lastWedgeFoot (WalkerTickRepath is the ONLY setter of the anchor), which ask
+     *  {@link #recovery} for a burst. Deliberately NOT touched by replan:
      *  the wedge memory must survive a process resume, else a resume loop at the same
      *  wedge never escalates to the burst. {@link Unstuck#resetForNewGoal()} runs in
-     *  start only (burstYaw is scratch — read only while burstTicks>0);
-     *  {@link Unstuck#dropWedgeAnchor()} is the full anchor drop (progressive-stub
+     *  start only; {@link Unstuck#dropWedgeAnchor()} is the full anchor drop (progressive-stub
      *  adoption, post-burst displacement) — WalkerTickClimb's dig-start clear is a
      *  PARTIAL one (count only, anchor retained) and stays a direct field write. */
     final Unstuck unstuck = new Unstuck();
@@ -528,13 +515,10 @@ public final class Walker implements Locomotor {
         BlockPos lastWedgeFoot;   // where the last wedge/stuck repath fired
         int wedgeRepathsHere;     // consecutive wedge repaths from (about) the same foot
         int countCooldown;        // min ticks between counted repath events (debounce)
-        int burstTicks;           // ticks left driving the forced displacement
-        float burstYaw;           // fixed heading for the displacement burst
         void resetForNewGoal() {
             lastWedgeFoot = null;
             wedgeRepathsHere = 0;
             countCooldown = 0;
-            burstTicks = 0;
         }
         void dropWedgeAnchor() {
             wedgeRepathsHere = 0;
@@ -606,7 +590,8 @@ public final class Walker implements Locomotor {
         this.pillar.reset();
         this.waterClimb.reset();
         this.drownGuard.reset();
-        this.stepUpBackoff.reset();
+        this.arbiter.stopAll(g == null ? "cancelled" : "new goal");
+        this.recovery.dropBackOff();
         this.dive.reset();
         this.driveLatch.reset();
         this.pillarRecover.reset();
@@ -705,7 +690,7 @@ public final class Walker implements Locomotor {
         // (stall already past threshold) or suppresses a legitimate stall.
         this.waterClimb.reset();
         this.drownGuard.reset();
-        this.stepUpBackoff.reset();
+        this.recovery.dropBackOff();
         this.dive.reset();
         this.driveLatch.reset();
         this.pillarRecover.reset();
@@ -1249,6 +1234,9 @@ public final class Walker implements Locomotor {
         r = WalkerTickPrelude.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickStallDetect.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickRepath.run(this, c, a, world); if (r != null) return r;
+        // Until the regular walk drives only the channels no controller took, a controller on MOVE
+        // ends the tick's decisions here.
+        if (arbiter.tick(this, c, a, world).contains(Channel.MOVE)) return Step.WALKING;
         r = WalkerTickSearch.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickProgress.run(this, c, a, world); if (r != null) return r;
         r = WalkerTickClimb.run(this, c, a, world); if (r != null) return r;

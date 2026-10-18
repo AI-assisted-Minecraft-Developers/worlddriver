@@ -356,7 +356,7 @@ public final class WalkerGeometry {
      * bot ends up. A hop released here can still be steered into the cell it was cleared of.
      *
      * <p>{@code driveYaw} must be {@code WalkerTickDrive}'s {@code driveTargetYaw} (or, on the
-     * burst path, {@code unstuck.burstYaw}) — the channel the impulse is rotated onto. Passing
+     * burst path, {@link Recovery}'s burst heading) — the channel the impulse is rotated onto. Passing
      * {@code p.getYRot()} would reproduce {@link #hopBearingRow}'s mistake.
      */
     public static boolean hopSuppressed(WorldView world, LivingEntity p, BlockPos foot, float driveYaw) {

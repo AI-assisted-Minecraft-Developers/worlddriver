@@ -355,7 +355,7 @@ final class WalkerTickStallDetect {
             // never on a genuine upward climb (cdy > CHURN_MIN_Y is real vertical progress).
             // ...but NEVER while actively MINING (breakingEdge): a slow climb-out stone dig makes
             // zero XZ progress for ~750 ticks BY DESIGN, tripping this window — and the burst
-            // below turns the camera (unstuck.burstYaw) + shoves the bot OFF the riser, RESETTING the
+            // below turns the camera (the recovery burst) + shoves the bot OFF the riser, RESETTING the
             // vanilla break progress. That is the live climb-out's core failure the user watched:
             // "almost broke it, then suddenly gave up, turned the view, moved 2 steps, progress
             // reset, all wasted" — and the shove toward deep water is what then sank the bot. A
@@ -396,12 +396,7 @@ final class WalkerTickStallDetect {
                         world.penalizeStuckNode(c.above());
                     }
                 BlockPos wp = (wk.route.path() != null && wk.route.step() < wk.route.path().size()) ? wk.route.path().get(wk.route.step()) : null;
-                if (wp != null) {
-                    double bdx = p.getX() - (wp.getX() + 0.5), bdz = p.getZ() - (wp.getZ() + 0.5);
-                    if (bdx * bdx + bdz * bdz > 0.01)
-                        wk.unstuck.burstYaw = (float) Math.toDegrees(Math.atan2(-bdx, bdz));   // away from the goal-ward wp
-                    wk.unstuck.burstTicks = 16;
-                }
+                if (wp != null) wk.recovery.burst(Recovery.CHURN_BURST_TICKS, p, wp);   // away from the goal-ward wp
                 if (GameConfig.walkerDebug)
                     LOG.info("[walker] anti-churn({}): net XZ move <{} blocks in {} ticks at {} (escapes={}) → charge r={} pocket + back off",
                             p.isInWater() ? "water" : "land",

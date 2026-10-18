@@ -43,6 +43,17 @@ next:
 
 `WalkerTickDrive` is the terminal phase and always returns a verdict.
 
+Between Repath and Search, `Arbiter` runs the controllers. A controller (`Controller`) takes
+some of the tick's four channels (`Channel`: move, look, jump, hands) for a few ticks: it
+starts when its condition holds, drives its channels every tick it runs, and stops when it
+cannot go on, has run its longest, or a higher-priority controller needs one of its
+channels. Each channel goes to the highest-priority running controller that claims it. The
+phases only ask a controller for something; they do not drive the body themselves. Today
+there is one controller, `Recovery`, which backs the bot off a riser it keeps failing to
+mount and pushes it out of a wedge or a churn pocket. While a controller holds the move
+channel the rest of the pipeline is skipped for that tick. `WalkerInspector#channels` prints
+who held which channel and why each idle controller did not start.
+
 `tickInner` is not the whole tick. `Walker#tick` wraps it so that the safety guards run
 after *every* decision path rather than only the paths that reach the end of the pipeline:
 the earlier arrangement appended an invariant to the tail of a method with dozens of early

@@ -570,12 +570,10 @@ final class WalkerTickDrive {
             // cure: back off the face, ground, and re-approach with momentum.
             boolean grindPress = p.onGround() && Math.sqrt(vel.x * vel.x + vel.z * vel.z) < 0.1;
             boolean grindGraze = p.horizontalCollision && wk.stuckTicks > 30;
-            if (ControlConfig.walkerStepUpBackoffRetry && wk.stepUpBackoff.cooldown == 0
+            if (ControlConfig.walkerStepUpBackoffRetry && wk.recovery.backOffReady(wk.escal.tick)
                     && wk.stuckTicks > 15 && flatDist < 1.1 && (grindPress || grindGraze) && backoffRunwayFloored(world, p, wp)) {
-                wk.stepUpBackoff.yaw = (float) (Math.toDegrees(Math.atan2(
-                        -((wp.getX() + 0.5) - p.getX()), (wp.getZ() + 0.5) - p.getZ())) + 180.0);
-                wk.stepUpBackoff.ticks = 12;
-                wk.stepUpBackoff.cooldown = 60;
+                wk.recovery.backOff((float) (Math.toDegrees(Math.atan2(
+                        -((wp.getX() + 0.5) - p.getX()), (wp.getZ() + 0.5) - p.getZ())) + 180.0), wk.escal.tick);
                 if (GameConfig.walkerDebug)
                     LOG.info("[walker] STEPUP-BACKOFF armed ({}): wp={},{},{} flatDist={} → back off 12t for runway",
                             grindPress ? "press" : "graze", wp.getX(), wp.getY(), wp.getZ(),
