@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **A saved settings file that names no setting says so.** `worlddriver_bot.properties` lines whose
+  key is no longer a setting, such as a `walker…` name from before the rename, used to be skipped in
+  silence; the load now logs one warning listing them.
 - **Each setting answers to one name, and the schema states its default.** A setting with a dotted
   wire name used to answer to its field's name as well, so `pathfinder.maxNodes` could also be
   written as `pathfinderMaxNodes`; only the wire name is accepted now, and a read without `keys`

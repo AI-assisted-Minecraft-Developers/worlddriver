@@ -5,7 +5,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.Properties;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 
@@ -89,6 +92,19 @@ public final class BotConfigFile {
         }
     }
 
+    /** The keys in {@code props} that are neither a persisted field nor its shadow, sorted. A renamed
+     *  setting leaves its old name here, and the user's value with it, so the load says so. */
+    static Set<String> unknownKeys(Properties props) {
+        Set<String> known = new HashSet<>();
+        for (Field f : BotConfig.persistableFields()) {
+            known.add(f.getName());
+            known.add(f.getName() + SHADOW_SUFFIX);
+        }
+        Set<String> out = new TreeSet<>(props.stringPropertyNames());
+        out.removeAll(known);
+        return out;
+    }
+
     /** Reload persisted settings at startup, before any tick reads them, applying
      *  SHADOW-DEFAULT semantics per key. Missing file → defaults stand; a malformed
      *  individual key is skipped (a partial/old file still applies what it can).
@@ -145,6 +161,11 @@ public final class BotConfigFile {
                 }
                 LOG.info("[config] loaded {} persisted bot setting(s) ({} snapshot key(s) followed current default) from {}",
                         applied, skipped, path.toAbsolutePath());
+                Set<String> unknown = unknownKeys(props);
+                if (!unknown.isEmpty()) {
+                    LOG.warn("[config] {} key(s) in {} name no setting and were ignored (renamed or removed?): {}",
+                            unknown.size(), path.toAbsolutePath(), unknown);
+                }
                 if (!legacyDrift.isEmpty()) {
                     // NOTE the permanence: the upgrade re-save stamps each legacy drift key with
                     // shadow = CURRENT compiled default while keeping its stale value, so from then
