@@ -103,7 +103,7 @@ public final class ClientWorldView implements StateWorldView {
     // Correctness rests on the A* static-world assumption: the world doesn't change
     // mid-search. The cache is therefore CLEARED each {@link #beginSearch} and is
     // only LIVE while a search slice is expanding ({@code cacheActive}, toggled by
-    // PathFinder.Search.advance). The Walker's per-tick reads run with the cache
+    // PathFinder.Search.advance). The Navigator's per-tick reads run with the cache
     // INACTIVE so they always see the live world as the bot/blocks move.
     // Long2Object (primitive long keys) — NOT HashMap<Long,…>: a search touches tens
     // of thousands of distinct cells, so autoboxing every key into a Long on each
@@ -113,7 +113,7 @@ public final class ClientWorldView implements StateWorldView {
     private final Long2ObjectOpenHashMap<BlockState> stateCache = new Long2ObjectOpenHashMap<>();
     private boolean cacheActive = false;
     /** Toggled true by the time-sliced search around its node-expansion work, false
-     *  otherwise (Walker per-tick reads). When false, {@link #state} bypasses the
+     *  otherwise (Navigator per-tick reads). When false, {@link #state} bypasses the
      *  cache entirely so live reads stay fresh.
      *  <p>Every slice starts empty. The map used to live for the whole search, and a search
      *  from a tunnel spans tens to hundreds of ticks while the bot digs: the cells it dug
@@ -343,12 +343,12 @@ public final class ClientWorldView implements StateWorldView {
      *  Two separate things follow, and only the first is a real divergence:
      *  <ul>
      *    <li>{@code PillarUp.eval} gates on {@link #canPlace()}, i.e. on THIS scan, while
-     *        the walker's pillar actuators gate on {@code net.magicterra.worlddriver.game.body.Equipment#holdPillarBlock} →
+     *        the navigator's pillar actuators gate on {@code net.magicterra.worlddriver.game.body.Equipment#holdPillarBlock} →
      *        {@code BotInteract.ensureHoldingPillarBlock}, which accepts falling blocks
      *        AND reaches menu slots 9-35 through {@code swapFromMainInv}. So a bot
      *        carrying only sand — deserts, beaches, rivers — gets zero planned PillarUp
      *        edges for a climb its own recovery path would pillar out of.
-     *        {@code WalkerTickDrive} and {@code WalkerTickStallDetect} both already say
+     *        {@code DrivePhase} and {@code StallDetectPhase} both already say
      *        in so many words "gate on holdPillarBlock (not world.canPlace)"; that
      *        knowledge simply never reached this javadoc.</li>
      *    <li>The "bobbed in place forever" measurement is still real, but it dates from
@@ -415,7 +415,7 @@ public final class ClientWorldView implements StateWorldView {
     // the hotbar for a water bucket in every WaterBucketFall.valid would be
     // wasteful. Refreshed every repath (the bucket may have been used/refilled).
     private volatile boolean bucketFallReady = false;
-    // Walker failure blacklist (Baritone-style): nodes where the Walker couldn't
+    // Navigator failure blacklist (Baritone-style): nodes where the Navigator couldn't
     // execute a move, mapped to their expiry time (ms). penalizeStuckNode adds an
     // entry; beginSearch prunes expired ones and snapshots the rest into
     // stuckAvoidXyz so dangerCost stays consistent across a sliced search.
@@ -427,14 +427,14 @@ public final class ClientWorldView implements StateWorldView {
     private static final double STUCK_AVOID_RADIUS = 2.5;     // blocks; smooth bump around the failed node
     private static final int STUCK_AVOID_MAX_STRENGTH = 6;    // cap: max bump = 6×600 = 3600 (overcomes a detour delta)
     /**
-     * Blacklist a node the Walker couldn't execute a move at. Penalty ACCUMULATES:
+     * Blacklist a node the Navigator couldn't execute a move at. Penalty ACCUMULATES:
      * a flat one-shot bump (the original behaviour) doesn't route around a wedge
      * whose only forward move (e.g. a parkour leap the bot rams without run-up) is
      * cheaper-than-the-detour by MORE than the bump — A* re-picks it every repath,
      * and escape was only ever non-deterministic physical drift (a ~31 s, 6-wedge-
      * cycle stall observed at a steep mountain parkour gap). Escalating the bump
      * each time the SAME node re-wedges within its live window makes the reroute
-     * deterministic in 2–3 cycles: a node the Walker fails repeatedly is almost
+     * deterministic in 2–3 cycles: a node the Navigator fails repeatedly is almost
      * certainly unexecutable, so it should get progressively more expensive. Capped
      * + still 15 s-decaying, so a genuinely sole route reopens and is taken later.
      */
@@ -459,7 +459,7 @@ public final class ClientWorldView implements StateWorldView {
     }
 
     // Controlled-entity movement attributes, snapshotted once per search so the
-    // whole A* run sees a consistent capability (and the Walker reads the same).
+    // whole A* run sees a consistent capability (and the Navigator reads the same).
     // Sourced from the VEHICLE when mounted (a horse steps/jumps differently).
     private volatile int stepUpBlocks = 0;     // floor(STEP_HEIGHT): full blocks walkable-up without a jump
     private volatile int jumpUpBlocks = 1;     // floor(jump apex): full blocks reachable WITH a jump
@@ -515,10 +515,10 @@ public final class ClientWorldView implements StateWorldView {
         dig = CellRules.DigSnapshot.of(player.get(), level.get());
         // Mobs are no longer snapshotted here. The per-mob berth lives in the profile's MobCluster
         // component (route.mobs, or the avoidMobs default that RouteParams expands), fed by the
-        // SearchScope the Walker gathers per search — one snapshot for both the client player and
+        // SearchScope the Navigator gathers per search — one snapshot for both the client player and
         // the server-side player, so the server-side bot avoids mobs too and nothing is priced
         // twice. dangerCost below is terrain only.
-        // Walker stuck-node blacklist: prune expired entries, then snapshot the
+        // Navigator stuck-node blacklist: prune expired entries, then snapshot the
         // live ones so dangerCost applies a consistent penalty for the whole run.
         {
             long now = System.currentTimeMillis();
@@ -535,7 +535,7 @@ public final class ClientWorldView implements StateWorldView {
             stuckAvoidXyz = arr;
         }
         // Controlled-entity step/jump capability (on-foot vs mounted), snapshotted
-        // so the search and the Walker agree on what heights are reachable.
+        // so the search and the Navigator agree on what heights are reachable.
         snapshotMovementCaps();
         // Flee-context flag, snapshotted consistent for the whole A* run.
         fleeSearch = signals.fleeing;
@@ -654,7 +654,7 @@ public final class ClientWorldView implements StateWorldView {
                 // — every cell near a vine curtain got penalised, gutting the heuristic and
                 // producing winding paths — WITHOUT fixing the freeze, since the dominant
                 // stall there is solid LEAVES/trunks, not vines. Vine-cling needs a
-                // WALKER-side detach (sneak/release-forward off a climbable when the path
+                // NAVIGATOR-side detach (sneak/release-forward off a climbable when the path
                 // doesn't go up), not a path cost. Reverted; vineSnagPenalty default 0.)
                 // Prefer the surface: penalize a foot that sits well BELOW the
                 // world-surface heightmap at its x,z — i.e. underground, where mobs
@@ -692,8 +692,8 @@ public final class ClientWorldView implements StateWorldView {
                 if (dist < r) penalty += WorldConfig.avoidZonePenalty * (r - dist) / r;
             }
         }
-        // Walker stuck-node blacklist: a soft, decaying bump around each node the
-        // Walker couldn't execute a move at, so this search routes around the spot
+        // Navigator stuck-node blacklist: a soft, decaying bump around each node the
+        // Navigator couldn't execute a move at, so this search routes around the spot
         // (the steep-mountain stepUp/pillar wedge) instead of re-planning into it.
         float[] sa = stuckAvoidXyz;
         if (sa.length > 0) {

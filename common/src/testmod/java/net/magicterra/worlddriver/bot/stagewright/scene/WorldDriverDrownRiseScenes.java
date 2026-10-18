@@ -37,8 +37,8 @@ import net.minecraft.world.level.block.Blocks;
  *   <li>{@code wd.drownEscapeGateMatrix} — PURE, 18 gate rows + 8 lifecycle rows.</li>
  *   <li>{@code wd.drownEscapePreempt} — mints a fake player, feeds {@code sensorForTest}, and
  *       asserts the scheduler's <b>bookkeeping</b>.</li>
- *   <li>{@code wd.drownEscapeSurface} — does assert a rise, but of the <b>Walker's</b> escape
- *       ({@code walkerDrowningEscape}), on a {@code ServerPlayerBody}, with the air supply
+ *   <li>{@code wd.drownEscapeSurface} — does assert a rise, but of the <b>Navigator's</b> escape
+ *       ({@code navigatorDrowningEscape}), on a {@code ServerPlayerBody}, with the air supply
  *       simulated by hand. It never constructs {@code DrownEscapeChain}.</li>
  * </ul>
  *
@@ -279,7 +279,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         ArbitrationConfig.autoDrownEscape = true;
         BehaviorConfig.autoFloatWhenDrowning = true;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         WorldConfig.allowBreak = true;                     // without this the lid arm is a no-op
 
         final double homeX = body.getX(), homeY = body.getY(), homeZ = body.getZ();
@@ -447,7 +447,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         ArbitrationConfig.autoDrownEscape = armed;
         BehaviorConfig.autoFloatWhenDrowning = armed;
-        GameConfig.walkerDebug = true;            // the arm's per-tick row is gated on it
+        GameConfig.navigatorDebug = true;            // the arm's per-tick row is gated on it
         WorldConfig.allowBreak = true;             // so a lid the scan DOES see would be broken
 
         // ---- the player, restored on the way out (a minted bot is discarded instead) ----

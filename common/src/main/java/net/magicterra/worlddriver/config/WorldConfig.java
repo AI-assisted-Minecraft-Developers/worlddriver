@@ -17,7 +17,7 @@ public final class WorldConfig {
      *  if the column the player's hitbox occupies doesn't intersect
      *  the collision shape (so a cocoa pod offset to one side, panes, etc. stop being
      *  treated as full-cube walls). Fixes the jungle "cocoa blocks the path / phantom foothold on a
-     *  pod → walker can't execute → stuck/oscillation" class of bugs. Off = legacy
+     *  pod → navigator can't execute → stuck/oscillation" class of bugs. Off = legacy
      *  {@code blocksMotion()} model. */
     public static volatile boolean collisionAwarePathing = true;
 
@@ -34,7 +34,7 @@ public final class WorldConfig {
 
     /** Per-search blockstate memoisation in {@link net.magicterra.worlddriver.bot.world.ClientWorldView}.
      *  ON = cache getBlockState within a search slice (static-world assumption); the
-     *  Walker's per-tick reads always bypass it. Exposed as a knob purely so the
+     *  Navigator's per-tick reads always bypass it. Exposed as a knob purely so the
      *  cache's search-throughput contribution can be A/B-measured live (set false to
      *  read straight through). Default true. */
     public static volatile boolean pathfinderCacheEnabled = true;
@@ -102,7 +102,7 @@ public final class WorldConfig {
     /** Baritone {@code allowPlace} analogue — the pathfinder may place a
      *  throwaway block to bridge a one-block gap as part of a route. Default ON
      *  (this said "off" while the initialiser said true). Read by
-     *  {@code ClientWorldView.canPlace} and the Walker's place actuators;
+     *  {@code ClientWorldView.canPlace} and the Navigator's place actuators;
      *  {@code LevelWorldView.canPlace} does NOT read it — see the note there. */
     public static volatile boolean allowPlace = true;
 

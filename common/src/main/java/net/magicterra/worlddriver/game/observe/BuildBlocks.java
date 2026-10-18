@@ -29,7 +29,7 @@ public final class BuildBlocks {
         // crafted station as filler AND booby-traps every later place-click against
         // it: right-click on a menu block OPENS ITS GUI instead of placing, and an
         // open screen swallows all movement input (gap #57/#58 — live death #3:
-        // the walker plugged with the bot's fresh furnace, re-clicked it, and the
+        // the navigator plugged with the bot's fresh furnace, re-clicked it, and the
         // FurnaceScreen paralysed the engine while a zombie chewed). Safety-class
         // rejection: applies even under a buildBlockWhitelist.
         if (isInteractiveBlock(block)) return false;
@@ -52,7 +52,7 @@ public final class BuildBlocks {
 
     /** A block whose use-click opens a GUI (block-entity holders + the menu-opening
      *  work-station family). Shared by {@link #isUsableBuildBlock} (never place one
-     *  as filler) and the walker's place actuator (never CLICK one as a support —
+     *  as filler) and the navigator's place actuator (never CLICK one as a support —
      *  the click opens the GUI instead of placing; gap #57/#58). */
     public static boolean isInteractiveBlock(net.minecraft.world.level.block.Block block) {
         return block instanceof net.minecraft.world.level.block.EntityBlock

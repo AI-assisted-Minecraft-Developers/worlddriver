@@ -3,7 +3,7 @@ per-archive divergence table, optionally saved to disk and checked against the a
 
 Usage:
   python3 -m scripts.pmcs.sweep --flags '{}' --save baseline.json
-  python3 -m scripts.pmcs.sweep --flags '{"walkerX":true}' --baseline baseline.json --timeout 150
+  python3 -m scripts.pmcs.sweep --flags '{"navigatorX":true}' --baseline baseline.json --timeout 150
 """
 import argparse
 import json

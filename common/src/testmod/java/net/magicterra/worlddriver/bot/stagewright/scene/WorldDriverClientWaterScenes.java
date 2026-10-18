@@ -19,9 +19,9 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * Water walks driven on the client's REAL player — the walker, the physics and the reflexes that
+ * Water walks driven on the client's REAL player — the navigator, the physics and the reflexes that
  * actually ship. Every scene here is red until the engine can do the thing; none is softened to
- * what the walker can already satisfy.
+ * what the navigator can already satisfy.
  *
  * <p>Each arena is a flat slab with a pool cut INTO it (water piled above the surface flows away
  * between staging and measuring), the bot in the water, and one walk to a cell on dry ground.
@@ -135,7 +135,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
 
     /**
      * A STONE rim one above the surface and an iron pickaxe in the hand: the dig must pick the
-     * tool and still finish afloat. Bare-handed this rim is hopeless (the walker poisons it), so
+     * tool and still finish afloat. Bare-handed this rim is hopeless (the navigator poisons it), so
      * a bot that ends up digging by hand has not selected its tool.
      */
     private static void oneHighStoneBankPickaxeOut(SceneContext ctx) {
@@ -185,15 +185,15 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         helm.hold(new ItemStack(Items.DIRT, 30));
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = true;
-        ControlConfig.walkerFootholdBeforeBankDig = true;
-        ControlConfig.walkerClimbIntentFromSurface = true;
-        ControlConfig.walkerPillarTopsOutAtFlushExit = true;
-        ControlConfig.walkerHoldLastNodeUntilStanding = true;
-        ControlConfig.walkerShallowWaterSideFoothold = true;
-        ControlConfig.walkerClimbOutResyncsAim = true;
-        ControlConfig.walkerOrbitBreaksAimLag = true;
-        ControlConfig.walkerSurfaceSprintSwim = true;
+        GameConfig.navigatorDebug = true;
+        ControlConfig.navigatorFootholdBeforeBankDig = true;
+        ControlConfig.navigatorClimbIntentFromSurface = true;
+        ControlConfig.navigatorPillarTopsOutAtFlushExit = true;
+        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
+        ControlConfig.navigatorShallowWaterSideFoothold = true;
+        ControlConfig.navigatorClimbOutResyncsAim = true;
+        ControlConfig.navigatorOrbitBreaksAimLag = true;
+        ControlConfig.navigatorSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
 
         // The source needs ~5 ticks per cell to reach the far end; wait for the current to exist.
@@ -241,7 +241,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
 
     /**
      * A bot in a long, deep lake swims its whole length to a cell on the far bank, flush with the
-     * water. Nothing to climb, nothing to avoid: the walk measures how the planner and the walker
+     * water. Nothing to climb, nothing to avoid: the walk measures how the planner and the navigator
      * handle open water by itself — how many ticks a straight crossing costs and how many times the
      * plan is redone on the way.
      */
@@ -264,15 +264,15 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         helm.hold(new ItemStack(Items.DIRT, 16));
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = true;
-        ControlConfig.walkerFootholdBeforeBankDig = true;
-        ControlConfig.walkerClimbIntentFromSurface = true;
-        ControlConfig.walkerPillarTopsOutAtFlushExit = true;
-        ControlConfig.walkerHoldLastNodeUntilStanding = true;
-        ControlConfig.walkerShallowWaterSideFoothold = true;
-        ControlConfig.walkerClimbOutResyncsAim = true;
-        ControlConfig.walkerOrbitBreaksAimLag = true;
-        ControlConfig.walkerSurfaceSprintSwim = true;
+        GameConfig.navigatorDebug = true;
+        ControlConfig.navigatorFootholdBeforeBankDig = true;
+        ControlConfig.navigatorClimbIntentFromSurface = true;
+        ControlConfig.navigatorPillarTopsOutAtFlushExit = true;
+        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
+        ControlConfig.navigatorShallowWaterSideFoothold = true;
+        ControlConfig.navigatorClimbOutResyncsAim = true;
+        ControlConfig.navigatorOrbitBreaksAimLag = true;
+        ControlConfig.navigatorSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
 
         helm.sync(SYNC_TICKS, () -> {
@@ -348,17 +348,17 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         if (hand.length > 0) helm.hold(hand);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         // Shipped default, restored over the pinned baseline: the place arm is the scene that
         // exercises it, and the budget above is what would notice it going missing.
-        ControlConfig.walkerFootholdBeforeBankDig = true;
-        ControlConfig.walkerClimbIntentFromSurface = true;
-        ControlConfig.walkerPillarTopsOutAtFlushExit = true;
-        ControlConfig.walkerHoldLastNodeUntilStanding = true;
-        ControlConfig.walkerShallowWaterSideFoothold = true;
-        ControlConfig.walkerClimbOutResyncsAim = true;
-        ControlConfig.walkerOrbitBreaksAimLag = true;
-        ControlConfig.walkerSurfaceSprintSwim = true;
+        ControlConfig.navigatorFootholdBeforeBankDig = true;
+        ControlConfig.navigatorClimbIntentFromSurface = true;
+        ControlConfig.navigatorPillarTopsOutAtFlushExit = true;
+        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
+        ControlConfig.navigatorShallowWaterSideFoothold = true;
+        ControlConfig.navigatorClimbOutResyncsAim = true;
+        ControlConfig.navigatorOrbitBreaksAimLag = true;
+        ControlConfig.navigatorSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
 
         helm.sync(SYNC_TICKS, () -> {

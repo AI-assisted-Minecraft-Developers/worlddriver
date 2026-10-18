@@ -40,7 +40,7 @@ import java.util.stream.Stream;
 /**
  * {@code mc.debug.replay}. Loads a recorded path archive, restores its block envelope, teleports this
  * client's player to the recorded start, and re-issues the recorded goal with normal planning (replan, the
- * default) or, with replan false, re-executes the stored plan through the Walker in replay mode, so a
+ * default) or, with replan false, re-executes the stored plan through the Navigator in replay mode, so a
  * pathfinding wedge reproduces deterministically. The run is captured as a {@code replay-run-*.json} with
  * the actual trajectory and per-step deviation (written by {@link PathArchiveRecorder} when it ends).
  *
@@ -226,7 +226,7 @@ final class ReplayTool {
         for (int[] c : er.breakCells()) toBreak.add(new BlockPos(c[0], c[1], c[2]));
         List<BlockPos> toPlace = new ArrayList<>();
         for (int[] c : er.placeCells()) toPlace.add(new BlockPos(c[0], c[1], c[2]));
-        // The Walker reads move/cost/break/place; the destination BlockPos `to` is not
+        // The Navigator reads move/cost/break/place; the destination BlockPos `to` is not
         // consulted during replay stepping (it walks `path`), so a null `to` is fine.
         return new Move.Edge(null, er.cost(), toBreak, toPlace, er.move());
     }

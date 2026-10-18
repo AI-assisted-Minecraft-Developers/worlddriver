@@ -20,21 +20,21 @@ import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Locale;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
-import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
-import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 
 
 /**
- * Mechanical extraction of {@code Walker#tickInner} (pre-split lines 1403–1646): in-flight A* advance, result adoption / splice, frontier + futile backoff.
- * One phase of the per-tick pipeline — see {@link Walker#tickInner} for the driver and
- * {@link WalkerTickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
- * original tick body except for the {@code w.}/{@code Walker.} member prefixes; do not
+ * Mechanical extraction of {@code Navigator#tickInner} (pre-split lines 1403–1646): in-flight A* advance, result adoption / splice, frontier + futile backoff.
+ * One phase of the per-tick pipeline — see {@link Navigator#tickInner} for the driver and
+ * {@link TickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
+ * original tick body except for the {@code w.}/{@code Navigator.} member prefixes; do not
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
-public final class WalkerTickSearch {
+public final class SearchPhase {
     /** PROACTIVE PINCH escalation — see {@link #PINCH_MIN_PROGRESS}. When the big search
      *  commits a best-effort segment that barely closed the goal distance, the planner is
      *  wedged at a pinch (deepwater→bank, boxed canyon, steep barrier); arm the deep-search
@@ -43,28 +43,28 @@ public final class WalkerTickSearch {
      *  executor to churn ~20 s until the reactive churn-window fires. Re-arms (extends) on
      *  each struggling commit while the pinch persists; logs only on the transition. Gated
      *  to {@link ControlConfig#pathfinderProgressive} (default OFF → behaviour unchanged). */
-    public void maybeArmPinchEscalation(Walker wk, BlockPos foot, PathFinder.Result res) {
+    public void maybeArmPinchEscalation(Navigator nav, BlockPos foot, PathFinder.Result res) {
         if (!ControlConfig.pathfinderProgressive) return;
-        if (res.goalReached() || wk.route.seg.commitEnd == null) return;      // healthy full route → no escalation
-        double progress = wk.goal.estimate(foot) - wk.goal.estimate(wk.route.seg.commitEnd);
+        if (res.goalReached() || nav.route.seg.commitEnd == null) return;      // healthy full route → no escalation
+        double progress = nav.goal.estimate(foot) - nav.goal.estimate(nav.route.seg.commitEnd);
         if (progress >= PINCH_MIN_PROGRESS) return;              // real headway → not a pinch
-        boolean wasArmed = wk.stallDetect.escal.armed();
-        wk.stallDetect.escal.arm(BOXED_ESCALATE_STICKY_TICKS);
-        if (GameConfig.walkerDebug && !wasArmed)
-            LOG.info("[walker] proactive pinch escalation ARMED: best-effort commit gained only {} blocks toward goal → deepen next search",
+        boolean wasArmed = nav.stallDetect.escal.armed();
+        nav.stallDetect.escal.arm(BOXED_ESCALATE_STICKY_TICKS);
+        if (GameConfig.navigatorDebug && !wasArmed)
+            LOG.info("[navigator] proactive pinch escalation ARMED: best-effort commit gained only {} blocks toward goal → deepen next search",
                     String.format("%.1f", progress));
     }
 
     /** No onward route from the segment end: hold (keys released) and return WALKING while
      *  {@link Route#retryAtFrontier} re-searches; ARRIVED when out of retries or the feature is off. */
-    public TickStep frontierHoldOrArrive(Walker wk, Body a, WorldView world, LivingEntity p) {
-        if (wk.route.retryAtFrontier(wk, world)) {
+    public TickStep frontierHoldOrArrive(Navigator nav, Body a, WorldView world, LivingEntity p) {
+        if (nav.route.retryAtFrontier(nav, world)) {
             Keys.forward(a, false);
-            wk.keys.jump(a, false);
+            nav.keys.jump(a, false);
             p.setSprinting(false);
             return TickStep.WALKING;
         }
-        return wk.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null, "frontier-giveup", p.blockPosition());
+        return nav.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null, "frontier-giveup", p.blockPosition());
     }
 
     /** @see SearchGovernors */
@@ -87,17 +87,17 @@ public final class WalkerTickSearch {
      * the gate's, in the gate's order, so nothing here changes what the gate does; the only reason
      * this is one method and not an expression is {@code run()}'s per-method budget.
      */
-    private boolean futileGateExcluded(PathFinder.Result res, Body a, Walker wk,
+    private boolean futileGateExcluded(PathFinder.Result res, Body a, Navigator nav,
                                               WorldView world, BlockPos foot, boolean dugLastTick) {
         int bucket = -1;
-        if (ControlConfig.walkerFutileSearchCap <= 0) bucket = 0;
+        if (ControlConfig.navigatorFutileSearchCap <= 0) bucket = 0;
         else if (res.goalReached()) bucket = 1;
-        else if (wk.blocks.breakHeld()) bucket = 2;
+        else if (nav.blocks.breakHeld()) bucket = 2;
         else if (dugLastTick) bucket = 3;
         else if (world.isWater(foot)) bucket = 4;
         else if (!res.hasPath() && world.hasStuckPenalties()) bucket = 5;
         if (bucket < 0) return false;
-        wk.tel.futileGateBuckets.incrementAndGet(bucket);
+        nav.tel.futileGateBuckets.incrementAndGet(bucket);
         return true;
     }
 
@@ -107,7 +107,7 @@ public final class WalkerTickSearch {
      * progress → identical repath — and each cycle burns a full A* budget. The total-tick budget
      * does bound this, but it counts ticks while the cost is per-SEARCH (live probe: 129 searches,
      * ~36 s of A* CPU inside the 62 s wait). Count the searches themselves: after
-     * {@code walkerFutileSearchCap} consecutive futile completions, end the journey with a reason
+     * {@code navigatorFutileSearchCap} consecutive futile completions, end the journey with a reason
      * the agent can act on ("no route progress" = the goal is unreachable from here, re-plan; the
      * tick-budget's "no progress for N ticks" keeps meaning a transient stall).
      *
@@ -124,10 +124,10 @@ public final class WalkerTickSearch {
      *
      * @return non-null Step to end the tick, or null to fall through.
      */
-    private TickStep futileGateJudge(PathFinder.Result res, Body a, Walker wk,
+    private TickStep futileGateJudge(PathFinder.Result res, Body a, Navigator nav,
                                                WorldView world, BlockPos foot, LivingEntity p,
                                                boolean dugLastTick) {
-        if (futileGateExcluded(res, a, wk, world, foot, dugLastTick)) return null;
+        if (futileGateExcluded(res, a, nav, world, foot, dugLastTick)) return null;
         // An unseeded baseline is +INFINITY, which makes the first comparison after every reset
         // trivially "got closer" — a free zeroing donated by the reset itself. The first judged
         // search has nothing to compare against: it SEEDS, it does not judge.
@@ -140,23 +140,23 @@ public final class WalkerTickSearch {
         boolean gotCloser = seeded
                 && gov.futileGoal.estimate(foot) < gov.futileBestDist - 0.5;
         boolean moved = gov.futileFoot != null && gov.futileFoot.distSqr(foot) > 4;
-        wk.tel.futileGateBuckets.incrementAndGet(!seeded ? 9 : gotCloser ? 6 : moved ? 7 : 8);
+        nav.tel.futileGateBuckets.incrementAndGet(!seeded ? 9 : gotCloser ? 6 : moved ? 7 : 8);
         if (!seeded || gotCloser || moved) {
             if (seeded) gov.futileSearches = 0;
-            gov.futileBestDist = wk.stallDetect.goalSpin.bestDistToGoal;
+            gov.futileBestDist = nav.stallDetect.goalSpin.bestDistToGoal;
             gov.futileFoot = foot;
-            gov.futileGoal = wk.goal;
+            gov.futileGoal = nav.goal;
             gov.futileLatchFoot = null;
-        } else if (++gov.futileSearches >= ControlConfig.walkerFutileSearchCap) {
-            wk.error = "no route progress after " + gov.futileSearches
+        } else if (++gov.futileSearches >= ControlConfig.navigatorFutileSearchCap) {
+            nav.error = "no route progress after " + gov.futileSearches
                     + " consecutive searches — goal unreachable from here (best dist="
-                    + Math.round(wk.stallDetect.goalSpin.bestDistToGoal) + ")";
+                    + Math.round(nav.stallDetect.goalSpin.bestDistToGoal) + ")";
             // Latch on the foot, not on the goal: this terminal costs a full A* every tick it is
             // re-reported, and a caller that ignores the return value (or re-goals at a moving
             // quarry) would otherwise pay it forever.
             gov.futileLatchFoot = foot;
-            return wk.terminalReport(TickStep.FAILED, PathTrace.Outcome.NO_PATH, wk.error,
-                    "failed:" + wk.error, p.blockPosition());
+            return nav.terminalReport(TickStep.FAILED, PathTrace.Outcome.NO_PATH, nav.error,
+                    "failed:" + nav.error, p.blockPosition());
         } else {
             // Cool down before the next kickoff so the wait between futile cycles stops burning
             // full search budgets (4→8→16→32-tick backoff).
@@ -167,21 +167,21 @@ public final class WalkerTickSearch {
 
     /** A landed search the adoption refused: the old plan stays (or, with none, the next tick searches
      *  again from the feet), so the only trace a refusal leaves is the one written here. */
-    private void refused(Walker wk, Route.Adoption adoption, BlockPos foot) {
-        wk.tallies.refusals++;
-        wk.tallies.lastRefusal = adoption.refusal();
-        if (wk.tallies.refusals <= REFUSALS_LOGGED)
-            LOG.info("[walker] search result refused at {} ({} so far, owner={}): {}{}", foot.toShortString(),
-                    wk.tallies.refusals, wk.owner, adoption.refusal(),
-                    wk.route.path() == null ? "; no plan to keep, searching again" : "; keeping the current plan");
+    private void refused(Navigator nav, Route.Adoption adoption, BlockPos foot) {
+        nav.tallies.refusals++;
+        nav.tallies.lastRefusal = adoption.refusal();
+        if (nav.tallies.refusals <= REFUSALS_LOGGED)
+            LOG.info("[navigator] search result refused at {} ({} so far, owner={}): {}{}", foot.toShortString(),
+                    nav.tallies.refusals, nav.owner, adoption.refusal(),
+                    nav.route.path() == null ? "; no plan to keep, searching again" : "; keeping the current plan");
     }
 
-    /** Refusal lines printed per walker before going quiet; {@link WalkerTallies#refusals} keeps counting. */
+    /** Refusal lines printed per navigator before going quiet; {@link NavigatorTallies#refusals} keeps counting. */
     private static final int REFUSALS_LOGGED = 8;
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    public TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
-        // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
+    public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
+        // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         double d = cx.stall.d;
@@ -189,7 +189,7 @@ public final class WalkerTickSearch {
         // Advance any in-flight search by one tick-slice so a big search never
         // blocks the render thread in a single tick (fixes the stutter).
         boolean searchDone = false;
-        if (wk.route.seg.activeSearch != null) {
+        if (nav.route.seg.activeSearch != null) {
             long sb = System.nanoTime();
             // IDLE-SLICE: if there's no walkable path this tick (segment consumed or
             // none yet), the bot is FROZEN until the search lands — so frame-smoothness
@@ -202,38 +202,38 @@ public final class WalkerTickSearch {
             // into a pit (live 2026-09-28, 1385,71,-517). So does a continuation the bot is about
             // to run out of path for: thin-sliced, a 20k-node cliff continuation left it standing
             // ~4 s at its segment end (live 2026-09-28, 1385,75,-511).
-            boolean idleNoPath = wk.route.path() == null || wk.route.step() >= wk.route.path().size() - SEGMENT_END_SLICE_NODES || !wk.route.seg.searchFromEnd;
-            FrameSearchPump.offer(wk);
+            boolean idleNoPath = nav.route.path() == null || nav.route.step() >= nav.route.path().size() - SEGMENT_END_SLICE_NODES || !nav.route.seg.searchFromEnd;
+            FrameSearchPump.offer(nav);
             long want = idleNoPath ? Math.max(ControlConfig.pathfinderSliceMs, ControlConfig.pathfinderIdleSliceMs)
                     : ControlConfig.pathfinderSliceMs;
             long slice = Math.max(1, want - FrameSearchPump.takeSpentMs());   // less what frames spent: see FrameSearchPump
-            searchDone = wk.route.seg.activeSearch.advance(slice);
-            if (GameConfig.walkerDebug && !searchDone)
+            searchDone = nav.route.seg.activeSearch.advance(slice);
+            if (GameConfig.navigatorDebug && !searchDone)
                 LOG.info(
-                        "[walker] search slice {}ms expanded={} (still running)",
-                        (System.nanoTime() - sb) / 1_000_000, wk.route.seg.activeSearch.expanded());
+                        "[navigator] search slice {}ms expanded={} (still running)",
+                        (System.nanoTime() - sb) / 1_000_000, nav.route.seg.activeSearch.expanded());
         }
         if (searchDone) {
-            wk.tallies.lastSearch = wk.route.seg.activeSearch;
-            boolean wasFromEnd = wk.route.seg.searchFromEnd;
-            boolean afterChange = wk.route.seg.afterBlockChange;
-            PathFinder.Result res = wk.route.takeSearchResult();
-            wk.tallies.lastResult = res;
-            wk.tel.lastStats = new WalkerTelemetry.PathStats(res.expanded(), res.ms(), res.goalReached(),
+            nav.tallies.lastSearch = nav.route.seg.activeSearch;
+            boolean wasFromEnd = nav.route.seg.searchFromEnd;
+            boolean afterChange = nav.route.seg.afterBlockChange;
+            PathFinder.Result res = nav.route.takeSearchResult();
+            nav.tallies.lastResult = res;
+            nav.tel.lastStats = new NavigatorTelemetry.PathStats(res.expanded(), res.ms(), res.goalReached(),
                     res.finalCost(), res.path().size(), res.sightBudgetExhausted(), res.snapshotTruncated());
-            wk.tallies.searches++;
+            nav.tallies.searches++;
             if (res.sightBudgetExhausted())
-                LOG.info("[walker] search dropped route.sight: ray budget spent, rerun without it (owner={})", wk.owner);
+                LOG.info("[navigator] search dropped route.sight: ray budget spent, rerun without it (owner={})", nav.owner);
             PathTraceHolder.SINK.onSearchResult(res.path(), res.edges(), res.goalReached(),
                     res.expanded(), res.ms(), res.finalCost());
-            if (GameConfig.walkerDebug)
+            if (GameConfig.navigatorDebug)
                 LOG.info(
-                        "[walker] repath from {} → goalReached={} pathLen={} expanded={} ms={}",
-                        wasFromEnd ? wk.route.seg.commitEnd : foot, res.goalReached(), res.path().size(), res.expanded(), res.ms());
-            TickStep futile = futileGateJudge(res, a, wk, world, foot, p, cx.stall.dugLastTick);
+                        "[navigator] repath from {} → goalReached={} pathLen={} expanded={} ms={}",
+                        wasFromEnd ? nav.route.seg.commitEnd : foot, res.goalReached(), res.path().size(), res.expanded(), res.ms());
+            TickStep futile = futileGateJudge(res, a, nav, world, foot, p, cx.stall.dugLastTick);
             if (futile != null) return futile;
             // FROM-END continuation that makes NO goal progress beyond the committed end
-            // (walkerFromEndNoProgressDiscard): with the goal SEALED, the continuation's
+            // (navigatorFromEndNoProgressDiscard): with the goal SEALED, the continuation's
             // best-effort degenerates to the escape-farthest fallback — a path walking
             // BACKWARD from commitEnd (bridge stop-family: the continuation from the land
             // stub's end (11,0) came back (11,0)→start pad; adopting it U-turned the bot
@@ -243,34 +243,34 @@ public final class WalkerTickSearch {
             // cleanly at the farthest reachable point. A genuine detour keeps at least
             // one node that beats commitEnd's estimate, so it is never discarded; water
             // is exempt (afloat churn is owned by the anti-spin governor).
-            if (ControlConfig.walkerFromEndNoProgressDiscard
-                    && wasFromEnd && res.hasPath() && wk.route.seg.commitEnd != null && !world.isWater(foot)) {
-                double endEst = wk.goal.estimate(wk.route.seg.commitEnd);
+            if (ControlConfig.navigatorFromEndNoProgressDiscard
+                    && wasFromEnd && res.hasPath() && nav.route.seg.commitEnd != null && !world.isWater(foot)) {
+                double endEst = nav.goal.estimate(nav.route.seg.commitEnd);
                 double bestEst = Double.MAX_VALUE;
-                for (BlockPos n : res.path()) bestEst = Math.min(bestEst, wk.goal.estimate(n));
+                for (BlockPos n : res.path()) bestEst = Math.min(bestEst, nav.goal.estimate(n));
                 if (bestEst >= endEst - 0.5) {
-                    if (GameConfig.walkerDebug)
-                        LOG.info("[walker] from-end continuation makes no progress past {},{},{} (best {} vs end {}) → discard as no-onward-route",
-                                wk.route.seg.commitEnd.getX(), wk.route.seg.commitEnd.getY(), wk.route.seg.commitEnd.getZ(),
+                    if (GameConfig.navigatorDebug)
+                        LOG.info("[navigator] from-end continuation makes no progress past {},{},{} (best {} vs end {}) → discard as no-onward-route",
+                                nav.route.seg.commitEnd.getX(), nav.route.seg.commitEnd.getY(), nav.route.seg.commitEnd.getZ(),
                                 String.format(Locale.ROOT, "%.1f", bestEst), String.format(Locale.ROOT, "%.1f", endEst));
                     res = new PathFinder.Result(java.util.List.of(), java.util.List.of(), false,
                             res.expanded(), res.ms(), res.finalCost());
                 }
             }
-            if (wasFromEnd && wk.route.path() != null && wk.route.step() < wk.route.path().size()) {
+            if (wasFromEnd && nav.route.path() != null && nav.route.step() < nav.route.path().size()) {
                 // Continuation finished while we're still walking the current
                 // segment — stash it and splice only once we reach the segment end
                 // (see the step>=size handler), so its start coincides with the bot.
                 // Stash even an empty (no-path) result: the segment-end handler
                 // reads that as "no further progress" and ends cleanly, rather than
                 // letting the kickoff re-launch the same boxed-in search forever.
-                wk.route.stashContinuation(res);
+                nav.route.stashContinuation(res);
             } else if (wasFromEnd && !res.hasPath()) {
                 // Already at/over the segment end and no onward route. With frontier
                 // planning this may be a STALE continuation (computed before we
                 // arrived & loaded the chunks beyond) — re-search fresh before giving
                 // up; otherwise we've gone as far as the best effort allows.
-                return frontierHoldOrArrive(wk, a, world, p);
+                return frontierHoldOrArrive(nav, a, world, p);
             } else if (res.hasPath()) {
                 // ANTI-SPIN (water repath-churn): a failed water climb-out (bot can't
                 // mount the bank) makes every repath return a best-effort that swims
@@ -290,15 +290,15 @@ public final class WalkerTickSearch {
                 // CHURN_REPATH_CAP) so the churn stops winding the camera while the bot
                 // keeps pressing toward the climb-out; only after a long stall with no
                 // progress at all do we give up best-effort instead of pressing forever.
-                if (d < wk.stallDetect.goalSpin.bestGoalDist - 5.0) { wk.stallDetect.goalSpin.bestGoalDist = d; wk.stallDetect.goalSpin.repathsNoProgress = 0; wk.stallDetect.goalSpin.churnResets = 0; }
-                else wk.stallDetect.goalSpin.repathsNoProgress++;
+                if (d < nav.stallDetect.goalSpin.bestGoalDist - 5.0) { nav.stallDetect.goalSpin.bestGoalDist = d; nav.stallDetect.goalSpin.repathsNoProgress = 0; nav.stallDetect.goalSpin.churnResets = 0; }
+                else nav.stallDetect.goalSpin.repathsNoProgress++;
                 // Only a bot actually AFLOAT counts as a water repath: the old
                 // `|| isWater(foot.below())` arm also matched a bot standing on dry
                 // ground beside a waterfall, so a canyon pacing loop was misread as
                 // water churn and the goto ended in a FAKE ARRIVED at (420,-349)
                 // (live 2026-06-09, "anti-spin: 13/15 water repaths" on dry land).
                 boolean overWaterRepath = p.isInWater() && !p.onGround();
-                if (overWaterRepath && !res.goalReached() && wk.stallDetect.goalSpin.repathsNoProgress > CHURN_GIVEUP_CAP) {
+                if (overWaterRepath && !res.goalReached() && nav.stallDetect.goalSpin.repathsNoProgress > CHURN_GIVEUP_CAP) {
                     // A LEGITIMATE go-around also reads as "no progress" here: rounding a
                     // lava arm via the river pushed d above the pre-detour best for 13+
                     // repaths and the give-up fired mid-journey with 440 blocks to go
@@ -308,21 +308,21 @@ public final class WalkerTickSearch {
                     // detour soon improves on the new baseline (and any true progress
                     // resets churnResets); only a churn that stalls through several fresh
                     // baselines is the genuine unwinnable spin.
-                    if (wk.stallDetect.goalSpin.churnResets < CHURN_MAX_RESETS) {
-                        wk.stallDetect.goalSpin.churnResets++;
-                        wk.stallDetect.goalSpin.bestGoalDist = d;
-                        wk.stallDetect.goalSpin.repathsNoProgress = 0;
-                        if (GameConfig.walkerDebug)
-                            LOG.info("[walker] anti-spin: stalled in water (d={}) → re-baseline {}/{}",
-                                    String.format(Locale.ROOT, "%.0f", d), wk.stallDetect.goalSpin.churnResets, CHURN_MAX_RESETS);
+                    if (nav.stallDetect.goalSpin.churnResets < CHURN_MAX_RESETS) {
+                        nav.stallDetect.goalSpin.churnResets++;
+                        nav.stallDetect.goalSpin.bestGoalDist = d;
+                        nav.stallDetect.goalSpin.repathsNoProgress = 0;
+                        if (GameConfig.navigatorDebug)
+                            LOG.info("[navigator] anti-spin: stalled in water (d={}) → re-baseline {}/{}",
+                                    String.format(Locale.ROOT, "%.0f", d), nav.stallDetect.goalSpin.churnResets, CHURN_MAX_RESETS);
                     } else {
-                        if (GameConfig.walkerDebug)
-                            LOG.info("[walker] anti-spin: {} water repaths w/o progress after {} re-baselines (d={}) → end best-effort",
-                                    wk.stallDetect.goalSpin.repathsNoProgress, wk.stallDetect.goalSpin.churnResets, String.format(Locale.ROOT, "%.0f", d));
+                        if (GameConfig.navigatorDebug)
+                            LOG.info("[navigator] anti-spin: {} water repaths w/o progress after {} re-baselines (d={}) → end best-effort",
+                                    nav.stallDetect.goalSpin.repathsNoProgress, nav.stallDetect.goalSpin.churnResets, String.format(Locale.ROOT, "%.0f", d));
                         Keys.forward(a, false);
-                        wk.keys.jump(a, false);
+                        nav.keys.jump(a, false);
                         p.setSprinting(false);
-                        return wk.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null, "churn-giveup", p.blockPosition());
+                        return nav.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null, "churn-giveup", p.blockPosition());
                     }
                 }
                 // BLOCK-BUDGET (before bridging, check there are enough blocks, otherwise dig): if this path would place
@@ -331,17 +331,17 @@ public final class WalkerTickSearch {
                 // placing OFF so A* digs through / routes around (break moves need no
                 // blocks). Guard with searchSuppressedPlace so the place-off result is
                 // adopted as-is (no second reroute / loop).
-                if (!wk.route.replay() && !wk.route.seg.searchSuppressedPlace) {
+                if (!nav.route.replay() && !nav.route.seg.searchSuppressedPlace) {
                     int placesNeeded = countPlaceEdges(res.edges());
                     if (placesNeeded > world.placeableBlockCount()) {
-                        if (GameConfig.walkerDebug)
-                            LOG.info("[walker] path needs {} placed blocks, have {} → re-search place-off (dig/around)",
+                        if (GameConfig.navigatorDebug)
+                            LOG.info("[navigator] path needs {} placed blocks, have {} → re-search place-off (dig/around)",
                                     placesNeeded, world.placeableBlockCount());
-                        wk.route.searchFromFoot(wk.newPathFinder(world).newSearch(foot, wk.goal, true), true);
+                        nav.route.searchFromFoot(nav.newPathFinder(world).newSearch(foot, nav.goal, true), true);
                         return TickStep.WALKING;
                     }
                 }
-                // Route hysteresis (walkerRouteHysteresis): don't let a periodic repath
+                // Route hysteresis (navigatorRouteHysteresis): don't let a periodic repath
                 // U-turn a healthy walk onto the alternate near-equal route (§55 oscillation).
                 // The direction dot doubles as the REPATH-flip expectation alarm: adopting a
                 // route whose near-term direction REVERSES the current one is exactly one half
@@ -350,22 +350,22 @@ public final class WalkerTickSearch {
                 // (the C16 dry-land churn that took three autopsies to see from raw logs).
                 boolean keepCurrent = false;
                 boolean uTurnLeg = false;
-                if (wk.route.path() != null && wk.route.step() < wk.route.path().size()
-                        && res.path().size() > 3 && wk.route.path().size() - wk.route.step() > 3) {
-                    BlockPos curAhead = wk.route.path().get(Math.min(wk.route.step() + 3, wk.route.path().size() - 1));
+                if (nav.route.path() != null && nav.route.step() < nav.route.path().size()
+                        && res.path().size() > 3 && nav.route.path().size() - nav.route.step() > 3) {
+                    BlockPos curAhead = nav.route.path().get(Math.min(nav.route.step() + 3, nav.route.path().size() - 1));
                     BlockPos newAhead = res.path().get(3);
                     double cax = curAhead.getX() + 0.5 - p.getX(), caz = curAhead.getZ() + 0.5 - p.getZ();
                     double nax = newAhead.getX() + 0.5 - p.getX(), naz = newAhead.getZ() + 0.5 - p.getZ();
                     uTurnLeg = (cax * nax + caz * naz) < 0;
                     // Not after a block change: the plan being kept is the one the change cut, and turning
                     // back may be exactly what the new shape asks for.
-                    keepCurrent = ControlConfig.walkerRouteHysteresis && uTurnLeg && wk.progress.stepProg.noStepProgressTicks < 20
+                    keepCurrent = ControlConfig.navigatorRouteHysteresis && uTurnLeg && nav.progress.stepProg.noStepProgressTicks < 20
                             && !afterChange;
-                    if (keepCurrent && GameConfig.walkerDebug)
-                        LOG.info("[walker] route-hysteresis: KEEP current path (new route U-turns behind a healthy walk, noStepProg={})",
-                                wk.progress.stepProg.noStepProgressTicks);
+                    if (keepCurrent && GameConfig.navigatorDebug)
+                        LOG.info("[navigator] route-hysteresis: KEEP current path (new route U-turns behind a healthy walk, noStepProg={})",
+                                nav.progress.stepProg.noStepProgressTicks);
                 }
-                // Dig-commit hold (walkerDigCommitHoldRepath): an underwater bank dig takes
+                // Dig-commit hold (navigatorDigCommitHoldRepath): an underwater bank dig takes
                 // 100-200t (25x mining penalty) but the periodic repath re-routes faster than
                 // that, and each adoption discards the held break — vanilla resets the block's
                 // progress to zero, so the dig NEVER completes and the water-bank churn loops
@@ -373,22 +373,22 @@ public final class WalkerTickSearch {
                 // 200t grinding the re-chosen riser). While a committed bank dig's break is
                 // actually held, keep the current path; the futile-dig release still abandons
                 // a hopeless dig, which drops the hold and lets the next repath adopt normally.
-                if (!keepCurrent && ControlConfig.walkerDigCommitHoldRepath
-                        && wk.waterClimb.digRiser != null && wk.blocks.breakHeld()) {
+                if (!keepCurrent && ControlConfig.navigatorDigCommitHoldRepath
+                        && nav.waterClimb.digRiser != null && nav.blocks.breakHeld()) {
                     keepCurrent = true;
-                    if (GameConfig.walkerDebug)
-                        LOG.info("[walker] dig-commit-hold: KEEP current path (committed bank dig at {},{},{} in progress)",
-                                wk.waterClimb.digRiser.getX(), wk.waterClimb.digRiser.getY(), wk.waterClimb.digRiser.getZ());
+                    if (GameConfig.navigatorDebug)
+                        LOG.info("[navigator] dig-commit-hold: KEEP current path (committed bank dig at {},{},{} in progress)",
+                                nav.waterClimb.digRiser.getX(), nav.waterClimb.digRiser.getY(), nav.waterClimb.digRiser.getZ());
                 }
                 if (!keepCurrent) {
-                    if (ControlConfig.walkerExpectAlarm && uTurnLeg) {
-                        wk.exAlarms.noteRepathFlip(wk.stallDetect.escal.tick, foot);
+                    if (ControlConfig.navigatorExpectAlarm && uTurnLeg) {
+                        nav.exAlarms.noteRepathFlip(nav.stallDetect.escal.tick, foot);
                     }
-                    Route.Adoption adoption = RouteAdoption.adopt(wk, res, world, foot);
-                    if (adoption.adopted()) maybeArmPinchEscalation(wk, foot, res);
-                    else refused(wk, adoption, foot);
+                    Route.Adoption adoption = RouteAdoption.adopt(nav, res, world, foot);
+                    if (adoption.adopted()) maybeArmPinchEscalation(nav, foot, res);
+                    else refused(nav, adoption, foot);
                 }
-            } else if (wk.route.path() == null) {
+            } else if (nav.route.path() == null) {
                 // No route and nothing to fall back on. But if we're airborne
                 // — plummeting from an unplanned fall (knockback, the ground
                 // broken out from under us, a tp) — a mid-air foot ALWAYS has
@@ -413,20 +413,20 @@ public final class WalkerTickSearch {
                 // whole goto. Bounded so a genuinely walled-in bot still fails.
                 if (world.hasStuckPenalties() && gov.noPathWaitTicks < NO_PATH_WAIT_CAP) {
                     gov.noPathWaitTicks++;
-                    if (GameConfig.walkerDebug && gov.noPathWaitTicks % 100 == 1)
-                        LOG.info("[walker] no path but stuck-penalties still live → waiting out decay ({}/{})",
+                    if (GameConfig.navigatorDebug && gov.noPathWaitTicks % 100 == 1)
+                        LOG.info("[navigator] no path but stuck-penalties still live → waiting out decay ({}/{})",
                                 gov.noPathWaitTicks, NO_PATH_WAIT_CAP);
                     Keys.forward(a, false);
-                    wk.keys.jump(a, false);
+                    nav.keys.jump(a, false);
                     p.setSprinting(false);
                     return TickStep.WALKING;
                 }
-                wk.error = "no path (expanded=" + res.expanded() + ")";
-                return wk.terminalReport(TickStep.FAILED, PathTrace.Outcome.NO_PATH, wk.error, "failed:" + wk.error, p.blockPosition());
+                nav.error = "no path (expanded=" + res.expanded() + ")";
+                return nav.terminalReport(TickStep.FAILED, PathTrace.Outcome.NO_PATH, nav.error, "failed:" + nav.error, p.blockPosition());
             }
             // else: search failed but we still have the previous path — keep it.
         }
-        // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
+        // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
         return null;
     }
 }

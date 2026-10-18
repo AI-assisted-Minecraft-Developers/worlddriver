@@ -1,7 +1,7 @@
-"""Parse the Walker's [walker] telemetry lines.
+"""Parse the Navigator's [navigator] telemetry lines.
 
-The emitter is `LOG.info("[walker] t={} step=...")` in WalkerTickEdgeGuards.java (the Walker is
-split into WalkerTick* phase classes, see docs/dev/movement-tick-phases.md). No line number is
+The emitter is `LOG.info("[navigator] t={} step=...")` in EdgeGuardsPhase.java (the Navigator is
+split into *Phase classes, see docs/dev/movement-tick-phases.md). No line number is
 pinned here: line numbers drift, class names do not.
 
 The regexes below and the emitter's format string form a contract with **no compile-time
@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass
 
 _RE = re.compile(
-    r"\[walker\] t=(?P<t>\d+) step=(?P<step>\d+)/(?P<plen>\d+) move=(?P<move>\S+) "
+    r"\[navigator\] t=(?P<t>\d+) step=(?P<step>\d+)/(?P<plen>\d+) move=(?P<move>\S+) "
     r"node=-?\d+,-?\d+,-?\d+ p=\((?P<x>-?[0-9.]+),(?P<y>-?[0-9.]+),(?P<z>-?[0-9.]+)\) "
     r".*?within=(?P<within>\w+) onG=(?P<onG>\w+) inW=(?P<inW>\w+) undW=\w+ "
     r"stuck=(?P<stuck>\d+) totStuck=(?P<tot>\d+)"
@@ -25,7 +25,7 @@ _RE_YAW = re.compile(r"\byaw=(?P<yaw>-?[0-9.]+)")
 
 
 @dataclass
-class WalkerTick:
+class NavigatorTick:
     t: int
     step: int
     path_len: int
@@ -41,12 +41,12 @@ class WalkerTick:
     yaw: float = None  # None on pre-2026-06-29 logs without the yaw field
 
 
-def parse_walker_line(line: str):
+def parse_navigator_line(line: str):
     m = _RE.search(line)
     if not m:
         return None
     my = _RE_YAW.search(line)
-    return WalkerTick(
+    return NavigatorTick(
         t=int(m["t"]), step=int(m["step"]), path_len=int(m["plen"]), move=m["move"],
         x=float(m["x"]), y=float(m["y"]), z=float(m["z"]),
         within=m["within"] == "true", on_ground=m["onG"] == "true", in_water=m["inW"] == "true",
@@ -83,7 +83,7 @@ def water_yaw_thrash(ticks):
 def parse_log(text: str):
     out = []
     for line in text.splitlines():
-        tk = parse_walker_line(line)
+        tk = parse_navigator_line(line)
         if tk is not None:
             out.append(tk)
     return out

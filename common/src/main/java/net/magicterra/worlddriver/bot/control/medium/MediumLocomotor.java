@@ -17,7 +17,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.WalkResult;
 import net.magicterra.worlddriver.bot.control.WalkVerdict;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.route.Route;
 
 /**
@@ -25,10 +25,10 @@ import net.magicterra.worlddriver.bot.control.route.Route;
  * squid; in air, a parrot, a bee, a ghast, a phantom. It plans with that medium's {@link MediumMove}
  * strokes and follows the nodes in three dimensions, rising and sinking to each node's height as it goes.
  *
- * <p>A separate executor rather than more branches in the walker's phases, which are a player's walk:
+ * <p>A separate executor rather than more branches in the navigator's phases, which are a player's walk:
  * they lift a swimming start to the surface, move goals onto standable ground, hop and shove a stalled
  * body sideways, and wait for a body to land before believing there is no path. A fish or a bird has
- * none of those situations. It keeps its own {@link Route} and its own result; the {@link Walker} that
+ * none of those situations. It keeps its own {@link Route} and its own result; the {@link Navigator} that
  * owns it hands it every order and every tick while the body lives in a medium, and lends it the search
  * settings (profile, budget, escalation) so a process sees one walk either way.
  *
@@ -56,7 +56,7 @@ public final class MediumLocomotor implements Locomotor {
     /** Repaths with no node reached in between before the walk fails. */
     private static final int MAX_STALLS = 3;
 
-    private final Walker wk;
+    private final Navigator nav;
     private final MediumMove.Medium medium;
     /** "swim" or "fly": the drive tag, the trace's first word, and how failures name the medium. */
     private final String verb, through;
@@ -70,8 +70,8 @@ public final class MediumLocomotor implements Locomotor {
     private double bestGoalDist = Double.POSITIVE_INFINITY;
     private Goal walkGoal;
 
-    private MediumLocomotor(Walker wk, MediumMove.Medium medium) {
-        this.wk = wk;
+    private MediumLocomotor(Navigator nav, MediumMove.Medium medium) {
+        this.nav = nav;
         this.medium = medium;
         boolean air = medium == MediumMove.Medium.AIR;
         verb = air ? "fly" : "swim";
@@ -80,11 +80,11 @@ public final class MediumLocomotor implements Locomotor {
 
     /** The locomotor for the body {@code world} plans for: {@code current} when it is for that body's
      *  medium, a new one heading for {@code goal} when the medium changed, null for a body that walks. */
-    public static MediumLocomotor forBody(Walker wk, MediumLocomotor current, WorldView world, Goal goal) {
+    public static MediumLocomotor forBody(Navigator nav, MediumLocomotor current, WorldView world, Goal goal) {
         MediumMove.Medium m = MoveCatalog.medium(world.moveModes());
         if (m == null) return null;
         if (current != null && current.medium == m) return current;
-        MediumLocomotor fresh = new MediumLocomotor(wk, m);
+        MediumLocomotor fresh = new MediumLocomotor(nav, m);
         fresh.start(goal);
         return fresh;
     }
@@ -100,7 +100,7 @@ public final class MediumLocomotor implements Locomotor {
 
     @Override public void replan() { route.clear(); }
 
-    /** The profile is the owning walker's; it has already switched to it. */
+    /** The profile is the owning navigator's; it has already switched to it. */
     @Override public void replan(net.magicterra.worlddriver.bot.rules.SearchProfile profile) { replan(); }
 
     @Override public void cancel(String reason) {
@@ -156,8 +156,8 @@ public final class MediumLocomotor implements Locomotor {
             return TickStep.WALKING;
         }
         String vertical = steer(a, p, tx, ty, tz);
-        wk.driveTag = verb;
-        wk.tel.lastTickTrace = String.format(java.util.Locale.ROOT,
+        nav.driveTag = verb;
+        nav.tel.lastTickTrace = String.format(java.util.Locale.ROOT,
                 "%s step=%d/%d node=%s pos=%.2f,%.2f,%.2f vy=%.3f %s out=%d stalled=%d stalls=%d bestEffort=%b",
                 verb, route.step(), route.path().size(), node.toShortString(), p.getX(), p.getY(), p.getZ(), p.getDeltaMovement().y,
                 vertical, outTicks, noProgressTicks, stalls, route.seg.pathBestEffort);
@@ -170,10 +170,10 @@ public final class MediumLocomotor implements Locomotor {
 
     /** Run or start the search; null once a path is adopted, else the step to return this tick. */
     private TickStep plan(Body a, WorldView world, Goal goal, BlockPos foot) {
-        if (route.seg.activeSearch == null) route.searchFromFoot(wk.newPathFinder(world).newSearch(foot, goal), false);
+        if (route.seg.activeSearch == null) route.searchFromFoot(nav.newPathFinder(world).newSearch(foot, goal), false);
         if (!route.seg.activeSearch.advance(ControlConfig.pathfinderSliceMs)) {
             hold(a);
-            wk.driveTag = verb + ":search";
+            nav.driveTag = verb + ":search";
             return TickStep.WALKING;
         }
         PathFinder.Result r = route.takeSearchResult();

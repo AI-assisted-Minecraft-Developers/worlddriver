@@ -19,7 +19,7 @@ import net.minecraft.world.level.block.Blocks;
 
 /**
  * Walks that begin with the client's REAL player in the air — falling off something, knocked
- * back, or simply asked to go somewhere before it has landed. The walker's search starts from a
+ * back, or simply asked to go somewhere before it has landed. The navigator's search starts from a
  * foot cell that has nothing under it, and everything downstream of that (the first path, the
  * first step-advance, the first stall clock) has to survive the landing.
  */
@@ -52,11 +52,11 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = true;
-        ControlConfig.walkerFinalNodeDirectAim = true;
-        ControlConfig.walkerHoldLastNodeUntilStanding = true;
-        ControlConfig.walkerOrbitBreaksAimLag = true;
-        ControlConfig.walkerSurfaceSprintSwim = true;
+        GameConfig.navigatorDebug = true;
+        ControlConfig.navigatorFinalNodeDirectAim = true;
+        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
+        ControlConfig.navigatorOrbitBreaksAimLag = true;
+        ControlConfig.navigatorSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
         helm.sync(30, () -> {
             ctx.record("start after sync", helm.where());
@@ -102,11 +102,11 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
         helm.hold(new ItemStack(Items.DIRT, 30));
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = true;
-        ControlConfig.walkerFinalNodeDirectAim = true;
-        ControlConfig.walkerHoldLastNodeUntilStanding = true;
-        ControlConfig.walkerOrbitBreaksAimLag = true;
-        ControlConfig.walkerSurfaceSprintSwim = true;
+        GameConfig.navigatorDebug = true;
+        ControlConfig.navigatorFinalNodeDirectAim = true;
+        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
+        ControlConfig.navigatorOrbitBreaksAimLag = true;
+        ControlConfig.navigatorSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
         helm.sync(30, () -> {
             ctx.record("start after sync", helm.where());
@@ -180,13 +180,13 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         // Shipped default, restored over the pinned baseline: the stone landing is the scene that
         // measured the diagonal overshoot of the last node, and its budget is what notices it.
-        ControlConfig.walkerFinalNodeDirectAim = true;
-        ControlConfig.walkerHoldLastNodeUntilStanding = true;
-        ControlConfig.walkerOrbitBreaksAimLag = true;
-        ControlConfig.walkerSurfaceSprintSwim = true;
+        ControlConfig.navigatorFinalNodeDirectAim = true;
+        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
+        ControlConfig.navigatorOrbitBreaksAimLag = true;
+        ControlConfig.navigatorSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
 
         // Two ticks, not the usual thirty: the player is falling, and the point is to order the walk

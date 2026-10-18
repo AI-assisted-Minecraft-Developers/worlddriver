@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 /**
- * A quarry pacing in a pen the bot cannot enter keeps the walker circling the pen: every lap moves the
- * bot, so the walker's futile-search count never climbs, and the follow ran for as long as the caller
+ * A quarry pacing in a pen the bot cannot enter keeps the navigator circling the pen: every lap moves the
+ * bot, so the navigator's futile-search count never climbs, and the follow ran for as long as the caller
  * left it. The follow now judges the chase itself: no standoff reached and no block gained on the
  * closest approach for the give-up window ends it.
  */

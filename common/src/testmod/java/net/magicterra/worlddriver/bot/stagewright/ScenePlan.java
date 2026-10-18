@@ -4,12 +4,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.minecraft.core.BlockPos;
 
 /**
- * The two shapes a scene may hand {@link Walker#adoptForTest}, each built by a factory that says
+ * The two shapes a scene may hand {@link Navigator#adoptForTest}, each built by a factory that says
  * which one it is.
  *
  * <p><b>Why this class exists.</b> Both shapes are a {@code List<BlockPos>} plus a
@@ -32,7 +32,7 @@ public record ScenePlan(List<BlockPos> nodes, List<Move.Edge> edges) {
 
     /**
      * A plan in the shape every real {@code PathFinder.Result} has, for a scene that goes on to
-     * TICK the walker — i.e. the 5-arg {@link Walker#adoptForTest} seam.
+     * TICK the navigator — i.e. the 5-arg {@link Navigator#adoptForTest} seam.
      *
      * <p>Callers pass only the nodes they want WALKED. This prepends the start node and the
      * {@code null} lead edge, because {@code PathFinder.build}'s javadoc says the start has no
@@ -63,7 +63,7 @@ public record ScenePlan(List<BlockPos> nodes, List<Move.Edge> edges) {
             if (!e.to.equals(nodes.get(i)))
                 throw new IllegalArgumentException("syntheticPlan: edges[" + i + "].to=" + e.to
                         + " does not enter nodes[" + i + "]=" + nodes.get(i)
-                        + " — the walker drives edges.get(i) to reach path.get(i)");
+                        + " — the navigator drives edges.get(i) to reach path.get(i)");
         }
         List<BlockPos> fullNodes = new ArrayList<>(nodes.size() + 1);
         fullNodes.add(foot);
@@ -77,7 +77,7 @@ public record ScenePlan(List<BlockPos> nodes, List<Move.Edge> edges) {
 
     /**
      * A continuation segment that deliberately does NOT start at the foot, for a scene that only
-     * reads the adoption's VERDICT — i.e. the 4-arg {@link Walker#adoptForTest} seam, whose
+     * reads the adoption's VERDICT — i.e. the 4-arg {@link Navigator#adoptForTest} seam, whose
      * javadoc explains why the two arities differ.
      *
      * <p>This is the input the segment anchor-gate exists to judge, so the missing start node is
@@ -85,8 +85,8 @@ public record ScenePlan(List<BlockPos> nodes, List<Move.Edge> edges) {
      * REJECT in three of them; give those arms a start node and the gate has nothing left to
      * reject, so three assertions stop being about anything.
      *
-     * <p>Do not tick a walker that adopted one of these. A segment adopted this way is best-effort
-     * — the walker is entitled to run a continuation search and replace it, edges and all.
+     * <p>Do not tick a navigator that adopted one of these. A segment adopted this way is best-effort
+     * — the navigator is entitled to run a continuation search and replace it, edges and all.
      */
     public static ScenePlan misanchoredSegment(List<BlockPos> nodes, List<Move.Edge> edges) {
         if (nodes.size() != edges.size())

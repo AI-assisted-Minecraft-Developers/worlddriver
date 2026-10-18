@@ -45,7 +45,7 @@ import net.magicterra.worlddriver.debug.PinchArena;
 import net.magicterra.worlddriver.game.ui.InputReleaseGate;
 import net.magicterra.worlddriver.game.ui.MouseYieldGate;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.planning.MultiTrace;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
@@ -107,10 +107,10 @@ import net.magicterra.worlddriver.game.observe.BuildBlocks;
  *       for the count/placement reasoning — the wave brief's "agentRpcSmoke in Server" note is
  *       reconciled there against the explicit "WorldDriverCoreScenes.java (main class 12)" spec.)</li>
  *   <li>{@code pathArchiveCapture} / {@code replayRoundTrip} waited (up to 2 s of {@code Thread.sleep})
- *       for the daemon plan/replay-run file write; the scene keeps the (fast, synchronous) walker
+ *       for the daemon plan/replay-run file write; the scene keeps the (fast, synchronous) navigator
  *       loops in the scene method and moves ONLY the file-write waits into {@code await} continuations —
  *       {@code replayRoundTrip} chains a second {@code await} inside the first's {@code then()} for
- *       its two sequential file writes. No walker loop or assertion logic changed.</li>
+ *       its two sequential file writes. No navigator loop or assertion logic changed.</li>
  * </ul>
  *
  * <p><b>Origin slots.</b> All 12 take AUTO slots at the default radius: every arena's footprint
@@ -670,7 +670,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         if (disp <= 2.0)
             ctx.fail("physicsParity: flat travel too small: dz=" + disp + " (expected >2)");
         if (Math.abs(fp.getY() - startY) > 0.4)
-            ctx.fail("physicsParity: walker left the floor: dy=" + (fp.getY() - startY));
+            ctx.fail("physicsParity: navigator left the floor: dy=" + (fp.getY() - startY));
 
         // 2) Standing jump apex ~1.25.
         ServerPlayerBody av2 = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
@@ -761,7 +761,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
 
     /**
      * A player standing on solid rock beside — and then inside — a climbable must still be able to
-     * jump while the walker holds jump.
+     * jump while the navigator holds jump.
      *
      * <p>Written when the server-side player's gate was its own,
      * {@code soleOnSolid > 0 && deltaMovement.y <= 0}, to cover the {@code dy} term no other scene could move, which had a named way to be
@@ -1296,13 +1296,13 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     // ==================================================================================
-    // Path-archive record / replay round-trips — walker loops synchronous, file waits awaited.
+    // Path-archive record / replay round-trips — navigator loops synchronous, file waits awaited.
     // ==================================================================================
 
     /** Ported from {@code AgentGameTest#pathArchiveCaptureArena}: end-to-end capture round-trip for
-     *  {@link PathArchiveRecorder} — drives a real 8-block Walker goto on flat stone, then asserts a
+     *  {@link PathArchiveRecorder} — drives a real 8-block Navigator goto on flat stone, then asserts a
      *  JSON archive was written to disk with ≥1 segment, ≥1 trajectory tick, and a non-null dimension.
-     *  The (synchronous) walker loop stays in the scene method; the daemon file-write wait becomes an await. */
+     *  The (synchronous) navigator loop stays in the scene method; the daemon file-write wait becomes an await. */
     private static void pathArchiveCapture(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
@@ -1335,10 +1335,10 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         BotLevelHolder.current = level;
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 1000 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
+        for (int t = 0; t < 1000 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
         WorldDriverCommon.LOG.info("[wd.pathArchiveCapture] terminal step={} pos=({},{},{})",
                 s, fp.getX(), fp.getY(), fp.getZ());
 
@@ -1361,8 +1361,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
 
     /** Ported from {@code AgentGameTest#replayRoundTripArena}: end-to-end PROOF of record → replay —
      *  record a goto archive, rebuild the concatenated plan+edges, replay via a fresh
-     *  {@code Walker.beginReplay} + armed capture, and assert the bot reaches the same goal (±2 XZ)
-     *  with bounded per-tick deviation. The two synchronous walker loops stay in-body; the two
+     *  {@code Navigator.beginReplay} + armed capture, and assert the bot reaches the same goal (±2 XZ)
+     *  with bounded per-tick deviation. The two synchronous navigator loops stay in-body; the two
      *  sequential daemon file-write waits become chained await continuations. */
     private static void replayRoundTrip(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -1397,10 +1397,10 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 1000 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
+        for (int t = 0; t < 1000 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
         WorldDriverCommon.LOG.info("[wd.replayRoundTrip] record terminal step={} arrival={}", s, fp.blockPosition());
 
         // ---- await plan archive write, then rebuild + replay + await replay-run write. ----
@@ -1447,9 +1447,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             BlockPos startFoot = plan.get(0);
             BlockPos lastNode = plan.get(plan.size() - 1);
 
-            // ---- Phase 3: REPLAY via a fresh Walker.beginReplay + armed capture. ----
+            // ---- Phase 3: REPLAY via a fresh Navigator.beginReplay + armed capture. ----
             // Create the replay player FIRST, then arm: the armed session is identity-pinned
-            // to the replay avatar so concurrent walkers (the T1 client bot — see PathArchiveRecorder
+            // to the replay avatar so concurrent navigators (the T1 client bot — see PathArchiveRecorder
             // replayEntityId) can't leak foreign samples into the deviation gate.
             ServerPlayerBody rav = SceneBody.avatar(ctx,
                     level, startFoot.getX() + 0.5, startFoot.getY(), startFoot.getZ() + 0.5);
@@ -1458,7 +1458,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             LevelWorldView rw = new LevelWorldView(level, rfp);
             archive.armReplay(plan, Path.of(planPath).getFileName().toString(), rfp.getId());
 
-            Walker replay = new Walker();
+            Navigator replay = new Navigator();
             replay.replay(rw, plan, edges, new Goal.Block(lastNode), startFoot);
             Locomotor.Status rs = Locomotor.Status.MOVING;
             int maxTicks = 1500;

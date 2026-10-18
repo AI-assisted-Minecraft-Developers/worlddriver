@@ -1,10 +1,10 @@
 package net.magicterra.worlddriver.bot.control.route;
 
 import net.magicterra.worlddriver.bot.planning.PathFinder;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Navigator;
 
 /**
- * Runs the client walker's in-flight path search in the time the frame limiter would otherwise sleep.
+ * Runs the client navigator's in-flight path search in the time the frame limiter would otherwise sleep.
  *
  * <p>A search advanced a slice per client tick (6 ms walking, 30 ms with no path) took the render thread
  * for that long on the frame the tick ran in: at a 120 fps cap R1's 60 000-node and 22 000-node searches
@@ -12,7 +12,7 @@ import net.magicterra.worlddriver.bot.control.Walker;
  * frame's 1/cap, so a search spending exactly that leftover costs no frames, and at 120 fps the leftover
  * adds up to as much search time per second as the 30 ms tick slice gave.
  *
- * <p>Render thread only: the walker registers from its tick, the limiter hook spends, and the tick takes off
+ * <p>Render thread only: the navigator registers from its tick, the limiter hook spends, and the tick takes off
  * its own slice what the frames spent since the tick before, keeping at least 1 ms so it still collects the
  * result. A frame that only just meets the cap has little slack to give, and the tick tops the search up to
  * what it got before. With no limiter (an uncapped client, a dedicated server) nothing pumps and the tick
@@ -27,7 +27,7 @@ public final class FrameSearchPump {
     private static final long STALE_NANOS = 100_000_000L;
 
     private static volatile Thread frameThread;
-    private static Walker walker;
+    private static Navigator navigator;
     private static long offeredAt, frameStart, spentNanos;
 
     /** Right after the limiter returns: the next frame's 1/cap starts now. */
@@ -42,19 +42,19 @@ public final class FrameSearchPump {
         long now = System.nanoTime();
         long slackMs = (frameStart + 1_000_000_000L / fps - now - MARGIN_NANOS) / 1_000_000L;
         if (slackMs < 1) return;
-        Walker wk = walker;
-        if (wk == null || now - offeredAt > STALE_NANOS) return;
-        PathFinder.Search s = wk.route.seg.activeSearch;
-        if (s == null || s.done()) { walker = null; return; }
+        Navigator nav = navigator;
+        if (nav == null || now - offeredAt > STALE_NANOS) return;
+        PathFinder.Search s = nav.route.seg.activeSearch;
+        if (s == null || s.done()) { navigator = null; return; }
         s.advance(slackMs);
         spentNanos += System.nanoTime() - now;
     }
 
-    /** From the walker's tick: this walker has a search in flight. */
-    static void offer(Walker wk) {
+    /** From the navigator's tick: this navigator has a search in flight. */
+    static void offer(Navigator nav) {
         if (Thread.currentThread() != frameThread) return;
-        if (wk != walker) spentNanos = 0;
-        walker = wk;
+        if (nav != navigator) spentNanos = 0;
+        navigator = nav;
         offeredAt = System.nanoTime();
     }
 

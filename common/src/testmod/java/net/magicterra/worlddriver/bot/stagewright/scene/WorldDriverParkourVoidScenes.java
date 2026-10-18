@@ -12,7 +12,7 @@ import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.rules.SearchProfile;
@@ -39,7 +39,7 @@ import net.minecraft.world.level.block.Blocks;
  * The manifest's only execution-level jump scene is {@code wd.parkourAscend}
  * ({@link WorldDriverTerrainScenes}), and it leaps a gap that lands <b>+1 higher</b>. That single
  * fact is what exempts it from the defect this family is built around: the sprint gate in
- * {@code WalkerTickDrive} used to read
+ * {@code DrivePhase} used to read
  *
  * <pre>{@code
  * boolean parkourAscend = parkourEdge && wp.getY() > foot.getY();   // RISING leaps only
@@ -280,7 +280,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
      * the two scenes can only be the run-up.
      *
      * <p>Machinery copied from {@code wd.parkourAscend} on purpose — {@code createUnique} +
-     * {@link LevelWorldView} + a synchronous {@code walker.tick / av.step} loop — so the two are
+     * {@link LevelWorldView} + a synchronous {@code navigator.tick / av.step} loop — so the two are
      * comparable readings of the same executor and flat-versus-rising is the only variable.
      *
      * @param assertLeap when true, also assert HOW the bot crossed (no blocks spent, and fast
@@ -302,7 +302,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
         WorldConfig.allowPlace = true;               // bridging is a legitimate way across
         WorldConfig.allowBreak = false;              // digging around it is not
         RulesConfig.allowParkour4 = false;           // the gap is a parkour3; 4-cell leaps stay off
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -316,8 +316,8 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
         final int cobbleBefore = carrying(fp, Items.COBBLESTONE);
 
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         Locomotor.Status s = Locomotor.Status.MOVING;
         double minY = fp.getY(), prevX = fp.getX(), prevH = 0.0;
@@ -325,13 +325,13 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
         int takeoffTick = -1, tLip = -1, tDeck = -1, tFell = -1, t = 0;
         String gapMove = null, firstPlan = null;
         for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             double h = Math.hypot(fp.getDeltaMovement().x, fp.getDeltaMovement().z);
             minY = Math.min(minY, fp.getY());
-            if (firstPlan == null && walker.pathLen() > 0) firstPlan = walker.inspect().planTally();
+            if (firstPlan == null && navigator.pathLen() > 0) firstPlan = navigator.inspect().planTally();
             if (tLip < 0 && Mth.floor(fp.getX()) <= cx) tLip = t;
-            if (gapMove == null && fp.getX() < cx) gapMove = String.valueOf(walker.inspect().pathMove());
+            if (gapMove == null && fp.getX() < cx) gapMove = String.valueOf(navigator.inspect().pathMove());
             if (takeoffTick < 0 && fp.getY() > standY + 0.05) {
                 takeoffTick = t; takeoffX = prevX; takeoffHBefore = prevH; takeoffHAfter = h;
             }
@@ -362,11 +362,11 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
                 "before %.4f -> after %.4f (a sprint-jump shows about 0.35; a x0.91 ratio is pure "
                 + "air decay, i.e. no impulse at all)", takeoffHBefore, takeoffHAfter));
         ctx.record("takeoff.tick", takeoffTick);
-        ctx.record("takeoff.walker", walker.inspect().parkourTakeoff());
+        ctx.record("takeoff.navigator", navigator.inspect().parkourTakeoff());
         ctx.record("gap.move", gapMove == null ? "never got past the lip" : gapMove);
         ctx.record("gap.solidCells", gapSolidCells(level, cx, cz, padY, halfW));
         ctx.record("plan.first", firstPlan == null ? "none - the run never held a path" : firstPlan);
-        ctx.record("plan.last", walker.inspect().planTally());
+        ctx.record("plan.last", navigator.inspect().planTally());
         ctx.record("place.tally", av.placeTally());
         ctx.record("place.spent", spent + " cobblestone (started with " + cobbleBefore + ")");
         ctx.record("canPlace", w.canPlace());
@@ -515,7 +515,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
     }
 
     /** Node count, goal-reached, cost and the move histogram — the same shape
-     *  {@code WalkerInspector#planTally} prints, for a result that never reaches a Walker. */
+     *  {@code NavigatorInspector#planTally} prints, for a result that never reaches a Navigator. */
     private static String planShape(PathFinder.Result res) {
         java.util.Map<String, Integer> byMove = new java.util.TreeMap<>();
         for (Move.Edge e : res.edges())

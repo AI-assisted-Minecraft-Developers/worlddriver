@@ -13,26 +13,26 @@ import net.minecraft.world.entity.LivingEntity;
 import java.util.ArrayList;
 import java.util.List;
 
-import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
 
-/** Pure static geometry / math helpers carved out of {@link Walker}. Every method is a
- *  side-effect-free function of its arguments (and the world view) — no Walker instance
- *  state — so they lift out verbatim. {@link Walker} static-imports them
- *  ({@code import static WalkerGeometry.*}) so every call site is unchanged. Visibility
+/** Pure static geometry / math helpers carved out of {@link Navigator}. Every method is a
+ *  side-effect-free function of its arguments (and the world view) — no Navigator instance
+ *  state — so they lift out verbatim. {@link Navigator} static-imports them
+ *  ({@code import static NavigatorGeometry.*}) so every call site is unchanged. Visibility
  *  widened private->public only; bodies and doc comments preserved exactly. No behaviour change.
  *
  *  <p>The geometry of the body's own box against the blocks — its sole, what stops it rising —
- *  is {@link BodyGeometry}'s, below the walker, because a body's actuators ask it too. */
-public final class WalkerGeometry {
-    private WalkerGeometry() {}
+ *  is {@link BodyGeometry}'s, below the navigator, because a body's actuators ask it too. */
+public final class NavigatorGeometry {
+    private NavigatorGeometry() {}
 
     /**
      * Is this pillarUp destination a FLOODED shaft — one the bot floats straight up through —
      * rather than a water SURFACE it must place a support to leave?
      *
      * <p><b>The single answer both callers ask.</b> It used to be computed twice. The planned pillar
-     * ({@link Pillar}) carved the surface case out of "flooded" (the {@code walkerPillarSurfacePlace}
-     * branch, which is the flag's only reader in the whole product); {@link WalkerTickProgress} computed
+     * ({@link Pillar}) carved the surface case out of "flooded" (the {@code navigatorPillarSurfacePlace}
+     * branch, which is the flag's only reader in the whole product); {@link ProgressPhase} computed
      * plain {@code isWater(dest)} and never carved. On the one geometry where the two disagree —
      * destination water, air directly above — the pillar decided "place a support" while Progress still
      * called it a buoyant float, took the branch whose comment says an unfilled place cell is not
@@ -54,7 +54,7 @@ public final class WalkerGeometry {
         if (!world.isWater(dest)) return false;
         // Surface, not shaft: water underfoot with AIR directly above is the water-bank climb-out.
         // Floating higher is physically impossible there, so the bot must crest and place.
-        return !(ControlConfig.walkerPillarSurfacePlace && !world.isWater(dest.above()));
+        return !(ControlConfig.navigatorPillarSurfacePlace && !world.isWater(dest.above()));
     }
 
     /**
@@ -308,8 +308,8 @@ public final class WalkerGeometry {
      *
      * <p>⚠️ <b>That last clause is wrong, and this row is the camera, not the drive.</b>
      * {@code p.getYRot()} is the CAMERA channel; the bot is pushed along {@code
-     * WalkerTickDrive}'s {@code driveTargetYaw}, and the two are decoupled ON PURPOSE — see
-     * {@link WalkerConstants} ("camera = aimYaw, movement = driveTargetYaw, decoupled by
+     * DrivePhase}'s {@code driveTargetYaw}, and the two are decoupled ON PURPOSE — see
+     * {@link NavigatorConstants} ("camera = aimYaw, movement = driveTargetYaw, decoupled by
      * AvatarInput's impulse"), which exists precisely so a slewing camera does not drag the bot.
      * A distribution taken over this row therefore measures the wrong quantity: 2026-08-26's
      * rehearsal split 137 suppressions 126-away/11-toward on THIS angle, which cannot license a
@@ -402,12 +402,12 @@ public final class WalkerGeometry {
      * degrees. No run has yet shown this rule suppressing a hop that would otherwise have killed
      * the bot — which is why the row stays: the next real occasion files its own evidence.
      *
-     * <p><b>Known limitation.</b> This reads the bearing at LAUNCH, and the walker keeps steering
+     * <p><b>Known limitation.</b> This reads the bearing at LAUNCH, and the navigator keeps steering
      * through the arc — the ladder hop above travelled along a heading its launch angle did not
      * name. So it predicts where a trajectory that is still being driven would land, not where the
      * bot ends up. A hop released here can still be steered into the cell it was cleared of.
      *
-     * <p>{@code driveYaw} must be {@code WalkerTickDrive}'s {@code driveTargetYaw} (or, on the
+     * <p>{@code driveYaw} must be {@code DrivePhase}'s {@code driveTargetYaw} (or, on the
      * burst path, {@link Recovery}'s burst heading) — the channel the impulse is rotated onto. Passing
      * {@code p.getYRot()} would reproduce {@link #hopBearingRow}'s mistake.
      */
@@ -580,7 +580,7 @@ public final class WalkerGeometry {
 
     /** True when the foot's horizontal distance² to {@code node} is in the step-advance DEAD-ZONE
      *  (REACH_DIST_SQ, OVERSHOOT_RESYNC_SQ) — too far for {@code within}, too near for the horizontal
-     *  overshoot re-sync. Sole caller is the {@code walkerVerticalResync} gate (so the cur2 maths only
+     *  overshoot re-sync. Sole caller is the {@code navigatorVerticalResync} gate (so the cur2 maths only
      *  runs when that flag is on). */
     public static boolean deadZoneCur2(BlockPos node, LivingEntity p) {
         double dx = (node.getX() + 0.5) - p.getX();

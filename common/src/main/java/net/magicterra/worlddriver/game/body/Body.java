@@ -8,9 +8,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
 /**
- * Actuation surface over the entity the agent drives. The Walker reads entity
+ * Actuation surface over the entity the agent drives. The Navigator reads entity
  * state and applies vanilla pose through {@link #entity()} — a {@link LivingEntity}
- * reference, because everything the walker reads (getX/onGround/isInWater/
+ * reference, because everything the navigator reads (getX/onGround/isInWater/
  * getDeltaMovement/getBoundingBox/getHealth) and sets (setYRot/setSprinting/
  * setShiftKeyDown) lives there, on a client {@code LocalPlayer}, a server
  * {@code ServerPlayer} and a driven mob alike. What is abstracted here is the
@@ -25,7 +25,7 @@ import net.minecraft.world.entity.player.Player;
  * own state (food, abilities, the attack cooldown) and is null for an entity that is not one.
  *
  * <p>{@link ClientPlayerBody} maps every method 1:1 to the previous inline
- * Walker behaviour (zero regression). {@code ServerPlayerBody} drives a joined
+ * Navigator behaviour (zero regression). {@code ServerPlayerBody} drives a joined
  * {@code ServerPlayer}. Both implement every capability themselves.
  * This interface was {@code Avatar} until 2026-09-14; the name changed with the split,
  * so that a third-party implementation reads as what it is — the controlled entity itself,
@@ -65,14 +65,14 @@ public interface Body {
      *
      * <p><b>This channel outranks {@link #commandForward}.</b> The two are not peers: the client
      * player's {@code AvatarInput.tick} applies a {@code commandMove} first and only falls through
-     * to a {@code commandForward}, so a walker {@code commandMove} in the same tick silently
+     * to a {@code commandForward}, so a navigator {@code commandMove} in the same tick silently
      * discards a reflex's {@code commandForward}, whatever the call order. A reflex that must
      * OVERRIDE a running process therefore drives this — {@code commandMove(0, 1)} is a full
      * forward press along the player's own yaw, {@code commandMove(0, 0)} is a halt that a
      * running process cannot undo that tick — and one that merely steers an otherwise idle bot
      * may use {@link #commandForward}. Measured 2026-08-22 on the integrated ladder: a submerged
      * bot whose escape reflex used the weaker channel bobbed for 7 800 ticks with zero
-     * horizontal displacement, because the walker's own command overwrote it every tick.
+     * horizontal displacement, because the navigator's own command overwrote it every tick.
      */
     void commandMove(float left, float forward);
     /** Raw forward (0..1) along the camera, as a held W key; also zeroes strafe. Loses to a
@@ -94,7 +94,7 @@ public interface Body {
      * camera whips for a nudge, which is one of the things a watching person reports as
      * erratic camera whipping. Vanilla's {@code travel()} rotates the impulse by the CURRENT yaw, so feeding
      * it the bearing's offset from that yaw moves the player along the bearing while the camera
-     * stays put (the {@code WalkerTickRepath} back-off idiom). Drives {@link #commandMove}, so it
+     * stays put (the {@code RepathPhase} back-off idiom). Drives {@link #commandMove}, so it
      * outranks a running process.
      *
      * @param scale impulse magnitude, 1.0 being a full press. Callers correcting a small offset
@@ -145,7 +145,7 @@ public interface Body {
      *  (e.g. bbox-fill only breaking cells inside its region). */
     BlockPos lookingAtBlock();
 
-    // --- debug snapshot of the commanded input (walker trace only) ---
+    // --- debug snapshot of the commanded input (navigator trace only) ---
     default boolean dbgForwardImpulse() { return false; }
     default boolean dbgJumping() { return false; }
     default boolean dbgSneak() { return false; }

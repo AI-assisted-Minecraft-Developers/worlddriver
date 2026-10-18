@@ -23,7 +23,7 @@ import net.minecraft.util.Mth;
  * <p>Split out of the rung file because it is used by five rungs and belongs to none of them: the
  * stone, iron, portal-kit, obsidian and portal rungs all sink a shaft to something they can only
  * reach by digging, and all of them then have to leave. Both directions are spelled out block by
- * block rather than handed to the walker, and each one is spelled out because the searched version
+ * block rather than handed to the navigator, and each one is spelled out because the searched version
  * was measured failing — see the two method notes for the numbers.
  *
  * <p>State is static and there is one field of it ({@code exitFromY}/{@code exitRise}), which is
@@ -79,10 +79,10 @@ public final class JourneyShaft {
      * Six climbs, one single-bucket rehearsal, tagged so they could finally be told apart:
      *
      * <pre>
-     * cast4.returnStuck3#1  unpinned  gained 3/3   adopted, walker fallback
+     * cast4.returnStuck3#1  unpinned  gained 3/3   adopted, navigator fallback
      * water5.lift#2         unpinned  gained 1/1
-     * cast6.lift#3          unpinned  gained 2/2   adopted, walker fallback
-     * cast8.lift#4          unpinned  gained 2/3   adopted, walker fallback
+     * cast6.lift#3          unpinned  gained 2/2   adopted, navigator fallback
+     * cast8.lift#4          unpinned  gained 2/3   adopted, navigator fallback
      * recover8.rise#5       PINNED    gained -1/2  pinnedLost, placed nothing
      * cast9.lift#6          unpinned  gained 3/3
      * </pre>
@@ -105,7 +105,7 @@ public final class JourneyShaft {
      *
      * <h2>The last refusal went the same way, and for a reason the first audit could not see</h2>
      *
-     * <p>What was kept was the walker fallback: {@code Goal.YLevel} is column-blind by construction —
+     * <p>What was kept was the navigator fallback: {@code Goal.YLevel} is column-blind by construction —
      * satisfied by any cell at the height — so refusing it "costs nothing to a climb that has a
      * tower". <b>The premise is the part that fails.</b> This rung's raise is the one climb in the
      * ladder that must run at full water level: the recover happens while the cast's own source is
@@ -123,7 +123,7 @@ public final class JourneyShaft {
      *
      * <p>The same run's UNPINNED lifts hit the identical puddle and got out of it: {@code
      * cast6.lift#6} and {@code cast8.lift#7} each recorded {@code climb.10.afloat} at {@code
-     * -11,56,36} and then {@code walkerFallback=true}, {@code toY=58}, {@code gained} 2/2 and 2/3.
+     * -11,56,36} and then {@code navigatorFallback=true}, {@code toY=58}, {@code gained} 2/2 and 2/3.
      * So the fallback is not a worse way up here — it is the only one that works in water, and the
      * pinned raise was the single climb forbidden to use it.
      *
@@ -135,7 +135,7 @@ public final class JourneyShaft {
      *
      * <p>So a pinned climb falls back too, and the one thing its fallback may not do is DIG. Its
      * source sits inside the frame the rung is building, which is the only thing down there tall
-     * enough to be in a walker's way — the same reason the recover's fill walk carries {@link NoBreak}.
+     * enough to be in a navigator's way — the same reason the recover's fill walk carries {@link NoBreak}.
      *
      * <h2>And the pin survives only as long as the column it was taken out for</h2>
      *
@@ -187,7 +187,7 @@ public final class JourneyShaft {
      * the cobblestone it just mined. Best-effort by design — a rung that reached its goal should
      * not be failed for an awkward exit, and the next rung's own guard will say so if it matters.
      *
-     * <p><b>Scripted, not searched.</b> The first version handed the exit to the walker as
+     * <p><b>Scripted, not searched.</b> The first version handed the exit to the navigator as
      * {@code Goal.YLevel(surfaceY)} and sized its budget off {@code wd.serverPillarsOutOfAPit},
      * which leaves a four-deep arena pit in 46 ticks. In the field that bought <b>one block in
      * 6 000 ticks</b> — {@code exit.fromY=54 → exit.toY=55} — and the food rung then spent its
@@ -276,21 +276,21 @@ public final class JourneyShaft {
                         () -> recordExit(rig, then));
                 return;
             }
-            // The tower gave up. Hand the rest to the walker — the route
+            // The tower gave up. Hand the rest to the navigator — the route
             // wd.serverPillarsOutOfAPit measured at 46 ticks — and RECORD that it was needed, so
             // a run whose exit depended on the fallback cannot be read as one where the scripted
             // ascent worked. Two ways up is a deliberate redundancy; hiding which one carried the bot
             // is how a capability quietly stops being tested.
-            rig.evidence(climbName + ".walkerFallback", true);
+            rig.evidence(climbName + ".navigatorFallback", true);
             // AND IT MAY NOT LEAVE THE BOT LOWER THAN IT FOUND IT. `Goal.YLevel` is column-blind, so
             // a route to it may descend first, and when the search then fails the bot keeps whatever
             // the partial path gave it. Measured 2026-08-19: `vein2.exit#3` reported
-            // `walkerFallback=true`, `gained=-3/20` and `endedIn=100,83` while the tower column was
+            // `navigatorFallback=true`, `gained=-3/20` and `endedIn=100,83` while the tower column was
             // 94,83 — three blocks DEEPER than the climb started, in a different column, and nothing read that
             // as anything but a short climb. The rung after it then failed for want of a free cell to
             // put a crafting table in, which is what a bot still down a shaft has.
             //
-            // One more scripted ascent from wherever the walker stopped, and it is a genuinely
+            // One more scripted ascent from wherever the navigator stopped, and it is a genuinely
             // different attempt rather than the same question asked twice: a different column, and a
             // builder that now refuses — by name — the ceiling that ended the first one.
             int beforeFallbackY = rig.player().blockPosition().getY();
@@ -452,7 +452,7 @@ public final class JourneyShaft {
     /**
      * A climb whose whole point was to ascend must not END lower than it started.
      *
-     * <p>Runs after the walker fallback, which is the only part of a climb that can move the bot
+     * <p>Runs after the navigator fallback, which is the only part of a climb that can move the bot
      * DOWN: a tower cannot, and the mine steps only cut upward. Re-enters the scripted ascent through
      * the {@code int washedOff} overload so the climb keeps its own name and its own rows — the
      * {@code String tag} entry bumps {@code climbSeq}, and a rescue that renamed the climb would
@@ -691,7 +691,7 @@ public final class JourneyShaft {
             //
             // A tower supplies the height; what the pin is about is the column, which is what
             // `driftKept`'s own wording ("adopting this column") already says. So the correction asks for
-            // the column and lets the walker pick a height it can stand at.
+            // the column and lets the navigator pick a height it can stand at.
             //
             walkBackToColumn(rig, step, DRIFT_ATTEMPTS, () -> {
                 BlockPos back = rig.player().blockPosition();
@@ -763,7 +763,7 @@ public final class JourneyShaft {
                 // THIRD column has changed it too. Both keep the old behaviour. Only the exact
                 // inverse pair is refused, and it takes `driftOntoTheFlight`'s exit for the same
                 // reason: there is no column this course can both stand in and legally tower from,
-                // so the tower stops and climbOut's walker fallback carries the rest.
+                // so the tower stops and climbOut's navigator fallback carries the rest.
                 if (back.equals(at) && clear.getX() == wasColX && clear.getZ() == wasColZ) {
                     rig.evidence(climbKey(step, ".driftLoop"), climbColX + "," + climbColZ
                             + " is a staircase column, and the column the flight check would move back"
@@ -818,7 +818,7 @@ public final class JourneyShaft {
             // frame cell as "canBreak=false, all six neighbours solid" and reported a mining failure.
             // The shaft the bot came
             // down is already open, so a climb that needs to mine at all is a climb that has
-            // wandered — stopping here is the honest answer, and climbOut's walker fallback is what
+            // wandered — stopping here is the honest answer, and climbOut's navigator fallback is what
             // still gets the bot out.
             //
             // ASKED ONLY WHEN THERE IS SOMETHING TO OPEN, and that ordering is the whole point.
@@ -854,7 +854,7 @@ public final class JourneyShaft {
             // Bounded by the washed-off allowance rather than refused outright, because that is the
             // same phenomenon seen one tick earlier and it already carries a measured number: the
             // water is moving, so a few courses genuinely can end with the bot back on a block.
-            // Past that it is a flood, not a stumble, and climbOut's walker fallback is what gets
+            // Past that it is a flood, not a stumble, and climbOut's navigator fallback is what gets
             // the bot out.
             if (rig.player().isInWater()) {
                 if (washedOff <= 0) {
@@ -1270,10 +1270,10 @@ public final class JourneyShaft {
     /**
      * How many times a drift correction re-plans before the climb adopts or stops.
      *
-     * <p>Three, and the number comes from what the walker actually says. Measured on the rehearsal
+     * <p>Three, and the number comes from what the navigator actually says. Measured on the rehearsal
      * of 2026-08-16, cell eight: {@code climb.0.driftInto=-9,56,37} — the column's foothold, found —
      * and {@code climb.0.driftGoto=end=path-consumed err=null (aimed for -9,56,37, stopped at -9,57,38)}. Not
-     * "no route": the walker planned, walked one block of it, and reported the path CONSUMED. That
+     * "no route": the navigator planned, walked one block of it, and reported the path CONSUMED. That
      * is this repo's own {@code wd.serverWalkerArrivedShort} — {@code IntentProcess} reports its
      * goal reached for a partial path — and the answer to it everywhere else in this suite is to
      * ask again from where the bot now is, which {@link WorldDriverJourneyScenes#walkToColumn}
@@ -1326,12 +1326,12 @@ public final class JourneyShaft {
             WorldConfig.allowBreak = couldBreak;
             BlockPos back = rig.player().blockPosition();
             if (back.getX() == climbColX && back.getZ() == climbColZ) { then.run(); return; }
-            // WHY it did not get there, from the walker itself. `pinnedLost` and `driftKept` both
+            // WHY it did not get there, from the navigator itself. `pinnedLost` and `driftKept` both
             // used to report only that the bot was somewhere else, which is the same sentence for
             // "no route exists", "the search ran out of time" and "it walked part of a plan and
             // stopped" — three findings needing three different answers, and it was the third.
             rig.evidence(climbKey(step, ".driftGoto." + n),
-                    JourneyLeg.walkerEnd(rig)
+                    JourneyLeg.navigatorEnd(rig)
                             + " (aimed for " + (into != null ? into.toShortString()
                                     : climbColX + "," + climbColZ) + ", stopped at "
                             + back.toShortString() + ")");
@@ -1349,7 +1349,7 @@ public final class JourneyShaft {
     /**
      * The highest cell in one column, at or below {@code fromY}, that a player could stand in.
      *
-     * <p>Standable in the walker's own terms — something solid under the feet, feet and head both
+     * <p>Standable in the navigator's own terms — something solid under the feet, feet and head both
      * clear of collision — and highest first, so a correction descends as little as it has to.
      *
      * <p>It exists because a pinned climb's column is often a column with nothing in it: the portal
@@ -1409,7 +1409,7 @@ public final class JourneyShaft {
      * bot was still in the pool.
      *
      * <p>So "did I get out of the water" asks about the FLOOR, which is the thing the caller actually
-     * needs. Same lesson as the walker's own: water is not a floor.
+     * needs. Same lesson as the navigator's own: water is not a floor.
      */
     static boolean noDryFooting(ServerLevel level, BlockPos at) {
         return !level.getFluidState(at.below()).isEmpty();
@@ -1561,7 +1561,7 @@ public final class JourneyShaft {
         rig.mineBlock(below, 2_000, () -> {
                 // The reading that splits the two failures apart. "The bot did not sink" is either
                 // "the block is still there" (the mine did not break it) or "the block is gone and
-                // the bot stayed up" (the walker will not step into its own hole), and from the
+                // the bot stayed up" (the navigator will not step into its own hole), and from the
                 // outside those are the same sentence.
                 rig.evidence("shaft." + step + ".broke",
                         String.format("%s bot=%s", sceneLevel(rig).getBlockState(below).getBlock(),
@@ -1574,7 +1574,7 @@ public final class JourneyShaft {
                 //
                 // The goal is the CELL just emptied, not a height. Goal.YLevel(targetY) was tried
                 // and it descends — to the wrong place: "be at y=60" is satisfied anywhere, and the
-                // walker took the shortest way down it could find, landing at 77,83 with the ore
+                // navigator took the shortest way down it could find, landing at 77,83 with the ore
                 // still under 83,75. A shaft is a column, and only a goal that names the column
                 // keeps the bot over its own hole.
                 rig.settle(new HoldStill(40), 60,

@@ -5,24 +5,24 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
- * Per-tick data flowing between the WalkerTick* phases, grouped by the stage that
+ * Per-tick data flowing between the *Phase classes, grouped by the stage that
  * PRODUCES it (see docs/dev/movement-tick-phases.md). A fresh instance
- * is built every tick by the driver in {@link Walker#tickInner}; nothing here survives
- * the tick — cross-tick state stays in {@link Walker} fields.
+ * is built every tick by the driver in {@link Navigator#tickInner}; nothing here survives
+ * the tick — cross-tick state stays in {@link Navigator} fields.
  *
  * <p>Reading a phase's persist block now states its contract: a phase writes its OWN
  * product group and only re-publishes {@code frame} basics it recomputed; a phase's
  * rehydrate block names exactly what it consumes.
  */
-public final class WalkerTickCtx {
+public final class TickCtx {
     public final Frame frame = new Frame();
     public final StallVerdict stall = new StallVerdict();
     public final EdgeState edges = new EdgeState();
     public final AimPlan aim = new AimPlan();
-    /** Why {@link WalkerTickDrive}'s riser lead gave no lead this tick, for the walk-keys line only. */
+    /** Why {@link DrivePhase}'s riser lead gave no lead this tick, for the walk-keys line only. */
     public String leadWhy = "";
 
-    /** Produced by {@link WalkerTickPrelude}: the resolved bot + anchor cells every
+    /** Produced by {@link PreludePhase}: the resolved bot + anchor cells every
      *  later phase keys off. {@code foot} is re-derived by phases that move the bot. */
     public static final class Frame {
         public LivingEntity p;
@@ -30,7 +30,7 @@ public final class WalkerTickCtx {
         public BlockPos searchFoot;
     }
 
-    /** Produced by {@link WalkerTickStallDetect}: the stall/deviation verdict consumed
+    /** Produced by {@link StallDetectPhase}: the stall/deviation verdict consumed
      *  by the repath/search stages. */
     public static final class StallVerdict {
         public double d;                  // goal.estimate(foot) this tick
@@ -42,7 +42,7 @@ public final class WalkerTickCtx {
         public boolean fellBelowRoute;
     }
 
-    /** Produced by {@link WalkerTickEdgeGuards}: the committed
+    /** Produced by {@link EdgeGuardsPhase}: the committed
      *  edge under execution and its guard classifications, consumed by Aim/Drive. */
     public static final class EdgeState {
         public Move.Edge edge;
@@ -54,7 +54,7 @@ public final class WalkerTickCtx {
         public boolean steppingOffWaterFall;
     }
 
-    /** Produced by {@link WalkerTickAim}: the full aim/camera/drive-shaping plan the
+    /** Produced by {@link AimPhase}: the full aim/camera/drive-shaping plan the
      *  Drive stage executes. */
     public static final class AimPlan {
         public boolean aimAtWaypoint;

@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.bot.rules.Move;
 
 /**
  * Inert observation seam for pathfinding debug tooling. The core ({@link PathFinder},
- * {@code Walker}) calls {@link PathTraceHolder#SINK} unconditionally; in a release build
+ * {@code Navigator}) calls {@link PathTraceHolder#SINK} unconditionally; in a release build
  * with the {@code bot.debug} package removed the sink stays {@link #NOOP} and every method
  * is an empty virtual call the JIT elides. The real implementation lives in
  * {@code net.magicterra.worlddriver.debug.PathDebugRecorder} and is registered at client init.
@@ -19,17 +19,17 @@ import net.magicterra.worlddriver.bot.rules.Move;
  */
 public interface PathTrace {
 
-    /** Terminal outcome of a goto session, as classified by the Walker. */
+    /** Terminal outcome of a goto session, as classified by the Navigator. */
     enum Outcome { SUCCESS, NO_PATH, STUCK, TIMEOUT, CANCELLED, ERROR }
 
     /**
      * One per-tick execution sample. Plain data only (no Minecraft refs) so the recorder
      * can be snapshotted and rendered off the client thread. {@code targetX/targetZ} are the
-     * centre of the path node the Walker was steering toward this tick (NaN when no path);
+     * centre of the path node the Navigator was steering toward this tick (NaN when no path);
      * {@code yawActual} is the bot's yaw at tick entry. Speed and heading-error are derived in
      * the renderer from consecutive samples + targets.
      */
-    record WalkerSample(long tick, double x, double y, double z, float yawActual,
+    record NavigatorSample(long tick, double x, double y, double z, float yawActual,
                         double targetX, double targetZ, int stepIndex, String moveType,
                         boolean onGround, boolean inWater,
                         String pose, boolean aabbOverlap, int entityId) {}
@@ -40,12 +40,12 @@ public interface PathTrace {
     /** Fired once per A* node expansion. {@code g} is the accumulated cost at the node. */
     void onNodeExpanded(BlockPos pos, double g);
 
-    /** Fired when the Walker adopts a search Result (success or best-effort fallback). */
+    /** Fired when the Navigator adopts a search Result (success or best-effort fallback). */
     void onSearchResult(List<BlockPos> path, List<Move.Edge> edges, boolean goalReached,
                         int expanded, long ms, double finalCost);
 
-    /** Fired once per Walker tick while a goal is active. */
-    void onWalkerTick(WalkerSample sample);
+    /** Fired once per Navigator tick while a goal is active. */
+    void onNavigatorTick(NavigatorSample sample);
 
     /** Fired when a goto session terminates. */
     void onTerminal(Outcome outcome, String reason);
@@ -56,7 +56,7 @@ public interface PathTrace {
         public void onNodeExpanded(BlockPos pos, double g) {}
         public void onSearchResult(List<BlockPos> path, List<Move.Edge> edges, boolean goalReached,
                                    int expanded, long ms, double finalCost) {}
-        public void onWalkerTick(WalkerSample sample) {}
+        public void onNavigatorTick(NavigatorSample sample) {}
         public void onTerminal(Outcome outcome, String reason) {}
     };
 }

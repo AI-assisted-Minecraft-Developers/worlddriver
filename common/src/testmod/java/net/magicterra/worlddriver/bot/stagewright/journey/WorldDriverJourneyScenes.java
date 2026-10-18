@@ -691,20 +691,20 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     private static final int LOGS_THE_LADDER_NEEDS = 8;
 
     /**
-     * Walk to a surface COLUMN, and try again from wherever the walker actually stopped.
+     * Walk to a surface COLUMN, and try again from wherever the navigator actually stopped.
      *
      * <p>The retry is not defensive padding. {@code IntentProcess} reports its goal reached for a
      * partial path — the failure {@code wd.serverWalkerArrivedShort} owns — so a single drive can
      * come back "done" with the bot somewhere else entirely. Measured on the iron rung: the walk
      * ended cleanly with the bot <b>88 blocks</b> from the column it was sent to, having crossed a
-     * swamp, and the rung reported "cannot reach the descent point" for what was really "the walker
+     * swamp, and the rung reported "cannot reach the descent point" for what was really "the navigator
      * stopped early and nobody asked it to continue". Re-planning from the new position is what a
      * player does when they end up short, and each attempt starts from a strictly better place.
      *
      * <p>Each attempt is a {@link JourneyRig#settle} rather than a drive, so a walk that uses up its
      * budget costs an attempt instead of the rung — the distance check below is what decides, and it
      * has a number to report either way. {@code <what>.walkAttempts} says how many it took, which is
-     * the reading that says whether the walker is getting better or worse; a rung that quietly
+     * the reading that says whether the navigator is getting better or worse; a rung that quietly
      * needed three tries every run is a finding this would otherwise hide.
      *
      * <p><b>A retry that changes nothing is not a retry.</b> The re-plan above assumes each attempt
@@ -729,7 +729,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * <p>{@code Intent} has taken a bias list since it was written — "avoid a region, prefer a Y
      * band, leash to an anchor" is its own javadoc — and nothing in this suite had ever passed one.
      * The rung that needed it is 12: the pathfinder's route to the lava runs along the crater's rim,
-     * where the walker's footing guard sneak-pins the bot at {@code sole = 0.0000} and it can then
+     * where the navigator's footing guard sneak-pins the bot at {@code sole = 0.0000} and it can then
      * never move, and no choice of DESTINATION can steer a route (measured — see
      * {@link JourneyTerrain#poolsLipCells}).
      *
@@ -761,7 +761,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * <p>{@code Goal.XZ} answers "that column, any Y" — {@link Goal.XZ#ignoresY} is true — so from
      * above, DIGGING STRAIGHT DOWN is a legal route to it, and where the bot stands above its own
      * staircase that is the cheapest one. Measured, rung 12's rehearsal of 2026-08-25: asked for
-     * {@code XZ[x=2, z=19, radius=0]} from {@code -3,61,20}, the walker sank the column at
+     * {@code XZ[x=2, z=19, radius=0]} from {@code -3,61,20}, the navigator sank the column at
      * {@code x=-1, z=20} — {@code -1,58,20}, then 57, 56, 55, 54 — and the first of those is the
      * support of the tread at {@code -1,59,20}. One step of the descent, one step of the flight.
      *
@@ -793,12 +793,12 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                     + (at.getY() - before.getY()) + "), below feet="
                     + rig.player().level().getBlockState(at.below()));
             if (away <= ARRIVED_WITHIN) {
-                // WHAT THE WALKER SAID, on the ARRIVAL path as well — the row this pair could not
+                // WHAT THE NAVIGATOR SAID, on the ARRIVAL path as well — the row this pair could not
                 // carry. `arrivedDistance=4, walkAttempts=1` is the same two digits for two different
                 // worlds: a bot that walked here and stopped inside the tolerance, and a bot the
-                // walker GAVE UP ON four blocks out. Measured, the PORTAL_LIT rehearsal of
+                // navigator GAVE UP ON four blocks out. Measured, the PORTAL_LIT rehearsal of
                 // 2026-08-17: the walk ended `failed:no progress for 1200 ticks` with the bot
-                // sneak-pinned on the lava crater's lip at -13,66,21 (`[walker] footing guard: sole
+                // sneak-pinned on the lava crater's lip at -13,66,21 (`[navigator] footing guard: sole
                 // 0.0000 … beside a lethal drop`), ARRIVED_WITHIN accepted it because 4 ≤ 5, and the
                 // rung then spent every remaining tick asking that same bot to walk five more
                 // blocks — about 110 searches from one cell. The end reason existed the whole time
@@ -816,15 +816,15 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                         : ", but this goto run asked for " + tolerance + " blocks"
                           + (Math.round(away) > tolerance ? " — arrival was judged by a different tolerance than the one requested" : "");
                 rig.evidence(what + ".gotoEnd." + attempt,
-                        JourneyLeg.walkerEnd(rig)
+                        JourneyLeg.navigatorEnd(rig)
                                 + " (judged arrived: stopped at " + at.toShortString() + ", " + Math.round(away)
                                 + " blocks from " + x + "," + z + ", tolerance " + ARRIVED_WITHIN + asked + ")");
                 onArrived.run();
                 return;
             }
-            // What the walker itself said about the walk. Ninety searches in a row left no record of
+            // What the navigator itself said about the walk. Ninety searches in a row left no record of
             // WHY beyond the search-begin lines, so a wedge and a slow crossing read the same.
-            rig.evidence(what + ".goto." + attempt, JourneyLeg.walkerEnd(rig));
+            rig.evidence(what + ".goto." + attempt, JourneyLeg.navigatorEnd(rig));
             if (left <= 1) { onStuck.run(); return; }
             double moved = Math.hypot(at.getX() - before.getX(), at.getZ() - before.getZ());
             if (moved >= WEDGED_UNDER) {
@@ -979,7 +979,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // five times over, and it timed out at 10 000 ticks with the task still running. Sinking
             // once and mining sideways is what a player does, and it puts every drop at foot level.
             rig.attempting("dig a shaft down to the stone layer: the bot did not descend with the shaft");
-            WorldConfig.allowPlace = false;    // see the iron rung: a paving walker will not sink
+            WorldConfig.allowPlace = false;    // see the iron rung: a paving navigator will not sink
             JourneyShaft.descendByMining(rig, stone.getY() + 1, () -> {
                 WorldConfig.allowPlace = true;
                 rig.evidence("descent.landedY", rig.player().blockPosition().getY());
@@ -1279,7 +1279,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * says: the hunt follows an animal, and seed 5471's swamp puts the nearest cow tens of blocks
      * off in a direction nothing else on the ladder uses. Every rung above then starts from wherever
      * the chase ended, which is how the iron rung came to report "cannot reach the descent point"
-     * from {@code 4,65,114} — <b>88 blocks</b> away, with the walker's own verdict
+     * from {@code 4,65,114} — <b>88 blocks</b> away, with the navigator's own verdict
      * {@code goal unreachable from here}. That is not the iron rung's failure and it should not be
      * reported as one.
      *
@@ -1408,16 +1408,16 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         if (Math.abs(off) < SUNK_BELOW) { then.run(); return; }
 
         // Restore explicitly rather than trusting the scene pin: the pin does restore at scene end,
-        // but this rung has rungs' worth of work left after the descent and a paving walker in the
+        // but this rung has rungs' worth of work left after the descent and a paving navigator in the
         // middle of it is the pathology being fixed, not a tidy-up detail.
         boolean place = WorldConfig.allowPlace;
         if (off > 0) {
             rig.attempting("descend from the bot's own pillar: the shaft that removes it could not be dug");
-            WorldConfig.allowPlace = false;      // a paving walker will not sink — see the stone rung
+            WorldConfig.allowPlace = false;      // a paving navigator will not sink — see the stone rung
             JourneyShaft.descendByMining(rig, ground, () -> {
                 WorldConfig.allowPlace = place;
                 // Mining a tower back is not a side effect, it is the point: every course is a
-                // block the walker spent, and the rungs above this one are the ones that needed it.
+                // block the navigator spent, and the rungs above this one are the ones that needed it.
                 rig.evidence(key + ".towerRecovered", "descended to y=" + rig.player().blockPosition().getY()
                         + ", cobblestone " + rig.carrying("minecraft:cobblestone"));
                 walkToColumn(rig, key + "AfterDescent", home.getX(), home.getZ(), 3, 12_000, 1,
@@ -1768,7 +1768,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         walkToColumn(rig, tag, shaft.getX(), shaft.getZ(), 0, 10_000, () -> {
             rig.attempting("dig a shaft down to the ore layer (" + tag + "): the bot did not descend with the shaft");
             // Placing OFF for the descent, and this is the whole difference between a shaft that
-            // sinks and one that does not. A walker permitted to place treats the hole it just dug
+            // sinks and one that does not. A navigator permitted to place treats the hole it just dug
             // as terrain to bridge, and it is carrying dirt from four rungs of digging — so it
             // paves over its own shaft and steps around it.
             WorldConfig.allowPlace = false;
@@ -2032,7 +2032,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     //     owns that. It keeps the rung's failure attributable, by reading the item's own position out
     //     of the world, so a pickup that still fails cannot be blamed on a search.
     //   • best-effort by design: each pickup walk is a JourneyRig#settle, so a drop somewhere the
-    //     walker cannot stand costs one walk rather than the whole rung.
+    //     navigator cannot stand costs one walk rather than the whole rung.
 
     // =====================================================================================
     // 10 — the portal kit. Buckets and a flint-and-steel: the last thing the overworld owes.
@@ -2116,7 +2116,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     private static void gravelForFlintFed(SceneContext ctx, JourneyRig rig, BlockPos gravel) {
         rig.attempting("walk to the dry column above the gravel");
         // Same bounded re-plan the ore rungs use, and this walk is where its absence showed last:
-        // the run finished its iron shaft and set off for gravel 73 blocks away, the walker reported
+        // the run finished its iron shaft and set off for gravel 73 blocks away, the navigator reported
         // done at y=53 — still down the shaft it had just climbed — and the rung called the gravel
         // unreachable. A single drive cannot tell "there is no route" from "I stopped early".
         walkToColumn(rig, "gravel", gravel.getX(), gravel.getZ(), 0, 14_000, () -> {
@@ -2124,7 +2124,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             rig.evidence("gravel.arrivedY", at.getY());
             final int surfaceY = JourneyTerrain.daylightY(rig, at);
             rig.attempting("dig a shaft down to the gravel layer");
-            WorldConfig.allowPlace = false;    // as on the ore rungs: a paving walker will not sink
+            WorldConfig.allowPlace = false;    // as on the ore rungs: a paving navigator will not sink
             JourneyShaft.descendByMining(rig, gravel.getY() + 1, () -> {
                 WorldConfig.allowPlace = true;
                 rig.evidence("gravel.landedY", rig.player().blockPosition().getY());
@@ -2310,7 +2310,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // pool — the one outcome this whole rung is arranged to avoid.
         stepOntoDiggableColumn(rig, dig, lava, surfaceY, MAX_WALK_ATTEMPTS, wetColumns, () -> {
             rig.attempting("dig down " + (rig.player().blockPosition().getY() - (lava.getY() + 1)) + " blocks to the lava level");
-            WorldConfig.allowPlace = false;      // as on every mining rung: a paving walker will not sink
+            WorldConfig.allowPlace = false;      // as on every mining rung: a paving navigator will not sink
             // The same generous cap the PORTAL rung gives its identical descent, and for the reason
             // recorded when that one was added: `shaftAttemptsFor` grants depth*3+20 = 128 for these
             // 36 blocks, and the attempts are eaten by the ticks between "the block broke" and "the
@@ -2406,7 +2406,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * Get the bot onto a column a shaft may actually be sunk in, and prove it before digging.
      *
      * <p>The proof is done against the column the bot is standing on, not the one it was sent to.
-     * Those differ often enough — a walker stops where it can stand — and here the difference is the
+     * Those differ often enough — a navigator stops where it can stand — and here the difference is the
      * whole risk: any column is fine as long as it has been checked and is not the pool's own.
      */
     static void stepOntoDiggableColumn(JourneyRig rig, BlockPos dig, BlockPos lava,
@@ -2515,7 +2515,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // 2026-08-17: three walks, three `shaft.stepping.N` rows all reading `-13, 66, 21 → -8,19`,
         // 3 600 ticks, and about 110 `[pathfinder] search-begin owner=goto start=-13, 66, 21` lines.
         // The searches SUCCEEDED (1.4 s apart, the cadence of `guardPinStreak >= 30 → path = null`);
-        // what the bot could not do was walk, because `[walker] footing guard: sole 0.0000 < 0.18 at
+        // what the bot could not do was walk, because `[navigator] footing guard: sole 0.0000 < 0.18 at
         // -13,66,21 beside a lethal drop → sneak-pin` had it held on the lava crater's lip, and
         // vanilla's sneak refuses every horizontal move that would take a player off its floor.
         //
@@ -2565,7 +2565,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // PRICED OFF THE RIM, like the approach that just ran. `dig` is chosen right beside the
         // pool, so this walk heads TOWARDS the crater — and the wedge comment below is a measurement
         // of what that costs untaxed: `sole 0.0000 < 0.18 at -13,66,21 beside a lethal drop →
-        // sneak-pin`, three walks and about 110 searches from a bot the walker had put on the lip.
+        // sneak-pin`, three walks and about 110 searches from a bot the navigator had put on the lip.
         // The remedy written then was to back off and ask again; the tax is why it would not have
         // been planned there in the first place. Recomputed here rather than passed in, for the
         // reason JourneyTerrain#avoidTheRim gives: the lake this walk passes beside is not the one the
@@ -2590,7 +2590,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                     BlockPos landed = rig.player().blockPosition();
                     double away = Math.hypot(landed.getX() - dig.getX(), landed.getZ() - dig.getZ());
                     rig.evidence("shaft.stepEnd." + attempt,
-                            JourneyLeg.walkerEnd(rig)
+                            JourneyLeg.navigatorEnd(rig)
                                     + "; stopped at " + landed.toShortString() + ", " + String.format(java.util.Locale.ROOT,
                                             "%.0f", away) + " blocks from " + dig.getX() + "," + dig.getZ()
                                     + ", tolerance 0, and this approach needs 0 blocks (the bot must stand on that cell)"

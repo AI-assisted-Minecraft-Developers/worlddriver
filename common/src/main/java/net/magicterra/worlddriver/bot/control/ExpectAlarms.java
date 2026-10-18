@@ -12,17 +12,17 @@ import java.util.List;
 import java.util.Locale;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.bot.control.WalkerGeometry.angleDiff;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.angleDiff;
 
-/** Expectation alarms (walkerExpectAlarm): compare the world's actual response against
+/** Expectation alarms (navigatorExpectAlarm): compare the world's actual response against
  *  what the pressed actions should produce, and WARN with cause the tick they diverge.
  *  Purely observational — reads avatar/player state at the top of tick, never drives.
  *
- *  <p>Carved out of {@link Walker} as a self-contained observer: it owns all the {@code ex*}
- *  sentinel state and never influences movement. {@link Walker} holds one instance and forwards
+ *  <p>Carved out of {@link Navigator} as a self-contained observer: it owns all the {@code ex*}
+ *  sentinel state and never influences movement. {@link Navigator} holds one instance and forwards
  *  {@link #tick} (once per tick when the flag is on), {@link #notePlace} (right after a place
  *  click) and {@link #noteRepathFlip} (on a U-turn route adoption). */
-public final class WalkerExpectAlarms {
+public final class ExpectAlarms {
     /** Total alarms EMITTED (post-throttle) since JVM start — test-visible telemetry so
      *  coverage scenes can assert an alarm actually fired instead of trusting logs
      *  (task#95b). Monotonic; scenes diff before/after. */
@@ -48,13 +48,13 @@ public final class WalkerExpectAlarms {
     /** Note a placement's expected cell for the PLACE-noBlock observer (call right
      *  after {@code a.placeOn(clicked, UP)} with {@code clicked.above()}). */
     public void notePlace(BlockPos cell) {
-        if (!ControlConfig.walkerExpectAlarm) return;
+        if (!ControlConfig.navigatorExpectAlarm) return;
         exPlacePos = cell;
         exPlaceTicksLeft = 8;
     }
 
     /** REPATH-flip: the planner adopted a route whose near-term direction reverses the current
-     *  one. Called (under the walkerExpectAlarm + uTurnLeg guard) when such an adoption happens. */
+     *  one. Called (under the navigatorExpectAlarm + uTurnLeg guard) when such an adoption happens. */
     public void noteRepathFlip(long pfTickCounter, BlockPos foot) {
         if (pfTickCounter - exRepathFlipTick < 200) {
             exRepathFlipCount++;
@@ -242,7 +242,7 @@ public final class WalkerExpectAlarms {
          *  none. Carrying none of it at all is "not crafted yet", a different fact and not this
          *  alarm's business; conflating the two is what made it fire on a bot that was fine.
          *
-         *  <p>Note this feeds the shared {@link WalkerExpectAlarms#FIRED} counter, which scenes diff across an
+         *  <p>Note this feeds the shared {@link ExpectAlarms#FIRED} counter, which scenes diff across an
          *  edge. Today that is safe only because those scenes drive a server-side player, which the
          *  sentinel never samples — a client-side scene doing the same edge trick would see GEAR
          *  ticks bleed into its own.

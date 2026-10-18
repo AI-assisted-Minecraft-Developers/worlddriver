@@ -101,7 +101,7 @@ public final class GotoGoalResolver {
         };
     }
 
-    /** {@code route.requireTool}: the item is somewhere in the inventory. Presence only: the walker
+    /** {@code route.requireTool}: the item is somewhere in the inventory. Presence only: the navigator
      *  equips the best tool per dig itself, and losing it mid-run is not watched. */
     public static boolean carries(Player player, String id) {
         for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {

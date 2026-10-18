@@ -124,7 +124,7 @@ public interface WorldView {
 
     /**
      * Count of placeable (non-falling) blocks the bot carries — the budget for
-     * bridge/pillar/parkour placements. The Walker compares a committed path's
+     * bridge/pillar/parkour placements. The Navigator compares a committed path's
      * placement count against this and, if short, re-searches with placing off so
      * A* digs/routes around instead of bridging partway and stranding (check the block
      * count before bridging, otherwise dig). Default {@link Integer#MAX_VALUE} so a non-inventory view
@@ -183,7 +183,7 @@ public interface WorldView {
     /**
      * Toggled by the time-sliced search around its node-expansion work so a view
      * may memoise blockstate reads for the duration of a slice (the A* static-world
-     * assumption) and serve the Walker's per-tick reads live. Called {@code true}
+     * assumption) and serve the Navigator's per-tick reads live. Called {@code true}
      * at the top of {@link PathFinder.Search#advance} and {@code false} when the
      * slice yields. Default no-op (uncached views ignore it).
      */
@@ -194,7 +194,7 @@ public interface WorldView {
      * share one tick. Every budget {@link PathFinder} has is charged per <em>search</em>
      * or per <em>slice</em>, so none of them can see the shape that actually kills the
      * server: hundreds of individually-cheap searches inside a single tick, because the
-     * scene pump steps the Walker thousands of times before the tick ends. Summing them
+     * scene pump steps the Navigator thousands of times before the tick ends. Summing them
      * needs an origin that survives across searches, and the tick is that origin.
      *
      * <p>Default {@link Long#MIN_VALUE} = "this view has no clock". A view that cannot
@@ -220,7 +220,7 @@ public interface WorldView {
     default double dangerCost(BlockPos foot) { return 0; }
 
     /**
-     * Register a node the Walker could not execute a move at (a steep stepUp it
+     * Register a node the Navigator could not execute a move at (a steep stepUp it
      * keeps sliding off, a pillar it can't ground to place, …) so the NEXT search
      * routes around it instead of re-planning the same dead end. The penalty is
      * soft (added via {@link #dangerCost}) and decays, so a sole route is still
@@ -231,14 +231,14 @@ public interface WorldView {
      * NOTE: this is OUR heuristic, not Baritone's. Baritone's PathExecutor does
      * NOT blacklist on a failed movement — it cancels and replans, relying on
      * robust per-move actuators (MovementAscend/Parkour/…) to rarely fail in the
-     * first place. We add the failure-avoidance because our Walker's steep-climb
+     * first place. We add the failure-avoidance because our Navigator's steep-climb
      * execution is weaker; once it's hardened this can be reduced/removed.
      */
     default void penalizeStuckNode(BlockPos pos) {}
 
     /** True while any {@link #penalizeStuckNode} entries are still live (not yet
      *  decayed). A "no path" with live penalties may be SELF-INFLICTED — the
-     *  Walker can wall itself into a small pocket by penalizing every exit after
+     *  Navigator can wall itself into a small pocket by penalizing every exit after
      *  repeated wedges — so the caller should wait out the decay and retry
      *  instead of failing the goto outright. */
     default boolean hasStuckPenalties() { return false; }
@@ -257,7 +257,7 @@ public interface WorldView {
      * Max full blocks an ascend can rise WITH a jump, from the controlled entity's
      * {@code JUMP_STRENGTH} apex (plus Jump Boost). On foot this is 1 (apex ≈1.25);
      * a strong horse or Jump Boost reaches 2+. Used to gate the +2 ascend move and
-     * to let the Walker abandon (reroute) a step taller than it can ever jump
+     * to let the Navigator abandon (reroute) a step taller than it can ever jump
      * instead of bobbing against it. Default 1 = the on-foot-player assumption.
      */
     default int maxJumpUpBlocks() { return 1; }
@@ -278,7 +278,7 @@ public interface WorldView {
      * Horizontal flow (current) of the fluid at {@code pos}, as a velocity vector
      * (Vec3, y≈0) — vanilla {@code FluidState.getFlow}. Zero for still water / no
      * fluid. The pathfinder uses it to price drift across a current and resistance
-     * heading upstream; the Walker uses it to steer against the push so the actual
+     * heading upstream; the Navigator uses it to steer against the push so the actual
      * line hugs the plan. Default zero (static/headless views don't model flow).
      */
     default Vec3 waterFlow(BlockPos pos) { return Vec3.ZERO; }

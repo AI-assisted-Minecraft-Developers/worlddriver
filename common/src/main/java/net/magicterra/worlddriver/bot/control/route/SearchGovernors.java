@@ -5,13 +5,13 @@ import net.minecraft.core.BlockPos;
 
 /**
  * Search-stage governors (task#96 step B): the unreachable-goal churn guard (gap #49-③)
- * and its kickoff backoff, owned by {@link WalkerTickSearch} (the backoff is honored by
- * {@link WalkerTickRepath}'s kickoff gates). Reset per journey via {@link #reset()}; the
+ * and its kickoff backoff, owned by {@link SearchPhase} (the backoff is honored by
+ * {@link RepathPhase}'s kickoff gates). Reset per journey via {@link #reset()}; the
  * water anti-spin's {@code goalSpin.churnResets} deliberately lives OUTSIDE (it persists
  * across goals — see its field doc).
  *
- * <p>A top-level class rather than a {@code Walker} nested one purely so it can carry its
- * own documentation: Walker.java sits at its 3000-line budget, where every explanatory
+ * <p>A top-level class rather than a {@code Navigator} nested one purely so it can carry its
+ * own documentation: Navigator.java sits at its 3000-line budget, where every explanatory
  * line competes with code for the same allowance.
  */
 public final class SearchGovernors {
@@ -60,7 +60,7 @@ public final class SearchGovernors {
      *  Uses the same &gt;2-block predicate the gate itself uses for {@code moved}, so the two
      *  cannot disagree about whether the bot went anywhere.
      *
-     *  <p>Read by BOTH of {@link WalkerTickRepath}'s kickoff gates: while this holds, no search is
+     *  <p>Read by BOTH of {@link RepathPhase}'s kickoff gates: while this holds, no search is
      *  started at all. {@link #searchBackoffTicks} cannot cover it — the cap branch returns before
      *  arming the backoff, so a latched terminal would otherwise cost a full search every tick. */
     boolean futileLatched(BlockPos foot) {

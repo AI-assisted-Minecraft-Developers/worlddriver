@@ -10,8 +10,8 @@ import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerSettings;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.world.LogWaiver;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -65,10 +65,10 @@ public final class MineProcess implements BotProcess {
     // candidates must price out fast (the 100t no-approach blacklist is the
     // real gate). Full 50k/2s deep searches here only chopped the client
     // (~25 fps for seconds after every block break) and delayed the
-    // blacklist — see WalkerSettings.withSearchBudget.
-    private final Walker walker = new Walker(WalkerSettings.named("mine").withSearchBudget(8_000, 400));
-    /** The approach walker, for its {@link WalkerInspector#tallies()} (the collect walker's are not summed). */
-    public Walker walker() { return walker; }
+    // blacklist — see NavigatorSettings.withSearchBudget.
+    private final Navigator navigator = new Navigator(NavigatorSettings.named("mine").withSearchBudget(8_000, 400));
+    /** The approach navigator, for its {@link NavigatorInspector#tallies()} (the collect navigator's are not summed). */
+    public Navigator navigator() { return navigator; }
     private final Set<BlockPos> blacklist = new HashSet<>();
     private int broken;
     // When the last SEARCH returned no usable target ONLY because every in-range
@@ -129,7 +129,7 @@ public final class MineProcess implements BotProcess {
     // True when currentTarget is a leaf being cleared to open access to a real
     // target (not itself a quota block) — see findClearingTarget.
     private boolean currentTargetClearing;
-    // death#26-followup (07-20 live): per-target no-progress watchdog. The walker
+    // death#26-followup (07-20 live): per-target no-progress watchdog. The navigator
     // never returns FAILED for a log up a sheer DRY face — arc-wedge→fellOffPath just
     // repaths (the known-UNSOLVED steep-dry-climb execution churn, see
     // reference_steep_mountain_limit_cycle_revisit_detection). It rams the wall and
@@ -163,14 +163,14 @@ public final class MineProcess implements BotProcess {
     // magnet vacuum the drops. Capped to avoid backtracking forever.
     private final Deque<BlockPos> recentBreaks = new ArrayDeque<>();
     private int collectTicks;
-    private final Walker collectWalker =   // drops are even nearer
-            new Walker(WalkerSettings.named("mine.collect").withSearchBudget(8_000, 400));
+    private final Navigator collectNavigator =   // drops are even nearer
+            new Navigator(NavigatorSettings.named("mine.collect").withSearchBudget(8_000, 400));
     private BlockPos currentCollectGoal;
-    /** Drop cells the collect walker reported FAILED on. findCollectGoal returns the NEAREST
+    /** Drop cells the collect navigator reported FAILED on. findCollectGoal returns the NEAREST
      *  drop, so without a skip list a single unreachable one is handed back every tick and
      *  shadows every other drop until the collect cap expires. */
     private final Set<BlockPos> unreachableDrops = new HashSet<>();
-    /** What the collect walker last said. Read only by {@link #finish} — a terminal verdict that
+    /** What the collect navigator last said. Read only by {@link #finish} — a terminal verdict that
      *  cannot name the sweep's own behaviour makes the reader guess between three bugs. */
     private Locomotor.Status lastCollectStep;
     /** Re-plans spent on the current collect goal after an ARRIVED that was not at it. */
@@ -180,7 +180,7 @@ public final class MineProcess implements BotProcess {
     private int retiredUnpathable;
     private int retiredArrivedShort;
     /** Mining targets blacklisted this sweep — see {@link #retireTarget}. A different ledger from
-     *  the two above, which count DROPS the collect walker gave up on. */
+     *  the two above, which count DROPS the collect navigator gave up on. */
     private int retiredTargets;
     private int pickupWaitTicks;
     /** Ticks spent standing on an ARRIVED collect goal whose item is still there. */
@@ -317,7 +317,7 @@ public final class MineProcess implements BotProcess {
                 currentFace = t.face;
                 currentTargetClearing = t.clearing();
                 st.mine.target = currentTarget;
-                walker.start(new Goal.Block(t.stand));
+                navigator.start(new Goal.Block(t.stand));
                 phase = Phase.GOING;
                 goingBestDist = Double.MAX_VALUE;      // arm the no-progress watchdog
                 goingStallTicks = 0;
@@ -328,7 +328,7 @@ public final class MineProcess implements BotProcess {
                 // Already standing on the target's stand cell? Then there is nothing
                 // to walk — go straight to breaking. This is the straight-up "mine
                 // the overhead block from directly below" case (stand == our own
-                // foot cell): handing the Walker a zero-length path makes it report
+                // foot cell): handing the Navigator a zero-length path makes it report
                 // FAILED, which would blacklist a perfectly good target. (The normal
                 // side/reach-across stand is a DIFFERENT cell, so this never short-
                 // circuits a real walk.)
@@ -340,9 +340,9 @@ public final class MineProcess implements BotProcess {
                     phase = Phase.BREAKING;
                     return false;
                 }
-                Locomotor.Status s = walker.tick(a, w);
-                st.mine.pathLen = walker.pathLen();
-                st.mine.pathStep = walker.pathStep();
+                Locomotor.Status s = navigator.tick(a, w);
+                st.mine.pathLen = navigator.pathLen();
+                st.mine.pathStep = navigator.pathStep();
                 if (s == Locomotor.Status.FAILED) {
                     // The stand exists geometrically but the bot can't WALK to it.
                     // For a leaf-encased canopy log this is the common case: the only
@@ -357,7 +357,7 @@ public final class MineProcess implements BotProcess {
                         BlockPos foot = blockPosOf(p);
                         Target clear = findClearingTarget(lvl, foot, currentTarget);
                         if (clear != null) {
-                            if (GameConfig.walkerDebug)
+                            if (GameConfig.navigatorDebug)
                                 LOG.info("[mine] stand unreachable for {} -> clear leaf {} (stand {})",
                                         currentTarget, clear.block(), clear.stand());
                             aimAt(clear.block(), lvl);
@@ -365,14 +365,14 @@ public final class MineProcess implements BotProcess {
                             currentFace = clear.face();
                             currentTargetClearing = true;
                             st.mine.target = currentTarget;
-                            walker.start(new Goal.Block(clear.stand()));
+                            navigator.start(new Goal.Block(clear.stand()));
                             phase = Phase.GOING;
                             goingBestDist = Double.MAX_VALUE;   // re-arm for the new (clearing) stand
                             goingStallTicks = 0;
                             return false;
                         }
                     }
-                    retireTarget("the walker reported FAILED and there are no obstructing leaves to clear");
+                    retireTarget("the navigator reported FAILED and there are no obstructing leaves to clear");
                     return false;
                 }
                 if (s.ended()) {
@@ -386,7 +386,7 @@ public final class MineProcess implements BotProcess {
                     phase = Phase.BREAKING;
                 } else if (currentStand != null) {
                     // Still walking — no-progress watchdog (see goingBestDist javadoc).
-                    // The walker repaths forever against an unclimbable dry face rather
+                    // The navigator repaths forever against an unclimbable dry face rather
                     // than reporting FAILED, so track net approach to the stand: a real
                     // walk keeps setting a new closest distance; a churn plateaus, and
                     // after GOING_STALL_TICKS with no fresh approach we give up on this
@@ -561,21 +561,21 @@ public final class MineProcess implements BotProcess {
                     // being changed here, because "it failed on the mine rig" is not evidence
                     // about the combat rig — but the two must not be read as independent
                     // opinions. What would settle it is one reading, taken on the COMBAT sweep:
-                    // eye-to-item distance on the tick the walker reports its terminal, against
+                    // eye-to-item distance on the tick the navigator reports its terminal, against
                     // the ~1.4 magnet radius. Until someone takes it, fix one, look at the other.
-                    collectWalker.start(new Goal.Block(goal));
+                    collectNavigator.start(new Goal.Block(goal));
                 }
-                Locomotor.Status step = collectWalker.tick(a, w);
+                Locomotor.Status step = collectNavigator.tick(a, w);
                 lastCollectStep = step;
                 // Two ways this drop is not going to happen, and both used to be silently ignored:
-                // the walker says it cannot path there, or it says it has ARRIVED and the item is
+                // the navigator says it cannot path there, or it says it has ARRIVED and the item is
                 // still lying there anyway (arrived-but-out-of-reach — a shaft bottom the bot
                 // cannot enter). Either way, stop pouring the budget into it. Without a skip list
                 // findCollectGoal hands back the same nearest drop every tick, so ONE dead drop
                 // used to shadow every reachable one behind it: three ores mined, three drops on
                 // the ground, an empty bag and no error.
                 boolean cannotPath = step == Locomotor.Status.FAILED;
-                // ARRIVED does not mean "at the goal". The walker reports it when the path it
+                // ARRIVED does not mean "at the goal". The navigator reports it when the path it
                 // computed runs out, and when A* cannot reach the goal it returns a best-effort
                 // partial path — so a sweep can report success standing four blocks from the drop
                 // (measured: `retired 2 drop(s): 0 unpathable + 2 arrived-but-short`, distances 4.1
@@ -599,20 +599,20 @@ public final class MineProcess implements BotProcess {
                         || (step.ended() && ++collectStuckTicks > COLLECT_STUCK_TICKS);
                 if (stuck) {
                     collectRepaths = 0;
-                    // Which of the two retired it, counted rather than guessed. "The walker refuses
-                    // to path there" and "the walker believes it has arrived and the item is still
+                    // Which of the two retired it, counted rather than guessed. "The navigator refuses
+                    // to path there" and "the navigator believes it has arrived and the item is still
                     // on the floor" are opposite bugs — one is the pathfinder's move set, the other
                     // is the goal being satisfied short of vanilla's pickup reach — and both end as
                     // an unretrieved drop. wd.serverWalkIntoAPit proves a two-deep pit IS pathable,
-                    // so a FAILED here would mean the collect walker differs from a plain one.
+                    // so a FAILED here would mean the collect navigator differs from a plain one.
                     if (cannotPath) retiredUnpathable++; else retiredArrivedShort++;
                     unreachableDrops.add(goal);
                     currentCollectGoal = null;
                     collectStuckTicks = 0;
                 }
                 st.mine.target = goal;
-                st.mine.pathLen = collectWalker.pathLen();
-                st.mine.pathStep = collectWalker.pathStep();
+                st.mine.pathLen = collectNavigator.pathLen();
+                st.mine.pathStep = collectNavigator.pathStep();
             }
         }
         return false;
@@ -635,7 +635,7 @@ public final class MineProcess implements BotProcess {
             double bestD2 = Double.MAX_VALUE;
             for (var it : items) {
                 BlockPos cell = blockPosOf(it);
-                if (unreachableDrops.contains(cell)) continue;   // the walker already said no
+                if (unreachableDrops.contains(cell)) continue;   // the navigator already said no
                 double d2 = it.distanceToSqr(p);
                 if (d2 < bestD2) { bestD2 = d2; best = cell; }
             }
@@ -693,7 +693,7 @@ public final class MineProcess implements BotProcess {
         st.mine.endReason = reason + " (broke " + broken + "/" + desiredQty
                 + (left > 0 ? ", left " + left + " drop(s) on the ground" : "")
                 // What the sweep was DOING when it ran out of budget. "Left 2 drops" says the
-                // harvest was incomplete; it does not say whether the walker was refusing to
+                // harvest was incomplete; it does not say whether the navigator was refusing to
                 // path, insisting it had arrived, or still searching — three different bugs that
                 // all end with items on the floor, and the count alone sent two investigations
                 // to the wrong file.
@@ -724,7 +724,7 @@ public final class MineProcess implements BotProcess {
      * sweep cannot finish, and the only place that says which door it was.
      *
      * <p>Four call sites used to inline these lines. THREE OF THEM SAID NOTHING AT ALL and the
-     * fourth spoke only behind {@code walkerDebug}, which no journey run sets — so a blacklist,
+     * fourth spoke only behind {@code navigatorDebug}, which no journey run sets — so a blacklist,
      * which is a PERMANENT retirement that immediately re-enters SEARCH, was invisible. That is
      * the loop Q7 measured from the other end: 174 searches with an identical start and goal,
      * {@code owner=mine}, and nothing in the log naming the cell that had just been retired or
@@ -880,7 +880,7 @@ public final class MineProcess implements BotProcess {
         // stand-and-break, return one as a clearing target so mining it opens access.
         if (nearestUnreachable != null) {
             Target clear = findClearingTarget(lvl, foot, nearestUnreachable);
-            if (GameConfig.walkerDebug)
+            if (GameConfig.navigatorDebug)
                 LOG.info("[mine] no direct stand; nearestUnreachable={} -> clearing={}",
                         nearestUnreachable, clear == null ? "null" : clear.block());
             if (clear != null) return clear;
@@ -889,13 +889,13 @@ public final class MineProcess implements BotProcess {
             // whole command aborts "no reachable target" while a pickaxe sits in hand).
             // The stand test only knows the CURRENT world; reachability through
             // diggable cover is the pathfinder's call — every other verb already digs
-            // via the Walker's priced break-route A*. So hand the Walker the
+            // via the Navigator's priced break-route A*. So hand the Navigator the
             // face-adjacent cell nearest the bot as the goal and let it carve the
             // tunnel. A genuinely unreachable ore (out of budget, lava-walled) makes
-            // the Walker FAIL, which blacklists the ore — still a clean abort.
+            // the Navigator FAIL, which blacklists the ore — still a clean abort.
             if (WorldConfig.allowBreak) {
                 Target dig = findDigStand(lvl, foot, nearestUnreachable);
-                if (GameConfig.walkerDebug)
+                if (GameConfig.navigatorDebug)
                     LOG.info("[mine] no clearing leaf; buried target {} -> digStand={}",
                             nearestUnreachable, dig == null ? "null" : dig.stand());
                 if (dig != null) return dig;
@@ -910,7 +910,7 @@ public final class MineProcess implements BotProcess {
                     + BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(toolBlocked).getBlock())
                     + " needs " + toolBlockedTool + " — none held or in inventory";
         }
-        if (GameConfig.walkerDebug)
+        if (GameConfig.navigatorDebug)
             LOG.info("[mine] scan found no target (scanned={} targetHits={} lavaSkips={} toolBlocked={} foot={} r={} vR={})",
                     scanned, targetHits, targetLavaSkips, toolBlocked, foot, r, BehaviorConfig.mineSearchVerticalRadius);
         return null;
@@ -970,7 +970,7 @@ public final class MineProcess implements BotProcess {
                         if (!isLeaf(lvl.getBlockState(lp))) continue;
                         if (lavaTouching(lvl, lp)) continue;
                         BlockPos stand = findStandableAdjacent(lvl, lp, foot.getY());
-                        if (GameConfig.walkerDebug)
+                        if (GameConfig.navigatorDebug)
                             LOG.info("[mine] clearing-candidate leaf {} -> stand {}", lp, stand);
                         if (stand == null) continue;
                         return new Target(lp, stand, faceFromStandToBlock(stand, lp), true);
@@ -989,7 +989,7 @@ public final class MineProcess implements BotProcess {
      * gap#60 — walk goal for a fully buried target: the face-adjacent cell nearest
      * the bot (same-Y cardinals only — the natural tunnel head; above/below stands
      * of an encased ore invite digging past it). The cell is usually SOLID right
-     * now; that's the point — the Walker's break-route A* prices and digs the
+     * now; that's the point — the Navigator's break-route A* prices and digs the
      * approach, and BREAKING then mines the target from a true face-adjacent cell.
      * Fluid-flooded cells are skipped (never send the tunnel head into a pocket).
      */
@@ -1019,7 +1019,7 @@ public final class MineProcess implements BotProcess {
         // what we want, NOT a stand sitting on TOP of an adjacent block at the log's
         // own level (the dy=+1 side case below). Those upper stands are standable
         // but unreachable for a bot on the ground, and returning one as a direct
-        // target makes the Walker fail and blacklist a perfectly mineable log. So
+        // target makes the Navigator fail and blacklist a perfectly mineable log. So
         // for an overhead block, try the reach-from-below stand FIRST; only if it is
         // out of reach / LOS-blocked do we fall through to the side/pillar cases
         // (the genuine climb-the-trunk situations). LOS-blocked here is the
@@ -1030,7 +1030,7 @@ public final class MineProcess implements BotProcess {
             // Reach-from-below is blocked. If a LEAF occludes the straight-up column
             // below the log, return null so the caller's leaf-clearing fallback opens
             // it — rather than falling through to a side/on-top stand a ground bot
-            // can't path to (which makes the Walker drag the bot around, then
+            // can't path to (which makes the Navigator drag the bot around, then
             // blacklist the log). Once the occluding leaf is cleared, reach-from-below
             // returns our own cell and the log is mined straight up. A NON-leaf
             // occlusion (too tall / solid above) still falls through to pillar-up.
@@ -1216,41 +1216,41 @@ public final class MineProcess implements BotProcess {
      *
      * <p>{@code st.mine.lastError} is this process's generic abort text and says the same thing
      * ("no reachable target") for every way the approach can end — the pre-filter never handing over
-     * a goal, the walk failing, the walk arriving somewhere that is not the stand. The walker has
-     * carried the readings that separate those for a while ({@link Walker#result()},
-     * {@link WalkerInspector#progressProbe()}, {@link WalkerInspector#planProbe()}) and their javadoc says they exist
+     * a goal, the walk failing, the walk arriving somewhere that is not the stand. The navigator has
+     * carried the readings that separate those for a while ({@link Navigator#result()},
+     * {@link NavigatorInspector#progressProbe()}, {@link NavigatorInspector#planProbe()}) and their javadoc says they exist
      * to be embedded in a failure — but they are package-private-adjacent state on a private field,
      * so no scene could reach them and {@code wd.buriedOre} has been failing on the bare abort text.
      *
-     * <p>Deliberately one STRING and not the walker itself: a scene must not be able to steer the
-     * process's walker, and the log stream drops lines under end-of-suite load, so the value of
+     * <p>Deliberately one STRING and not the navigator itself: a scene must not be able to steer the
+     * process's navigator, and the log stream drops lines under end-of-suite load, so the value of
      * these readings is that they land in {@code results.jsonl} beside the verdict.
      */
     public String approachProbe() {
         return "phase=" + phase + " broken=" + broken + "/" + desiredQty
                 + " target=" + currentTarget + " stand=" + currentStand
-                + " endReason=" + walker.result().endReason()
-                + " goalReached=" + walker.result().goalReached()
-                + " finalDist=" + String.format(java.util.Locale.ROOT, "%.3f", walker.result().finalDist())
-                + " goalSnapped=" + walker.result().goalSnapped()
-                + " walkerErr=" + walker.result().reason()
-                + " | " + walker.inspect().progressProbe()
-                + " | " + walker.inspect().planProbe();
+                + " endReason=" + navigator.result().endReason()
+                + " goalReached=" + navigator.result().goalReached()
+                + " finalDist=" + String.format(java.util.Locale.ROOT, "%.3f", navigator.result().finalDist())
+                + " goalSnapped=" + navigator.result().goalSnapped()
+                + " navigatorErr=" + navigator.result().reason()
+                + " | " + navigator.inspect().progressProbe()
+                + " | " + navigator.inspect().planProbe();
     }
 
     /**
      * {@link #approachProbe}'s world-side companion: the same plan, but every node read against the
-     * blocks that are actually there — see {@link WalkerInspector#planCellAudit} for what the three cells per
+     * blocks that are actually there — see {@link NavigatorInspector#planCellAudit} for what the three cells per
      * node separate (plan wants the feet in stone / node is legal but unreachable / node has no
      * floor).
      *
      * <p>A separate call rather than a suffix on {@code approachProbe} because it needs a level and
      * that probe deliberately takes none — its callers include paths with no level in hand. Same
-     * one-string, no-walker-handle rule as its sibling: a scene must be able to READ this walker's
+     * one-string, no-navigator-handle rule as its sibling: a scene must be able to READ this navigator's
      * plan without being able to steer it.
      */
     public String approachPlanAudit(BlockGetter lvl) {
-        return walker.inspect().planCellAudit(lvl);
+        return navigator.inspect().planCellAudit(lvl);
     }
 
     /** A reachable mining target: the block + adjacent stand position + face direction.

@@ -10,8 +10,8 @@ import java.util.Set;
 
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 
 /**
  * Hands each {@link Channel} to one {@link Controller} per tick: the highest-priority one that is running
@@ -41,8 +41,8 @@ public final class Arbiter {
     }
 
     /** One tick of the lifecycle; returns the channels taken this tick. */
-    public Set<Channel> tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
-        for (Controller c : controllers) c.sense(wk, cx, world);
+    public Set<Channel> tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
+        for (Controller c : controllers) c.sense(nav, cx, world);
         EnumSet<Channel> taken = EnumSet.noneOf(Channel.class);
         Arrays.fill(owner, null);
         for (int i = 0; i < controllers.size(); i++) {
@@ -50,17 +50,17 @@ public final class Arbiter {
             Controller holder = holderOf(c, taken);
             if (running[i]) {
                 if (holder != null) stop(i, "preempted by " + holder.name());
-                else if (!c.canContinue(wk, cx, world)) stop(i, "cannot continue");
+                else if (!c.canContinue(nav, cx, world)) stop(i, "cannot continue");
                 else if (ranTicks[i] >= c.maxTicks()) stop(i, "ran its " + c.maxTicks() + " ticks");
             }
             if (!running[i]) {
                 if (holder != null) { idleWhy[i] = "channel held by " + holder.name(); continue; }
-                String why = c.whyNot(wk, cx, world);
+                String why = c.whyNot(nav, cx, world);
                 if (why != null) { idleWhy[i] = why; continue; }
                 running[i] = true;
                 ranTicks[i] = 0;
             }
-            if (!c.tick(wk, cx, a, world)) { stop(i, "let go"); continue; }
+            if (!c.tick(nav, cx, a, world)) { stop(i, "let go"); continue; }
             ranTicks[i]++;
             for (Channel ch : c.channels()) owner[ch.ordinal()] = c;
             taken.addAll(c.channels());

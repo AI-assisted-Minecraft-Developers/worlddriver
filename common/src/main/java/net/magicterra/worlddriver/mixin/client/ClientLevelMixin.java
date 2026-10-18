@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * Logs a client-side block change into {@link BlockChanges}: every server block update the client applies
- * passes through here on its way to the renderer, so a walker driving a client body hears about the same
+ * passes through here on its way to the renderer, so a navigator driving a client body hears about the same
  * changes a server-side one does.
  */
 @Mixin(ClientLevel.class)

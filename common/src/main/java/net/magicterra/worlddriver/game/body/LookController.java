@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Single chokepoint that rate-limits ALL bot camera motion so the view can never
  * snap — the AIRI live-stream requirement ("no meaningless camera jumps"). Every
- * actuator (Walker, AutoSwim, the bunker/build/farm processes, the reflexes, …)
+ * actuator (Navigator, AutoSwim, the bunker/build/farm processes, the reflexes, …)
  * writes the player's rotation as usual; {@link #apply} runs ONCE per client tick
  * <em>after</em> all of them and clamps this tick's net yaw/pitch change to
  * {@link GameConfig#cameraSlewDegPerTick} / {@link GameConfig#cameraPitchSlewDegPerTick}.
@@ -49,7 +49,7 @@ public final class LookController {
      *
      *  <p>That makes the WIND row below say something other than what it looks like: with
      *  no reset, {@code turns} / {@code netDrift} / {@code ticks} accumulate from the first
-     *  tick {@code walkerDebug} was ever on, for the life of the JVM. A row read against
+     *  tick {@code navigatorDebug} was ever on, for the life of the JVM. A row read against
      *  one walk, one rung or one replay is answering a question about the whole session —
      *  the instrument is fine, the window is not the one a reader assumes. Correlate it by
      *  DIFFERENCING two rows, never by taking one row's value.
@@ -59,7 +59,7 @@ public final class LookController {
      *  by zeroing the window of every other reader at the same time — two walks, two rungs or a
      *  scene and a replay reading at once would silently truncate each other, and the corruption
      *  looks exactly like a short quiet stretch. {@code futileGateBuckets} met this and chose
-     *  differencing for that reason; {@code WalkerCensus} is the same shape again. A reader that
+     *  differencing for that reason; {@code NavigatorCensus} is the same shape again. A reader that
      *  takes its own baseline costs one extra row and gets in nobody's way, so the rule for every
      *  process-wide counter here is: <em>the reader brings a baseline, the counter never rewinds.</em>
      *
@@ -87,7 +87,7 @@ public final class LookController {
         snapThisTick = false;
         // GROUND TRUTH of the RENDERED camera: a snap that jumps the view >=30° this tick is
         // exactly what the video sees (and what walk-keys, captured pre-apply, cannot show).
-        if (GameConfig.walkerDebug && havePrev) {
+        if (GameConfig.navigatorDebug && havePrev) {
             float rd = Math.abs(Mth.degreesDifference(prevYaw, yaw));
             if (rd >= 30f)
                 LOG.info("[lookctrl] RENDER {} dyaw={} {}->{}",
@@ -122,7 +122,7 @@ public final class LookController {
         }
         // WINDING: accumulate the rendered camera's net rotation. A smooth multi-turn spin (no
         // single snap) still reads as spinning — this is what per-tick snap-counting missed.
-        if (GameConfig.walkerDebug) {
+        if (GameConfig.navigatorDebug) {
             if (windHavePrev) {
                 float d = Mth.degreesDifference(windPrev, rendered);
                 windCumAbs += Math.abs(d); windUnwrapped += d;

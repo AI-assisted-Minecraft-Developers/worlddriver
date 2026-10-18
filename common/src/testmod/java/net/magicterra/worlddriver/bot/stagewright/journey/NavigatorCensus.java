@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
-import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
+import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
 
 /**
  * The EXECUTOR's side of a rung, as a delta against the rig that owns it — the counterpart to
@@ -33,13 +33,13 @@ import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
  * <p><b>Nothing here branches on anything.</b> These counters are write-only breadcrumbs and
  * their own docs require that; this class only says what they hold.
  */
-final class WalkerCensus {
+final class NavigatorCensus {
 
     /** The counters this row reports, read at one instant; all zero before the run has a bot. */
     private record Counts(int fires, long[] skips, int repaths, int keptPlans, int pinnedNoPlan) {
         static Counts now() {
-            WalkerTelemetry t = JourneyRig.walkerTelemetry();
-            long[] skips = new long[WalkerTelemetry.STRIDE_SKIP_REASONS.length];
+            NavigatorTelemetry t = JourneyRig.navigatorTelemetry();
+            long[] skips = new long[NavigatorTelemetry.STRIDE_SKIP_REASONS.length];
             if (t == null) return new Counts(0, skips, 0, 0, 0);
             for (int i = 0; i < skips.length; i++) skips[i] = t.strideGuardSkips.get(i);
             return new Counts(t.strideGuardFires, skips, t.guardForcedRepaths, t.guardKeptPlans, t.guardPinnedWithNoPlan);
@@ -59,17 +59,17 @@ final class WalkerCensus {
      * ({@code SearchGovernors} names the footing guard and the recovery hop), and the next round
      * should instrument those instead of re-reading this one.
      *
-     * <p>The two walker traces at the tail are instantaneous, not deltas, and they are labelled as
-     * such: they are whatever the bot's walker last did, which on a rung that ends while still
+     * <p>The two navigator traces at the tail are instantaneous, not deltas, and they are labelled as
+     * such: they are whatever the bot's navigator last did, which on a rung that ends while still
      * ticking is this rung's last tick, and on a rung that stopped ticking early is somebody else's.
      * The row must not be quoted as this rung's without checking that.
      */
     String line() {
         Counts now = Counts.now();
-        WalkerTelemetry t = JourneyRig.walkerTelemetry();
+        NavigatorTelemetry t = JourneyRig.navigatorTelemetry();
         long skipSum = 0;
         StringBuilder sb = new StringBuilder();
-        String[] names = WalkerTelemetry.STRIDE_SKIP_REASONS;
+        String[] names = NavigatorTelemetry.STRIDE_SKIP_REASONS;
         for (int i = 0; i < names.length; i++) {
             long v = now.skips()[i] - atStart.skips()[i];
             skipSum += v;
@@ -86,7 +86,7 @@ final class WalkerCensus {
                 + ", pinned at the limit with the plan still advancing "
                 + (now.keptPlans() - atStart.keptPlans())
                 + ", pinned at the limit with no plan " + (now.pinnedNoPlan() - atStart.pinnedNoPlan())
-                + "; walker's last tick (shared across the whole playthrough; when this rung is not"
+                + "; navigator's last tick (shared across the whole playthrough; when this rung is not"
                 + " ticking it is another rung's)=" + (t == null ? "no bot yet" : t.lastTickTrace)
                 + "; last tick with support underfoot=" + (t == null ? "no bot yet" : t.lastSupportedTrace);
     }

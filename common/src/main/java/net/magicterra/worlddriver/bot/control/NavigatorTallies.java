@@ -4,16 +4,16 @@ import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.minecraft.core.BlockPos;
 
 /**
- * Monotonic per-{@link Walker} event counts — a caller that wants a window takes the difference.
- * One walker's, where {@link WalkerTelemetry} is every walker that drove a body: a process reading
- * what ITS walk did wants this one. Written on the walker's tick thread, read from wherever a scene
+ * Monotonic per-{@link Navigator} event counts — a caller that wants a window takes the difference.
+ * One navigator's, where {@link NavigatorTelemetry} is every navigator that drove a body: a process reading
+ * what ITS walk did wants this one. Written on the navigator's tick thread, read from wherever a scene
  * runs, so the fields are volatile; a reader sees a value at most one tick stale.
  *
  * <ul>
  *   <li>{@link #searches} — deep searches that finished (a replan is one more of these);</li>
  *   <li>{@link #recoveryHops} — entries into the stuck-wiggle window where the hop was allowed
- *       to fire ({@link Walker#wiggleHop}), not ticks spent airborne;</li>
- *   <li>{@link #digs} — distinct cells the walker drove a dig at ({@link WalkerDig#avatarDig}):
+ *       to fire ({@link Navigator#wiggleHop}), not ticks spent airborne;</li>
+ *   <li>{@link #digs} — distinct cells the navigator drove a dig at ({@link Digging#avatarDig}):
  *       a dig held across ticks on one cell is one dig, and the same cell dug again after another
  *       cell is a second.</li>
  * </ul>
@@ -22,12 +22,12 @@ import net.minecraft.core.BlockPos;
  * a process that judges route events reads the result the counter just ticked for, and the
  * search it came from is what prices the taxes ({@code Search.taxTotals}) along it.
  */
-public final class WalkerTallies {
+public final class NavigatorTallies {
     public volatile int searches;
     public volatile int recoveryHops;
     public volatile int digs;
     private volatile BlockPos lastDigCell;
-    /** The result of the deep search {@link #searches} last counted, before any walker post-processing. */
+    /** The result of the deep search {@link #searches} last counted, before any navigator post-processing. */
     public volatile PathFinder.Result lastResult;
     /** The finished search that produced {@link #lastResult}. */
     public volatile PathFinder.Search lastSearch;

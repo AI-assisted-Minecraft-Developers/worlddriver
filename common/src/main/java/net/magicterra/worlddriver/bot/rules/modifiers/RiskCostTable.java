@@ -21,7 +21,7 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  *
  * <p>Offline, 3.6k pathArchive replays were distilled into a lookup table
  * (ml/costmodel/export_table.py): for a handful of historically diseased move
- * families (swim*, bridgePlace, parkour*), the probability that the walker
+ * families (swim*, bridgePlace, parkour*), the probability that the navigator
  * stalls within 60 ticks of executing that move in a given local terrain
  * pattern (reduced-feature LightGBM, AUC 0.85; the full-feature model reads
  * 0.93 and independently reproduces the hand-debugged disease archive:

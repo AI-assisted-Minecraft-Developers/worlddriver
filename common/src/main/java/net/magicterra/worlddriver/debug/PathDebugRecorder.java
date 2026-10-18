@@ -37,7 +37,7 @@ public final class PathDebugRecorder implements PathTrace {
 
     private final List<PathSession.Candidate> candidates = new ArrayList<>();
     private final List<PathSession.PlannedRoute> plannedRoutes = new ArrayList<>();
-    private final ArrayDeque<WalkerSample> trajectory = new ArrayDeque<>();
+    private final ArrayDeque<NavigatorSample> trajectory = new ArrayDeque<>();
     private Outcome outcome;
     private String reason;
 
@@ -92,7 +92,7 @@ public final class PathDebugRecorder implements PathTrace {
     }
 
     @Override
-    public void onWalkerTick(WalkerSample sample) {
+    public void onNavigatorTick(NavigatorSample sample) {
         if (!ControlConfig.pathDebug) return;
         synchronized (lock) {
             int cap = Math.max(100, BotConfig.pathDebugMaxSamples);

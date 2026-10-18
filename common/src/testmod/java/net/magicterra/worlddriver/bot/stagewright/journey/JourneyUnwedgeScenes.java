@@ -235,7 +235,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowPlace = true;
         WorldConfig.allowBreak = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         // The flight is a static of the ladder's own code. A gate scene that left one behind would
@@ -277,7 +277,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         // Server BotState, and CORRECT here — do not "fix" this to JourneyRig.slot. This arm drives
         // its own isolated driver with driver.runProcess + driver.tick(), so the server's BotState is
         // the one the process writes, whatever topology the suite is on. There is no rig and no helm
-        // to route to. Same for JourneyLeg.walkerEnd, which the A/B scenes share.
+        // to route to. Same for JourneyLeg.navigatorEnd, which the A/B scenes share.
         Run r = new Run(start.getY(), end.getY(), end.getX() - start.getX(),
                 end.getZ() - start.getZ(), before - carrying(fp), t,
                 driver.botState().builder.lastError);

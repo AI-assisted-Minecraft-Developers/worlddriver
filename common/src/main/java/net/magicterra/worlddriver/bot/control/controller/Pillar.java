@@ -17,11 +17,11 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.entity.LivingEntity;
 
 import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.hasPendingEdge;
-import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
-import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerGeometry;
-import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 
 /**
  * Raising the bot one block at a time by jumping and filling the cell its feet just left: a planned
@@ -65,33 +65,33 @@ public final class Pillar implements Controller {
      * Place a block into {@code cell} — the cell the feet are rising out of — on the top face of the block
      * below it, once the feet are clear of it. Vanilla's entity-collision check (Level#isUnobstructed)
      * silently rejects the block while the bot's box still overlaps the cell, i.e. until the feet reach the
-     * cell's top face ({@link WalkerGeometry#feetClearOf}). A vanilla jump (peak ~+1.25) only crosses +1.0
+     * cell's top face ({@link NavigatorGeometry#feetClearOf}). A vanilla jump (peak ~+1.25) only crosses +1.0
      * around tick 4, so a fixed 3-tick delay fired at ~+0.99 and the place no-op'd against the bot's own
      * box. Gate on real height. True when the click was made.
      */
-    private static boolean placeRung(Walker wk, WorldView world, LivingEntity p, BlockPos cell) {
-        if (!WalkerGeometry.feetClearOf(p, cell) || world.isSolid(cell)) return false;
-        wk.blocks.placeOn(cell.below(), Direction.UP);
-        wk.exAlarms.notePlace(cell);
+    private static boolean placeRung(Navigator nav, WorldView world, LivingEntity p, BlockPos cell) {
+        if (!NavigatorGeometry.feetClearOf(p, cell) || world.isSolid(cell)) return false;
+        nav.blocks.placeOn(cell.below(), Direction.UP);
+        nav.exAlarms.notePlace(cell);
         return true;
     }
 
-    @Override public void sense(Walker wk, WalkerTickCtx cx, WorldView world) {
+    @Override public void sense(Navigator nav, TickCtx cx, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
-        edge = wk.route.edgeAt(wk.route.step());
-        armRecovery(wk, p, foot, world);
+        edge = nav.route.edgeAt(nav.route.step());
+        armRecovery(nav, p, foot, world);
         // Standing on the filled rung ends the recovery; a further rung re-armed it on the new foot
         // above. The latch used to run out its ticks here, jumping in place and re-placing into the
         // full cell (live R1 cliff 1390,82,-520: ~12 ticks of refused places, every run).
-        if (wk.pillar.recoverLatch > 0 && wk.pillar.recoverCell != null && p.onGround()
-                && p.getY() >= wk.pillar.recoverCell.getY() + 1.0 - 1e-3) wk.pillar.recoverLatch = 0;
+        if (nav.pillar.recoverLatch > 0 && nav.pillar.recoverCell != null && p.onGround()
+                && p.getY() >= nav.pillar.recoverCell.getY() + 1.0 - 1e-3) nav.pillar.recoverLatch = 0;
         boolean pillarEdge = edge != null && "pillarUp".equals(edge.move);
         if (pillarEdge && hasPendingEdge(world, edge)) mode = Mode.PLANNED;
         // Pillar placed but the bot is still rising onto it: hold (no horizontal walk) until grounded at
         // the new level, so it doesn't walk off the fresh block mid-jump.
-        else if (pillarEdge && !(p.onGround() && p.getY() >= wk.route.path().get(wk.route.step()).getY() - 0.1)) mode = Mode.SETTLE;
-        else if (wk.pillar.recoverLatch > 0 && wk.pillar.recoverCell != null) mode = Mode.RECOVER;
+        else if (pillarEdge && !(p.onGround() && p.getY() >= nav.route.path().get(nav.route.step()).getY() - 0.1)) mode = Mode.SETTLE;
+        else if (nav.pillar.recoverLatch > 0 && nav.pillar.recoverCell != null) mode = Mode.RECOVER;
         else mode = Mode.NONE;
     }
 
@@ -111,47 +111,47 @@ public final class Pillar implements Controller {
      * <p>holdPillarBlock (not world.canPlace): the recovery places on the solid rung below the grounded foot,
      * so supported sand and gravel work here.
      */
-    private static void armRecovery(Walker wk, LivingEntity p, BlockPos foot, WorldView world) {
-        Move.Edge edge = wk.route.edgeAt(wk.route.step());
-        BlockPos wp = wk.route.path().get(wk.route.step());
+    private static void armRecovery(Navigator nav, LivingEntity p, BlockPos foot, WorldView world) {
+        Move.Edge edge = nav.route.edgeAt(nav.route.step());
+        BlockPos wp = nav.route.path().get(nav.route.step());
         boolean parkourEdge = edge != null && edge.move != null && edge.move.startsWith("parkour");
         int upDy = wp.getY() - foot.getY();
         boolean needJumpForStep = upDy >= 1 && upDy > world.maxStepUpBlocks();
         boolean overJump = needJumpForStep && upDy > world.maxJumpUpBlocks() && p.onGround() && !p.isInWater()
                 && edge != null && !"pillarUp".equals(edge.move) && !parkourEdge && !isDescentEdge(edge);
-        if (overJump) wk.stuckTicks += 3;
+        if (overJump) nav.stuckTicks += 3;
         boolean diagUp = upDy >= 1 && wp.getX() != foot.getX() && wp.getZ() != foot.getZ()
                 && !parkourEdge && !p.isInWater();
         boolean slowDiagUpPillar = "diagUp".equals(edge != null ? edge.move : null)
                 && diagUp && upDy == 1 && p.onGround() && !p.isInWater()
-                && wk.progress.stepProg.noStepProgressTicks > DIAGUP_PILLAR_TICKS;
-        if ((overJump || slowDiagUpPillar) && WorldConfig.allowPlace && wk.equipment.holdPillarBlock()) {
-            wk.pillar.recoverLatch = PILLAR_RECOVER_TICKS;
-            wk.pillar.recoverCell = foot;                 // grounded feet cell = the rung we fill
+                && nav.progress.stepProg.noStepProgressTicks > DIAGUP_PILLAR_TICKS;
+        if ((overJump || slowDiagUpPillar) && WorldConfig.allowPlace && nav.equipment.holdPillarBlock()) {
+            nav.pillar.recoverLatch = PILLAR_RECOVER_TICKS;
+            nav.pillar.recoverCell = foot;                 // grounded feet cell = the rung we fill
         }
     }
 
-    @Override public String whyNot(Walker wk, WalkerTickCtx cx, WorldView world) {
+    @Override public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
         return mode == Mode.NONE ? "no pillar to climb" : null;
     }
 
-    @Override public boolean canContinue(Walker wk, WalkerTickCtx cx, WorldView world) {
+    @Override public boolean canContinue(Navigator nav, TickCtx cx, WorldView world) {
         return mode != Mode.NONE;
     }
 
-    @Override public boolean tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    @Override public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         switch (mode) {
-            case PLANNED -> planned(wk, a, world, p, foot);
+            case PLANNED -> planned(nav, a, world, p, foot);
             case SETTLE -> {
-                wk.blocks.breakHold(false);
-                wk.actionTicks = 0;
+                nav.blocks.breakHold(false);
+                nav.actionTicks = 0;
                 Keys.forward(a, false);
-                wk.keys.jump(a, false);
+                nav.keys.jump(a, false);
                 p.setSprinting(false);
             }
-            case RECOVER -> recover(wk, a, world, p);
+            case RECOVER -> recover(nav, a, world, p);
             case NONE -> { return false; }
         }
         return true;
@@ -171,14 +171,14 @@ public final class Pillar implements Controller {
      * at the apex. Distinct from the route's general place because it owns the airborne timing (a block
      * cannot go into the cell the bot is standing in).
      */
-    private void planned(Walker wk, Body a, WorldView world, LivingEntity p, BlockPos foot) {
+    private void planned(Navigator nav, Body a, WorldView world, LivingEntity p, BlockPos foot) {
         // Off-column guard (pillarUp-off-column wedge, see PILLAR_ALIGN_SQ): the pillar is
         // placed below the bot and it jumps in place, so it only lands the bot a level up
         // when standing over the column. If climb-drift left the bot to the side, WALK to
         // the column XZ first (no place/jump) — once within PILLAR_ALIGN_SQ the normal
         // pillar below engages. Self-recovering: a blocked approach rams → noStepProgress
         // climbs → the fellOffPath/repath path re-routes, so this can't deadlock.
-        BlockPos pcol = wk.route.path().get(wk.route.step());
+        BlockPos pcol = nav.route.path().get(nav.route.step());
         double pcdx = (pcol.getX() + 0.5) - p.getX();
         double pcdz = (pcol.getZ() + 0.5) - p.getZ();
         // DRY pillars only: a buoyant/water pillar bobs and drifts off-column BY DESIGN and
@@ -193,42 +193,42 @@ public final class Pillar implements Controller {
         if (p.onGround() && !nearWater && pcdx * pcdx + pcdz * pcdz > PILLAR_ALIGN_SQ) {
             float ayaw = (float) Math.toDegrees(Math.atan2(-pcdx, pcdz));
             float dyaw = angleDiff(p.getYRot(), ayaw);
-            if (Math.abs(dyaw) > WALKER_MAX_YAW_SLEW_DEG) dyaw = Math.copySign(WALKER_MAX_YAW_SLEW_DEG, dyaw);
+            if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
             float ny = p.getYRot() + dyaw;
             p.setYRot(ny); p.yHeadRot = ny; p.yBodyRot = ny;
             p.setXRot(0f);
-            wk.blocks.breakHold(false);
+            nav.blocks.breakHold(false);
             p.setSprinting(false);
             Keys.forward(a, true);
-            if (p.horizontalCollision) wk.jumpTag = "riserHop";
-            wk.keys.jump(a, p.horizontalCollision);   // hop only to clear a riser; flat-smooth otherwise
+            if (p.horizontalCollision) nav.jumpTag = "riserHop";
+            nav.keys.jump(a, p.horizontalCollision);   // hop only to clear a riser; flat-smooth otherwise
             return;
         }
         Keys.forward(a, false);
         p.setSprinting(false);
-        wk.totalTicks = 0;
-        wk.stuckTicks = 0;   // pillaring stays on one cell while placing — not "stuck"
-        if (wk.route.step() != wk.pillar.edgeStep) { wk.pillar.edgeStep = wk.route.step(); wk.pillar.sinceJump = -1; }
-        if (++wk.actionTicks > ControlConfig.breakTimeoutTicks) {
-            wk.blocks.breakHold(false);
-            wk.keys.jump(a, false);
-            wk.error = "pillar stalled at " + wk.route.path().get(wk.route.step());
-            wk.route.drop(wk.error);
+        nav.totalTicks = 0;
+        nav.stuckTicks = 0;   // pillaring stays on one cell while placing — not "stuck"
+        if (nav.route.step() != nav.pillar.edgeStep) { nav.pillar.edgeStep = nav.route.step(); nav.pillar.sinceJump = -1; }
+        if (++nav.actionTicks > ControlConfig.breakTimeoutTicks) {
+            nav.blocks.breakHold(false);
+            nav.keys.jump(a, false);
+            nav.error = "pillar stalled at " + nav.route.path().get(nav.route.step());
+            nav.route.drop(nav.error);
             return;
         }
         for (BlockPos b : edge.toBreak) {
             if (world.isSolid(b)) {
-                wk.keys.jump(a, false);
-                wk.equipment.selectTool(b);
-                if (WalkerDig.bailOnBreathInfeasibleDig(wk, a, p, b)) return;
+                nav.keys.jump(a, false);
+                nav.equipment.selectTool(b);
+                if (Digging.bailOnBreathInfeasibleDig(nav, a, p, b)) return;
                 world.signals().digging = true;
                 // Claim, aim and drive all live inside avatarDig: digging `b` first and claiming it
                 // afterwards drove a cell another phase already held.
-                WalkerDig.avatarDig(wk, a, b, false);
+                Digging.avatarDig(nav, a, b, false);
                 return;
             }
         }
-        wk.blocks.breakHold(false);
+        nav.blocks.breakHold(false);
         // Buoyant pillar — the bot is rising out of water. Two sub-cases:
         //   (a) FLOODED shaft (the destination cell is itself water): just hold
         //       jump and FLOAT up through it; water follows up so the next
@@ -241,7 +241,7 @@ public final class Pillar implements Controller {
         //       lift it is grounded and the normal dry pillar climbs the rest.
         // Detect water from the world (cell below is water), not p.isInWater(),
         // which flickers false at the bob peak and would drop the jump.
-        // Water-SURFACE shaft (walkerPillarSurfacePlace): the destination cell is
+        // Water-SURFACE shaft (navigatorPillarSurfacePlace): the destination cell is
         // water but the cell ABOVE it is air — this is the water-bank climb-out,
         // not a flooded chimney. Floating higher is physically impossible (rig
         // 371.5,62,348.5: jump+buoyancy bob ceiling 63.08 vs the 63.9 the flooded-
@@ -259,41 +259,41 @@ public final class Pillar implements Controller {
         // not for different luck; this one holds throwaway full cubes and 1.0 is
         // its real boundary. See crestClearOf for the whole argument.
         //
-        // That carve-out lives in floodedShaft() because WalkerTickProgress has
+        // That carve-out lives in floodedShaft() because ProgressPhase has
         // to reach the same answer; when it was written here only, Progress kept
         // calling this cell a float and advanced the pointer off an unplaced support.
-        boolean shaftFlooded = WalkerGeometry.floodedShaft(world, wk.route.path().get(wk.route.step()));
-        if (shaftFlooded || p.isInWater() || world.isWater(wk.route.path().get(wk.route.step()).offset(0, -1, 0))) {
-            wk.keys.jump(a, true);
+        boolean shaftFlooded = NavigatorGeometry.floodedShaft(world, nav.route.path().get(nav.route.step()));
+        if (shaftFlooded || p.isInWater() || world.isWater(nav.route.path().get(nav.route.step()).offset(0, -1, 0))) {
+            nav.keys.jump(a, true);
             // gap#81: routine pillar/scaffold filler must not spend gathered wood.
-            if (!shaftFlooded && wk.equipment.holdThrowawayPlaceable()) {
+            if (!shaftFlooded && nav.equipment.holdThrowawayPlaceable()) {
                 p.setXRot(89.5f);                       // look down to aim the support
-                placeRung(wk, world, p, edge.toPlace.get(0));   // once bobbed clear of the place cell
+                placeRung(nav, world, p, edge.toPlace.get(0));   // once bobbed clear of the place cell
             }
             return;
         }
-        if (!wk.equipment.holdPlaceable()) {
-            wk.error = "pillar: no placeable block in hotbar";
-            wk.route.drop(wk.error);
+        if (!nav.equipment.holdPlaceable()) {
+            nav.error = "pillar: no placeable block in hotbar";
+            nav.route.drop(nav.error);
             return;
         }
         BlockPos place = edge.toPlace.get(0);                    // cell we fill (old feet cell)
         p.setXRot(89.5f);                                        // look straight down (snap)
         if (p.onGround()) {
-            wk.keys.jump(a, true);
-            wk.pillar.sinceJump = 0;
+            nav.keys.jump(a, true);
+            nav.pillar.sinceJump = 0;
         } else {
-            wk.keys.jump(a, false);
-            if (wk.pillar.sinceJump >= 0) wk.pillar.sinceJump++;
-            if (wk.pillar.sinceJump >= PILLAR_PLACE_DELAY) placeRung(wk, world, p, place);
+            nav.keys.jump(a, false);
+            if (nav.pillar.sinceJump >= 0) nav.pillar.sinceJump++;
+            if (nav.pillar.sinceJump >= PILLAR_PLACE_DELAY) placeRung(nav, world, p, place);
         }
     }
 
     /** One tick of the recovery pillar: clear the ceiling, jump off the rung, fill it on the way up. */
-    private static void recover(Walker wk, Body a, WorldView world, LivingEntity p) {
-        wk.pillar.recoverLatch--;
-        wk.actionTicks = 0;   // no planned edge action is running, so its timeout starts over
-        wk.blocks.breakHold(false);
+    private static void recover(Navigator nav, Body a, WorldView world, LivingEntity p) {
+        nav.pillar.recoverLatch--;
+        nav.actionTicks = 0;   // no planned edge action is running, so its timeout starts over
+        nav.blocks.breakHold(false);
         Keys.forward(a, false);
         p.setSprinting(false);
         Keys.sneak(a, false);
@@ -307,22 +307,22 @@ public final class Pillar implements Controller {
         // DELIBERATELY on the global allowBreak switch, NOT mayBreak(): this is the
         // anti-suffocation safety dig, and it is EXEMPT from per-goto forbidDig — suffocation is
         // death, forbidDig is only a navigation preference, so safety wins over the constraint.
-        BlockPos recCeiling = WorldConfig.allowBreak ? recoverCeiling(wk, p) : null;
+        BlockPos recCeiling = WorldConfig.allowBreak ? recoverCeiling(nav, p) : null;
         if (recCeiling != null) {
-            wk.keys.jump(a, false);
+            nav.keys.jump(a, false);
             // Preempting: suffocation is death, a navigation claim is a preference. The other
-            // six walker digs queue behind whoever holds the slot; this one takes it.
-            WalkerDig.avatarDigPreempt(wk, a, recCeiling, true);
+            // six navigator digs queue behind whoever holds the slot; this one takes it.
+            Digging.avatarDigPreempt(nav, a, recCeiling, true);
             return;
         }
-        wk.blocks.breakHold(false);
+        nav.blocks.breakHold(false);
         p.setXRot(89.5f);                         // look straight down to aim the support
         if (p.onGround()) {
-            wk.jumpTag = "pillarRecoverRung";
-            wk.keys.jump(a, true);     // jump off the current rung
+            nav.jumpTag = "pillarRecoverRung";
+            nav.keys.jump(a, true);     // jump off the current rung
         } else {
-            wk.keys.jump(a, false);
-            placeRung(wk, world, p, wk.pillar.recoverCell);
+            nav.keys.jump(a, false);
+            placeRung(nav, world, p, nav.pillar.recoverCell);
         }
     }
 
@@ -332,9 +332,9 @@ public final class Pillar implements Controller {
      * NEIGHBOUR's block (live 2026-09-28, x=1389.9: stone at 1390,71 capped every jump at +0.2 for ~15 s
      * while 1389,71 was air). Anchored at the rung so an airborne tick asks the same question.
      */
-    private static BlockPos recoverCeiling(Walker wk, LivingEntity p) {
+    private static BlockPos recoverCeiling(Navigator nav, LivingEntity p) {
         List<BlockPos> ceiling = BodyGeometry.riseBlockers(p,
-                wk.pillar.recoverCell.getY() + BodyGeometry.PILLAR_RISE - p.getY());
+                nav.pillar.recoverCell.getY() + BodyGeometry.PILLAR_RISE - p.getY());
         return ceiling.isEmpty() ? null : ceiling.get(0);
     }
 }

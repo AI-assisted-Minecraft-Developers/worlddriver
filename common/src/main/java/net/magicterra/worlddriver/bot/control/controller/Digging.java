@@ -15,24 +15,24 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.route.PathSmoothing;
 
 /**
- * The walker's one dig door — every walker dig routes through {@link #avatarDig}; aim at the cell
+ * The navigator's one dig door — every navigator dig routes through {@link #avatarDig}; aim at the cell
  * it returns — and the gate that refuses a dig that cannot finish ({@link #breathInfeasibleDig}).
  */
-public final class WalkerDig {
-    private WalkerDig() {}
+public final class Digging {
+    private Digging() {}
 
     /**
      * Break {@code cell}: hold the key AND drive the destroy directly, never one alone. On a client
      * avatar {@link BlockInteraction#breakHold} only rides vanilla's continueAttack pipeline, which a driven
      * client never reaches because the mouse is never grabbed — so the key by itself breaks
      * nothing. Server avatars break on the key and take the destroy as an inherited no-op, which is
-     * why every wd.server* dig scene passed for as long as the walker drove the key alone.
+     * why every wd.server* dig scene passed for as long as the navigator drove the key alone.
      *
-     * <p>THE ONE DOOR. Every walker dig routes through here, and here is where the cell is decided:
+     * <p>THE ONE DOOR. Every navigator dig routes through here, and here is where the cell is decided:
      * the caller's cell is a <i>request</i>, the returned cell is what was actually driven. Vanilla's
      * {@code MultiPlayerGameMode} tracks exactly ONE destroy target, so a phase that drives a second
      * cell does not merely wait its turn — it runs {@code startDestroyBlock} and throws the other
@@ -43,23 +43,23 @@ public final class WalkerDig {
      * @param selectTool pick the best tool first — only for the sites that did so before the door
      *                   existed; a site that never swapped tools must not start now.
      */
-    public static BlockPos avatarDig(Walker wk, Body a, BlockPos cell, boolean selectTool) {
+    public static BlockPos avatarDig(Navigator nav, Body a, BlockPos cell, boolean selectTool) {
         BlockPos target = cell;
-        if (wk != null && cell != null && ControlConfig.walkerDigAimPriority) {
-            wk.prelude.stickyDig.engage(cell);
-            if (wk.prelude.stickyDig.pos != null) target = wk.prelude.stickyDig.pos;
+        if (nav != null && cell != null && ControlConfig.navigatorDigAimPriority) {
+            nav.prelude.stickyDig.engage(cell);
+            if (nav.prelude.stickyDig.pos != null) target = nav.prelude.stickyDig.pos;
         }
         // Tool and crosshair go on the cell actually being driven, never on the cell that was merely
         // requested: vanilla's sameDestroyTarget compares the HELD ITEM as well as the position, so
         // swapping the tool mid-dig throws the progress away exactly the way switching cells does.
-        if (selectTool) wk.equipment.selectTool(target);
+        if (selectTool) nav.equipment.selectTool(target);
         a.aimAtBlock(target);
-        wk.blocks.breakHold(true);
-        wk.blocks.continueDestroy(target);
-        if (wk != null) {
-            wk.drive.digDrivenThisTick = true;
-            wk.drive.digKeyOwned = true;
-            wk.tallies.dig(target);
+        nav.blocks.breakHold(true);
+        nav.blocks.continueDestroy(target);
+        if (nav != null) {
+            nav.drive.digDrivenThisTick = true;
+            nav.drive.digKeyOwned = true;
+            nav.tallies.dig(target);
         }
         return target;
     }
@@ -78,34 +78,34 @@ public final class WalkerDig {
      * actuator claims the same cell, and if the hold lapses first the abort zeroes the progress but
      * not the burned delay.
      */
-    public static void preDigNextBreak(Walker wk, Body a, WorldView world) {
-        if (!ControlConfig.walkerPreDigNextBreak || wk.route.path() == null || wk.prelude.stickyDig.pos != null) return;
+    public static void preDigNextBreak(Navigator nav, Body a, WorldView world) {
+        if (!ControlConfig.navigatorPreDigNextBreak || nav.route.path() == null || nav.prelude.stickyDig.pos != null) return;
         LivingEntity p = a.entity();
-        if (p == null || p.onGround() || p.isInWater() || wk.blocks.destroyProgress() < 0) return;
-        if (wk.route.step() + 1 >= wk.route.path().size()) return;
-        Move.Edge cur = wk.route.edgeAt(wk.route.step()), next = wk.route.edgeAt(wk.route.step() + 1);
+        if (p == null || p.onGround() || p.isInWater() || nav.blocks.destroyProgress() < 0) return;
+        if (nav.route.step() + 1 >= nav.route.path().size()) return;
+        Move.Edge cur = nav.route.edgeAt(nav.route.step()), next = nav.route.edgeAt(nav.route.step() + 1);
         if (next == null || !"stairUpBreak".equals(next.move) || !next.toPlace.isEmpty()) return;
         if (cur != null && PathSmoothing.hasPendingEdge(world, cur)) return;
         BlockPos b = null;
         for (BlockPos c : next.toBreak) if (world.isSolid(c)) { b = c; break; }
         // Only the stair cell above the landing: one level with it sat beside and behind the body,
         // and turning down to it mid-jump (live 1388,86,-521, pitch 50) missed the landing, 17 ticks.
-        if (b == null || b.getY() <= wk.route.path().get(wk.route.step()).getY()
+        if (b == null || b.getY() <= nav.route.path().get(nav.route.step()).getY()
                 || !BotUtil.eyeWithin(p, b, BotUtil.blockReachToCentre(p))) return;
         double yaw = Math.toDegrees(Math.atan2(-(b.getX() + 0.5 - p.getX()), b.getZ() + 0.5 - p.getZ()));
         if (Math.abs(Mth.wrapDegrees(yaw - p.getYRot())) > PRE_DIG_MAX_YAW) return;
-        wk.equipment.selectTool(b);
+        nav.equipment.selectTool(b);
         a.aimAtBlock(b);
-        wk.blocks.breakHold(true);
-        wk.blocks.continueDestroy(b);
-        wk.drive.digDrivenThisTick = true;
-        wk.drive.digKeyOwned = true;
+        nav.blocks.breakHold(true);
+        nav.blocks.continueDestroy(b);
+        nav.drive.digDrivenThisTick = true;
+        nav.drive.digKeyOwned = true;
     }
 
     /** {@link #avatarDig} for a dig that must not queue: suffocation. Takes the slot, then digs. */
-    static BlockPos avatarDigPreempt(Walker wk, Body a, BlockPos cell, boolean selectTool) {
-        if (wk != null) wk.prelude.stickyDig.revoke();
-        return avatarDig(wk, a, cell, selectTool);
+    static BlockPos avatarDigPreempt(Navigator nav, Body a, BlockPos cell, boolean selectTool) {
+        if (nav != null) nav.prelude.stickyDig.revoke();
+        return avatarDig(nav, a, cell, selectTool);
     }
 
     /** TTL for a breath-infeasible break cell in {@link ClientWorldView}'s poison set
@@ -127,14 +127,14 @@ public final class WalkerDig {
      *
      * @return true when the caller must return {@link TickStep#WALKING} at once.
      */
-    static boolean bailOnBreathInfeasibleDig(Walker wk, Body a, LivingEntity p, BlockPos b) {
+    static boolean bailOnBreathInfeasibleDig(Navigator nav, Body a, LivingEntity p, BlockPos b) {
         if (!breathInfeasibleDig(p, b)) return false;
-        wk.blocks.breakHold(false);
+        nav.blocks.breakHold(false);
         BreakFeasibility.poison(b, BREATH_POISON_TTL_MS);
-        if (GameConfig.walkerDebug)
-            LOG.info("[walker] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
-        wk.error = "breath-infeasible dig at " + b;
-        wk.route.drop(wk.error);
+        if (GameConfig.navigatorDebug)
+            LOG.info("[navigator] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
+        nav.error = "breath-infeasible dig at " + b;
+        nav.route.drop(nav.error);
         return true;
     }
 

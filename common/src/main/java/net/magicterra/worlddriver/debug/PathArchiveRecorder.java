@@ -37,8 +37,8 @@ import net.magicterra.worlddriver.bot.control.BotLevelHolder;
  * the same session without resetting it. The archive is finalised and flushed on
  * {@code onTerminal}.</p>
  *
- * <p>All callbacks fire on the Walker's tick thread. Block reads use
- * {@link BotLevelHolder#current} (set by Walker each tick), which works on both
+ * <p>All callbacks fire on the Navigator's tick thread. Block reads use
+ * {@link BotLevelHolder#current} (set by Navigator each tick), which works on both
  * the client and the dedicated/GameTest server without referencing the
  * client-only {@code Minecraft} class. The only off-thread work is the final
  * disk write, which is dispatched to a daemon thread exactly like
@@ -82,14 +82,14 @@ public final class PathArchiveRecorder implements PathTrace {
      *  {@code replay-run-*.json} (kind="replay") instead of a plan archive. */
     private boolean replayArmed;
     /** Entity id the armed replay run belongs to (null = unpinned). The trace SINK is a
-     *  GLOBAL static shared by every Walker on every thread — in the integrated (T1)
-     *  topology the client bot's walker ticks CONCURRENTLY with a server-side scene
-     *  walker (live 2026-07-19: the JS validation suite's {@code mc.debug.replay} drove
+     *  GLOBAL static shared by every Navigator on every thread — in the integrated (T1)
+     *  topology the client bot's navigator ticks CONCURRENTLY with a server-side scene
+     *  navigator (live 2026-07-19: the JS validation suite's {@code mc.debug.replay} drove
      *  the HOST player at the same arena while {@code wd.replayRoundTrip} had its replay
      *  session armed — one client-thread sample of the falling host (y=126, 95 blocks
      *  under the floor) landed inside the armed session and blew the 4.0 deviation gate
      *  while the replay walk itself was byte-identical). Pinning the session to the
-     *  replaying avatar's entity id drops foreign-walker samples at the source. */
+     *  replaying avatar's entity id drops foreign-navigator samples at the source. */
     private Integer replayEntityId;
     /** Plan nodes the replay executes — used to compute per-tick deviation. */
     private List<BlockPos> replayPlan = List.of();
@@ -121,7 +121,7 @@ public final class PathArchiveRecorder implements PathTrace {
      *
      * <p>The session is flagged {@code kind="replay"}: it stores the plan nodes (for
      * per-tick deviation) and a reference to the plan archive the run replays.
-     * Subsequent {@link #onWalkerTick} ticks accumulate into this session and
+     * Subsequent {@link #onNavigatorTick} ticks accumulate into this session and
      * {@link #onTerminal} writes a {@code replay-run-*.json}. Ignores
      * {@link ControlConfig#pathArchive} (the replay tool always wants the run captured).</p>
      */
@@ -193,7 +193,7 @@ public final class PathArchiveRecorder implements PathTrace {
     @Override
     public void onNodeExpanded(BlockPos pos, double g) {
         // Not needed for the archive — PathArchiveRecorder only records full search
-        // results and walker ticks, not per-node expansions (would be too large).
+        // results and navigator ticks, not per-node expansions (would be too large).
     }
 
     @Override
@@ -280,13 +280,13 @@ public final class PathArchiveRecorder implements PathTrace {
     }
 
     @Override
-    public void onWalkerTick(WalkerSample s) {
+    public void onNavigatorTick(NavigatorSample s) {
         // A replay run always captures (it ignores pathArchive); a plan archive only
         // when pathArchive is on. Either way a session must be open.
         if (!sessionOpen) return;
         if (!replayArmed && !ControlConfig.pathArchive) return;
         // Identity pin (see replayEntityId): a replay run captures ONLY the replaying
-        // avatar's ticks — concurrent walkers (client bot, other scenes) are foreign.
+        // avatar's ticks — concurrent navigators (client bot, other scenes) are foreign.
         if (replayArmed && replayEntityId != null && s.entityId() != replayEntityId) return;
 
         // deviation: NaN for plan archives (no reference trajectory); for replay it is

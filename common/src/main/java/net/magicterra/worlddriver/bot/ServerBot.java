@@ -28,7 +28,7 @@ public abstract class ServerBot implements Bot {
      * <p>This was built once in the constructor from the bot's creation level and handed to every
      * {@code BotProcess} forever. The moment the bot stepped through a nether portal, every
      * pathfind was planning across <b>overworld</b> terrain at <b>nether</b> coordinates — and
-     * nothing says so from outside: the walker plans, drives, and reports an ordinary failure to
+     * nothing says so from outside: the navigator plans, drives, and reports an ordinary failure to
      * arrive. See {@link #world()}, which rebuilds when the bot has moved on.
      */
     private volatile LevelWorldView world;
@@ -39,7 +39,7 @@ public abstract class ServerBot implements Bot {
     private volatile boolean finished;
     /**
      * Whether an entry point has given the bot a task. A bot is registered before any order, and it
-     * ticks from then on; that is not a task, whatever the walker makes of having no goal, so
+     * ticks from then on; that is not a task, whatever the navigator makes of having no goal, so
      * {@link #activeKind()} must not report one.
      */
     private volatile boolean tasked;

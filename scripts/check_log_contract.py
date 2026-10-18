@@ -5,13 +5,13 @@ WHY THIS EXISTS
 ---------------
 Four scripts recover bot state by scraping the game log with regexes:
 
-    scripts/forensic.py             P_T ([walker] t=), P_K (walk-keys), P_E ([expect])
-    scripts/pmcs/telemetry.py       _RE ([walker] t=), _RE_YAW
-    scripts/pmcs/run_case.py        polls [walker] lines for arrival
+    scripts/forensic.py             P_T ([navigator] t=), P_K (walk-keys), P_E ([expect])
+    scripts/pmcs/telemetry.py       _RE ([navigator] t=), _RE_YAW
+    scripts/pmcs/run_case.py        polls [navigator] lines for arrival
     scripts/accept_cycle.py         [expect] lines
 
 The producing side is two `LOG.info` format strings deep in the tick path
-(WalkerTickEdgeGuards.java trace() for `[walker] t=`, WalkerTickDrive.java:1300 for
+(EdgeGuardsPhase.java trace() for `[navigator] t=`, DrivePhase.java:1300 for
 `walk-keys`). Nothing connected the two: adding a field, renaming `totStuck`, or
 moving `yaw` would compile, pass every scene, ship — and silently turn every one
 of those tools into a no-op. A regex that matches nothing does not raise; it
@@ -35,7 +35,7 @@ WHAT IT CHECKS
 For each (discriminator, regex) pair below, against a real run log:
 
   1. at least one line matches the DISCRIMINATOR. For a contract marked REQUIRED
-     that is a hard failure: the dogfood log carries ~5600 `[walker] t=` lines, so
+     that is a hard failure: the dogfood log carries ~5600 `[navigator] t=` lines, so
      zero of them means the emitter was deleted, not that the path was quiet. For
      the rest it is UNVERIFIED, never PASS — "we saw nothing" is not evidence of
      agreement, and letting silence pass is exactly how an emitter disappears
@@ -79,18 +79,18 @@ def contracts():
     forensic = _load("scripts/forensic.py", "_forensic")
     telemetry = _load("scripts/pmcs/telemetry.py", "_telemetry")
     return [
-        ("forensic.P_T", "[walker] t=", forensic.P_T,
-         "WalkerTickEdgeGuards.java LOG.info(\"[walker] t={} step=...\")", True),
+        ("forensic.P_T", "[navigator] t=", forensic.P_T,
+         "EdgeGuardsPhase.java LOG.info(\"[navigator] t={} step=...\")", True),
         ("forensic.P_K", "walk-keys", forensic.P_K,
-         "WalkerTickDrive.java LOG.info(\"[walker] walk-keys ...\")", True),
+         "DrivePhase.java LOG.info(\"[navigator] walk-keys ...\")", True),
         # [expect] is emitted by the interactive CLIENT run (fabric/run/logs), not by
         # the dogfood server, so it is genuinely absent from the default log.
         ("forensic.P_E", "[expect]", forensic.P_E,
          "ClutchController.java and friends LOG.warn(\"[expect] ...\")", False),
-        ("telemetry._RE", "[walker] t=", telemetry._RE,
+        ("telemetry._RE", "[navigator] t=", telemetry._RE,
          "same line as forensic.P_T — two consumers, one format", True),
-        ("telemetry._RE_YAW", "[walker] t=", telemetry._RE_YAW,
-         "yaw= inside the [walker] t= line", True),
+        ("telemetry._RE_YAW", "[navigator] t=", telemetry._RE_YAW,
+         "yaw= inside the [navigator] t= line", True),
     ]
 
 

@@ -5,8 +5,8 @@ import java.util.Set;
 
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.Body;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 
 /**
  * Something that takes over some of a walking tick's {@link Channel}s for a while: it starts when its
@@ -33,13 +33,13 @@ interface Controller {
      * them is asked anything, so the counters a controller keeps about its situation (how long it has
      * been stalled, whether it was in water lately) advance on every tick, not only on ticks it runs.
      */
-    default void sense(Walker wk, WalkerTickCtx cx, WorldView world) {}
+    default void sense(Navigator nav, TickCtx cx, WorldView world) {}
 
     /** Null when it may start this tick, otherwise the condition that does not hold, for the snapshot. */
-    String whyNot(Walker wk, WalkerTickCtx cx, WorldView world);
+    String whyNot(Navigator nav, TickCtx cx, WorldView world);
 
     /** Whether a running controller goes on this tick. */
-    boolean canContinue(Walker wk, WalkerTickCtx cx, WorldView world);
+    boolean canContinue(Navigator nav, TickCtx cx, WorldView world);
 
     /** The most ticks one run may last; the arbiter stops it after that many. */
     int maxTicks();
@@ -49,7 +49,7 @@ interface Controller {
      * the tick, that it has nothing to do after all: it is stopped and its channels go to the next
      * controller down, this same tick, as if it had not started.
      */
-    boolean tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world);
+    boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world);
 
     /** Stop and clear the run's state. */
     void stop(String why);

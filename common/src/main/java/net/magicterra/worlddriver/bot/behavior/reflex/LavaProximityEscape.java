@@ -19,7 +19,7 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  * disease: a breached pocket's FLOW FRONT advances ~1 cell / 1.5 s while every
  * existing layer assumes static hazards).
  *
- * <p>The walker's path-hazard brake (ep-014 fix) stops the bot from WALKING
+ * <p>The navigator's path-hazard brake (ep-014 fix) stops the bot from WALKING
  * into flowed lava, and the fall-edge margin (ep-025 fix) refuses drops beside
  * a front — but ep-026 died STANDING STILL: the brake vetoed every forward
  * move, the repath loop kept it in place, and the front arrived. What was
@@ -109,12 +109,12 @@ public final class LavaProximityEscape {
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         p.setYRot(yaw);
         p.setXRot(0f);
-        // Forward along the yaw just set, on the channel that OUTRANKS the walker's own per-tick
+        // Forward along the yaw just set, on the channel that OUTRANKS the navigator's own per-tick
         // command. This reflex was written FOR the case where a process is pinned against an
         // advancing front (the ep-026 shape: the brake vetoes every forward move, the repath loop
         // holds position, the lava arrives) — and that is exactly the case where a movement
         // process is commanding every tick. On the SHARED keybind the steer never reached the
-        // player at all; on commandForward it was discarded whenever the Walker commanded a move.
+        // player at all; on commandForward it was discarded whenever the Navigator commanded a move.
         // Either way the reflex was inert precisely on the occasion it was built for.
         body.commandMove(0f, 1f);
         body.commandJump(p.horizontalCollision || p.isInLava());

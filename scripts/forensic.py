@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Same-tick paired walker forensics — the anti "splice different ticks" tool.
+"""Same-tick paired navigator forensics — the anti "splice different ticks" tool.
 
-The §55/§56 lesson: reading `[walker] t=` lines and `walk-keys` lines separately and
+The §55/§56 lesson: reading `[navigator] t=` lines and `walk-keys` lines separately and
 mentally joining them produces artifacts (a phantom "reversed drive" cost two wrong
 autopsies). The two lines for one tick are ADJACENT in the log (same render tick), so
 the only safe read is the PAIRED one. This tool emits one row per tick with both
@@ -24,7 +24,7 @@ import sys
 STAMP = r'\[(?:\d{2}[A-Za-z]{3}\d{4} )?(?P<ts>\d\d:\d\d:\d\d)(?:\.\d+)?\]'
 P_STAMP = re.compile(STAMP)
 P_T = re.compile(
-    STAMP + r'.*\[walker\] t=(?P<t>\d+) step=(?P<step>\S+) move=(?P<move>\S+) '
+    STAMP + r'.*\[navigator\] t=(?P<t>\d+) step=(?P<step>\S+) move=(?P<move>\S+) '
     r'node=(?P<node>\S+) p=\((?P<pos>[^)]*)\).*?bear=(?P<bear>-?\d+) yawErr=(?P<yawErr>-?\d+).*?'
     r'cur2=(?P<cur2>\S+) \(gate[^)]*\) \|dY\|=(?P<dy>\S+)')
 P_K = re.compile(

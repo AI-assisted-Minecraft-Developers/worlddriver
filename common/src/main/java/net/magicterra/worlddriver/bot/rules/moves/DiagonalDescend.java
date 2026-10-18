@@ -7,7 +7,7 @@ import net.minecraft.core.BlockPos;
 
 /**
  * Diagonal step DOWN one block (foot drops to {@code from + (dx, -1, dz)}) —
- * the diagonal analogue of {@link StepDown}. The Walker walks off the corner
+ * the diagonal analogue of {@link StepDown}. The Navigator walks off the corner
  * (no jump, since the waypoint is lower) and aims at the waypoint because its
  * Y differs, so no actuator change is needed. Cost 14 (same as a flat
  * diagonal — the one-block drop is essentially free), cheaper than the

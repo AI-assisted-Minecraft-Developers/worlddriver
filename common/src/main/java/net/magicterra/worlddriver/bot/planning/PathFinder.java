@@ -121,7 +121,7 @@ public final class PathFinder {
 
     /** Hard wall-clock ceiling for ONE search, across all its slices — see the check in
      *  {@code advance}. Eight seconds: far above any search this mod makes on a machine that is
-     *  keeping up (the worst measured healthy whole-fight walker tick is single-digit milliseconds,
+     *  keeping up (the worst measured healthy whole-fight navigator tick is single-digit milliseconds,
      *  and a 100k-node search finishes well inside a minute even uncontended), and far below the
      *  60 s {@code max-tick-time} the server hang watchdog kills on. It exists so a pathological
      *  search FAILS instead of taking the JVM with it. */
@@ -171,7 +171,7 @@ public final class PathFinder {
      *  it printed NOTHING across a full 322-scene green gate — silence that says only "no healthy
      *  tick reaches 1 s" and cannot tell a working instrument from a broken one. A calibration run
      *  at 100 ms then measured the healthy spread directly: 13 rows over the whole suite, worst
-     *  row 500 ms ({@code owner=combat}), next 346 ms ({@code owner=walker.unnamed}).
+     *  row 500 ms ({@code owner=combat}), next 346 ms ({@code owner=navigator.unnamed}).
      *
      *  <p>Read that worst row as an INTERVAL, not a point: rows print when the running total crosses
      *  a 100 ms boundary, so "500" plus the absence of a "600" row means the true worst tick lies in
@@ -234,8 +234,8 @@ public final class PathFinder {
     /** gap#72-④: which chain/verb owns the goal every Search from this PathFinder
      *  serves (e.g. "mine", "retreat", "goto") — telemetry only, never read by the
      *  search itself. "?" = an untagged caller (direct tools/arenas/gametests). The
-     *  Walker threads its own owner through {@link #withOwner}; goal producers tag
-     *  the Walker, so the plumbing stays single-source (producer → Walker → here). */
+     *  Navigator threads its own owner through {@link #withOwner}; goal producers tag
+     *  the Navigator, so the plumbing stays single-source (producer → Navigator → here). */
     private String owner = "?";
 
     /** Where this finder's horizon / soft-commit / depth-penalty come from — read LIVE at each use,
@@ -246,7 +246,7 @@ public final class PathFinder {
     private PathTuning tuning = PathTuning.GLOBAL;
 
     /** Where each Search gets its entity snapshot and line of sight; null = {@link SearchScope#EMPTY},
-     *  under which the {@link SearchAware} components in the profile are inert. Set by the Walker
+     *  under which the {@link SearchAware} components in the profile are inert. Set by the Navigator
      *  (the one construction point with a bot); the debug tools and unit tests leave it unset. */
     private ScopeSource scopeSource;
 
@@ -319,7 +319,7 @@ public final class PathFinder {
     }
 
     /** Run a search to completion in one call (synchronous). Kept for callers
-     *  that don't need to time-slice; the Walker uses {@link #newSearch} +
+     *  that don't need to time-slice; the Navigator uses {@link #newSearch} +
      *  {@link Search#advance} to spread a big search across client ticks so it
      *  never blocks the render thread for more than one slice. */
     public Result findPath(BlockPos start, Goal goal) {
@@ -333,7 +333,7 @@ public final class PathFinder {
     }
 
     /** Search variant that DROPS all block-placing moves (bridge/pillar/parkour-place)
-     *  when {@code suppressPlace} is true — used by the Walker to re-plan a route the
+     *  when {@code suppressPlace} is true — used by the Navigator to re-plan a route the
      *  bot can afford (dig through / go around) after a normal search returned a path
      *  needing more placed blocks than the inventory holds. */
     public Search newSearch(BlockPos start, Goal goal, boolean suppressPlace) {
@@ -426,7 +426,7 @@ public final class PathFinder {
         private final BlockPos escapeTarget;
         private final double escapeSafeMaxD2;
         /** A start in water that the search must get out of. Never for a body that lives in water or air:
-         *  the ashore triage, the surface-only commits and the depth bias are a walker's. */
+         *  the ashore triage, the surface-only commits and the depth bias are a navigator's. */
         private final boolean startInWater;
         /** The body moves freely through one medium, water or air ({@link MoveCatalog#medium}), so
          *  going down is no dive into a valley. */
@@ -450,11 +450,11 @@ public final class PathFinder {
          *  (then the heuristic is the plain Euclidean {@link Goal#estimate}). */
         private final CoarseGoalField goalField;
         /** Tax attribution is a PER-SEARCH diagnostic, so it gets its own switch
-         *  ({@code -Dworlddriver.pathfinderTaxLog=true}) rather than riding walkerDebug —
-         *  which scenes flip off to silence the per-TICK walker spam. Eight of the
+         *  ({@code -Dworlddriver.pathfinderTaxLog=true}) rather than riding navigatorDebug —
+         *  which scenes flip off to silence the per-TICK navigator spam. Eight of the
          *  ten WaterCross scenes do exactly that, i.e. the runs most likely to
          *  exercise the water taxes are the ones that would have silenced their own
-         *  attribution. walkerDebug still enables it, so nothing that used to print
+         *  attribution. navigatorDebug still enables it, so nothing that used to print
          *  stops printing. */
         private static final boolean TAX_LOG = Boolean.getBoolean("worlddriver.pathfinderTaxLog");
 
@@ -597,11 +597,11 @@ public final class PathFinder {
             // search in latest.log said WHO asked for it.
             LOG.info("[pathfinder] search-begin owner={} start={} goal={} maxNodes={} maxMs={}",
                     owner, start.toShortString(), goal, maxNodes, maxMs);
-            // A5 dive diagnostics (walkerDebug-gated, one line per search): whether the
+            // A5 dive diagnostics (navigatorDebug-gated, one line per search): whether the
             // DIVE opt-in actually reached THIS search, whether the SurfaceDive move
             // survived the filter, and whether it (and SwimDown) yields an edge from
             // the start cell — the live rc-a5c/e/g mystery was invisible without this.
-            if (GameConfig.walkerDebug) {
+            if (GameConfig.navigatorDebug) {
                 Move surfDive = null, swimDown = null;
                 for (Move m : activeMoves) {
                     if ("swimDownSurface".equals(m.name())) surfDive = m;
@@ -645,12 +645,12 @@ public final class PathFinder {
             // 2026-08-27 lost rung 11 with 229 `search-begin owner=goto goal=XZ[x=-10, z=51,
             // radius=0]` lines in latest.log and NOT ONE line saying how any of them came out —
             // 98 of the 229 fired from a byte-identical start. Both existing result rows are
-            // flag-gated (`tax-breakdown` on TAX_LOG||walkerDebug, `STOP` on walkerDebug) and no
-            // gate ever sets walkerDebug, so a reader could see every question and no answer.
+            // flag-gated (`tax-breakdown` on TAX_LOG||navigatorDebug, `STOP` on navigatorDebug) and no
+            // gate ever sets navigatorDebug, so a reader could see every question and no answer.
             //
             // `reached` is the value the rung's failure turns on: `Goal.XZ(dig, 0)` has tolerance
             // ZERO, so a walk that stops one cell short did not miss by a hair — the goal cell was
-            // never expanded, which points at the walker's own `canStandAt` rather than at any
+            // never expanded, which points at the navigator's own `canStandAt` rather than at any
             // tolerance. `end` carries where the committed path actually stops, so "one block short" is a
             // coordinate a reader can check rather than a claim to believe.
             //
@@ -662,7 +662,7 @@ public final class PathFinder {
                     owner, r.goalReached(), r.path().isEmpty() ? -1 : r.path().size() - 1,
                     r.path().isEmpty() ? "none" : r.path().get(r.path().size() - 1).toShortString(),
                     r.expanded(), r.ms());
-            if ((TAX_LOG || GameConfig.walkerDebug) && !r.path().isEmpty()) {
+            if ((TAX_LOG || GameConfig.navigatorDebug) && !r.path().isEmpty()) {
                 LOG.info("[pathfinder] tax-breakdown owner={} reached={} steps={} finalCost={} onPath[{}] duringSearch[{}]",
                         owner, r.goalReached(), r.path().size() - 1,
                         String.format(Locale.ROOT, "%.1f", r.finalCost()),
@@ -772,7 +772,7 @@ public final class PathFinder {
          * legible, not to start deleting charges.
          *
          * <p>Runs over the returned path only (tens of edges), never in the expansion
-         * loop (tens of thousands of edges), and only under {@code walkerDebug} or
+         * loop (tens of thousands of edges), and only under {@code navigatorDebug} or
          * {@code -Dworlddriver.pathfinderTaxLog=true}. The hot loop and its arithmetic are
          * untouched. The sums come from {@link #taxTotals}; this only formats them and counts
          * the edges each tax touched.
@@ -1023,7 +1023,7 @@ public final class PathFinder {
          *  ({@code from} in water, {@code to} dry and above). The entry/descend water
          *  taxes never see this edge (its {@code to} is dry and the move rises), so
          *  without it A* freely picks a TALL near-bank exit a buoyant bot can't step onto
-         *  — every such exit forces the Walker's bob-stuttery bank-dig climb-out (live
+         *  — every such exit forces the Navigator's bob-stuttery bank-dig climb-out (live
          *  windows of the bot stuck at a dirt wall, digging the same block repeatedly, or
          *  hopping side to side). Pricing the exit ∝ its rise tips A* onto the
          *  LOWEST available exit (a surface-level bank = rise 0 = free Walk), without
@@ -1166,7 +1166,7 @@ public final class PathFinder {
             int beatExpanded = expanded;    // counter values at the previous beat, for its deltas
             long beatPolled = polled;
             // Cache is LIVE only while this slice expands nodes (static-world memoise);
-            // cleared off in finally so the Walker's between-slice reads stay fresh.
+            // cleared off in finally so the Navigator's between-slice reads stay fresh.
             world.cacheActive(true);
             String stopCause = "open-exhausted";   // A5 diagnostics: why the expand loop ended
             try {
@@ -1420,7 +1420,7 @@ public final class PathFinder {
                     // expansions and then does not hold at all.
                     //
                     // Measured cost of this scene's healthy expansions: 8–9 ms for a whole 3 000-tick
-                    // fight's worst single walker tick, on both loaders. Twice out of three, a
+                    // fight's worst single navigator tick, on both loaders. Twice out of three, a
                     // NeoForge dedicated run instead spent SIXTY SECONDS inside one of these and was
                     // killed by the server hang watchdog, in `SwimBankClimbBreak.eval` one run and
                     // `Parkour3.valid` the next — both per-move world reads during expansion.
@@ -1488,7 +1488,7 @@ public final class PathFinder {
                 }
                 // open empty / node budget / time budget → commit best-effort segment
                 Node segment = chooseSegment();
-                if (GameConfig.walkerDebug) {
+                if (GameConfig.navigatorDebug) {
                     LOG.info("[pathfinder] STOP cause={} expanded={} ms={} segment={} segG={} bestAshore={} bestAshoreG={} bestClimbY={} openLeft={}",
                             stopCause, expanded, totalMs(sliceStart), segmentReason,
                             segment == null ? -1 : segment.g,
@@ -1628,7 +1628,7 @@ public final class PathFinder {
             // A5: a DIVE-opt-in search is EXEMPT from the water-escape policy below —
             // its goal is (typically) UNDERWATER, so "may ONLY commit a segment that
             // climbs ASHORE" is exactly backwards: the live rc-a5i first search
-            // (walkerDebug diagnostics) burned to the relaxed 24000-node tier and
+            // (navigatorDebug diagnostics) burned to the relaxed 24000-node tier and
             // committed the tank-rim climb-out (bestAshoreG=40730) while goal-ward
             // submerged bestSoFar progress was structurally excluded, stranding the
             // bot overland at a dead-end. With the exemption a dive search falls
@@ -1843,7 +1843,7 @@ public final class PathFinder {
      * walking parent pointers from the end node back to the start. {@code edges}
      * is aligned with {@code path}: {@code edges.get(i)} is the edge that enters
      * {@code path.get(i)} (so {@code edges.get(0)} is null — the start has no
-     * incoming edge). The Walker consults each edge's break/place actions before
+     * incoming edge). The Navigator consults each edge's break/place actions before
      * stepping into the cell.
      */
     private static Result build(Node end, boolean reached, int expanded, long ms, double cost,

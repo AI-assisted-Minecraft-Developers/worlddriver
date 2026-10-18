@@ -210,9 +210,9 @@ public final class UserTaskChain implements Chain {
     /** Set by {@link #onInterrupt}, cleared by {@link #onResume}: whether the channel was TAKEN from
      *  this chain, as opposed to never held. The scheduler calls {@code onResume()} on every handover,
      *  including {@code idle -> user} for a process that has never ticked, and forwarding that one
-     *  reaches {@code IntentProcess.onResume} → {@code Walker.replan}, which drops a route the
+     *  reaches {@code IntentProcess.onResume} → {@code Navigator.replan}, which drops a route the
      *  process was handed before it started ({@code mc.bot.goto} with {@code planId}): the adopted
-     *  lane was gone before its first tick and the walker searched from the foot instead (client
+     *  lane was gone before its first tick and the navigator searched from the foot instead (client
      *  lane 2026-09-06, "foot-search kickoff: pathNull=true step=0/0"). A fresh process has no stale
      *  path to drop; only a suspension can make one stale. */
     private boolean interrupted;

@@ -196,7 +196,7 @@ public final class DrownEscapeChain implements Chain {
                 keysHeld = true;
                 // UNCONDITIONAL, throttled — deliberately the same gate its vertical sibling
                 // (`dbgV++ % 10 == 0`, no flag) has always had. This row used to be behind
-                // `walkerDebug`, and the asymmetry cost a run: the ladder of 2026-08-23 latched
+                // `navigatorDebug`, and the asymmetry cost a run: the ladder of 2026-08-23 latched
                 // this chain at 00:56:21 and the bot drowned 15 s later at an unchanged
                 // 76,42,60 — 300 ticks in which the ONLY thing the log said was the PREEMPT
                 // line. Not one vertical row printed, which is itself how we know it was THIS
@@ -231,7 +231,7 @@ public final class DrownEscapeChain implements Chain {
         // discipline). Yaw/pitch are left untouched — zero turning.
         //
         // This chain PREEMPTS an active process, so the zeroing must use the channel that
-        // outranks the Walker's own per-tick command — commandMove(0,0), not
+        // outranks the Navigator's own per-tick command — commandMove(0,0), not
         // commandForward(0). Clearing the four direction KEYS, which is what this block used to
         // do, never zeroed anything while a process was running: AvatarInput.tick overwrites
         // the impulses after vanilla's key pass, so the keys were the one input nobody read.
@@ -296,7 +296,7 @@ public final class DrownEscapeChain implements Chain {
         // costs a fifth. The number that makes this worth doing is the air budget: latching at
         // `drownEscapeAirThreshold` (100) buys roughly 300 ticks of life (100 air + 20 HP at 2 per
         // 20 ticks), so a 380-tick escape LOSES and a ~76-tick one wins with room to spare. The
-        // walker's own hopelessness gate has priced digs this way all along — WalkerDig notes
+        // navigator's own hopelessness gate has priced digs this way all along — Digging notes
         // "off-ground ÷5 always undone (the bot can always ground)" — while this reflex never
         // grounded. That gap is what the fix closes.
         //
@@ -312,7 +312,7 @@ public final class DrownEscapeChain implements Chain {
                     Mth.floor(p.getZ()));
             if (!cellOpen(w, below)) body.commandJump(false);
         }
-        // UNCONDITIONAL, not gated on walkerDebug: gates do not run with walkerDebug on. On
+        // UNCONDITIONAL, not gated on navigatorDebug: gates do not run with navigatorDebug on. On
         // stagewrightIntegratedServerNeoforge both armed arms of the drown scenes reported a net rise
         // of 0.000 while the same code passed on Fabric (2.291 / 2.320); `[drownEscape] PREEMPT`
         // printed twice, so the chain armed and took control of the bot, but a debug-gated vertical
@@ -396,7 +396,7 @@ public final class DrownEscapeChain implements Chain {
      *   <li>{@code breakingLid} makes the break arm visible at all.</li>
      * </ul>
      *
-     * <p>Unconditional by design: gates never set {@code walkerDebug}, so a flag here would mean no
+     * <p>Unconditional by design: gates never set {@code navigatorDebug}, so a flag here would mean no
      * rows in exactly the runs that need them. The {@code %10} throttle lives at the call site.
      */
     private static void verticalRow(Body body, LivingEntity p, BlockPos lid,

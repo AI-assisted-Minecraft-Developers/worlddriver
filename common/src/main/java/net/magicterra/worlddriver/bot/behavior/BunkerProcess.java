@@ -106,7 +106,7 @@ public final class BunkerProcess implements BotProcess {
     }
 
     private static void dbg(String msg, Object... a) {
-        if (GameConfig.walkerDebug) LOG.info("[bunker] " + msg, a);
+        if (GameConfig.navigatorDebug) LOG.info("[bunker] " + msg, a);
     }
 
     @Override public String kind() { return "bunker"; }

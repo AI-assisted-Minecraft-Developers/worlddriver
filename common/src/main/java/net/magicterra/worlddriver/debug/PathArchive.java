@@ -8,7 +8,7 @@ import java.util.Map;
 
 /**
  * On-disk archive for path planning sessions: captures the planner output and
- * walker trajectory so a Python post-processor can replay, visualise, and
+ * navigator trajectory so a Python post-processor can replay, visualise, and
  * analyse them without a running Minecraft instance.
  *
  * <p>Schema version: 1.  All names are kept exactly as specified so the Python
@@ -114,7 +114,7 @@ public final class PathArchive {
     ) {}
 
     /**
-     * One walker tick sample.  {@code deviation} is {@link Double#NaN} for plan
+     * One navigator tick sample.  {@code deviation} is {@link Double#NaN} for plan
      * archives where no execution trajectory exists; the codec emits {@code null}
      * for NaN so the JSON stays valid.
      */

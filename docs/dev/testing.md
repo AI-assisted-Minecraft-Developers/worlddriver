@@ -292,11 +292,11 @@ reasoning is in [`loader-glue.md`](loader-glue.md#no-reflection-on-a-mojang-mapp
 
 The log-format check deserves its own note, because the failure it prevents is silent.
 Several development tools recover bot state by matching regular expressions against
-`[walker]` and `[expect]` lines. The producing side is a pair of format strings deep in
+`[navigator]` and `[expect]` lines. The producing side is a pair of format strings deep in
 the tick path, and nothing connects the two. Renaming a field there compiles, passes every
 scene, and turns each of those tools into a no-op — a regular expression that matches
 nothing does not raise, it yields an empty result, and the tool reports "no ticks" as
-though the bot had never moved. The emitters are `WalkerTickEdgeGuards` and `WalkerTickDrive`; the
+though the bot had never moved. The emitters are `EdgeGuardsPhase` and `DrivePhase`; the
 consumers are `scripts/forensic.py`, `scripts/pmcs/telemetry.py`, `scripts/pmcs/run_case.py` and
 `scripts/accept_cycle.py`. The check imports the consumers' own patterns rather than copying
 them, so it cannot pass while the tool it protects is broken.

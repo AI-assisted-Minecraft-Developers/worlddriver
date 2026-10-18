@@ -33,7 +33,7 @@ What this gate enforces
    flipped the code and left the prose. Those javadocs are the ONLY documentation of what
    each flag does and when it is safe to touch, so a maintainer reasoning "this is off by
    default, my change is inert" was wrong 35 times — and the error had already propagated
-   into call-site reasoning at Walker.java:1123.
+   into call-site reasoning at Navigator.java:1123.
 
 UNEXERCISED is a checked-in backlog, not an exemption. It is the honest starting state
 (28 names); shrinking it is the work, and a 29th name cannot appear without editing this
@@ -59,28 +59,28 @@ UNEXERCISED = {
     "pathfinderFloatingBreakTax",
     "pathfinderForbidParkourFromFloatingWater",
     "pathfinderLogBreakTax",
-    "walkerAscentRamBobBreak",
-    "walkerBankDigForwardExit",
-    "walkerBankDigGroundBlip",
-    "walkerBankDigSkipOverhang",
-    "walkerBankDigSkipWhenCwpSwims",
-    "walkerBridgeHoldRepath",
-    "walkerBuoyantSearchFromSurface",
-    "walkerCarrotBodyLos",
-    "walkerClimbGaveUpSticky",
-    "walkerDigAimPriority",
-    "walkerDigCommitHoldRepath",
-    "walkerDryReanchor",
-    "walkerFloatingBankBobFreeze",
-    "walkerFutileBankDigRelease",
-    "walkerPhysicalStallClock",
-    "walkerRamNodeAimRelease",
-    "walkerRouteHysteresis",
-    "walkerStuckStepMonotonic",
-    "walkerSwimAshorePillarDespiteDeepDig",
-    "walkerVineDescentDrop",
-    "walkerWaterStepDownFloat",
-    "walkerWaterWalkReach",
+    "navigatorAscentRamBobBreak",
+    "navigatorBankDigForwardExit",
+    "navigatorBankDigGroundBlip",
+    "navigatorBankDigSkipOverhang",
+    "navigatorBankDigSkipWhenCwpSwims",
+    "navigatorBridgeHoldRepath",
+    "navigatorBuoyantSearchFromSurface",
+    "navigatorCarrotBodyLos",
+    "navigatorClimbGaveUpSticky",
+    "navigatorDigAimPriority",
+    "navigatorDigCommitHoldRepath",
+    "navigatorDryReanchor",
+    "navigatorFloatingBankBobFreeze",
+    "navigatorFutileBankDigRelease",
+    "navigatorPhysicalStallClock",
+    "navigatorRamNodeAimRelease",
+    "navigatorRouteHysteresis",
+    "navigatorStuckStepMonotonic",
+    "navigatorSwimAshorePillarDespiteDeepDig",
+    "navigatorVineDescentDrop",
+    "navigatorWaterStepDownFloat",
+    "navigatorWaterWalkReach",
 }
 # The last four are worth calling out: they DO appear in scene sources, but never assigned
 # the shipped value — a scene mentioning a flag is not a scene exercising it. That gap is

@@ -220,9 +220,9 @@ its four numbers by 20 per cent, rounding up, and writes them into the fixture's
 ```
 
 From then on a run that takes longer, replans more, hops more or digs more than that fails,
-both in place and in the suite. `repaths` counts finished searches by the task's walker, and
-a segmented walk finishes several; `hops` counts the recovery hops the walker allowed; and
-`digs` counts the distinct cells it dug. Tasks whose process has no walker, such as `escape`
+both in place and in the suite. `repaths` counts finished searches by the task's navigator, and
+a segmented walk finishes several; `hops` counts the recovery hops the navigator allowed; and
+`digs` counts the distinct cells it dug. Tasks whose process has no navigator, such as `escape`
 and `elytra`, contribute nothing, and the report says so. Edit the numbers by hand if the
 accepted run was tighter than you want — a hand-set bound is as good as an accepted one.
 

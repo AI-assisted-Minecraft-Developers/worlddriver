@@ -8,7 +8,7 @@ import net.minecraft.core.BlockPos;
 /**
  * Diagonal step UP one block (foot rises to {@code from + (dx, 1, dz)}) —
  * the diagonal analogue of {@link StepUp}, Baritone's ascending
- * {@code MovementDiagonal}. Executed by the Walker exactly like a StepUp
+ * {@code MovementDiagonal}. Executed by the Navigator exactly like a StepUp
  * (it jumps because the waypoint is higher, and aims straight at it), so no
  * actuator change is needed. Cost 19 ≈ diagonal (14) + jump premium (5), so
  * a flat Walk+StepUp pair (10+15=25) is dearer and A* prefers the cut.

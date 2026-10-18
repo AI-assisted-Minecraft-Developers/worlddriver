@@ -30,7 +30,7 @@ public final class GoalResolver {
 
 /** Scan the player's level for the nearest matching block id within `radius`
  *  (XZ Chebyshev, Y by BehaviorConfig.mineSearchVerticalRadius) that has a
- *  standable adjacent, and return the stand position so the goto walker can
+ *  standable adjacent, and return the stand position so the goto navigator can
  *  target it.
  *
  *  <p><b>Shares the scan ORDER with {@code MineProcess.scanForTarget} and nothing else.</b>

@@ -8,8 +8,8 @@ import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
 import net.magicterra.worlddriver.bot.behavior.CombatProcess;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.PlayerBot;
@@ -112,7 +112,7 @@ public final class WorldDriverMobFightScenes {
         ctx.record("gamerule.doMobLoot", String.valueOf(
                 level.getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_DOMOBLOOT)));
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -214,7 +214,7 @@ public final class WorldDriverMobFightScenes {
         level.addFreshEntity(dragon);
         ctx.cleanup(() -> dragon.discard());
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -326,7 +326,7 @@ public final class WorldDriverMobFightScenes {
                                 Blocks.AIR.defaultBlockState());
         });
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -337,19 +337,19 @@ public final class WorldDriverMobFightScenes {
 
         // WHY THIS CENSUS IS HERE, AND WHY IT HAD TO COME FIRST.
         //
-        // The futile-search gate (WalkerTickSearch, walkerFutileSearchCap) exists precisely to stop
+        // The futile-search gate (SearchPhase, navigatorFutileSearchCap) exists precisely to stop
         // a bot re-asking a question it cannot answer. On the 2026-08-24 J60-C run it never fired
         // in this scene: the bot chased the blaze off this 11x11 floor, fell 282 blocks to the
         // world bottom, and then spent >=29 s of the scene's 48 s in 29 consecutive searches that
         // each burned ~64k nodes toward a goal 267 blocks straight up — with zero "no route
         // progress" rows to show for it.
         //
-        // WalkerTelemetry.futileGateBuckets already counts which of the gate's nine doors every search left
+        // NavigatorTelemetry.futileGateBuckets already counts which of the gate's nine doors every search left
         // by, but it is read by the journey rig and by NOTHING else, so the one scene where the
         // gate demonstrably fails has never been able to say which door. Reading the code turns up
         // two candidate doors — bucket 5 (no path while stuck-penalties are live, so the gate never
         // judged the search at all) and bucket 7 (CombatProcess re-goals on every blaze block-move,
-        // Walker.start wipes searchGov, and a null futileFoot reads as "the bot moved") — and
+        // Navigator.start wipes searchGov, and a null futileFoot reads as "the bot moved") — and
         // code alone cannot choose between them. This census chooses.
         //
         // ANSWERED 2026-08-25, AND BY NEITHER CANDIDATE — the door is bucket 9, "seeded after a
@@ -435,11 +435,11 @@ public final class WorldDriverMobFightScenes {
      * <p><b>What this reproduces.</b> On the 2026-08-24 run that fight chased its blaze off an 11x11
      * floor; the bot fell 282 blocks to the world bottom and then spent 29 consecutive searches,
      * each ~64k nodes and over a second, on a goal 267 blocks straight up. The gate that exists to
-     * stop exactly that ({@code ControlConfig.walkerFutileSearchCap}) never fired, and the log carried no
+     * stop exactly that ({@code ControlConfig.navigatorFutileSearchCap}) never fired, and the log carried no
      * "no route progress" row to explain why. Two candidate doors survive a code read and cannot be
      * told apart by one: the gate may never have judged those searches at all (bucket 5), or the
      * counter may have been wiped from OUTSIDE — {@code CombatProcess.approach} re-goals whenever the
-     * target changes block, {@code Walker.start} is the only caller of {@code searchGov.reset()},
+     * target changes block, {@code Navigator.start} is the only caller of {@code searchGov.reset()},
      * and a reset leaves {@code futileFoot} null, which the next judged search reads as "the bot
      * moved" (bucket 7).
      *
@@ -464,7 +464,7 @@ public final class WorldDriverMobFightScenes {
      * descent rate. {@code chase} is the reverse: a quarry the bot CAN reach, re-goaled at the same
      * rate, where the guard must stay silent.
      *
-     * <p><b>Every arm runs its full 240 ticks and ignores the walker's verdict</b>, exactly as
+     * <p><b>Every arm runs its full 240 ticks and ignores the navigator's verdict</b>, exactly as
      * {@code approach} does. An arm that stopped at the first terminal would report a tidy
      * "6 searches, FAILED" and miss the expensive half: {@code terminal()} stores nothing, so a
      * latched cap re-reports itself by running another full search every tick until something moves
@@ -486,7 +486,7 @@ public final class WorldDriverMobFightScenes {
                                 Blocks.AIR.defaultBlockState());
         });
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         // The goal has to be UNREACHABLE, not merely far. With either of these left on, the bot
         // pillars up to it or digs its way somewhere, the search succeeds, and the gate is never
         // asked the question this scene exists to ask.
@@ -530,7 +530,7 @@ public final class WorldDriverMobFightScenes {
         // unjudged seeding search plus the five it counts; anything past that means the bot is
         // still paying for a goal it cannot reach — either the counter is being wiped from outside
         // again, or the latched terminal is re-searching every tick.
-        int cap = ControlConfig.walkerFutileSearchCap;
+        int cap = ControlConfig.navigatorFutileSearchCap;
         if (retargetArm.searches() > cap + 2)
             ctx.fail("chasing an unreachable goal ran " + retargetArm.searches() + " searches in 240 ticks"
                     + " (cap " + cap + ", allowed " + (cap + 2) + "): " + retargetArm.line());
@@ -566,25 +566,25 @@ public final class WorldDriverMobFightScenes {
     private static void recoverArm(SceneContext ctx, ServerPlayerBody av, ServerPlayer fp,
                                    LevelWorldView w, BlockPos high, int cx, int floorY, int cz) {
         fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
-        Walker walker = new Walker();
+        Navigator navigator = new Navigator();
         BlockPos target = high;
-        walker.start(new Goal.Near(target, 2));
+        navigator.start(new Goal.Near(target, 2));
         boolean latched = false;
         for (int t = 0; t < ARM_TICKS && !latched; t++) {
             if (t > 0 && t % 2 == 0) {
                 target = target.below();
-                walker.retarget(new Goal.Near(target, 2));
+                navigator.retarget(new Goal.Near(target, 2));
             }
-            walker.tick(av, w);
-            if (walker.result().reason() != null && walker.result().reason().startsWith("no route progress")) latched = true;
+            navigator.tick(av, w);
+            if (navigator.result().reason() != null && navigator.result().reason().startsWith("no route progress")) latched = true;
             av.step();
         }
         BlockPos stuckAt = fp.blockPosition();
         long[] before = futileSnapshot(fp);
-        walker.start(new Goal.Near(new BlockPos(cx + 4, floorY + 1, cz), 1));
+        navigator.start(new Goal.Near(new BlockPos(cx + 4, floorY + 1, cz), 1));
         Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < ARM_TICKS; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
         }
         long[] after = futileSnapshot(fp);
@@ -592,7 +592,7 @@ public final class WorldDriverMobFightScenes {
         long searches = searchSum(before, after);
         String line = "recover: phase 1 " + (latched ? "latched" : "WARNING: did not latch") + " (bot stopped at "
                 + stuckAt.toShortString() + "); without moving the bot, a new goal 8 blocks away was set;"
-                + " after " + ARM_TICKS + " ticks the walker ended in " + s + " with the bot at " + end.toShortString()
+                + " after " + ARM_TICKS + " ticks the navigator ended in " + s + " with the bot at " + end.toShortString()
                 + "; " + futileGateLine(before, after);
         ctx.record("gate.recover", line);
 
@@ -625,24 +625,24 @@ public final class WorldDriverMobFightScenes {
                                        int cx, int floorY, int cz) {
         fp.setPos(cx - 4.5, floorY + 1, cz + 0.5);
         long[] before = futileSnapshot(fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Near(new BlockPos(cx + 4, floorY + 1, cz), 1));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Near(new BlockPos(cx + 4, floorY + 1, cz), 1));
         int regoals = 1;
         boolean noRoute = false;
         Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < ARM_TICKS; t++) {
             if (t > 0 && t % 20 == 0) {                 // the quarry strolls back along the floor
-                walker.retarget(new Goal.Near(new BlockPos(cx + 4 - (t / 20) % 9, floorY + 1, cz), 1));
+                navigator.retarget(new Goal.Near(new BlockPos(cx + 4 - (t / 20) % 9, floorY + 1, cz), 1));
                 regoals++;
             }
-            s = walker.tick(av, w);
-            if (walker.result().reason() != null && walker.result().reason().startsWith("no route progress")) noRoute = true;
+            s = navigator.tick(av, w);
+            if (navigator.result().reason() != null && navigator.result().reason().startsWith("no route progress")) noRoute = true;
             av.step();
         }
         BlockPos end = fp.blockPosition();
         long[] after = futileSnapshot(fp);
         return new ArmReading("chase: ran the full " + ARM_TICKS + " ticks, set the goal " + regoals
-                + " times, walker ended in " + s
+                + " times, navigator ended in " + s
                 + ", bot at " + end.getX() + "," + end.getY() + "," + end.getZ()
                 + "; " + futileGateLine(before, after), searchSum(before, after), noRoute);
     }
@@ -666,7 +666,7 @@ public final class WorldDriverMobFightScenes {
     private static final int ARM_TICKS = 240;
 
     /**
-     * One arm: re-seat the bot, hand the walker an unreachable goal, and tick.
+     * One arm: re-seat the bot, hand the navigator an unreachable goal, and tick.
      *
      * <p>{@code regoalEvery} is the whole experiment. Zero means the goal is set once and never
      * touched, so {@code searchGov} is reset exactly once, at the start. Two means the goal drops a
@@ -679,7 +679,7 @@ public final class WorldDriverMobFightScenes {
      * is still live elsewhere — {@code CombatProcess.collectSweep} relies on {@code start} clearing
      * a terminal — so it is a control arm, not a defect left in place.
      *
-     * <p><b>The loop deliberately ignores the walker's return value</b>, exactly as {@code approach}
+     * <p><b>The loop deliberately ignores the navigator's return value</b>, exactly as {@code approach}
      * does. An arm that stopped at the first terminal could not see the expensive half of this bug:
      * {@code terminal()} stores nothing, so a latched cap re-reports itself by running another full
      * search every single tick. Stopping at the terminal turns that into a tidy "6 searches, FAILED"
@@ -690,9 +690,9 @@ public final class WorldDriverMobFightScenes {
                                        int regoalEvery, boolean retarget) {
         fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);     // every arm starts from the same cell
         long[] before = futileSnapshot(fp);
-        Walker walker = new Walker();
+        Navigator navigator = new Navigator();
         BlockPos target = high;
-        walker.start(new Goal.Near(target, 2));      // the first order is a new journey in every arm
+        navigator.start(new Goal.Near(target, 2));      // the first order is a new journey in every arm
         int regoals = 1;
         int firstTerminal = -1;
         String firstError = null;
@@ -702,14 +702,14 @@ public final class WorldDriverMobFightScenes {
             if (regoalEvery > 0 && t > 0 && t % regoalEvery == 0) {
                 target = target.below();
                 Goal.Near g = new Goal.Near(target, 2);
-                if (retarget) walker.retarget(g); else walker.start(g);
+                if (retarget) navigator.retarget(g); else navigator.start(g);
                 regoals++;
             }
-            s = walker.tick(av, w);
-            if (walker.result().reason() != null && walker.result().reason().startsWith("no route progress")) noRoute = true;
+            s = navigator.tick(av, w);
+            if (navigator.result().reason() != null && navigator.result().reason().startsWith("no route progress")) noRoute = true;
             if (s != Locomotor.Status.MOVING && firstTerminal < 0) {
                 firstTerminal = t;
-                firstError = walker.result().reason();
+                firstError = navigator.result().reason();
             }
             av.step();
         }
@@ -717,13 +717,13 @@ public final class WorldDriverMobFightScenes {
         return new ArmReading(tag + ": ran the full " + ARM_TICKS + " ticks, set the goal " + regoals + " times, "
                 + (firstTerminal < 0 ? "no terminal state during the run"
                         : "first terminal state at t=" + firstTerminal + " (" + firstError + ")")
-                + ", walker ended in " + s + "; " + futileGateLine(before, after),
+                + ", navigator ended in " + s + "; " + futileGateLine(before, after),
                 searchSum(before, after), noRoute);
     }
 
     private static long[] futileSnapshot(ServerPlayer fp) {
-        WalkerTelemetry t = WalkerTelemetry.of(fp);
-        long[] v = new long[WalkerTelemetry.FUTILE_GATE_BUCKETS.length];
+        NavigatorTelemetry t = NavigatorTelemetry.of(fp);
+        long[] v = new long[NavigatorTelemetry.FUTILE_GATE_BUCKETS.length];
         for (int i = 0; i < v.length; i++) v[i] = t.futileGateBuckets.get(i);
         return v;
     }
@@ -737,12 +737,12 @@ public final class WorldDriverMobFightScenes {
      *
      * <p>A zero sum gets its own sentence rather than nine {@code =0}s. Nine zeros read exactly like
      * "the gate judged nothing and let everything through", when what they actually say is that the
-     * walker never searched at all this round — the difference between an answer and a dead channel.
+     * navigator never searched at all this round — the difference between an answer and a dead channel.
      */
     private static String futileGateLine(long[] before, long[] after) {
         long sum = 0;
         StringBuilder sb = new StringBuilder();
-        String[] names = WalkerTelemetry.FUTILE_GATE_BUCKETS;
+        String[] names = NavigatorTelemetry.FUTILE_GATE_BUCKETS;
         for (int i = 0; i < names.length; i++) {
             long v = after[i] - before[i];
             sum += v;
@@ -750,7 +750,7 @@ public final class WorldDriverMobFightScenes {
             sb.append(names[i]).append('=').append(v);
         }
         return sum == 0
-                ? "no search at all this round — the walker never searched for a path, so do not read this"
+                ? "no search at all this round — the navigator never searched for a path, so do not read this"
                         + " line as \"the gate let it through\""
                 : sum + " searches this round, gate outcomes: " + sb;
     }
@@ -772,7 +772,7 @@ public final class WorldDriverMobFightScenes {
      * vs 0.45 ms). It is <i>not</i> one runaway search either: a guard that reports any single
      * pathfinder expansion over 100 ms printed nothing at all during a tick that lasted 60 seconds.
      * What is left is the sum. {@code ControlConfig.pathfinderIdleSliceMs} is 30 ms and
-     * {@code WalkerTickSearch} deliberately spends that idle slice on a tick where the bot has no
+     * {@code SearchPhase} deliberately spends that idle slice on a tick where the bot has no
      * walkable path — which is every tick of a bot chasing a blaze hovering out of reach. 3000
      * iterations x ~20 ms lands exactly on the 60 s the watchdog measured. The slice cap was working
      * the whole time; the loop calling it had no clock budget at all.
@@ -1118,7 +1118,7 @@ public final class WorldDriverMobFightScenes {
                             Blocks.AIR.defaultBlockState());
         });
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         // The same MAX_VALUE/2 the real scene uses. Staging the fall under a budget the real scene
         // does not have would test a guard nobody ships.
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
@@ -1130,7 +1130,7 @@ public final class WorldDriverMobFightScenes {
         fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
 
         // Push after a while of fighting, or once the blaze is at half health, whichever comes first:
-        // a bot that wins before the push leaves nothing to stage (the walker's R1 flags made it
+        // a bot that wins before the push leaves nothing to stage (the navigator's R1 flags made it
         // kill the blaze at ~50 iterations, and the guard never ran).
         final int pushAfter = 200, pushNoEarlierThan = 20;
         var run = new BlazeFightRun(ctx, level, driver, fp, cx, cz, floorY, 3_000, "fell");
@@ -1226,7 +1226,7 @@ public final class WorldDriverMobFightScenes {
                             Blocks.STONE.defaultBlockState());
                 }
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 

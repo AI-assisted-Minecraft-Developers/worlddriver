@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import org.junit.jupiter.api.Test;
 
-/** The walker's give-ups end through the same branch as an arrival, so a walk's verdict has to come
+/** The navigator's give-ups end through the same branch as an arrival, so a walk's verdict has to come
  *  from the goal test. */
 class WalkVerdictTest {
 
@@ -42,7 +42,7 @@ class WalkVerdictTest {
     }
 
     @Test
-    void aFailedWalkReportsTheWalkersReason() {
+    void aFailedWalkReportsTheNavigatorsReason() {
         WalkResult r = WalkVerdict.of(true, "no route progress", false, "failed:no route progress", -1, false, false);
         assertEquals(Locomotor.Status.FAILED, r.status());
         assertEquals("no route progress", r.reason());

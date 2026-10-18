@@ -23,7 +23,7 @@ import net.magicterra.worlddriver.bot.behavior.Intent;
 import net.magicterra.worlddriver.bot.behavior.IntentProcess;
 import net.magicterra.worlddriver.game.body.JoinedPlayers;
 import net.magicterra.worlddriver.bot.BotTicker;
-import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
+import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.PlayerBot;
 import net.minecraft.core.BlockPos;
@@ -276,8 +276,8 @@ public final class JourneyRig {
         // for a rung that never waits at all — and the placeholder is itself a reading rather than
         // an absence. Overwritten by the first heartbeat; see recordFutileGate for why a cleanup,
         // the obvious home, cannot carry this one.
-        rig.recordFutileGate("no wait in this rung yet: the walker has not been awaited once");
-        rig.recordWalkerCensus("no wait in this rung yet: the walker has not been awaited once");
+        rig.recordFutileGate("no wait in this rung yet: the navigator has not been awaited once");
+        rig.recordNavigatorCensus("no wait in this rung yet: the navigator has not been awaited once");
         rig.recordBodyVitals(rig.bodyVitalsLine());
         ctx.record("journey.stage", stage.name() + "(" + stage.label() + ")");
         return rig;
@@ -317,8 +317,8 @@ public final class JourneyRig {
         adoptedRealPlayer = false;
         JourneyRig rig = new JourneyRig(ctx, label);
         ctx.record("journey.stage", label.name() + "(" + label.label() + ") (arena, not recorded in the ledger)");
-        rig.recordFutileGate("no wait in this scene yet: the walker has not been awaited once");
-        rig.recordWalkerCensus("no wait in this scene yet: the walker has not been awaited once");
+        rig.recordFutileGate("no wait in this scene yet: the navigator has not been awaited once");
+        rig.recordNavigatorCensus("no wait in this scene yet: the navigator has not been awaited once");
         rig.recordBodyVitals(rig.bodyVitalsLine());
         return rig;
     }
@@ -456,11 +456,11 @@ public final class JourneyRig {
     /** The run's bot, or null before SPAWN has made one. */
     public static PlayerBot bodyOrNull() { return driver; }
 
-    /** What the walkers driving the run's bot have done, or null before SPAWN has made one. A rig built
+    /** What the navigators driving the run's bot have done, or null before SPAWN has made one. A rig built
      *  before the bot exists reads its baseline as zero, which is right: that body has done nothing yet. */
-    static WalkerTelemetry walkerTelemetry() {
+    static NavigatorTelemetry navigatorTelemetry() {
         PlayerBot d = driver;
-        return d == null ? null : WalkerTelemetry.of(d.fakePlayer());
+        return d == null ? null : NavigatorTelemetry.of(d.fakePlayer());
     }
 
     /** The run's bot, failing the scene when there is none — every stage above SPAWN needs it. */
@@ -911,7 +911,7 @@ public final class JourneyRig {
                     // is still an actor in it: vanilla's `Player.pushEntities` shoves anything it
                     // shares a cell with, and the ladder plays AT world spawn, which is exactly
                     // where a client that entered and never moved is standing. A bot that drifted
-                    // for no reason the walker trace explains has a second suspect on these
+                    // for no reason the navigator trace explains has a second suspect on these
                     // topologies, and it is nameless unless this row says where it was.
                     .append(' ').append(at.getX()).append(',').append(at.getY())
                     .append(',').append(at.getZ())
@@ -1006,7 +1006,7 @@ public final class JourneyRig {
      * ({@code drive}, {@code mineBlock}, and the mine branch of {@code settle}) waited on the driver
      * alone, so a fall during any of them spent the whole budget on a corpse and then surfaced from
      * the NEXT wait's entry check — which is why the fall report read "process running at exit: not recorded"
-     * and why two arena arms built on the walker trace beside it both passed: they were reproducing
+     * and why two arena arms built on the navigator trace beside it both passed: they were reproducing
      * a moment that was never the moment. An invariant with sibling paths that ignore it is the
      * shape this repo keeps paying for; the fix is the predicate, not another call site.
      */
@@ -1039,7 +1039,7 @@ public final class JourneyRig {
     /**
      * The real-player helm's stand-in for {@code PlayerBot.mine}.
      *
-     * <p>{@code mine} is not a {@link BotProcess} — it is a walker goal the SERVER driver checks
+     * <p>{@code mine} is not a {@link BotProcess} — it is a navigator goal the SERVER driver checks
      * every tick plus a swing once navigation stops — so it has nothing to hand a client chain.
      * This is the same two beats spelled out with the pieces that do cross the helm: an
      * {@link IntentProcess} to within reach, then the same in-place swing every other cell in this
@@ -1256,8 +1256,8 @@ public final class JourneyRig {
      * outright. So a true answer here is not "probably reachable": it is "this swing lands, now,
      * from exactly where the bot is standing".
      *
-     * <p><b>Why this is worth a route.</b> {@code PlayerBot.mine} is a walker goal plus a
-     * swing, and the walker carves and pillars its way to the goal. On the real ladder of
+     * <p><b>Why this is worth a route.</b> {@code PlayerBot.mine} is a navigator goal plus a
+     * swing, and the navigator carves and pillars its way to the goal. On the real ladder of
      * 2026-08-16 that is what ended rung 12 at its FIRST cell: the mould carve left
      * {@code forge.carved} at 48 of 67 cells opened and 19 not dug, all nineteen in the alcove's upper
      * half (y=59..62), and {@code carve.firstStuck} on the first of them read -9,59,36=granite with
@@ -1335,9 +1335,9 @@ public final class JourneyRig {
 
     /** Which process was driving when the bot left the world, and how far into its budget.
      *
-     *  <p>Needed because the walker trace beside it can be arbitrarily stale: it is written on
-     *  WALKER ticks, and this rung spends much of its time under TowerProcess / SwingAt / HoldStill,
-     *  none of which tick a walker. A healthy walking line printed next to a fall therefore proves
+     *  <p>Needed because the navigator trace beside it can be arbitrarily stale: it is written on
+     *  NAVIGATOR ticks, and this rung spends much of its time under TowerProcess / SwingAt / HoldStill,
+     *  none of which tick a navigator. A healthy walking line printed next to a fall therefore proves
      *  nothing about the fall — it can be minutes old and from a different task. Two straight arena
      *  arms built on that line ({@code wd.serverStopsAtTheBridgeHead}, {@code …TurnsAtTheBridgeHead})
      *  both passed, which is what forced this reading into existence. */
@@ -1361,7 +1361,7 @@ public final class JourneyRig {
     public void settle(BotProcess process, int ticks, TickWatcher watcher, Runnable then) {
         // THE one place that runs on every tick of every task of every rung, which is why the
         // out-of-world check lives here and not at the call sites: there are dozens of settles and
-        // a bot that has left the world invalidates all of them equally. Same shape as the walker's
+        // a bot that has left the world invalidates all of them equally. Same shape as the navigator's
         // single `step++` exit — one guard covers every path because there is only one path.
         if (bodyLeftTheWorld()) {
             // Record here too. This entry guard latches the fall for every settle AFTER the one the
@@ -1382,8 +1382,8 @@ public final class JourneyRig {
             if (watcher != null) watcher.tick();
             if (legEnded(d)) return true;
             if (bodyLeftTheWorld()) {
-                // Latched HERE, where the process that was actually driving is in scope. The walker
-                // trace printed beside it only updates on walker ticks, so on a task driven by a
+                // Latched HERE, where the process that was actually driving is in scope. The navigator
+                // trace printed beside it only updates on navigator ticks, so on a task driven by a
                 // tower or a swing it describes some earlier task entirely.
                 if (drivingWhenLost == null) {
                     drivingWhenLost = process.kind() + " (tick " + waited[0] + "/" + ticks + ")";
@@ -1431,10 +1431,10 @@ public final class JourneyRig {
                 + "," + fp.blockPosition().getY() + "," + fp.blockPosition().getZ()
                 + " @ " + fp.level().dimension().location()
                 + "; process running at exit=" + (drivingWhenLost == null ? "not recorded" : drivingWhenLost)
-                + "; walker activity on the last supported tick (⚠️ updated only on walker ticks, may be from another task)="
-                + WalkerTelemetry.of(fp).lastSupportedTrace
-                + "; walker activity on the tick of departure="
-                + WalkerTelemetry.of(fp).lastTickTrace
+                + "; navigator activity on the last supported tick (⚠️ updated only on navigator ticks, may be from another task)="
+                + NavigatorTelemetry.of(fp).lastSupportedTrace
+                + "; navigator activity on the tick of departure="
+                + NavigatorTelemetry.of(fp).lastTickTrace
                 + "; last on the ground=" + (lastGrounded == null ? "never stood firmly during this task"
                         : lastGrounded.getX() + "," + lastGrounded.getY() + "," + lastGrounded.getZ()
                           + " (" + sinceGrounded + " ticks earlier — that cell is the one to inspect)")
@@ -1491,7 +1491,7 @@ public final class JourneyRig {
      * tasks those ticks fall in — see {@link #sinceHeartbeat} for why that distinction is the point.
      *
      * <p>A rung's evidence map is printed once, at the end. The tasks in between are silent unless the
-     * walker happens to emit one of its own capped debug lines, and those caps are per bot — once a
+     * navigator happens to emit one of its own capped debug lines, and those caps are per bot — once a
      * long rung has spent them, it produces <b>no output at all</b>. Measured 2026-08-18: rung 20 ran
      * 30 minutes without a single log line while the server ticked normally at 4.7% CPU, and the only
      * way to learn that the bot had vanished from the level was to query the live game over RPC.
@@ -1519,7 +1519,7 @@ public final class JourneyRig {
         if (++sinceHeartbeat < HEARTBEAT_TICKS) return;
         sinceHeartbeat = 0;
         recordFutileGate(futileGateLine());
-        recordWalkerCensus(walkerCensus.line());
+        recordNavigatorCensus(navigatorCensus.line());
         recordBodyVitals(bodyVitalsLine());
         recordDrown(drownWatch.line());
         ServerPlayer fp = driver.fakePlayer();
@@ -1545,7 +1545,7 @@ public final class JourneyRig {
      * pathLen is the detour, resetting is the churn.
      *
      * <p>Read through {@link #slot} rather than {@code body().botState()} so a real-player helm
-     * reports the CLIENT's walker — the one actually driving the ladder. {@code driving} carries a
+     * reports the CLIENT's navigator — the one actually driving the ladder. {@code driving} carries a
      * parenthesised target for some tasks ({@code mine(x,y,z)}), so the slot name is the part before
      * it; only the fields {@code ProcessSlot.snapshot()} publishes are reachable here.
      */
@@ -1696,7 +1696,7 @@ public final class JourneyRig {
      * does not mine), the whole inventory {@code empty} (it dropped on death), and — the one that would have
      * sent the next reader somewhere else entirely — {@code world.isSolid(36,63,83)=false} for a cell
      * the live game reports as {@code grass_block}. The rung would have ended in
-     * {@code TIMEOUT: await step exceeded}, i.e. "the walker could not get there", which is true and
+     * {@code TIMEOUT: await step exceeded}, i.e. "the navigator could not get there", which is true and
      * useless. <b>The verdict has to name the death, not what the death made impossible.</b>
      *
      * <p>Sibling of {@link #bodyLeftTheWorld}, and the same lesson twice: a bot that stops being a
@@ -1755,7 +1755,7 @@ public final class JourneyRig {
         diedOf = "the bot died: " + how + " (rung " + stage.name() + ", position "
                 + fp.blockPosition().toShortString() + ", task tick " + legTicks + ", driver "
                 + (driving == null ? "none" : driving) + ") — every reading after death describes a corpse: the inventory has dropped,"
-                + " key presses no longer move it, digging stops, and the walker's result message reports all of it as 'cannot reach'.";
+                + " key presses no longer move it, digging stops, and the navigator's result message reports all of it as 'cannot reach'.";
         WorldDriverCommon.LOG.error("[journey] {}", diedOf);
         return true;
     }
@@ -1768,16 +1768,16 @@ public final class JourneyRig {
      * are the same window, and a delta would need a baseline nobody took.
      *
      * <p><b>All-zero has two readings and the line says so.</b> Either the guard was never called
-     * on this run, or the walker ticked so little that it never got the chance; the sum IS the
+     * on this run, or the navigator ticked so little that it never got the chance; the sum IS the
      * number of ticks it ran over, so a zero sum is the second and a zero in one bucket with a
-     * non-zero sum is a real share. Naming the buckets from {@link WalkerTelemetry#STRIDE_SKIP_REASONS}
+     * non-zero sum is a real share. Naming the buckets from {@link NavigatorTelemetry#STRIDE_SKIP_REASONS}
      * rather than by index keeps this row and the code filling it from drifting apart.
      */
     private String strideGuardLine() {
-        WalkerTelemetry t = walkerTelemetry();
+        NavigatorTelemetry t = navigatorTelemetry();
         long sum = 0;
         StringBuilder sb = new StringBuilder();
-        String[] names = WalkerTelemetry.STRIDE_SKIP_REASONS;
+        String[] names = NavigatorTelemetry.STRIDE_SKIP_REASONS;
         for (int i = 0; i < names.length; i++) {
             long v = t == null ? 0 : t.strideGuardSkips.get(i);
             sum += v;
@@ -1787,7 +1787,7 @@ public final class JourneyRig {
                 + (t == null ? 0 : t.strideGuardFires)
                 + " times over the run; did not fire for " + sum + " ticks"
                 + (sum == 0 ? " (total 0 — the guard was never called on this run, so the problem is not inside"
-                              + " the guard; check first whether the walker ticked)" : ", by reason: " + sb);
+                              + " the guard; check first whether the navigator ticked)" : ", by reason: " + sb);
     }
 
     /**
@@ -1807,8 +1807,8 @@ public final class JourneyRig {
     private final long[] futileAtStart = futileSnapshot();
 
     private static long[] futileSnapshot() {
-        WalkerTelemetry t = walkerTelemetry();
-        long[] v = new long[WalkerTelemetry.FUTILE_GATE_BUCKETS.length];
+        NavigatorTelemetry t = navigatorTelemetry();
+        long[] v = new long[NavigatorTelemetry.FUTILE_GATE_BUCKETS.length];
         for (int i = 0; i < v.length; i++)
             v[i] = t == null ? 0 : t.futileGateBuckets.get(i);
         return v;
@@ -1844,14 +1844,14 @@ public final class JourneyRig {
     /** The executor's side of the same tick. Constructed HERE so its baseline is the rig's birth,
      *  which is what makes its numbers this rung's rather than the run's — the identical reasoning
      *  as {@link #futileAtStart}, one field above. */
-    private final WalkerCensus walkerCensus = new WalkerCensus();
+    private final NavigatorCensus navigatorCensus = new NavigatorCensus();
 
     /** Written on exactly the same terms as {@link #recordFutileGate}: the same two choke points,
      *  the same deliberate bypass of {@code evidence()}'s clash detector (this key is REWRITTEN
      *  every heartbeat on purpose), for the same reasons documented there. */
-    private void recordWalkerCensus(String line) {
-        evidence.put("walkerCensus", line);
-        ctx.record("walkerCensus", line);
+    private void recordNavigatorCensus(String line) {
+        evidence.put("navigatorCensus", line);
+        ctx.record("navigatorCensus", line);
     }
 
     /** Health the bot walked INTO this rung with, or -1 before the first reading.
@@ -1892,13 +1892,13 @@ public final class JourneyRig {
                 + (fp.getFoodData().getFoodLevel() < 18 ? " ⚠️ food <18, natural regeneration will not happen" : "");
     }
 
-    /** Same two choke points and the same clash-detector bypass as {@link #recordWalkerCensus}. */
+    /** Same two choke points and the same clash-detector bypass as {@link #recordNavigatorCensus}. */
     private void recordBodyVitals(String line) {
         evidence.put("body.vitals", line);
         ctx.record("body.vitals", line);
     }
 
-    /** Same two choke points and the same clash-detector bypass as {@link #recordWalkerCensus}. */
+    /** Same two choke points and the same clash-detector bypass as {@link #recordNavigatorCensus}. */
     private void recordDrown(String line) {
         evidence.put("water.drown", line);
         ctx.record("water.drown", line);
@@ -1911,14 +1911,14 @@ public final class JourneyRig {
         long[] now = futileSnapshot();
         long sum = 0;
         StringBuilder sb = new StringBuilder();
-        String[] names = WalkerTelemetry.FUTILE_GATE_BUCKETS;
+        String[] names = NavigatorTelemetry.FUTILE_GATE_BUCKETS;
         for (int i = 0; i < names.length; i++) {
             long v = now[i] - futileAtStart[i];
             sum += v;
             sb.append(i == 0 ? "" : ", ").append(names[i]).append('=').append(v);
         }
         return "this rung completed " + sum + " searches"
-                + (sum == 0 ? " (none: the walker did not search in this rung; do not read the zeros below as a result)"
+                + (sum == 0 ? " (none: the navigator did not search in this rung; do not read the zeros below as a result)"
                             : ", gate outcomes: " + sb);
     }
 
@@ -2086,7 +2086,7 @@ public final class JourneyRig {
         // right after pinnedBaseline()". The pin still restores on close.
         //
         // 38 flags differed. Measured 2026-08-22 on the real client, seed 5471: with the arena table
-        // in force there was NO dig arbitration at all (`walkerDigAimPriority=false`), so the travel
+        // in force there was NO dig arbitration at all (`navigatorDigAimPriority=false`), so the travel
         // drive and the water climb-out each ran startDestroyBlock on their own cell every ~35 ticks
         // while vanilla tracks exactly ONE destroy target — every switch threw the other's progress
         // away, neither cell ever passed 0.16 of the 1.0 it needed, and rung 3 timed out at 8000
@@ -2110,7 +2110,7 @@ public final class JourneyRig {
         // of a trunk means breaking the four under it, so at 3× those paths price out — 49 rows of
         // `[mine] no approach to stand` and a first tree that yielded 4 instead of 7.
         // `pathfinderBreakCostMultiplier` (2.5 vs 1.0) pushes the same way. Both taxes exist to stop
-        // the walker chewing through trees it is merely PASSING, and rung 3 is the one rung whose
+        // the navigator chewing through trees it is merely PASSING, and rung 3 is the one rung whose
         // whole job is to chew through a tree.
         //
         // ✅ AND THAT SENTENCE IS NOW OVER. The trunk tax has a scope: `pathfinderLogBreakTax` is
@@ -2132,10 +2132,10 @@ public final class JourneyRig {
         // doing to the player. `AutoSwim`'s shore search — the code that owns a submerged real player
         // — logs nothing at all without it, and the integrated topology's ladder dies in water at
         // spawn without a single line explaining why. Turn on with:
-        //     ./gradlew :fabric:runJourneyIntegratedServer -PwalkerDebug=true
+        //     ./gradlew :fabric:runJourneyIntegratedServer -PnavigatorDebug=true
         // Empty when not asked for, default here in Java: the build file holding a lever
         // permanently open is a mistake this block has made once already (see the rehearse budget).
-        GameConfig.walkerDebug = "true".equals(System.getProperty("worlddriver.journey.walkerDebug", ""));
+        GameConfig.navigatorDebug = "true".equals(System.getProperty("worlddriver.journey.navigatorDebug", ""));
         // FIVE TIMES THE SHIPPED DEFAULT (6 ms), on the axis the freeze complaint is about — and
         // until now the only line here without a reason. 6 ms is chosen to keep a search well
         // inside one 16 ms frame WHILE WALKING; 30 ms is what the product spends only when the
@@ -2145,7 +2145,7 @@ public final class JourneyRig {
         //
         // That matters because the freeze the user watched was watched HERE: whatever share of it
         // comes from this line is a property of the rig, not of the shipped client, and no amount
-        // of Walker work will remove it. It is left at 30 deliberately — changing it mid-series
+        // of Navigator work will remove it. It is left at 30 deliberately — changing it mid-series
         // would confound the rung timings the ladder is being read for — but it must be one arm of
         // the A/B when the repeat-search suppression lands, or that fix will be credited with a
         // change this line could have made on its own.
@@ -2162,8 +2162,8 @@ public final class JourneyRig {
         // not a fix, and nothing here should be cited as having unblocked a rung.
         //
         // ⚠️ AND IT DOES NOT REACH EVERY SEARCH. These two fields are read by `PathFinder`'s
-        // BotConfig-defaulting constructors only. `WalkerSettings.withSearchBudget(nodes, ms)` overrides them
-        // per walker, and `Walker.newPathFinder` prefers that override unconditionally whenever it is
+        // BotConfig-defaulting constructors only. `NavigatorSettings.withSearchBudget(nodes, ms)` overrides them
+        // per navigator, and `Navigator.newPathFinder` prefers that override unconditionally whenever it is
         // positive — so a process that sets one never sees this. `MineProcess` does, in an instance
         // initialiser (8000/400, for its own documented reason: deep searches chopped the client's
         // frame rate after every break). Same run, by channel: 5154 searches on THESE values (82%),
@@ -2537,7 +2537,7 @@ public final class JourneyRig {
         evidence(key + ".pickup.empty", String.format(
                 "walked to %s and stood 30 ticks but picked up nothing — free slots %d/%d, bot at %.2f,%.2f,%.2f; %s; this walk %s",
                 walkedTo.toShortString(), free, inv.items.size(),
-                fp.getX(), fp.getY(), fp.getZ(), nearest, JourneyLeg.walkerEnd(this)));
+                fp.getX(), fp.getY(), fp.getZ(), nearest, JourneyLeg.navigatorEnd(this)));
     }
 
     /** What the collect could not get, read after it stops rather than before it starts. A drop
@@ -2872,7 +2872,7 @@ public final class JourneyRig {
      */
     public JourneyRig evidence(String key, Object value) {
         // WHICH TASK IS LIVE, remembered here because this is the funnel every DELIBERATE row goes
-        // through — and the per-tick rows do not: `futileGate`, `walkerCensus` and `body.vitals`
+        // through — and the per-tick rows do not: `futileGate`, `navigatorCensus` and `body.vitals`
         // write into the map directly from #heartbeat, so a reading that would otherwise be
         // overwritten every 200 ticks survives as the task's own tag. See death.leg.
         lastEvidenceKey = key;
@@ -2941,7 +2941,7 @@ public final class JourneyRig {
     public void reach(String detail) {
         claimed = true;
         recordFutileGate(futileGateLine());
-        recordWalkerCensus(walkerCensus.line());
+        recordNavigatorCensus(navigatorCensus.line());
         recordBodyVitals(bodyVitalsLine());
         // ON THE PASS TOO. A rung that drowned nobody is the control this reading is judged
         // against, and a control that only the failures carry is not a control.

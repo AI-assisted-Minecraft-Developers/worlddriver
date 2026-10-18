@@ -22,24 +22,24 @@ import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.*;
 import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
-import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
 import net.magicterra.worlddriver.bot.control.WalkVerdict;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 
 
 /**
- * Mechanical extraction of {@code Walker#tickInner} (pre-split lines 646–837): flight-end / surface-float searchFoot / one-shot goal snap / sticky-dig + dig-aim latches.
- * One phase of the per-tick pipeline — see {@link Walker#tickInner} for the driver and
- * {@link WalkerTickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
- * original tick body except for the {@code w.}/{@code Walker.} member prefixes; do not
+ * Mechanical extraction of {@code Navigator#tickInner} (pre-split lines 646–837): flight-end / surface-float searchFoot / one-shot goal snap / sticky-dig + dig-aim latches.
+ * One phase of the per-tick pipeline — see {@link Navigator#tickInner} for the driver and
+ * {@link TickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
+ * original tick body except for the {@code w.}/{@code Navigator.} member prefixes; do not
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
-public final class WalkerTickPrelude {
+public final class PreludePhase {
     /** Emit a per-tick execution sample. Pure reads; cheap; gated to NOOP in release. */
-    public void sampleTick(Walker wk, LivingEntity p) {
-        // Cheap gate: skip the per-tick WalkerSample allocation entirely unless capture is on.
+    public void sampleTick(Navigator nav, LivingEntity p) {
+        // Cheap gate: skip the per-tick NavigatorSample allocation entirely unless capture is on.
         // Keeps the hot path free in normal play and in a stripped (NOOP) release build.
         if (!ControlConfig.pathDebug && !ControlConfig.pathArchive) return;
         // Expose the bot's level to PathArchiveRecorder (and other PathTrace sinks) without
@@ -49,17 +49,17 @@ public final class WalkerTickPrelude {
         BotLevelHolder.current = p.level();
         double tx = Double.NaN, tz = Double.NaN;
         String mv = null;
-        if (wk.route.path() != null && wk.route.step() >= 0 && wk.route.step() < wk.route.path().size()) {
-            BlockPos t = wk.route.path().get(wk.route.step());
+        if (nav.route.path() != null && nav.route.step() >= 0 && nav.route.step() < nav.route.path().size()) {
+            BlockPos t = nav.route.path().get(nav.route.step());
             tx = t.getX() + 0.5;
             tz = t.getZ() + 0.5;
-            Move.Edge e = wk.route.edgeAt(wk.route.step());
+            Move.Edge e = nav.route.edgeAt(nav.route.step());
             mv = (e != null) ? e.move : null;
         }
         boolean overlap = !p.level().noCollision(p, p.getBoundingBox().deflate(1.0E-7));
-        PathTraceHolder.SINK.onWalkerTick(new PathTrace.WalkerSample(
+        PathTraceHolder.SINK.onNavigatorTick(new PathTrace.NavigatorSample(
                 p.tickCount, p.getX(), p.getY(), p.getZ(), p.getYRot(),
-                tx, tz, wk.route.step(), mv, p.onGround(), p.isInWater(),
+                tx, tz, nav.route.step(), mv, p.onGround(), p.isInWater(),
                 p.getPose().name(), overlap, p.getId()));
     }
 
@@ -67,7 +67,7 @@ public final class WalkerTickPrelude {
      *  travel tick can't release attack (a single released tick resets vanilla mining
      *  progress to zero; C28-J1 DIG-slow @-258,81,338: 200t of dig ticks interleaved with
      *  attack=false travel ticks never completed one block). Engaged by Climb/Drive,
-     *  released by WalkerTickPrelude when the planned break is gone; deliberately NO
+     *  released by PreludePhase when the planned break is gone; deliberately NO
      *  journey reset (release is world-state-driven). */
     public final StickyDig stickyDig = new StickyDig();
 
@@ -88,7 +88,7 @@ public final class WalkerTickPrelude {
     /**
      * The dig claim's RELEASE POLICY, and the only place it lives.
      *
-     * <p>{@code walkerDigAimPriority}: ONE released tick resets vanilla mining progress to zero, so an
+     * <p>{@code navigatorDigAimPriority}: ONE released tick resets vanilla mining progress to zero, so an
      * underwater 25×-slow dig interleaved with travel ticks never completes (C28-J1 DIG-slow: 200t held in
      * aggregate, block still solid). An earlier latch owned the whole tick until the block broke, and starved
      * travel and recovery when the latched block was not the way out. This one lets the entire travel tick
@@ -102,7 +102,7 @@ public final class WalkerTickPrelude {
      * vanilla's destroyProgress by 0.00333/tick — 300 ticks per block, because the ×5 (eye in water)
      * and ×5 (airborne) penalties multiply. The cap was {@code min(breakTimeoutTicks=200, 300)} = 200,
      * so the hold was released 100 ticks before the block could ever break, vanilla zeroed the
-     * progress, the walker re-acquired the same cell, and the rung timed out after 8000 ticks having
+     * progress, the navigator re-acquired the same cell, and the rung timed out after 8000 ticks having
      * broken nothing. Highest progress ever reached: 0.77. A constant cannot bound a quantity whose
      * scale the terrain decides.
      *
@@ -110,9 +110,9 @@ public final class WalkerTickPrelude {
      * old time box byte for byte: stall-only there would release at 60 ticks and be TIGHTER than what
      * it has today, which is a regression dressed as a fix.
      */
-    private void expireDigClaim(Walker wk, Body a, WorldView world, LivingEntity p) {
-        if (!ControlConfig.walkerDigAimPriority || stickyDig.pos == null) return;
-        float prog = wk.blocks.destroyProgress();
+    private void expireDigClaim(Navigator nav, Body a, WorldView world, LivingEntity p) {
+        if (!ControlConfig.navigatorDigAimPriority || stickyDig.pos == null) return;
+        float prog = nav.blocks.destroyProgress();
         boolean spent;
         if (prog < 0) {
             spent = ++stickyDig.ticks > Math.min(ControlConfig.breakTimeoutTicks, 300);
@@ -139,20 +139,20 @@ public final class WalkerTickPrelude {
         // MineProcess.findReachStand scans dy to −5 to create).
         if (!world.isSolid(stickyDig.pos) || spent
                 || !eyeWithin(p, stickyDig.pos, blockReachToCentre(p))) {
-            if (GameConfig.walkerDebug)
-                LOG.info("[walker] dig-aim RELEASE {} solid={} ticks={} stall={} prog={}",
+            if (GameConfig.navigatorDebug)
+                LOG.info("[navigator] dig-aim RELEASE {} solid={} ticks={} stall={} prog={}",
                         stickyDig.pos, world.isSolid(stickyDig.pos), stickyDig.ticks,
                         stickyDig.stallTicks, String.format("%.2f", stickyDig.lastProgress));
             stickyDig.revoke();
         }
     }
 
-    /** The tick's foot during a cruise hop ({@code WalkerTickDrive.cruiseHop}): its apex lifts the feet 1.25 over
+    /** The tick's foot during a cruise hop ({@code DrivePhase.cruiseHop}): its apex lifts the feet 1.25 over
      *  the level it left, so floor(y) read a row up and every "node below the foot" branch (aim at the node, the
      *  descent hold) took the heading over mid-flight and swung it 40° (R1 1422,64,-403). Until it lands the hop is
      *  judged from its take-off level. The keying tick itself may still be grounded, so landing counts after it. */
-    BlockPos hopFoot(Walker wk, LivingEntity p, BlockPos foot) {
-        DriveLatches l = wk.drive.driveLatch;
+    BlockPos hopFoot(Navigator nav, LivingEntity p, BlockPos foot) {
+        DriveLatches l = nav.drive.driveLatch;
         if (l.hopY == Integer.MIN_VALUE) return foot;
         if (p.isInWater() || foot.getY() < l.hopY || p.onGround() && p.tickCount > l.hopTick + 1) {
             l.hopY = Integer.MIN_VALUE;
@@ -162,37 +162,37 @@ public final class WalkerTickPrelude {
     }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    public TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         LivingEntity p = a.entity();
-        if (p == null) { wk.error = "player vanished"; return wk.terminalReport(TickStep.FAILED, PathTrace.Outcome.ERROR, wk.error, "failed:" + wk.error, null); }
-        wk.safety.guardParkourTick = false;
-        wk.jumpTag = null;
-        wk.aimTag = null;
-        wk.driveTag = null;
+        if (p == null) { nav.error = "player vanished"; return nav.terminalReport(TickStep.FAILED, PathTrace.Outcome.ERROR, nav.error, "failed:" + nav.error, null); }
+        nav.safety.guardParkourTick = false;
+        nav.jumpTag = null;
+        nav.aimTag = null;
+        nav.driveTag = null;
         // AvatarInput install (client) is handled inside the {@code Body} implementation.
 
         // Steep-barrier planner escalation: a confirmed boxed churn (below) arms a sticky
-        // timer; while it's live, this walker's finders read the escalated horizon/soft-commit/
+        // timer; while it's live, this navigator's finders read the escalated horizon/soft-commit/
         // depth-penalty (PathTuning.escalatedWhen) so A* commits a climb-OVER route instead of
         // re-committing a cheap shallow/cave segment. Off (back to configured defaults)
         // once the timer lapses, so easy-terrain searches are never slowed.
-        wk.stallDetect.escal.tick++;
-        boolean wasEscalating = wk.stallDetect.escal.wasArmed;
-        boolean escalating = wk.stallDetect.escal.armed();
-        wk.stallDetect.escal.wasArmed = escalating;
-        if (escalating && !wasEscalating && GameConfig.walkerDebug)
-            LOG.info("[walker] steep-barrier escalation ARMED (boxed churn) → horizon=0 depthPenalty>=25 softCommit>=35000 for {} ticks",
-                    wk.stallDetect.escal.untilTick - wk.stallDetect.escal.tick);
+        nav.stallDetect.escal.tick++;
+        boolean wasEscalating = nav.stallDetect.escal.wasArmed;
+        boolean escalating = nav.stallDetect.escal.armed();
+        nav.stallDetect.escal.wasArmed = escalating;
+        if (escalating && !wasEscalating && GameConfig.navigatorDebug)
+            LOG.info("[navigator] steep-barrier escalation ARMED (boxed churn) → horizon=0 depthPenalty>=25 softCommit>=35000 for {} ticks",
+                    nav.stallDetect.escal.untilTick - nav.stallDetect.escal.tick);
 
         // Expectation alarms read LAST tick's pressed state vs THIS tick's world response —
         // run before the per-tick input baseline below clears anything.
-        if (ControlConfig.walkerExpectAlarm) wk.exAlarms.tick(wk.blocks, a, world, p, wk.route.path(), wk.route.step(), wk.progress.stepProg.noStepProgressTicks);
+        if (ControlConfig.navigatorExpectAlarm) nav.exAlarms.tick(nav.blocks, a, world, p, nav.route.path(), nav.route.step(), nav.progress.stepProg.noStepProgressTicks);
 
         // Per-tick baseline for the jump/sneak channel: default to "not jumping / not
         // sneaking" so any path that returns without setting them can't leak a stale
         // value — branches below override as needed. (jump only matters on the ground,
         // so a default-false on an airborne tick is a no-op; see AvatarInput.)
-        wk.keys.jump(a, false);
+        nav.keys.jump(a, false);
         Keys.sneak(a, false);
 
         // Ground pathfinder: end creative flight so the player descends and
@@ -205,9 +205,9 @@ public final class WalkerTickPrelude {
         if (flyer != null && flyer.getAbilities().flying) {
             flyer.getAbilities().flying = false;
             flyer.onUpdateAbilities();
-            if (!descending && GameConfig.walkerDebug)
+            if (!descending && GameConfig.navigatorDebug)
                 LOG.info(
-                        "[walker] creative flight detected → disabling, will descend (y={})", p.getY());
+                        "[navigator] creative flight detected → disabling, will descend (y={})", p.getY());
             descending = true;
         }
         // Let the post-flight free-fall settle before we path — A* from a
@@ -218,17 +218,17 @@ public final class WalkerTickPrelude {
             if (!p.onGround() && !world.isWater(new BlockPos(
                     (int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ())))) {
                 Keys.forward(a, false);
-                wk.keys.jump(a, false);
+                nav.keys.jump(a, false);
                 p.setSprinting(false);
-                if (GameConfig.walkerDebug)
+                if (GameConfig.navigatorDebug)
                     LOG.info(
-                            "[walker] descending… y={} onGround={}", p.getY(), p.onGround());
+                            "[navigator] descending… y={} onGround={}", p.getY(), p.onGround());
                 return TickStep.WALKING;
             }
             descending = false;
-            if (GameConfig.walkerDebug)
+            if (GameConfig.navigatorDebug)
                 LOG.info(
-                        "[walker] landed at y={} → resume ground pathing", p.getY());
+                        "[navigator] landed at y={} → resume ground pathing", p.getY());
         }
 
         // Water-bucket (MLG) fall execution is owned by the bot's always-on
@@ -236,11 +236,11 @@ public final class WalkerTickPrelude {
         // the edge guards send as we step off a fallBucket lip, OR reactively,
         // on any unplanned damaging fall — the clutch runs at the top of the
         // bot's tick, takes the keys for the whole descent, and returns
-        // early so this Walker is suspended until the bot has landed and
+        // early so this Navigator is suspended until the bot has landed and
         // scooped. So there's nothing to do here; the walk dispatch below only
         // SIGNALS the planned case and biases the step-off keys.
 
-        BlockPos foot = hopFoot(wk, p, blockPosOf(p));
+        BlockPos foot = hopFoot(nav, p, blockPosOf(p));
         // Search start for a bot floating AT the water surface. foot=floor(p.y) DIPS underwater on a
         // down-bob (p.y 61.64↔62.02 → foot.y 61↔62), so a repath fired mid-down-bob starts A* one
         // cell UNDER the surface; A* prefixes the plan with submerged nodes the buoyant bot can't
@@ -258,7 +258,7 @@ public final class WalkerTickPrelude {
         // start: the lift is capped at two cells, so a diver's route is still planned from where
         // the diver is.
         BlockPos searchFoot = foot;
-        if (ControlConfig.walkerBuoyantSearchFromSurface && p.isInWater() && !p.onGround()) {
+        if (ControlConfig.navigatorBuoyantSearchFromSurface && p.isInWater() && !p.onGround()) {
             int sy = foot.getY();
             while (world.isWater(new BlockPos(foot.getX(), sy, foot.getZ()))) sy++;
             // sy = first non-water cell above the column; the top water cell (sy-1) is where the bot
@@ -270,10 +270,10 @@ public final class WalkerTickPrelude {
         // A search fired at a jump's apex starts one cell above the floor, and a plan opening with a
         // pillarUp from there places into the cell the body already fills: live 1446,79,-553 jumped
         // 4 s without placing once. The cell below is where the jump lands.
-        if (ControlConfig.walkerSearchFromLanding && !p.onGround() && !p.isInWater() && !p.onClimbable()
+        if (ControlConfig.navigatorSearchFromLanding && !p.onGround() && !p.isInWater() && !p.onClimbable()
                 && !world.canStandAt(foot) && world.canStandAt(foot.below()))
             searchFoot = foot.below();
-        sampleTick(wk, p);
+        sampleTick(nav, p);
         // One-shot goal snap (needs a live WorldView, so here not in start): a random
         // long-distance goto whose exact target block is UNSTANDABLE — buried in terrain,
         // a sub-stand 1-tall pocket, or under a ceiling — makes A* never accept any node
@@ -284,16 +284,16 @@ public final class WalkerTickPrelude {
         // uses, so planning AND arrival agree and the bot settles at the closest standable
         // spot. Only affects exact-cell Goal.Block whose target is genuinely unstandable;
         // standable targets (every mine/farm/combat stand cell) are left untouched.
-        if (!wk.goalSnapChecked && wk.goal instanceof Goal.Block gb && world.isKnown(gb.target())) {
+        if (!nav.goalSnapChecked && nav.goal instanceof Goal.Block gb && world.isKnown(gb.target())) {
             // Gate on isKnown: at journey start a far goal sits in an UNLOADED chunk, where
             // canStandAt reads void (false) with nothing standable nearby — a one-shot check
             // there would no-op and, with the flag set, never retry once the chunk loads. So
             // defer the single snap until the goal cell's chunk is actually loaded (the bot
             // has come within render range), then evaluate it for real.
-            wk.goalSnapChecked = true;
-            wk.snapGoalToStandable(world, foot);
+            nav.goalSnapChecked = true;
+            nav.snapGoalToStandable(world, foot);
         }
-        if (wk.goal.reached(foot)) {
+        if (nav.goal.reached(foot)) {
             // While mid-pillar-jump the floored feet-Y can tick into the goal
             // cell at the apex before we've placed the block to stand on —
             // declaring ARRIVED there makes the bot abort the last placement
@@ -308,16 +308,16 @@ public final class WalkerTickPrelude {
             // lower goal cell mid-arc while still airborne and carrying forward
             // momentum; declaring ARRIVED there skips the landing brake and the
             // bot overshoots the 1-wide block into the void. Hold until grounded.
-            Move.Edge ce = wk.route.edgeAt(wk.route.step());
+            Move.Edge ce = nav.route.edgeAt(nav.route.step());
             boolean midAirEdge = ce != null && ce.move != null && !p.onGround()
                     && ("pillarUp".equals(ce.move) || ce.move.startsWith("parkourPlace")
                         || ce.move.startsWith("parkourDescend"));
-            if (!midAirEdge) return wk.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null,
-                    WalkVerdict.classifyArrival(wk.route.seg.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
+            if (!midAirEdge) return nav.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null,
+                    WalkVerdict.classifyArrival(nav.route.seg.pathBestEffort, nav.goal.reached(foot), nav.goalSnapped), foot);
         }
 
-        expireDigClaim(wk, a, world, p);
-        // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
+        expireDigClaim(nav, a, world, p);
+        // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
         cx.frame.p = p;
         cx.frame.foot = foot;
         cx.frame.searchFoot = searchFoot;

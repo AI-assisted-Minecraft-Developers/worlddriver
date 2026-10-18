@@ -13,8 +13,8 @@ import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
@@ -100,8 +100,8 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
     /**
      * Look before walking, then walk what was looked at. The preview action of the flat lane ends
      * reached; the goto with its {@code planId} arrives and its result reports {@code adopted}.
-     * How many searches the walker made on the way is recorded, not judged
-     * ({@code WalkerTelemetry.lastStats} moves once per search): the off-path safety re-search supersedes the
+     * How many searches the navigator made on the way is recorded, not judged
+     * ({@code NavigatorTelemetry.lastStats} moves once per search): the off-path safety re-search supersedes the
      * adopted route on the first tick of any lane longer than three cells, and cells are not
      * comparable either (the adoption straightens, trims and fast-forwards). Then the bot is
      * put six cells off the previewed line, past the adoption gate's four, and the same call must
@@ -112,10 +112,10 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
         BlockPos start = ctx.rel(0, GROUND + 1, 0);
         BlockPos goal = ctx.rel(12, GROUND + 1, 0);
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         // The baseline spends the goal node from 0.67 away, which ends the walk a cell short and fails
         // the action before its result can say whether the plan was adopted.
-        ControlConfig.walkerHoldLastNodeUntilStanding = true;
+        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
         helm.sync(30, () -> goTo(ctx, "preview.reply", goal, Map.of("plan", "preview", "route", Map.of("risk", "normal")), planned -> {
             ctx.check(!action(planned).isEmpty()).as("A: the preview is accepted as an action: " + planned).isTrue();
             awaitEnd(ctx, actionId(planned), 200, t -> { }, preview -> {
@@ -123,15 +123,15 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                 ctx.record("preview.result", String.valueOf(preview));
                 ctx.check("succeeded".equals(preview.get("state")) && Boolean.TRUE.equals(plan.get("reached")))
                         .as("B: the preview reaches the goal: state=" + preview.get("state") + " reached=" + plan.get("reached")).isTrue();
-                final WalkerTelemetry clientTel = WalkerTelemetry.of(helm.player().getUUID(), true);   // the client bot of this player
+                final NavigatorTelemetry clientTel = NavigatorTelemetry.of(helm.player().getUUID(), true);   // the client bot of this player
                 clientTel.lastStats = null;
                 askByName(ctx, "adopt.reply", "mc.bot.goto", Map.of("planId", String.valueOf(plan.get("planId"))), walked -> {
                 final int[] arrived = { -1 };
                 final int[] searches = { 0 };
-                final WalkerTelemetry.PathStats[] seen = { null };
+                final NavigatorTelemetry.PathStats[] seen = { null };
                 ClientHelm.TickWatcher watch = t -> {
                     if (arrived[0] < 0 && helm.flatDistance(goal) <= 1.0) arrived[0] = t;
-                    WalkerTelemetry.PathStats st = clientTel.lastStats;
+                    NavigatorTelemetry.PathStats st = clientTel.lastStats;
                     if (st != null && st != seen[0]) { seen[0] = st; searches[0]++; }
                 };
                 awaitEnd(ctx, actionId(walked), 400, watch, trip -> {
@@ -141,12 +141,12 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
                             .as("C: the goto with a planId adopts the preview: " + adoption).isTrue();
                     ctx.check(arrived[0] >= 0 || helm.flatDistance(goal) <= 1.5)
                             .as("D: the bot arrives along the adopted route: horizontal distance " + String.format(java.util.Locale.ROOT, "%.2f", helm.flatDistance(goal))).isTrue();
-                    // Recorded, not judged. The adopted route is the walker's path when its first tick
+                    // Recorded, not judged. The adopted route is the navigator's path when its first tick
                     // begins (C guarantees that; the scheduler no longer drops it on activation), but the
                     // off-path safety re-search then fires on that same tick: it measures the distance
                     // to the tracked NODE, and after string-pulling a 12-cell lane is one edge whose far
                     // end is 12 cells away. Measuring to the edge instead was tried and broke
-                    // wd.entityLeash* and wd.pillarLedger* (see WalkerTickStallDetect.offPath), so
+                    // wd.entityLeash* and wd.pillarLedger* (see StallDetectPhase.offPath), so
                     // until that is re-homed the count here documents the cost rather than gating on it.
                     ctx.record("E full searches after adoption (not judged)", String.valueOf(searches[0]));
                     // Part two: preview the way back, then stand six cells off the line.

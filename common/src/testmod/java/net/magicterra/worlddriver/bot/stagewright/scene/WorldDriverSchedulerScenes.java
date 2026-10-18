@@ -9,7 +9,7 @@ import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.behavior.reflex.AntiSuffocateGate;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.WalkVerdict;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BunkerProcess;
@@ -54,13 +54,13 @@ import net.minecraft.world.level.block.Blocks;
  * {@code @GameTest} arena as {@code (ok, msg) -> { if (!ok) throw new GameTestAssertException(msg); }};
  * each helper is copied byte-for-byte and the scene body supplies the SceneContext analogue
  * {@code (ok, msg) -> { if (!ok) ctx.fail(msg); }}. Row counts (legacy == scene, audited in
- * migration-log wave-7): retreatGateMatrix 43, walkerTerminalReport 5, antiSuffocateShouldTrigger 8,
+ * migration-log wave-7): retreatGateMatrix 43, navigatorTerminalReport 5, antiSuffocateShouldTrigger 8,
  * chainEpisodeCancel 3, combatGrace 2, frailBlocked 3, urgentBid 10 (urgentBid 5 + wouldEscalate 5),
  * duskSecureHeldProcessLifecycle 33 (matrix 26 + world phase 7), cancelRouting 19, manualSlotGrace 8,
  * nearestFirstScan 5.
  *
- * <p><b>Nine of the eleven are PURE LOGIC — no world, no avatar, no walker</b> (static gate /
- * classifier / in-memory chain-state matrices): {@code wd.walkerTerminalReportMatrix},
+ * <p><b>Nine of the eleven are PURE LOGIC — no world, no avatar, no navigator</b> (static gate /
+ * classifier / in-memory chain-state matrices): {@code wd.navigatorTerminalReportMatrix},
  * {@code wd.antiSuffocateShouldTriggerMatrix}, {@code wd.chainEpisodeCancelMatrix},
  * {@code wd.combatGraceMatrix}, {@code wd.frailBlockedMatrix}, {@code wd.urgentBidMatrix},
  * {@code wd.cancelRoutingMatrix}, {@code wd.manualSlotGraceMatrix}, {@code wd.nearestFirstScanMatrix}.
@@ -91,7 +91,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("wd.retreatGateMatrix", 200, WorldDriverSchedulerScenes::retreatGateMatrixScene),
-                Scene.of("wd.walkerTerminalReportMatrix", 200, WorldDriverSchedulerScenes::walkerTerminalReportMatrixScene),
+                Scene.of("wd.navigatorTerminalReportMatrix", 200, WorldDriverSchedulerScenes::navigatorTerminalReportMatrixScene),
                 Scene.of("wd.antiSuffocateShouldTriggerMatrix", 200, WorldDriverSchedulerScenes::antiSuffocateShouldTriggerMatrixScene),
                 Scene.of("wd.chainEpisodeCancelMatrix", 200, WorldDriverSchedulerScenes::chainEpisodeCancelMatrixScene),
                 Scene.of("wd.combatGraceMatrix", 200, WorldDriverSchedulerScenes::combatGraceMatrixScene),
@@ -437,13 +437,13 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
     }
 
     // ==================================================================================
-    // wd.walkerTerminalReportMatrix — gap#68-R2a Walker.classifyArrival honesty (5 rows).
+    // wd.navigatorTerminalReportMatrix — gap#68-R2a Navigator.classifyArrival honesty (5 rows).
     // ==================================================================================
 
-    // Pure-function matrix for Walker.classifyArrival: the ARRIVED exits must be distinguishable.
+    // Pure-function matrix for Navigator.classifyArrival: the ARRIVED exits must be distinguishable.
     // Call sites pass specific labels such as goal-snapped or frontier-giveup themselves; this
     // function covers only the three generic exit states.
-    static void walkerTerminalReportMatrix(BiConsumer<Boolean, String> check) {
+    static void navigatorTerminalReportMatrix(BiConsumer<Boolean, String> check) {
         check.accept("arrived".equals(WalkVerdict.classifyArrival(false, true,  false)), "full path + reached = arrived");
         check.accept("arrived".equals(WalkVerdict.classifyArrival(true,  true,  false)), "best-effort + reached = arrived");
         check.accept("path-consumed".equals(WalkVerdict.classifyArrival(false, false, false)), "full path + NOT reached = path-consumed");
@@ -451,8 +451,8 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         check.accept("goal-snapped".equals(WalkVerdict.classifyArrival(false, true,  true)),  "snapped goal reached = goal-snapped");
     }
 
-    private static void walkerTerminalReportMatrixScene(SceneContext ctx) {
-        walkerTerminalReportMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); });
+    private static void navigatorTerminalReportMatrixScene(SceneContext ctx) {
+        navigatorTerminalReportMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); });
     }
 
     // ==================================================================================
@@ -771,7 +771,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         // Scrub the whole dirt slab + dig shaft on any exit (#40 persistent-world lesson).

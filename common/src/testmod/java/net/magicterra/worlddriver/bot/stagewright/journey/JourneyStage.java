@@ -108,7 +108,7 @@ public enum JourneyStage {
      * <p>What a green row claims: the bot fetched its own lava from the seed's nearest reachable
      * pool — a 36-block shaft it dug itself — and cast obsidian into a cell it named beforehand,
      * with {@code staging.calls=0}. What it does not claim: that the scripted ascent works alone
-     * (every green so far carries {@code exit.walkerFallback=true}), or that the bot survives
+     * (every green so far carries {@code exit.navigatorFallback=true}), or that the bot survives
      * anything ({@code body.invulnerable=true} rides on every row of this track).
      *
      * <p><b>Promoted and demoted twice: on three greens, then on five.</b> Both regressions were the

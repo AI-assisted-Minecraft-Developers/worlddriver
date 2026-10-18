@@ -1,20 +1,20 @@
 package net.magicterra.worlddriver.config;
 
 /**
- * Settings read by the executor, the Walker and its tick phases ({@code bot/control}).
+ * Settings read by the executor, the Navigator and its tick phases ({@code bot/control}).
  * Each sits in the lowest layer that reads it; {@link BotConfig} enumerates, persists and pins them all.
  */
 public final class ControlConfig {
     private ControlConfig() {}
 
-    /** Walker repath cadence. Lower = more responsive to obstacles, higher = less CPU. */
-    public static volatile int walkerRepathEveryTicks = 200;
+    /** Navigator repath cadence. Lower = more responsive to obstacles, higher = less CPU. */
+    public static volatile int navigatorRepathEveryTicks = 200;
 
-    /** Walker total-tick safety budget; if no progress within this many ticks, fail. */
-    public static volatile int walkerTotalTickBudget = 1200;
+    /** Navigator total-tick safety budget; if no progress within this many ticks, fail. */
+    public static volatile int navigatorTotalTickBudget = 1200;
 
     /** Consecutive completed A* searches with NO goal-distance improvement AND no bot
-     *  displacement (>2 blocks) before the Walker fails the journey as unreachable
+     *  displacement (>2 blocks) before the Navigator fails the journey as unreachable
      *  (gap #49-③). The tick budget above bounds the same loop, but it counts TICKS
      *  while each churn cycle burns a full search (live: 129 searches / ~36 s of A* CPU
      *  inside the 62 s wait; an arena with big slices stretched the same loop past
@@ -24,11 +24,11 @@ public final class ControlConfig {
      *  time the bot moves >2 blocks or the best goal distance improves. Each futile
      *  search also arms a short exponential repath backoff so the wait itself stops
      *  burning CPU. 0 disables both. */
-    public static volatile int walkerFutileSearchCap = 5;
+    public static volatile int navigatorFutileSearchCap = 5;
 
     /** Consecutive ascent dead-zones from the SAME foot for the SAME node before the walk fail-stops.
      *
-     *  <p>{@link #walkerFutileSearchCap} cannot cover this case — it is gated on the search NOT
+     *  <p>{@link #navigatorFutileSearchCap} cannot cover this case — it is gated on the search NOT
      *  reaching the goal, and a dead-zone is what happens when the search reaches it and the
      *  executor then refuses the edge. Measured on journey rung 20: a bot perched on a 0.16 sole
      *  beside the void spent 2400 ticks re-routing to the same {@code diagUp} node, silently, while
@@ -36,7 +36,7 @@ public final class ControlConfig {
      *  dead-zone can be transient — a re-route from a slightly different position may legitimately
      *  produce a reachable edge — and the counter only advances while BOTH the foot cell and the
      *  target node are unchanged. 0 disables. */
-    public static volatile int walkerAscendDeadZoneCap = 40;
+    public static volatile int navigatorAscendDeadZoneCap = 40;
 
     /** Stride floor-guard (gap #53, the 2026-07-12 survival death; same family as #51):
      *  while GROUNDED and dry, if the cell one stride ahead along the drive heading has no
@@ -49,11 +49,11 @@ public final class ControlConfig {
      *  one's open mouth; the #36 brake only checks the drive TARGET's dY (+1, up), never
      *  the real drop under the stride — the bot fell 10 blocks and died. Planned descents
      *  (waypoint below foot in the stride column) and parkour launches are exempt. */
-    public static volatile boolean walkerStrideFloorGuard = true;
+    public static volatile boolean navigatorStrideFloorGuard = true;
 
     /** Floor-gate the UNAIMED recovery hops (stuck-wiggle jump, unstuck displacement-burst
      *  jump): skip the jump when the arc would COME DOWN in a lethal drop column — probed
-     *  along the drive bearing by {@code WalkerGeometry.hopSuppressed}. ⚠️ It was a
+     *  along the drive bearing by {@code NavigatorGeometry.hopSuppressed}. ⚠️ It was a
      *  Chebyshev-≤2 ring around the foot until 2026-08-26; that radius held through a
      *  three-minute deterministic stall while letting a ring-3 hop carry a journey-ladder bot into
      *  a lava lake, so the reach was not widened, it was re-centred on where the arc lands.
@@ -64,7 +64,7 @@ public final class ControlConfig {
      *  sprint-jump from a floored cell one stride inside the rim. AIMED jumps (stepUp,
      *  parkour, riser breakers) are untouched — hurdle-on-a-bridge legitimately jumps.
      *  Suppression degrades to a grounded stall → futile cap → honest repath/FAILED. */
-    public static volatile boolean walkerRecoveryHopFloorGate = true;
+    public static volatile boolean navigatorRecoveryHopFloorGate = true;
 
     /** Discard a FROM-END best-effort continuation that makes no goal progress past the
      *  committed end (its best node's estimate doesn't beat commitEnd's): with the goal
@@ -78,12 +78,12 @@ public final class ControlConfig {
      *  planner-escalation machinery that BOXED pockets rely on to physically get out
      *  (t0 2026-07-20: boxedChurnEscalate ended "frontier-giveup" inside its pocket with
      *  zero escapes). The bridge battery's sealed-goal scenes opt in per-scene. */
-    public static volatile boolean walkerFromEndNoProgressDiscard = false;
+    public static volatile boolean navigatorFromEndNoProgressDiscard = false;
 
     /** A best-effort tail is consumed only once the bot is past it along the path, or has
      *  stalled; OFF consumes it on distance, which spends the far tail of a walk past the
      *  planner's horizon on its first tick ({@code wd.bridgeLongFlatWalk}). */
-    public static volatile boolean walkerTailConsumeDirectional = true;
+    public static volatile boolean navigatorTailConsumeDirectional = true;
 
     /** Corner-clearance repulsion in the walk drive: pure-pursuit cuts corners by design,
      *  and the 0.6-wide player then grazes solid corners the carrot line passes within
@@ -93,15 +93,15 @@ public final class ControlConfig {
      *  cell whose closest face point is within 0.45 of the player's centre — PREVENTING the
      *  graze instead of escaping the wedge. Self-limiting: cell-centred walking beside a
      *  wall sits at ≥0.5 (no push) and corridor pushes cancel. */
-    public static volatile boolean walkerCornerClearance = true;
+    public static volatile boolean navigatorCornerClearance = true;
 
     /** Yaw delta below this is not written each tick — reduces jitter when already aligned. */
-    public static volatile float walkerYawHysteresisDeg = 5f;
+    public static volatile float navigatorYawHysteresisDeg = 5f;
 
-    /** Dry descent: camera on a stable path trend (no downhill spin); see {@code WalkerConstants.DESCENT_CAM_FAR_DIST}. */
+    /** Dry descent: camera on a stable path trend (no downhill spin); see {@code NavigatorConstants.DESCENT_CAM_FAR_DIST}. */
     public static volatile boolean descentCameraDecouple = true;
-    /** The dry trend centroid steers only while the body has room along it; see {@code WalkerTickAim.headingClear}. */
-    public static volatile boolean walkerTrendNeedsRoom = true;
+    /** The dry trend centroid steers only while the body has room along it; see {@code AimPhase.headingClear}. */
+    public static volatile boolean navigatorTrendNeedsRoom = true;
 
     /** Extend {@link #descentCameraDecouple} to ALL dry launches (parkourDescend / parkour / fall):
      *  the camera SLEWS smoothly through the turn instead of snapping ~180° to the landing node
@@ -126,7 +126,7 @@ public final class ControlConfig {
      *  out level with the path-ahead exit, then steps off. Wall-BACKED vines keep the existing
      *  {@code vineWallYaw} wall-press path untouched (so the vineClingFidelityProbe is unaffected).
      *  Default ON; toggle for the deterministic vine-over-water A/B (mc.bot.setting). */
-    public static volatile boolean walkerVineFreeHangClimb = true;
+    public static volatile boolean navigatorVineFreeHangClimb = true;
 
     /** Grab a FREE-HANGING vine at the parkour LANDING apex — the "land-on-vine handoff". A
      *  {@code parkourAscend} that LANDS the bot ON a climbable vine still carries {@code parkourEdge=true}
@@ -134,16 +134,16 @@ public final class ControlConfig {
      *  cling at the one instant it matters: the bot touches the vine (foot=vine, climbable) but, with no
      *  handler engaged, gravity immediately pulls it PAST the vine into the 1-deep water pocket BELOW the
      *  curtain (live -711,67: parkourAscend2 onto the vine y63 UNDERSHOOTS to the pocket floor y60-61, where
-     *  {@code foot=water} is not climbable so {@link #walkerVineFreeHangClimb} can NEVER re-engage → the bot
+     *  {@code foot=water} is not climbable so {@link #navigatorVineFreeHangClimb} can NEVER re-engage → the bot
      *  must slowly swim back UP to the vine before the climb fix kicks in → ~40 s of pocket churn). With this
      *  ON, the vine handler is permitted on a parkour edge the moment the bot has LANDED on the climbable
      *  column — foot=vine, airborne (!onGround), and arrested horizontally over the landing node (XZ within
-     *  {@code OVERSHOOT_RESYNC_SQ}) — so the grab + {@link #walkerVineFreeHangClimb} sustain fire on the
+     *  {@code OVERSHOOT_RESYNC_SQ}) — so the grab + {@link #navigatorVineFreeHangClimb} sustain fire on the
      *  SAME tick the foot first becomes the vine, before gravity pulls it past. It CANNOT fire mid-leap (over
      *  a parkour GAP the foot is air, not climbable). Strictly inert when the bot has NOT landed on a vine
      *  (identical to the old {@code !parkourEdge} gate), so non-parkour vine traversal + wall-backed vines are
      *  unaffected. Default ON; toggle for the deterministic vine-LANDING A/B (mc.bot.setting). */
-    public static volatile boolean walkerVineLandGrab = true;
+    public static volatile boolean navigatorVineLandGrab = true;
 
     /** Release the vine CLING when the immediate committed node is NOT a climb — a "descend off the
      *  hanging curtain" gate. The vine handler's {@code climbUp} is computed from the {@code step+2}
@@ -158,12 +158,12 @@ public final class ControlConfig {
      *  foot.y}), so the bot drops off the vine onto the bank / into the inlet and the normal
      *  walk/stepDown resumes (the bank below the bob is solid → it grounds → the {@code !onGround} gate
      *  ends the cling). SCOPED to a non-climb intent: a genuine vine ASCENT always has the next node
-     *  ABOVE the foot ({@code wp.y > foot.y}) — the {@link #walkerVineFreeHangClimb} free-hang curtain
+     *  ABOVE the foot ({@code wp.y > foot.y}) — the {@link #navigatorVineFreeHangClimb} free-hang curtain
      *  climb (-711) and the {@code vineOverWaterClimbArena} climb-out both ascend, so {@code wp.y >
      *  foot.y} there and the cling is untouched. Strictly inert when OFF, and even ON it only fires when
      *  the bot is on a vine with a non-ascending immediate node. Default ON; flip OFF via
      *  {@code mc.bot.setting} for the inlet vine-bob A/B. */
-    public static volatile boolean walkerVineDescentDrop = true;
+    public static volatile boolean navigatorVineDescentDrop = true;
 
     /** Ticks the breaker waits before blacklisting a stuck block. */
     public static volatile int breakTimeoutTicks = 200;
@@ -176,7 +176,7 @@ public final class ControlConfig {
      *  drive entirely so the whole reserve goes to the ascent. gap#76. */
     public static volatile int drownEscapeAirThreshold = 100;
 
-    /** Per-tick compute slice (ms) for the time-sliced A* search. The Walker
+    /** Per-tick compute slice (ms) for the time-sliced A* search. The Navigator
      *  advances an in-flight search by at most this much each client tick, so a
      *  big search spreads over frames instead of blocking the render thread in
      *  one go (no stutter). The total search is still bounded by
@@ -191,34 +191,34 @@ public final class ControlConfig {
      *  a few frame hitches are cheaper than the wait: finish ~5× sooner, still rendering between slices. */
     public static volatile long pathfinderIdleSliceMs = 30;
     /** Dry-descent heading EMA; the tangent-aim drive follows it, and 0.08 walked a one-wide stair off (1512.7,76,-240.5). */
-    public static volatile double walkerDescentYawAlpha = 0.5;
+    public static volatile double navigatorDescentYawAlpha = 0.5;
     /** Half-width {@code PathSmoothing.losWalkableBody} sweeps; 0.3 is the box exactly, leaving no margin. */
-    public static volatile double walkerCarrotBodyHalfWidth = 0.4;
-    /** Half-width {@code WalkerTickAim.trendWithRoom} sweeps a heading at; 0.3 = the body's own, no margin. */
-    public static volatile double walkerHeadingClearHalfWidth = 0.4;
+    public static volatile double navigatorCarrotBodyHalfWidth = 0.4;
+    /** Half-width {@code AimPhase.trendWithRoom} sweeps a heading at; 0.3 = the body's own, no margin. */
+    public static volatile double navigatorHeadingClearHalfWidth = 0.4;
     /** The path projection also scans the leg the bot is on, not only the ones past its node; see {@code PathProjection.compute}. */
-    public static volatile boolean walkerProjectCurrentLeg = true;
+    public static volatile boolean navigatorProjectCurrentLeg = true;
     /** Take a stair flight riser by riser: carrot and trend centroid stop at its first riser, and a +1 jump aims at its node until it lands. */
-    public static volatile boolean walkerCarrotStopAtRise = true;
-    /** Airborne on the step before a stairUpBreak, start its dig so the last break's destroyDelay burns in the air; see {@code WalkerDig.preDigNextBreak}. */
-    public static volatile boolean walkerPreDigNextBreak = true;
-    /** Grounded a row below the node on a descent, skip ahead to the later node on the foot's row; see {@code WalkerTickProgress.dropAheadTarget}. */
-    public static volatile boolean walkerDropAheadResync = true;
-    /** A bot grounded on its node's row counts as standing for the climb-consume guard even on a thin corner; see {@code WalkerTickProgress.airborneClimbConsume}. */
-    public static volatile boolean walkerCornerFootingConsume = true;
+    public static volatile boolean navigatorCarrotStopAtRise = true;
+    /** Airborne on the step before a stairUpBreak, start its dig so the last break's destroyDelay burns in the air; see {@code Digging.preDigNextBreak}. */
+    public static volatile boolean navigatorPreDigNextBreak = true;
+    /** Grounded a row below the node on a descent, skip ahead to the later node on the foot's row; see {@code ProgressPhase.dropAheadTarget}. */
+    public static volatile boolean navigatorDropAheadResync = true;
+    /** A bot grounded on its node's row counts as standing for the climb-consume guard even on a thin corner; see {@code ProgressPhase.airborneClimbConsume}. */
+    public static volatile boolean navigatorCornerFootingConsume = true;
     /** Keep sprint through a diagonal +1 take-off (the diagAscent/stepJump vetoes), for the sprint-jump boost. */
-    public static volatile boolean walkerDiagAscentSprint = true;
-    /** Sprint-jump along a straight, level, open run of path; see {@code WalkerTickDrive.cruiseHop}. */
-    public static volatile boolean walkerCruiseHop = false;
-    /** Walk round a +1 block beside a level stretch instead of passing it as a riser; see {@code WalkerTickAim.jumpedRises}. */
-    public static volatile boolean walkerAvoidLoneRisers = true;
-    /** Start the from-end continuation only within this many blocks of the segment end (0 = OFF); see {@code WalkerTickRepath}. */
-    public static volatile int walkerContinuationMaxLead = 48;
+    public static volatile boolean navigatorDiagAscentSprint = true;
+    /** Sprint-jump along a straight, level, open run of path; see {@code DrivePhase.cruiseHop}. */
+    public static volatile boolean navigatorCruiseHop = false;
+    /** Walk round a +1 block beside a level stretch instead of passing it as a riser; see {@code AimPhase.jumpedRises}. */
+    public static volatile boolean navigatorAvoidLoneRisers = true;
+    /** Start the from-end continuation only within this many blocks of the segment end (0 = OFF); see {@code RepathPhase}. */
+    public static volatile int navigatorContinuationMaxLead = 48;
 
     /** PROGRESSIVE quick-start stub (0 = OFF). While a full re-plan is still
      *  time-slicing in the background (a hard obstacle search can take seconds),
      *  the bot has no path and stands frozen — the visible "inter-segment gap"
-     *  stall. When that gap opens, the Walker spends this many nodes on a tiny
+     *  stall. When that gap opens, the Navigator spends this many nodes on a tiny
      *  SYNCHRONOUS best-effort search and starts walking the resulting short
      *  segment toward the goal immediately; the big search's result replaces
      *  the stub when it lands (the adoption fast-forwards past the overlap, so no
@@ -226,7 +226,7 @@ public final class ControlConfig {
      *  is frozen anyway while the bot has nothing to walk. */
     public static volatile int pathfinderQuickNodes = 600;
 
-    /** PROGRESSIVE PATHFINDING: when ON, the Walker overlaps search with
+    /** PROGRESSIVE PATHFINDING: when ON, the Navigator overlaps search with
      *  movement more aggressively at the start-of-segment gap — in addition to the
      *  water bee-line stub it greedily marches over safe STANDABLE land toward the
      *  goal as a zero-search coarse-direction stub, so the bot starts moving almost
@@ -246,11 +246,11 @@ public final class ControlConfig {
      *  breaking. A floating bot cannot swim-jump onto a bank whose top sits
      *  ABOVE the water surface (swim-up tops out AT the surface, ~0.6 short of
      *  the step-up grab) — it bob-cycles forever against the bank. When the
-     *  Walker detects that stall it places ONE throwaway block on the surface
+     *  Navigator detects that stall it places ONE throwaway block on the surface
      *  against the bank to get GROUNDED, after which the ordinary dry climb
      *  finishes the +1/+2. Default ON as a water-escape safety net (independent
      *  of the general {@link WorldConfig#allowPlace}); needs a placeable block
-     *  in the hotbar. Read only by the Walker's climb-out actuator — never by the
+     *  in the hotbar. Read only by the Navigator's climb-out actuator — never by the
      *  pathfinder, so land/route planning is byte-for-byte unchanged. */
     public static volatile boolean allowSwimEscapePlace = true;
 
@@ -259,7 +259,7 @@ public final class ControlConfig {
      *  Off → the water source is left in place (single-use bucket). On by default. */
     public static volatile boolean waterBucketScoop = true;
 
-    /** Walker sneak-brake guard: while walking, if a LETHAL drop (fall deeper than
+    /** Navigator sneak-brake guard: while walking, if a LETHAL drop (fall deeper than
      *  the bot can survive at its current HP) is one step ahead in the heading, hold
      *  sneak so vanilla's ledge-guard stops the bot at the block edge instead of
      *  letting the controller drift off the cliff. Fixes DEATH #8 (RetreatChain/
@@ -269,7 +269,7 @@ public final class ControlConfig {
      *  move — hence lethal-only here never blocks a legitimate planned step-down. */
     public static volatile boolean lethalEdgeBrake = true;
 
-    /** Health at/below which the Walker goes CAREFUL: sprint is suppressed (sprint
+    /** Health at/below which the Navigator goes CAREFUL: sprint is suppressed (sprint
      *  momentum is the drift amplifier behind every unplanned fall) and the
      *  lethal-edge sneak pin is KEPT across planned descents instead of releasing
      *  (the release bets the bot lands exactly on the planned cell; at low HP that
@@ -306,9 +306,9 @@ public final class ControlConfig {
      *  the "live is truth, never ship an unproven fix" rule it ships OFF — a reviewed, ready
      *  opt-in lever to A/B the next time the intermittent wedge is caught live. Wired to
      *  {@code mc.bot.setting} so a live run can flip it ON. */
-    public static volatile boolean walkerVerticalResync = false;
+    public static volatile boolean navigatorVerticalResync = false;
 
-    /** Walker JUMP for a y-mislabeled +1 riser at a LEVEL-labeled node (the dominant steep-climb
+    /** Navigator JUMP for a y-mislabeled +1 riser at a LEVEL-labeled node (the dominant steep-climb
      *  jitter). A* can emit a walk/step node whose Y equals the foot's ({@code wp.y==foot.y}) yet
      *  the approach from the bot's current grounded cell is blocked by a +1 SOLID riser one block
      *  ahead in the heading — a stepped ridge/corner where the destination column is standable (so
@@ -330,11 +330,11 @@ public final class ControlConfig {
      *  normally-advancing walk never lets the wedge timer climb. Targets ONLY the mislabeled-riser
      *  ram; the general stepUp jitter on truly sheer terrain (real {@code wp.y>foot.y} steps) is
      *  unchanged. Wired to {@code mc.bot.setting} so a live run can flip it. */
-    public static volatile boolean walkerLevelRiserJump = false;
+    public static volatile boolean navigatorLevelRiserJump = false;
 
-    /** Walker LATERAL-pad break for a floating bot rammed against a lily pad the bot OVERLAPS but the
+    /** Navigator LATERAL-pad break for a floating bot rammed against a lily pad the bot OVERLAPS but the
      *  head-on pad scan misses. A surface swimmer crossing a lily-pad pond rams a pad and the existing
-     *  in-water pad-break (Walker drive: {@code p.isInWater() && p.horizontalCollision}) punches it —
+     *  in-water pad-break (Navigator drive: {@code p.isInWater() && p.horizontalCollision}) punches it —
      *  BUT that scan only samples the single cell directly toward the WAYPOINT at the eye plane
      *  ({@code BlockPos.containing(p.x ± dir, p.y+1, p.z)}). When the colliding pad sits in an ADJACENT
      *  column the bot's AABB (half-width 0.3) overlaps — not the heading cell — {@code BlockPos.containing}
@@ -354,9 +354,9 @@ public final class ControlConfig {
      *  ({@code isBreakableObstruction} false) so it is never touched; dry land ({@code !isInWater}) and a
      *  pad-free crossing (no breakable cell) never fire; and a normally-advancing swim never lets
      *  {@code noStepProgressTicks} climb. Wired to {@code mc.bot.setting} so a live run can flip it. */
-    public static volatile boolean walkerPadRamBreak = false;
+    public static volatile boolean navigatorPadRamBreak = false;
 
-    /** Walker step-advance guard for ASCENDING parkour leaps. A rising parkour edge
+    /** Navigator step-advance guard for ASCENDING parkour leaps. A rising parkour edge
      *  ({@code parkourAscend*}, or a {@code parkour2d}/{@code parkour3} whose landing is
      *  higher than the launch) is the ONLY jumped move that lacks a "don't advance the
      *  step-pointer until the leap has actually been executed" gate — {@code pillarUp},
@@ -365,7 +365,7 @@ public final class ControlConfig {
      *  bot reaches the launch and jumps, locking the pointer onto the NEXT node — which, for
      *  a water climb-out, is a flat {@code walk} node sitting +2 above the water. The bot then
      *  sinks into the pocket and bob-stalls on the underwater bank-dig (~25× slow) until a
-     *  repath stumbles onto a gentler exit. When ON, the Walker holds the step on a rising
+     *  repath stumbles onto a gentler exit. When ON, the Navigator holds the step on a rising
      *  parkour node until the feet have risen to its Y (grounded ±0.5), exactly like the
      *  pillarUp height-gate, so the parkour actuator owns the launch and a too-far approach
      *  can't skip onto the unreachable landing.
@@ -376,10 +376,10 @@ public final class ControlConfig {
      *  landing and airborne, so the gate is inert on a clean leap (which holds via the airborne
      *  state regardless); only the premature drift-skip is suppressed. Wired to
      *  {@code mc.bot.setting} so a live run can flip it. */
-    public static volatile boolean walkerParkourAscendHold = true;
+    public static volatile boolean navigatorParkourAscendHold = true;
 
     /** Refuse a jump toward a node that is BOTH below the foot AND already within
-     *  {@code walkerNoLaunchWithin} blocks horizontally. In that geometry a jump cannot help — the
+     *  {@code navigatorNoLaunchWithin} blocks horizontally. In that geometry a jump cannot help — the
      *  cell is adjacent, so a step reaches it — and it is strictly harmful: the launch adds upward
      *  and forward momentum to a bot that is already on top of its target.
      *  <p><b>Measured, five leaps, cleanly separated</b> (2026-08-22, rung 14 corridor segment 5, the
@@ -395,22 +395,22 @@ public final class ControlConfig {
      *  Every fatal launch was under one block; every survivable one was over two. The two fatal ones
      *  are the whole reason the ladder cannot pass rung 14: the bot drifts one block above its route
      *  on a lava-sea rim, then jumps at a node it is already standing next to.
-     *  <p><b>Why the existing suppression misses it.</b> {@code WalkerTickDrive}'s below-node term is
+     *  <p><b>Why the existing suppression misses it.</b> {@code DrivePhase}'s below-node term is
      *  {@code !(p.horizontalCollision && p.onGround() && wp.getY() < foot.getY())} — it requires a
      *  WALL to ram. On a rim there is nothing to ram, so a bot one above its node jumps anyway.
      *  <p><b>Why it cannot hurt a real leap.</b> A genuine parkour gap puts its landing two or more
      *  blocks out; {@code wd.parkourVoid{Short,Long}Runway} both launch across a gap, not at an
      *  adjacent cell, and this term is inert for them. It is also inert for every ASCEND
-     *  ({@code wp.y > foot.y}), which is the case {@link #walkerParkourAscendHold} owns. */
-    public static volatile boolean walkerNoLaunchAtAdjacentBelowNode = true;
+     *  ({@code wp.y > foot.y}), which is the case {@link #navigatorParkourAscendHold} owns. */
+    public static volatile boolean navigatorNoLaunchAtAdjacentBelowNode = true;
 
-    /** The radius for {@link #walkerNoLaunchAtAdjacentBelowNode}. One block, because one block is
+    /** The radius for {@link #navigatorNoLaunchAtAdjacentBelowNode}. One block, because one block is
      *  the width of a cell: inside it the node is not across anything and a step reaches it. The
      *  measurement it comes from separates at 0.75 vs 2.29, so this is not tuned to the edge of the
      *  data — anything in [1.0, 2.0] would classify all five samples identically. */
-    public static volatile double walkerNoLaunchWithin = 1.0;
+    public static volatile double navigatorNoLaunchWithin = 1.0;
 
-    /** Walker SPRINT brake for descending/walking ALONG a DEEP-water edge. The sibling
+    /** Navigator SPRINT brake for descending/walking ALONG a DEEP-water edge. The sibling
      *  of {@link #lethalEdgeBrake}/{@code steepDescentNear} for a water hazard instead of
      *  a dry cliff: when the bot is grounded and a DEEP floating-water cell
      *  ({@link WorldView#isFloatingWater}: water with water below — ≥2 deep, no floor in
@@ -438,9 +438,9 @@ public final class ControlConfig {
      *  byte-identical no-op on any tick that wouldn't have sprinted, and a legitimate flush
      *  shore-walk / river crossing is merely walked (not sprinted) along the deep edge.
      *  <p>Default decided by live A/B on the replay-0008 test bench. Flip via {@code mc.bot.setting}. */
-    public static volatile boolean walkerDeepWaterDriftBrake = true;
+    public static volatile boolean navigatorDeepWaterDriftBrake = true;
 
-    /** DRY sibling of {@link #walkerDeepWaterDriftBrake} (task#36): latches the
+    /** DRY sibling of {@link #navigatorDeepWaterDriftBrake} (task#36): latches the
      *  {@code steepDescentNear} sprint-drop across the airborne sub-arcs of a step-down descent.
      *  The raw brake is gated onGround, so on the airborne half of each step sprint re-arms and
      *  the accumulated FORWARD momentum walks the bot off a survivable-but-deep (&gt;4,
@@ -450,7 +450,7 @@ public final class ControlConfig {
      *  through the whole descent so momentum can't build over the lip. Drop-sprint only (no pin),
      *  so a gentle ≤4 staircase (no deep drop adjacent) is a byte-identical no-op. Flip via
      *  {@code mc.bot.setting} for live A/B. */
-    public static volatile boolean walkerSteepDescentLatch = true;
+    public static volatile boolean navigatorSteepDescentLatch = true;
 
     /** Descent step-skip SNEAK-brake (task#36). The planner is HARD-capped at
      *  {@link RulesConfig#pathfinderMaxDryFall} per single node, so a grounded bot can never legitimately
@@ -461,16 +461,16 @@ public final class ControlConfig {
      *  descending path while the feet are still up top): grounded foot y94 while wp=y83 (11 below).
      *  The drive then aims the bot forward+DOWN at that far node and residual sprint momentum
      *  LAUNCHES it off the stair edge into a cumulative fatal fall (2026-07-11 Mountains,
-     *  deterministic). Unlike the sprint-only {@link #walkerSteepDescentLatch}, this holds vanilla
+     *  deterministic). Unlike the sprint-only {@link #navigatorSteepDescentLatch}, this holds vanilla
      *  SNEAK (maybeBackOffFromEdge clamps the whole movement delta so the bot cannot step off a
      *  block edge, yet still steps DOWN one block at a time).
      *  <p><b>REPURPOSED — AIRBORNE forward-drift clamp (task#36, 2026-07-12).</b> The original
      *  grounded gate was proven a literal NO-OP (the far-below wp only appears airborne; grounded
      *  max(foot.Y-wp.Y) is exactly 4.0). The flag now gates the ISOLABLE BACKUP half of the #36
-     *  fix: when the steep-descent latch ({@link #walkerSteepDescentLatch}) is armed and the bot is
-     *  AIRBORNE over a descent, zero the forward drive ({@code driveF→0}, Walker ~line 4259) so the
+     *  fix: when the steep-descent latch ({@link #navigatorSteepDescentLatch}) is armed and the bot is
+     *  AIRBORNE over a descent, zero the forward drive ({@code driveF→0}, Navigator ~line 4259) so the
      *  bot drops onto the near tread instead of sailing off the lip on {@code driveF=1}. The arming
-     *  half (cumulative path-lookahead → kills sprint) lives under {@code walkerSteepDescentLatch};
+     *  half (cumulative path-lookahead → kills sprint) lives under {@code navigatorSteepDescentLatch};
      *  this clamp is the driveF-side backup.
      *  <b>Default ON (2026-07-12).</b> Live Mountains A/B (regen off, same start/goal) settled it:
      *  RED (both off) = 13 descent fall-damage (Fall A launch=8); arming-only (this OFF) = 9 (Fall A
@@ -479,9 +479,9 @@ public final class ControlConfig {
      *  gravity still drops the bot, so it can never stall/deadlock a descent (A/B: bot crossed every
      *  lip and kept descending, no stall-at-lip). Flip OFF via {@code mc.bot.setting} to isolate the
      *  arming half. */
-    public static volatile boolean walkerDescentStepSkipBrake = true;
+    public static volatile boolean navigatorDescentStepSkipBrake = true;
 
-    /** Walker drive fix for the backward lurch (jumping backwards while moving, looking back while
+    /** Navigator drive fix for the backward lurch (jumping backwards while moving, looking back while
      *  going downhill) on a DISCRETE drop.
      *  The dry descent flip-rejection holds the steady trend heading while a fall/stepDown node
      *  sits sharply (&gt;120°) behind the bot, but every {@code WATER_DRIVE_MAX_REJECT+1}=5th tick
@@ -511,15 +511,15 @@ public final class ControlConfig {
      *  a DISCRETE-descent overshoot back-hop ({@code descentYawArena} is a continuous diagDown SLOPE
      *  this fix deliberately excludes, so it is inert there and stays GREEN). Per "live is truth, never
      *  default ON without a clean A/B" it ships OFF — a reviewed, ready opt-in lever to A/B the next
-     *  time a discrete-descent back-hop is caught live (mirrors {@link #walkerVerticalResync}). Wired
+     *  time a discrete-descent back-hop is caught live (mirrors {@link #navigatorVerticalResync}). Wired
      *  to {@code mc.bot.setting} so a live run can flip it. */
-    public static volatile boolean walkerDescentFlipHold = false;
+    public static volatile boolean navigatorDescentFlipHold = false;
 
-    /** Walker step-advance fix for a {@code stepDown} (or short discrete descent) whose target
+    /** Navigator step-advance fix for a {@code stepDown} (or short discrete descent) whose target
      *  foothold is a SHALLOW WATER-SURFACE cell — water at the node, a SOLID floor one block below,
      *  and a non-water (air / vine / lily-pad) head above (a 1-deep splash at a bank edge, NOT the
      *  deep {@link WorldView#isFloatingWater} pocket).
-     *  <p><b>The bug</b> (live #47, ground-truth walker telemetry at node -809,62,350; water y62,
+     *  <p><b>The bug</b> (live #47, ground-truth navigator telemetry at node -809,62,350; water y62,
      *  dirt floor y61, lily-pad/vine at y63): the bot steps down into the 1-deep cell and GROUNDS
      *  there ({@code onG=true}, foot y62.00, {@code |dY|=0.00} — vertically EXACTLY at the node), but
      *  settles pinned at {@code cur2≈0.546}, just 0.10 OVER the {@code REACH_DIST_SQ=0.45} reach gate
@@ -547,7 +547,7 @@ public final class ControlConfig {
      *  <p><b>Default ON</b> — the live A/B this note gated on has landed; flip OFF to A/B against it. Historic note: byte-identical no-op while OFF, which was the pre-flip state, and remains true if you flip it back
      *  win (the parent does the live acceptance). Wired to {@code mc.bot.setting} so a live run can
      *  flip it. */
-    public static volatile boolean walkerWaterStepDownFloat = true;
+    public static volatile boolean navigatorWaterStepDownFloat = true;
 
     /** Advance past a +1 stepUp/diagUp CREST node a dry, buoyancy-free player has TOPPED OUT on but
      *  ORBITS, so the diagonal-staircase crest hiccup closes fast instead of bob-orbiting ~1.25-2.55 s.
@@ -561,7 +561,7 @@ public final class ControlConfig {
      *  NO actuator catches it: {@code ascentRamSlide} needs the node {@code ≥2 ABOVE} a GROUNDED foot
      *  (here {@code +1} above a bobbing/airborne foot), {@code descentRamStuck} needs the node 1 BELOW +
      *  hCol, and {@code stepUpFreeze} needs a grounded riser-RAM (the bot is airborne-orbiting, no hCol).
-     *  <p><b>The fix</b> (mirrors {@code walkerWaterStepDownFloat}/{@code crossedWalkNode}): once the bot
+     *  <p><b>The fix</b> (mirrors {@code navigatorWaterStepDownFloat}/{@code crossedWalkNode}): once the bot
      *  has reached the crest node's Y ({@code |dyNode| < 0.5}) and STALLED there orbiting
      *  ({@code noStepProgressTicks} past a gate), treat the apex arrival as reaching the node and ADVANCE
      *  the step at a RELAXED horizontal reach ({@code STEPUP_CREST_REACH_SQ=1.3}, well under
@@ -575,11 +575,11 @@ public final class ControlConfig {
      *  not-yet-topped climb, a fast clean stepUp, and every in-water case are all byte-identical INERT.
      *  <p><b>Default OFF</b> — byte-identical no-op until validated; flip ON only on a clean live A/B win
      *  (the parent does the live acceptance). Wired to {@code mc.bot.setting} so a live run can flip it. */
-    public static volatile boolean walkerStepUpCrestReach = false;
+    public static volatile boolean navigatorStepUpCrestReach = false;
 
-    /** Walker WATER-SURFACE walk relaxed-advance: the turn / terminal / WALL-CORNER freeze breaker for a
+    /** Navigator WATER-SURFACE walk relaxed-advance: the turn / terminal / WALL-CORNER freeze breaker for a
      *  buoyant surface swimmer. A flat {@code walk} water-surface node sits the bot ~0.67 b out (cur2 floor
-     *  ~0.455, just over the tight {@code WalkerConstants.REACH_DIST_SQ}=0.45) so {@code within} never closes; a
+     *  ~0.455, just over the tight {@code NavigatorConstants.REACH_DIST_SQ}=0.45) so {@code within} never closes; a
      *  straight crossing advances each node via {@code passed} (forward momentum carries the bot past), but at
      *  a TURN / terminal / wall-corner node the bot is not crossing toward the next node so {@code passed}
      *  can't fire either — the flat water walk node then has NO relaxed-advance and the bot orbits / freezes
@@ -592,12 +592,12 @@ public final class ControlConfig {
      *  crossing advances via {@code passed} in 1-2 ticks (noStepProgress stays low, never trips the stall gate);
      *  a dry walk and every non-walk edge are byte-identical inert. Wired to {@code mc.bot.setting} so a live
      *  run can flip it. */
-    public static volatile boolean walkerWaterWalkReach = true;
+    public static volatile boolean navigatorWaterWalkReach = true;
 
-    /** Walker JITTER-IMMUNE +2/+3 ascent-ram recovery: the deep fix for the steep-climb-failure stall where
+    /** Navigator JITTER-IMMUNE +2/+3 ascent-ram recovery: the deep fix for the steep-climb-failure stall where
      *  the bot drifts off a √2 diagUp and slides 2-3 blocks BELOW the ascent node — that node becomes an
      *  effective +2/+3 ram too tall for a single jump, yet under the fellOffPath >3 fall threshold. The
-     *  existing {@link Walker} ascentRamSlide folds exactly this into fellOffPath, but its stall gate hangs on
+     *  existing {@link Navigator} ascentRamSlide folds exactly this into fellOffPath, but its stall gate hangs on
      *  {@code noStepProgressTicks}, which the slide-back's re-approach / vertical bob zeroes on every 3D
      *  new-low — so on a WIDE ram the gate never fills and the bot bob-rams 150+ ticks before the slow
      *  WEDGE_TICKS(100) burst yanks it back (live J3b -877,75,241: diagUp node 3 above the foot, cur2 3.2-4.1,
@@ -609,18 +609,18 @@ public final class ControlConfig {
      *  bank-climb-out owns its dig recovery); pillarUp/parkour keep their handling; a clean climb advances via
      *  within/passed in 1-3 ticks (step changes, dwell resets) and never trips it. Wired to
      *  {@code mc.bot.setting}. */
-    public static volatile boolean walkerAscentRamJitterImmune = false;
+    public static volatile boolean navigatorAscentRamJitterImmune = false;
 
     /** Phase-0 of the arc-length pursuit refactor (#55): a SHADOW computation that projects the continuous
      *  foot XZ onto the path polyline, reports the projected segment, cumulative arc-length s, horizontal
      *  perpendicular distance, and the tangent heading at s+lookahead, and counts backward-snap events.
-     *  DRIVES NOTHING — logged only (walkerDebug). It exists to prove, via replay on the existing stall
+     *  DRIVES NOTHING — logged only (navigatorDebug). It exists to prove, via replay on the existing stall
      *  fixtures, that arc-length projection is monotonic and its projected segment tracks the live {@code step}
-     *  on clean runs BEFORE Phase 1 (walkerArcLengthAdvance) drives the step pointer off it. The structural
+     *  on clean runs BEFORE Phase 1 (navigatorArcLengthAdvance) drives the step pointer off it. The structural
      *  replacement for the ~8 instantaneous step-advance gates + the bob-immune dwell zoo that the buoyancy
      *  bob defeats one per-tick gate at a time. Wired to {@code mc.bot.setting}. Default OFF (zero behaviour
      *  change). */
-    public static volatile boolean walkerArcLengthShadow = false;
+    public static volatile boolean navigatorArcLengthShadow = false;
 
     /** Phase-1 of the arc-length pursuit refactor (#55): drive the {@code step} pointer from the path
      *  PROJECTION instead of the per-tick instantaneous gates. When ON, the step-advance decision becomes
@@ -631,12 +631,12 @@ public final class ControlConfig {
      *  firing, and the projection is bob-immune by construction. Live P0 shadow proof (2026-06-27): at the
      *  stalls the bot's projSeg led the frozen live step by 2-5 segments — exactly the advance this drives.
      *  The edge-execution holds (pillar/parkour/bridge not yet executed) still gate advancement. Requires
-     *  {@link #walkerArcLengthShadow}'s projector (computed whenever either flag is on). Default ON. */
-    public static volatile boolean walkerArcLengthAdvance = true;
+     *  {@link #navigatorArcLengthShadow}'s projector (computed whenever either flag is on). Default ON. */
+    public static volatile boolean navigatorArcLengthAdvance = true;
 
     /** Refuse to CONSUME a path node that sits in a cell BELOW the bot's own foot cell while the bot
      *  is still standing on something — the descending twin of the airborne-climb refusal at the same
-     *  outlet ({@code WalkerTickProgress#airborneClimbConsume}), whose javadoc named {@code within}'s
+     *  outlet ({@code ProgressPhase#airborneClimbConsume}), whose javadoc named {@code within}'s
      *  {@code |dyNode| < 1.2} as a still-suspect sibling. It was: on nether rung 14 the crossing's last
      *  four hops (2026-08-19) all ended perched at {@code 159,53,187} on 0.125 of a sole, and the plan
      *  that would have walked the bot out — {@code [158,53,187 → 159,52,187 → 159,51,188]} — was spent
@@ -646,7 +646,7 @@ public final class ControlConfig {
      *  tick it was adopted, and the segment then ends {@code path-consumed} with the bot where it
      *  started. Default ON; the OFF arm is the control in {@code wd.serverStepsDownAPerchItPlanned}
      *  and {@code wd.serverStepsDownTheLastNodeOfItsPlan}. */
-    public static volatile boolean walkerDescentNodeHold = true;
+    public static volatile boolean navigatorDescentNodeHold = true;
 
     /** Aim BOTH the camera and the bot at the bob-immune
      *  path TANGENT ahead of the projection ({@code arcProj.tangentYaw}) instead of the immediate-node bearing.
@@ -656,11 +656,11 @@ public final class ControlConfig {
      *  s+lookahead never reverses, so it eliminates that whole failure mode AND makes the descent flip-rejection
      *  / smoothWaterDriveYaw / trendCam bandaid family unnecessary. Skipped for launches (a parkour/MLG leap
      *  snaps at its specific landing) and inside the aim dead-zone. Requires the projector (auto-computed when
-     *  this, {@link #walkerArcLengthShadow} or {@link #walkerArcLengthAdvance} is on). Default ON. */
-    public static volatile boolean walkerTangentAim = true;
-    /** With {@link #walkerTangentAim}: past {@code PURSUIT_PERP} off the path, aim at the path's point ahead
+     *  this, {@link #navigatorArcLengthShadow} or {@link #navigatorArcLengthAdvance} is on). Default ON. */
+    public static volatile boolean navigatorTangentAim = true;
+    /** With {@link #navigatorTangentAim}: past {@code PURSUIT_PERP} off the path, aim at the path's point ahead
      *  ({@code PathProjection.pursuitYaw}) so the bot rejoins instead of walking parallel. Default ON. */
-    public static volatile boolean walkerTangentPursuit = true;
+    public static volatile boolean navigatorTangentPursuit = true;
 
     /** Phase-3 of the arc-length pursuit refactor: a bob/jitter-IMMUNE ram-wedge recovery. When the arc-length
      *  projection s makes no forward progress (|ds| &lt; 0.05/tick) while horizontalCollision for ARC_WEDGE_TICKS
@@ -671,10 +671,10 @@ public final class ControlConfig {
      *  ~5 s against a wall before the slow 100-tick wedge fires (live -672,94: descentRamStuck's exact node-1-below
      *  + hCol case, yet no recovery for 34+ t). The horizontal s is immune to that vertical noise. Requires the
      *  projector (auto-computed when this or another arc-length flag is on). Default ON. */
-    public static volatile boolean walkerArcLengthWedge = true;
+    public static volatile boolean navigatorArcLengthWedge = true;
 
     /** Phase-3b: NET arc-length progress over a WINDOW (catches an OSCILLATING limit cycle the per-tick ram wedge
-     *  {@link #walkerArcLengthWedge} and the anti-churn net-XZ both miss). A steep-face diagUp churn (live 2026-06-28
+     *  {@link #navigatorArcLengthWedge} and the anti-churn net-XZ both miss). A steep-face diagUp churn (live 2026-06-28
      *  -815, deterministically reproduced via replay-0006) bob-jumps AIRBORNE (no hCol → ram wedge resets) making
      *  small per-tick FORWARD ds then sliding back: net arc-s ≈ 0 over the cycle, yet per-tick |ds| > 0.05 (ram wedge
      *  resets) and net-XZ swings ~35 blocks laterally (anti-churn fooled). arc-s is the projection ONTO the path,
@@ -683,19 +683,19 @@ public final class ControlConfig {
      *  blacklists the un-advanceable node + re-routes). No hCol/onGround gate; excludes water + a legit barrierHit hold.
      *  A healthy walk clears ~8 blocks of arc / 2 s so legit travel never trips it. Default OFF (byte-identical).
      *  Validate via the deterministic replay-0006 A/B. */
-    public static volatile boolean walkerArcProgressWedge = false;
+    public static volatile boolean navigatorArcProgressWedge = false;
 
-    /** Fell-below align breaker: the diagUp limit-cycle ROOT (deeper than {@link #walkerArcProgressWedge}'s repath
+    /** Fell-below align breaker: the diagUp limit-cycle ROOT (deeper than {@link #navigatorArcProgressWedge}'s repath
      *  recovery). When the bot drifts below the route onto a +1 node, the freeze-breaker's LOOSE stepCol2&lt;1.6 gate
      *  fires a forced grounded jump from a lateral offset (~1.0-1.6) that lands BACK below the node, relaunches the
      *  bob, and repeats — a futile-jump cycle (live replay-0006 -809: onG 39:1 false, ~97% airborne, mount machinery
-     *  starved). This SUPPRESSES the jump while {@link Walker} arcProgStall is set AND the lateral offset is in the
+     *  starved). This SUPPRESSES the jump while {@link Navigator} arcProgStall is set AND the lateral offset is in the
      *  loose-but-not-tight band (&gt; FELL_BELOW_TIGHT_SQ), letting the bot SETTLE to ground so the forward-drive pulls
      *  it to tight alignment; the jump re-engages once in close and mounts cleanly (mirrors the pillarUp off-column
      *  align). Unlike apw (repath = re-commit the same staircase) this fixes the MOUNT in place. Default OFF
      *  (byte-identical: arcProgStall resets in water → dry-only; INERT unless the futile-jump signature is present).
      *  Validate via the deterministic replay-0006 A/B (and the replay-corpus regression). */
-    public static volatile boolean walkerFellBelowAlign = false;
+    public static volatile boolean navigatorFellBelowAlign = false;
 
     /** Bob-immune DRY wedge timer at +1 climb nodes. The {@code noStepProgressTicks} wedge timer counts ticks
      *  where the closest-approach distance² ({@code wd2}) stops improving; on dry land wd2 uses the CONTINUOUS
@@ -709,9 +709,9 @@ public final class ControlConfig {
      *  not, so the wedge timer accumulates and the existing recovery fires. Default OFF (byte-identical unless
      *  the bob-defeated-timer signature is present: dry, above-node, non-mounting). Validate via the hardened
      *  K=3-median replay-corpus gate (baseline_robust.json). */
-    public static volatile boolean walkerDryWedgeFootY = false;
+    public static volatile boolean navigatorDryWedgeFootY = false;
 
-    /** Wall-corner node-aim handoff. With walkerTangentAim the bot steers along the bob-immune path TANGENT,
+    /** Wall-corner node-aim handoff. With navigatorTangentAim the bot steers along the bob-immune path TANGENT,
      *  which is right for a clean trend-cruise but wrong at a CORNER: when the immediate node sits well off the
      *  tangent AND a wall is on the tangent heading, the bot rams the wall (horizontalCollision) and only
      *  creeps across as drift sweeps the geometry — the stuck-against-a-wall stall (replay-diagnosed 2026-06-29 on
@@ -719,7 +719,7 @@ public final class ControlConfig {
      *  When ON, a ram with the node > WALL_CORNER_AIM_DEG off the tangent yields the aim back to the direct
      *  node bearing so the bot turns off the wall onto the node. Gated on hCol, so a no-wall trend-cruise keeps
      *  the tangent byte-identical. Default OFF; validate via the hardened K=3-median replay-corpus gate. */
-    public static volatile boolean walkerWallCornerNodeAim = false;
+    public static volatile boolean navigatorWallCornerNodeAim = false;
 
     /** Overshoot re-aim at a cliff base. A dry walk node OVERSHOOT (foot blew PAST it, cur2 > 4) whose NEXT
      *  node is the climb (>1 up, so the overshoot-resync `passed` reachability gate can't advance onto it)
@@ -728,7 +728,7 @@ public final class ControlConfig {
      *  260-tick wedge = the signature of a slight step back followed by being stuck against a wall). When ON, after OVERSHOOT_REAIM_STUCK wedged ticks
      *  the aim points BACK at the overshot node so the bot walks onto it and relaunches the climb from the
      *  aligned base. Dry + grounded + next-too-high + long-stuck only. Default OFF; validate via hardened gate. */
-    public static volatile boolean walkerOvershootReaim = false;
+    public static volatile boolean navigatorOvershootReaim = false;
 
     /** Dry repath-rechurn breaker (the COMMON wedge amplifier, REGRESSION.md §21). The 5 single-mechanism
      *  executor point-fixes all failed because the catastrophic wedges are HETEROGENEOUS per terrain
@@ -743,17 +743,17 @@ public final class ControlConfig {
      *  (path[step-1]) — a FIXED point whose bearing doesn't thrash as the bot closes — walking the bot back
      *  ONTO the path before it resumes, instead of letting the repath loop re-churn. Default ON; validate via
      *  the hardened K≥6 same-build P(wedge>800) gate (K=3 median is bistable-noise-corrupted, §17). */
-    public static volatile boolean walkerDryReanchor = true;
+    public static volatile boolean navigatorDryReanchor = true;
 
     /** Lateral lane-keep centering for a dry DIAGONAL DESCEND (diagDown), mirroring the diagUp centering that
-     *  already exists (Walker:4262). The strafe lane-keep covers waterClimb/diagUp/cardinal lanes but NOT
+     *  already exists (Navigator:4262). The strafe lane-keep covers waterClimb/diagUp/cardinal lanes but NOT
      *  diagDown — a diagonal step-down (both axes change) falls into no branch, gets ZERO cross-axis
      *  correction, drifts off the descend diagonal, and RAMS the perpendicular corner (hCol, large yawErr):
      *  the close diagDown-ram wedge (live -671, REGRESSION.md §26). Unlike the DryReanchor anchor-back
      *  re-aim that OSCILLATED this case worse (totStuck 6009, §26 reverted), this is a LATERAL strafe (not an
      *  aim change) that pulls the bot onto the diagonal line so the corner clears. Default OFF; validate via
      *  the hardened K≥6 P(wedge>800) gate on the diagDown-bearing archives (steep-822 run6 corner-block). */
-    public static volatile boolean walkerDiagDownCenter = false;
+    public static volatile boolean navigatorDiagDownCenter = false;
 
     /** Wall-corner fast-churn recovery. The dry boxed-pocket churn detector (net XZ displacement < 8 blocks
      *  over a 20s window → blacklist the stuck nodes + escalate the planner + back off) is the ONLY recovery
@@ -763,10 +763,10 @@ public final class ControlConfig {
      *  a SUSTAINED horizontalCollision (≥4s continuous, the unambiguous wall-ram signature) shortens that window
      *  to ~8s so the same blacklist+escalate fires ~2.5× sooner. Gated HARD on sustained collision so legitimate
      *  slow-but-moving terrain (hCol=false, still net-progressing) keeps the full 20s window — that targeting is
-     *  why this can succeed where the unconditional walkerFasterChurnRepath (reverted, false-fired on slow climbs)
+     *  why this can succeed where the unconditional navigatorFasterChurnRepath (reverted, false-fired on slow climbs)
      *  could not. Default ON; validate LIVE on the journey-A repro (corpus totStuck-based gate is BLIND to this
      *  net-progress stall, REGRESSION.md §37). */
-    public static volatile boolean walkerWallCornerFastChurn = true;
+    public static volatile boolean navigatorWallCornerFastChurn = true;
 
     /** Drowning-escape reflex (LETHAL water climb-out deadlock, live 2026-06-29 New World (-21,60,-42)):
      *  the pillar↔repath deadlock below can pin a submerged bot under a bank lip until its air runs out —
@@ -777,7 +777,7 @@ public final class ControlConfig {
      *  once air recovers (≥ 240) or the bot leaves water; the interrupted climb then resumes fresh. A
      *  survival reflex, not a pathfinding fix: it turns any unknown submerged deadlock from a death into a
      *  breathe-retry loop. Default ON. */
-    public static volatile boolean walkerDrowningEscape = true;
+    public static volatile boolean navigatorDrowningEscape = true;
 
     /** Make the water climb-out "pillar gave up" latch STICKY across repaths (the 2026-06-29 lethal loop):
      *  climbPillarGaveUp latches when the buoyant place proves futile (bob can't clear the surface fill
@@ -786,7 +786,7 @@ public final class ControlConfig {
      *  until the bot drowned, and the bank-dig fallback never got a full turn. When ON, the latch survives
      *  context resets while the foot stays within 3 blocks of where the pillar proved futile (15s TTL), so
      *  the dig/recovery actually takes over. Default ON. */
-    public static volatile boolean walkerClimbGaveUpSticky = true;
+    public static volatile boolean navigatorClimbGaveUpSticky = true;
 
     /** StepUp mount BACKOFF-RETRY (the #47 problem-6 grind, live 2026-06-29 node(14,58,102) ~1400 ticks):
      *  the cardinal early-jump gate (ascendJumpReady: aligned && flatDist<=1.7) assumes the launch carries
@@ -798,7 +798,7 @@ public final class ControlConfig {
      *  no yaw slam, no jump) that opens ~1.5 blocks of runway, then the normal approach re-accelerates and
      *  the early jump launches WITH momentum over the riser. 40t cooldown between triggers. Default ON;
      *  A/B on replay-0016 (deterministic reproduction of the grind). */
-    public static volatile boolean walkerStepUpBackoffRetry = true;
+    public static volatile boolean navigatorStepUpBackoffRetry = true;
 
     /** Carrot pursuit shrink under sustained wall collision (the jungle-trunk friction, C5-J1 live
      *  + replay-0018 maxStuck ~284: the interpolated look-ahead carrot steers the BOT at a diagonal
@@ -813,7 +813,7 @@ public final class ControlConfig {
      *  trunk; collapsing to the node aims the bot at the trunk FACE. The trunk friction is not an
      *  aim bug — keep OFF permanently; the fix lane is a bot-width-aware LOS (losWalkable corridor
      *  test), not pursuit shrink. */
-    public static volatile boolean walkerCarrotHColShrink = false;
+    public static volatile boolean navigatorCarrotHColShrink = false;
 
     /** Carrot LOS player-width honesty (the true fix for the jungle-trunk
      *  friction): carrotPoint's line-of-sight gate switches from the centre-line RAY test to
@@ -821,35 +821,35 @@ public final class ControlConfig {
      *  interpolated sample). The far carrot then refuses bearings whose corridor clips a trunk
      *  column, stopping the pursuit at the last bot-walkable node instead of steering the
      *  hitbox into a slit only the ray fits. Path smoothing keeps the cheap ray. Default ON. */
-    public static volatile boolean walkerCarrotBodyLos = true;
+    public static volatile boolean navigatorCarrotBodyLos = true;
 
     /** §90 diagonal string-pull (the residual-zigzag lane of #15 path smoothing). stringPull
      *  historically straightens ONLY axis-aligned corridors — collapsing a zigzag into a long
-     *  diagonal fabricated corner-cuts the walker couldn't thread (spawn-maze stall) back when
+     *  diagonal fabricated corner-cuts the navigator couldn't thread (spawn-maze stall) back when
      *  the merge guard was the centre-line ray. With {@code losWalkableBody} (0.6-wide corridor
-     *  probe, same primitive walkerCarrotBodyLos trusts for pursuit) a diagonal merge can be
+     *  probe, same primitive navigatorCarrotBodyLos trusts for pursuit) a diagonal merge can be
      *  admitted honestly: the merged segment is kept only when the BOT corridor clears. Kills
      *  the cardinal staircase residue on open diagonal terrain — the last structural source of
      *  corner-scrape micro-slowdowns. */
-    public static volatile boolean walkerDiagonalStringPull = true;
+    public static volatile boolean navigatorDiagonalStringPull = true;
 
     /** §92 chain-mount (#15 steep-climb executor lane): consecutive same-direction +1 steps loosen the stepUp
      *  square-up gate (sideDist 0.2→0.45, lateral 0.1→0.25, launch 1.7→2.0) to ride the staircase on landing momentum,
      *  not stall-recentre-jump per step (that window is the slide-back window); direction changes keep the strict gate. */
-    public static volatile boolean walkerChainMount = false;
+    public static volatile boolean navigatorChainMount = false;
 
     /** Jump a dry +1 riser at its face distance along the velocity, keeping sprint (R1: 26/39 jumps fired at the face). */
-    public static volatile boolean walkerRiserLeadJump = true;
-    /** Run {@link #walkerRiserLeadJump} keeps beyond two airborne ticks' travel; see {@code WalkerTickDrive.riserLead}. */
-    public static volatile double walkerRiserLeadMargin = 0.1;
-    /** Hold a one-block step-down on its planned segment with the lane-keep strafe (see {@code WalkerTickDrive.segmentLaneOffset}). */
-    public static volatile boolean walkerDescentLaneKeep = true;
-    /** {@link #walkerRiserLeadJump} only for the riser under the node itself, not one beside it. */
-    public static volatile boolean walkerRiserLeadExact = true;
-    /** Judge a dry step-up's heading against the raw aim too, not only the lagging smoothed one; see {@code WalkerTickAim}. */
-    public static volatile boolean walkerStepUpRawHeading = true;
-    /** Plan a dry airborne bot from the cell it lands in, not the jump apex (see {@code WalkerTickPrelude}). */
-    public static volatile boolean walkerSearchFromLanding = true;
+    public static volatile boolean navigatorRiserLeadJump = true;
+    /** Run {@link #navigatorRiserLeadJump} keeps beyond two airborne ticks' travel; see {@code DrivePhase.riserLead}. */
+    public static volatile double navigatorRiserLeadMargin = 0.1;
+    /** Hold a one-block step-down on its planned segment with the lane-keep strafe (see {@code DrivePhase.segmentLaneOffset}). */
+    public static volatile boolean navigatorDescentLaneKeep = true;
+    /** {@link #navigatorRiserLeadJump} only for the riser under the node itself, not one beside it. */
+    public static volatile boolean navigatorRiserLeadExact = true;
+    /** Judge a dry step-up's heading against the raw aim too, not only the lagging smoothed one; see {@code AimPhase}. */
+    public static volatile boolean navigatorStepUpRawHeading = true;
+    /** Plan a dry airborne bot from the cell it lands in, not the jump apex (see {@code PreludePhase}). */
+    public static volatile boolean navigatorSearchFromLanding = true;
 
     /** task#82: weave the thin per-move AscendMovement episode tracker over ascent edges (stepUp/stairUpBreak/diagUp;
      *  B1 adjudication — the machine never actuates, PREP/RUNNING/SUCCESS fall through to the legacy drive; it owns
@@ -859,17 +859,17 @@ public final class ControlConfig {
      *  fires all landed on genuine dead-zone poses (zero false trips on progressing climbs), churn deltas stayed inside
      *  the identical-flag chaos envelope (×4-5 per-archive swings), and every ON-arm churn pocket was a pre-existing
      *  OFF family. OFF restores the byte-identical legacy branch. Wired to mc.bot.setting. */
-    public static volatile boolean walkerAscendMovement = true;
+    public static volatile boolean navigatorAscendMovement = true;
 
     /** §93 commit-tail platform retreat (#15 final lane). Best-effort segments whose
      *  tail lands mid-slope (fewer than 2 same-Y standable cardinal neighbours) retreat
      *  up to 8 nodes to the nearest platform node — the half-mounted commit tail plus
      *  periodic repath is what turns complex steep terrain into a 100s climb-fall grind
      *  while the same terrain runs clean standalone (§92b CSI). Default OFF. */
-    public static volatile boolean walkerCommitTailPlatform = false;
+    public static volatile boolean navigatorCommitTailPlatform = false;
 
     /** Cut a best-effort segment whose tail sinks into a dip back to its ridge ({@code PathSmoothing.sunkTailCut}). */
-    public static volatile boolean walkerCommitTailPeak = true;
+    public static volatile boolean navigatorCommitTailPeak = true;
 
     /** Repath route-oscillation damper (the C16 dry-land churn, REGRESSION §55 final autopsy):
      *  two near-equal-cost A* routes (a dig-through and a detour) alternate across periodic
@@ -882,7 +882,7 @@ public final class ControlConfig {
      *  would U-turn a working walk. A genuinely stuck bot (noStepProg >= 20) always adopts, so
      *  real reroutes (danger, dead end) are never starved; the next periodic repath re-offers
      *  the alternative anyway. Default ON. */
-    public static volatile boolean walkerRouteHysteresis = true;
+    public static volatile boolean navigatorRouteHysteresis = true;
 
     /** Dig-commit repath hold (the water-bank dig-vs-repath starvation, replay-0004 CLEAN-K5
      *  2026-07-02): an underwater bank dig takes 100-200t (25x mining penalty) but the periodic
@@ -892,9 +892,9 @@ public final class ControlConfig {
      *  ADVANCE-deadzone starvation = the water-bank churn loop). When ON: while a committed
      *  bank dig's break is actually held (waterClimbDigRiser latched + breakHeld), a fresh
      *  search result is rejected and the current path kept. The futile-dig release
-     *  (walkerFutileBankDigRelease) still abandons a hopeless dig, which drops the hold and
+     *  (navigatorFutileBankDigRelease) still abandons a hopeless dig, which drops the hold and
      *  lets the next repath adopt normally — so this cannot starve real reroutes. Default ON. */
-    public static volatile boolean walkerDigCommitHoldRepath = true;
+    public static volatile boolean navigatorDigCommitHoldRepath = true;
 
     /** Water-surface pillar crest-place (the deterministic water-bank pillarUp deadlock,
      *  rig tp(371.5,62,348.5)→goto(378,65,347) 2026-07-02): a pillarUp whose destination
@@ -906,7 +906,7 @@ public final class ControlConfig {
      *  overlapping AABB. The two place paths missed each other's height windows forever.
      *  When ON: a water shaft cell with air above is treated as the dry-crest case —
      *  jump and place the support at the bob peak. Default ON. */
-    public static volatile boolean walkerPillarSurfacePlace = true;
+    public static volatile boolean navigatorPillarSurfacePlace = true;
 
     /** Descending-bridgePlace lip anchor (task#4, replay-0013, live 2026-07-20 23:11
      *  badlands): a bridgePlace node BELOW the foot means the bot stands at a lip
@@ -921,7 +921,7 @@ public final class ControlConfig {
      *  lip, the place lands, and the pin releases the moment the support exists, so
      *  the planned step-down proceeds exactly as before ("place first, step second").
      *  A same-level bridgePlace is byte-identical (cell not below the foot). */
-    public static volatile boolean walkerBridgeDescentPlaceAnchor = true;
+    public static volatile boolean navigatorBridgeDescentPlaceAnchor = true;
 
     /** Monotonic stuck-window (the open-water step-jitter starvation, A-4 44s stall
      *  2026-07-02): buoyant drift on a straight water path jitters the step pointer back
@@ -931,7 +931,7 @@ public final class ControlConfig {
      *  while the yaw swept 660° and thrust cancelled. When ON: only a step ADVANCE opens
      *  a fresh progress window; a retreat re-bases the distance reference but keeps the
      *  stall clock running. Default ON. */
-    public static volatile boolean walkerStuckStepMonotonic = true;
+    public static volatile boolean navigatorStuckStepMonotonic = true;
 
     /** Climbed-past-the-node stall recovery (the steep-mountain churn core, C26-J3
      *  2026-07-02): grinding up a slope carries the bot GROUNDED 2-3 blocks ABOVE its
@@ -941,7 +941,7 @@ public final class ControlConfig {
      *  yaw locked reverse. Airborne FALL edges legitimately have nodes 3+ below, so
      *  this gates on grounded + dry + noStepProgress > 90 before folding into
      *  fellOffPath (foot-search re-routes from the real, higher position). Default ON. */
-    public static volatile boolean walkerAboveNodeStallRecover = true;
+    public static volatile boolean navigatorAboveNodeStallRecover = true;
 
     /** Dig aim priority — the NON-exclusive successor to an exclusive dig latch that starved travel (§66):
      *  after the travel tick fully runs (drive, recovery, repath untouched), re-hold
@@ -949,27 +949,27 @@ public final class ControlConfig {
      *  tick can't release attack and zero vanilla mining progress. A human holding
      *  W+LMB against the wall being dug. Latch expires on solid-gone / 300t / beyond
      *  mining reach. Default ON. */
-    public static volatile boolean walkerDigAimPriority = true;
+    public static volatile boolean navigatorDigAimPriority = true;
 
     /** Dry wall-pin dig fallback (§71, C49): a route node behind a 1-block wall pins the
      *  bot hCol with the stall clock climbing while safetyRepath returns the same route
      *  and nothing ever digs the wall. Grounded + dry + hCol + stuckTicks>60 → punch the
      *  waypoint-facing block at head/feet height (digAimPriority latch holds it). Default ON. */
-    public static volatile boolean walkerWallDigFallback = true;
+    public static volatile boolean navigatorWallDigFallback = true;
 
     /** Ram-pinned node-aim release (§80, ultra#2): two deterministic dry-descent wall-pins
      *  where the DRIVE heading never points at the current node and every displacement
      *  recovery fires uselessly — (A) the aim-deadzone "hold heading" band is WIDER than
      *  the step-advance within-gate, so a bot parked 1.2 blocks beside a stepDown node
-     *  holds its stale yaw forever (yawErr -115°, hCol, hSpd 0); (B) walkerTangentAim
+     *  holds its stale yaw forever (yawErr -115°, hCol, hSpd 0); (B) navigatorTangentAim
      *  projects a ~reversed tangent at a switchback corner (driveYaw -180° vs node
-     *  bearing 14°) and the corner corrector (walkerWallCornerNodeAim) is default-dead
+     *  bearing 14°) and the corner corrector (navigatorWallCornerNodeAim) is default-dead
      *  (§13 oscillation). When dry + horizontalCollision + stuckTicks past the wall-dig
      *  gate AND the live yaw is >60° off the current-node bearing, re-aim at the node.
      *  Unlike the §25 REVERTED reanchor-to-step-1 (bounce oscillation), this aims at the
      *  CURRENT node under a collision gate: success clears hCol/stuckTicks and normal
      *  aim resumes. Default ON. */
-    public static volatile boolean walkerRamNodeAimRelease = true;
+    public static volatile boolean navigatorRamNodeAimRelease = true;
 
     /** Physical stall clock feed for stuck-gated recoveries (§84): a safety-repath loop
      *  swaps the path every few seconds and each swap resets stuckTicks (stepWindowFresh),
@@ -978,7 +978,7 @@ public final class ControlConfig {
      *  instabreak punch away). ON = those recoveries also fire on 60+ ticks without XZ
      *  displacement (path/repath-independent anchor clock; vertical bob doesn't count).
      *  Default ON. */
-    public static volatile boolean walkerPhysicalStallClock = true;
+    public static volatile boolean navigatorPhysicalStallClock = true;
 
     /** Bridge-commit repath hold (§82): a mid-bridge PERIODIC repath swaps the committed
      *  bridgePlace chain for a fresh plan whose first node sits elsewhere, steering the
@@ -986,7 +986,7 @@ public final class ControlConfig {
      *  deck finishes inside one repath period and never falls (3/3); diagonal zig-zag and
      *  40-block decks straddle it and fell 100%. ON = hold routine repaths while the
      *  current/next edge is bridgePlace; safety repaths stay live. Default ON. */
-    public static volatile boolean walkerBridgeHoldRepath = true;
+    public static volatile boolean navigatorBridgeHoldRepath = true;
 
     /** Bank-dig ground-blip immunity (the underground-pool climb-out grind, live 2026-07-02
      *  (-275,49,-38): the committed bank dig requires {@code !onGround}, but the buoyant bob
@@ -996,7 +996,7 @@ public final class ControlConfig {
      *  breaks; observed as digging the same block over and over without effect). When ON: a grounded streak of <=5 ticks
      *  keeps the commit alive (a real climb-out grounds for good, ending it after the streak
      *  passes 5). Default ON. */
-    public static volatile boolean walkerBankDigGroundBlip = true;
+    public static volatile boolean navigatorBankDigGroundBlip = true;
 
     /** Actuator EXPECTATION alarms (live expected-versus-actual checks): every tick, compare what the pressed
      *  inputs SHOULD produce against what the world actually did, and log a [expect] WARN the
@@ -1011,7 +1011,7 @@ public final class ControlConfig {
      *                 RESETS break progress on any released tick: the GroundBlip bug class),
      *                 plus DIG-slow when one block stays held 200+ ticks unbroken.
      *  Each alarm is throttled to one line per 40 ticks per class. Default ON. */
-    public static volatile boolean walkerExpectAlarm = true;
+    public static volatile boolean navigatorExpectAlarm = true;
 
     /** Bob-immune ascent-ram freeze-breaker trigger: on a steep tall bank (live W→E -861→-632, ~50-70s jank,
      *  reproducible), a +1 {@code diagUp}/{@code stepUp} mount jumps off the diagonal corner, slides back to
@@ -1024,7 +1024,7 @@ public final class ControlConfig {
      *  close REGARDLESS of onGround (bob-immune) and ORs into {@code stepUpFreeze} so it engages on time.
      *  <p><b>Default ON</b> — that clean live A/B win landed and flipped it (counter stays 0 while OFF). A clean
      *  fast climb tops out well under the {@code STEPUP_FREEZE_TICKS} bar; water/parkour/far-node are inert. */
-    public static volatile boolean walkerAscentRamBobBreak = true;
+    public static volatile boolean navigatorAscentRamBobBreak = true;
 
     /** Early-release the block-less bank-DIG when it is provably FUTILE — an UNREACHABLE OVERHANG
      *  riser a perpetually-buoyant bot can never break or ground on.
@@ -1040,7 +1040,7 @@ public final class ControlConfig {
      *  finally expires ~50 s later and lets the (already-working) back-off burst free it.
      *  <p><b>The fix</b>: when ON, release the latched riser EARLY (latch {@code climbPillarGaveUp},
      *  drop {@code waterClimbDigging} so {@code breakingEdge} falls, penalize the pocket cell) once the
-     *  dig has committed to one still-fully-solid riser for {@code WalkerConstants.FUTILE_BANK_DIG_TICKS} ticks
+     *  dig has committed to one still-fully-solid riser for {@code NavigatorConstants.FUTILE_BANK_DIG_TICKS} ticks
      *  WHILE the bot stayed afloat the whole time AND the riser sits {@code >= FUTILE_BANK_DIG_MIN_RISE}
      *  above the foot — the unreachable-overhang signature. The existing reactive charge + anti-stuck
      *  burst then fire ~40 s sooner.
@@ -1053,7 +1053,7 @@ public final class ControlConfig {
      *  (the parent does the live acceptance). Wired to {@code mc.bot.setting} so a live run can flip it.
      *  GameTest cannot faithfully reproduce the buoyant-dig dynamics (instant-break masks them), so this
      *  MUST be live-A/B'd, not accepted on GT-green. */
-    public static volatile boolean walkerFutileBankDigRelease = true;
+    public static volatile boolean navigatorFutileBankDigRelease = true;
 
     /** Block-less bank-dig OVERHANG rejection: when picking a riser to break, require the cell
      *  directly BELOW the chosen riser to be solid — i.e. the riser is a genuine bank-face step
@@ -1072,7 +1072,7 @@ public final class ControlConfig {
      *  <p><b>Default ON</b> — validated and flipped; byte-identical no-op if flipped back OFF. Re-A/B on the
      *  -628→-790 water-pocket repro (GT instant-break masks buoyant-dig dynamics), and GT-regressed
      *  for the deep-water-cross staircase-dig before any default flip. */
-    public static volatile boolean walkerBankDigSkipOverhang = true;
+    public static volatile boolean navigatorBankDigSkipOverhang = true;
 
     /** Buoyant A* search start anchored to the WATER SURFACE instead of the bob-dipping foot.
      *  <p><b>The bug</b> (live -733→-540 deadlock, replay+live evidence 2026-06-27): a bot floating
@@ -1090,21 +1090,21 @@ public final class ControlConfig {
      *  actuators/sampling is untouched — only {@code newSearch(foot,…)} sees the lifted cell.
      *  <p><b>Default ON</b> — must be live-A/B'd on the deterministic repro
      *  (tp -733 63 230 + goto -540,320 → bob-stall) before any default flip. */
-    public static volatile boolean walkerBuoyantSearchFromSurface = true;
+    public static volatile boolean navigatorBuoyantSearchFromSurface = true;
 
     /** Forward-hemisphere guard for the water climb-out block-less bank-dig riser selection. The
-     *  omnidirectional nearest-dry-exit scan (Walker, the {@code sx,sz in -4..4} loop) can pick an
+     *  omnidirectional nearest-dry-exit scan (Navigator, the {@code sx,sz in -4..4} loop) can pick an
      *  exit BEHIND the bot (opposite the path's current waypoint) and then dig the backward riser —
      *  the live -733/-710 "dig the west wall behind me while the goal is east" deadlock (1000+ digs
      *  at one backward riser, ~48 s frozen, bot reverses tens of blocks). When ON, the exit scan
      *  only considers offsets in the cwp-direction hemisphere (dot(offset, cwp-dir) {@code >= 0}); if
      *  no forward exit exists the cwp-direction fallback still drives a forward dig, so the climb-out
-     *  never trenches backward. Independent of (and composable with) {@link #walkerBuoyantSearchFromSurface}
+     *  never trenches backward. Independent of (and composable with) {@link #navigatorBuoyantSearchFromSurface}
      *  which fixes the search START — a correctly-forward path can still have its exit scan pick a
      *  closer backward exit. Default ON (committed-safe); validate on the deterministic -733 repro. */
-    public static volatile boolean walkerBankDigForwardExit = true;
+    public static volatile boolean navigatorBankDigForwardExit = true;
 
-    /** Don't snap an elevated AIR goal DOWN in {@link Walker#snapGoalToStandable} when it is
+    /** Don't snap an elevated AIR goal DOWN in {@link Navigator#snapGoalToStandable} when it is
      *  reachable by PILLARING up (goal cell + head passable, a solid base within a few blocks
      *  below to pillar from, and {@code allowPlace}). The snap was added to settle random goals
      *  that land inside terrain, but it also defeats "pillar up to an elevated goal": the goal
@@ -1114,19 +1114,19 @@ public final class ControlConfig {
      *  goal in the air is never reached). When ON, a pillar-reachable elevated goal keeps its real target so A* finds the
      *  pillarUp path; a truly floating void goal (no base below) still snaps. Default ON
      *  (committed-safe); validate on the deterministic summitArena geometry. */
-    public static volatile boolean walkerPillarReachGoalNoSnap = true;
+    public static volatile boolean navigatorPillarReachGoalNoSnap = true;
 
     /** Skip the block-less water climb-out bank-dig when the committed path's NEXT node (cwp)
      *  is a WATER cell — the bot should SWIM into it and reach the real climb-out (a stepUp onto
      *  land) further along the path, not dig where it floats. The dig's omnidirectional exit scan
      *  picks the NEAREST dry exit, which on a tall sheer goal-side bank is the perpendicular wall
-     *  face (dot≈0, slips past the forward-hemisphere guard {@link #walkerBankDigForwardExit}); the
+     *  face (dot≈0, slips past the forward-hemisphere guard {@link #navigatorBankDigForwardExit}); the
      *  bot then trenches the goal-side wall, yaw-locks at it, rams it, and bob-stalls forever while
      *  A*'s path swims around to a lower exit (live 2026-06-27 water-bank deadlock @ -646,62,351,
      *  stuck 1181 ticks, cwp=-648 WATER). A genuine climb-out HERE routes cwp to a LAND/stepUp node
      *  (not water) so the dig still fires for it. Default ON (committed-safe); validate via replay
      *  A/B on the archived deadlock before flipping. */
-    public static volatile boolean walkerBankDigSkipWhenCwpSwims = true;
+    public static volatile boolean navigatorBankDigSkipWhenCwpSwims = true;
 
     /** Extend the WALK overshoot-advance (crossedWalkNode) to also rescue an overshot
      *  traverseBreak node. A dry traverseBreak (break a block + walk through) is a FLAT
@@ -1139,10 +1139,10 @@ public final class ControlConfig {
      *  CONFIRMED-stall overshoot-advance (dot(off,seg)>0 && |Δy|<1.2 && !inWater). Default OFF
      *  (committed-safe; OFF → byte-identical, only "walk" matches as before); validate via live
      *  A/B on the dry mountain crossing before flipping. */
-    public static volatile boolean walkerTraverseBreakOvershootResync = false;
+    public static volatile boolean navigatorTraverseBreakOvershootResync = false;
 
     /** Pillar-place FALLBACK for a swimAshore +2 bank that the block-less bank-DIG never engages.
-     *  The pillar-takeover (Walker ~L2501) is gated {@code !deepDig}, deferring to the bank-DIG for
+     *  The pillar-takeover (Navigator ~L2501) is gated {@code !deepDig}, deferring to the bank-DIG for
      *  buoyant climb-outs. But a swimAshore +2 edge with NO toBreak block never commits a dig
      *  (waterClimbDigging stays false): the swimAshore jump only fires inside the break-loop, so
      *  jump=false and the floating bot bobs against the bank at cur2≈0.64 while neither the pillar
@@ -1154,7 +1154,7 @@ public final class ControlConfig {
      *  the pillar engage DESPITE deepDig so the dirt foothold lifts it onto the +2 bank. Default ON
      *  (byte-identical; the dig still owns every case where it actually swings). Validate via
      *  replay-0012 ×N OFF/ON measuring the -612 churn before flipping. */
-    public static volatile boolean walkerSwimAshorePillarDespiteDeepDig = true;
+    public static volatile boolean navigatorSwimAshorePillarDespiteDeepDig = true;
 
     /** FOOTHOLD FIRST at a water bank: a floating bot holding a placeable block tries the pillar
      *  takeover BEFORE the bank dig, whatever {@code deepDig} says. The dig-first order rested on
@@ -1163,8 +1163,8 @@ public final class ControlConfig {
      *  and placing within six ticks of engaging ({@code wd.clientOneHighBankPlaceOut}), where the
      *  dig-first order spent sixteen seconds on a hopeless bare-hand stone dig. The pillar's own
      *  {@code placeFutile} bail (50 ticks) still hands a bank the place cannot land on to the dig.
-     *  Default ON; the gametest baseline pins it OFF like every other walker flag. */
-    public static volatile boolean walkerFootholdBeforeBankDig = true;
+     *  Default ON; the gametest baseline pins it OFF like every other navigator flag. */
+    public static volatile boolean navigatorFootholdBeforeBankDig = true;
 
     /** The water climb-out INTENT is read against the column's surface cell, not the bobbing foot.
      *  {@code cwp.y > foot.y} flickers with the bob, and a bot pressed into a bank rides the collision
@@ -1172,16 +1172,16 @@ public final class ControlConfig {
      *  left and its stall counter zeroed every cycle — {@code wd.clientTwoHighBankPlaceOut} bobbed
      *  180 ticks at the wall with no takeover. With this ON, a dry waypoint beside the bot at or
      *  above the surface cell counts as a climb-out on every tick of the bob. Default ON; the
-     *  gametest baseline pins it OFF like every other walker flag. */
-    public static volatile boolean walkerClimbIntentFromSurface = true;
+     *  gametest baseline pins it OFF like every other navigator flag. */
+    public static volatile boolean navigatorClimbIntentFromSurface = true;
 
     /** The water pillar takeover declares "topped out" only on a rung with a dry cell beside it
      *  that can be stepped onto flush or down. The rise test alone read the top on a 1×1 rung one
      *  course under the rim whenever the latched climb node sat in the pool wall, A* then asked for
      *  a diagonal step-up off that rung, and the bot walked off it back into the pool
      *  ({@code wd.clientOneHighBankPlaceOut}: a second climb-out, 500 ticks). Default ON; the
-     *  gametest baseline pins it OFF like every other walker flag. */
-    public static volatile boolean walkerPillarTopsOutAtFlushExit = true;
+     *  gametest baseline pins it OFF like every other navigator flag. */
+    public static volatile boolean navigatorPillarTopsOutAtFlushExit = true;
 
     /** The LAST path node is aimed at directly (no path tangent) and approached at a walk over its
      *  final two blocks. Every earlier node is spent by crossing its plane, so the bob-immune
@@ -1189,44 +1189,44 @@ public final class ControlConfig {
      *  closing to within ~0.67 of its centre, and a sprinting bot on the previous segment's
      *  heading passes wider than that ({@code wd.clientGotoStartsMidAir}: nearest pass 0.8, then
      *  400 ticks of unstuck bursts around a goal already reached). Default ON; the gametest
-     *  baseline pins it OFF like every other walker flag. */
-    public static volatile boolean walkerFinalNodeDirectAim = true;
+     *  baseline pins it OFF like every other navigator flag. */
+    public static volatile boolean navigatorFinalNodeDirectAim = true;
 
     /** The last path node, when it IS the goal cell, is not spent until the foot stands in it
      *  (bounded by {@code FINAL_NODE_HOLD_TICKS}). Spending it from 0.67 away or from the air
      *  ended the walk "path-consumed goalReached=false" with the bot standing in the goal cell a few
      *  ticks later — half the client water scenes read that way on 2026-09-04, and the ladder
-     *  acts on the field. Default ON; the gametest baseline pins it OFF like every other walker
+     *  acts on the field. Default ON; the gametest baseline pins it OFF like every other navigator
      *  flag. */
-    public static volatile boolean walkerHoldLastNodeUntilStanding = true;
+    public static volatile boolean navigatorHoldLastNodeUntilStanding = true;
 
     /** The water pillar takeover, afloat in ONE-DEEP water over a solid floor, places its first rung
      *  in a neighbour cell instead of under its own feet. A layer higher than 0.4 turns the jump key
      *  into a swim, so the feet never clear the foot cell and the own-column place is refused
      *  forever ({@code wd.clientFlowingTrenchPlaceOut}: 646 ticks to the bank). The side rung is
      *  clear of the bot, the +0.3 collision boost mounts it, and the dry ground-jump pillar
-     *  continues from there. Default ON; the gametest baseline pins it OFF like every other walker
+     *  continues from there. Default ON; the gametest baseline pins it OFF like every other navigator
      *  flag. */
-    public static volatile boolean walkerShallowWaterSideFoothold = true;
+    public static volatile boolean navigatorShallowWaterSideFoothold = true;
 
     /** Topping out of a water climb-out resets the aim's low-pass state. The takeover pins the
      *  heading for the whole climb while the EMA keeps smoothing toward nodes the bot never faced,
      *  so the first dry walk started up to 180° off and the dry-land EMA then orbited the node for
      *  hundreds of ticks ({@code wd.clientFlowingChannelPlaceOut}: yaw wound from 69 to -817).
-     *  Default ON; the gametest baseline pins it OFF like every other walker flag. */
-    public static volatile boolean walkerClimbOutResyncsAim = true;
+     *  Default ON; the gametest baseline pins it OFF like every other navigator flag. */
+    public static volatile boolean navigatorClimbOutResyncsAim = true;
 
     /** Break the dry-land orbit: when the heading error sits between 45° and 170° for a dozen ticks
      *  while the bot moves, the trend camera's slow EMA is chasing a bearing that rotates as fast as
      *  it converges (the bot circles the node one cell out); switch to the cruise alpha until the
-     *  error closes. Default ON; the gametest baseline pins it OFF like every other walker flag. */
-    public static volatile boolean walkerOrbitBreaksAimLag = true;
+     *  error closes. Default ON; the gametest baseline pins it OFF like every other navigator flag. */
+    public static volatile boolean navigatorOrbitBreaksAimLag = true;
 
     /** Cruise open water in vanilla's prone sprint-swim: dip for the pose, then sprint with a slight
      *  look-up, bobbing up to breathe. The held surface jump had kept the head out, so the sprint was
      *  cancelled every tick and the bot treaded at ~2 blocks/s. See docs/design/water-and-swimming.md.
-     *  Default ON; the gametest baseline pins it OFF like every other walker flag. */
-    public static volatile boolean walkerSurfaceSprintSwim = true;
+     *  Default ON; the gametest baseline pins it OFF like every other navigator flag. */
+    public static volatile boolean navigatorSurfaceSprintSwim = true;
 
     /** FLOATING +1 water-bank climb-out freeze (live #47 2026-06-28, journey#1 replay-0023 dominant
      *  residual: -646,63 bank ~23.5s churn). A buoyant bot floating at a +1 water bank (node y64) bobs
@@ -1239,7 +1239,7 @@ public final class ControlConfig {
      *  (2×STEPUP_FREEZE_TICKS) so the climb-out repath/pillar engages. Limited to +1 banks (NOT +2, to
      *  avoid the unwinnable-mount over-pin that reverted the bob-immune ascentRam v2). Default ON
      *  (byte-identical). Validate via replay-0023 ×N OFF/ON measuring the -646 jank before flipping. */
-    public static volatile boolean walkerFloatingBankBobFreeze = true;
+    public static volatile boolean navigatorFloatingBankBobFreeze = true;
 
     /** Lateral-bank-follow: when a FLOATING bot rams a water bank (ANY node-Y, including the walk-ram
      *  facet the ascending freeze counters miss) and the ram is sustained past 2×STEPUP_FREEZE_TICKS,
@@ -1249,11 +1249,11 @@ public final class ControlConfig {
      *  randomly lands on a mountable vs dig-required spot). Forward drive is untouched, so the sweep
      *  mounts the moment it lines up with a climbable lip; self-terminating (climb progress resets the
      *  counter). Default OFF (byte-identical). Validate via the -638,418 reproducible case + journeys. */
-    public static volatile boolean walkerFloatingBankFollow = false;
+    public static volatile boolean navigatorFloatingBankFollow = false;
 
     /** Water climb-out LATERAL gate (task#91, structural). A floating bot engages the bank climb-out
      *  (pillar takeover + block-less bank dig) ONLY when the climb waypoint sits horizontally BESIDE
-     *  it ({@link net.magicterra.worlddriver.bot.control.WalkerConstants#WATER_CLIMB_LATERAL_MAX} cells,
+     *  it ({@link net.magicterra.worlddriver.bot.control.NavigatorConstants#WATER_CLIMB_LATERAL_MAX} cells,
      *  Chebyshev). A higher waypoint that is laterally DISTANT is the routed exit further down an open
      *  corridor, not a bank to climb here: the open-river sheer-bank wedge (riverSheerBank) has the bot
      *  float against a +5 SHEER wall while A* correctly routes the committed exit +5 EAST across open
@@ -1269,7 +1269,7 @@ public final class ControlConfig {
      *  scenes are pinned to, which is exactly what promotes riverSheerBank from a false-green/wedge to
      *  a genuine climb-out. The 9 sibling water scenes float directly below their banks (adjacent) and
      *  are byte-unchanged. */
-    public static volatile boolean walkerWaterClimbLateralGate = true;
+    public static volatile boolean navigatorWaterClimbLateralGate = true;
 
     /** Faster anti-churn repath: shorten the net-displacement churn-detection window from 400 ticks
      *  (≈20 s) to 240 (≈12 s) so a path-state churn (planner committed a suboptimal segment the
@@ -1278,7 +1278,7 @@ public final class ControlConfig {
      *  window (a healthy walk/swim nets ≫8 blocks even in 12 s) AND the !breakingEdge guard still
      *  protects a legitimate ~750-tick underwater dig from tripping. Default OFF (byte-identical).
      *  Validate via journeys (path-state churns only reproduce in continuous nav, not via tp). */
-    public static volatile boolean walkerFasterChurnRepath = false;
+    public static volatile boolean navigatorFasterChurnRepath = false;
 
     /** Segment anchor-gate exemption for a DEEP-WATER-FLOAT start: accept an otherwise-rejected
      *  continuation whose first node is a FAR node reachable by a straight clear-LOS swim over open water.
@@ -1307,13 +1307,13 @@ public final class ControlConfig {
      *  walled line still rejects, a dry foot still rejects).
      *  <p><b>Default ON</b> — the live A/B this note gated on has landed; flip OFF to A/B against it. Historic note: byte-identical no-op while OFF, which was the pre-flip state, and remains true if you flip it back win
      *  (the parent does the live acceptance). Wired to {@code mc.bot.setting} so a live run can flip it. */
-    public static volatile boolean walkerDeepWaterFloatBeeline = true;
+    public static volatile boolean navigatorDeepWaterFloatBeeline = true;
 
     /** Master gate for path-debug capture. When false the recorder early-returns and
      *  the chart tool renders whatever (empty) session exists. Default off — debug only. */
     public static volatile boolean pathDebug = false;
     /** Master gate for path-archive recording (trajectory export/replay). When true the
-     *  per-tick WalkerSample is captured even if pathDebug is off. Default off. */
+     *  per-tick NavigatorSample is captured even if pathDebug is off. Default off. */
     public static volatile boolean pathArchive = false;
 
     // Last, after every field above: see BotConfig.initialize.

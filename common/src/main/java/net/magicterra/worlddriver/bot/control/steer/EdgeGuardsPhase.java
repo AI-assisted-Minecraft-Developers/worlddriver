@@ -14,38 +14,38 @@ import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Locale;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
-import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 
 
 /**
- * Mechanical extraction of {@code Walker#tickInner} (pre-split lines 3280–3504): the current edge, its
+ * Mechanical extraction of {@code Navigator#tickInner} (pre-split lines 3280–3504): the current edge, its
  * context and the MLG step-off, for the regular walk once no controller has taken the tick; and the
- * per-tick walker trace. Climbing a vine moved to {@link VineClimb}.
- * One phase of the per-tick pipeline — see {@link Walker#tickInner} for the driver and
- * {@link WalkerTickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
- * original tick body except for the {@code w.}/{@code Walker.} member prefixes; do not
+ * per-tick navigator trace. Climbing a vine moved to {@link VineClimb}.
+ * One phase of the per-tick pipeline — see {@link Navigator#tickInner} for the driver and
+ * {@link TickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
+ * original tick body except for the {@code w.}/{@code Navigator.} member prefixes; do not
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
-public final class WalkerTickEdgeGuards {
-    public int dbgPrevStep = -1;     // walkerDebug: detect step changes for per-step timing
-    public int dbgTicksOnStep = 0;   // walkerDebug: ticks spent on the current step
+public final class EdgeGuardsPhase {
+    public int dbgPrevStep = -1;     // navigatorDebug: detect step changes for per-step timing
+    public int dbgTicksOnStep = 0;   // navigatorDebug: ticks spent on the current step
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    public TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
-        // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
+    public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
+        // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         // ---- original body (byte-identical modulo member prefixes) ----
 
-        Move.Edge edge = wk.route.edgeAt(wk.route.step());
-        if (GameConfig.walkerDebug) trace(wk, p, world, edge);
-        BlockPos wp = wk.route.path().get(wk.route.step());
-        Move.Edge nextEdge = wk.route.edgeAt(wk.route.step() + 1);
+        Move.Edge edge = nav.route.edgeAt(nav.route.step());
+        if (GameConfig.navigatorDebug) trace(nav, p, world, edge);
+        BlockPos wp = nav.route.path().get(nav.route.step());
+        Move.Edge nextEdge = nav.route.edgeAt(nav.route.step() + 1);
         boolean parkourEdge = edge != null && edge.move != null && edge.move.startsWith("parkour");
-        if (parkourEdge) wk.safety.guardParkourTick = true;
+        if (parkourEdge) nav.safety.guardParkourTick = true;
         // Bridging-over-a-gap detection (place-bridge on the current OR next edge),
         // hoisted up here so the travel-aim pitch (below) can keep the camera trained on
         // the bridge frontier instead of being yanked back to the horizon between place
@@ -87,10 +87,10 @@ public final class WalkerTickEdgeGuards {
             // before it descends, and the water gets placed on whatever happens
             // to be below the drifted-into column instead.
             BlockPos land = (edge != null && edge.move != null && edge.move.startsWith("fallBucket"))
-                    ? wp : wk.route.path().get(wk.route.step() + 1);
+                    ? wp : nav.route.path().get(nav.route.step() + 1);
             if (land != null) world.signals().planClutch(land.getX(), land.getZ());
         }
-        // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
+        // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
         cx.edges.edge = edge;
         cx.edges.wp = wp;
         cx.edges.parkourEdge = parkourEdge;
@@ -102,15 +102,15 @@ public final class WalkerTickEdgeGuards {
     }
 
     /**
-     * The per-tick walker trace, the single source of truth for "why is the bot stuck": for the current step
+     * The per-tick navigator trace, the single source of truth for "why is the bot stuck": for the current step
      * the exact advance-decision inputs (horizontal dist² against the REACH_DIST_SQ gate, |Δy| against the 1.2
      * gate that together decide `within`), how many ticks on this step, the move and its break/place needs,
      * and the live bot state. Read it top to bottom to see which condition fails tick after tick.
      */
-    private void trace(Walker wk, LivingEntity p, WorldView world, Move.Edge edge) {
-        if (wk.route.step() != dbgPrevStep) { dbgPrevStep = wk.route.step(); dbgTicksOnStep = 0; }
+    private void trace(Navigator nav, LivingEntity p, WorldView world, Move.Edge edge) {
+        if (nav.route.step() != dbgPrevStep) { dbgPrevStep = nav.route.step(); dbgTicksOnStep = 0; }
         dbgTicksOnStep++;
-        BlockPos nd = wk.route.path().get(wk.route.step());
+        BlockPos nd = nav.route.path().get(nav.route.step());
         double ddx = (nd.getX() + 0.5) - p.getX();
         double ddz = (nd.getZ() + 0.5) - p.getZ();
         double cur2 = ddx * ddx + ddz * ddz;
@@ -123,8 +123,8 @@ public final class WalkerTickEdgeGuards {
         // forced guessing on every "won't close" stall.
         double bearing = Math.toDegrees(Math.atan2(-ddx, ddz));
         double yawErr = angleDiff(p.getYRot(), (float) bearing);
-        LOG.info("[walker] t={} step={}/{} move={} node={},{},{} p=({},{},{}) pitch={} yaw={} bear={} yawErr={} hCol={} lastAim={} cur2={} (gate {}) |dY|={} (gate 1.2) within={} onG={} inW={} undW={} stuck={} totStuck={} pend={} break0={}{}",
-                dbgTicksOnStep, wk.route.step(), wk.route.path().size(), edge != null ? edge.move : "-",
+        LOG.info("[navigator] t={} step={}/{} move={} node={},{},{} p=({},{},{}) pitch={} yaw={} bear={} yawErr={} hCol={} lastAim={} cur2={} (gate {}) |dY|={} (gate 1.2) within={} onG={} inW={} undW={} stuck={} totStuck={} pend={} break0={}{}",
+                dbgTicksOnStep, nav.route.step(), nav.route.path().size(), edge != null ? edge.move : "-",
                 nd.getX(), nd.getY(), nd.getZ(),
                 String.format(Locale.ROOT, "%.2f", p.getX()), String.format(Locale.ROOT, "%.2f", p.getY()), String.format(Locale.ROOT, "%.2f", p.getZ()),
                 String.format(Locale.ROOT, "%.0f", p.getXRot()),
@@ -132,11 +132,11 @@ public final class WalkerTickEdgeGuards {
                 String.format(Locale.ROOT, "%.0f", bearing),
                 String.format(Locale.ROOT, "%.0f", yawErr),
                 p.horizontalCollision,
-                String.format(Locale.ROOT, "%.0f", wk.aim.aimSmooth.lastAimYaw),
+                String.format(Locale.ROOT, "%.0f", nav.aim.aimSmooth.lastAimYaw),
                 String.format(Locale.ROOT, "%.3f", cur2), REACH_DIST_SQ,
                 String.format(Locale.ROOT, "%.2f", Math.abs(dY)), within,
                 p.onGround(), p.isInWater(), p.isUnderWater(),
-                wk.stuckTicks, wk.totalTicks, edge != null && hasPendingEdge(world, edge),
+                nav.stuckTicks, nav.totalTicks, edge != null && hasPendingEdge(world, edge),
                 br0, br0 != null ? (world.isSolid(br0) ? " (solid)" : " (clear)") : "");
     }
 }

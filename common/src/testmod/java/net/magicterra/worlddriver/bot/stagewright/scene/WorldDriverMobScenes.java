@@ -347,7 +347,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
         // The shipped arrival rule, which the pinned baseline turns off.
-        ControlConfig.walkerHoldLastNodeUntilStanding = true;
+        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
         BlockPos lo = o.offset(-2, -1, -3), hi = o.offset(COURSE + 2, 3, 3);
         fill(level, lo, hi, AIR);
         ctx.cleanup(() -> fill(level, lo, hi, AIR));

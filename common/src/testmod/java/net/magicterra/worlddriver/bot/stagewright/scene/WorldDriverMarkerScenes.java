@@ -9,7 +9,7 @@ import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
@@ -32,7 +32,7 @@ import net.minecraft.world.level.material.Fluids;
  * The marker block's one promise: a tester who puts it in the wrong place has not changed what the
  * bot can do. The pathfinder reads {@code blocksMotion} and the collision shape, the player's
  * physics reads the collision shape, and a scene's terrain is written over markers with
- * {@code setBlock} — all three are held here, on the real {@link Walker}. The same promise on
+ * {@code setBlock} — all three are held here, on the real {@link Navigator}. The same promise on
  * water: a marker in a source cell keeps the cell a source and survives the neighbours' flow.
  */
 public final class WorldDriverMarkerScenes implements SceneProvider {
@@ -95,14 +95,14 @@ public final class WorldDriverMarkerScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status step = Locomotor.Status.MOVING;
         int ticks = 0;
-        for (; ticks < 200 && step == Locomotor.Status.MOVING; ticks++) { step = walker.tick(av, w); av.step(); }
+        for (; ticks < 200 && step == Locomotor.Status.MOVING; ticks++) { step = navigator.tick(av, w); av.step(); }
         double dx = Math.abs(fp.getX() - (cx + 5.5)), dz = Math.abs(fp.getZ() - (cz + 0.5));
         ctx.record("walk","step=" + step + " ticks=" + ticks + " pos=" + String.format("%.2f %.2f %.2f", fp.getX(), fp.getY(), fp.getZ()));
-        ctx.check(dx < 1.5 && dz < 1.5).as("G: the real Walker passes through the marker wall and reaches the goal").isTrue();
+        ctx.check(dx < 1.5 && dz < 1.5).as("G: the real Navigator passes through the marker wall and reaches the goal").isTrue();
         ctx.check(level.getBlockState(probe).is(marker)).as("H: the marker is still present after the walk and was not broken").isTrue();
 
         level.setBlockAndUpdate(probe, Blocks.STONE.defaultBlockState());

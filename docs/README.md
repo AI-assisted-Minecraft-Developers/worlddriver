@@ -41,12 +41,12 @@ For someone adding or changing code here.
 | [The `api` layers](dev/api-layers.md) | How the method surface is layered and why, the rules the architecture check holds it to, and what changing a type StageWright links against obliges you to do. |
 | [Generated API artifacts](dev/api-artifacts.md) | The d.ts, script wrappers, schemas and reference the build produces from the method descriptions, and how to add a method. |
 | [Calling the API from Java](dev/java-api.md) | The typed interfaces Java code calls methods through, how to implement one, and what the annotation processor refuses at compile time. |
-| [The `bot/` layers](dev/bot-layering.md) | The autonomous layer behind `mc.bot.*` — the seams between facade, scheduler, process, walker and pathfinder, and the invariants across them. |
-| [The movement tick phases](dev/movement-tick-phases.md) | How the per-tick walker decision is decomposed into phase classes, and what crosses a tick boundary. |
+| [The `bot/` layers](dev/bot-layering.md) | The autonomous layer behind `mc.bot.*` — the seams between facade, scheduler, process, navigator and pathfinder, and the invariants across them. |
+| [The movement tick phases](dev/movement-tick-phases.md) | How the per-tick navigator decision is decomposed into phase classes, and what crosses a tick boundary. |
 | [Fake-player parity](dev/fake-player-parity.md) | Where a driven player matches a real player and where it does not, behaviour by behaviour, and which kind of player a given scene should run on. |
 | [Testing](dev/testing.md) | Running the checks, reading a result, adding a scene, and the failures that are not a failing scene. |
 | [Coverage exemptions](dev/coverage-exemptions.md) | Branch families the scene arenas structurally cannot reach, and why each is left uncovered on purpose. |
-| [Pathfinding conformance](dev/pathfinding-conformance.md) | Measuring whether a change to the planner or the walker actually helps. |
+| [Pathfinding conformance](dev/pathfinding-conformance.md) | Measuring whether a change to the planner or the navigator actually helps. |
 | [The replay corpus](dev/replay-corpus.md) | Recording, replaying and analysing a traversal, and what replay can and cannot be evidence of. |
 | [Debugging](dev/debugging.md) | Attaching a debugger to a game this build starts, and what stopping the game costs. |
 | [Loader glue](dev/loader-glue.md) | What stays loader-specific now that Architectury API is a required dependency. |

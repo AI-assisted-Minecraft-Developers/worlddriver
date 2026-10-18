@@ -11,12 +11,12 @@ import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.minecraft.core.BlockPos;
 
-import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
-import static net.magicterra.worlddriver.bot.control.WalkerGeometry.isDryWalkable;
-import static net.magicterra.worlddriver.bot.control.WalkerGeometry.isOpenSurfaceWater;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.isDryWalkable;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.isOpenSurfaceWater;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerFinders;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorFinders;
 
 /**
  * Short plans walked while the real search is still running: a quick bounded search, or a greedy march
@@ -36,25 +36,25 @@ final class RouteStubs {
      *  Frame cost is irrelevant here: with no path the bot is frozen anyway
      *  (same argument as the idle-slice). Only a stub that actually nears the
      *  goal is adopted — a boxed-in micro-search returns pacing scraps that
-     *  would jitter, so those back off for {@link WalkerConstants#QUICK_RETRY_TICKS}.
+     *  would jitter, so those back off for {@link NavigatorConstants#QUICK_RETRY_TICKS}.
      *  @return true if a stub segment was adopted (path != null, step = 1). */
-    static boolean quickStart(Walker wk, WorldView world, BlockPos foot, Goal goal) {
+    static boolean quickStart(Navigator nav, WorldView world, BlockPos foot, Goal goal) {
         if (ControlConfig.pathfinderQuickNodes <= 0) return false;
-        if (wk.search.gov.quickCooldown > 0) { wk.search.gov.quickCooldown--; return false; }
-        PathFinder.Search q = WalkerFinders.quick(wk, world, QUICK_MAX_MS).newSearch(foot, goal);
+        if (nav.search.gov.quickCooldown > 0) { nav.search.gov.quickCooldown--; return false; }
+        PathFinder.Search q = NavigatorFinders.quick(nav, world, QUICK_MAX_MS).newSearch(foot, goal);
         while (!q.advance(QUICK_MAX_MS)) { /* bounded by the node cap / QUICK_MAX_MS */ }
         PathFinder.Result res = q.result();
         boolean useful = res.hasPath() && res.path().size() > 1
                 && goal.estimate(foot)
                    - goal.estimate(res.path().get(res.path().size() - 1)) >= 2.0;
         if (!useful) {
-            wk.search.gov.quickCooldown = QUICK_RETRY_TICKS;
+            nav.search.gov.quickCooldown = QUICK_RETRY_TICKS;
             return false;
         }
-        if (GameConfig.walkerDebug)
-            LOG.info("[walker] quick-start stub adopted: len={} expanded={} ms={} (big search still running)",
+        if (GameConfig.navigatorDebug)
+            LOG.info("[navigator] quick-start stub adopted: len={} expanded={} ms={} (big search still running)",
                     res.path().size(), res.expanded(), res.ms());
-        return RouteAdoption.adopt(wk, res, world, null).adopted();    // stub starts at the foot — no fast-forward needed
+        return RouteAdoption.adopt(nav, res, world, null).adopted();    // stub starts at the foot — no fast-forward needed
     }
 
     /** PROGRESSIVE OPEN-WATER BEE-LINE stub: over a wide deep-water
@@ -76,17 +76,17 @@ final class RouteStubs {
      *  each adoption re-aimed the jump/sneak and the crossing became a piston. The march
      *  starts from the SURFACE cell of the foot's column, whichever way the bob has the
      *  foot at this tick. @return true if a bee-line was adopted. */
-    static boolean waterBeeline(Walker wk, WorldView world, BlockPos foot, Goal goal) {
+    static boolean waterBeeline(Navigator nav, WorldView world, BlockPos foot, Goal goal) {
         if (!world.isWater(foot)) return false;
         BlockPos surface = isOpenSurfaceWater(world, foot) ? foot
                 : isOpenSurfaceWater(world, foot.above()) ? foot.above()
                 : isOpenSurfaceWater(world, foot.below()) ? foot.below() : foot;
         List<BlockPos> path = march(surface, goal, n -> isOpenSurfaceWater(world, n));
         if (path == null) return false;
-        if (GameConfig.walkerDebug)
-            LOG.info("[walker] open-water bee-line stub adopted: len={} toward goal (big search still running)",
+        if (GameConfig.navigatorDebug)
+            LOG.info("[navigator] open-water bee-line stub adopted: len={} toward goal (big search still running)",
                     path.size());
-        return RouteAdoption.adopt(wk, walkOnly(path), world, null).adopted();
+        return RouteAdoption.adopt(nav, walkOnly(path), world, null).adopted();
     }
 
     /** PROGRESSIVE LAND COARSE-DIRECTION stub: the dry-land twin of
@@ -103,15 +103,15 @@ final class RouteStubs {
      *  bee-line) so it never steps off a ledge or rams a riser — slopes hand back to A*.
      *  Gated to {@link ControlConfig#pathfinderProgressive} + dry land under the feet (water
      *  is {@link #waterBeeline}'s job). @return true if a land run was adopted. */
-    static boolean landBeeline(Walker wk, WorldView world, BlockPos foot, Goal goal) {
+    static boolean landBeeline(Navigator nav, WorldView world, BlockPos foot, Goal goal) {
         if (!ControlConfig.pathfinderProgressive) return false;
         if (world.isWater(foot)) return false;          // water is waterBeeline's job
         List<BlockPos> path = march(foot, goal, n -> isDryWalkable(world, n));
         if (path == null) return false;
-        if (GameConfig.walkerDebug)
-            LOG.info("[walker] land coarse-direction stub adopted: len={} toward goal (big search still running)",
+        if (GameConfig.navigatorDebug)
+            LOG.info("[navigator] land coarse-direction stub adopted: len={} toward goal (big search still running)",
                     path.size());
-        return RouteAdoption.adopt(wk, walkOnly(path), world, null).adopted();
+        return RouteAdoption.adopt(nav, walkOnly(path), world, null).adopted();
     }
 
     /** Greedy same-level march from {@code from} toward {@code goal} over cells {@code ok} accepts;

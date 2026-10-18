@@ -13,8 +13,8 @@ import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -135,19 +135,19 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
             helm.player().getInventory().items.set(slot, new ItemStack((slot % 2 == 0) ? Items.OAK_LOG : Items.DIRT, 64));
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = true;
-        ControlConfig.walkerFinalNodeDirectAim = true;
-        ControlConfig.walkerHoldLastNodeUntilStanding = true;
-        ControlConfig.walkerOrbitBreaksAimLag = true;
-        ControlConfig.walkerSurfaceSprintSwim = true;
+        GameConfig.navigatorDebug = true;
+        ControlConfig.navigatorFinalNodeDirectAim = true;
+        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
+        ControlConfig.navigatorOrbitBreaksAimLag = true;
+        ControlConfig.navigatorSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
-        final WalkerTelemetry clientTel = WalkerTelemetry.of(body.getUUID(), true);   // the client bot of this player
+        final NavigatorTelemetry clientTel = NavigatorTelemetry.of(body.getUUID(), true);   // the client bot of this player
         clientTel.lastStats = null;
         helm.sync(30, () -> {
             ctx.record("start.afterSync", helm.where());
             final int[] arrivedTick = { -1 };
             final int[] legTicks = { 0 };
-            final WalkerTelemetry.PathStats[] seen = { null };
+            final NavigatorTelemetry.PathStats[] seen = { null };
             final int[] searches = { 0 };
             final long[] expanded = { 0 };
             final long[] ms = { 0 };
@@ -155,7 +155,7 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
             ClientHelm.TickWatcher watch = t -> {
                 legTicks[0] = t;
                 if (arrivedTick[0] < 0 && body.onGround() && helm.flatDistance(goal) <= 1.0) arrivedTick[0] = t;
-                WalkerTelemetry.PathStats st = clientTel.lastStats;
+                NavigatorTelemetry.PathStats st = clientTel.lastStats;
                 if (st != null && st != seen[0]) {
                     seen[0] = st;
                     searches[0]++;

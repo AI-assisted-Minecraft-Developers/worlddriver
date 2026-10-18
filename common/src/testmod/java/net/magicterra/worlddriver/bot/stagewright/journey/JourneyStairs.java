@@ -326,10 +326,10 @@ final class JourneyStairs {
     /**
      * Is the staircase still a staircase?
      *
-     * <p>Two runs have ended with the walker refusing to climb a flight whose geometry the rung had
+     * <p>Two runs have ended with the navigator refusing to climb a flight whose geometry the rung had
      * never once re-read, and both times the answer was a single cell: the run of 2026-08-12 lost
      * {@code -9,64,22}, the support under the second step from the top, and every one of the other
-     * twelve steps was perfect. "The stairs are dug but it will not climb them" is not a walker
+     * twelve steps was perfect. "The stairs are dug but it will not climb them" is not a navigator
      * finding until this has been asked, and asking it costs four block reads a step.
      *
      * <p>Four ways a step dies, and the order matters: no support is the one that cannot be seen

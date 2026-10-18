@@ -19,7 +19,7 @@ import net.minecraft.core.BlockPos;
 /**
  * The three route events an {@link IntentProcess} pushes to the LLM when "the conditions it gave
  * no longer solve well": {@code route.blocked}, {@code route.detour}, {@code route.exposed}. Judged
- * once per finished deep search (the walker replans on its own cadence; each search's snapshot is
+ * once per finished deep search (the navigator replans on its own cadence; each search's snapshot is
  * the tracking of the world, so the LLM is only disturbed when a result is bad, not on every
  * replan). Every event needs its condition in the {@code route}: no declared hard constraint, no
  * {@code route.blocked}; no {@code route.sight}, no {@code route.exposed}; a plain goto without

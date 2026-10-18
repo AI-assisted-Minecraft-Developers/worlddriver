@@ -14,7 +14,7 @@ import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.BotTicker;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.PlayerBot;
@@ -191,7 +191,7 @@ public final class JourneyRampScenes implements SceneProvider {
         // course it claims is read back off the world rather than off the call.
         WorldConfig.allowPlace = true;
         WorldConfig.allowBreak = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(JourneyRamp::reset);
@@ -882,7 +882,7 @@ public final class JourneyRampScenes implements SceneProvider {
      * [place] success clicked=3, 58, 19 face=south placed=3, 58, 20→cobblestone botY=56.000 result=SUCCESS
      * [place] success clicked=3, 58, 20 face=up    placed=3, 59, 20→cobblestone botY=56.000 result=SUCCESS
      * [pathfinder] search-begin owner=goto start=3, 56, 20 goal=BlockPos{x=3, y=60, z=20}
-     * [walker] step: w=2, 56, 20 nx=1, 57, 20 …
+     * [navigator] step: w=2, 56, 20 nx=1, 57, 20 …
      * </pre>
      *
      * <p>The staircase was complete and the {@code goto} onto its top step walked WEST out of the
@@ -903,8 +903,8 @@ public final class JourneyRampScenes implements SceneProvider {
      *   <li><b>B</b> and no course of it stands in another's cell or head room;</li>
      *   <li><b>C</b> the production loop builds it, and the WORLD holds every course up — so B is
      *       about a staircase and not about a list;</li>
-     *   <li><b>D</b> a real bot, walked by the real {@link Walker} from the alcove floor, ENDS ON
-     *       the top step. Not "the walker returned ARRIVED" — that is the reading rung 12 was already
+     *   <li><b>D</b> a real bot, walked by the real {@link Navigator} from the alcove floor, ENDS ON
+     *       the top step. Not "the navigator returned ARRIVED" — that is the reading rung 12 was already
      *       getting from a bot nine blocks away.</li>
      * </ol>
      */
@@ -967,20 +967,20 @@ public final class JourneyRampScenes implements SceneProvider {
         if (!fp.blockPosition().equals(entry))
             ctx.fail("THE RIG, not the subject: the bot did not land in the start cell "
                     + entry.toShortString() + " but in " + fp.blockPosition().toShortString());
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(landing));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(landing));
         LevelWorldView view = new LevelWorldView(level, fp);
         BlockPos best = fp.blockPosition();
         for (int t = 0; t < WALK_TICKS && !fp.blockPosition().equals(landing); t++) {
-            walker.tick(driver.avatar(), view);
+            navigator.tick(driver.avatar(), view);
             driver.avatar().step();
             if (fp.blockPosition().getY() > best.getY()) best = fp.blockPosition();
         }
         ctx.record("walk.end", fp.blockPosition().toShortString() + " (highest reached "
                 + best.toShortString() + ", budget " + WALK_TICKS + " ticks)");
         ctx.check(fp.blockPosition()).as("D the bot walked up to the top step " + landing.toShortString()
-                + " itself — this judges where the bot stops, not what the walker returned: on the"
-                + " real ladder the walker reported completion while the bot stood on the surface"
+                + " itself — this judges where the bot stops, not what the navigator returned: on the"
+                + " real ladder the navigator reported completion while the bot stood on the surface"
                 + " nine blocks away").isEqualTo(landing);
     }
 

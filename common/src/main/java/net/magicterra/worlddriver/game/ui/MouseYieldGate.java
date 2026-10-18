@@ -7,7 +7,7 @@ package net.magicterra.worlddriver.game.ui;
  *
  * <p><b>The problem.</b> {@code MouseHandler} is a human/bot shared object exactly
  * like {@code mc.options.keyXXX} was. While the bot drives, every actuator that aims
- * ({@code Walker}, {@code LookController}, {@code mc.bot.lookAt}, the clutch's
+ * ({@code Navigator}, {@code LookController}, {@code mc.bot.lookAt}, the clutch's
  * look-down) writes the player's yaw/pitch each tick; a human moving the physical
  * mouse writes the SAME fields from {@code MouseHandler.turnPlayer}. The two shove the
  * camera in opposite directions every tick — the bot's aim jitters, the human's view

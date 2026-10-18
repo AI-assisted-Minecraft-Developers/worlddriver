@@ -95,7 +95,7 @@ import net.minecraft.world.phys.AABB;
  * </pre>
  *
  * <p>A refusal here is not a fallback. The two things behind it are the scripted tower, which stalls
- * on this geometry, and the walker's own Y-level goal, which on the same run put the bot seven
+ * on this geometry, and the navigator's own Y-level goal, which on the same run put the bot seven
  * columns out of the one its aim had been computed for ({@code water8#3.endedIn = 0,19}, while the
  * tower started in column 6,19, not the same column) — so the pour or the scoop that follows fires
  * a ray nobody verified.
@@ -342,7 +342,7 @@ final class JourneyRamp {
      * cell.6.ramp.laid   = 1/2 steps laid
      * </pre>
      *
-     * <p>A player's box is 0.6 wide, so 0.28 off centre is enough — and the walker leaves a bot
+     * <p>A player's box is 0.6 wide, so 0.28 off centre is enough — and the navigator leaves a bot
      * wherever the last edge ended, not in the middle of a cell. The remedy is therefore not a
      * tolerance anywhere: it is to stand somewhere the flight does not pass through at all, which in
      * a five-wide corridor is an ordinary floor cell one rank over.
@@ -398,7 +398,7 @@ final class JourneyRamp {
                                 ? "; still on the footprint" : ""));
                 // WHAT STOOD IN THE WAY, not merely that the walk fell short. The rehearsal of
                 // 2026-08-26 spent a whole round on this row: it reported the bot stopping at
-                // 3,64,18 en route to 2,56,18, the walker logged `MOVE-noMove … hCol=true` at
+                // 3,64,18 en route to 2,56,18, the navigator logged `MOVE-noMove … hCol=true` at
                 // 2.3,64.0,19.4 — and the cell it collided with has ZERO mentions anywhere in the
                 // run, so the obstruction could only be guessed at. A guess picked the water eight
                 // rows below, which cannot produce a collision at y=64.
@@ -484,7 +484,7 @@ final class JourneyRamp {
 
     /**
      * One cell as {@code #name} or {@code .name}. The leading character is the {@code blocksMotion}
-     * verdict the walker itself collides against; the name is kept beside it rather than instead of
+     * verdict the navigator itself collides against; the name is kept beside it rather than instead of
      * it, because a name alone would make the reader re-derive that verdict — and get it wrong for
      * the cells where the two disagree (grass does not block motion, mud blocks it at 14/16 height).
      */
@@ -556,7 +556,7 @@ final class JourneyRamp {
     }
 
     /** One short walk of the ordinary kind inside the alcove. NoBreak throughout: the tallest thing on any
-     *  route down here is the mould this rung is building, and a walker sent at a cell it cannot
+     *  route down here is the mould this rung is building, and a navigator sent at a cell it cannot
      *  reach eats it — see {@code reopen}'s note for the run that lost three cast cells that way.
      *
      *  <p>Package-private because {@link JourneyPour#footBeforeTower} walks the same alcove under the
@@ -1366,7 +1366,7 @@ final class JourneyRamp {
      * alcove — three times, all three correctly refused by the pour's own ray gate.
      *
      * <p><b>Why a course at a time answers a question the single goal cannot.</b> Each course is one
-     * step from the one below it, so the goal is a cell the walker either steps onto or does not; it
+     * step from the one below it, so the goal is a cell the navigator either steps onto or does not; it
      * has no room to leave the alcove looking for a cheaper approach. It is the same argument
      * {@code JourneyStairwell}'s {@code flightLastStep} already makes about the last step of a
      * descent, and {@link JourneyPour#raiseTo}'s {@code ceilingTax} makes about {@code Goal.XZ}.

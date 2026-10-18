@@ -194,7 +194,7 @@ importantly — the fact that the class filter is off by default.
 ## The autonomous layer: `mc.bot.*`
 
 This is the part most readers came for. Everything above either observes or writes
-directly; `mc.bot.*` is a bot that plays the game — an A\* pathfinder, a walker that
+directly; `mc.bot.*` is a bot that plays the game — an A\* pathfinder, a navigator that
 executes the plan tick by tick, a scheduler that runs one user task at a time with reflexes
 that can pre-empt it, and a per-verb process for each thing it can be asked to do.
 
@@ -413,18 +413,18 @@ Three things about the write path are worth knowing before you script against it
   patches on a dedicated server too.
 
 Most keys are flat; a few are namespaced — `pathfinder.*` for search budgets and heuristics,
-`walker.*` for execution, `mine.*` for scan geometry.
+`navigator.*` for execution, `mine.*` for scan geometry.
 
 Broadly the keys fall into reflexes that act without being asked (`autoEat`, `autoRetreat`,
 `autoFight`, `autoShield`, `autoTotem`, `autoEquip`, the drowning and suffocation escapes,
 the dusk-shelter behaviour), movement capabilities that widen or narrow what the pathfinder
-may plan, and numeric budgets for the search and the walker. Applying `paused: true` halts
+may plan, and numeric budgets for the search and the navigator. Applying `paused: true` halts
 every bot process and releases the held keys; `paused: false` resumes.
 
 #### `allowBreak` and `allowPlace`
 
 These two are the ones worth understanding, because they change what the *planner* is
-allowed to consider, not merely what the walker does afterwards.
+allowed to consider, not merely what the navigator does afterwards.
 
 **`allowBreak` is on by default.** With it on, A\* may plan an edge that mines through a
 wall or digs straight down to reach the goal, and the cost of doing so — tool-aware, so a
@@ -444,7 +444,7 @@ inconvenienced:
 - `allowSwimEscapeBreak`, on by default, lets the search mine bank blocks to climb out of a
   flooded pit or up too tall a lake bank, **even when `allowBreak` is off**. It fires only
   at the water's edge, so a dry-land route never tunnels because of it.
-- `allowSwimEscapePlace`, on by default, lets the walker place one block on the water
+- `allowSwimEscapePlace`, on by default, lets the navigator place one block on the water
   surface when it is bobbing against a bank whose top is above the waterline, independently
   of `allowPlace`.
 - `antiSuffocate`, on by default, breaks the block suffocating the player at head height — falling sand in

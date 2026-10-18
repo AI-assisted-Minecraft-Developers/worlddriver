@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.control;
 import java.util.Locale;
 
 /**
- * Whether a walk that stopped did what it was asked. The walker's give-ups (churn, frontier, a
+ * Whether a walk that stopped did what it was asked. The navigator's give-ups (churn, frontier, a
  * consumed best-effort path) end through the same branch as an arrival; the goal test at the foot is
  * what tells {@link Locomotor.Status#REACHED} from {@link Locomotor.Status#GAVE_UP}.
  */

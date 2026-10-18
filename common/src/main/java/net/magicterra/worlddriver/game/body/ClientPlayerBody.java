@@ -12,9 +12,9 @@ import net.minecraft.world.entity.player.Player;
 
 /**
  * {@link Body} over the client {@code LocalPlayer}. Every method maps 1:1 to
- * the behaviour the Walker used inline before the seam was extracted, so client
+ * the behaviour the Navigator used inline before the seam was extracted, so client
  * movement is unchanged by construction (the zero-regression oracle). Installs
- * the decoupled {@link AvatarInput} lazily, exactly as the old Walker.tick did
+ * the decoupled {@link AvatarInput} lazily, exactly as the old Navigator.tick did
  * (a respawn / dimension change builds a fresh vanilla KeyboardInput).
  */
 public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInteraction, Bag, Menus {
@@ -67,14 +67,14 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
     @Override public BlockPos lookingAtBlock() {
         return mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult br ? br.getBlockPos() : null;
     }
-    @Override public void place(Predicate<BlockPos> solid, BlockPos cell) { BotInteract.walkerPlace(mc, p, solid, cell); }
+    @Override public void place(Predicate<BlockPos> solid, BlockPos cell) { BotInteract.navigatorPlace(mc, p, solid, cell); }
     @Override public void placeOn(BlockPos cell, Direction face) { BotInteract.clientUseItemOn(mc, p, cell, face); }
     @Override public void breakHold(boolean v) { ClientIntents.holdDig(v); }
     @Override public void attackEntityUnchecked(net.minecraft.world.entity.Entity target) {
         if (mc.gameMode != null && p != null) mc.gameMode.attack(p, target);
     }
 
-    /** Within-tick only: Walker.tick builds a fresh ClientPlayerBody every tick, so this field
+    /** Within-tick only: Navigator.tick builds a fresh ClientPlayerBody every tick, so this field
      *  never outlives the call its caller is reading it for — which is the only window anyone
      *  should be asking about anyway. */
     private String lastAttackRefusal;
@@ -92,9 +92,9 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
         if (mc.gameMode == null || p == null) return;
         // Vanilla drives continueDestroyBlock exactly ONCE per client tick and each call advances
         // destroyProgress by a tick's worth, so a cell driven twice in one tick mines at double
-        // speed. Two walker phases now do exactly that on the committed dig cell — the prelude
+        // speed. Two navigator phases now do exactly that on the committed dig cell — the prelude
         // services the sticky dig, then digAimReassert re-asserts it — and they share one avatar,
-        // because Walker.tick builds a fresh ClientPlayerBody per tick and hands it to every
+        // because Navigator.tick builds a fresh ClientPlayerBody per tick and hands it to every
         // phase. That shared instance is the whole scope of this guard: a process driving the same
         // cell in the same tick holds its own avatar and is not caught here. Same-cell only, on
         // purpose — two phases driving DIFFERENT cells in one tick is a separate bug, and quietly
@@ -118,7 +118,7 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
         float before = mc.gameMode.destroyProgress;
         // The drive every client dig shares, so a break the bot completes is noted in one place.
         boolean ok = BotInteract.continueDestroy(mc, p, cell);
-        // UNCONDITIONAL (once a second while a dig is running), not gated on walkerDebug, which no
+        // UNCONDITIONAL (once a second while a dig is running), not gated on navigatorDebug, which no
         // ladder and no gate ever sets: this is the one reading that answers "the bot mines without
         // swinging its arm", and it must be present in every run that could show it. The swing
         // above happens only when `ok`, so an armless dig and a dig that never lands are THE SAME EVENT, and `ok=` is the
@@ -134,7 +134,7 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     /** {@code MultiPlayerGameMode.destroyProgress} (private in vanilla, opened by
      *  {@code worlddriver.accesswidener}) — the only read of how far the current block break
-     *  has advanced; mining feedback and the walker's dig-progress stall detector both come
+     *  has advanced; mining feedback and the navigator's dig-progress stall detector both come
      *  through here. −1f means "unknown", which callers treat as "no progress info".
      *
      *  <p>This was a {@code getDeclaredField("destroyProgress")} lookup, which resolved in dev

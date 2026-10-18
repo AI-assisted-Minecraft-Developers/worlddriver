@@ -45,15 +45,15 @@ import net.magicterra.worlddriver.bot.rules.Goal;
  * whole point of previewing while walking (an event arrives, the LLM wants to look at another
  * route before committing) would be lost. Instead the client tick advances this object with its
  * own thin slice ({@link BotConfig#pathfinderPreviewSliceMs}), one preview at a time, the rest
- * queued. It touches no {@code Walker}.
+ * queued. It touches no {@code Navigator}.
  *
  * <p>Each preview is an action of its own, which this object ends: succeeded with the
  * {@link Preview}, or failed when the search could not run. The result is not the cells (those come
  * only with {@code includePath}) but the route's <b>risk in segments</b>: where the exposure, the
  * nearest mob and the regions change, a new segment starts — "the first 31 cells are safe, the next
  * 21 are in skeleton 1203's sight" rather than 87 coordinates. Segments are cut over the
- * string-pulled route the walker would drive; the A* result itself is cached under the
- * {@code planId} for {@code Walker.adoptPlan}, which straightens on its own.
+ * string-pulled route the navigator would drive; the A* result itself is cached under the
+ * {@code planId} for {@code Navigator.adoptPlan}, which straightens on its own.
  *
  * <p>Client only in this version: the verb lives there, and the server-side player has no caller
  * yet.

@@ -21,7 +21,7 @@ import net.magicterra.worlddriver.config.WorldConfig;
  * {@link net.magicterra.worlddriver.config.RulesConfig#allowParkour4} like the other
  * marginal long leaps. Cost = flat-parkour + 5 (jump-up overhead, as in
  * {@link StepUp}). The {@code parkourAscend} name starts with "parkour" so
- * the Walker's existing parkour actuator (jump+sprint, yaw-snapped, aimed
+ * the Navigator's existing parkour actuator (jump+sprint, yaw-snapped, aimed
  * at the destination) drives it unchanged.
  */
 public final class ParkourAscend extends Move {

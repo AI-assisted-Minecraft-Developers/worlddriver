@@ -249,7 +249,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowPlace = false;
         WorldConfig.allowBreak = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         // Registered BEFORE anything is built, so an arm that fails mid-drive still hands the shared
@@ -434,7 +434,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         boolean blindArrived = blind.fakePlayer().blockPosition().equals(step);
         ctx.record("blind.leg", "XZ goal " + step.toShortString() + ": " + before.toShortString()
                 + " → " + where(blind) + " (" + blindTicks + " ticks) "
-                + JourneyLeg.walkerEnd(blind) + " " + exactly(blind));
+                + JourneyLeg.navigatorEnd(blind) + " " + exactly(blind));
         if (blindArrived)
             ctx.fail("THE RIG, not the subject: the XZ walk reached the doorstep " + step.toShortString()
                     + " on its own, so \"only the 3D goal gets there\" cannot tell a fix from an arena"
@@ -448,7 +448,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         int seeTicks = drive(seeing, new IntentProcess(new Intent(picked)), LEDGE_TICKS);
         ctx.record("subject.leg", "goal " + step.toShortString() + ": " + here.toShortString()
                 + " → " + where(seeing) + " (" + seeTicks + " ticks) "
-                + JourneyLeg.walkerEnd(seeing) + " " + exactly(seeing));
+                + JourneyLeg.navigatorEnd(seeing) + " " + exactly(seeing));
 
         // The alternation has to survive the fix, or this is a deletion wearing a fix's clothes.
         BlockPos far = step.offset(4, 1, 4);
@@ -539,7 +539,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         int controlFaults = inPortal(control) ? 0 : 1;
         ctx.record("control.legs", String.format(Locale.ROOT,
                 "Goal.Block(%s) x%d, %d ticks | %s | %s", bottom.toShortString(),
-                CONTROL_LEGS, spent, trail, JourneyLeg.walkerEnd(control)));
+                CONTROL_LEGS, spent, trail, JourneyLeg.navigatorEnd(control)));
         ctx.record("control.after", controlFaults + " fault(s): " + where(control));
         WorldDriverCommon.LOG.info("[portalEntry] control faults={} at {}", controlFaults, where(control));
         if (controlFaults == 0)
@@ -595,7 +595,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         BlockPos atDoor = subject.fakePlayer().blockPosition();
         BlockPos ready = JourneyPortalEntry.stepFrom(level, atDoor, bottom);
         ctx.record("subject.walk", from.toShortString() + " → " + atDoor.toShortString()
-                + " (" + walked + " ticks) " + JourneyLeg.walkerEnd(subject)
+                + " (" + walked + " ticks) " + JourneyLeg.navigatorEnd(subject)
                 + ", doorway cell enterable from here=" + (ready == null ? "none" : ready.toShortString()));
         ctx.check(ready).as("E After the walk the bot must stand on a cell it can step in from,"
                 + " otherwise the step-in below is 0==0: bot at " + atDoor.toShortString()

@@ -23,7 +23,7 @@ import java.util.List;
  * solid neighbour to place against ({@link Move#hasPlaceSupport}) — you can't
  * place a floating block over open void, and Baritone gates on the same
  * {@code canPlaceAgainst}. The placement is an actuator concern keyed off the
- * {@code parkourPlace*} move name (the Walker leaps with run-up preserved and
+ * {@code parkourPlace*} move name (the Navigator leaps with run-up preserved and
  * synthetic-hits the support mid-air), so {@code toPlace} carries the landing
  * floor for the place loop's bookkeeping while the leap motion stays a parkour.
  */

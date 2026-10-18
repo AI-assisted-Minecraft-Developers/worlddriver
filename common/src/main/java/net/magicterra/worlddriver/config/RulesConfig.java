@@ -10,9 +10,9 @@ public final class RulesConfig {
     /** task#97c learned stuck-risk edge tax (ml/costmodel): when ON, A* adds
      *  {@code risk(move,terrain) * riskBiasScale / 100} cost units to edges of
      *  the table-listed move families (swim-, bridgePlace-, parkour-family), steering
-     *  around patterns that historically precede walker wedges. PURE additive
+     *  around patterns that historically precede navigator wedges. PURE additive
      *  g-tax — no prune, no capability change; OFF = byte-identical search.
-     *  Default OFF until the journey+bench A/B goes GREEN (walkerAscendMovement
+     *  Default OFF until the journey+bench A/B goes GREEN (navigatorAscendMovement
      *  precedent). */
     public static volatile boolean riskBias = false;
 
@@ -34,7 +34,7 @@ public final class RulesConfig {
      *  ticks), RISKY (overshoot off the fresh 1-wide block) and consumes inventory,
      *  so it must be a LAST resort, not a casual default: when it is too cheap the
      *  planner happily commits a ~30-block aerial bridge straight over a deep valley
-     *  instead of descending and crossing the floor — a route the Walker can barely
+     *  instead of descending and crossing the floor — a route the Navigator can barely
      *  execute, so the bot freezes (the sudden-slowdown or blocked stall on mountain terrain).
      *  A high cost makes A* prefer any ground route (descend a valley, go around) and
      *  bridge only a genuinely unavoidable short gap. Does NOT touch the depth penalty,

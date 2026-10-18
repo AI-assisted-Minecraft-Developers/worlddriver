@@ -7,15 +7,15 @@ Run from the repo root (exit 1 on violation):
 
 FILE budget (3000 lines, comment-only lines not counted)
 --------------------------------------------------------
-Walker.java grew to 5849 lines before being split into the WalkerTick* phase classes
+Navigator.java grew to 5849 lines before being split into the *Phase classes
 (task#94). The cap keeps the next monolith from re-forming silently.
 
 METHOD budget — why this exists
 -------------------------------
 The file cap alone measured the wrong unit. The problem it was written to prevent is
 named in its own original rationale: "a single ~4650-line tick method". Splitting
-Walker.java satisfied the file cap by MOVING TEXT — the giant method survived. Nine
-WalkerTick* phase classes between them declare ten methods total, and seven of those
+Navigator.java satisfied the file cap by MOVING TEXT — the giant method survived. Nine
+*Phase classes between them declare ten methods total, and seven of those
 files have no helper method at all. A cap you can satisfy by relocating the problem is
 not a cap.
 
@@ -35,7 +35,7 @@ char literals and comments are blanked before brace counting.
 
 What counts, for both budgets: every line except one that holds only a comment. Blank lines
 and code with a trailing comment count. Until 2026-10-17 comments counted too, and a file at
-the cap paid for its explanations — Walker.java stood at 2999 of 3000 lines with half of them
+the cap paid for its explanations — Navigator.java stood at 2999 of 3000 lines with half of them
 comment, so any fix to it started by deleting the reasons the code is shaped the way it is.
 
 Excluded from the METHOD budget only: the testmod scene sources. Arena bodies are long
@@ -60,12 +60,12 @@ METHOD_EXEMPT_DIRS = ("common/src/testmod",)
 
 # "File.java::method" -> max allowed lines, comment-only lines not counted. Re-measured
 # 2026-10-17 when comments stopped counting; the entries that fell under METHOD_LIMIT left the
-# list then. The WalkerTick* entries are the original ~4650-line tick method, redistributed
+# list then. The *Phase entries are the original ~4650-line tick method, redistributed
 # rather than decomposed — they are the backlog this list exists to shrink.
 GRANDFATHERED = {
-    "WalkerTickDrive.java::run": 519,
-    "WalkerTickAim.java::run": 347,
-    "WalkerTickProgress.java::run": 305,
+    "DrivePhase.java::run": 519,
+    "AimPhase.java::run": 347,
+    "ProgressPhase.java::run": 305,
 }
 
 # A member declaration that opens a body. Deliberately conservative: it must begin with a
@@ -206,7 +206,7 @@ def main():
         print("source-budget gate FAILED: files over %d lines (comment-only lines not counted):" % LIMIT)
         for n, rel in sorted(file_violations, reverse=True):
             print("  %6d  %s" % (n, rel))
-        print("Split the file (see the WalkerTick* mechanical phase split for the pattern).")
+        print("Split the file (see the *Phase mechanical split for the pattern).")
 
     if method_violations:
         failed = True

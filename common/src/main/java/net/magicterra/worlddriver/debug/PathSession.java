@@ -16,7 +16,7 @@ public record PathSession(
         BlockPos goalMarker,            // representative goal cell, or null for open goals
         List<Candidate> candidates,     // latest search's expanded nodes (downsampled)
         List<PlannedRoute> plannedRoutes,
-        List<PathTrace.WalkerSample> trajectory,
+        List<PathTrace.NavigatorSample> trajectory,
         PathTrace.Outcome outcome,      // null while still running
         String reason,
         String goalDesc) {

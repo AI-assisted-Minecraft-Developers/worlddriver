@@ -34,11 +34,11 @@ Still touched on R1: birch trunks at 1541,72,-166 and 1470,68,-299, the hanging 
 step down at 1389,114,-583, and raised blocks before climbs at 1526,74,-223, 1544,72,-163,
 1559,65,-128 and 1563,64,-123.
 
-### The walker spends its last node a block short after a detour
+### The navigator spends its last node a block short after a detour
 
 `wd.routeReplansWhenTheWayAheadIsWalledOff` ends `GAVE_UP` (`path-consumed`, 1.0 short) and the
 bot then slides onto the goal cell. Same shape as `wd.journeyGetsAshoreBeforePouring`. Look at the
-step-advance gates in `WalkerTickProgress` for a last node approached at an angle.
+step-advance gates in `ProgressPhase` for a last node approached at an angle.
 
 ### The shore scan can aim a drowning bot at lava
 
@@ -73,14 +73,14 @@ needs its own check.
 ### `BotUtil.canStandHereStatic` has no hazard clause and `WorldView.canStandAt` does
 
 Magma blocks and lava foot cells are legal to the selector and refused by the pathfinder, so a cell
-the search will never expand is handed to the walker as a goal. `GoalResolver`'s javadoc already
+the search will never expand is handed to the navigator as a goal. `GoalResolver`'s javadoc already
 names the helper as hazard-blind. Tightening this changes the result of `goto block:` and of two
-fill verbs. Hold until the walker census names which cells the walker is actually refusing, so the
+fill verbs. Hold until the navigator census names which cells the navigator is actually refusing, so the
 two effects do not become one attribution problem.
 
 ### A continuation search is discarded and re-issued, and the loop does not terminate
 
-`WalkerTickStallDetect` hand-copies half of `SegmentCommit.reset()`: it clears the active search and
+`StallDetectPhase` hand-copies half of `SegmentCommit.reset()`: it clears the active search and
 the search-from-end flag and leaves the committed end and the best-effort path, which is exactly the
 state the repath phase re-triggers on. Calling `reset()` instead is not safe — it also clears the
 pending segment, so each field has to be decided separately. Judge a fix on a distribution (the
@@ -89,7 +89,7 @@ single ladder run passes.
 
 ### The futile-search governor cannot fire against a moving target
 
-`Walker.start` clears the governor, and the first search after a reset is seeded rather than
+`Navigator.start` clears the governor, and the first search after a reset is seeded rather than
 judged, so it never enters the consecutive count. A combat process re-issues the goal each time the
 target moves, so half of every search population is seeding and the streak never reaches its
 threshold. The criterion and the situation it guards against are mutually exclusive. Candidates, in
@@ -119,15 +119,15 @@ bot with no lava left near it does not benefit from walking further.
 `autoRetreat`, `autoFight`, `autoDodge`, `autoHeal`, `autoShield` and `autoEquip` are all false by
 default. That default is deliberate and is documented beside the field: a quiet bot stays quiet so a
 scripted scenario is not overridden. The survival run is the case that wants them on. The shape is
-decided — arm them for that bot only, healing before retreat, because retreat preempts the walker
+decided — arm them for that bot only, healing before retreat, because retreat preempts the navigator
 and healing only contends for the use key — but it is blocked on a health-loss distribution, because
 arming them is a change that touches every rung at once.
 
 ### `commandForward` is a strictly weaker channel than `commandMove`
 
-`AvatarInput.tick` lets the commanded move win over the raw commanded move, and the walker issues a
+`AvatarInput.tick` lets the commanded move win over the raw commanded move, and the navigator issues a
 commanded move every tick, so a same-tick stop from a fallback is silently dropped and
-`BotInput.stop`'s documented contract is false whenever the walker is active. Promoting the channel
+`BotInput.stop`'s documented contract is false whenever the navigator is active. Promoting the channel
 changes how fallbacks and processes arbitrate, on every topology.
 
 ### Four routes reach the same `AvatarInput`
@@ -372,7 +372,7 @@ failed. **Unverified.**
 
 ### The fall self-report names the process, not the action
 
-The leaving report says which process was running, and not which movement edge the walker was
+The leaving report says which process was running, and not which movement edge the navigator was
 executing or which jump tag was in play. One family of falls has been guessed at across several
 rounds for want of an action to go with the location.
 
@@ -614,7 +614,7 @@ fights out of six, which is the floor.
 ### There is no reading for who wrote a cell
 
 A guard refused to mine a cell because it would release the water behind it, and the bot later
-drowned standing in that water. Nothing can say who opened it — the walker's fallback pathing
+drowned standing in that water. Nothing can say who opened it — the navigator's fallback pathing
 carries its own permission to break, and is the first candidate. What is needed is a
 who-wrote-this-cell attribution row, not another round of inference.
 
@@ -650,11 +650,11 @@ witness to the engine-side defect. A scripted step that places a block under the
 geometrically impossible here — the bank is one row above the bot and the cell below it is one row
 lower still, and placing into the bot's own cell is refused by vanilla.
 
-The engine-side half: the walker's final node is accepted by the horizontal proximity clause with
+The engine-side half: the navigator's final node is accepted by the horizontal proximity clause with
 zero footing under the bot, and the existing airborne-climb guard cannot be reused, because it is
 scoped to mid-path nodes and it excludes bots in water for a measured reason. A second judgement
 sits above it on the test side, so two layers each call this an arrival; a fix has to account for
-both. Reopen the scripted step only if the walker starts delivering the bot to the bank's column
+both. Reopen the scripted step only if the navigator starts delivering the bot to the bank's column
 and the scene is still failing.
 
 ### A retry in the ramp changes nothing, and the instrument cannot say why
@@ -707,7 +707,7 @@ it lifted and restored; compare those two rows the next time it happens.
 ## Source-size budget
 
 `scripts/check_source_budget.py` fails the build for any Java file over 3000 lines. Several files
-sit within a few lines of it — the journey rig, the configuration class, the walker, the Nether
+sit within a few lines of it — the journey rig, the configuration class, the navigator, the Nether
 rungs, the journey scenes and the End rungs, in that order. Run the script for the current numbers
 rather than trusting a number written here. The remedy is splitting; stripping comments to buy
 headroom trades readability for quota and is not one.
@@ -832,7 +832,7 @@ line the code itself would write, read the production code, and measure the file
   because the amount mined is below what the bill requires.
 - The fifteenth rung cannot reach the warped forest, with the bot sitting in lava.
 - The lava lake is a cave lake with a one-block-thick ceiling; two candidate fixes, neither tried.
-- On the fourteenth and fifteenth rungs, the walker's exit is the next step, and one expansion
+- On the fourteenth and fifteenth rungs, the navigator's exit is the next step, and one expansion
   is walled in with nobody digging it out.
 - The survival run completes in peaceful mode: three options, and the choice is a user's to make.
 

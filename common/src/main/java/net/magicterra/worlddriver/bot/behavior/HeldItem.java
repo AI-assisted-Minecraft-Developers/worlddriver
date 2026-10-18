@@ -58,7 +58,7 @@ import net.minecraft.world.item.Items;
  * <p>Eviction on a full hotbar is the physics of nine slots, not a bug — no destination rule can
  * know what the NEXT consumer will want. What is asymmetric is REACH: the tool side fetches its
  * item back and this side cannot. So the repair belongs here, per caller, and not in the
- * destination rule (which would be a whole-walker behaviour change for a two-line problem).
+ * destination rule (which would be a whole-navigator behaviour change for a two-line problem).
  */
 final class HeldItem {
 

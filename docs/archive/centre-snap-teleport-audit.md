@@ -134,7 +134,7 @@ same-column call site at once.
 
 Let the body be at `P = (x, y, z)`, with foot cell `F = (⌊x⌋, ⌊y⌋, ⌊z⌋)`, and let the snap produce
 `P' = (F.x+0.5, y, F.z+0.5)`. The player's bounding box is 0.6 wide — half-width 0.3, which is the
-same ±0.3 that `WalkerGeometry.java:98-99` uses — and Y is unchanged.
+same ±0.3 that `NavigatorGeometry.java:98-99` uses — and Y is unchanged.
 
 - Horizontally, `P'`'s bounding box is `[F.x+0.2, F.x+0.8] × [F.z+0.2, F.z+0.8]`, which lies
   **entirely inside its own column**, with 0.2 of clearance on each side. So the set of cells `P'`
@@ -376,7 +376,7 @@ its own cell, so the greatest distance to the cell centre is `sqrt(0.5² + 0.5²
 **One tick, no collision solve.**
 
 **A measured proxy distribution**, from `fabric/run-journey-integrated/logs/latest.log`, over the
-`p=(x,y,z)` values in 16818 `[walker] t=` lines:
+`p=(x,y,z)` values in 16818 `[navigator] t=` lines:
 
 | Horizontal distance to the cell centre | Samples | Share |
 |---|---|---|
@@ -397,7 +397,7 @@ its own cell, so the greatest distance to the cell centre is `sqrt(0.5² + 0.5²
   it really is pulling the bounding box back out of a neighbouring column.
 
 **This table's label has to be nailed down**: it is the distribution of the body's within-cell offset
-while the walker is driving it, **not the measured displacement of any snap**. It stands in for the
+while the navigator is driving it, **not the measured displacement of any snap**. It stands in for the
 population the snap acts on — it measures how far from the cell centre the body usually is, not how
 far any particular `setPos` moved it.
 
@@ -424,12 +424,12 @@ or more. **That is a difference in kind from the other nine, not a difference in
 
 ## 6. An honest "not found": not one actual snap appears in the existing logs
 
-All three processes use the same `dbg()`, gated on `BotConfig.walkerDebug` (`BunkerProcess.java:103`,
+All three processes use the same `dbg()`, gated on `BotConfig.navigatorDebug` (`BunkerProcess.java:103`,
 `DescendProcess.java:60`, `EscapeProcess.java:70`).
 
 **Prove the channel is open before reading a zero from it**, which is a hard rule in this repository:
 
-| Log | `[walker]` | `[escape]` / `[descend]` / `[bunker]` |
+| Log | `[navigator]` | `[escape]` / `[descend]` / `[bunker]` |
 |---|---|---|
 | `fabric/run-journey-integrated/logs/latest.log`, the journey run in progress | **56909** | **0** |
 | `fabric/run-dogfood/logs/latest.log` | **15402** | **0** |
@@ -437,7 +437,7 @@ All three processes use the same `dbg()`, gated on `BotConfig.walkerDebug` (`Bun
 | `fabric/run-rehearsal/logs/latest.log` | — | **0** |
 | every `fabric/run-*/logs/*.gz` and `neoforge/run-*/logs/*.gz` | — | **0** |
 
-Fifty-six thousand `[walker]` lines prove that `walkerDebug == true`, on the same gate through the
+Fifty-six thousand `[navigator]` lines prove that `navigatorDebug == true`, on the same gate through the
 same logger. **So this zero is a real zero: these three processes have never run in any existing
 log.**
 

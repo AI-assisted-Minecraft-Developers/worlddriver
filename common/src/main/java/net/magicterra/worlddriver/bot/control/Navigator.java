@@ -31,8 +31,8 @@ import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Locale;
 import java.util.Set;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
-import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
 import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.control.act.Actuate;
 import net.magicterra.worlddriver.bot.control.act.Safety;
@@ -44,46 +44,46 @@ import net.magicterra.worlddriver.bot.control.controller.Pillar;
 import net.magicterra.worlddriver.bot.control.controller.Recovery;
 import net.magicterra.worlddriver.bot.control.controller.RouteDig;
 import net.magicterra.worlddriver.bot.control.controller.VineClimb;
-import net.magicterra.worlddriver.bot.control.controller.WalkerDig;
+import net.magicterra.worlddriver.bot.control.controller.Digging;
 import net.magicterra.worlddriver.bot.control.controller.WaterClimb;
 import net.magicterra.worlddriver.bot.control.medium.MediumLocomotor;
 import net.magicterra.worlddriver.bot.control.route.PathSmoothing;
 import net.magicterra.worlddriver.bot.control.route.Route;
 import net.magicterra.worlddriver.bot.control.route.RouteAdoption;
-import net.magicterra.worlddriver.bot.control.route.WalkerTickProgress;
-import net.magicterra.worlddriver.bot.control.route.WalkerTickRepath;
-import net.magicterra.worlddriver.bot.control.route.WalkerTickSearch;
-import net.magicterra.worlddriver.bot.control.sense.WalkerTickPrelude;
-import net.magicterra.worlddriver.bot.control.sense.WalkerTickStallDetect;
+import net.magicterra.worlddriver.bot.control.route.ProgressPhase;
+import net.magicterra.worlddriver.bot.control.route.RepathPhase;
+import net.magicterra.worlddriver.bot.control.route.SearchPhase;
+import net.magicterra.worlddriver.bot.control.sense.PreludePhase;
+import net.magicterra.worlddriver.bot.control.sense.StallDetectPhase;
 import net.magicterra.worlddriver.bot.control.steer.StandToWork;
-import net.magicterra.worlddriver.bot.control.steer.WalkerTickAim;
-import net.magicterra.worlddriver.bot.control.steer.WalkerTickDrive;
-import net.magicterra.worlddriver.bot.control.steer.WalkerTickEdgeGuards;
+import net.magicterra.worlddriver.bot.control.steer.AimPhase;
+import net.magicterra.worlddriver.bot.control.steer.DrivePhase;
+import net.magicterra.worlddriver.bot.control.steer.EdgeGuardsPhase;
 
-public final class Walker implements Locomotor {
+public final class Navigator implements Locomotor {
     // Water-bucket (MLG) fall handling lives in the always-on {@link
     // ClutchController} the bot ticks, so an unplanned fall self-rescues
-    // whether or not a Walker is driving. The Walker only SIGNALS a planned fall
+    // whether or not a Navigator is driving. The Navigator only SIGNALS a planned fall
     // (MoveSignals.planClutch) as it steps off a fallBucket lip and biases the
     // step-off keys (walk-speed, no sprint) so the bot drops near-vertically.
     // Other tuning lives in BotConfig (mutable via mc.bot.setting).
 
-    /** This walker's own event counts (searches, recovery hops, digs) — see {@link WalkerTallies}. */
-    public final WalkerTallies tallies = new WalkerTallies();
+    /** This navigator's own event counts (searches, recovery hops, digs) — see {@link NavigatorTallies}. */
+    public final NavigatorTallies tallies = new NavigatorTallies();
 
-    private final WalkerInspector inspector = new WalkerInspector(this);
+    private final NavigatorInspector inspector = new NavigatorInspector(this);
     /** The readings a diagnosis wants: the plan, the step, the per-tick tags. */
-    public WalkerInspector inspect() { return inspector; }
+    public NavigatorInspector inspect() { return inspector; }
 
-    /** The telemetry of the body this walker last ticked; a private sink until the first tick. */
-    public WalkerTelemetry tel = new WalkerTelemetry();
+    /** The telemetry of the body this navigator last ticked; a private sink until the first tick. */
+    public NavigatorTelemetry tel = new NavigatorTelemetry();
 
-    /** The chain or verb this walker moves for — see {@link WalkerSettings#owner}. */
+    /** The chain or verb this navigator moves for — see {@link NavigatorSettings#owner}. */
     public final String owner;
 
-    public Walker() { this(WalkerSettings.DEFAULT); }
+    public Navigator() { this(NavigatorSettings.DEFAULT); }
 
-    public Walker(WalkerSettings settings) {
+    public Navigator(NavigatorSettings settings) {
         this.owner = settings.owner();
         this.searchMaxNodes = settings.searchMaxNodes();
         this.searchMaxMs = settings.searchMaxMs();
@@ -92,7 +92,7 @@ public final class Walker implements Locomotor {
 
     public Goal goal;
     /** Per-intent search profile (bias + capability + constraints) forwarded to
-     *  every PathFinder this Walker builds (A4a bias-only; A2a full profile).
+     *  every PathFinder this Navigator builds (A4a bias-only; A2a full profile).
      *  {@link SearchProfile#NONE} = plain navigation; IntentProcess sets it from the Intent. */
     public SearchProfile profile = SearchProfile.NONE;
     /** Cached from {@link #profile} in {@link #useProfile}: does the current profile carry a
@@ -100,23 +100,23 @@ public final class Walker implements Locomotor {
      *  ({@link #mayBreak}) is a field read, not a per-tick constraint scan at every fallback site. */
     private boolean profileForbidsBreak = false;
 
-    /** Deep-search budget (nodes, ms); -1 = the configured one. See {@link WalkerSettings#withSearchBudget}. */
+    /** Deep-search budget (nodes, ms); -1 = the configured one. See {@link NavigatorSettings#withSearchBudget}. */
     final int searchMaxNodes;
     final long searchMaxMs;
 
-    /** Single construction point for this Walker's deep-search PathFinders so the
-     *  per-Walker budget override, tuning and scope source apply to every search launch site
-     *  alike (foot repath, commit-end continuation, place-suppressed re-plan). See {@link WalkerFinders}. */
-    public PathFinder newPathFinder(WorldView world) { return WalkerFinders.deep(this, world); }
+    /** Single construction point for this Navigator's deep-search PathFinders so the
+     *  per-Navigator budget override, tuning and scope source apply to every search launch site
+     *  alike (foot repath, commit-end continuation, place-suppressed re-plan). See {@link NavigatorFinders}. */
+    public PathFinder newPathFinder(WorldView world) { return NavigatorFinders.deep(this, world); }
 
     /** The bot the last {@link #tick(Body, WorldView)} drove, for the finders' scope source.
      *  Null until the first tick, which is also the first time a search can start. */
     LivingEntity body;
 
-    /** That bot's equipment and block interaction, or {@link WalkerNoHands} when it lacks either —
+    /** That bot's equipment and block interaction, or {@link NoHands} when it lacks either —
      *  never null, so the tick phases' dig and place sites read and drive them without a guard each. */
-    public Equipment equipment = WalkerNoHands.INSTANCE;
-    public BlockInteraction blocks = WalkerNoHands.INSTANCE;
+    public Equipment equipment = NoHands.INSTANCE;
+    public BlockInteraction blocks = NoHands.INSTANCE;
 
     /** Search with {@code p} from now on. Null → {@link SearchProfile#NONE}. */
     private void useProfile(SearchProfile p) {
@@ -148,15 +148,15 @@ public final class Walker implements Locomotor {
     /** The jump, sneak and forward keys, with the log of where each jump came from. */
     public final Keys keys = new Keys(this);
     /** The tick's phases in pipeline order ({@link #tickInner}); each holds what it keeps from one tick to the next. */
-    public final WalkerTickPrelude prelude = new WalkerTickPrelude();
-    public final WalkerTickStallDetect stallDetect = new WalkerTickStallDetect();
-    public final WalkerTickRepath repath = new WalkerTickRepath();
-    public final WalkerTickSearch search = new WalkerTickSearch();
-    public final WalkerTickProgress progress = new WalkerTickProgress();
-    public final WalkerTickEdgeGuards edgeGuards = new WalkerTickEdgeGuards();
-    public final WalkerTickAim aim = new WalkerTickAim();
-    public final WalkerTickDrive drive = new WalkerTickDrive();
-    /** The A* result before stringPull, as a tally — see {@link WalkerInspector#rawPlanTally()}. */
+    public final PreludePhase prelude = new PreludePhase();
+    public final StallDetectPhase stallDetect = new StallDetectPhase();
+    public final RepathPhase repath = new RepathPhase();
+    public final SearchPhase search = new SearchPhase();
+    public final ProgressPhase progress = new ProgressPhase();
+    public final EdgeGuardsPhase edgeGuards = new EdgeGuardsPhase();
+    public final AimPhase aim = new AimPhase();
+    public final DrivePhase drive = new DrivePhase();
+    /** The A* result before stringPull, as a tally — see {@link NavigatorInspector#rawPlanTally()}. */
     public String rawPlan;
     public int stuckTicks;
     public int totalTicks;
@@ -171,10 +171,10 @@ public final class Walker implements Locomotor {
     /** Who drives which channel this tick; {@link Arbiter#snapshot} says. */
     public final Arbiter arbiter = new Arbiter(List.of(new DrownEscape(), recovery, waterClimb, pillar,
             new ParkourPlace(), new VineClimb(), routeDig));
-    // --- expectation alarms (walkerExpectAlarm): live actual-vs-expected divergence detectors ---
-    // Extracted to WalkerExpectAlarms (all the ex* sentinel state + the observers) — purely
+    // --- expectation alarms (navigatorExpectAlarm): live actual-vs-expected divergence detectors ---
+    // Extracted to ExpectAlarms (all the ex* sentinel state + the observers) — purely
     // observational, never drives movement. Fed via exAlarms.tick / .notePlace / .noteRepathFlip.
-    public final WalkerExpectAlarms exAlarms = new WalkerExpectAlarms();
+    public final ExpectAlarms exAlarms = new ExpectAlarms();
     /** Why the walk failed, or why a branch last threw the route away; the failing branch's text is
      *  what {@link #result()} reports. */
     public String error;
@@ -187,7 +187,7 @@ public final class Walker implements Locomotor {
     @Override public WalkResult result() { return medium != null ? medium.result() : result; }
 
     /**
-     * Re-aim an in-progress pursuit at a quarry that moved, WITHOUT telling the walker this is
+     * Re-aim an in-progress pursuit at a quarry that moved, WITHOUT telling the navigator this is
      * a new journey. {@link #start} clears the futile-search governor, which is right for a
      * fresh goto and wrong for a chase: a caller that re-goals every time its quarry changes
      * block zeroes the counter faster than the counter can reach its cap, so the guard that
@@ -278,7 +278,7 @@ public final class Walker implements Locomotor {
         // not standable, and snapping it up would walk the diver to the wrong place.
         if (WorldConfig.pathfinderSurfaceWaterNodes && world.isWater(t)
                 && profile.capability().allowsOptIn(net.magicterra.worlddriver.bot.rules.Capability.DIVE)) return;
-        // walkerPillarReachGoalNoSnap: don't snap an elevated AIR goal DOWN when it's reachable
+        // navigatorPillarReachGoalNoSnap: don't snap an elevated AIR goal DOWN when it's reachable
         // by PILLARING up. canStandAt(t) here fails only because t's floor is air — but pillaring
         // creates that floor, so the goal IS reachable. Snapping it to the highest currently-
         // standable cell makes the bot stop 1+ blocks short (live 2026-06-27 summitArena: goal
@@ -286,7 +286,7 @@ public final class Walker implements Locomotor {
         // last block, so an uphill goal in the air is never reached). Skip the snap so A* keeps the real goal and finds the
         // pillarUp path. Guard against a truly FLOATING void goal (no base to pillar from): require
         // the goal cell + head to be passable AND a solid base within a few blocks below.
-        if (ControlConfig.walkerPillarReachGoalNoSnap && WorldConfig.allowPlace
+        if (ControlConfig.navigatorPillarReachGoalNoSnap && WorldConfig.allowPlace
                 && !world.isSolid(t) && !world.isSolid(t.above())) {
             boolean baseBelow = false;
             for (int d = 1; d <= 5; d++)
@@ -310,8 +310,8 @@ public final class Walker implements Locomotor {
                     }
                 }
         if (best != null && !best.equals(t)) {
-            if (GameConfig.walkerDebug)
-                LOG.info("[walker] goal snap: unstandable target {} → nearest standable {} (d={})",
+            if (GameConfig.navigatorDebug)
+                LOG.info("[navigator] goal snap: unstandable target {} → nearest standable {} (d={})",
                         t, best, String.format(Locale.ROOT, "%.1f", Math.sqrt(bestToTarget)));
             this.goal = new Goal.Block(best);
             this.goalSnapped = true;
@@ -375,7 +375,7 @@ public final class Walker implements Locomotor {
      * <p><b>The last node is the goal only when the search reached it.</b>
      * {@code seg.pathBestEffort = !res.goalReached()} — a best-effort partial ends at the closest
      * node A* could get to, which for a bot on a small island is its own edge. So "the last node
-     * of the path" and "the destination" are different questions and {@link WalkerInspector#planTally()} answers
+     * of the path" and "the destination" are different questions and {@link NavigatorInspector#planTally()} answers
      * the first one.
      */
     @Override public int pathLen() {
@@ -393,8 +393,8 @@ public final class Walker implements Locomotor {
         return adoptForTest(world, plan, planEdges, foot, false);
     }
 
-    /** {@link #adoptForTest} for a scene that goes on to TICK the walker. The 4-arg form declares the
-     *  plan BEST-EFFORT, and a best-effort segment is one the walker is entitled to replace: it kicks
+    /** {@link #adoptForTest} for a scene that goes on to TICK the navigator. The 4-arg form declares the
+     *  plan BEST-EFFORT, and a best-effort segment is one the navigator is entitled to replace: it kicks
      *  off a continuation search, adopts the result, and the synthetic edges are gone. That is how
      *  {@code wd.surfacePillarPointerNeedsItsSupport} lost its subject on tick ONE — its terminal read
      *  {@code path-consumed}, a class {@link WalkVerdict#classifyArrival} can only return once
@@ -406,11 +406,11 @@ public final class Walker implements Locomotor {
     }
 
     /**
-     * Hand this walker a previewed route ({@code mc.bot.goto} with {@code planId}). Feed the RAW search
+     * Hand this navigator a previewed route ({@code mc.bot.goto} with {@code planId}). Feed the RAW search
      * result, never the straightened route a preview showed: adoption straightens on its own, cuts a
      * best-effort tail, and skips the prefix the bot already walked, so a pre-straightened route would be
      * straightened twice. A preview whose first stretch has been built over comes back refused, which is
-     * the caller's cue to let the walker search as usual.
+     * the caller's cue to let the navigator search as usual.
      *
      * @param foot where the bot stands now; the route is anchored to its nearest prefix node
      * @return false when the route was refused (mis-anchored or stale)
@@ -435,9 +435,9 @@ public final class Walker implements Locomotor {
 
     private Status decide(Body a, WorldView world) {
         body = a.entity();
-        if (body != null) tel = WalkerTelemetry.of(body);
-        equipment = a.equipment().orElse(WalkerNoHands.INSTANCE);
-        blocks = a.blockInteraction().orElse(WalkerNoHands.INSTANCE);
+        if (body != null) tel = NavigatorTelemetry.of(body);
+        equipment = a.equipment().orElse(NoHands.INSTANCE);
+        blocks = a.blockInteraction().orElse(NoHands.INSTANCE);
         if (goal == null) {
             result = new WalkResult(Status.FAILED, "no goal: the walk was never started, or was cancelled",
                     "failed:no goal", false, -1, false);
@@ -454,7 +454,7 @@ public final class Walker implements Locomotor {
         // gap #53 death strode over a well mouth from a branch that never reached it. Run the
         // stride floor-guard here, after EVERY decision path, before the avatar integrates.
         TickStep s = tickInner(a, world);
-        drive.settleDigKey(this, a);   // a walker-held attack key outlives its dig by DIG_KEY_RELEASE_TICKS only
+        drive.settleDigKey(this, a);   // a navigator-held attack key outlives its dig by DIG_KEY_RELEASE_TICKS only
         LivingEntity tp = a.entity();
         tel.lastTickTrace = "step=" + s + " jumpTag=" + (jumpTag == null ? "untagged" : jumpTag)
                 + (tp == null ? "" : " pos=" + String.format(java.util.Locale.ROOT, "%.2f,%.2f,%.2f",
@@ -462,10 +462,10 @@ public final class Walker implements Locomotor {
                     + String.format(java.util.Locale.ROOT, " speedH=%.3f",
                         tp.getDeltaMovement().horizontalDistance())
                     + " sole=" + String.format(java.util.Locale.ROOT, "%.3f",
-                        WalkerGeometry.soleOnSolid(world, tp)))
+                        NavigatorGeometry.soleOnSolid(world, tp)))
                 + " node=" + (route.path() == null || route.step() < 0 || route.step() >= route.path().size()
                         ? "none" : route.path().get(route.step()).toShortString());
-        if (tp != null && WalkerGeometry.soleOnSolid(world, tp) > 0.0) tel.lastSupportedTrace = tel.lastTickTrace;
+        if (tp != null && NavigatorGeometry.soleOnSolid(world, tp) > 0.0) tel.lastSupportedTrace = tel.lastTickTrace;
         if (s == TickStep.WALKING) safety.run(a, world);
         else safety.stand(a);
         return s;
@@ -478,7 +478,7 @@ public final class Walker implements Locomotor {
     public String jumpTag;
 
     /** This tick's aim-tree owner ({@code aimSrc}) — same telemetry channel as
-     *  {@link WalkerInspector#jumpTag}: wedge post-mortems need "who owned the heading". */
+     *  {@link NavigatorInspector#jumpTag}: wedge post-mortems need "who owned the heading". */
     public String aimTag;
 
     /** This tick's drive command (target yaw + impulse) as a compact string; null when
@@ -489,7 +489,7 @@ public final class Walker implements Locomotor {
     private MediumLocomotor medium;
 
     private TickStep tickInner(Body a, WorldView world) {
-        WalkerTickCtx c = new WalkerTickCtx();
+        TickCtx c = new TickCtx();
         TickStep r;
         r = prelude.run(this, c, a, world); if (r != null) return r;
         r = stallDetect.run(this, c, a, world); if (r != null) return r;
@@ -509,7 +509,7 @@ public final class Walker implements Locomotor {
         r = edgeGuards.run(this, c, a, world); if (r != null) return r;
         r = aim.run(this, c, a, world); if (r != null) return r;
         r = drive.run(this, c, a, world);
-        if (r == TickStep.WALKING) WalkerDig.preDigNextBreak(this, a, world);
+        if (r == TickStep.WALKING) Digging.preDigNextBreak(this, a, world);
         return r;
     }
 

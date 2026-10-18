@@ -232,7 +232,7 @@ final class JourneyPour {
                 // The account is the same objection this file already makes about the pour's own 3D
                 // retry twenty lines down: that walk is well-formed because it starts PINNED AT THE
                 // STAIR FOOT, one or two cells out. A goal issued from the surface is neither short
-                // nor well-formed, and the walker answered it by leaving the column altogether. So
+                // nor well-formed, and the navigator answered it by leaving the column altogether. So
                 // the remedy for arriving high is not to walk back after the fact — it is to stop
                 // `walkToColumn`'s `Goal.XZ` from delivering the bot to the surface in the first
                 // place, which is a change to the goal and not to this hand-off.
@@ -264,7 +264,7 @@ final class JourneyPour {
         // is short and well-formed. The scoop is excluded for the reason `raiseRowTooHigh` already
         // argues above: it has a remedy that works, and a new one running first would take its turn.
         //
-        // Goal.Near, NOT Goal.Block. `Walker.snapGoalToStandable` (Walker.java:797) pulls an
+        // Goal.Near, NOT Goal.Block. `Navigator.snapGoalToStandable` (Navigator.java:797) pulls an
         // unstandable Goal.Block to the nearest standable cell, and when `col` at wantY is occupied
         // that cell is the surface — which would rebuild this very defect inside the goal itself.
         // Near does no snapping. Its radius is POUR_ROW_SLACK so this walk and the `over` check above
@@ -290,7 +290,7 @@ final class JourneyPour {
         // `ARRIVED_WITHIN` and not against the radius asked for, so the walk reports success from up
         // to five cells out: `recover8.rise.raiseTo.arrivedDistance=1` was an ARRIVAL, and the
         // pinned climb it handed over to then refused to place anything because the bot was not in
-        // the column. Asking for radius 0 at least makes the walker try for the cell the aim was
+        // the column. Asking for radius 0 at least makes the navigator try for the cell the aim was
         // computed from; the tower's own drift correction is what finishes the job when it cannot.
         // AND IT MAY NOT DIG ITS WAY IN. This walk runs inside the alcove, where the only thing between
         // the bot and the column is what this rung cut with its own pick — the same argument
@@ -752,7 +752,7 @@ final class JourneyPour {
      * it is right about the geometry — but it is asked before the walk, and the walk is what fails.
      * Run 40 cell six: {@code water6.stand=-9,56,37} verified, so no step was built, and the bot
      * then ended at {@code -8,56,37} one cell east and stayed there through both retries, its ray
-     * landing in {@code -9,58,38} every time. The one good cell existed and the walker could not
+     * landing in {@code -9,58,38} every time. The one good cell existed and the navigator could not
      * reach it, which no amount of re-choosing fixes.
      *
      * <p>Lifting to the target's own row is what makes the backing aim horizontal wherever the bot
@@ -940,7 +940,7 @@ final class JourneyPour {
      * <p>The spot used to be arithmetic — two blocks back along {@code away}, at the target's own
      * height — and level with the target is the right idea for the ray. It is the wrong idea for the
      * bot: the alcove is hollow, so "level with a cell four rows up" is a cell with nothing under
-     * it, and asking the walker to occupy thin air is what wedged a run at {@code -9,53,20}, three
+     * it, and asking the navigator to occupy thin air is what wedged a run at {@code -9,53,20}, three
      * blocks outside the corridor it had just carved, unable to move for three identical attempts.
      *
      * <p>So both halves are asked properly. <b>Standable</b> — feet and head clear, something solid

@@ -63,7 +63,7 @@ import net.minecraft.world.phys.BlockHitResult;
  *       had put it there on purpose.</li>
  * </ol>
  *
- * <p>The rung built the blocker and then excused it. Nothing in the chain is a walker bug, a ray
+ * <p>The rung built the blocker and then excused it. Nothing in the chain is a navigator bug, a ray
  * quantisation artefact or a flooded alcove: it is one cell, contested by two stages of the same
  * cast, with no rule saying who owns it.
  *
@@ -358,7 +358,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowPlace = false;
         WorldConfig.allowBreak = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(JourneyRamp::reset);

@@ -38,7 +38,7 @@ trajectory is a ring buffer.
 
 Rendering is a pure function from an immutable session snapshot to an image. That keeps it testable
 with no game and no file system, and it keeps every pixel of work off the game thread. The captured
-target heading is the value the walker actually aimed at *that tick*, taken after the target is
+target heading is the value the navigator actually aimed at *that tick*, taken after the target is
 computed and before the inputs are written — a value sampled anywhere else would be answering a
 different question.
 
@@ -75,7 +75,7 @@ requires sprinting as well as being in water, so merely floating is not swimming
 requires the sneak input rather than happening automatically under a low ceiling.
 
 Replaying force-restores the envelope, teleports to the recorded start, and re-executes through the
-real walker with real physics.
+real navigator with real physics.
 
 The original design made verbatim re-execution the only mode, with replanning disabled, so that a wedge
 would be **recorded rather than routed around**. That mode still exists and is still what makes an

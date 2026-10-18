@@ -251,7 +251,7 @@ final class JourneyStation {
             // WITH WHAT IT WAS STANDING IN, because a bare coordinate cannot tell the two shapes
             // this branch serves apart: a pillar top (too much air) and a shaft bottom (no air at
             // all) both arrive here, and so does a bot afloat. The ladder run of 2026-08-26 came
-            // through with `walkerCensus` reporting the skip reason "feet not on a solid block (or in
+            // through with `navigatorCensus` reporting the skip reason "feet not on a solid block (or in
             // water)" for all 395 ticks of the rung, a bucket that never got crafted, and no row
             // anywhere saying which of the two cases applied.
             rig.evidence("station.noGround", foot.toShortString() + " " + standStory(rig, lvl, foot));

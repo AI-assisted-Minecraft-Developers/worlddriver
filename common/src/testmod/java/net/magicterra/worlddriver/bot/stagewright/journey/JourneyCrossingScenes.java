@@ -11,9 +11,9 @@ import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
-import net.magicterra.worlddriver.bot.control.WalkerGeometry;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
+import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -45,7 +45,7 @@ import net.minecraft.world.phys.AABB;
  * reading from a bot it never let finish falling. Eighteen of twenty-four hops and 16 200 hop ticks
  * went unspent over one tick of patience.
  *
- * <h2>What put the bot in the air, and why the walker is not the defect</h2>
+ * <h2>What put the bot in the air, and why the navigator is not the defect</h2>
  *
  * The same hop's own physics dump (rendered in English):
  *
@@ -58,14 +58,14 @@ import net.minecraft.world.phys.AABB;
  * </pre>
  *
  * <p>{@code onGround} was indeed a tick stale — vanilla's own sweep disagreed with it. But nothing
- * in the walker steers on that flag: {@link Safety#footingGuard} and {@link Safety#strideFloorGuard}
- * both open on {@link WalkerGeometry#soleOnSolid}, which read {@code 0.0000} on the same tick, and
+ * in the navigator steers on that flag: {@link Safety#footingGuard} and {@link Safety#strideFloorGuard}
+ * both open on {@link NavigatorGeometry#soleOnSolid}, which read {@code 0.0000} on the same tick, and
  * both were silent for the reason the row spells out — <b>the drops were 4 and 8 blocks</b>, against
  * a lethal line of {@code survivableFall(20) = 22}. Teaching them to refuse those strides is not a
  * fix, it is the failure {@code wd.serverWalksOffASurvivableLedge} was committed to catch: a guard
  * that pins at every lip turns a Nether crossing, which is nothing but lips, into a wall.
  *
- * <p>So this pair asks the walker for nothing at all. It walks a bot off a survivable lip with the
+ * <p>So this pair asks the navigator for nothing at all. It walks a bot off a survivable lip with the
  * guards at their live settings, records that they stayed out of the way (that reading is the
  * measurement, not an assertion — the shore pair owns that), and then asks the CROSSING's verdict
  * the two questions it gets wrong and right.
@@ -135,7 +135,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
 
     /** dy of the bay floor's top block. Four rows under the deck, so the step down from foot cell to
      *  foot cell is FOUR — the drop {@code fortress.fell.6.0} measured, and far under the
-     *  {@code survivableFall(20) = 22} line, which is what keeps both walker guards out of this
+     *  {@code survivableFall(20) = 22} line, which is what keeps both navigator guards out of this
      *  arena by their own rules rather than by a switch. */
     private static final int BAY_BED = DECK - 4;
 
@@ -166,14 +166,14 @@ public final class JourneyCrossingScenes implements SceneProvider {
         // the bot would change the geometry the arms differ in; the shore pair owns that question.
         WorldConfig.allowPlace = false;
         WorldConfig.allowBreak = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ctx.cleanup(() -> clear(ctx));
 
         stage(ctx);
         ctx.record("rig", "3-block-wide netherrack shelf dz=-2.." + (SHELF_CELLS - 2) + ", top face dy="
                 + DECK + "; past the lip it drops to the bay floor at dy=" + BAY_BED + ", a drop of "
                 + (DECK - BAY_BED) + " blocks. A bot at full health survives 22 blocks, so both"
-                + " walker guards should stay silent in this arena by their own rules, not because"
+                + " navigator guards should stay silent in this arena by their own rules, not because"
                 + " a switch turned them off");
 
         ServerPlayerBody av = spawn(ctx, ctx.originZ() + 1.5, DECK + 1, true);
@@ -221,7 +221,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * The same bay from thirty-nine blocks up: the allowance expires and the verdict must still stop.
      *
      * <p>Staged as a drop rather than as a walk-off on purpose. A lip this arm could walk off would
-     * have to be a lethal one, and a lethal lip is a stride both walker guards are supposed to
+     * have to be a lethal one, and a lethal lip is a stride both navigator guards are supposed to
      * refuse — the arm would end up measuring them instead of the allowance, and would fail for
      * being right about something else.
      */
@@ -230,7 +230,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowPlace = false;
         WorldConfig.allowBreak = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ctx.cleanup(() -> clear(ctx));
 
         stage(ctx);
@@ -315,7 +315,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowPlace = false;      // paving the trench is another answer; the pin is the subject
         WorldConfig.allowBreak = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.lethalEdgeBrake = false; // isolate the STRIDE guard, as the shore/rim pairs do
         ctx.cleanup(() -> clearTrench(ctx));
 
@@ -341,12 +341,12 @@ public final class JourneyCrossingScenes implements SceneProvider {
                     + " the reading had an effect or this arm never ran far enough");
 
         // THE PARSER'S OWN CONTRACT, checked before the two readings are compared. cellsIn reads the
-        // walker's WORDING, and that wording has silently changed twice under it (see cellsIn). A −1
+        // navigator's WORDING, and that wording has silently changed twice under it (see cellsIn). A −1
         // is not a measurement of the bot; it is this scene failing to read the line. Left to flow
         // into the checks below it would arrive as "covered -1 distinct cells", which reads like a
-        // subject that misbehaved and sent the 2026-08-22 gate looking at the walker. It is the rig.
+        // subject that misbehaved and sent the 2026-08-22 gate looking at the navigator. It is the rig.
         if (walk.cells() < 0 || lock.cells() < 0)
-            ctx.fail("THE RIG, not the subject: cannot parse the walker's forced-repath line; cellsIn's"
+            ctx.fail("THE RIG, not the subject: cannot parse the navigator's forced-repath line; cellsIn's"
                     + " pattern CELLS_IN_LINE (" + CELLS_IN_LINE.pattern() + ") does not match the"
                     + " line's current wording. The rim walk parsed as " + walk.cells()
                     + " and the livelock as " + lock.cells() + ". The raw lines are in the evidence"
@@ -397,14 +397,14 @@ public final class JourneyCrossingScenes implements SceneProvider {
         for (int i = 0; i < SETTLE_TICKS; i++) step(av);
 
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(ctx.rel(TRENCH_EDGE - 6, TRENCH_DECK + 1, TRENCH_CELLS - 2)));
-        WalkerTelemetry tel = WalkerTelemetry.of(fp);
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(ctx.rel(TRENCH_EDGE - 6, TRENCH_DECK + 1, TRENCH_CELLS - 2)));
+        NavigatorTelemetry tel = NavigatorTelemetry.of(fp);
         int before = tel.guardForcedRepaths;
         double z0 = fp.getZ();
         int pinned = 0, t = 0;
         for (; t < PIN_TICKS; t++) {
-            walker.tick(av, w);
+            navigator.tick(av, w);
             fp.setYRot(travelling ? RIM_LEAN : 90f);
             fp.yHeadRot = fp.getYRot();
             fp.yBodyRot = fp.getYRot();
@@ -421,19 +421,19 @@ public final class JourneyCrossingScenes implements SceneProvider {
     }
 
     /**
-     * The cell-coverage count out of the walker's forced-repath line, or −1 when the line cannot be
+     * The cell-coverage count out of the navigator's forced-repath line, or −1 when the line cannot be
      * read at all.
      *
      * <p><b>Parsed rather than recomputed, on purpose:</b> this arm's whole claim is that the LINE
-     * separates a rim walk from a livelock, so reading the walker's {@code guardStreakCells} directly
+     * separates a rim walk from a livelock, so reading the navigator's {@code guardStreakCells} directly
      * would assert something no reader ever sees and leave the sentence itself untested.
      *
      * <p><b>⚠️ That couples this scene to the WORDING of a log line, and the coupling has already
-     * rotted twice unnoticed.</b> The walker has reworded its distinct-cell clause twice since the
+     * rotted twice unnoticed.</b> The navigator has reworded its distinct-cell clause twice since the
      * pattern was first written, and each time this matcher went on returning −1. The 2026-08-22
      * double-loader gate is what caught it, and only because −1 reached an assertion: <b>both
-     * loaders</b> reported "the last covering -1 distinct cells" while the walker's own numbers were
-     * exactly right (rim 2, livelock 1). The bot, the scene's premise and the walker's arithmetic
+     * loaders</b> reported "the last covering -1 distinct cells" while the navigator's own numbers were
+     * exactly right (rim 2, livelock 1). The bot, the scene's premise and the navigator's arithmetic
      * were all correct and the parser was the only broken part. A silent −1 that goes on to be
      * compared as if it were a cell count is the entire
      * defect, which is why this no longer gets to be quiet: see the caller, which fails the RIG
@@ -448,7 +448,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         return m.find() ? Integer.parseInt(m.group(1)) : -1;
     }
 
-    /** The walker's CURRENT wording of the pinned-cell count clause that {@code Walker} logs,
+    /** The navigator's CURRENT wording of the pinned-cell count clause that {@code Navigator} logs,
      *  deliberately not a union of every past phrasing: accepting the dead ones would buy nothing and
      *  would hide the next rewording. The caller turns a miss into a loud rig failure that names
      *  this constant. */
@@ -534,7 +534,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * it is a measurement rather than an assertion of intent: if the two situations do not produce
      * those same three readings, this arena has not reproduced the ambiguity and the arm fails as
      * THE RIG instead of reporting that the new clause separated them. What must then separate them
-     * is the sole, printed through {@link WalkerGeometry#soleRow}, which is this repository's single
+     * is the sole, printed through {@link NavigatorGeometry#soleRow}, which is this repository's single
      * definition of "which cell the player entity is standing on", not a fourth opinion invented
      * here.
      *
@@ -546,13 +546,13 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowPlace = false;
         WorldConfig.allowBreak = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ctx.cleanup(() -> clearShaft(ctx));
 
         stageShaft(ctx);
         ctx.record("rig", "a shaft: floor at dy=" + SHAFT_FLOOR + ", 18 blocks below the foot cell."
                 + " That is deeper than the 16 blocks surroundings probes (so both bots read \">16\")"
-                + " and shallower than the drop both walker guards refuse (so the walking half can"
+                + " and shallower than the drop both navigator guards refuse (so the walking half can"
                 + " walk off); deck at dy=" + DECK + ", with nothing beyond the lip; plus one lone"
                 + " netherrack block at dx=-1, dy=" + DECK + ". The perched bot stands on its corner"
                 + " with open air under its own cell");
@@ -569,7 +569,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         String rowPerch = JourneyNetherRungs.surroundings(pf, pf.blockPosition());
         ctx.record("perch.row", rowPerch);
         ctx.record("perch.sole", String.format(Locale.ROOT, "%.4f/0.36 @ %.3f,%.3f,%.3f",
-                WalkerGeometry.soleOnSolid(new LevelWorldView(ctx.level(), pf), pf),
+                NavigatorGeometry.soleOnSolid(new LevelWorldView(ctx.level(), pf), pf),
                 pf.getX(), pf.getY(), pf.getZ()));
         if (!pf.onGround())
             ctx.fail("THE RIG, not the subject: the bot perched on the neighbour's corner did not stay"
@@ -583,7 +583,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         String rowAir = walkToTheStaleTick(ctx, off);
         ctx.record("midAir.row", rowAir);
         ctx.record("midAir.sole", String.format(Locale.ROOT, "%.4f/0.36 @ %.3f,%.3f,%.3f",
-                WalkerGeometry.soleOnSolid(new LevelWorldView(ctx.level(), wf), wf),
+                NavigatorGeometry.soleOnSolid(new LevelWorldView(ctx.level(), wf), wf),
                 wf.getX(), wf.getY(), wf.getZ()));
 
         // THE CONTROL. Three readings, both bots, or this arena is not the one that was confusing.
@@ -597,7 +597,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         }
 
         // B and C read the sole clause only: a whole-row contains() would also see the rest of the
-        // row, which this arm exists to say is not enough. The marker is WalkerGeometry.soleRow's
+        // row, which this arm exists to say is not enough. The marker is NavigatorGeometry.soleRow's
         // own wording.
         String soleOf = soleClause(rowPerch), soleOfAir = soleClause(rowAir);
         ctx.record("perch.soleClause", soleOf.isEmpty() ? "(this row has no sole clause)" : soleOf);
@@ -630,7 +630,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
      *
      * <p>It has to be deeper than {@code surroundings}' own 16-cell probe, or neither bot reads a
      * drop to solid of {@code >16} and the control has nothing to be about. It has to be SHALLOWER than
-     * what the walker's two guards refuse, or the walking half never happens: measured on the first
+     * what the navigator's two guards refuse, or the walking half never happens: measured on the first
      * cut of this arena, over a bottomless shaft {@link Safety#strideFloorGuard} fired, killed the
      * horizontal momentum and sneak-pinned the bot on a 0.0001-wide sliver of the lip for all 160
      * ticks — the guard doing exactly its job, and an arena that mistook it for a rig failure.
@@ -654,15 +654,15 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         ServerPlayer fp = av.fakePlayer();
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(ctx.rel(0, DECK + 1, SHELF_CELLS + 3)));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(ctx.rel(0, DECK + 1, SHELF_CELLS + 3)));
         for (int t = 0; t < WALK_TICKS; t++) {
-            walker.tick(av, w);
+            navigator.tick(av, w);
             aim(fp);
             av.commandMove(0f, 1f);
             av.commandJump(false);
             av.step();
-            if (fp.onGround() && WalkerGeometry.soleOnSolid(w, fp) <= 0.0)
+            if (fp.onGround() && NavigatorGeometry.soleOnSolid(w, fp) <= 0.0)
                 return JourneyNetherRungs.surroundings(fp, fp.blockPosition());
             if (!fp.onGround()) break;                        // the stale tick was overshot
         }
@@ -714,9 +714,9 @@ public final class JourneyCrossingScenes implements SceneProvider {
     /**
      * Walk the shelf until the bot is in the state a crossing hop is judged in, and say what it cost.
      *
-     * <p>The walker is ticked so its guards run — they live in {@code Walker#tick}'s single-exit
+     * <p>The navigator is ticked so its guards run — they live in {@code Navigator#tick}'s single-exit
      * wrapper, after every branch of {@code tickInner} — and the heading and impulse are re-imposed
-     * afterwards so the bot walks one straight line whatever the walker would rather do. Sneak is
+     * afterwards so the bot walks one straight line whatever the navigator would rather do. Sneak is
      * NOT re-imposed: it is the channel a guard pins on, and {@code pinnedTicks} is the reading that
      * says whether one did.
      *
@@ -730,8 +730,8 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         ServerPlayer fp = av.fakePlayer();
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(ctx.rel(0, BAY_BED + 1, SHELF_CELLS + 3)));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(ctx.rel(0, BAY_BED + 1, SHELF_CELLS + 3)));
 
         double startZ = fp.getZ(), farZ = fp.getZ();
         double prevSole = 0;
@@ -739,10 +739,10 @@ public final class JourneyCrossingScenes implements SceneProvider {
         boolean left = false;
         int pinned = 0, t = 0;
         for (; t < WALK_TICKS; t++) {
-            double sole = WalkerGeometry.soleOnSolid(w, fp);
+            double sole = NavigatorGeometry.soleOnSolid(w, fp);
             boolean onGround = fp.onGround();
             boolean swept = !level.noCollision(fp, groundSlab(fp.getBoundingBox()));
-            walker.tick(av, w);
+            navigator.tick(av, w);
             aim(fp);
             av.commandMove(0f, 1f);
             av.commandJump(false);
@@ -816,7 +816,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         return av;
     }
 
-    /** Face +z, head and body with it — see the shore pair: a heading the walker may slew turns a
+    /** Face +z, head and body with it — see the shore pair: a heading the navigator may slew turns a
      *  straight walk into a measurement of A*. */
     private static void aim(ServerPlayer fp) {
         fp.setYRot(0f);

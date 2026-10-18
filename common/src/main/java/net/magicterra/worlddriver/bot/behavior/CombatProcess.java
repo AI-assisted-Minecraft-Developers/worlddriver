@@ -10,8 +10,8 @@ import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.Attack;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerSettings;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
@@ -53,7 +53,7 @@ import net.minecraft.world.phys.Vec3;
  *       (facing + line-of-sight, close); done when nothing is pressing.</li>
  * </ul>
  *
- * <p>Melee closes to {@link BehaviorConfig#combatReach} (pathing via {@link Walker}) and
+ * <p>Melee closes to {@link BehaviorConfig#combatReach} (pathing via {@link Navigator}) and
  * pre-jumps to crit; ranged (bow/crossbow in hand) keeps {@link BehaviorConfig#kiteDistance},
  * drawing and releasing at full charge.
  */
@@ -84,14 +84,14 @@ public final class CombatProcess implements BotProcess {
     private final Integer targetId;     // KILL by entity id (nullable)
     private final String targetType;    // KILL by entity type id (nullable)
 
-    private final Walker walker = new Walker(WalkerSettings.named("combat"));
+    private final Navigator navigator = new Navigator(NavigatorSettings.named("combat"));
     private Integer lockedId;
     private boolean lockWasAlive;       // last-seen liveness of the locked target
     private int lostTicks;              // consecutive ticks the locked target was unseen
     private BlockPos lastGoalBlock;
-    private int lastQuarryId = -1;      // entity the walker is currently pursuing; -1 = none
+    private int lastQuarryId = -1;      // entity the navigator is currently pursuing; -1 = none
     private int ticks;
-    private boolean approaching;        // currently driving the Walker
+    private boolean approaching;        // currently driving the Navigator
     private BlockPos lastTargetPos;     // last seen position of a locked target
     private int collectTicks;           // post-kill drop-sweep tick counter
 
@@ -297,7 +297,7 @@ public final class CombatProcess implements BotProcess {
         BlockPos tb = target.blockPosition();
         int radius = Math.max(1, (int) Math.floor(BehaviorConfig.combatReach));
         // A DIFFERENT ENTITY IS A DIFFERENT PURSUIT, and this is the only place that knows it —
-        // the walker sees cells, not quarries. Getting this wrong is worse than the bug below it:
+        // the navigator sees cells, not quarries. Getting this wrong is worse than the bug below it:
         // a futile latch earned chasing an unreachable blaze would ride retarget into the walk
         // toward a zombie the bot could plainly reach, and nothing would ever start a search
         // again (the tick budget can't save it either — every re-goal clears totalTicks, so it
@@ -309,11 +309,11 @@ public final class CombatProcess implements BotProcess {
             // chasing something it can never reach runs one full A* per tick forever (measured:
             // 240 ticks, 240 searches, counter never past 1 against a cap of 5).
             Goal.Near g = new Goal.Near(tb, radius);
-            if (newQuarry) walker.start(g); else walker.retarget(g);
+            if (newQuarry) navigator.start(g); else navigator.retarget(g);
             lastGoalBlock = tb;
             lastQuarryId = target.getId();
         }
-        walker.tick(a, w);
+        navigator.tick(a, w);
     }
 
     /** Orbit a swarm (≥2 close hostiles) to avoid being surrounded; stand still vs a
@@ -386,13 +386,13 @@ public final class CombatProcess implements BotProcess {
         if (collectTicks == 1) st.combat.goal = "combat collect-drops";
         BlockPos ib = nearest.blockPosition();
         if (lastGoalBlock == null || !lastGoalBlock.equals(ib)) {
-            walker.start(new Goal.Near(ib, 1));
+            navigator.start(new Goal.Near(ib, 1));
             lastGoalBlock = ib;
             lastQuarryId = -1;          // the quarry is dead; the next approach starts a new pursuit
         }
-        Locomotor.Status s = walker.tick(a, w);
+        Locomotor.Status s = navigator.tick(a, w);
         if (s != Locomotor.Status.MOVING) {
-            // The walker parked in a terminal (ARRIVED path-consumed short of the
+            // The navigator parked in a terminal (ARRIVED path-consumed short of the
             // stack / FAILED) while the drop still exists: without a reset it
             // no-ops every subsequent tick (start is the only thing that clears
             // a terminal — measured live in the t0 diag round: sweepTicks=101,

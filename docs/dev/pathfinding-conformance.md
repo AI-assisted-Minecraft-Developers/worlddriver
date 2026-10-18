@@ -1,6 +1,6 @@
 # Pathfinding conformance and the replay corpus
 
-A procedure for measuring whether a change to the planner or the walker actually helps.
+A procedure for measuring whether a change to the planner or the navigator actually helps.
 The tooling lives in `scripts/pmcs/` and drives a live client over the WebSocket JSON-RPC
 endpoint; nothing here runs inside a scene.
 
@@ -13,7 +13,7 @@ pass that improved two recorded runs once made a third dramatically worse.
 
 | File | What it does |
 |---|---|
-| `telemetry.py` | Parses the `[walker]` telemetry lines out of a game log into tick records. |
+| `telemetry.py` | Parses the `[navigator]` telemetry lines out of a game log into tick records. |
 | `conformance.py` | Aggregates a tick stream into a per-`Move` conformance table: how many times each move executed, and in how many of those the bot churned. |
 | `run_case.py` | Runs one `(archive, flags)` replay end to end and returns its peak stuck counter plus its conformance table. |
 | `corpus.py` | Loads the corpus manifest, a JSON file listing each archive with the arrival coordinate and comparison that decides whether the run finished. |
@@ -68,14 +68,14 @@ Three instruments, in order. Each narrows what the next one has to explain.
    of the investigation argues about terrain that exists rather than terrain that was
    assumed.
 2. **`mc.debug.plan`** with `{goal:{x,z}, chain:true}` is a read-only probe: it runs
-   searches without a walker, without walking and without touching the world, feeding each
+   searches without a navigator, without walking and without touching the world, feeding each
    committed segment endpoint back in as the next start. It returns `reached`,
    `segments`, `backwardSegments`, `maxRegression` (the worst overshoot back past the best
    progress, in cost units, so roughly a tenth of that in blocks) and the trail. Pin the
    node budget first (`pathfinder.maxNodes` with a generous `pathfinder.maxMs`) so the
    search is repeatable, then compare the same fixed set of start positions before and
    after a change.
-3. **The `[walker]` telemetry and the conformance table from `run_case.py`** say which
+3. **The `[navigator]` telemetry and the conformance table from `run_case.py`** say which
    `Move` the executor churned on.
 
 The reading that follows:
@@ -86,15 +86,15 @@ The reading that follows:
   too loose. Tighten the predicate.
 
 The peak stuck counter for a run can also be read straight out of a log by grepping for
-`[walker] t=` and taking the maximum of the total-stuck field, but `run_case.py` already
+`[navigator] t=` and taking the maximum of the total-stuck field, but `run_case.py` already
 does that and is less error-prone.
 
-## Wiring a new default-off walker flag
+## Wiring a new default-off navigator flag
 
 Two steps are mandatory and one is optional.
 
 1. **Declare it** in the config class of the lowest layer that reads it (`ControlConfig.java` for
-   a walker flag), as a `public static volatile boolean` defaulting to
+   a navigator flag), as a `public static volatile boolean` defaulting to
    false. That is the whole registration. `SettingsRegistry.reflectivePrimitiveFields()`
    collects it, and that one method feeds the key set, the snapshot read path and the
    generated MCP schema, so the setter, the snapshot and the schema follow automatically
@@ -125,7 +125,7 @@ magnitude.
 
 ```bash
 python3 -m scripts.pmcs.sweep --flags '{}' --save baseline.json
-python3 -m scripts.pmcs.sweep --flags '{"walkerSomeFlag":true}' --baseline baseline.json --repeat 3
+python3 -m scripts.pmcs.sweep --flags '{"navigatorSomeFlag":true}' --baseline baseline.json --repeat 3
 ```
 
 Use `python` rather than `python3` on a checkout whose interpreter is named that way.

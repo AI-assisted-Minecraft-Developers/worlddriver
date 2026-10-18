@@ -44,7 +44,7 @@ import net.minecraft.world.phys.AABB;
  * number of scenes that have ever asked one {@code TowerProcess} call to climb from a low place to
  * a high one and then checked that the bot got there is <b>zero</b>. {@code wd.digUpY} and
  * {@code wd.columnRadius} are planner scenes and never build; {@code wd.serverPillarsOutOfAPit}
- * asserts only "got out of the pit", which the Walker's own pillar branch satisfies with the builder entirely
+ * asserts only "got out of the pit", which the Navigator's own pillar branch satisfies with the builder entirely
  * broken.
  *
  * <p>The production caller is not shaped like the covered scene at all.
@@ -129,7 +129,7 @@ import net.minecraft.world.phys.AABB;
  *       else.</li>
  *   <li><b>Only arm 2 plans.</b> The other four drive {@code PlayerBot.tick()} synchronously
  *       inside the scene body, the way the sibling {@code wd.parkourVoid*} scenes drive their
- *       Walker: TowerProcess never touches the pathfinder, so a few hundred of its ticks inside one
+ *       Navigator: TowerProcess never touches the pathfinder, so a few hundred of its ticks inside one
  *       server tick costs nothing. Arm 2's walk DOES plan, so it runs over
  *       {@code BotTicker} on real server ticks and only its tower half is synchronous.</li>
  * </ul>
@@ -197,7 +197,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
     private static void towerConfig() {
         WorldConfig.allowPlace = true;
         WorldConfig.allowBreak = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
     }
 
     private static void clearBox(ServerLevel level, int cx, int cz, int y0,

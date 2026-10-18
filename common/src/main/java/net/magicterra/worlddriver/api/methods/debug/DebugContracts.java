@@ -124,7 +124,7 @@ public final class DebugContracts {
                     .optional().forGetter(PlanParams::from),
             ApiField.field("chain", ApiTypes.bool())
                     .describe("Feed each committed segment's end back in as the next start until the goal or no progress: "
-                            + "the walker's segment chain, simulated read-only.")
+                            + "the navigator's segment chain, simulated read-only.")
                     .defaulted(false).forGetter(PlanParams::chain),
             ApiField.field("maxSegments", ApiTypes.integer(1, 200)).describe("Chain cap.").defaulted(40)
                     .forGetter(PlanParams::maxSegments),

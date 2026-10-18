@@ -30,7 +30,7 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  * step-away-able block type), face directly away from the nearest hazard block
  * touching the hull and hold forward (jump on collision, vanilla step-up), then
  * linger a few ticks to get fully clear and hand control straight back. Overrides
- * an active walker's keys only during the episode — same "override while dying,
+ * an active navigator's keys only during the episode — same "override while dying,
  * then hand back" contract as AntiSuffocate.
  *
  * <p>Idle-passivity: this moves the bot horizontally with no command, which the
@@ -102,14 +102,14 @@ public final class ContactDamageEscape {
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         p.setYRot(yaw);
         p.setXRot(0f);
-        // Forward along the yaw just set, on the channel that OUTRANKS the walker's own per-tick
-        // command — which is what this class's "overrides an active walker's keys" contract has
+        // Forward along the yaw just set, on the channel that OUTRANKS the navigator's own per-tick
+        // command — which is what this class's "overrides an active navigator's keys" contract has
         // always claimed and never delivered. Two channels failed it in turn: the SHARED keybind
         // never reached the player at all (AvatarInput.tick runs vanilla's key pass and then
-        // overwrites forwardImpulse), and commandForward is itself discarded whenever the Walker
+        // overwrites forwardImpulse), and commandForward is itself discarded whenever the Navigator
         // commands a move that tick. Both failures land on exactly the ticks this reflex is for —
         // an active `goto` is what pressed the hull into the cactus in the first place (death #14
-        // above). keyJump survived only because the Walker rarely commands jump, which is why the
+        // above). keyJump survived only because the Navigator rarely commands jump, which is why the
         // reflex looked half-alive rather than dead.
         body.commandMove(0f, 1f);
         body.commandJump(p.horizontalCollision);

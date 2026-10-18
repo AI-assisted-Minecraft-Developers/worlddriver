@@ -11,10 +11,10 @@ import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
-import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 
 /**
  * Getting a stuck bot unstuck by moving it: a back-off straight away from a riser it keeps failing to
@@ -41,7 +41,7 @@ public final class Recovery implements Controller {
 
     private int backOffLeft;
     private float backOffYaw;
-    /** The walker tick ({@link EscalationClock#tick}) from which another back-off may be asked for.
+    /** The navigator tick ({@link EscalationClock#tick}) from which another back-off may be asked for.
      *  Outlives a run on purpose — it is the memory that stops a retreat loop — and goes with the goal. */
     private long backOffReadyAt;
     private int burstLeft;
@@ -61,7 +61,7 @@ public final class Recovery implements Controller {
 
     // ---- requests, from the phases that notice the trouble ----
 
-    /** Whether a back-off may be asked for at walker tick {@code now}. */
+    /** Whether a back-off may be asked for at navigator tick {@code now}. */
     public boolean backOffReady(long now) {
         return now >= backOffReadyAt;
     }
@@ -107,30 +107,30 @@ public final class Recovery implements Controller {
     @Override public int priority() { return 2; }
     @Override public int maxTicks() { return MAX_TICKS; }
 
-    @Override public String whyNot(Walker wk, WalkerTickCtx cx, WorldView world) {
+    @Override public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
         return remaining() > 0 ? null : "nothing asked for";
     }
 
-    @Override public boolean canContinue(Walker wk, WalkerTickCtx cx, WorldView world) {
+    @Override public boolean canContinue(Navigator nav, TickCtx cx, WorldView world) {
         return remaining() > 0;
     }
 
-    @Override public boolean tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    @Override public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
         LivingEntity p = cx.frame.p;
         if (backOffLeft > 0) {
             backOffLeft--;
             push(a, p, backOffYaw);
-            wk.keys.jump(a, false);
+            nav.keys.jump(a, false);
         } else {
             burstLeft--;
             push(a, p, burstYaw);
-            // Floor-gated hop (walkerRecoveryHopFloorGate): the burst's jump is an UNAIMED ballistic arc —
+            // Floor-gated hop (navigatorRecoveryHopFloorGate): the burst's jump is an UNAIMED ballistic arc —
             // on narrow footing beside a lethal drop it clears the deck where the stride floor-guard
             // (grounded velocity only) can no longer help. The grounded push is kept: drift toward a lip
             // stays covered by the guard's sneak-pin; only the airborne launch is unguarded, so only it is cut.
             boolean hop = hopAllowed(world, p, cx.frame.foot);
-            if (hop) wk.jumpTag = "unstuckBurst";
-            wk.keys.jump(a, hop);
+            if (hop) nav.jumpTag = "unstuckBurst";
+            nav.keys.jump(a, hop);
         }
         p.setSprinting(false);
         return true;
@@ -155,12 +155,12 @@ public final class Recovery implements Controller {
     }
 
     /**
-     * The burst's own copy of {@link Walker#wiggleHop}'s decision — and the only line that will ever say
+     * The burst's own copy of {@link Navigator#wiggleHop}'s decision — and the only line that will ever say
      * what it decided.
      *
      * <p><b>The second consumer of the same guard, so it inherited the same defect.</b>
      * {@code lethalDropWithinHopRange} was a Chebyshev-2 ring around the LAUNCH cell measured against an
-     * arc of 3.47 blocks; repairing only {@code Walker#wiggleHop} would have left the identical hole open
+     * arc of 3.47 blocks; repairing only {@code Navigator#wiggleHop} would have left the identical hole open
      * on the door beside it. This path is the easier of the two to reason about, because a burst already
      * carries an explicit escape heading — the very heading the push follows — so it never had to be
      * handed the drive channel at all.
@@ -176,13 +176,13 @@ public final class Recovery implements Controller {
      * the hop is cut cannot tell a reader the gate was consulted and said yes.
      */
     private boolean hopAllowed(WorldView world, LivingEntity p, BlockPos foot) {
-        boolean allowed = !(ControlConfig.walkerRecoveryHopFloorGate && hopSuppressed(world, p, foot, burstYaw));
+        boolean allowed = !(ControlConfig.navigatorRecoveryHopFloorGate && hopSuppressed(world, p, foot, burstYaw));
         if (burstLeft % 8 == 0) {
             // The RETIRED gate's verdict, printed beside the live one: ring ≥ 0 means the old Chebyshev-≤2
             // test would have held this hop, ">2" means it would have let it go. A row that prints only
             // the rule that won cannot tell a reader the two ever disagreed.
             int oldRing = nearestLethalHopRing(world, p, foot, HOP_RANGE);
-            LOG.info("[walker] unstuck burst hop: jump={} foot={} remaining={} ringGateNearestLethal={} | {}", allowed,
+            LOG.info("[navigator] unstuck burst hop: jump={} foot={} remaining={} ringGateNearestLethal={} | {}", allowed,
                     foot.toShortString(), burstLeft,
                     oldRing < 0 ? ">" + HOP_RANGE : String.valueOf(oldRing),
                     hopLandingRow(world, p, foot, burstYaw));

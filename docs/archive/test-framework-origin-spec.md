@@ -224,10 +224,10 @@ the driver's API surface in two**:
 The rules that follow:
 
 1. **Test-kit infrastructure paths may not use the behaviour face.** Set up positions by teleporting
-   and build by writing the world directly, never through the walker or `goto`. Verbs are graded by
+   and build by writing the world directly, never through the navigator or `goto`. Verbs are graded by
    namespace — instrumentation-grade or behaviour-grade — and that grading goes into the mod
    developer documentation: scene setup may only use the former, or else your test is testing your
-   setup. When a scene genuinely needs behaviour — a combat test needs the walker to give chase —
+   setup. When a scene genuinely needs behaviour — a combat test needs the navigator to give chase —
    then behaviour is the thing under test and a failure is a real signal rather than infrastructure
    blindness.
 2. **An instrument contract suite backstops the instrument face**: thirty to fifty cases, driven by

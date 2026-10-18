@@ -65,7 +65,7 @@ public final class DescendProcess implements BotProcess {
 
     public DescendProcess(int targetY) { this.targetY = targetY; }
 
-    private static void dbg(String m, Object... a) { if (GameConfig.walkerDebug) LOG.info("[descend] " + m, a); }
+    private static void dbg(String m, Object... a) { if (GameConfig.navigatorDebug) LOG.info("[descend] " + m, a); }
 
     @Override public String kind() { return "escape"; }
 

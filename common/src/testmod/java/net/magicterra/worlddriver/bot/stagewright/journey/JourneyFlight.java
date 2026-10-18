@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
+import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -29,7 +29,7 @@ import net.minecraft.world.phys.Vec3;
  * different bugs:
  *
  * <ol>
- *   <li>the floor it was standing on stopped being a floor — a thin roof, gravel, or the walker
+ *   <li>the floor it was standing on stopped being a floor — a thin roof, gravel, or the navigator
  *       breaking through its own support;</li>
  *   <li>it walked off the edge of a floor that is still there — the planned route crossed a cave
  *       mouth or a lava shore;</li>
@@ -216,7 +216,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      *  the bot itself, and where. Never negative in a healthy walk by more than a node's own length. */
     private double backwards = -1;
     private String backwardsAt = "";
-    /** Ticks the walker had no node to steer at. A walk that spends most of itself here is not being
+    /** Ticks the navigator had no node to steer at. A walk that spends most of itself here is not being
      *  steered at all, which is a different machine from one steered at a bad node. */
     private int ticksWithNoPlan;
 
@@ -227,7 +227,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
 
     private JourneyFlight(JourneyRig rig, BlockPos from, int goalX, int goalZ) {
         this.rig = rig;
-        this.tel = WalkerTelemetry.of(rig.player());
+        this.tel = NavigatorTelemetry.of(rig.player());
         this.from = from;
         this.goalX = goalX;
         this.goalZ = goalZ;
@@ -236,18 +236,18 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         this.keptAtStart = tel.guardKeptPlans;
         this.advancesAtStart = tel.stepAdvancesLogged;
         this.strideFiresAtStart = tel.strideGuardFires;
-        this.strideSkipsAtStart = new long[WalkerTelemetry.STRIDE_SKIP_REASONS.length];
+        this.strideSkipsAtStart = new long[NavigatorTelemetry.STRIDE_SKIP_REASONS.length];
         for (int i = 0; i < strideSkipsAtStart.length; i++)
             strideSkipsAtStart[i] = tel.strideGuardSkips.get(i);
-        // THE walk boundary, for everything that is budgeted per walk. WalkerTelemetry#legEpoch's note says why
+        // THE walk boundary, for everything that is budgeted per walk. NavigatorTelemetry#legEpoch's note says why
         // it is taken from here and not given a definition of its own.
         tel.newLeg();
     }
 
-    /** What the walkers driving the rig's bot have done; every delta below is against this. */
-    private final WalkerTelemetry tel;
+    /** What the navigators driving the rig's bot have done; every delta below is against this. */
+    private final NavigatorTelemetry tel;
 
-    /** {@link WalkerTelemetry#strideGuardFires} and {@link WalkerTelemetry#strideGuardSkips} when this walk began.
+    /** {@link NavigatorTelemetry#strideGuardFires} and {@link NavigatorTelemetry#strideGuardSkips} when this walk began.
      *
      *  <p>Reported only on a goto run that actually entered lava — see {@link #report()}. Elsewhere
      *  the distribution is just terrain, and a row printed on every run is a row nobody reads. On
@@ -256,21 +256,21 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private final int strideFiresAtStart;
     private final long[] strideSkipsAtStart;
 
-    /** {@link WalkerTelemetry#guardForcedRepaths} when this walk began, so the walk can report its own DELTA.
+    /** {@link NavigatorTelemetry#guardForcedRepaths} when this walk began, so the walk can report its own DELTA.
      *
-     *  <p>The one thing the walker does that used to leave no trace: a sustained guard pin throws
+     *  <p>The one thing the navigator does that used to leave no trace: a sustained guard pin throws
      *  the plan away. On the 2026-08-20 shuttle that made two opposite diagnoses fit every row —
      *  a bot given a bad plan, and a bot whose good plan kept being discarded under it — and the
      *  evidence map could not choose. A per-walk count, next to the moves the walk covered, can. */
     private final int repathsAtStart;
 
-    /** {@link WalkerTelemetry#guardKeptPlans} when this walk began. <b>Reported beside the discards and never
+    /** {@link NavigatorTelemetry#guardKeptPlans} when this walk began. <b>Reported beside the discards and never
      *  instead of them</b>: since 2026-08-21 a pinned streak has two outcomes, so a walk that reports
      *  zero discards may have been pinned to the threshold dozens of times and kept its plan every
      *  time. 0/0 was never pinned; 0/45 walked a rim. One number can no longer say which. */
     private final int keptAtStart;
 
-    /** {@link WalkerTelemetry#stepAdvancesLogged} when this walk began — the denominator that says whether the
+    /** {@link NavigatorTelemetry#stepAdvancesLogged} when this walk began — the denominator that says whether the
      *  advance log a reader is holding is the WHOLE walk or only its opening. */
     private final int advancesAtStart;
 
@@ -312,7 +312,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         // NOT PlayerBot.lastStatus(). On the runProcess path that field is set to REACHED for
         // ANY process that reports done — a walk that ended `no path (expanded=1)` prints REACHED
         // there, so reading it would print `status=REACHED … immersed in lava`, which reads as
-        // "the walker believed it had arrived, in lava" and is simply false. The
+        // "the navigator believed it had arrived, in lava" and is simply false. The
         // process's own honest verdict is the goto slot's, so that is what this asks.
         if (finishedAt == null && rig.body().finished()) {
             // Server BotState on purpose, and NOT for the usual reason: goalReached/endReason ARE in
@@ -345,7 +345,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
             // handed over mid-fall: the first lava entry was reported as "t=18 64,29,88, walked in"
             // for a bot that had dropped thirteen blocks to get there, and "left the ground 0 times"
             // for a run that spent all 269 of its ticks off the ground. The first row is the
-            // expensive one, because it names a MECHANISM: it says the walker steered into lava,
+            // expensive one, because it names a MECHANISM: it says the navigator steered into lava,
             // which sends a reader after the cost function instead of after the movement task
             // before it.
             if (startedAirborne && !inLava && !inWater) {
@@ -385,7 +385,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      * the bot's own feet, and none of them can say whether the bot was doing what it was told: a
      * next node across a gap and a next node the bot overshot leave identical footprints. See
      * {@link #planCell}. It is taken at the launch tick and not at the landing tick because those
-     * are different plans — a fall lasts long enough for the walker to consume steps, repath, or run
+     * are different plans — a fall lasts long enough for the navigator to consume steps, repath, or run
      * out of path entirely, and the question is what it was steering at when it left the ground.
      */
     private void launch(ServerLevel level, ServerPlayer fp, BlockPos at, List<BlockPos> support) {
@@ -439,7 +439,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      * is not the variable) or exceptional (so it is).
      *
      * <p>What is captured is the launch-tick <b>remaining horizontal distance to the node being
-     * steered at</b>, because that is the quantity {@code WalkerTickDrive}'s sprint exemption does
+     * steered at</b>, because that is the quantity {@code DrivePhase}'s sprint exemption does
      * NOT look at: {@code (!lethalNear || parkourEdge)} keeps the sprint impulse and
      * {@code && !parkourEdge} drops the sneak brake for <i>any</i> parkour edge, measured on a long
      * void leap where the impulse is required. Whether that generalises to a 0.64-block hop is the
@@ -557,7 +557,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         }
         if (!onGround) return;
         // IS THE PLAN POINTING BACKWARDS? The node's distance to this walk's goal, minus the bot's.
-        // Positive means the walker is being steered further from the goal than it already is.
+        // Positive means the navigator is being steered further from the goal than it already is.
         //
         // This exists because the forced-repath line cannot answer it in the case that matters
         // most. That line names the discarded plan's last node, but only when a discard happens,
@@ -655,7 +655,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         }
         // "Not measured" and "never had a plan" are different situations, and the counter beside it
         // separates them: this is only sampled on a GROUNDED tick that had a node, so a run spent
-        // entirely airborne and a run the walker never steered both leave it unset.
+        // entirely airborne and a run the navigator never steered both leave it unset.
         sb.append("; furthest from the plan ").append(worstOffPlan < 0
                 ? "not measured (no tick was both on the ground and holding a plan)"
                 : String.format(Locale.ROOT, "%.2f blocks (%s)", worstOffPlan, worstOffPlanAt));
@@ -687,7 +687,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
                 : String.format(Locale.ROOT, "%.2f blocks (%s)", backwards, backwardsAt));
         int advances = tel.stepAdvancesLogged - advancesAtStart;
         sb.append("; step advances logged ").append(advances)
-          .append(advances >= WalkerTelemetry.stepAdvanceBudget()
+          .append(advances >= NavigatorTelemetry.stepAdvanceBudget()
                   ? " (budget full, later advances were not logged; this run's step log is"
                     + " incomplete)"
                   : " (this run's step log is complete)");
@@ -718,7 +718,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      *
      * <p>Deltas, not totals, for the reason {@link #repathsAtStart} spells out: a total answers
      * "did this ever happen on this run" when the question is "did it happen HERE". The buckets are
-     * named by {@link WalkerTelemetry#STRIDE_SKIP_REASONS} rather than by index, so a reader does not have to
+     * named by {@link NavigatorTelemetry#STRIDE_SKIP_REASONS} rather than by index, so a reader does not have to
      * hold the order in their head and a bucket added later cannot silently shift the meaning of
      * this row.
      */
@@ -726,8 +726,8 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         StringBuilder sb = new StringBuilder("stride guard fired ")
                 .append(tel.strideGuardFires - strideFiresAtStart)
                 .append(" time(s) during this run; reasons it did not fire: ");
-        for (int i = 0; i < WalkerTelemetry.STRIDE_SKIP_REASONS.length; i++)
-            sb.append(i == 0 ? "" : ", ").append(WalkerTelemetry.STRIDE_SKIP_REASONS[i]).append('=')
+        for (int i = 0; i < NavigatorTelemetry.STRIDE_SKIP_REASONS.length; i++)
+            sb.append(i == 0 ? "" : ", ").append(NavigatorTelemetry.STRIDE_SKIP_REASONS[i]).append('=')
               .append(tel.strideGuardSkips.get(i) - strideSkipsAtStart[i]);
         return sb.toString();
     }
@@ -772,7 +772,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     /** The physics under the bot on the tick before each recorded fall — see {@link #groundDump}. */
     public List<String> grounds() { return List.copyOf(grounds); }
 
-    /** Ticks the walker had nothing to steer at. See {@link #ticksWithNoPlan}. */
+    /** Ticks the navigator had nothing to steer at. See {@link #ticksWithNoPlan}. */
     public int noPlanTicks() { return ticksWithNoPlan; }
 
     /** Ticks this goto run lasted. Read by the crossing so "no plan for 67 ticks" can be given the
@@ -913,7 +913,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
                   prevDelta.x, prevDelta.y, prevDelta.z))
           .append(" onGround=").append(prevOnGround)
           .append(" sneaking=").append(prevSneak)
-          .append("; walker on that tick: ")
+          .append("; navigator on that tick: ")
           .append(prevDrive == null
                   ? "did not reach the end of drive (an early-return branch; the lethal edge brake,"
                     + " sprint and jump all live at the end of drive, and none of them ran on this"
@@ -943,13 +943,13 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     }
 
     /**
-     * Re-ask the walker's own lethal-edge question here, off the LEVEL, cell by cell.
+     * Re-ask the navigator's own lethal-edge question here, off the LEVEL, cell by cell.
      *
-     * <p>"The bot was not sneaking beside a lava lake" has three causes and the walker's telemetry
+     * <p>"The bot was not sneaking beside a lava lake" has three causes and the navigator's telemetry
      * separates only one of them ({@code driveTag} says whether the tick reached the brake at all).
      * The other two are "the brake asked and got false" and "the brake asked about the wrong cells",
      * and nothing in the run could tell them apart — so this recomputes
-     * {@code WalkerGeometry.dropAdjacentExceeds}'s loop verbatim and prints every neighbour's
+     * {@code NavigatorGeometry.dropAdjacentExceeds}'s loop verbatim and prints every neighbour's
      * verdict, plus the one cell that loop never looks at: <b>the floor of the bot's own cell</b>.
      *
      * <p>Verdicts: {@code solid} the neighbour is solid (the loop skips it), {@code floor} it has a
@@ -989,8 +989,8 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         return sb.append(lethal ? " → should fire" : " → should not fire").toString();
     }
 
-    /** The walker's own neighbour set, copied rather than imported: this is a re-derivation and it
-     *  must stay one even if the walker's list changes — a copy that drifted would be visible, a
+    /** The navigator's own neighbour set, copied rather than imported: this is a re-derivation and it
+     *  must stay one even if the navigator's list changes — a copy that drifted would be visible, a
      *  shared constant would hide the drift. */
     private static final int[][] EDGE_NEIGHBOURS = {
             {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
@@ -1057,7 +1057,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         return sb.append(']').toString();
     }
 
-    /** Where in the plan the walker was, at the moment asked. A bot that left the ground on step
+    /** Where in the plan the navigator was, at the moment asked. A bot that left the ground on step
      *  3 of 40 was following a route; one that left it with the plan exhausted was not. */
     private String planAt() {
         // Server BotState on purpose, and NOT for the usual reason: pathStep/pathLen ARE in

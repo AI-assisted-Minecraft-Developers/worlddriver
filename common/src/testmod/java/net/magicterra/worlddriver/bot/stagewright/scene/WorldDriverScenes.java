@@ -21,7 +21,7 @@ import net.magicterra.worlddriver.bot.control.AscendMovement;
 import net.magicterra.worlddriver.bot.control.MovementContext;
 import net.magicterra.worlddriver.bot.control.MovementStatus;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.behavior.EntityFind;
@@ -51,7 +51,7 @@ import net.minecraft.world.phys.AABB;
 
 /**
  * Dogfooded worlddriver scenes — first migration wave: the #85 swallowed trio,
- * plus dogfood wave 2a (the lottery walker family: #53 self-shaft dig-up and the
+ * plus dogfood wave 2a (the lottery navigator family: #53 self-shaft dig-up and the
  * byte-determinism-sensitive {@code wd.descentYaw} yaw-thrash gauge — the latter
  * pinned to a fixed origin slot + radius 2, see its own javadoc). Ported from
  * {@code AgentGameTestTerrain} with identical in-body
@@ -88,7 +88,7 @@ import net.minecraft.world.phys.AABB;
  * (never two servers at once), each on a freshly wiped {@code run-dogfood/world}. <b>Every
  * wd.* scene metric VALUE is byte-identical across both loaders and all six runs</b> (fabric
  * matches neoforge to the last digit — the P1a byte-identity precedent, previously proven only
- * for builtin scenes, now holds for the whole wd.* driver/walker family):
+ * for builtin scenes, now holds for the whole wd.* driver/navigator family):
  * <ul>
  *   <li>{@code wd.ascendMovementNoop}: {@code reachedTop=true ctxAllocated=0};</li>
  *   <li>{@code wd.diagonalAscentSpeed}: {@code diagBps=3.00 ascSprint%=43 ascHcol%=5 ascTicks=149};</li>
@@ -251,8 +251,8 @@ public final class WorldDriverScenes implements SceneProvider {
      *       equality would false-RED on every future flag. 200 is a generous floor well below
      *       today's 229 that still catches a wholesale registry collapse.</li>
      *   <li>sentinel keys present — {@code paused} (apply-special, no BotConfig field),
-     *       {@code autoEat} (hand boolean), {@code walker.repathEveryTicks} (dotted hand key
-     *       aliasing {@code walkerRepathEveryTicks}), {@code debugFly} (apply-only affordance):
+     *       {@code autoEat} (hand boolean), {@code navigator.repathEveryTicks} (dotted hand key
+     *       aliasing {@code navigatorRepathEveryTicks}), {@code debugFly} (apply-only affordance):
      *       one of each provenance, so a regression that drops any single key class trips.</li>
      *   <li>{@code isKnown("definitelyNotAKnob") == false} — the unknown-key gate still says no.</li>
      *   <li>{@code mc.bot.setting}'s contract is CLOSED and typed per key: a patch naming the
@@ -273,7 +273,7 @@ public final class WorldDriverScenes implements SceneProvider {
                     + "as new BotConfig flags are declared)");
 
         // (2) Sentinel keys — one per provenance class (apply-special / hand / dotted-alias / apply-only).
-        for (String k : List.of("paused", "autoEat", "walker.repathEveryTicks", "debugFly")) {
+        for (String k : List.of("paused", "autoEat", "navigator.repathEveryTicks", "debugFly")) {
             if (!SettingsRegistry.isKnown(k))
                 ctx.fail("settingRegistry: sentinel key '" + k + "' missing from the registry "
                         + "(knownKeys().size()=" + known + ")");
@@ -339,7 +339,7 @@ public final class WorldDriverScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = false; WorldConfig.allowPlace = false;
-        ControlConfig.walkerAscendMovement = false;             // OFF arm → machine must be inert
+        ControlConfig.navigatorAscendMovement = false;             // OFF arm → machine must be inert
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2; PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
@@ -347,11 +347,11 @@ public final class WorldDriverScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         long allocBefore = MovementContext.ALLOC_COUNT;
         Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 500 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
+        for (int t = 0; t < 500 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
         boolean reachedTop = fp.getX() > ascEndX && fp.getY() >= topSurf + 1 - 0.4;
         long allocated = MovementContext.ALLOC_COUNT - allocBefore;
         WorldDriverCommon.LOG.info("[wd.ascendMovementNoop] step={} pos=({},{},{}) reachedTop={} ctxAllocated={}",
@@ -466,7 +466,7 @@ public final class WorldDriverScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -475,15 +475,15 @@ public final class WorldDriverScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         // Measure horizontal (diagonal) progress + sprint% while ON the slope (x >= cx).
         double startX = Double.NaN, startZ = 0, endX = 0, endZ = 0;
         int ascTicks = 0, ascSprint = 0, ascHcol = 0;
         Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < 900 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             if (fp.getX() >= cx) {
                 if (Double.isNaN(startX)) { startX = fp.getX(); startZ = fp.getZ(); }
@@ -534,7 +534,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * table below). After ANY harness change that touches tick ordering, IO, or scene
      * scheduling, treat this scene as a <b>golden-master canary</b>: a shifted
      * {@code sumAbsDyaw}/{@code backSteps} here is the first alarm that determinism
-     * broke, before it silently corrupts every walker scene.
+     * broke, before it silently corrupts every navigator scene.
      *
      * <p><b>Golden values (migration-time measurement, 2026-07-16).</b> This
      * isolated-player + pinned-slot run measures {@code sumAbsDyaw=871°}/
@@ -611,7 +611,7 @@ public final class WorldDriverScenes implements SceneProvider {
         // signature was exactly such leaks landing on byte-identical-but-different baselines).
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -620,8 +620,8 @@ public final class WorldDriverScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         double prevYaw = Double.NaN, sumAbsDyaw = 0, maxDyaw = 0;
         int onSlope = 0, reversals = 0;
@@ -636,7 +636,7 @@ public final class WorldDriverScenes implements SceneProvider {
         double worstBack = 0;
         Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < 700 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             double ddx = fp.getX() - prevX, ddz = fp.getZ() - prevZ;
             if (fp.getX() >= cx && ddx * ddx + ddz * ddz > 1e-4) {   // moved, on the slope
@@ -742,7 +742,7 @@ public final class WorldDriverScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -753,14 +753,14 @@ public final class WorldDriverScenes implements SceneProvider {
         fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));  // pillar/plug stock; NO pickaxe (live parity)
         fp.getInventory().selected = 0;
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.YLevel(targetY));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.YLevel(targetY));
 
         Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
         double worstBackslide = 0;
         for (int t = 0; t < 4000 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             maxY = Math.max(maxY, fp.getY());
             worstBackslide = Math.max(worstBackslide, maxY - fp.getY());
@@ -768,7 +768,7 @@ public final class WorldDriverScenes implements SceneProvider {
         WorldDriverCommon.LOG.info("[wd.selfShaftDigUp] step={} pos=({},{},{}) maxY={} worstBackslide={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, worstBackslide);
         // task#86 FIXED (2026-07-19, commit 49f25ed — pathfinderParkourAscendNeedRunway default ON):
-        // the walker now tops out by pillaring STRAIGHT UP instead of re-planning an
+        // the navigator now tops out by pillaring STRAIGHT UP instead of re-planning an
         // unexecutable parkourAscend2 leap off its 1-wide pillar top, so it no longer
         // free-falls down the shaft it just built. This is the true (strict) assertion:
         // the climb must REACH the level with NO fall back down its own column.
@@ -800,7 +800,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * API). The probe values (bare/sword damage, tookBare/tookArmored) are logged verbatim.
      *
      * <p><b>Auto slot, default radius-1 footprint.</b> Unlike the byte-determinism-
-     * sensitive walker scenes this gauge is position-invariant (attack/hurt outcomes are
+     * sensitive navigator scenes this gauge is position-invariant (attack/hurt outcomes are
      * computed from attributes, not double-precision trajectory), so it takes an auto
      * slot. Footprint audit (origin-relative dx/dz; default 3×3 window = dx/dz [−16,+31]):
      * the {@code clearBox(cx, floorY+1, cz, 6, 6)} air box spans dx/dz [−6,+6] (height 6),
@@ -820,10 +820,10 @@ public final class WorldDriverScenes implements SceneProvider {
         final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y(200)+20
 
         // pin FIRST → closes LAST (after the driver unregister + avatar discard); then the
-        // SAME single key the legacy body flipped (walkerDebug).
+        // SAME single key the legacy body flipped (navigatorDebug).
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
 
         // clearBox(cx, floorY+1, cz, 6, 6) inlined (the legacy helper is private to
         // AgentGameTestServer): 13×13 air box, height 6.
@@ -908,7 +908,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * — the gap #60 buried-ore reachability gate: an IRON_ORE fully encased in
      * harvestable stone has NO standable adjacent cell, so the geometric stand test
      * alone rejects it and {@link MineProcess} aborts "no reachable target" — even
-     * though the bot holds a pickaxe and the Walker's break-route A* digs tunnels for
+     * though the bot holds a pickaxe and the Navigator's break-route A* digs tunnels for
      * every other verb. Reachability through diggable cover is A*'s job, not a
      * pre-filter's. This is the SECOND driver-class scene (dogfood wave 2b); it
      * follows the driver porting pattern established by {@code wd.gearScope} (see the
@@ -945,11 +945,11 @@ public final class WorldDriverScenes implements SceneProvider {
      * <p><b>WHAT THIS SCENE ACTUALLY COVERS — corrected 2026-08-18, and it is not what the name
      * and the failure text say.</b> It has two halves and only the first is the pre-filter's:
      * <ol>
-     *   <li>the pre-filter hands the walker a DIG GOAL instead of aborting "no reachable target"
+     *   <li>the pre-filter hands the navigator a DIG GOAL instead of aborting "no reachable target"
      *       (gap#60 proper). This half is real and is not in dispute — with the ore encased,
      *       {@code findStandableAdjacent} returns null, the buried-target fallback produces a goal,
      *       and one {@code [pathfinder] search-begin owner=mine} line appears;</li>
-     *   <li>the walker then CLIMBS the staircase it digs into the cube, four cells and three risers
+     *   <li>the navigator then CLIMBS the staircase it digs into the cube, four cells and three risers
      *       away. This half is the bulk of the run and nothing in the arena announces it.</li>
      * </ol>
      * Half 2's green was, until 2026-08-18, riding a defect. Measured with the ground-gate
@@ -1004,7 +1004,7 @@ public final class WorldDriverScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -1057,15 +1057,15 @@ public final class WorldDriverScenes implements SceneProvider {
             // the ore is blacklisted, so it reads "no reachable target" for BOTH; the pre-filter's
             // own verdict is visible only as the presence of a search-begin line.
             //
-            // The walker's own terminal readings ride along because the log stream drops lines under
+            // The navigator's own terminal readings ride along because the log stream drops lines under
             // end-of-suite load and a verdict that names no mechanism costs a whole extra run:
             // endReason/goalReached/finalDist say whether the walk FAILED or "arrived" somewhere
             // that was not the stand, goalSnapped says whether the cell it drove at was even the one
             // MineProcess asked for, and planProbe names the edges of the staircase it committed to.
             ctx.fail("buriedOre: buried ore not mined. Separate the two causes by the "
                     + "'[pathfinder] search-begin owner=mine' lines in this window: NONE = gap#60 "
-                    + "proper (the stand pre-filter refused to hand the walker a dig goal); ONE OR "
-                    + "MORE = the pre-filter did its job and the walker failed to CLIMB the "
+                    + "proper (the stand pre-filter refused to hand the navigator a dig goal); ONE OR "
+                    + "MORE = the pre-filter did its job and the navigator failed to CLIMB the "
                     + "staircase it digs — check for '[avatar] dug out its own footing' in the same"
                     + " window. lastError=" + err
                     + " ;; " + stairs + " ;; " + planCells + " ;; " + approach);
@@ -1076,7 +1076,7 @@ public final class WorldDriverScenes implements SceneProvider {
     }
 
     /**
-     * The seven cells of the staircase {@code wd.buriedOre}'s walker digs into the stone cube, as
+     * The seven cells of the staircase {@code wd.buriedOre}'s navigator digs into the stone cube, as
      * one {@code stairs=} fragment — block id plus the {@code blocksMotion} verdict, the same
      * predicate {@code ServerWorldView.isSolid} steers by.
      *
@@ -1085,7 +1085,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * {@code y} 221–223, ore at {@code 106661,222}):
      * <ul>
      *   <li><b>EMPTY ⇒ the self-destroying staircase is real.</b> {@code MineProcess.findDigStand}
-     *       picks the ore's same-Y neighbour {@code (cx+4, floorY+2)}, {@code Walker
+     *       picks the ore's same-Y neighbour {@code (cx+4, floorY+2)}, {@code Navigator
      *       .snapGoalToStandable} then snaps it to the nearest standable cell within 6, which is
      *       {@code (cx+4, floorY+4)} on TOP of the cube — and {@code StairUpBreak} climbing
      *       {@code (cx+3, floorY+2) → (cx+4, floorY+3)} breaks {@code (cx+4, floorY+3)}, which is
@@ -1139,7 +1139,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * armor stand spawns AT the bot's start; the goal is 24 blocks away but the HARD
      * leash (radius 8) prunes every route node farther than 8 blocks from the
      * (stationary) stand, so the pathfinder's best-effort fallback can only reach the
-     * radius edge and the {@link net.magicterra.worlddriver.bot.control.Walker} holds at
+     * radius edge and the {@link net.magicterra.worlddriver.bot.control.Navigator} holds at
      * the edge (never declares ARRIVED on a best-effort partial path) — so the process
      * stays registered/un-finished for the whole 200-tick window. Phase 2: the stand
      * teleports 4 blocks PAST the goal; within the leash's 20-tick re-solve rate limit
@@ -1244,7 +1244,7 @@ public final class WorldDriverScenes implements SceneProvider {
         for (int dx = -2; dx <= 2; dx++)
             for (int dz = -1; dz <= goalDz + 2; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        // Side rails: keep the walker ON the lane so the arena tests the leash, not
+        // Side rails: keep the navigator ON the lane so the arena tests the leash, not
         // edge-clipping churn.
         for (int dz = -1; dz <= goalDz + 2; dz++) {
             level.setBlockAndUpdate(new BlockPos(cx - 2, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
@@ -1267,13 +1267,13 @@ public final class WorldDriverScenes implements SceneProvider {
         // then the SAME keys the legacy body flipped.
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         EntityLeash leash = new EntityLeash("minecraft:armor_stand", leashRadius, 0, true);
         // Near(1), not Block: guiding semantics are "reach the destination AREA" — exact-cell
-        // parking is a walker trait, not this arena's gate (run-e evidence: reached=true
+        // parking is a navigator trait, not this arena's gate (run-e evidence: reached=true
         // ±1.5 but the exact cell never latched → finished=false forever).
         Intent intent = new Intent(new Goal.Near(goal, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);
         // createIsolated (NOT create) — a sanctioned deviation, the driver's own FakePlayer.
@@ -1345,7 +1345,7 @@ public final class WorldDriverScenes implements SceneProvider {
                                 + standDist1 + " radius=" + leashRadius);
 
                     // Phase 2 setup: teleport the anchor 4 PAST the goal — the sphere still covers
-                    // the goal, but the stand sits beyond the walker's overshoot band (run-e: a +2
+                    // the goal, but the stand sits beyond the navigator's overshoot band (run-e: a +2
                     // stand was rammed by the carrot-drive overshoot, and its collision shoved the
                     // bot onto the rails). NoGravity, so floating past the lane end is fine.
                     stand.teleportTo(p2anchor.getX() + 0.5, floorY + 1, p2anchor.getZ() + 0.5);
@@ -1512,7 +1512,7 @@ public final class WorldDriverScenes implements SceneProvider {
         for (int dx = -2; dx <= 2; dx++)
             for (int dz = -1; dz <= goalDz + 2; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        // Side rails: keep the walker ON the lane so the arena tests the leash, not
+        // Side rails: keep the navigator ON the lane so the arena tests the leash, not
         // edge-clipping churn.
         for (int dz = -1; dz <= goalDz + 2; dz++) {
             level.setBlockAndUpdate(new BlockPos(cx - 2, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
@@ -1534,7 +1534,7 @@ public final class WorldDriverScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 

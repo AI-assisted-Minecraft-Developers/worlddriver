@@ -152,7 +152,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
 
@@ -319,7 +319,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BehaviorConfig.craftReclaimTable = true;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
@@ -405,7 +405,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> scrub(level, cx, cz, floorY, 3, 4));
@@ -489,7 +489,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> scrub(level, cx, cz, floorY, 3, 4));
@@ -570,7 +570,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
 
@@ -619,7 +619,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BehaviorConfig.craftReclaimTable = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
@@ -672,7 +672,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> {
@@ -844,7 +844,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
 
@@ -928,7 +928,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
 
@@ -988,7 +988,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
 

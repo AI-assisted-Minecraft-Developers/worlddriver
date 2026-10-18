@@ -25,8 +25,8 @@ import net.minecraft.core.BlockPos;
  *       On its next {@code continueAttack} vanilla sees the assertion and does nothing that
  *       tick — no {@code stopDestroyBlock} zeroing the progress, no crosshair-driven
  *       {@code continueDestroyBlock} on a different cell. One drive buys {@link #STAND_ASIDE_PASSES}
- *       vanilla passes, not one: the walker's phases can end a tick early without reaching the
- *       dig actuator (the same gap {@code WalkerConstants.DIG_KEY_RELEASE_TICKS} covers for the
+ *       vanilla passes, not one: the navigator's phases can end a tick early without reaching the
+ *       dig actuator (the same gap {@code NavigatorConstants.DIG_KEY_RELEASE_TICKS} covers for the
  *       latch), and a single skipped drive must not cost the whole accumulated break. A bot that
  *       stops driving hands the tick back two passes later, a released hold hands it back at
  *       once — which is when a released attack key used to hand it back. The bot never had to
@@ -41,7 +41,7 @@ import net.minecraft.core.BlockPos;
  * </ul>
  *
  * <p>{@link #holdDig} is bookkeeping only: it is what {@code Body.breakHeld()} answers and
- * what the walker's {@code settleDigKey} releases, and it feeds the {@code attack} entry of
+ * what the navigator's {@code settleDigKey} releases, and it feeds the {@code attack} entry of
  * {@code mc.test.input.heldKeys} so the instrument keeps its shape. It gates nothing — a latch
  * that gated vanilla would block the human's left click forever if a site forgot to release it,
  * whereas a per-drive assertion cannot outlive the drive by more than one pass.

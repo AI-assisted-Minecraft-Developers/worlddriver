@@ -101,7 +101,7 @@ public final class CoarseGoalField {
         CoarseGoalField f = new CoarseGoalField(s, hr, vr, baseX, baseY, baseZ);
         f.probeWalkability(w);
         boolean ok = f.propagate(goal);
-        if (GameConfig.walkerDebug) {
+        if (GameConfig.navigatorDebug) {
             int total = f.dim * f.dimY * f.dim;
             double atStart = ok ? f.costToGoal(start) : UNKNOWN;
             LOG.info("[goalfield] cells={} open={} seeded={} start_h_field={} start_h_euclid={}",

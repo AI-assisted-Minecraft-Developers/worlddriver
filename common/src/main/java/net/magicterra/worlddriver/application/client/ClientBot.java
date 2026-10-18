@@ -353,8 +353,8 @@ public final class ClientBot implements BotApi {
         // process slot would report (the clutch is slot-less by design).
         if (brain.clutch(body)) { MouseYield.markDriving("clutch"); return; }
         // Screen watchdog (gap #58): an unexpectedly-open container GUI swallows
-        // every movement input, paralysing the walker AND all reflex chains (live
-        // death #3: a stray place-click opened a FurnaceScreen; the pinned walker's
+        // every movement input, paralysing the navigator AND all reflex chains (live
+        // death #3: a stray place-click opened a FurnaceScreen; the pinned navigator's
         // futile-search then misreported "goal unreachable" while a zombie chewed
         // the defenseless bot). Craft/smelt legitimately hold their station screens
         // (craft.active/smelt.active gate), and one grace second tolerates screens

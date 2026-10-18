@@ -6,9 +6,9 @@ public final class DriveLatches {
     public int climbPressConsec = 0;                   // consecutive ticks the buoyant-climb-press raw condition has held (debounces the surface-bob false trigger)
     public int descentDriveRejectStreak = 0;           // consecutive back-hop rejections on a dry diagDown slope (escape-hatch snaps to the real node after WATER_DRIVE_MAX_REJECT)
     public int underwaterTicks;                        // consecutive eyes-under ticks → debounces the swim-up jump (surface bob ≠ sinking)
-    public int hopY = Integer.MIN_VALUE, hopTick;      // a cruise hop in flight: the level it left and the tick it was keyed (see WalkerTickPrelude.hopFoot)
+    public int hopY = Integer.MIN_VALUE, hopTick;      // a cruise hop in flight: the level it left and the tick it was keyed (see PreludePhase.hopFoot)
     public boolean cruiseOn;                           // surface cruise engaged last tick (entry needs the eyes out; the dip then takes them under on purpose)
-    public boolean cruiseBreath;                       // surface cruise: air ran low → bob and breathe until it refills (hysteresis, see WalkerTickDrive.surfaceCruise)
+    public boolean cruiseBreath;                       // surface cruise: air ran low → bob and breathe until it refills (hysteresis, see DrivePhase.surfaceCruise)
     public int cruiseSwimTicks;                        // surface cruise: consecutive ticks in the swim pose (0 = not swimming; log edge + the server-confirm hold)
     public int cruiseDipTicks;                         // surface cruise: ticks spent sinking for the pose without getting it → past CRUISE_DIP_MAX_TICKS the cruise backs off
     public int cruiseCooldown;                         // surface cruise: ticks left in that back-off

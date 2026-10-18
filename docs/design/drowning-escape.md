@@ -38,11 +38,11 @@ threshold at which a bare-handed bot digs its way out of stone.**
 That makes `ControlConfig.drownEscapeAirThreshold` (100) the wrong dial to reach for, twice over.
 Its range is capped: raising it to 300, so the reflex latches the instant the bot submerges,
 lifts the budget from 300 ticks to 500, which still buys exactly one stone block. And the same
-number is a divisor in two other places that move the opposite way. `WalkerDig` prices
+number is a divisor in two other places that move the opposite way. `Digging` prices
 "can this underwater dig fit inside one breath" as `300 − threshold − 20`, so a threshold of
 300 makes that budget negative and the planner loses every underwater-digging edge it has;
 `AutoSwim`'s yield floor is also keyed to it, so raising it makes the backstop seize the
-channel earlier and cut short digs the walker is in the middle of. The threshold buys an
+channel earlier and cut short digs the navigator is in the middle of. The threshold buys an
 earlier start, and the failure mode it needs to fix is not starting late but not finishing.
 It stays at 100.
 
@@ -83,7 +83,7 @@ Deep open water is not capped, so an ordinary dive falls through to the vertical
 
 **Float straight up** otherwise: hold jump, and actively zero every horizontal and turning input
 the preempted process may have left pressed. The zeroing has to use `commandMove(0, 0)`, the
-channel that outranks the walker's own per-tick command — clearing the direction keys, which is
+channel that outranks the navigator's own per-tick command — clearing the direction keys, which is
 what this used to do, zeroed nothing at all while a process was running, because the input layer
 overwrites the impulses after vanilla's key pass.
 
@@ -120,7 +120,7 @@ The bot drops onto the floor, `onGround` becomes true, and the same dig costs a 
 measured on a real client player: one dirt lid cost 380 ticks with the bot held at y=208.235 over
 a floor whose top is y=208.0 — 0.235 of a block of hover — and bare-handed dirt is about 15 ticks,
 so 15 × 25 = 375. Against a 300-tick budget a 380-tick escape loses and a 76-tick one wins with
-room to spare. The walker's own hopelessness gate has priced digs this way all along, on the
+room to spare. The navigator's own hopelessness gate has priced digs this way all along, on the
 grounds that the bot can always ground itself; this reflex was the one place that never did.
 
 The guard on that release is geometry rather than caution, and it has to be. `RISE_PROBE` of 0.5
@@ -133,7 +133,7 @@ conditional on the cell under the feet being standable.
 ## Instrumentation is unconditional
 
 Both arms print a throttled row every ten ticks, and neither is gated on
-`GameConfig.walkerDebug`. That is a deliberate reversal. The rows used to be behind that flag,
+`GameConfig.navigatorDebug`. That is a deliberate reversal. The rows used to be behind that flag,
 and gate runs never set it, so a run in which this chain latched and the bot drowned 300 ticks
 later at an unchanged position produced exactly one line of log — the latch — and nothing to say
 which arm had it. A reading available only behind a flag is a reading the run that needs it never

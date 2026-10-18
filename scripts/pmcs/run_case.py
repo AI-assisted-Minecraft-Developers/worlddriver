@@ -4,7 +4,7 @@ Live pipeline:
   1) set the flags over WS-RPC (the MCP tool schema strips new flags, so they must go through
      RPC; see the worlddriver-rpc skill)
   2) mc.debug.replay {file, restoreBlocks:true}
-  3) poll the [walker] lines of fabric/run/logs/latest.log and stop on reaching arrive_x or on
+  3) poll the [navigator] lines of fabric/run/logs/latest.log and stop on reaching arrive_x or on
      timeout
   4) parse that slice of the log → maxStuck + conformance
 RPC calls are websockets + JSON-RPC straight to port 39801 (the same as the worlddriver-rpc
@@ -16,7 +16,7 @@ import shutil
 import time
 from dataclasses import dataclass
 
-from scripts.pmcs.telemetry import parse_log, peak_totstuck, parse_walker_line
+from scripts.pmcs.telemetry import parse_log, peak_totstuck, parse_navigator_line
 from scripts.pmcs.conformance import conformance_table
 
 LOG = "fabric/run/logs/latest.log"
@@ -71,9 +71,9 @@ class CaseResult:
 def run_case(archive: str, flags: dict, arrive_x: int, cmp: str, timeout: int = 220, axis: str = "x") -> CaseResult:
     _ensure_archive_in_runtime(archive)
     base = len(_read_log().splitlines())
-    # walkerDebug switches the telemetry on; maxStuck/conformance cannot be measured without it,
+    # navigatorDebug switches the telemetry on; maxStuck/conformance cannot be measured without it,
     # independently of the candidate flags under test.
-    asyncio.run(_rpc("mc.bot.setting", {"op": "patch", "values": {"walkerDebug": True, **flags}}))
+    asyncio.run(_rpc("mc.bot.setting", {"op": "patch", "values": {"navigatorDebug": True, **flags}}))
     asyncio.run(_rpc("mc.debug.replay", {"file": archive, "restoreBlocks": True}))
     arrived = False
     deadline = time.time() + timeout
@@ -82,7 +82,7 @@ def run_case(archive: str, flags: dict, arrive_x: int, cmp: str, timeout: int = 
         sl = log_slice_since(_read_log(), base)
         last = None
         for ln in sl.splitlines():
-            tk = parse_walker_line(ln)
+            tk = parse_navigator_line(ln)
             if tk:
                 last = tk
         if last and _arrived(last.x if axis == "x" else last.z, arrive_x, cmp):

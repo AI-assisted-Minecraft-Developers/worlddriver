@@ -55,7 +55,7 @@ import net.minecraft.world.phys.Vec3;
 /**
  * Dogfooded worlddriver scenes — <b>P4c wave 9, the Process-core family (the FINAL wave)</b>: the
  * last 15 legacy {@code AgentGameTestServer} tests — the headless server-side driver / process /
- * avatar arenas (goto-driver / mine / process / flee / mine-process / mine-no-tool / walker-deepslate
+ * avatar arenas (goto-driver / mine / process / flee / mine-process / mine-no-tool / navigator-deepslate
  * / forbid-dig-wall / build / look-raycast / follow / combat / look / mine-canopy-radius /
  * bridge-pillar) — migrated verbatim to testkit {@code wd.*} scenes. Their legacy twins, and the three
  * legacy class files ({@code AgentGameTestServer} / {@code AgentGameTestRegistrar} /
@@ -72,7 +72,7 @@ import net.minecraft.world.phys.Vec3;
  * {@code PlayerBot.create} → {@link PlayerBot#createIsolated} (per-scene player);
  * legacy NeoForge {@code FakePlayer} → common {@link ServerPlayer}; {@code try/finally} config
  * save/restore → {@link BotConfig#pinnedBaseline()} + {@code ctx.cleanup(pin::close)} (snapshots EVERY
- * mutable field, so {@code walkerWallDigFallback}/… are restored too); {@code throw
+ * mutable field, so {@code navigatorWallDigFallback}/… are restored too); {@code throw
  * new GameTestAssertException} → {@link SceneContext#fail}; {@code helper.succeed()} → return;
  * {@code gtOnlySkips(...)} → deleted. The real {@code IntentProcess}/{@code MineProcess}/
  * {@code RunAwayProcess}/{@code BuildProcess}/{@code FollowProcess}/{@code CombatProcess}/
@@ -103,7 +103,7 @@ import net.minecraft.world.phys.Vec3;
  * cell each drive iteration. It cannot sun-burn to a false fire-kill because StageWright pins the
  * whole run to a frozen midnight — the scene used to do that for itself, and no longer has to.
  *
- * <p><b>{@code wd.serverWalkerDeepslateNoTool}</b> flips {@link ServerPlayerBody#faithfulBreak} (a
+ * <p><b>{@code wd.serverNavigatorDeepslateNoTool}</b> flips {@link ServerPlayerBody#faithfulBreak} (a
  * static NOT covered by {@code pinnedBaseline}) — saved/restored via its own {@code ctx.cleanup}.
  *
  * <p><b>{@code buildFloor}</b> (the sole {@code AgentGameTestSupport} static the surviving Process
@@ -112,8 +112,8 @@ import net.minecraft.world.phys.Vec3;
  * can be deleted with zero dangling references. ⛔ No Process scene calls {@code level.tick()}.
  *
  * <p><b>Three subject families live in sibling classes.</b> This file grew past the 3000-line source
- * budget, so — the same mechanical seam-split the {@code WalkerTick*} phase classes did for
- * {@code Walker} — {@link WorldDriverPortalScenes} (obsidian cast / portal frame / lighting / nether
+ * budget, so — the same mechanical seam-split the {@code *Phase} phase classes did for
+ * {@code Navigator} — {@link WorldDriverPortalScenes} (obsidian cast / portal frame / lighting / nether
  * transit / end portal), {@link WorldDriverMobFightScenes} (blaze rod / dragon / flying blaze /
  * ender pearl / end crystal) and {@link WorldDriverSmeltDeliveryScenes} (the one scene that lets a
  * furnace cook) were moved out verbatim. {@link #scenes()} calls each one's {@code register} at the
@@ -149,18 +149,18 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // loaders and is required under promote-on-first-green; the descent it measures is
                 // the miner's peel-one-block-at-a-time path, so a regression there lands here.
                 Scene.of("wd.serverSelfShaftDescends", 1_200, WorldDriverProcessScenes::serverSelfShaftDescends),
-                // Pure navigation, no mining: can the walker path to the bottom of a pit? That is
+                // Pure navigation, no mining: can the navigator path to the bottom of a pit? That is
                 // the question under wd.serverMineHarvestBuried, and mining it first means a
                 // failure could belong to either half. Required, because if this is red the
-                // buried-drop story is a Walker story and every fix aimed at MineProcess is aimed
+                // buried-drop story is a Navigator story and every fix aimed at MineProcess is aimed
                 // at the wrong file.
                 Scene.of("wd.serverBreakNeedsReach", 400, WorldDriverProcessScenes::serverBreakNeedsReach),
                 Scene.of("wd.serverWalkIntoAPit", 900, WorldDriverProcessScenes::serverWalkIntoAPit),
                 // The same pit, with the miner's own permissions. MineProcess sweeps with breaking
-                // AND placing on, and a walker allowed to place can treat a hole as terrain to
-                // bridge rather than a place to stand — so "the walker can reach a pit" and "the
+                // AND placing on, and a navigator allowed to place can treat a hole as terrain to
+                // bridge rather than a place to stand — so "the navigator can reach a pit" and "the
                 // collector can reach a pit" are not the same claim. Measured green on both
-                // loaders, so it is now required: the armed walker must keep choosing to descend.
+                // loaders, so it is now required: the armed navigator must keep choosing to descend.
                 Scene.of("wd.serverWalkIntoAPitArmed", 900, WorldDriverProcessScenes::serverWalkIntoAPitArmed),
                 // Optional because it is GREEN on Fabric and RED on NeoForge — and the NeoForge red
                 // is NOT a worlddriver defect. NeoForge patches two vanilla classes to refuse a
@@ -188,7 +188,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 Scene.of("wd.serverAvatarEarnsAdvancement", 300,
                         WorldDriverProcessScenes::serverAvatarEarnsAdvancementScene).withRequired(false),
                 Scene.of("wd.serverMineNoTool", 600, WorldDriverProcessScenes::serverMineNoToolScene),
-                Scene.of("wd.serverWalkerDeepslateNoTool", 600, WorldDriverProcessScenes::serverWalkerDeepslateNoToolScene),
+                Scene.of("wd.serverNavigatorDeepslateNoTool", 600, WorldDriverProcessScenes::serverNavigatorDeepslateNoToolScene),
                 Scene.of("wd.serverForbidDigWall", 400, WorldDriverProcessScenes::serverForbidDigWallScene),
                 Scene.of("wd.serverBuild", 600, WorldDriverProcessScenes::serverBuildScene),
                 Scene.of("wd.serverLookRaycast", 200, WorldDriverProcessScenes::serverLookRaycastScene),
@@ -217,7 +217,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // thing a stalled rung four scenes downstream cannot tell you.
                 Scene.of("wd.serverPillarsOutOfAPit", 1_500, WorldDriverProcessScenes::serverPillarsOutOfAPit),
                 // The same question at the depth a real mining rung digs to, and driven by the
-                // process the journey now scripts rather than by the walker. It shipped optional —
+                // process the journey now scripts rather than by the navigator. It shipped optional —
                 // the four-deep arena above proves a capability, not this one, and the journey had
                 // measured a NINE-deep shaft moving the bot one block in 6 000 ticks — and was
                 // promoted in the run that first saw it green (135 ticks), which is what keeps a
@@ -336,7 +336,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx, floorY + 2, cz + 9);   // foot on the ledge
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -389,7 +389,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -435,7 +435,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos goal = new BlockPos(cx, floorY + 1, cz + 9);
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -485,7 +485,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BlockPos from = new BlockPos(cx, floorY + 1, cz);
         final int minDist = 6;
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -544,7 +544,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -632,7 +632,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
      * of gravity. So the descent is driven explicitly, with the emptied cell as the goal.
      *
      * <p>Goal.Block on that cell rather than a height: {@code Goal.YLevel} was tried on the journey
-     * and it descends to the wrong place — "be at y=60" is satisfied anywhere, and the walker took
+     * and it descends to the wrong place — "be at y=60" is satisfied anywhere, and the navigator took
      * the cheapest way down it could find, landing six blocks off the ore column. A shaft is a
      * column, and only a goal naming the column keeps the bot over its own hole.
      */
@@ -663,7 +663,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = false;    // placing would let it pillar back up and muddy the reading
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = 20;
         PlanningConfig.pathfinderMaxMs = 2000;
 
@@ -737,7 +737,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
      * {@code Level#destroyBlock} breaks anything the avatar aims at, at any distance, through any
      * amount of rock — and the drop from a sealed block lands in a 1×1×1 pocket
      * ({@code openSides=0}) that no pathfinder can ever reach. Two rounds of work went into the
-     * walker and the collect sweep before anyone measured the pocket.
+     * navigator and the collect sweep before anyone measured the pocket.
      */
     private static void serverBreakNeedsReach(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -768,7 +768,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
 
         PlayerBot driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
@@ -817,7 +817,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
      * nowhere.
      *
      * <p>Isolated deliberately. A stalled food rung four scenes downstream is a terrible place to
-     * learn this, and "the walker never planned a pillar" and "it planned one and the avatar could
+     * learn this, and "the navigator never planned a pillar" and "it planned one and the avatar could
      * not execute the jump-and-place" are different bugs — {@code PillarUp} exists as a pathfinder
      * move, so this scene's failure message carries the path length, which separates them.
      */
@@ -849,7 +849,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;      // pillaring is the point; forbidding it would be circular
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = 20;
         PlanningConfig.pathfinderMaxMs = 2000;
 
@@ -898,7 +898,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
      *
      * <p>{@link #serverPillarsOutOfAPit} is four deep and open to the sky, and it passes in 46
      * ticks. The journey's stone rung sinks nine courses and then mines sideways, so the bot ends
-     * under its own roof, and there the walker measured one block of climb in 6 000 ticks. Two
+     * under its own roof, and there the navigator measured one block of climb in 6 000 ticks. Two
      * things differ at once — depth, and the overhang — so this scene reproduces both and drives
      * the exit the way the journey now scripts it: clear {@code feet+2}, then
      * {@link TowerProcess} one course, repeat.
@@ -938,7 +938,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = 20;
         PlanningConfig.pathfinderMaxMs = 2000;
 
@@ -1011,7 +1011,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
      * <p>The navigation half of {@code wd.serverMineHarvestBuried}, on its own. That scene mines
      * three ores, two of them buried, and then fails to collect the drops that fell into the holes;
      * its verdict reads {@code collect timed out after 240 ticks} with {@code collectPath=0/0} —
-     * the collect walker searched for the whole budget and never produced a path, and never said
+     * the collect navigator searched for the whole budget and never produced a path, and never said
      * FAILED either. "Cannot path into a pit" and "can path but the collect logic asks for the
      * wrong cell" produce exactly that same line, and they live in different files.
      *
@@ -1052,11 +1052,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx + 6, floorY, cz), Blocks.AIR.defaultBlockState());
         level.setBlockAndUpdate(pitBottom, Blocks.AIR.defaultBlockState());
 
-        // Unarmed: nothing to dig or pave with, so the only answer the walker can give is about
+        // Unarmed: nothing to dig or pave with, so the only answer the navigator can give is about
         // the pit. Armed: exactly what MineProcess.COLLECT runs under, dirt in hand included.
         WorldConfig.allowBreak = armed;
         WorldConfig.allowPlace = armed;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = 20;
         PlanningConfig.pathfinderMaxMs = 2000;
 
@@ -1143,7 +1143,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;      // the hazard: placing is what makes the hand hold dirt
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         // Real ticks — a pathfinder slice that blocks the server thread would stall the suite,
         // so these stay the generous-but-bounded values the journey rig uses, not MAX_VALUE/2.
         ControlConfig.pathfinderSliceMs = 20;
@@ -1184,7 +1184,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     // Is there a way IN? level.destroyBlock has no reach gate, so this avatar can
                     // break a block it could never have touched — and an ore mined through solid
                     // rock leaves its drop in a SEALED pocket. "Sealed" and "reachable but the
-                    // walker stopped short" both end as an uncollected item four blocks away, and
+                    // navigator stopped short" both end as an uncollected item four blocks away, and
                     // no amount of pathfinder work fixes the first one.
                          .append(",above=").append(level.getBlockState(cell.above()).getBlock())
                          .append(",openSides=").append(openSides(level, cell)).append(")");
@@ -1255,7 +1255,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -1286,11 +1286,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     }
 
     // ==================================================================================
-    // wd.serverWalkerDeepslateNoTool — gap#2 verdict/regression guard: the Walker EXECUTOR clears a
+    // wd.serverNavigatorDeepslateNoTool — gap#2 verdict/regression guard: the Navigator EXECUTOR clears a
     // bare-hand deepslate plug it lacks the tool for (does NOT soft-lock). faithfulBreak ON.
     // ==================================================================================
 
-    private static void serverWalkerDeepslateNoToolScene(SceneContext ctx) {
+    private static void serverNavigatorDeepslateNoToolScene(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
 
@@ -1335,17 +1335,17 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         ServerPlayerBody.faithfulBreak = true;         // REAL destroy-progress: bare-hand deepslate ~650t (else instant destroyBlock masks the timing)
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         // NO pickaxe — empty-handed, matching the campaign soft-lock at y-14 deepslate.
-        driver.gotoGoal(new Goal.Block(goal));       // real Walker executor, no MineProcess
+        driver.gotoGoal(new Goal.Block(goal));       // real Navigator executor, no MineProcess
         BotTicker.register(driver);
 
-        final int BUDGET = 3000;                     // >> walkerTotalTickBudget(1200); an infinite grind stays active past this
+        final int BUDGET = 3000;                     // >> navigatorTotalTickBudget(1200); an infinite grind stays active past this
         int endTick = -1;
         for (int t = 0; t < BUDGET; t++) {
             if (BotTicker.activeCount() == 0) { endTick = t; break; }
@@ -1357,7 +1357,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         int plugRemaining = (level.getBlockState(plugFoot).isAir() ? 0 : 1)
                           + (level.getBlockState(plugHead).isAir() ? 0 : 1);
         boolean reached = Math.abs(fp.getZ() - (cz + 4 + 0.5)) < 1.5 && fp.getY() >= floorY + 1 - 0.4;
-        WorldDriverCommon.LOG.info("[wd.serverWalkerDeepslateNoTool] endTick={} step={} pos=({},{},{}) finished={} active={} reached={} plugRemaining={}/2",
+        WorldDriverCommon.LOG.info("[wd.serverNavigatorDeepslateNoTool] endTick={} step={} pos=({},{},{}) finished={} active={} reached={} plugRemaining={}/2",
                 endTick, driver.lastStatus(), fp.getX(), fp.getY(), fp.getZ(),
                 driver.finished(), BotTicker.activeCount(), reached, plugRemaining);
         // Real guard: the bot must BREAK THROUGH the bare-hand deepslate plug and REACH
@@ -1365,7 +1365,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         // solid and the bot short of the goal — reached/plugRemaining catch it, where a
         // bare active==0 check would not (it stays green even on a FAIL-at-budget).
         if (!reached || plugRemaining != 0)
-            ctx.fail("Walker did not clear bare-hand deepslate to the goal: reached="
+            ctx.fail("Navigator did not clear bare-hand deepslate to the goal: reached="
                     + reached + " plugRemaining=" + plugRemaining + "/2 step=" + driver.lastStatus()
                     + " endTick=" + endTick + " z=" + fp.getZ());
     }
@@ -1381,7 +1381,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         // Ground-anchor to THIS scene's slot (the leash's EntityFind.nearest scan needs the armor
         // stand in Level.getEntities); the legacy used helper.absolutePos(ZERO) for the same reason.
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY();
-        final int plugDz = 6;                              // plug sits 6 CLEAR cells from start: best-effort partial is multi-node (>1) so the Walker WALKS it to the wall face, where the carrot presses the plug → wallDig can engage. A 1-cell approach ARRIVES at start before the executor ever runs.
+        final int plugDz = 6;                              // plug sits 6 CLEAR cells from start: best-effort partial is multi-node (>1) so the Navigator WALKS it to the wall face, where the carrot presses the plug → wallDig can engage. A 1-cell approach ARRIVES at start before the executor ever runs.
         final int standDz = 9;                             // stand sits 3 cells BEYOND the plug
         final double leashRadius = 16.0;                   // stand ~9 from start → inside → PULL forward, not hold back
 
@@ -1426,11 +1426,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = false;
-        ControlConfig.walkerWallDigFallback = true;          // match the live default that produced day6
+        GameConfig.navigatorDebug = false;
+        ControlConfig.navigatorWallDigFallback = true;          // match the live default that produced day6
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
-        final int BUDGET = 1600;                          // > walkerTotalTickBudget(1200); wallDig fires within ~40t of engaging
+        final int BUDGET = 1600;                          // > navigatorTotalTickBudget(1200); wallDig fires within ~40t of engaging
         buildShell.run();
         var stand = new ArmorStand(level, cx + 0.5, floorY + 1, cz + standDz + 0.5);   // BEYOND the plug
         stand.setNoGravity(true);
@@ -1527,7 +1527,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -1625,7 +1625,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         level.addFreshEntity(stand);
         ctx.cleanup(() -> stand.discard());
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -1655,7 +1655,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     // ==================================================================================
     // wd.serverFollowGivesUpOnAPennedQuarry — a quarry pacing inside a sealed bedrock pen. The bot
     // can walk round the pen but never reach the standoff, and every lap reads as movement to the
-    // walker's futile guard, so only the follow's own give-up window can end it.
+    // navigator's futile guard, so only the follow's own give-up window can end it.
     // ==================================================================================
 
     private static final int PEN_GIVE_UP_TICKS = 200;
@@ -1691,7 +1691,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         level.addFreshEntity(stand);
         ctx.cleanup(stand::discard);
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -1754,7 +1754,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         // No night pin here any more: StageWright freezes every scene at midnight and says so in the
         // run's results header, so the zombie cannot sun-burn to a false fire-kill.
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -1846,7 +1846,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ctx.cleanup(() -> drop.discard());
         // Night comes from StageWright's suite-wide world pin, not from here.
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -1924,7 +1924,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
         BlockPos track = new BlockPos(cx + 5, floorY + 1, cz);
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.runProcess(new LookProcess(track, 0f, 0f));
@@ -1980,7 +1980,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -2026,7 +2026,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
 
         // Arm A: live death-#24 shape — sneak-overhang start (center 1.05 east of the pillar cell
         // origin => floor(center) is already the void column) + yaw 90° off. Arm B: centered start.

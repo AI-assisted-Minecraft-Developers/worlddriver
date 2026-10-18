@@ -35,7 +35,7 @@ public final class Diagonal extends Move {
         // (observed: stuck bobbing against a sandstone corner, cur2 never closing).
         // Requiring both sides clear matches this class's doc intent and forces A*
         // to route a blocked corner as two cardinal walks through the open cell —
-        // which the Walker executes cleanly. Costs at most one extra step per
+        // which the Navigator executes cleanly. Costs at most one extra step per
         // corner; in exchange no diagonal ever wedges.
         // ...and at least one corner must have GROUND under it. Passable is the wedge test; it says
         // nothing about what the bot walks over. A diagonal is executed by aiming straight at the

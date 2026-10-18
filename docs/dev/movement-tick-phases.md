@@ -1,15 +1,15 @@
 # The movement tick phases
 
-`Walker` decides what the bot does on every tick. That decision was once a single method
+`Navigator` decides what the bot does on every tick. That decision was once a single method
 several thousand lines long. It is now a fixed pipeline of phase classes, each in its own
 file under `common/src/main/java/net/magicterra/worlddriver/bot/control/`, driven from
-`Walker#tickInner`.
+`Navigator#tickInner`.
 
 The package is split by what each part does:
 
 | Package | Holds |
 |---|---|
-| `control` | `Walker` and its outward face, the per-tick context, constants, geometry, telemetry |
+| `control` | `Navigator` and its outward face, the per-tick context, constants, geometry, telemetry |
 | `control.sense` | Prelude and StallDetect: what the tick starts from |
 | `control.route` | The plan: `Route`, adoption, stub routes, Repath, Search, Progress, path smoothing |
 | `control.controller` | `Controller`, `Channel`, `Arbiter` and the controllers |
@@ -21,7 +21,7 @@ Members another subpackage needs are public; that is the price of the split. Not
 `bot/control` is meant to use them, though only review keeps the layers above from doing so.
 
 Read this before changing a phase, and read [`bot-layering.md`](bot-layering.md) first if
-the walker's place in the wider subsystem is not already familiar.
+the navigator's place in the wider subsystem is not already familiar.
 
 ## Why the decomposition exists
 
@@ -31,9 +31,9 @@ script's grandfather list, in which case the recorded length is a ceiling it may
 below but never rise above. Both count every line except one that holds only a comment. Read
 the script for the current numbers rather than trusting a figure quoted anywhere else.
 
-The file cap came first and measured the wrong unit. Splitting the walker satisfied it by
+The file cap came first and measured the wrong unit. Splitting the navigator satisfied it by
 moving text: the enormous method survived, redistributed across new files. The method cap
-exists because of that, and the `WalkerTick*` entries on the grandfather list are the
+exists because of that, and the `*Phase` entries on the grandfather list are the
 backlog it was written to shrink. Deleting an entry from that list is progress that cannot
 silently regress; adding one, or raising one, should be a deliberate reviewed change.
 
@@ -42,21 +42,21 @@ method in this repository. Follow it rather than inventing a new shape.
 
 ## The pipeline
 
-Each phase is an object the walker holds in a field (`prelude`, `stallDetect`, `repath`,
-`search`, `progress`, `edgeGuards`, `aim`, `drive`). `Walker#tickInner` constructs a fresh
-`WalkerTickCtx` and calls the phases in a fixed order. Each phase returns a `TickStep` to
+Each phase is an object the navigator holds in a field (`prelude`, `stallDetect`, `repath`,
+`search`, `progress`, `edgeGuards`, `aim`, `drive`). `Navigator#tickInner` constructs a fresh
+`TickCtx` and calls the phases in a fixed order. Each phase returns a `TickStep` to
 terminate the tick, or null to fall through to the next:
 
-1. `WalkerTickPrelude`
-2. `WalkerTickStallDetect`
-3. `WalkerTickRepath`
-4. `WalkerTickSearch`
-5. `WalkerTickProgress`
-6. `WalkerTickEdgeGuards`
-7. `WalkerTickAim`
-8. `WalkerTickDrive`
+1. `PreludePhase`
+2. `StallDetectPhase`
+3. `RepathPhase`
+4. `SearchPhase`
+5. `ProgressPhase`
+6. `EdgeGuardsPhase`
+7. `AimPhase`
+8. `DrivePhase`
 
-`WalkerTickDrive` is the terminal phase and always returns a verdict.
+`DrivePhase` is the terminal phase and always returns a verdict.
 
 After Progress, once the route is settled for the tick, `Arbiter` runs the controllers. A
 controller (`Controller`) takes some of the tick's four channels (`Channel`: move, look,
@@ -81,23 +81,23 @@ While a controller holds the move channel the rest of the pipeline is skipped fo
 The regular walk (Aim and Drive) cannot yet run without the look, so while `RouteDig` holds
 it the walk only decides how to stand (`StandToWork`): still, pressing into a bank it is
 breaking from the water, or sneaking at a lip it is placing below. With no controller on
-the hands, the dig key is released. `WalkerInspector#channels` prints who held which
+the hands, the dig key is released. `NavigatorInspector#channels` prints who held which
 channel and why each idle controller did not start.
 
-`tickInner` is not the whole tick. `Walker#tick` wraps it so that the safety guards run
+`tickInner` is not the whole tick. `Navigator#tick` wraps it so that the safety guards run
 after *every* decision path rather than only the paths that reach the end of the pipeline:
 the earlier arrangement appended an invariant to the tail of a method with dozens of early
 returns, and a fatal step came from a branch that never reached it.
 
 ## What crosses a phase boundary
 
-`WalkerTickCtx` is the per-tick handoff. A fresh instance is built every tick and nothing
+`TickCtx` is the per-tick handoff. A fresh instance is built every tick and nothing
 in it survives the tick. State that does survive lives with the phase that keeps it: the
 step-progress clocks and the arc shadow in `progress`, the churn window and the escalation
 clock in `stallDetect`, the sprint brakes in `drive`, and so on. Another phase reads it
-through the owner (`wk.progress.stepProg`). Each phase's `reset(ResetScope)` clears what it
+through the owner (`nav.progress.stepProg`). Each phase's `reset(ResetScope)` clears what it
 keeps when the walk gets a new goal or a replan. Only what belongs to the whole walk, such as
-the stall counter, the route and the error, stays on `Walker`.
+the stall counter, the route and the error, stays on `Navigator`.
 
 The context is organised by the phase that *produces* each group:
 
@@ -108,16 +108,16 @@ The context is organised by the phase that *produces* each group:
 | `edges` | EdgeGuards | The committed edge under execution and its guard classifications, consumed by Aim and Drive. |
 | `aim` | Aim | The full aim, camera and drive-shaping plan that Drive executes. |
 
-Read the field lists in `WalkerTickCtx` rather than reproducing them; they move. What does
+Read the field lists in `TickCtx` rather than reproducing them; they move. What does
 not move is the contract: a phase writes its own product group and only re-publishes
 `frame` basics it recomputed, and a phase's rehydrate block names exactly what it
 consumes.
 
 ## The contract is enforced, not merely documented
 
-`common/src/test/java/net/magicterra/worlddriver/bot/control/WalkerTickDataflowTest`
+`common/src/test/java/net/magicterra/worlddriver/bot/control/PhaseDataflowTest`
 re-derives the data flow from source on every `:common:test` run and fails when it stops
-being strictly forward. It reads the phase order out of `Walker#tickInner` rather than
+being strictly forward. It reads the phase order out of `Navigator#tickInner` rather than
 hardcoding it, so reordering the pipeline re-checks every field against the new order
 instead of quietly invalidating the test. It scans source rather than running the
 pipeline, because the pipeline needs a live `Level` and the ordering property is a static
@@ -141,15 +141,15 @@ keyed off the first writer in driver order, which stays correct when that happen
 
 ## The one value that crosses a mid-pipeline path swap
 
-`WalkerTickProgress` can replace the whole path and fall through on the new one. Almost
+`ProgressPhase` can replace the whole path and fall through on the new one. Almost
 everything downstream re-derives after the swap: the committed edge and the waypoint both
-come from the walker's own lookup in EdgeGuards, after the replacement,
+come from the navigator's own lookup in EdgeGuards, after the replacement,
 and the foot cell stays valid because no phase moves the bot — the position only changes
 at the physics step after the pipeline.
 
 The exception is the breaking-edge flag in the stall group. StallDetect computes it from
 the *old* path's edge, and Drive reads it alongside the *new* edge. It feeds one watchdog
 exemption, for one tick, at the start of a fresh episode. It is left alone deliberately:
-`WalkerTickDrive` is state-machine surgery, and this is a one-boolean discrepancy with no
+`DrivePhase` is state-machine surgery, and this is a one-boolean discrepancy with no
 observed consequence. It is written down here so that it stays a known quantity rather
 than being rediscovered.

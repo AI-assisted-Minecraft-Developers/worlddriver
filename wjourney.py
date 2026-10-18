@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reliable journey-metrics harness for Walker A/B + acceptance runs.
+"""Reliable journey-metrics harness for Navigator A/B + acceptance runs.
 
 Fixes the two instrument bugs that corrupted prior conclusions:
   1) arrival now uses TRUE 3D distance to goal (x AND z AND y), not an x-only regex
@@ -16,7 +16,7 @@ Prints a compact report and exits 0 on arrival, 2 on timeout.
 import argparse, re, sys, time, math
 
 TRACE = re.compile(
-    r"\[walker\] t=.*?p=\(([-0-9.]+),([-0-9.]+),([-0-9.]+)\).*?onG=(\w+).*?inW=(\w+).*?stuck=(\d+) totStuck=(\d+)")
+    r"\[navigator\] t=.*?p=\(([-0-9.]+),([-0-9.]+),([-0-9.]+)\).*?onG=(\w+).*?inW=(\w+).*?stuck=(\d+) totStuck=(\d+)")
 
 def parse_last_trace(lines):
     for ln in reversed(lines):

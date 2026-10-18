@@ -10,16 +10,16 @@ from scripts.pmcs.run_case import _rpc, run_case
 
 CYC = sys.argv[1] if len(sys.argv) > 1 else 'C?'
 RP_DIR = 'fabric/run/config/worlddriver/replays'
-FLAGS = {'pathArchive': False, 'allowBreak': True, 'allowPlace': True, 'allowWaterBucketFall': True, 'walkerStepUpBackoffRetry': True, 'walkerCarrotBodyLos': True, 'walkerBankDigGroundBlip': True, 'walkerExpectAlarm': True, 'walkerStuckStepMonotonic': True, 'walkerPillarSurfacePlace': True, 'walkerAboveNodeStallRecover': True, 'walkerDigAimPriority': True, 'walkerWallDigFallback': True, 'pathfinderBreakCostMultiplier': 2.5,
-         'walkerRamNodeAimRelease': True, 'pathfinderFloatingBreakTax': True,
-         'pathfinderLogBreakTax': 3.0, 'walkerBridgeHoldRepath': True, 'walkerPhysicalStallClock': True, 'walkerDigCommitHoldRepath': True, 'walkerRouteHysteresis': True,
-         'walkerDryReanchor': True, 'walkerBuoyantSearchFromSurface': True, 'walkerBankDigSkipWhenCwpSwims': True,
-         'walkerBankDigSkipOverhang': True, 'walkerVineDescentDrop': True, 'walkerAscentRamBobBreak': True,
-         'walkerPillarReachGoalNoSnap': True, 'pathfinderForbidParkourFromFloatingWater': True,
-         'walkerDeepWaterFloatBeeline': True, 'walkerWaterWalkReach': True, 'walkerWaterStepDownFloat': True,
-         'walkerWallCornerFastChurn': True, 'walkerSwimAshorePillarDespiteDeepDig': True,
-         'walkerFutileBankDigRelease': True, 'walkerBankDigForwardExit': True, 'walkerFloatingBankBobFreeze': True,
-         'walkerDrowningEscape': True, 'walkerClimbGaveUpSticky': True}
+FLAGS = {'pathArchive': False, 'allowBreak': True, 'allowPlace': True, 'allowWaterBucketFall': True, 'navigatorStepUpBackoffRetry': True, 'navigatorCarrotBodyLos': True, 'navigatorBankDigGroundBlip': True, 'navigatorExpectAlarm': True, 'navigatorStuckStepMonotonic': True, 'navigatorPillarSurfacePlace': True, 'navigatorAboveNodeStallRecover': True, 'navigatorDigAimPriority': True, 'navigatorWallDigFallback': True, 'pathfinderBreakCostMultiplier': 2.5,
+         'navigatorRamNodeAimRelease': True, 'pathfinderFloatingBreakTax': True,
+         'pathfinderLogBreakTax': 3.0, 'navigatorBridgeHoldRepath': True, 'navigatorPhysicalStallClock': True, 'navigatorDigCommitHoldRepath': True, 'navigatorRouteHysteresis': True,
+         'navigatorDryReanchor': True, 'navigatorBuoyantSearchFromSurface': True, 'navigatorBankDigSkipWhenCwpSwims': True,
+         'navigatorBankDigSkipOverhang': True, 'navigatorVineDescentDrop': True, 'navigatorAscentRamBobBreak': True,
+         'navigatorPillarReachGoalNoSnap': True, 'pathfinderForbidParkourFromFloatingWater': True,
+         'navigatorDeepWaterFloatBeeline': True, 'navigatorWaterWalkReach': True, 'navigatorWaterStepDownFloat': True,
+         'navigatorWallCornerFastChurn': True, 'navigatorSwimAshorePillarDespiteDeepDig': True,
+         'navigatorFutileBankDigRelease': True, 'navigatorBankDigForwardExit': True, 'navigatorFloatingBankBobFreeze': True,
+         'navigatorDrowningEscape': True, 'navigatorClimbGaveUpSticky': True}
 
 def rpc(m, p): return asyncio.run(_rpc(m, p))
 
@@ -175,13 +175,13 @@ def live_journey(label):
     # Set the FULL flag set every journey: a fresh client boots with all-default flags,
     # and run_case (replay) is the only other setter — the first journey of a chain ran
     # flag-naked otherwise (C21-J1). pathArchive back ON for recording.
-    patch_settings({**FLAGS, 'pathArchive': True, 'walkerDebug': True})
+    patch_settings({**FLAGS, 'pathArchive': True, 'navigatorDebug': True})
     if not preflight(label):
         # one repair attempt: re-clear + re-give + re-set, then re-check
         rpc('mc.client.chat.send', {'text': '/clear'}); time.sleep(0.3)
         for c in ['/give @p water_bucket', '/give @p diamond_pickaxe', '/give @p diamond_shovel', '/give @p cobblestone 192']:
             rpc('mc.client.chat.send', {'text': c}); time.sleep(0.3)
-        patch_settings({**FLAGS, 'pathArchive': True, 'walkerDebug': True})
+        patch_settings({**FLAGS, 'pathArchive': True, 'navigatorDebug': True})
         if not preflight(label):
             print(f'[{label}] ABORT journey (preflight failed twice)', flush=True)
             return None
@@ -247,7 +247,7 @@ def live_journey(label):
         if noProg >= 90:
             print(f'[{label}] LIVE CHURN @({x:.0f},{r["pos"]["y"]:.0f},{z:.0f}) worst={worst:.0f}s expect={expect_counts(t0)}', flush=True)
             # A churn verdict cancels the goto and idles the bot WHERE IT STUCK — with the
-            # walker (and its DrowningEscape) stopped, an underwater stall drowns the idle
+            # navigator (and its DrowningEscape) stopped, an underwater stall drowns the idle
             # bot before the next journey's ensure_alive (observed live: hp0 post-C24-J3).
             rpc('mc.bot.cancel', {})
             if r['body']['underWater'] or r['body']['inWater']:
@@ -411,7 +411,7 @@ for j in range(1, 4):
     ax = round(end_v - 6) if cmp == 'ge' else round(end_v + 6)
     print(f'[{label}] archive={arc} arrive_{axis}={ax}({cmp})', flush=True)
     # envelope-exit detection (§66): replan may route OUTSIDE the archived corridor —
-    # unarchived terrain there wedges the bot as a rig ARTIFACT, not a walker regression
+    # unarchived terrain there wedges the bot as a rig ARTIFACT, not a navigator regression
     # (C29-J2 replay#1: stuck at x=-414, 7 blocks west of the live bbox x[-407,-313]).
     traj = json.load(open(os.path.join(RP_DIR, arc))).get('trajectory') or []
     if traj:
@@ -440,7 +440,7 @@ for j in range(1, 4):
         time.sleep(4)
         ep = rpc('mc.client.player', {})['pos']
         at_goal = math.dist((ep['x'], ep['z']), (gx, gz)) < 14 and rpc('mc.client.player', {})['vitals']['health'] > 0
-        # Between-replay placement: the walker stops at the replay verdict and the idle
+        # Between-replay placement: the navigator stops at the replay verdict and the idle
         # driver is deliberately passive (user directive), so a bot left submerged here
         # drowns before the next round starts (C41-J3 death, C44-J3 near-death).
         rpc('mc.bot.cancel', {}); time.sleep(0.3)

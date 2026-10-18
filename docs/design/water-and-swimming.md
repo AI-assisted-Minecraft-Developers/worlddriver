@@ -50,7 +50,7 @@ dry-land tower executor, which then waited for a landing a wet bot can never rep
 **Dive searches keep the old model.** When a search is built with `Capability.DIVE`, the
 view is told (`WorldView.diveSearch`) and `surfaceWaterNodes()` returns false for it. A goal
 such as an underwater base requires the bot to cross fully submerged, so every rule reverts.
-For the same reason `Walker.snapGoalToStandable` leaves a diving goal alone: under the new
+For the same reason `Navigator.snapGoalToStandable` leaves a diving goal alone: under the new
 model that cell is not standable, and snapping would carry the diver somewhere else.
 
 The executor was not changed. It decides on geometry almost everywhere — a climb-out takeover
@@ -97,7 +97,7 @@ height of 0.4; `Player.travel` steers vertical velocity towards the look directi
 cell at eye level is still water; swimming in liquid adds 0.04 upward per tick; and a
 sprinting swimmer has no gravity and a drag of 0.9 rather than 0.8.
 
-`WalkerTickDrive.surfaceCruise` (`ControlConfig.walkerSurfaceSprintSwim`, on by default) is the
+`DrivePhase.surfaceCruise` (`ControlConfig.navigatorSurfaceSprintSwim`, on by default) is the
 state machine that gets into that pose and stays there.
 
 It **enters** when the current node is a surface cell at least one cell away horizontally,
@@ -135,10 +135,10 @@ riding the waterline this rarely fires.
 
 ### What the cruise forced elsewhere
 
-A cruising bot sits one or two cells below its own path nodes, and four pieces of the walker
+A cruising bot sits one or two cells below its own path nodes, and four pieces of the navigator
 had to learn that.
 
-Arrival (`cruiseUnder` in `WalkerTickProgress`) is judged horizontally. The height thresholds
+Arrival (`cruiseUnder` in `ProgressPhase`) is judged horizontally. The height thresholds
 in `within` and `passed` read every node as a step the bot had failed to climb, so the path
 pointer only advanced by arc-length projection after the bot had already passed the next
 node — permanently one node behind. The drive then steered at a node behind the bot, the
@@ -176,7 +176,7 @@ around 90. This was a pre-existing lag in the aim smoothing that happens when `s
 the bot straight out of the water without going through the climb-out takeover, so
 `aimSmooth.reset()` is never called; the new model only made it visible.
 
-The fix is `walkerOrbitBreaksAimLag` in `WalkerTickAim`: on dry land, with the bot moving and
+The fix is `navigatorOrbitBreaksAimLag` in `AimPhase`: on dry land, with the bot moving and
 the heading error between 45 and 170 degrees, once twelve such ticks have accumulated **and the
 bot's own yaw has turned 180 degrees in one direction**, the smoothing factor switches from
 0.08 to the cruising 0.5.
@@ -198,12 +198,12 @@ bot passes its goal. An earlier version cleared on that, and a 929-tick orbit in
 
 - `bot/rules/moves/SurfaceClimbOut.java` — the exit edge and its three legal shapes.
 - `bot/world/WorldView.java` — `surfaceWaterNodes()` and `diveSearch()`.
-- `bot/control/steer/WalkerTickDrive.java` — the cruise state machine; its constants are in
-  `bot/control/WalkerConstants.java`.
+- `bot/control/steer/DrivePhase.java` — the cruise state machine; its constants are in
+  `bot/control/NavigatorConstants.java`.
 - `bot/control/controller/WaterClimb.java` — the climb-out controller; `pillarTakeoverTick` is the executor half of the exit.
-- `bot/control/steer/WalkerTickAim.java` — the orbit break.
+- `bot/control/steer/AimPhase.java` — the orbit break.
 - `config/WorldConfig.java` — `pathfinderSurfaceWaterNodes`, `pathfinderDeepWaterPriced`, `waterDangerPenalty`;
-  `config/ControlConfig.java` — `walkerSurfaceSprintSwim`, `walkerOrbitBreaksAimLag`.
+  `config/ControlConfig.java` — `navigatorSurfaceSprintSwim`, `navigatorOrbitBreaksAimLag`.
 
 The scenes that hold this behaviour are the `wd.client*` water family; `wd.clientOpenWaterCross`
 is the cruise, and the bank climb-out scenes are the exit edge. They run only on a topology with

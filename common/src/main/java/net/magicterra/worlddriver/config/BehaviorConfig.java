@@ -83,7 +83,7 @@ public final class BehaviorConfig {
      *  deep water gets ZERO self-rescue — {@link BotConfig#autoSwim}'s lift/beach steer is
      *  deliberately idle-gated OFF ({@code AutoSwim.tick}'s own doc: "with NO
      *  command … force-surfacing … is exactly what must NOT happen"), and
-     *  Walker's {@code drowningEscape} only runs inside an active Walker, which an
+     *  Navigator's {@code drowningEscape} only runs inside an active Navigator, which an
      *  idle bot has none of. A bot tp'd into a ~29-block-deep river with no task
      *  drowned air 16→0 in ~40 s with both flags on and zero action taken.
      *  <p><b>Controller ruling (written into code, not just this comment — see

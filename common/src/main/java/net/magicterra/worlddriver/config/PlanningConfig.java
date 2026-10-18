@@ -267,13 +267,13 @@ public final class PlanningConfig {
      *  rises, so no descend tax). That left A* free to pick a TALL near-bank exit over a
      *  smoother one: a buoyant bot at the surface caps its swim-up at ~surface+0.2 and
      *  CANNOT step onto a +1/+2 ledge without a foothold, so every such exit forces the
-     *  Walker's bank-dig climb-out (functional but bob-stuttery, ~1-2 s of mining + the
+     *  Navigator's bank-dig climb-out (functional but bob-stuttery, ~1-2 s of mining + the
      *  occasional anti-stuck burst — the live windows of the bot stuck at a dirt wall, digging the
      *  same block repeatedly, or hopping side to side). Pricing
      *  the climb-out ∝ its RISE biases A* toward the LOWEST available exit: a surface-level
      *  bank (rise 0, a plain Walk/StepDown — taxed nothing) is preferred over a +1, which is
      *  preferred over a +2. It does NOT forbid tall exits (a shoreline with only +2 banks
-     *  still climbs out — the Walker handles it), it just stops A* choosing one when a
+     *  still climbs out — the Navigator handles it), it just stops A* choosing one when a
      *  gentler exit lies a few cells along the shore. Same TRIPLE-GATE as the other water
      *  taxes: Y-agnostic XZ goals only (a Y-aware pos/block dive-and-surface guides its own
      *  exit and pays nothing → Goal.Block GameTest water arenas are unaffected), and only
@@ -311,7 +311,7 @@ public final class PlanningConfig {
      *  chain smoothly across the horizon instead of committing a backward segment
      *  and oscillating. Falls back to the normal best-effort when the goal-ward
      *  frontier isn't reachable (a real wall in loaded terrain) so it composes with
-     *  go-around behaviour. Pairs with the Walker re-searching fresh on arrival at a
+     *  go-around behaviour. Pairs with the Navigator re-searching fresh on arrival at a
      *  frontier (a stale eager continuation computed before arrival can't see the
      *  newly-loaded chunks).
      *  <p>EARLY-STOP (the lever that makes this worthwhile): the search STOPS the

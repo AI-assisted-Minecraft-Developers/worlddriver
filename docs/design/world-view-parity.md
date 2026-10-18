@@ -11,7 +11,7 @@ that interface read a real level:
 |---|---|---|
 | `bot/world/ClientWorldView` | the client bot's `BotBrain` on a shipping client, and `PlanProbeTool` | the real player, a `LocalPlayer` |
 | `bot/world/LevelWorldView` | `PlayerBot`, the `wd.*` scenes, the journey harness | a server-side player |
-| `bot/world/ServerWorldView` | `mc.observe.scene` and `WalkerGeometry`'s read-only probes | none |
+| `bot/world/ServerWorldView` | `mc.observe.scene` and `NavigatorGeometry`'s read-only probes | none |
 
 Each of them used to answer those questions with its own method body, and the three implementations
 disagreed. Running the parity scene `wd.clientWorldViewParity`, which stands in one world

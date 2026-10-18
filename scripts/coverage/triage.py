@@ -2,7 +2,7 @@
 """Group uncovered movement-package lines into mechanism families for gap triage.
 
 Reads coverage-out/uncovered-movement.txt (from report.py) and, for every
-uncovered/partial line in the WalkerTick*/Walker sources, attributes it to the
+uncovered/partial line in the *Phase/Navigator sources, attributes it to the
 nearest enclosing mechanism: the closest preceding `BotConfig.<flag>` gate or
 section banner comment. Prints families sorted by uncovered weight so scene
 work can start with the biggest holes.
@@ -15,9 +15,9 @@ from collections import defaultdict
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC = os.path.join(ROOT, "common/src/main/java/net/magicterra/worlddriver/bot/control")
 DUMP = os.path.join(ROOT, "coverage-out/uncovered-movement.txt")
-ONLY = re.compile(r"control/(Walker\w*|Walker)\.java")
+ONLY = re.compile(r"control/(Navigator\w*|Navigator)\.java")
 
-FLAG = re.compile(r"BotConfig\.(walker\w+|pathfinder\w+|descentCameraDecouple|allowParkour\w*|allowBreak|allowPlace|pathArchive|pathDebug|breakTimeoutTicks)")
+FLAG = re.compile(r"BotConfig\.(navigator\w+|pathfinder\w+|descentCameraDecouple|allowParkour\w*|allowBreak|allowPlace|pathArchive|pathDebug|breakTimeoutTicks)")
 BANNER = re.compile(r"^\s*// ([A-Z][A-Za-z0-9 \-+/#§']{8,60})")
 
 def families_for(path):

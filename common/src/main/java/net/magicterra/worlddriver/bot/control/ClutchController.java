@@ -60,13 +60,13 @@ public final class ClutchController {
 
     /**
      * Yield the movement channel for this tick: the clutch OWNS the descent, so nothing the
-     * walker or a process commanded may move the bot sideways or add a jump.
+     * navigator or a process commanded may move the bot sideways or add a jump.
      *
-     * <p>{@link Body#commandMove} is the channel that outranks the walker's own command. Clearing
+     * <p>{@link Body#commandMove} is the channel that outranks the navigator's own command. Clearing
      * the direction keys, which is what this used to do, did nothing while a process was driving:
      * the client's input layer runs vanilla's key pass and then OVERWRITES the impulses with the
-     * walker's command. During an MLG that is not cosmetic: the drift-damping spring below fights
-     * the residual momentum one way while a still-live walker command pushes the other, and
+     * navigator's command. During an MLG that is not cosmetic: the drift-damping spring below fights
+     * the residual momentum one way while a still-live navigator command pushes the other, and
      * coasting one block off a 1-wide landing column is exactly the failure the spring exists to
      * prevent.
      */
@@ -132,7 +132,7 @@ public final class ClutchController {
         else if (!onHotbar(p, Items.WATER_BUCKET)) why = "water_bucket not in hotbar";
         else if (!world.isMlgFloor(floor) || world.isHazard(floor)) why = "landing floor not MLG-able (hazard/non-solid)";
         if (why != null) {
-            if (ControlConfig.walkerExpectAlarm && noArmThrottle == 0) {
+            if (ControlConfig.navigatorExpectAlarm && noArmThrottle == 0) {
                 LOG.warn("[expect] CLUTCH-noArm: dangerous fall (remaining={} floor={},{},{}) but clutch cannot arm — {}",
                         String.format(Locale.ROOT, "%.1f", remaining),
                         floor.getX(), floor.getY(), floor.getZ(), why);
@@ -143,7 +143,7 @@ public final class ClutchController {
         armed = true;
         landingX = cx;
         landingZ = cz;
-        if (GameConfig.walkerDebug)
+        if (GameConfig.navigatorDebug)
             LOG.info(
                     "[clutch] emergency water-clutch armed: remaining={} y={} floor={},{},{}",
                     String.format(Locale.ROOT, "%.1f", remaining),
@@ -151,10 +151,10 @@ public final class ClutchController {
                     floor.getX(), floor.getY(), floor.getZ());
     }
 
-    /** Arm on a fall the walker planned last tick ({@link MoveSignals#planClutch}) or on an
+    /** Arm on a fall the navigator planned last tick ({@link MoveSignals#planClutch}) or on an
      *  unplanned damaging one, then drive the committed descent. Returns true while the clutch
      *  OWNS this tick (caller must suspend everything else and yield the keys); false when not
-     *  armed, or armed-but-still-on-the-launch-lip (let the walker step off), or just disarmed
+     *  armed, or armed-but-still-on-the-launch-lip (let the navigator step off), or just disarmed
      *  this tick. */
     public boolean tick(Body body, WorldView world) {
         LivingEntity p = body.entity();
@@ -197,7 +197,7 @@ public final class ClutchController {
                     p.setXRot(89.9f);                      // straight down → POV ray hits the floor
                     InteractionResult pr = hands.useItemInHand();
                     if (pr.consumesAction()) p.swing(InteractionHand.MAIN_HAND);
-                    if (GameConfig.walkerDebug)
+                    if (GameConfig.navigatorDebug)
                         LOG.info(
                                 "[clutch] mlg-place cell={},{},{} aboveFloor={} y={} r={}",
                                 cell.getX(), cell.getY(), cell.getZ(),
@@ -215,7 +215,7 @@ public final class ClutchController {
                 body.aimAtBlock(feet);
                 InteractionResult sr = hands.useItemInHand();
                 if (sr.consumesAction()) p.swing(InteractionHand.MAIN_HAND);
-                if (GameConfig.walkerDebug)
+                if (GameConfig.navigatorDebug)
                     LOG.info(
                             "[clutch] mlg-scoop feet={},{},{} t={}", feet.getX(), feet.getY(), feet.getZ(), scoopTicks);
                 return true;
@@ -223,7 +223,7 @@ public final class ClutchController {
             reset();
             return false;
         }
-        // armed but still on the launch lip (not yet airborne) → let the walker
+        // armed but still on the launch lip (not yet airborne) → let the navigator
         // step us off the edge. If it never does (path changed / goal cancelled
         // before the walk-off), disarm so a stale planned arm can't hijack an
         // unrelated later jump.

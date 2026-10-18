@@ -67,7 +67,7 @@ follow.
   correctly recognised as water.
 - **F4, an architectural conflict.** Water crossings are currently routed **deliberately** through
   submerged riverbed nodes, roughly one block below where a buoyant body's feet actually sit, and the
-  executor rides the surface over them with `floatOverSubmerged` (`Walker.java:1313`). That
+  executor rides the surface over them with `floatOverSubmerged` (`Navigator.java:1313`). That
   compensation is **limited to 2.5 blocks below the surface** (`dyNode > -2.5`). The churn at z3034 is
   the search routing nodes to y55–58 while the buoyant feet are at y62 — four to seven blocks down,
   **outside the 2.5-block riding band** — so the compensation never fires, the bot genuinely tries to
@@ -142,10 +142,10 @@ cells remain enterable by the **swimming family**, but **at high cost**:
 
 ### 4.3 The dive-hold executor, following submerged swimming segments
 
-The `Walker` executor must be able to **follow a submerged swimming edge stably** — dive deliberately,
+The `Navigator` executor must be able to **follow a submerged swimming edge stably** — dive deliberately,
 hold depth, and advance horizontally — rather than floating up and oscillating.
 
-- The current `diveHold` (`Walker.java:~2318`) was built for **vertical** `swimDown` only. It needs to
+- The current `diveHold` (`Navigator.java:~2318`) was built for **vertical** `swimDown` only. It needs to
   extend to `SwimTraverse`, meaning horizontal submerged travel: recognise the `swim` move prefix and,
   from the node's Y and XZ, actively pitch down, hold the sink, and move forward until the segment is
   complete.
@@ -154,7 +154,7 @@ hold depth, and advance horizontally — rather than floating up and oscillating
 
 ### 4.4 What is retired and what is absorbed, so that there are not two mechanisms fighting
 
-- **Retire** `floatOverSubmerged` (`Walker.java:1289-1317`) and its `WATER_DESCEND_GIVEUP` riverbed
+- **Retire** `floatOverSubmerged` (`Navigator.java:1289-1317`) and its `WATER_DESCEND_GIVEUP` riverbed
   riding compensation. Under surface-first routing there are no submerged crossing nodes, so the
   compensation has nothing to compensate for. **Remove it in stages** — let the new model take effect
   and verify that open deep-water crossings still work before deleting the old code — so that the two

@@ -48,7 +48,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
 
     private static final BlockState STONE = Blocks.STONE.defaultBlockState();
     private static final BlockState AIR = Blocks.AIR.defaultBlockState();
-    private static final String NAME = "scene-walker";
+    private static final String NAME = "scene-navigator";
     private static final int COURSE = 10;
     private static final int RUN_AWAY = 6;
 
@@ -74,10 +74,10 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
-        // The shipped arrival rule, which the pinned baseline turns off: without it the walker spends the
+        // The shipped arrival rule, which the pinned baseline turns off: without it the navigator spends the
         // last node from 0.67 out, and a server-side player ended path-consumed a cell short (x=…329.984,
         // finalDist 10) on both loaders while the NPC arrived.
-        ControlConfig.walkerHoldLastNodeUntilStanding = true;
+        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
         fill(level, lo, hi, AIR);
         ctx.cleanup(() -> fill(level, lo, hi, AIR));
         fill(level, lo, o.offset(COURSE + 2, -1, 4), STONE);

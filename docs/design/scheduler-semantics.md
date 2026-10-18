@@ -97,8 +97,8 @@ A related defect in the same chain is worth stating separately because it is a g
 recovery check lived in `tick()`, which only runs when the chain wins the bid. A chain that is losing
 cannot notice that it should stop losing.
 
-**A verb must not sell a start as a completion.** Three of the walker's give-up exits reported
-arrival, so a caller could not distinguish "arrived" from "stopped trying". The walker now classifies
+**A verb must not sell a start as a completion.** Three of the navigator's give-up exits reported
+arrival, so a caller could not distinguish "arrived" from "stopped trying". The navigator now classifies
 its exit and names it — the goal was snapped to a standable cell, the best-effort segment was consumed,
 the path was consumed, the frontier gave up, churn gave up — and that classification is carried into
 the awaitable result. This changes reporting only, deliberately: honesty must not smuggle in a
@@ -137,7 +137,7 @@ with a setting, not cancelled, because they have no episode to cancel.
 - `bot/arbitration/CancelRouting.java` — where a cancel is turned into the right chain's clear.
 - `bot/arbitration/UserTaskChain.java` — the foreground slot and the forced replan on resume.
 - `bot/behavior/reflex/` — the ambient behaviours and their channel gating.
-- `bot/control/Walker.java` — the exit classification and the terminal report.
+- `bot/control/Navigator.java` — the exit classification and the terminal report.
 
 The scenes are in `WorldDriverSchedulerScenes`; the two that matter most are the terminal-report matrix
 and the retreat-gate matrix, both of which run headless.

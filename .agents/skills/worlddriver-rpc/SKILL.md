@@ -15,7 +15,7 @@ description: >-
   start, so new keys must be set over RPC). Don't hand-roll a websocket client or
   guess the wire format, method names, or params — they're all in this skill.
   This is for INVOKING the live mod, NOT for editing its Java
-  (BotConfig/method contracts/Walker), writing gametests, or standing up your own MCP
+  (BotConfig/method contracts/Navigator), writing gametests, or standing up your own MCP
   server.
 ---
 
@@ -71,7 +71,7 @@ python3 .claude/skills/worlddriver-rpc/rpc.py --batch - <<'EOF'
 mc.action.runCommand {"cmd":"give @p minecraft:stone 64"}
 mc.action.runCommand {"cmd":"tp @p 20 -60 0"}
 mc.action.runCommand {"cmd":"fill 16 149 -1 20 149 1 minecraft:stone"}
-mc.bot.setting {"op":"patch","values":{"allowParkourPlace":true,"walkerDebug":true}}
+mc.bot.setting {"op":"patch","values":{"allowParkourPlace":true,"navigatorDebug":true}}
 EOF
 ```
 

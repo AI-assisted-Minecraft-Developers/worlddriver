@@ -6,7 +6,7 @@ package net.magicterra.worlddriver.bot.control.act;
  * to the body afterwards, once.
  *
  * <p>A push is kept in the world's frame, not the camera's. A body moves relative to where it faces at
- * the moment it integrates the input, and the walker turns the head after the drive has computed its
+ * the moment it integrates the input, and the navigator turns the head after the drive has computed its
  * push — the pre-dig aim is the standing example — so a camera-relative push recorded early was carried
  * off by the later turn. Kept in the world frame, the push lands along the bearing it was computed for,
  * whatever the head does afterwards.

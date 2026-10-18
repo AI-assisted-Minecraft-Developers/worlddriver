@@ -15,11 +15,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
 import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.hasPendingEdge;
-import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.game.body.BotUtil.eyeWithin;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 
 /**
  * A parkour leap that places its own landing block mid-air (Baritone allowParkourPlace), owned whole so the
@@ -44,29 +44,29 @@ public final class ParkourPlace implements Controller {
     /** Bounded by the action timeout. */
     @Override public int maxTicks() { return Integer.MAX_VALUE; }
 
-    @Override public String whyNot(Walker wk, WalkerTickCtx cx, WorldView world) {
-        Move.Edge edge = wk.route.edgeAt(wk.route.step());
+    @Override public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
+        Move.Edge edge = nav.route.edgeAt(nav.route.step());
         if (edge == null || edge.move == null || !edge.move.startsWith("parkourPlace")) return "not a parkour-place edge";
         if (!hasPendingEdge(world, edge) && cx.frame.p.onGround()) return "landed on the placed block";
         return null;
     }
 
-    @Override public boolean canContinue(Walker wk, WalkerTickCtx cx, WorldView world) {
-        return whyNot(wk, cx, world) == null;
+    @Override public boolean canContinue(Navigator nav, TickCtx cx, WorldView world) {
+        return whyNot(nav, cx, world) == null;
     }
 
-    @Override public boolean tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    @Override public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
         LivingEntity p = cx.frame.p;
-        Move.Edge edge = wk.route.edgeAt(wk.route.step());
-        BlockPos dest = wk.route.path().get(wk.route.step());
+        Move.Edge edge = nav.route.edgeAt(nav.route.step());
+        BlockPos dest = nav.route.path().get(nav.route.step());
         BlockPos floor = edge.toPlace.get(0);
         boolean placed = !hasPendingEdge(world, edge);   // landing block is down
         boolean grounded = p.onGround();
-        wk.totalTicks = 0;
-        wk.stuckTicks = 0;       // owns this cell while leaping — not "stuck"
-        if (++wk.actionTicks > ControlConfig.breakTimeoutTicks) {
-            wk.error = "parkour-place stalled at " + dest;
-            wk.route.drop(wk.error);
+        nav.totalTicks = 0;
+        nav.stuckTicks = 0;       // owns this cell while leaping — not "stuck"
+        if (++nav.actionTicks > ControlConfig.breakTimeoutTicks) {
+            nav.error = "parkour-place stalled at " + dest;
+            nav.route.drop(nav.error);
             return true;
         }
         // Snap heading at the destination — can't course-correct mid-air.
@@ -81,20 +81,20 @@ public final class ParkourPlace implements Controller {
         }
         p.setXRot(0f);
         Keys.forward(a, true);
-        wk.keys.jump(a, !placed && grounded);   // jump off the lip once
+        nav.keys.jump(a, !placed && grounded);   // jump off the lip once
         boolean sprint = !placed;                          // brake after the block is down
         p.setSprinting(sprint);
         Keys.sneak(a, placed);               // sneak-brake / ledge-guard on landing
         p.setShiftKeyDown(placed);
-        if (!placed && !grounded && wk.equipment.holdPlaceable()) {
+        if (!placed && !grounded && nav.equipment.holdPlaceable()) {
             // 4.0, not the full blockReachToCentre(p): this fires MID-LEAP, so the eye read
             // here is already a tick stale by the time the place lands. The margin is bought
             // on purpose — see BotUtil#standingEye for the table of what each reach site pays.
             if (eyeWithin(p, floor, PARKOUR_PLACE_REACH)) {
-                wk.blocks.place(world::isSolid, floor);
-                if (GameConfig.walkerDebug)
+                nav.blocks.place(world::isSolid, floor);
+                if (GameConfig.navigatorDebug)
                     LOG.info(
-                            "[walker] parkour-place floor={},{},{} y={} dy={} solid={}",
+                            "[navigator] parkour-place floor={},{},{} y={} dy={} solid={}",
                             floor.getX(), floor.getY(), floor.getZ(),
                             String.format(Locale.ROOT, "%.2f", p.getY()),
                             String.format(Locale.ROOT, "%.2f", p.getDeltaMovement().y),

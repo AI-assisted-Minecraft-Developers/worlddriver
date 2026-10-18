@@ -10,8 +10,8 @@ import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerSettings;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.RouteParams;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
@@ -44,7 +44,7 @@ import net.minecraft.world.phys.AABB;
 /**
  * The constraint layer of route selection on a headless server-side player: a {@code route} object
  * goes through {@link RouteParams#parse} exactly as {@code mc.bot.goto} would send it, the resulting
- * {@link SearchProfile} is searched with the same {@link SearchScope#gather} snapshot the walker
+ * {@link SearchProfile} is searched with the same {@link SearchScope#gather} snapshot the navigator
  * takes, and the assertions read the route. Runs on every topology (the verb layer above it,
  * {@code wd.clientRoute*}, only where the client half is), which is why the parser is covered here
  * rather than in the client scenes.
@@ -52,8 +52,8 @@ import net.minecraft.world.phys.AABB;
  * <p>Arenas are built from {@code origin.y + 40} like the Bias family; mobs are {@code NoAi} and
  * persistent, and every scene first waits until the level's entity index can answer for them (a
  * freshly force-loaded chunk holds the entity before it can be queried — the CombatSense lesson).
- * Baseline pinned; nothing here digs or places. The last scene walks a real {@link Walker} and changes
- * the arena under it, which is the walker's side of the same question: a route chosen on yesterday's
+ * Baseline pinned; nothing here digs or places. The last scene walks a real {@link Navigator} and changes
+ * the arena under it, which is the navigator's side of the same question: a route chosen on yesterday's
  * blocks.
  */
 public final class WorldDriverRouteScenes implements SceneProvider {
@@ -97,7 +97,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         ctx.await(() -> level.getEntitiesOfClass(Mob.class, box).size() >= n).within(200).then(then);
     }
 
-    /** A finder over {@code profile} with the walker's own snapshot source, the bot excluded. */
+    /** A finder over {@code profile} with the navigator's own snapshot source, the bot excluded. */
     private static PathFinder finder(ServerLevel level, ServerPlayer body, LevelWorldView w, SearchProfile profile) {
         return new PathFinder(w, profile)
                 .withScopeSource((s, g, p) -> SearchScope.gather(level, body.getId(), s, g, p))
@@ -341,7 +341,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
     }
 
     /**
-     * A wall goes up across the route well ahead of the walking bot, out of its reach. The walker must
+     * A wall goes up across the route well ahead of the walking bot, out of its reach. The navigator must
      * replan on the change itself, while it is still far from the wall rather than after walking into
      * it, and then walk around. Dig and place are off so the way around is the only way.
      */
@@ -359,34 +359,34 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker(WalkerSettings.named("scene"));
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator(NavigatorSettings.named("scene"));
+        navigator.start(new Goal.Block(goal));
         boolean walled = false;
         double replannedAtX = Double.NaN;
         Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < 600 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
-            if (!walled && walker.pathLen() > 0 && fp.getX() >= buildAtX) {
+            if (!walled && navigator.pathLen() > 0 && fp.getX() >= buildAtX) {
                 for (int dz = -2; dz <= 2; dz++)
                     for (int dy = 1; dy <= 3; dy++)
                         level.setBlockAndUpdate(new BlockPos(wallX, y + dy, cz + dz), Blocks.STONE.defaultBlockState());
                 walled = true;
             }
-            if (walled && Double.isNaN(replannedAtX) && walker.inspect().tallies().blockReplans > 0) replannedAtX = fp.getX();
+            if (walled && Double.isNaN(replannedAtX) && navigator.inspect().tallies().blockReplans > 0) replannedAtX = fp.getX();
         }
         ctx.record("walk", String.format(Locale.ROOT, "status=%s at %.2f,%.2f,%.2f, wall at x=%d built when the bot passed x=%d, "
                         + "replanned at x=%.2f, %s", s, fp.getX(), fp.getY(), fp.getZ(), wallX, buildAtX, replannedAtX,
-                walker.inspect().tallies()));
+                navigator.inspect().tallies()));
         ctx.check(walled).as("A: the bot started walking and the wall went up behind its back").isTrue();
         ctx.check(!Double.isNaN(replannedAtX) && replannedAtX < wallX - 6)
-                .as(String.format(Locale.ROOT, "B: the walker replanned for the wall while more than 6 blocks short of it: replanned at x=%.2f, wall at x=%d",
+                .as(String.format(Locale.ROOT, "B: the navigator replanned for the wall while more than 6 blocks short of it: replanned at x=%.2f, wall at x=%d",
                         replannedAtX, wallX)).isTrue();
-        // Within a block and a half, not REACHED: after the detour the walker spends the last node a block
+        // Within a block and a half, not REACHED: after the detour the navigator spends the last node a block
         // short and slides the rest of the way, which is its own open question and not this scene's.
         double off = Math.hypot(fp.getX() - (goal.getX() + 0.5), fp.getZ() - (goal.getZ() + 0.5));
         ctx.check(s != Locomotor.Status.FAILED && fp.getX() > wallX + 1 && off <= 1.5)
                 .as(String.format(Locale.ROOT, "C: the bot walked around the wall and stopped %.2f blocks from the goal: %s %s",
-                        off, s, walker.result().reason())).isTrue();
+                        off, s, navigator.result().reason())).isTrue();
     }
 }

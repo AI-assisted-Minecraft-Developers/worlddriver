@@ -39,7 +39,7 @@ public final class BotUtil {
      * The cell an entity's position floors into — the bot's answer to "which cell is the bot in".
      *
      * <p>This exact expression was written out inline in a dozen places (BotApiImpl,
-     * ClutchController ×2, WalkerTickPrelude, Backfill/Bridge/Farm/Mine ×3/Sleep, RetreatChain)
+     * ClutchController ×2, PreludePhase, Backfill/Bridge/Farm/Mine ×3/Sleep, RetreatChain)
      * while this helper already existed — a dozen hand-written floors is a dozen chances for the
      * next one to be written differently, and "the cell the bot is in" is precisely the quantity
      * this repo has been bitten by having two answers to.
@@ -122,7 +122,7 @@ public final class BotUtil {
      * {@link GameConfig#smoothLookDegPerTick} when {@link GameConfig#smoothLook}
      * is on; otherwise snap straight to the target (current behavior). Valid for
      * both yaw (wraps mod 360) and pitch (no wrap within ±90). Used by the
-     * pathfinding Walker and the LookProcess; functional aiming snaps by calling
+     * pathfinding Navigator and the LookProcess; functional aiming snaps by calling
      * the rotation setters directly instead of going through here.
      */
     public static float smoothAngle(float cur, float target) {
@@ -164,7 +164,7 @@ public final class BotUtil {
      * <p><b>{@link FluidTags#LAVA}, never {@code Fluids.LAVA}.</b> {@code FluidState.is(Fluid)}
      * compares the exact fluid type, and a lava lake's EDGE and its falls are {@code FLOWING_LAVA}
      * — under the type compare every flowing cell read as "not a hazard", so {@code canStandAt}
-     * admitted feet-in-lava nodes, {@code dangerCost} charged nothing and the walker's
+     * admitted feet-in-lava nodes, {@code dangerCost} charged nothing and the navigator's
      * {@code hazardAhead} brake stayed blind (round54: the bot waded 6 s through a lava shore at
      * full sprint, enteredLava ×2). Fixing that meant editing the same four lines in three files;
      * that is the whole argument for this method.
@@ -247,7 +247,7 @@ public final class BotUtil {
      * <p>Cell-shaped, deliberately: this decides where to SEND a bot, before it is there. Whether
      * a bot already standing somewhere is actually supported is a different question with a
      * different answer — the bot is 0.6 wide and can be held by a neighbour cell — and it belongs
-     * to {@code WalkerGeometry.soleOnSolid}. Do not use one for the other.
+     * to {@code NavigatorGeometry.soleOnSolid}. Do not use one for the other.
      *
      * <p><b>It has no hazard clause, and the paragraphs above account for every divergence except
      * that one.</b> {@code WorldView.canStandAt} — the pathfinder's own answer to this same
@@ -260,7 +260,7 @@ public final class BotUtil {
      *       passes all three clauses here and is refused there.</li>
      * </ul>
      * That is the validation-cell-vs-execution-cell shape this repo keeps paying for: the one
-     * consumer that hands the result straight to the Walker — {@link #findStandAdjacent} →
+     * consumer that hands the result straight to the Navigator — {@link #findStandAdjacent} →
      * {@code GoalResolver.findNearestStandForBlock} → {@code Goal.Block} — picks a cell A* can
      * never expand, so the goal is unreachable by construction and the run burns its node budget
      * on best-effort paths instead of failing. {@code MineProcess} is the only caller that noticed;
@@ -401,7 +401,7 @@ public final class BotUtil {
      * <tr><td>{@code ServerPlayerBody.canBreakFromHere} — <b>the authority</b>, and where
      *     {@link #blockReachToCentre} came from</td><td>the real eye</td>
      *     <td>{@code blockInteractionRange() + 0.5}</td></tr>
-     * <tr><td>{@code WalkerTickPrelude} dig-claim release</td><td>the real eye</td>
+     * <tr><td>{@code PreludePhase} dig-claim release</td><td>the real eye</td>
      *     <td>{@link #blockReachToCentre} — a release gate must match the actuator exactly,
      *     or it either abandons reachable blocks or holds unreachable ones</td></tr>
      * <tr><td>{@code MineProcess.findReachStand}</td><td>this hypothetical eye</td>
@@ -540,7 +540,7 @@ public final class BotUtil {
      * Walk the last fraction of a cell to the stand's centre before placing, or report that the
      * bot is already centred enough to click.
      *
-     * <p>{@code WalkerConstants.REACH_DIST_SQ = 0.45} lets a walk ARRIVE ~0.67 short of the stand cell's
+     * <p>{@code NavigatorConstants.REACH_DIST_SQ = 0.45} lets a walk ARRIVE ~0.67 short of the stand cell's
      * centre. Even sneaking — hull half-width 0.3 — that is not enough clearance from the placement
      * target when the stand is adjacent to it, and vanilla's {@code Level.isUnobstructed} refuses.
      * So the last quarter of a block is walked here, by the placer, rather than asked of the

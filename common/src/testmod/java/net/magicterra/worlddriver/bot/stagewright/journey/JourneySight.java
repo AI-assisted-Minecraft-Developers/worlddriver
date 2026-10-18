@@ -28,7 +28,7 @@ import net.minecraft.world.phys.Vec3;
  * {@code (foot.x + 0.5, foot.y + float + eyeHeight, foot.z + 0.5)} — the exact centre of the cell,
  * at a height guessed by adding a whole block when the cell holds fluid. A real bot is at neither.
  * A player's box is 0.6 wide, so its centre rests anywhere in {@code [0.2, 0.8]} of its own cell —
- * the walker leaves it wherever the last path edge ended, which {@link JourneyRamp}'s own approach
+ * the navigator leaves it wherever the last path edge ended, which {@link JourneyRamp}'s own approach
  * note already measured from the other side (exact position of the bot: 6.60/57.00/17.78) — and a bot in
  * one block of water floats a third of a block, not a whole one.
  *
@@ -54,7 +54,7 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p>{@link #ANYWHERE} means the line survives every corner of the bot's own footprint and both
  * heights a bot in fluid can sit at; {@link #CENTRE_ONLY} means it holds from the ideal point and
- * from nowhere else, which is a coin toss the walker gets to call. The caller keeps the second as a
+ * from nowhere else, which is a coin toss the navigator gets to call. The caller keeps the second as a
  * place to WALK to — refusing it outright would leave a bot with nowhere to go, and the {@code
  * .picks} gate still refuses to spend the bucket — but it is no answer to the question "is a raise
  * needed", where the cost of a wrong yes is the cell.

@@ -14,7 +14,7 @@ import net.magicterra.worlddriver.config.WorldConfig;
  * higher. The block under the feet must be solid (the support we click) and
  * the head cell two above must be clear, or breakable (then mined first so
  * there's room to rise). Lets A* <em>gain</em> height to reach a goal above,
- * the vertical counterpart to {@link BridgePlace}. Executed by the Walker's
+ * the vertical counterpart to {@link BridgePlace}. Executed by the Navigator's
  * jump-place actuator, which owns the airborne timing.
  *
  * <p><b>The gate on the first line of {@link #eval} is not the gate that actuator uses.</b>
@@ -33,8 +33,8 @@ import net.magicterra.worlddriver.config.WorldConfig;
  * </ul>
  * On a client the planner is therefore STRICTER than the actuator on both axes at once: a bot
  * carrying only sand and gravel, or with its cobble stranded in slot 9, makes {@code canPlace()}
- * false and A* emits no pillar edge at all — while {@code WalkerTickDrive} and
- * {@code WalkerTickStallDetect} pillar out of exactly that situation, which is why both gate on
+ * false and A* emits no pillar edge at all — while {@code DrivePhase} and
+ * {@code StallDetectPhase} pillar out of exactly that situation, which is why both gate on
  * {@code holdPillarBlock} and say "not world.canPlace" in as many words. Stricter is the safe
  * direction here (a route never found, rather than one that cannot be walked), so this is a note
  * and not a fix: closing it means handing the planner the executor's predicate, which changes what
@@ -99,7 +99,7 @@ public final class PillarUp extends Move {
         // oak_leaves canopy gap is the canonical case — caps the jump below the
         // place height (head jams on the neighbour leaf at +2), so the pillar
         // never reaches `place.y + 1` and bobs forever. Pre-list such breakables
-        // so the Walker clears a player-wide channel before jumping. A SOLID,
+        // so the Navigator clears a player-wide channel before jumping. A SOLID,
         // UNBREAKABLE neighbour is left alone — a centred player clears it, and
         // breaking the whole world to insure against drift would explode the
         // search. Gated on allowBreak (demo-safe movement breaks nothing) and

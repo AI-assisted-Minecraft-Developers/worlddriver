@@ -10,9 +10,9 @@ import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
-import net.magicterra.worlddriver.bot.control.WalkerExpectAlarms;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
+import net.magicterra.worlddriver.bot.control.ExpectAlarms;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
@@ -31,16 +31,16 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * Coverage-wave scenes (task#95b): arenas whose PURPOSE is to exercise Walker execution
+ * Coverage-wave scenes (task#95b): arenas whose PURPOSE is to exercise Navigator execution
  * paths the outcome-focused families never enter, so the aggressive refactor (task#96)
  * has a regression net over them. Each scene still asserts a real behavioural outcome —
  * coverage without an assertion is not a sensor.
  *
- * <p>Waves 1–2: {@code wd.debugSweepCourse} (walk/step-up/dig with {@code walkerDebug=true}),
- * {@code ad.expectAlarmSlowDig} ({@code walkerExpectAlarm=true} DIG observers over a bare-hand
+ * <p>Waves 1–2: {@code wd.debugSweepCourse} (walk/step-up/dig with {@code navigatorDebug=true}),
+ * {@code ad.expectAlarmSlowDig} ({@code navigatorExpectAlarm=true} DIG observers over a bare-hand
  * obsidian dig — the whole observer class was 1/112 branches before; also the scene that
  * caught the LocalPlayer-on-dedicated-server crash), {@code wd.drownEscapeSurface}
- * (walkerDrowningEscape surface-for-air override), {@code wd.bestEffortSpliceCourse}
+ * (navigatorDrowningEscape surface-for-air override), {@code wd.bestEffortSpliceCourse}
  * (starved node budget → best-effort commit + continuation splice), and
  * {@code wd.ascendMovementStairs} (task#82 AscendMovement delegation, flag-ON).
  *
@@ -64,7 +64,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 Scene.of("wd.aboveNodeStallPitFill", 700, WorldDriverCoverageScenes::aboveNodeStallPitFill),
                 Scene.of("wd.verticalResyncSlideBack", 700, WorldDriverCoverageScenes::verticalResyncSlideBack),
                 Scene.of("wd.stepUpBackoffCeiling", 700, WorldDriverCoverageScenes::stepUpBackoffCeiling),
-                // Asks whether WalkerTickProgress may call a pillarUp step finished while the cell
+                // Asks whether ProgressPhase may call a pillarUp step finished while the cell
                 // its edge is supposed to fill is still open water. It may not: both phases now
                 // read one shared answer (WalkerTickClimb.floodedShaft), so Progress's arrival gate
                 // demands onGround() on a water-SURFACE cell and the pointer waits for the support.
@@ -79,7 +79,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
     }
 
     /** Walk (+x) → step-up onto a +1 plateau → dig through a 2-tall dirt wall → goal,
-     *  all with {@code walkerDebug=true}: the per-tick trace and the walk/step/dig debug
+     *  all with {@code navigatorDebug=true}: the per-tick trace and the walk/step/dig debug
      *  branches execute on a course whose outcome is still asserted (ARRIVED at the
      *  plateau goal, wall actually broken). */
     private static void debugSweepCourse(SceneContext ctx) {
@@ -99,7 +99,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
 
@@ -109,11 +109,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         fp.getInventory().clearContent();
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
-        for (; t < 400 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
+        for (; t < 400 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                 && fp.getY() >= standY + 1 - 0.4;
@@ -122,16 +122,16 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         WorldDriverCommon.LOG.warn("[wd.debugSweepCourse] step={} ticks={} pos={},{},{} wallBreached={}",
                 s, t, fp.getX(), fp.getY(), fp.getZ(), wallBreached);
         if (!reached)
-            ctx.fail("debugSweepCourse: walker (walkerDebug=true) failed the walk/step/dig course: step="
+            ctx.fail("debugSweepCourse: navigator (navigatorDebug=true) failed the walk/step/dig course: step="
                     + s + " pos=" + fp.position() + " wallBreached=" + wallBreached);
     }
 
     /** JUMP-noRise observer rig: a clean +1 step-up course is PLANNED first; once the
      *  bot closes on the riser a bedrock CEILING is slammed over the launch cell, so
      *  every step-up jump is height-capped (peak < +0.75 in the 8-tick watch) —
-     *  JUMP-noRise fires ({@link WalkerExpectAlarms#FIRED}); the ceiling is then lifted
-     *  and the walker must still finish ARRIVED on the plateau. Three prior shapes were
-     *  defeated by the stack itself: (v1) wall slam → walker re-routed around and off the
+     *  JUMP-noRise fires ({@link ExpectAlarms#FIRED}); the ceiling is then lifted
+     *  and the navigator must still finish ARRIVED on the plateau. Three prior shapes were
+     *  defeated by the stack itself: (v1) wall slam → navigator re-routed around and off the
      *  floor edge; (v2) bare-hand obsidian → the planner's tool-capability gate rejects
      *  unharvestable break edges (no dig ever starts); (v3) plank wall → DEDICATED-server
      *  avatar digs are INSTANT (1 tick, no hold), so the DIG-hold observers
@@ -152,7 +152,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ControlConfig.walkerExpectAlarm = true;
+        ControlConfig.navigatorExpectAlarm = true;
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
 
@@ -162,9 +162,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         fp.getInventory().clearContent();
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        int firedBefore = WalkerExpectAlarms.FIRED.get();
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        int firedBefore = ExpectAlarms.FIRED.get();
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         boolean capped = false;
@@ -178,16 +178,16 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 3, cz + dz), Blocks.BEDROCK.defaultBlockState());
                 capped = true;
             }
-            if (capped && !lifted && WalkerExpectAlarms.FIRED.get() > firedBefore) {
+            if (capped && !lifted && ExpectAlarms.FIRED.get() > firedBefore) {
                 for (int dz = -5; dz <= 5; dz++)
                     for (int dx = -1; dx <= 0; dx++)
                         level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 3, cz + dz), Blocks.AIR.defaultBlockState());
                 lifted = true;
             }
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
         }
-        int fired = WalkerExpectAlarms.FIRED.get() - firedBefore;
+        int fired = ExpectAlarms.FIRED.get() - firedBefore;
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                 && fp.getY() >= standY + 1 - 0.4;
@@ -195,15 +195,15 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 s, t, fired, capped, lifted, reached);
         if (fired == 0)
             ctx.fail("expectAlarmBlockedJump: no alarm fired under a jump-capping ceiling: t=" + t + " step=" + s
-                    + " lastError=" + walker.result().reason() + " endReason=" + walker.result().endReason()
-                    + " lastStats=" + WalkerTelemetry.of(fp).lastStats + " capped=" + capped
+                    + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason()
+                    + " lastStats=" + NavigatorTelemetry.of(fp).lastStats + " capped=" + capped
                     + " pos=" + fp.position());
         if (!reached)
-            ctx.fail("expectAlarmBlockedJump: walker never finished after the ceiling lifted: step="
+            ctx.fail("expectAlarmBlockedJump: navigator never finished after the ceiling lifted: step="
                     + s + " capped=" + capped + " lifted=" + lifted + " pos=" + fp.position());
     }
 
-    /** Drowning-escape probe (walkerDrowningEscape): the avatar starts at the BOTTOM of a
+    /** Drowning-escape probe (navigatorDrowningEscape): the avatar starts at the BOTTOM of a
      *  4-deep pool with its air nearly gone (40/300) while the goal sits on the far dry
      *  rim. The escape latch (air ≤ 60 while submerged) must override route-following
      *  with the surface-for-air climb until air recovers, and the run must still end
@@ -235,7 +235,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ControlConfig.walkerDrowningEscape = true;   // pinnedBaseline() turns it off for arenas
+        ControlConfig.navigatorDrowningEscape = true;   // pinnedBaseline() turns it off for arenas
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
 
@@ -246,8 +246,8 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         fp.setAirSupply(40);
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         // FakePlayer air does NOT tick (damage-immune family, #47/#55) — drive the air
         // simulation manually per tick, the same idiom as wd.drownEscapePreempt: −1/tick
@@ -256,7 +256,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         int minAir = airSim, maxAir = airSim;
         int t = 0;
         for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             airSim = fp.isEyeInFluid(FluidTags.WATER)
                     ? Math.max(airSim - 1, -20) : Math.min(airSim + 4, 300);
@@ -272,18 +272,18 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             ctx.fail("drownEscapeSurface: avatar drowned (minAir=" + minAir + ", alive=" + fp.isAlive() + ")");
         if (maxAir < 200)
             ctx.fail("drownEscapeSurface: air never recovered (maxAir=" + maxAir + "): t=" + t + " step=" + s
-                    + " lastError=" + walker.result().reason() + " endReason=" + walker.result().endReason()
+                    + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason()
                     + " pos=" + fp.position() + " eyeInWater=" + fp.isEyeInFluid(FluidTags.WATER)
                     + " blockAtFeet=" + level.getBlockState(fp.blockPosition())
                     + " blockAtEye=" + level.getBlockState(BlockPos.containing(fp.getEyePosition())));
         if (!reached)
-            ctx.fail("drownEscapeSurface: walker did not finish the crossing after surfacing: step="
+            ctx.fail("drownEscapeSurface: navigator did not finish the crossing after surfacing: step="
                     + s + " pos=" + fp.position());
     }
 
     /** Best-effort / continuation-splice course: a 20-block corridor with the A* node
      *  budget pinned far below what the distance needs, so every search returns a
-     *  best-effort PARTIAL segment — the walker must commit to it, launch continuation
+     *  best-effort PARTIAL segment — the navigator must commit to it, launch continuation
      *  searches from the committed end, splice them, and still finish ARRIVED. Covers the
      *  pathBestEffort / commitEnd / searchFromEnd / pendingSegment machinery that clean
      *  arenas (full-path searches) never touch. */
@@ -311,24 +311,24 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         fp.getInventory().clearContent();
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
-        for (; t < 600 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
+        for (; t < 600 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
         WorldDriverCommon.LOG.warn("[wd.bestEffortSpliceCourse] step={} ticks={} pos={}", s, t, fp.position());
         if (!reached)
-            ctx.fail("bestEffortSpliceCourse: walker failed the corridor under a starved node budget "
+            ctx.fail("bestEffortSpliceCourse: navigator failed the corridor under a starved node budget "
                     + "(best-effort/splice machinery): step=" + s + " pos=" + fp.position());
     }
 
-    /** task#82 per-move delegation course: {@code walkerAscendMovement=true} (the live default
+    /** task#82 per-move delegation course: {@code navigatorAscendMovement=true} (the live default
      *  since B1-3 2026-07-20; pinned ON here explicitly because the scene rides the arena
      *  baseline) over a 4-rung +1 staircase — the AscendMovement machine drives every
      *  dry step-up while the legacy drive stays in place, and the run must end ARRIVED on
-     *  the top landing. Covers the WalkerTickDrive delegation branch + the AscendMovement
+     *  the top landing. Covers the DrivePhase delegation branch + the AscendMovement
      *  machine body (3/16 branches before this scene). */
     private static void ascendMovementStairs(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -344,7 +344,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ControlConfig.walkerAscendMovement = true;
+        ControlConfig.navigatorAscendMovement = true;
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
 
@@ -354,11 +354,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         fp.getInventory().clearContent();
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
-        for (; t < 400 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
+        for (; t < 400 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                 && fp.getY() >= standY + 4 - 0.4;
@@ -370,13 +370,13 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
     // ---------------------------------------------------------------- wave 3 ----
 
-    /** Boxed-pocket churn + blacklist/escalation arming (WalkerTickStallDetect anti-churn
-     *  block + WalkerTickPrelude steep-barrier arming + the escalated BotConfig.pf*
+    /** Boxed-pocket churn + blacklist/escalation arming (StallDetectPhase anti-churn
+     *  block + PreludePhase steep-barrier arming + the escalated BotConfig.pf*
      *  getters + both window-shortening flags): the goal sits behind a bedrock pocket
      *  that is COMPLETELY sealed except its west mouth — no around-route exists — so the
      *  horizon-committed search drives the bot in and it churns at the dead end until the
      *  anti-churn escape fires (blacklist charge + sticky escalation, observed via
-     *  {@link WalkerInspector#progressProbe}). Once TWO churn windows have fired (charge widened,
+     *  {@link NavigatorInspector#progressProbe}). Once TWO churn windows have fired (charge widened,
      *  escalation re-armed), the east wall is OPENED and the run must still end ARRIVED
      *  through it. The mutation gate is deliberate: three self-escape geometries (v3-v6)
      *  were each defeated by the stack itself — an around-corridor within ~3 blocks of
@@ -424,17 +424,17 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         // Horizon soft-commit (the live boxed-pocket mechanism): a short receding horizon
         // best-effort-commits INTO the pocket (nearest-to-goal frontier is the dead end).
         // maxNodes starvation was tried and starves the escape too (v1/v2 postmortems).
         PlanningConfig.pathfinderHorizonBlocks = 8;
-        ControlConfig.walkerFasterChurnRepath = true; // 240t churn window
-        ControlConfig.walkerWallCornerFastChurn = true; // hCol-pinned press → 160t window
+        ControlConfig.navigatorFasterChurnRepath = true; // 240t churn window
+        ControlConfig.navigatorWallCornerFastChurn = true; // hCol-pinned press → 160t window
         // In a TRULY sealed pocket the futile-search cap (5 consecutive no-progress
         // searches → FAILED, gap#49-③) races the churn windows and won in v6 (t=279).
         // This scene is about the churn machinery, so give the cap headroom.
-        ControlConfig.walkerFutileSearchCap = 60;
+        ControlConfig.navigatorFutileSearchCap = 60;
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
 
@@ -444,8 +444,8 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         fp.getInventory().clearContent();
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         boolean enteredPocket = false;
@@ -453,13 +453,13 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         int churnSeen = 0;
         StringBuilder trace = new StringBuilder();
         for (; t < 1400 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             if (fp.getX() > cx + 1 && Math.abs(fp.getZ() - (cz + 0.5)) < 2.5)
                 enteredPocket = true;
             // The churn counter is package-private; the probe string is the sensor.
             java.util.regex.Matcher m = java.util.regex.Pattern.compile("churnEsc=(\\d+)")
-                    .matcher(walker.inspect().progressProbe());
+                    .matcher(navigator.inspect().progressProbe());
             if (m.find()) churnSeen = Math.max(churnSeen, Integer.parseInt(m.group(1)));
             if (!released && churnSeen >= 2) {
                 // Two churn windows fired (charge widened + escalation re-armed) — open
@@ -472,7 +472,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             }
             if (t % 100 == 0)
                 trace.append(String.format(java.util.Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
-                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, walker.inspect().progressProbe()));
+                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, navigator.inspect().progressProbe()));
         }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
@@ -481,21 +481,21 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         if (!enteredPocket)
             ctx.fail("boxedChurnEscalate: rig broken — the horizon-committed search never entered the pocket: "
                     + "origin=" + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
-                    + " lastError=" + walker.result().reason() + " endReason=" + walker.result().endReason()
-                    + " lastStats=" + WalkerTelemetry.of(fp).lastStats + " trace=" + trace);
+                    + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason()
+                    + " lastStats=" + NavigatorTelemetry.of(fp).lastStats + " trace=" + trace);
         if (churnSeen < 2)
             ctx.fail("boxedChurnEscalate: churn escape fired " + churnSeen + "×(<2) in a sealed pocket: "
                     + "origin=" + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
-                    + " lastError=" + walker.result().reason() + " endReason=" + walker.result().endReason()
-                    + " lastStats=" + WalkerTelemetry.of(fp).lastStats + " trace=" + trace);
+                    + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason()
+                    + " lastStats=" + NavigatorTelemetry.of(fp).lastStats + " trace=" + trace);
         if (!reached)
-            ctx.fail("boxedChurnEscalate: walker never finished after the wall release: churnSeen=" + churnSeen
+            ctx.fail("boxedChurnEscalate: navigator never finished after the wall release: churnSeen=" + churnSeen
                     + " released=" + released + " origin=" + cx + "," + cz + " step=" + s + " t=" + t
-                    + " pos=" + fp.position() + " lastError=" + walker.result().reason()
-                    + " endReason=" + walker.result().endReason() + " trace=" + trace);
+                    + " pos=" + fp.position() + " lastError=" + navigator.result().reason()
+                    + " endReason=" + navigator.result().endReason() + " trace=" + trace);
     }
 
-    /** Progressive quick-start stub (Walker.tryQuickStart + the tryLandBeeline REJECT
+    /** Progressive quick-start stub (Navigator.tryQuickStart + the tryLandBeeline REJECT
      *  path): a 2-cell-away bedrock wall kills the same-Y land bee-line (< BEELINE_MIN_STEPS
      *  before the wall), and {@code pathfinderSliceMs=0} keeps the big sliced search in
      *  flight across ticks — so the pre-path branch must fall through the bee-line to the
@@ -526,7 +526,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         // BOTH slice knobs must be pinned: with path==null the search runs at
         // max(pathfinderSliceMs, pathfinderIdleSliceMs) — v1-v4 pinned only the walking
         // slice, the 30ms idle slice finished the big search ON TICK 1 and the
@@ -542,8 +542,8 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         fp.getInventory().clearContent();
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         StringBuilder trace = new StringBuilder();
@@ -552,11 +552,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             // pinned ticks are ample for it (stub adoption is tick-1). Then restore the
             // slice budgets so the big search can actually LAND and supersede the stub.
             if (t == 40) { ControlConfig.pathfinderSliceMs = 6; ControlConfig.pathfinderIdleSliceMs = 30; }
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             if (t % 60 == 0)
                 trace.append(String.format(java.util.Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
-                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, walker.inspect().progressProbe()));
+                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, navigator.inspect().progressProbe()));
         }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
@@ -564,8 +564,8 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         if (!reached)
             ctx.fail("quickStartStub: sliced-search course failed (quick-start/beeline pre-path family): origin="
                     + cx + "," + cz + " step=" + s + " t=" + t + " pos=" + fp.position()
-                    + " lastError=" + walker.result().reason() + " endReason=" + walker.result().endReason()
-                    + " lastStats=" + WalkerTelemetry.of(fp).lastStats + " trace=" + trace);
+                    + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason()
+                    + " lastStats=" + NavigatorTelemetry.of(fp).lastStats + " trace=" + trace);
     }
 
     /** Shared slide-back rig: the bot climbs a committed narrow staircase (dz −1..1);
@@ -605,8 +605,8 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         fp.getInventory().clearContent();
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         boolean cut = false;
@@ -627,36 +627,36 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                             level.setBlockAndUpdate(new BlockPos(cx + i, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
                 cut = true;
             }
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             if (t % 100 == 0)
                 trace.append(String.format(java.util.Locale.ROOT, " t%d:(%.1f,%.1f,%.1f)[%s]",
-                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, walker.inspect().progressProbe()));
+                        t, fp.getX() - cx, fp.getY() - standY, fp.getZ() - cz, navigator.inspect().progressProbe()));
         }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                 && fp.getY() >= standY + 3 - 0.4;
         if (!cut)
             return "rig broken — the bot never climbed the narrow stairs (no cut): step=" + s
-                    + " t=" + t + " pos=" + fp.position() + " lastError=" + walker.result().reason()
-                    + " endReason=" + walker.result().endReason() + " trace=" + trace;
+                    + " t=" + t + " pos=" + fp.position() + " lastError=" + navigator.result().reason()
+                    + " endReason=" + navigator.result().endReason() + " trace=" + trace;
         if (!reached)
             return "no recovery to the side staircase after the slide-back: step=" + s
-                    + " t=" + t + " pos=" + fp.position() + " lastError=" + walker.result().reason()
-                    + " endReason=" + walker.result().endReason() + " lastStats=" + WalkerTelemetry.of(fp).lastStats
+                    + " t=" + t + " pos=" + fp.position() + " lastError=" + navigator.result().reason()
+                    + " endReason=" + navigator.result().endReason() + " lastStats=" + NavigatorTelemetry.of(fp).lastStats
                     + " trace=" + trace;
         WorldDriverCommon.LOG.warn("[ad.slideBackCourse] step={} ticks={} pos={}", s, t, fp.position());
         return null;
     }
 
-    /** walkerAscentRamJitterImmune fold on the slide-back rig: the committed stepUp node
+    /** navigatorAscentRamJitterImmune fold on the slide-back rig: the committed stepUp node
      *  sits ≥2 above the dropped bot, rawStepDwell passes RAM_JITTER_RECOVER_TICKS (30)
      *  long before the 100t wedge burst → fold → re-route → ARRIVED on the plateau. */
     private static void ascentRamSlideBack(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = true;
-        ControlConfig.walkerAscentRamJitterImmune = true;
+        GameConfig.navigatorDebug = true;
+        ControlConfig.navigatorAscentRamJitterImmune = true;
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
         String err = slideBackCourse(ctx, 900);
@@ -697,8 +697,8 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         fp.getInventory().clearContent();
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         boolean filled = false;
@@ -714,62 +714,62 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 }
                 filled = true;
             }
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
         }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
         if (!filled)
             return "rig broken — the bot never reached the west rim (no fill): step=" + s + " t=" + t
-                    + " pos=" + fp.position() + " lastError=" + walker.result().reason()
-                    + " endReason=" + walker.result().endReason() + " lastStats=" + WalkerTelemetry.of(fp).lastStats;
+                    + " pos=" + fp.position() + " lastError=" + navigator.result().reason()
+                    + " endReason=" + navigator.result().endReason() + " lastStats=" + NavigatorTelemetry.of(fp).lastStats;
         if (!reached)
             return "no recovery off the buried node: step=" + s + " t=" + t + " pos=" + fp.position()
-                    + " lastError=" + walker.result().reason() + " endReason=" + walker.result().endReason();
+                    + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason();
         WorldDriverCommon.LOG.warn("[ad.pitFillCourse] step={} ticks={} pos={}", s, t, fp.position());
         return null;
     }
 
-    /** walkerAboveNodeStallRecover fold (C26-J3 blind spot): the pit-fill course leaves the
+    /** navigatorAboveNodeStallRecover fold (C26-J3 blind spot): the pit-fill course leaves the
      *  bot grounded EXACTLY 2 above its committed node with no hCol ram; the fold must fire
      *  at noStepProg>90 (before the 100t wedge burst) and the re-route must finish the
-     *  crossing. walkerVerticalResync stays at its default OFF so this scene pins the
+     *  crossing. navigatorVerticalResync stays at its default OFF so this scene pins the
      *  above-node branch alone. */
     private static void aboveNodeStallPitFill(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = true;
-        ControlConfig.walkerAboveNodeStallRecover = true;   // pinnedBaseline turns it off
+        GameConfig.navigatorDebug = true;
+        ControlConfig.navigatorAboveNodeStallRecover = true;   // pinnedBaseline turns it off
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
         String err = pitFillCourse(ctx, 700);
         if (err != null) ctx.fail("aboveNodeStallPitFill: " + err);
     }
 
-    /** walkerVerticalResync fold (vertical dead zone, |Δy| ≥ 2 EITHER sign): the
+    /** navigatorVerticalResync fold (vertical dead zone, |Δy| ≥ 2 EITHER sign): the
      *  slide-back rig with ONLY the resync flag on — after the cut the bot stands on
      *  open floor (no hCol; v1's 1×1-hole pit rig failed because the bot simply dove
      *  into the hole and futile-search FAILED), its committed node 2–3 above, horizontal
      *  cur2 wandering through the (REACH_DIST_SQ, OVERSHOOT_RESYNC_SQ) band as it presses
      *  toward the vanished riser — the exact dead-zone signature; fires at noStepProg>24.
-     *  walkerAscentRamJitterImmune stays default-OFF so the resync branch is the one that
+     *  navigatorAscentRamJitterImmune stays default-OFF so the resync branch is the one that
      *  folds. */
     private static void verticalResyncSlideBack(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = true;
-        ControlConfig.walkerVerticalResync = true;
+        GameConfig.navigatorDebug = true;
+        ControlConfig.navigatorVerticalResync = true;
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
         String err = slideBackCourse(ctx, 900);
         if (err != null) ctx.fail("verticalResyncSlideBack: " + err);
     }
 
-    /** walkerStepUpBackoffRetry (grind-press signature): the blocked-jump ceiling rig with
+    /** navigatorStepUpBackoffRetry (grind-press signature): the blocked-jump ceiling rig with
      *  the backoff flag ON instead of the alarms — under the cap every step-up jump is
      *  height-killed, the bot ends grounded + momentum-less pressed at the riser
      *  (stuckTicks>15, flatDist<1.1) → the 12t straight-back drive arms and executes
-     *  (WalkerTickRepath backoff branch). The ceiling lifts on a tick countdown (the
+     *  (RepathPhase backoff branch). The ceiling lifts on a tick countdown (the
      *  backoff state is package-private) and the run must still end ARRIVED on the
      *  plateau. */
     private static void stepUpBackoffCeiling(SceneContext ctx) {
@@ -784,8 +784,8 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = true;
-        ControlConfig.walkerStepUpBackoffRetry = true;   // pinnedBaseline turns it off
+        GameConfig.navigatorDebug = true;
+        ControlConfig.navigatorStepUpBackoffRetry = true;   // pinnedBaseline turns it off
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
 
@@ -795,8 +795,8 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         fp.getInventory().clearContent();
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         boolean capped = false;
@@ -815,7 +815,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                     for (int dx = -1; dx <= 0; dx++)
                         level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 3, cz + dz), Blocks.AIR.defaultBlockState());
             }
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
         }
         boolean reached = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
@@ -826,9 +826,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             ctx.fail("stepUpBackoffCeiling: rig broken — the bot never approached the riser: step=" + s
                     + " t=" + t + " pos=" + fp.position());
         if (!reached)
-            ctx.fail("stepUpBackoffCeiling: walker never finished after the ceiling lifted: step=" + s
+            ctx.fail("stepUpBackoffCeiling: navigator never finished after the ceiling lifted: step=" + s
                     + " t=" + t + " cappedTicks=" + cappedTicks + " pos=" + fp.position()
-                    + " lastError=" + walker.result().reason() + " endReason=" + walker.result().endReason());
+                    + " lastError=" + navigator.result().reason() + " endReason=" + navigator.result().endReason());
     }
 
     /**
@@ -840,9 +840,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
      *
      * <pre>
      * WalkerTickClimb:872-877   shaftFlooded = isWater(path.get(step));
-     *                           if (shaftFlooded &amp;&amp; walkerPillarSurfacePlace
+     *                           if (shaftFlooded &amp;&amp; navigatorPillarSurfacePlace
      *                                   &amp;&amp; !isWater(path.get(step).above())) shaftFlooded = false;
-     * WalkerTickProgress:549    shaftFlooded = "pillarUp".equals(se.move) &amp;&amp; isWater(path.get(step));
+     * ProgressPhase:549    shaftFlooded = "pillarUp".equals(se.move) &amp;&amp; isWater(path.get(step));
      * </pre>
      *
      * <p>Progress has no carve-out. So on a water SURFACE cell — destination water, air directly
@@ -858,18 +858,18 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
      * arena measures, not a fact it may lean on. The reason is geometric and is spelled out beside
      * the plan below: a pillarUp's destination is always support+1, so "high enough for vanilla to
      * accept the placement" and "standing on the destination" are the same inequality — and with a
-     * plan that ended at that destination, Progress (Walker:2373) returned ARRIVED before Climb
-     * (Walker:2374) ever ran on the only tick that could have placed anything.
+     * plan that ended at that destination, Progress (Navigator:2373) returned ARRIVED before Climb
+     * (Navigator:2374) ever ran on the only tick that could have placed anything.
      *
      * <p><b>Why no gate has ever seen this.</b> {@code applyGameTestBaseline()} sets
-     * {@code walkerPillarSurfacePlace = false}, and {@code pinnedBaseline()} — which every scene
+     * {@code navigatorPillarSurfacePlace = false}, and {@code pinnedBaseline()} — which every scene
      * calls — runs it. With the flag off the carve-out is dead code, the two sides agree by
      * construction, and a scene written for the divergence would pass while testing nothing. So this
      * one turns the flag back ON, the way {@code wd.drownEscapeSurface} does for its own. Production
      * runs with it ON ({@code BotConfig:2090}); the suite is the odd world, not the live one.
      *
      * <p><b>The gate is about the POINTER, not about the climb.</b> Whether a fake player's buoyancy
-     * lifts it is a physics question this arena does not settle; whether the walker may declare the
+     * lifts it is a physics question this arena does not settle; whether the navigator may declare the
      * step finished while the support cell is still open water is not. So a player that simply fails
      * to rise leaves the run {@code WALKING} and is REPORTED — that is a different finding and must
      * not print as this one.
@@ -893,7 +893,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ControlConfig.walkerPillarSurfacePlace = true;   // pinnedBaseline() turns it off for arenas
+        ControlConfig.navigatorPillarSurfacePlace = true;   // pinnedBaseline() turns it off for arenas
         WorldConfig.allowPlace = true;                 // ditto, and the subject here IS a placement
         WorldConfig.allowBreak = false;
         // Also baseline-disabled (BotConfig:2326 production ON, :2968 arena OFF). Production runs
@@ -907,7 +907,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // and the destination IS water, so the third term exempts it from needing a support ⇒
         // canStandAt(dest) is true ⇒ snapGoalToStandable returns on its own first line. Confirmed
         // by walk.goalSnapped=false. The real cause was the plan's shape (see the plan below).
-        ControlConfig.walkerPillarReachGoalNoSnap = true;
+        ControlConfig.navigatorPillarReachGoalNoSnap = true;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -926,8 +926,8 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         if (w.isWater(dest.above()))
             ctx.fail("surfacePillar: " + dest.above().toShortString() + " is water, so this is a FLOODED shaft, "
                     + "not a water-surface shaft; the carve-out condition does not hold and the assertion degenerates to 0==0.");
-        if (!ControlConfig.walkerPillarSurfacePlace)
-            ctx.fail("surfacePillar: walkerPillarSurfacePlace is off, so the WalkerTickClimb carve-out is "
+        if (!ControlConfig.navigatorPillarSurfacePlace)
+            ctx.fail("surfacePillar: navigatorPillarSurfacePlace is off, so the WalkerTickClimb carve-out is "
                     + "dead code and the two phase classes must agree by construction.");
 
         // TWO pillar steps, not one, and the second is what makes the first observable.
@@ -936,7 +936,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // ALWAYS support+1. Vanilla will not place into a cell the player's AABB still overlaps
         // (Level#isUnobstructed), so the placement needs p.getY() >= support.getY()+1.0 — and that
         // is the same inequality as "the player's block position is the destination", i.e. ARRIVAL.
-        // Walker.tickInner runs WalkerTickProgress (2373) BEFORE WalkerTickClimb (2374) and returns
+        // Navigator.tickInner runs ProgressPhase (2373) BEFORE WalkerTickClimb (2374) and returns
         // on the first non-null, so on the first tick the player is high enough to place, Progress
         // returns ARRIVED and the climb phase does not run at all. A plan ENDING at the pillar's
         // destination therefore cannot ever witness its own placement — not because of buoyancy or
@@ -949,32 +949,32 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         List<BlockPos> plan = sp.nodes();
         List<Move.Edge> edges = sp.edges();
 
-        Walker walker = new Walker();
-        // GOAL FIRST, then adopt. {@code start} nulls path and edges (Walker:783-785), so adopting
-        // before it hands the walker a plan and then throws that plan away. And ticking with NO goal
-        // is not an option either: the per-tick decisions dereference {@code wk.goal} unguarded, so
+        Navigator navigator = new Navigator();
+        // GOAL FIRST, then adopt. {@code start} nulls path and edges (Navigator:783-785), so adopting
+        // before it hands the navigator a plan and then throws that plan away. And ticking with NO goal
+        // is not an option either: the per-tick decisions dereference {@code nav.goal} unguarded, so
         // the first version of this scene died on tick one with an NPE and never reached a single
         // one of the vacuity gates above — a scene that compiles and asserts nothing.
         // The goal is the CREST, not dest. Goal.Block.reached is exact cell equality, so a goal of
         // dest would terminate the run on the very tick the player first rises clear of the support —
         // the one tick the placement becomes legal — and WalkerTickClimb would never get to run it.
-        walker.start(new Goal.Block(crest));
+        navigator.start(new Goal.Block(crest));
         // goalReached=TRUE, and it is not cosmetic: the 4-arg seam says best-effort, a best-effort
-        // segment is one the walker may replace, and on the first run it did — inside tick ONE it ran
+        // segment is one the navigator may replace, and on the first run it did — inside tick ONE it ran
         // a continuation search, adopted a real path and threw the synthetic pillarUp edge away. The
         // tell was walk.endReason=path-consumed, a class classifyArrival can only return with
         // seg.pathBestEffort FALSE, which the scene's own adopt had set TRUE — so something re-adopted.
         // This plan's last node IS the goal cell, so declaring otherwise was simply wrong.
-        if (!walker.adoptForTest(w, plan, edges, foot, true))
-            ctx.fail("surfacePillar: the walker rejected this two-step pillarUp plan (anchor gate); "
+        if (!navigator.adoptForTest(w, plan, edges, foot, true))
+            ctx.fail("surfacePillar: the navigator rejected this two-step pillarUp plan (anchor gate); "
                     + "none of the rows below describe the subject under test.");
         // The earliest possible second-class gate: BEFORE the first tick, is the subject under the
         // pointer at all? the adoption starts at step 1, so this reads "the pointer is on the pillarUp
         // edge" directly rather than inferring it from the plan's shape. Three runs died upstream of every other
         // guard because nothing asked this one question.
-        if (!"pillarUp".equals(walker.inspect().pathMove()))
-            ctx.fail("surfacePillar: after adopt the pointer is on " + walker.inspect().pathMove() + ", not pillarUp; "
-                    + "the subject under test left the pointer before a single tick ran. probe=" + walker.inspect().progressProbe());
+        if (!"pillarUp".equals(navigator.inspect().pathMove()))
+            ctx.fail("surfacePillar: after adopt the pointer is on " + navigator.inspect().pathMove() + ", not pillarUp; "
+                    + "the subject under test left the pointer before a single tick ran. probe=" + navigator.inspect().progressProbe());
 
         final double startY = fp.getY();
         double maxY = startY;
@@ -987,7 +987,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // and that is deliberate: a placement that lands AFTER the pointer moved on does not undo
         // the advance, it just hides it from a post-hoc read of the world.
         boolean pointerPastUnplaced = false;
-        int maxStep = walker.pathStep();
+        int maxStep = navigator.pathStep();
         Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         for (; t < 200 && s == Locomotor.Status.MOVING; t++) {
@@ -995,18 +995,18 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             // and a tick that executes an edge and then consumes its node leaves the pointer past it —
             // so a post-tick-only sample can miss an edge that was run and immediately consumed. The
             // question is "was pillarUp the edge this tick was about to run", and only this side answers it.
-            if ("pillarUp".equals(walker.inspect().pathMove())) ranPillarUp = true;
-            s = walker.tick(av, w);
+            if ("pillarUp".equals(navigator.inspect().pathMove())) ranPillarUp = true;
+            s = navigator.tick(av, w);
             av.step();
             maxY = Math.max(maxY, fp.getY());
-            if ("pillarUp".equals(walker.inspect().pathMove())) ranPillarUp = true;
+            if ("pillarUp".equals(navigator.inspect().pathMove())) ranPillarUp = true;
             // blocksMotion, not !isAir: the support cell STARTS as water, so "not air" is true
             // from the first tick and would report a placement that never happened.
             if (level.getBlockState(support).blocksMotion()) placed = true;
-            maxStep = Math.max(maxStep, walker.pathStep());
+            maxStep = Math.max(maxStep, navigator.pathStep());
             // Order matters: `placed` is refreshed from the world one line above, so this asks
             // "is the support still open water AT THE MOMENT the pointer sits past its edge".
-            if (walker.pathStep() >= 2 && !placed) pointerPastUnplaced = true;
+            if (navigator.pathStep() >= 2 && !placed) pointerPastUnplaced = true;
         }
 
         ctx.record("pillar.destination", dest.toShortString() + "=" + level.getBlockState(dest).getBlock());
@@ -1036,16 +1036,16 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // An outcome without its reason is not an instrument: an outcome of "ARRIVED, 1/200 ticks"
         // names neither the goal snap nor the repath. lastEndReason is written at every terminal()
         // call site and carries the arrival CLASS, goalSnapped included.
-        ctx.record("walk.endReason", String.valueOf(walker.result().endReason()));
-        ctx.record("walk.goalSnapped", walker.result().goalSnapped());
-        // The plan the walker ENDED with, next to the one this scene handed it. A swap is the single
+        ctx.record("walk.endReason", String.valueOf(navigator.result().endReason()));
+        ctx.record("walk.goalSnapped", navigator.result().goalSnapped());
+        // The plan the navigator ENDED with, next to the one this scene handed it. A swap is the single
         // most likely way this arena stops being about its subject, and inferring it from a terminal
         // class took a full gate run; these two print it.
-        ctx.record("walk.finalPlan", walker.inspect().planTally());
-        ctx.record("walk.progressProbe", walker.inspect().progressProbe());
+        ctx.record("walk.finalPlan", navigator.inspect().planTally());
+        ctx.record("walk.progressProbe", navigator.inspect().progressProbe());
 
         // THE FOURTH VACUITY GATE, and the one the first design was missing. The three above check
-        // the WORLD; none of them checks that the SUBJECT ran. Handing the walker a goal makes it
+        // the WORLD; none of them checks that the SUBJECT ran. Handing the navigator a goal makes it
         // free to repath, and a repath swaps the synthetic pillarUp edge for whatever A* prefers —
         // after which every reading below is about a different move, and the arena goes green while
         // the two phase classes were never asked the question.
@@ -1053,11 +1053,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // least two very different explanations — a repath swapped the edge, or the goal was snapped
         // off the cell before tick one — and the guard below cannot tell them apart. This one reads
         // the snap bit directly, so it must come first.
-        if (walker.result().goalSnapped())
+        if (navigator.result().goalSnapped())
             ctx.fail("surfacePillar: snapGoalToStandable moved the goal from " + dest.toShortString()
-                    + " to a different cell, so the walker is not driving toward the cell under test and every row below "
+                    + " to a different cell, so the navigator is not driving toward the cell under test and every row below "
                     + "describes a different move. This step's destination is unstandable by construction (the support "
-                    + "must be placed by this pillarUp), so walkerPillarReachGoalNoSnap, which exempts it, must be on; "
+                    + "must be placed by this pillarUp), so navigatorPillarReachGoalNoSnap, which exempts it, must be on; "
                     + "the arena baseline turns it off.");
         if (!ranPillarUp)
             ctx.fail("surfacePillar: no tick of this run executed the pillarUp edge, so the criteria below do not "
@@ -1077,12 +1077,12 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // cleared the support, so "can place" and "has arrived" are the same inequality. With a plan that
         // stops at dest, such an assertion cannot be satisfied on any geometry, regardless of buoyancy or water.
         if (pointerPastUnplaced)
-            ctx.fail("the pointer passed a support that was never placed: the walker ended with " + s
+            ctx.fail("the pointer passed a support that was never placed: the navigator ended with " + s
                     + " (highest pointer " + maxStep + "/" + plan.size() + "), while " + support.toShortString()
                     + " is still " + level.getBlockState(support).getBlock() + ", peak y of the bot " + maxY
                     + " (placement threshold " + (support.getY() + 1.0) + "). "
                     + "WalkerTickClimb classifies this as a water-surface shaft that needs a support placed "
-                    + "(walkerPillarSurfacePlace is on), but shaftFlooded in WalkerTickProgress lacks that carve-out "
+                    + "(navigatorPillarSurfacePlace is on), but shaftFlooded in ProgressPhase lacks that carve-out "
                     + "and still treats it as a buoyant pillar, so \"an unfilled place cell is not really pending\": "
                     + "the pointer advanced past a support placement that has not happened yet.");
         if (!placed)

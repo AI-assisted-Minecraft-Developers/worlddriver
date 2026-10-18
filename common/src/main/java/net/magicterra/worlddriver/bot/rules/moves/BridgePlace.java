@@ -18,7 +18,7 @@ import java.util.List;
  * Every node A* reaches already has a real-or-placed block beneath it
  * ({@link WorldView#canStandAt} guarantees it for walked nodes; a preceding
  * BridgePlace placed it for chained ones), and that block is a horizontal
- * neighbour of the gap floor we place — so the Walker's place actuator
+ * neighbour of the gap floor we place — so the Navigator's place actuator
  * always finds a face to click at execution time. Re-checking the immutable
  * view here would reject bridge&nbsp;#2+ (its support is the block #1 just
  * placed, still seen as air), so a single BridgePlace could only ever reach
@@ -34,7 +34,7 @@ public final class BridgePlace extends Move {
         // "standable" only because the vine is climbable, NOT because the bot is grounded on a
         // solid block. A bridge needs a solid foothold to stand on while reaching out to place
         // the next floor block; a bot clinging to a vine has none, and the placed block's only
-        // neighbour (the vine column) isn't a solid face the Walker's place actuator can click,
+        // neighbour (the vine column) isn't a solid face the Navigator's place actuator can click,
         // so the bridge silently no-ops and the bot bob-stalls / drops off the vine (live -711
         // vine-over-water: A* routed parkour→climbUp→bridgePlace off the vine top over the gap;
         // the bridge floor at the gap had no solid support, deadlocking the climb-out). Reject

@@ -36,7 +36,7 @@ public interface BlockInteraction {
      *
      * <p><b>On a client player this alone breaks nothing</b>, and it never did. It is the dig
      * latch ({@code ClientIntents.holdDig}) — what {@link #breakHeld()} answers and what the
-     * walker's tick tail releases — while {@link #continueDestroy(BlockPos)} is what advances the
+     * navigator's tick tail releases — while {@link #continueDestroy(BlockPos)} is what advances the
      * block. Until 2026-09-14 the latch was {@code keyAttack} itself, on the theory that vanilla's
      * {@code tick → continueAttack → continueDestroyBlock} would do the digging; that pipeline is
      * gated on {@code mouseHandler.isMouseGrabbed()}, which a driven client never sets, so vanilla

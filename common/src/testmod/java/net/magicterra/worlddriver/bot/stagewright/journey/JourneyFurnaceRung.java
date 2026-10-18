@@ -111,7 +111,7 @@ final class JourneyFurnaceRung {
      * the stone rung runs and passes with (walk to the column, sink, mine, climb out), on the same
      * surveyed coordinates, so it inherits that rung's corrections rather than re-deriving them:
      * a {@code Goal.XZ} with tolerance 0 because the survey certified one column dry, and
-     * {@code allowPlace=false} through the descent because a paving walker will not sink.
+     * {@code allowPlace=false} through the descent because a paving navigator will not sink.
      *
      * <p><b>The quota is computed, not guessed,</b> because the stone rung already paid for guessing
      * it: "paying the exit out of the furnace's share is what stranded a run at the bottom of its

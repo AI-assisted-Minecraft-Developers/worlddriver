@@ -56,7 +56,7 @@ server, and a scope object holding a `Body` would cause exactly that failure. `W
 and still does not know what a `Level` is.
 
 The scope is supplied to the pathfinder through a function set at the one legitimate construction
-point in the walker and at the preview search. The three debug tools and the unit tests do not set
+point in the navigator and at the preview search. The three debug tools and the unit tests do not set
 it and get an empty scope: no snapshot, a line-of-sight function that always returns true, and
 every new component inert.
 
@@ -140,7 +140,7 @@ not expressible before.
 
 The chain that owns user tasks cancels the running process as the first thing it does, so a preview started
 through it would kill the walk that prompted it — and the whole point is to preview while walking. Preview is
-therefore a separate search driven by the client tick, with its own slice budget, touching neither the walker
+therefore a separate search driven by the client tick, with its own slice budget, touching neither the navigator
 nor the chain, one at a time with the rest queued.
 
 Preview is asynchronous because it has to be: searches are sliced across ticks on the game thread, and reading
@@ -163,7 +163,7 @@ again — is priced per round and should converge in two or three.
 
 ### Adoption feeds the raw search result, not the pretty one
 
-Executing with a plan identifier hands the cached **unsmoothed** A* result to the walker. The preview *displays*
+Executing with a plan identifier hands the cached **unsmoothed** A* result to the navigator. The preview *displays*
 the straightened route, but adoption must not use it: the adoption path straightens again, trims the tail for
 best-effort, and fast-forwards over the prefix already walked, so handing it a straightened route straightens
 twice.
@@ -252,7 +252,7 @@ trims and fast-forwards, so cell-for-cell equality is not a property the design 
   leash and column constraints whose rejoin rule the new ones extend.
 - `bot/rules/modifiers/PreferBreak.java` — the only-add surcharge.
 - `bot/RouteParams.java` — the pure parser, shared by `goto` and `follow`.
-- `bot/PreviewSearch.java` and `Walker.adoptPlan` (`bot/control/route/RouteAdoption.java`) — preview and adoption.
+- `bot/PreviewSearch.java` and `Navigator.adoptPlan` (`bot/control/route/RouteAdoption.java`) — preview and adoption.
 - `bot/behavior/RouteEvents.java` — the three events and the debounce.
 - `bot/SceneOverlays.java` — the sight and mob-density overlays.
 - `mcp/catalog/BotTools.java` — the advertised schema, and the migration note for the removed fields.

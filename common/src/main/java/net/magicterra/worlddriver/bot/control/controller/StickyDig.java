@@ -10,7 +10,7 @@ public final class StickyDig {
     // water) and x5 (airborne) dig penalties MULTIPLICATIVELY — a swimAshoreClimb
     // bank dig needs 450t (dirt) to 3750t (stone, wrong tool). A 150t cap released
     // every such dig with the block still solid, reset progress to zero, and the
-    // walker re-acquired the same cell forever. Tracking the actual destroy
+    // navigator re-acquired the same cell forever. Tracking the actual destroy
     // progress holds while it climbs and releases only on a true stall.
     public float lastProgress;   // last observed vanilla destroyProgress (0..1)
     public int stallTicks;       // consecutive ticks with no progress increase
@@ -20,7 +20,7 @@ public final class StickyDig {
     /**
      * Claim the dig slot for {@code b}. <b>A claim, not a setter.</b>
      *
-     * <p>Two walker phases call this every tick — the travel drive with the cell in its way,
+     * <p>Two navigator phases call this every tick — the travel drive with the cell in its way,
      * the water climb-out with its bank riser — and until 2026-08-22 whoever called LAST won.
      * That is not a preference, it is a data loss: vanilla's {@code MultiPlayerGameMode} can
      * track exactly ONE destroy target, so a switch runs {@code startDestroyBlock} and throws

@@ -5,7 +5,7 @@ package net.magicterra.worlddriver.bot.world;
  * around it: the search's cost model, the swim backstop, the water-bucket clutch.
  *
  * <p>One per {@link WorldView}, so one per bot. These were static flags, and every bot in the JVM
- * wrote the same ones: a server bot's walker digging switched off the client's swim backstop, and a
+ * wrote the same ones: a server bot's navigator digging switched off the client's swim backstop, and a
  * server bot stepping off a ledge armed the client's clutch. The bot clears them near the start of
  * each tick, once its clutch has taken last tick's plan and before its scheduler runs; the writers
  * set them again while they hold.
@@ -16,11 +16,11 @@ public final class MoveSignals {
      *  dive or jump off a cliff to get away. */
     public boolean fleeing;
 
-    /** The walker held a block-break. The swim backstop yields to the dig while air is healthy,
+    /** The navigator held a block-break. The swim backstop yields to the dig while air is healthy,
      *  instead of bobbing the bot and resetting the break progress. */
     public boolean digging;
 
-    /** The walker's surface sprint-swim holds the eyes under on purpose. The swim backstop yields
+    /** The navigator's surface sprint-swim holds the eyes under on purpose. The swim backstop yields
      *  to it while air is healthy, as it does to a dig. */
     public boolean cruising;
 
@@ -28,7 +28,7 @@ public final class MoveSignals {
     private int clutchX;
     private int clutchZ;
 
-    /** The walker is stepping off a lip it planned to clutch a water bucket under, landing on
+    /** The navigator is stepping off a lip it planned to clutch a water bucket under, landing on
      *  column {@code (x, z)}. The bot's clutch takes this at the top of its next tick. */
     public void planClutch(int x, int z) {
         clutchPlanned = true;

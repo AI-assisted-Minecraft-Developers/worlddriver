@@ -10,8 +10,8 @@ import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
 import net.magicterra.worlddriver.bot.rules.moves.Fall;
 import net.magicterra.worlddriver.bot.rules.moves.FallIntoWater;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
@@ -73,7 +73,7 @@ import net.magicterra.worlddriver.game.observe.BuildBlocks;
  *   <li>the {@code gtOnlySkips(...)} probe first line → deleted (the testkit gate
  *       reconciles itself).</li>
  * </ul>
- * The in-body synchronous walker loops are carried over unchanged (they run on the scene's
+ * The in-body synchronous navigator loops are carried over unchanged (they run on the scene's
  * first RUN tick, same as the legacy GameTest shell), so the old/new-shell A/B compares like
  * with like. The legacy determinism AIR-clear boxes are kept verbatim (harmless under grid
  * isolation — the arena rebuilds over them).
@@ -83,7 +83,7 @@ import net.magicterra.worlddriver.game.observe.BuildBlocks;
  *   <li>{@code wd.vineClingFidelityProbe} and {@code wd.vineOverWaterClimb} are legacy
  *       {@code required = false} → migrated {@code .withRequired(false)}. The vine-over-water
  *       arena is the documented <b>live −711,67 bug</b> repro: against the CLEAN baseline
- *       (walkerVineFreeHangClimb OFF) it MUST FAIL, and that optional-FAIL is the proof it
+ *       (navigatorVineFreeHangClimb OFF) it MUST FAIL, and that optional-FAIL is the proof it
  *       reproduces the live wall-less-vine detach. Its RED stays VISIBLE (reported per-run),
  *       never tuned away — marking it required would RED the whole suite. See its own javadoc.</li>
  *   <li>{@code wd.deepWaterClimboutNoBlock} is the shared-player lottery member
@@ -97,7 +97,7 @@ import net.magicterra.worlddriver.game.observe.BuildBlocks;
  *       routed the correct far-lateral exit (the low bank +5 EAST across open water), but the
  *       climb-out executor misread that laterally-distant, only-+1-higher waypoint as a climb-here
  *       intent and trenched the SHEER wall the bot was merely passing. The
- *       {@code walkerWaterClimbLateralGate} invariant (default ON, baseline-EXEMPT) gates the
+ *       {@code navigatorWaterClimbLateralGate} invariant (default ON, baseline-EXEMPT) gates the
  *       climb-out on lateral adjacency, so the bot swims the corridor to the real walk-out. K≥6 A/B
  *       both loaders: gate OFF 6/6 wedge (wallPressTicks 51), gate ON 6/6 ashore (byte-identical
  *       ARRIVED); the other 10 water families are byte-unchanged. See its method javadoc.</li>
@@ -122,7 +122,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                         .withRequired(false),
                 Scene.of("wd.tallBankDigClimb", 200, WorldDriverWaterBankScenes::tallBankDigClimb),
                 Scene.of("wd.waterLowBank", 200, WorldDriverWaterBankScenes::waterLowBank),
-                Scene.of("wd.riverSheerBank", 200, WorldDriverWaterBankScenes::riverSheerBank),   // required (task#91 structural fix: walkerWaterClimbLateralGate)
+                Scene.of("wd.riverSheerBank", 200, WorldDriverWaterBankScenes::riverSheerBank),   // required (task#91 structural fix: navigatorWaterClimbLateralGate)
                 Scene.of("wd.deepWaterCross", 200, WorldDriverWaterBankScenes::deepWaterCross),
                 Scene.of("wd.deepWaterClimboutNoBlock", 200, WorldDriverWaterBankScenes::deepWaterClimboutNoBlock),
                 Scene.of("wd.deepWaterClimboutDrift", 200, WorldDriverWaterBankScenes::deepWaterClimboutDrift),
@@ -210,7 +210,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 sinkDy, riseDy, swimDz, surface);
     }
 
-    /** Ported from {@code AgentGameTestWaterBank#buoyantWallArena}: the REAL {@link Walker} must mount
+    /** Ported from {@code AgentGameTestWaterBank#buoyantWallArena}: the REAL {@link Navigator} must mount
      *  a +5 SHEER wall rising from DEEP water (all buoyant — no dry ledge). Break+place ON. Asserts the
      *  bot reaches the dry plateau behind the wall and the waterline bob stays bounded (≤120 ticks). */
     private static void buoyantWall(SceneContext ctx) {
@@ -261,7 +261,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         // Determinism: A* unbounded by wall-clock (one-shot repath, bounded only by node count).
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
@@ -275,11 +275,11 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         fp.getInventory().selected = 0;
 
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         // This avatar's own counters, so another scene climbing out of water cannot move them.
-        final WalkerTelemetry tel = WalkerTelemetry.of(fp);
+        final NavigatorTelemetry tel = NavigatorTelemetry.of(fp);
         final int engages0 = tel.waterPillarEngages;
         final int bails0 = tel.waterPillarCeilingBails;
 
@@ -288,7 +288,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         boolean everDry = false;
         int bobTicks = 0;                 // ticks stuck in-water below the wall top
         for (int t = 0; t < 800 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             maxY = Math.max(maxY, fp.getY());
             if (fp.onGround() && !fp.isInWater()) everDry = true;
@@ -317,7 +317,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 : tel.waterPillarTopRise + " blocks ("
                         + (5 - tel.waterPillarTopRise) + " blocks short of the ceiling)");
         if (!onPlateau)
-            ctx.fail("buoyantWall: BUOYANT +5 wall: Walker failed to mount from water: pos=("
+            ctx.fail("buoyantWall: BUOYANT +5 wall: Navigator failed to mount from water: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY
                     + " everDry=" + everDry + " step=" + s);
         // Smoothness gate: the over-water diagUp-penalty climbs out with a stable vertical pillar,
@@ -352,7 +352,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
 
         BlockPos vineFoot = new BlockPos(cx, base, cz);
         BlockPos vineMid = new BlockPos(cx, base + 3, cz);
@@ -403,9 +403,9 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
      * −711,67 bug). A free-hanging vine curtain over a 1-deep water pocket; A* routes a parkourAscend2
      * ONTO the vine then a climb up it. On a WALL-LESS vine the path-ahead forward press walks a buoy-free
      * bot horizontally OUT of the column → it detaches into the pocket (the live bob-churn). The fix
-     * ({@code walkerVineFreeHangClimb}) holds JUMP + CENTER-SEEKS the column so it re-centres and tops out.
+     * ({@code navigatorVineFreeHangClimb}) holds JUMP + CENTER-SEEKS the column so it re-centres and tops out.
      *
-     * <p><b>{@code .withRequired(false)} BY DESIGN.</b> Against the CLEAN baseline (walkerVineFreeHangClimb
+     * <p><b>{@code .withRequired(false)} BY DESIGN.</b> Against the CLEAN baseline (navigatorVineFreeHangClimb
      * OFF) this arena MUST FAIL (the bot detaches into the pocket), and that optional-FAIL is the PROOF it
      * reproduces the live −711 bug. Its RED stays VISIBLE (reported per-run), never tuned away — marking it
      * required would RED the whole suite. Run it on demand for the executor-fix A/B; the fix must flip it to
@@ -491,13 +491,13 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         // Determinism: A* unbounded by wall-clock (one-shot repath, bounded only by node count).
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         // Hold the FIRST plan through the whole climb (no periodic repath) so the executor is tested on a
         // FIXED node path — matching the live deterministic A/B (mc.debug.replay replan:false).
-        ControlConfig.walkerRepathEveryTicks = 1_000_000;
+        ControlConfig.navigatorRepathEveryTicks = 1_000_000;
 
         // #1 SILENT-NO-OP GUARD: the vine base MUST be present + climbable, else the repro is vacuous.
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, footY, cz - 1 + 0.5);
@@ -530,8 +530,8 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                     + " has a SOLID horizontal neighbour — the vine is NOT free-hanging, so the repro is"
                     + " vacuous (a wall-press fix would pass this falsely). Check the geometry.");
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
@@ -539,7 +539,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         boolean everInPocket = false;
         int budget = 220;
         for (int t = 0; t < budget && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             maxY = Math.max(maxY, fp.getY());
             if (fp.isInWater() && fp.getY() < vineBaseY) { pocketTicks++; everInPocket = true; }
@@ -610,7 +610,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         // Bound the A* budget (live-realistic): with faithfulBreak ON the plateau goal stays UNREACHABLE for
         // hundreds of ticks, so a small cap gives up fast on the not-yet-reachable goal, as the live client does.
         ControlConfig.pathfinderSliceMs = 20;
@@ -630,14 +630,14 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         fp.getInventory().selected = 0;
 
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
         int t = 0;
         for (; t < 9000 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             maxY = Math.max(maxY, fp.getY());
         }
@@ -645,7 +645,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         WorldDriverCommon.LOG.info("[wd.tallBankDigClimb] step={} ticks={} pos=({},{},{}) maxY={} onPlateau={}",
                 s, t, fp.getX(), fp.getY(), fp.getZ(), maxY, onPlateau);
         if (!onPlateau)
-            ctx.fail("tallBankDigClimb: TOOLLESS +5 STONE wall (slow-mine): Walker failed to dig+mount from water: pos=("
+            ctx.fail("tallBankDigClimb: TOOLLESS +5 STONE wall (slow-mine): Navigator failed to dig+mount from water: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY + " ticks=" + t + " step=" + s);
     }
 
@@ -697,7 +697,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = false;          // live: bot had NO pickaxe → cannot carve the bank
         WorldConfig.allowPlace = true;           // foothold-place is the only climb-out
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each repath completes in one go
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         // Predicate-level guard for the root-cause fix: falling blocks stay rejected, mud accepted.
@@ -720,14 +720,14 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         fp.getInventory().selected = 0;     // holding sand (non-usable) like live
 
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
         int bobTicks = 0;                  // ticks floating below the bank top
         for (int tt = 0; tt < 800 && s == Locomotor.Status.MOVING; tt++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             maxY = Math.max(maxY, fp.getY());
             if (fp.isInWater() && fp.getY() < bankTop) bobTicks++;
@@ -736,7 +736,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         WorldDriverCommon.LOG.info("[wd.waterLowBank] step={} pos=({},{},{}) maxY={} onBank={} bobTicks={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, onBank, bobTicks);
         if (!onBank)
-            ctx.fail("waterLowBank: LOW +2 bank: floating Walker failed to climb out (foothold-place "
+            ctx.fail("waterLowBank: LOW +2 bank: floating Navigator failed to climb out (foothold-place "
                     + "never lifted it): pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
                     + ") maxY=" + maxY + " bobTicks=" + bobTicks + " step=" + s);
     }
@@ -751,8 +751,8 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
      * scene surfaced was a REAL executor gap. Config, geometry and start pose are byte-identical to the
      * legacy twin, which ran green only because concurrent GameTest batches shoved the shared singleton
      * ashore; this scene's serial createUnique player has no such helper and, under the authored default-OFF
-     * baseline {@code pinnedBaseline()} zeroes (walkerBankDig*, walkerBuoyantSearchFromSurface,
-     * walkerSwimAshorePillarDespiteDeepDig, walkerFloatingBankBobFreeze, …), it wedged (step=FAILED,
+     * baseline {@code pinnedBaseline()} zeroes (navigatorBankDig*, navigatorBuoyantSearchFromSurface,
+     * navigatorSwimAshorePillarDespiteDeepDig, navigatorFloatingBankBobFreeze, …), it wedged (step=FAILED,
      * wallPressTicks≈51 — pressing the +5 face, never sliding east).
      *
      * <p><b>Investigation verdict = EXECUTOR-root.</b> Telemetry (committed-path endpoint + climb-engage
@@ -763,7 +763,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
      * of swimming the last few cells to the flat low walk-out. Root: a laterally-DISTANT higher waypoint
      * misread as a climb-HERE intent.
      *
-     * <p><b>Fix = {@code walkerWaterClimbLateralGate}</b> (default ON, deliberately NOT in
+     * <p><b>Fix = {@code navigatorWaterClimbLateralGate}</b> (default ON, deliberately NOT in
      * {@code applyGameTestBaseline()} — a correctness invariant, not a tunable): the floating climb-out
      * (pillar + block-less dig) engages only when the climb waypoint is horizontally BESIDE the bot
      * ({@code WATER_CLIMB_LATERAL_MAX}=2, Chebyshev); a farther higher waypoint is the routed corridor
@@ -827,7 +827,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -843,14 +843,14 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         fp.getInventory().selected = 0;
 
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         Locomotor.Status s = Locomotor.Status.MOVING;
         double maxX = fp.getX();
         int wallPressTicks = 0;     // in-water ticks spent pressed against the SHEER face
         for (int t = 0; t < 1500 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             maxX = Math.max(maxX, fp.getX());
             if (fp.isInWater() && fp.getZ() > cz + 1.2 && fp.getX() < cx + lowBankX - 1)
@@ -861,7 +861,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         WorldDriverCommon.LOG.info("[wd.riverSheerBank] step={} pos=({},{},{}) maxX={} wallPressTicks={} ashore={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxX, wallPressTicks, ashore);
         if (!ashore)
-            ctx.fail("riverSheerBank: open-river sheer bank: Walker never climbed out: pos=("
+            ctx.fail("riverSheerBank: open-river sheer bank: Navigator never climbed out: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxX=" + maxX
                     + " wallPressTicks=" + wallPressTicks + " step=" + s);
     }
@@ -869,7 +869,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
     /** Ported from {@code AgentGameTestWaterBank#deepWaterCrossArena}: deep-water (8-block) open crossing —
      *  a floating bot must swim a long straight channel at the SURFACE and climb out a low far bank, never
      *  diving to the riverbed. Asserts (a) a Fall/FallIntoWater to a submerged bed cell is invalid; (b) the
-     *  Walker crosses the deep channel and climbs out. Break+place ON. */
+     *  Navigator crosses the deep channel and climbs out. Break+place ON. */
     private static void deepWaterCross(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
@@ -916,7 +916,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each repath completes in one go
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -941,13 +941,13 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         if (new Fall(1, 0, 2).valid(w, surfaceCell))
             ctx.fail("deepWaterCross: Fall to a SUBMERGED bed cell must be invalid");
 
-        // (b) Integration: the floating Walker crosses the deep channel and climbs out.
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        // (b) Integration: the floating Navigator crosses the deep channel and climbs out.
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         double maxX = fp.getX();
         for (int t = 0; t < 2000 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             maxX = Math.max(maxX, fp.getX());
         }
@@ -956,7 +956,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         WorldDriverCommon.LOG.info("[wd.deepWaterCross] step={} pos=({},{},{}) maxX={} ashore={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxX, ashore);
         if (!ashore)
-            ctx.fail("deepWaterCross: floating Walker failed to cross the deep channel"
+            ctx.fail("deepWaterCross: floating Navigator failed to cross the deep channel"
                     + " and climb out: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
                     + ") maxX=" + maxX + " step=" + s);
     }
@@ -964,7 +964,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
     /** Ported from {@code AgentGameTestWaterBank#deepWaterClimboutNoBlockArena} (shared-player lottery
      *  member — solo-GREEN this phase; deterministic with the createUnique isolated player). Block-LESS deep-water
      *  +2 bank climb-out: the bot holds only SAND (FallingBlock → no pillar), so the ONLY escape is the
-     *  block-less bank-DIG fallback. Asserts the floating Walker reaches dry land within a bounded budget. */
+     *  block-less bank-DIG fallback. Asserts the floating Navigator reaches dry land within a bounded budget. */
     private static void deepWaterClimboutNoBlock(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
@@ -1012,7 +1012,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
         WorldConfig.allowSwimEscapeBreak = true;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -1028,8 +1028,8 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         fp.getInventory().selected = 0;
 
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         // Block-less, the +2 bank is a dig for both the server-side and the client player now that
         // the planner no longer swims into the air cell above the surface; 200 ticks (10 s) still
@@ -1038,7 +1038,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         int ashoreTick = -1;
         int settle = 0;
         for (int t = 0; t < 200 && (s == Locomotor.Status.MOVING || (s.ended() && settle++ < 20)); t++) {
-            if (s == Locomotor.Status.MOVING) s = walker.tick(av, w);
+            if (s == Locomotor.Status.MOVING) s = navigator.tick(av, w);
             av.step();
             if (ashoreTick < 0 && !fp.isInWater() && fp.onGround()
                     && fp.getX() >= cx + span - 0.5 && fp.getY() >= bankTop + 1 - 0.4) {
@@ -1106,7 +1106,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
         WorldConfig.allowSwimEscapeBreak = true;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -1123,12 +1123,12 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         fp.setDeltaMovement(0, 0, 0.45);                        // lateral shove → drift along the face
 
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         int ashoreTick = -1;
         for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             if (ashoreTick < 0 && !fp.isInWater() && fp.onGround() && fp.getY() >= bankTop + 1 - 0.4
                     && fp.getX() >= cx + span - 0.5) {
@@ -1181,7 +1181,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         WorldConfig.allowPlace = false;
         WorldConfig.allowSwimEscapeBreak = false;
         ControlConfig.allowSwimEscapePlace = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -1193,12 +1193,12 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         fp.setDeltaMovement(0.45, 0, 0);           // shove +X straight into the divider
 
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(goal);
+        Navigator navigator = new Navigator();
+        navigator.start(goal);
         Locomotor.Status s = Locomotor.Status.MOVING;
         int reachedTick = -1;
         for (int t = 0; t < 500 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             if (Math.floor(fp.getX()) == cx + 11 && Math.floor(fp.getZ()) == cz) { reachedTick = t; break; }
         }
@@ -1283,7 +1283,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
      * J31 POSITIVE: every place is refused, so the ledger must reach futility and hand the bank to
      * the dig. Pins the player inside the {@code [cell.y+0.9, cell.y+1.0)} band — the crest gate says
      * "go", vanilla says "no" — and asserts {@code pillarNoPlaceTicks} climbs past
-     * {@link WalkerConstants#PILLAR_FUTILE_TICKS} anyway.
+     * {@link NavigatorConstants#PILLAR_FUTILE_TICKS} anyway.
      *
      * <p>Before the fix this could not pass: the click zeroed the counter every tick, so the maximum
      * it ever reached was 1.
@@ -1307,7 +1307,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // fills cells WITHOUT touching pillarNoPlaceTicks. That route would quietly falsify this
         // scene's premise that nothing ever gets placed, and it would also flip the phase-class
         // semantics J24b just settled. One moving part, not three.
-        ControlConfig.walkerPillarSurfacePlace = false;
+        ControlConfig.navigatorPillarSurfacePlace = false;
         // TRUE, explicitly, because the pinned baseline turns it off and the takeover never engages
         // without it. With it off, `deepDig` sends the bank to the dig at stall 21, nine ticks before
         // the pillar may engage at 30. The hand-integrated player bobbed low enough that the dig was
@@ -1315,10 +1315,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // the bank to feet 208.99 over a 208 surface, as the client does, the dig becomes feasible,
         // takes the riser and walks out (`climb-ctx … stall=20 deepDig=true` → `block-less bank dig`,
         // ARRIVED in 55 ticks).
-        // It is also the production default, so this pins the order the walker ships with.
-        ControlConfig.walkerFootholdBeforeBankDig = true;
+        // It is also the production default, so this pins the order the navigator ships with.
+        ControlConfig.navigatorFootholdBeforeBankDig = true;
         // The climb-ctx rows are what told that staging failure apart from a ledger one; keep them.
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -1334,9 +1334,9 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         fp.getInventory().selected = 0;
 
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
-        final WalkerTelemetry tel = WalkerTelemetry.of(fp);
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
+        final NavigatorTelemetry tel = NavigatorTelemetry.of(fp);
         final int engages0 = tel.waterPillarEngages;
         // Without this the scene cannot tell its own two failure modes apart. "The cell never turned
         // solid" is what a refused click leaves behind AND what no click at all leaves behind, and
@@ -1353,9 +1353,9 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         Locomotor.Status s = Locomotor.Status.MOVING;
         int t = 0;
         for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
-            if (walker.inspect().pillarPlaceFutile()) sawFutile = true;
+            if (navigator.inspect().pillarPlaceFutile()) sawFutile = true;
             // TWO PHASES, and the order is the whole staging. Let the bot swim and bob FREELY
             // until the takeover actually engages — its entry gate wants a bob-stall below a bank
             // it cannot mount, and a bot held still never accumulates one. Only then start
@@ -1380,7 +1380,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 bandLow = Math.min(bandLow, fp.getY() - top.getY());
                 bandHigh = Math.max(bandHigh, fp.getY() - top.getY());
             }
-            maxNoPlace = Math.max(maxNoPlace, walker.inspect().pillarNoPlaceTicks());
+            maxNoPlace = Math.max(maxNoPlace, navigator.inspect().pillarNoPlaceTicks());
         }
         int engages = tel.waterPillarEngages - engages0;
 
@@ -1394,7 +1394,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.record("band.feetAboveFillCell", String.format("[%.3f, %.3f]", bandLow, bandHigh)
                 + " (old crest gate 0.9 / vanilla acceptance line 1.0)");
         ctx.record("walk.end", s + " (used " + t + "/400 ticks)");
-        ctx.record("walk.probe", walker.inspect().progressProbe());
+        ctx.record("walk.probe", navigator.inspect().progressProbe());
 
         // VACUITY, and this one is load-bearing: with the defect present the counter is 0 because
         // every click zeroes it, and with the takeover never engaged it is 0 because the branch
@@ -1403,7 +1403,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         if (engages == 0)
             ctx.fail("pillarLedger: the water climb-out takeover never engaged — this run never reached"
                     + " the code under test, so a counter of 0 indicates a faulty test setup, not a ledger"
-                    + " defect. probe=" + walker.inspect().progressProbe());
+                    + " defect. probe=" + navigator.inspect().progressProbe());
         if (pinnedAt != null && w.isSolid(pinnedAt))
             ctx.fail("pillarLedger: the pinned cell " + pinnedAt.toShortString() + " became solid — a"
                     + " height of 0.95 should have been refused by Level#isUnobstructed, so the test setup"
@@ -1469,11 +1469,11 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // FALSE for the same reason as the positive scene: this flag does not gate the ledger path,
         // and turning it on adds the :921 crest-place, which fills cells WITHOUT going through the
         // ledger — the one route that would let this scene see a fill it is not measuring.
-        ControlConfig.walkerPillarSurfacePlace = false;
+        ControlConfig.navigatorPillarSurfacePlace = false;
         // TRUE for the same reason as the positive scene: off, the bank dig beats the takeover to the
         // bank and the pumped server-side player walks out before a single place is clicked.
-        ControlConfig.walkerFootholdBeforeBankDig = true;
-        GameConfig.walkerDebug = true;
+        ControlConfig.navigatorFootholdBeforeBankDig = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -1498,9 +1498,9 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         fp.getInventory().selected = 0;
 
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
-        final WalkerTelemetry tel = WalkerTelemetry.of(fp);
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
+        final NavigatorTelemetry tel = NavigatorTelemetry.of(fp);
         final int engages0 = tel.waterPillarEngages;
         final int clicks0 = tel.waterPillarPlaceCalls;
         int filled = 0;
@@ -1526,7 +1526,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             BlockPos top = topWater(w, cx, cz + 1, floorY, surface);
             boolean wasSolidBefore = top == null || w.isSolid(top);
             if (top != null) wasWater.add(top);
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             if (!pinning && tel.waterPillarEngages > engages0) pinning = true;
             if (pinning) {
@@ -1553,12 +1553,12 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 // of it. Also record whether the takeover was still engaged at that moment: every
                 // bail path zeroes the same counter, so a bare 0 does not name its own cause.
                 if (fillPending && ledgerAfterFill < 0) {
-                    ledgerAfterFill = walker.inspect().pillarNoPlaceTicks();
-                    engagedAtRead = walker.inspect().pillarEngaged();
+                    ledgerAfterFill = navigator.inspect().pillarNoPlaceTicks();
+                    engagedAtRead = navigator.inspect().pillarEngaged();
                     fillPending = false;
                 }
                 if (top != null && !wasSolidBefore && w.isSolid(top) && ledgerAtFill < 0) {
-                    ledgerAtFill = walker.inspect().pillarNoPlaceTicks();
+                    ledgerAtFill = navigator.inspect().pillarNoPlaceTicks();
                     fillPending = true;
                 }
             }
@@ -1574,11 +1574,11 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.record("ledger.takeoverEngagedAtRead", engagedAtRead);
         ctx.record("feet.cellYRange", footLow > footHigh ? "never pinned" : "[" + footLow + ", " + footHigh + "]");
         ctx.record("walk.end", s + " (used " + t + "/60 ticks)");
-        ctx.record("walk.probe", walker.inspect().progressProbe());
+        ctx.record("walk.probe", navigator.inspect().progressProbe());
 
         if (engages == 0)
             ctx.fail("pillarLedgerReal: the takeover never engaged — the test setup is wrong, and none of the"
-                    + " rows below describe the subject under test. probe=" + walker.inspect().progressProbe());
+                    + " rows below describe the subject under test. probe=" + navigator.inspect().progressProbe());
         // THE SELF-PROOF, and it must come first: without an observed fill, "the ledger stayed at 0"
         // is satisfied by a run in which nothing whatsoever happened.
         if (filled == 0 || ledgerAfterFill < 0)

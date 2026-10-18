@@ -66,7 +66,7 @@ final class JourneyHands {
      * whatever the client thinks it is looking at. So a server-side aim followed by "settle a couple
      * of ticks, then read" is a write that is guaranteed to be erased before the read.
      *
-     * <p>And the client is not neutral about where it looks: {@code WalkerTickAim} pulls pitch back
+     * <p>And the client is not neutral about where it looks: {@code AimPhase} pulls pitch back
      * toward the horizon every tick it is not bridging or diving. Measured on run 9's rung 11 — a
      * lava source 2.6–3.3 m away and about two blocks BELOW the eye, which wants roughly 30° of
      * down-pitch, was aimed at with a recorded pitch of {@code 0, 0, 20, 4, 2}: two ticks at exactly

@@ -232,7 +232,7 @@ public final class JourneyPortalEntry {
      * The portal cell this exact cell can step sideways into, or null.
      *
      * <p>Asked again after every walk rather than latched, because "reached the doorstep" is a claim
-     * about where the bot ENDED and the walker reports arrival for partial paths. A walk that stopped one cell
+     * about where the bot ENDED and the navigator reports arrival for partial paths. A walk that stopped one cell
      * short of the planned doorstep but landed on a different usable one is a success, and a walk that
      * reports arrival without having moved is not.
      */
@@ -372,7 +372,7 @@ public final class JourneyPortalEntry {
      * yaw computed once is a yaw for where the bot used to be.
      *
      * <p><b>It releases the sneak the walk left behind, and that one line is the difference between
-     * this working and not working at all.</b> {@code WalkerTickDrive} brakes into its goal with
+     * this working and not working at all.</b> {@code DrivePhase} brakes into its goal with
      * {@code avatarSneak(a, brakeSneak)} + {@code p.setShiftKeyDown(brakeSneak)}, and nothing clears
      * either when the process ends — {@code ServerPlayerBody.step} re-applies {@code pendingSneak}
      * on every step, so the flag survives into whatever runs next. Vanilla's
@@ -596,7 +596,7 @@ public final class JourneyPortalEntry {
      *
      * <p>The walks alternate SHAPE because a retry that asks the identical question gets the identical
      * answer. But {@code Goal.XZ} {@link Goal#ignoresY() ignores Y by construction}, so a bot one row
-     * ABOVE the doorstep, in its column, satisfies it where it stands: the walker's own
+     * ABOVE the doorstep, in its column, satisfies it where it stands: the navigator's own
      * {@code goal.reached(foot)} fires on tick one, it returns ARRIVED having moved nothing, and the
      * walk is spent asking something whose answer was already yes. Measured on the ladder
      * (2026-08-20 15:20), doorstep {@code 3,57,20}, bot at {@code 3,58,20}:
@@ -681,7 +681,7 @@ public final class JourneyPortalEntry {
             rig.evidence("portal.walk." + leg, shape + " goal "
                     + door.stand().toShortString() + ": " + here.toShortString() + " → "
                     + at.toShortString() + " (moved " + moved + " blocks, took " + spent + " ticks)"
-                    + " " + JourneyLeg.walkerEnd(rig));
+                    + " " + JourneyLeg.navigatorEnd(rig));
             if (moved == 0) attempt.stillLegs++; else attempt.stillLegs = 0;
             if (attempt.stillLegs >= 2) {
                 neverGotIn(ctx, rig, portal, attempt, "two consecutive walks (one XZ, one 3D) did not"

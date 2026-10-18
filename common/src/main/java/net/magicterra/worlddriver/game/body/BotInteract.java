@@ -89,7 +89,7 @@ public final class BotInteract {
         // way a held button does. Only once the 5-tick destroyDelay the LAST break left behind is
         // burned: startDestroyBlock never reads it, so an instant-break block (and every block in
         // creative) would go one per tick where a held button goes one per six. continueDestroyBlock
-        // is what counts it down; burning it before the cell is reached is WalkerDig.preDigNextBreak's
+        // is what counts it down; burning it before the cell is reached is Digging.preDigNextBreak's
         // job (live cliff stair cuts: 9 ticks for a 3-tick grass block).
         Direction face = BotUtil.faceTowardEye(cell, p);
         boolean ok = mc.gameMode.isDestroying() || mc.gameMode.destroyDelay > 0
@@ -130,7 +130,7 @@ public final class BotInteract {
      * <p><b>The off-thread return is {@link InteractionResult#PASS} and means "deferred", never
      * "refused".</b> Nothing may branch on it. All FOUR call sites discard it today
      * ({@code ClientPlayerBody.placeOn} and {@code useBlock} are {@code void};
-     * {@link #walkerPlace} ignores it; and this method's own {@code mc.execute} re-dispatch below
+     * {@link #navigatorPlace} ignores it; and this method's own {@code mc.execute} re-dispatch below
      * drops the result of the hop by construction) — a caller wanting an outcome must read the
      * world after the round trip, exactly as the ramp does. This said "three" and named three,
      * which is what a grep returning four leaves a reader unable to reconcile; the invariant is
@@ -169,7 +169,7 @@ public final class BotInteract {
         // UNCONDITIONAL, and that is the point. Without this row a ladder could not answer "the run
         // lost ten cobblestone between two rungs — where?", because the only placement path in the
         // game would log nothing at the verbosity a ladder runs at. A reading that exists only under
-        // walkerDebug is a reading the ladder never takes, and a zero-row log then cannot tell "it
+        // navigatorDebug is a reading the ladder never takes, and a zero-row log then cannot tell "it
         // never placed" from "it never printed". Placements are rare enough (a tower course is one)
         // that the volume is not worth the blind spot.
         // The row says neighbour→<what is actually there now>, NOT "landing cell". useItemOn is ONE
@@ -262,7 +262,7 @@ public final class BotInteract {
      *  empty slot, else the held slot) — mirrors the pillar-block reach in
      *  {@link #ensureHoldingPillarBlock}. Without the main-inventory reach a bot whose
      *  crafted pickaxes overflowed the hotbar mines stone BARE-HANDED (5× slower); the
-     *  slow break trips the Walker's stall clock, which re-picks and re-aims at an
+     *  slow break trips the Navigator's stall clock, which re-picks and re-aims at an
      *  adjacent block before the first finishes — the churn of digging a little here and a
      *  little there, with the view moving away before any block breaks (live 2026-07-11: two stone_pickaxes stranded in slots 33/34 while
      *  the bot held cobblestone; the escape carve then timed out on bare-hand stone). */
@@ -378,7 +378,7 @@ public final class BotInteract {
      * {@code holdThrowawayPlaceable()}. An invariant that lives in a predicate almost nobody
      * consults is not an invariant. Measured 2026-08-22 on the real-client ladder, rung 3: 121
      * {@code pillarUp} events, and the run's carried log count fell from 7 to 6 while the rung's own
-     * bill was 8 — the walker was building its scaffolding out of the very thing the rung existed to
+     * bill was 8 — the navigator was building its scaffolding out of the very thing the rung existed to
      * collect, and the rung then failed for being two short.
      *
      * <p>Two passes rather than a ban, because a bot holding nothing but logs must still be able to
@@ -412,7 +412,7 @@ public final class BotInteract {
      *
      * <p>Cheap filler first, gathered resources only as a last resort — see
      * {@link #ensureHoldingPlaceableAny(Minecraft)} for the measurement that made this two passes.
-     * A pillar is the single biggest consumer of blocks the walker has, so this is the site where
+     * A pillar is the single biggest consumer of blocks the navigator has, so this is the site where
      * the gap#81 intent mattered most and was honoured least.
      *
      * <p><b>Both passes reach the main inventory here, and that is the half that matters.</b> The
@@ -531,8 +531,8 @@ public final class BotInteract {
     }
 
     /** Place a block into {@code cell} by clicking the face of a neighbour {@code solid} accepts.
-     *  Used by the Walker's bridge actuator. */
-    public static void walkerPlace(Minecraft mc, LocalPlayer p, Predicate<BlockPos> solid, BlockPos cell) {
+     *  Used by the Navigator's bridge actuator. */
+    public static void navigatorPlace(Minecraft mc, LocalPlayer p, Predicate<BlockPos> solid, BlockPos cell) {
         if (!ensureHoldingPlaceableAny(mc)) return;
         // Prefer placing on top of a block below the cell, then the sides — the
         // support under our feet is adjacent to the gap floor we bridge.

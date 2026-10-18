@@ -8,68 +8,68 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.List;
 
-import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
 
 /**
- * What a walker is doing, read for a diagnosis: the plan, the step it is on, the move entering it and
+ * What a navigator is doing, read for a diagnosis: the plan, the step it is on, the move entering it and
  * the per-tick tags of who jumped, aimed and drove. Every reading here is for a scene's failure message
- * or a status row; none of them is a verdict a caller should branch on — that is {@link Walker#result()}.
+ * or a status row; none of them is a verdict a caller should branch on — that is {@link Navigator#result()}.
  */
-public final class WalkerInspector {
+public final class NavigatorInspector {
 
-    private final Walker wk;
+    private final Navigator nav;
 
-    WalkerInspector(Walker wk) { this.wk = wk; }
+    NavigatorInspector(Navigator nav) { this.nav = nav; }
 
-    /** This walker's own event counts (searches, recovery hops, digs) — see {@link WalkerTallies}. */
-    public WalkerTallies tallies() { return wk.tallies; }
+    /** This navigator's own event counts (searches, recovery hops, digs) — see {@link NavigatorTallies}. */
+    public NavigatorTallies tallies() { return nav.tallies; }
 
     /** Which branch commanded this tick's jump; null when none did. */
-    public String jumpTag() { return wk.jumpTag; }
+    public String jumpTag() { return nav.jumpTag; }
 
     /** This tick's owner of the heading. */
-    public String aimTag() { return wk.aimTag; }
+    public String aimTag() { return nav.aimTag; }
 
     /** This tick's drive command; null when the tick returned before the drive. */
-    public String driveTag() { return wk.driveTag; }
+    public String driveTag() { return nav.driveTag; }
 
     /** Which controller held each channel on the last tick, and why each idle one did not start. */
-    public String channels() { return wk.arbiter.snapshot(); }
+    public String channels() { return nav.arbiter.snapshot(); }
 
     /** The water climb-out's place-futility ledger, for scenes that assert on the FALLBACK rather
      *  than on the climb: {@code > PILLAR_FUTILE_TICKS} is what hands the bank over to the dig.
      *  Exposed because the counter is the subject — a scene that could only watch the bot would
      *  have to distinguish "never gave up" from "gave up and the dig also failed", which look the
      *  same from outside. */
-    public int pillarNoPlaceTicks() { return wk.waterClimb.pillarNoPlaceTicks; }
+    public int pillarNoPlaceTicks() { return nav.waterClimb.pillarNoPlaceTicks; }
 
     /** The verdict that ledger feeds: has the climb-out place been futile long enough to hand this
-     *  bank to the dig? Exposed instead of the raw threshold so {@link WalkerConstants} stays
+     *  bank to the dig? Exposed instead of the raw threshold so {@link NavigatorConstants} stays
      *  package-private — a scene needs the DECISION, not the number behind it. Transient by
      *  nature: the tick it goes true, the takeover releases and zeroes the counter, so a scene
      *  must sample it per tick rather than read it at the end. */
-    public boolean pillarPlaceFutile() { return wk.waterClimb.pillarNoPlaceTicks > PILLAR_FUTILE_TICKS; }
+    public boolean pillarPlaceFutile() { return nav.waterClimb.pillarNoPlaceTicks > PILLAR_FUTILE_TICKS; }
 
     /** Is the climb-out takeover still holding the bot? Exposed because {@link #pillarNoPlaceTicks}
      *  reading zero is AMBIGUOUS on its own: the ledger is zeroed both by a landing (the thing a
      *  scene wants to prove) and by every bail path (WaterClimb releases and resets). A scene
      *  asserting "a real place cleared the counter" has to be able to say the takeover was still
      *  engaged when it read the zero, or a bail one tick earlier answers its question for it. */
-    public boolean pillarEngaged() { return wk.waterClimb.pillaring; }
+    public boolean pillarEngaged() { return nav.waterClimb.pillaring; }
 
     /** Read-only one-line probe of the follow state (step pointer, carrot node,
      *  best-effort/burst/churn/escalation counters) for test-scene diagnostics —
      *  the package-private fields are invisible to testmod scene classes and the
      *  log stream drops lines under load, so failures embed this in ctx.fail. */
     public String progressProbe() {
-        BlockPos wp = wk.route.path() != null && wk.route.step() < wk.route.path().size() ? wk.route.path().get(wk.route.step()) : null;
-        return (wk.route.path() == null ? "path=null" : "step=" + wk.route.step() + "/" + wk.route.path().size()
+        BlockPos wp = nav.route.path() != null && nav.route.step() < nav.route.path().size() ? nav.route.path().get(nav.route.step()) : null;
+        return (nav.route.path() == null ? "path=null" : "step=" + nav.route.step() + "/" + nav.route.path().size()
                 + " wp=" + (wp == null ? "-" : wp.getX() + "," + wp.getY() + "," + wp.getZ())
-                + (wk.route.seg.pathBestEffort ? " bestEffort" : ""))
-                + " recovery=" + wk.recovery.remaining() + " churnEsc=" + wk.stallDetect.churn.escapes
-                + " escal=" + (wk.stallDetect.escal.armed() ? "ON" : "off")
-                + " noStep=" + wk.progress.stepProg.noStepProgressTicks
-                + " digFloat=" + wk.waterClimb.digFloatTicks + " gaveUp=" + wk.waterClimb.pillarGaveUp;
+                + (nav.route.seg.pathBestEffort ? " bestEffort" : ""))
+                + " recovery=" + nav.recovery.remaining() + " churnEsc=" + nav.stallDetect.churn.escapes
+                + " escal=" + (nav.stallDetect.escal.armed() ? "ON" : "off")
+                + " noStep=" + nav.progress.stepProg.noStepProgressTicks
+                + " digFloat=" + nav.waterClimb.digFloatTicks + " gaveUp=" + nav.waterClimb.pillarGaveUp;
     }
 
     /** Ultra-compact per-tick probe for scene kinematics trails: plan identity tag (the
@@ -77,27 +77,27 @@ public final class WalkerInspector {
      *  breach-time {@link #planProbe} is post-facto and fatal windows often straddle a
      *  repath), step pointer, and the current waypoint. */
     public String tickProbe() {
-        if (wk.route.path() == null) return "p#---";
-        BlockPos wp = wk.route.step() < wk.route.path().size() ? wk.route.path().get(wk.route.step()) : null;
-        return "p#" + String.format("%03d", Math.floorMod(System.identityHashCode(wk.route.path()), 1000))
-                + " s" + wk.route.step() + "/" + wk.route.path().size()
+        if (nav.route.path() == null) return "p#---";
+        BlockPos wp = nav.route.step() < nav.route.path().size() ? nav.route.path().get(nav.route.step()) : null;
+        return "p#" + String.format("%03d", Math.floorMod(System.identityHashCode(nav.route.path()), 1000))
+                + " s" + nav.route.step() + "/" + nav.route.path().size()
                 + (wp == null ? "" : " w" + wp.getX() + "," + wp.getY() + "," + wp.getZ())
-                + " st" + wk.stuckTicks + "/" + wk.progress.physStall.stallTicks;
+                + " st" + nav.stuckTicks + "/" + nav.progress.physStall.stallTicks;
     }
 
     /** Read-only compact dump of the CURRENT plan (nodes + move labels) for the same
      *  post-mortem channel as {@link #progressProbe}: "which edge flung the bot" is
      *  unanswerable from the step pointer alone once the plan has been replaced, and
-     *  the [walker] path log line is droppable under end-of-suite load. */
+     *  the [navigator] path log line is droppable under end-of-suite load. */
     public String planProbe() {
-        if (wk.route.path() == null) return "plan=null";
-        StringBuilder sb = new StringBuilder("plan=").append(wk.route.step()).append('/').append(wk.route.path().size());
-        for (int i = 0; i < wk.route.path().size(); i++) {
-            BlockPos n = wk.route.path().get(i);
+        if (nav.route.path() == null) return "plan=null";
+        StringBuilder sb = new StringBuilder("plan=").append(nav.route.step()).append('/').append(nav.route.path().size());
+        for (int i = 0; i < nav.route.path().size(); i++) {
+            BlockPos n = nav.route.path().get(i);
             sb.append(' ').append(i).append(':')
               .append(n.getX()).append(',').append(n.getY()).append(',').append(n.getZ());
-            if (wk.route.edges() != null && i < wk.route.edges().size() && wk.route.edges().get(i) != null)
-                sb.append('[').append(wk.route.edges().get(i).move).append(']');
+            if (nav.route.edges() != null && i < nav.route.edges().size() && nav.route.edges().get(i) != null)
+                sb.append('[').append(nav.route.edges().get(i).move).append(']');
         }
         return sb.toString();
     }
@@ -114,7 +114,7 @@ public final class WalkerInspector {
      * the bot to use. {@code wd.buriedOre}'s fixed staircase audit did exactly that and read seven
      * cells all at {@code z=cz}, while the node the bot could not reach sat at {@code z=cz−1}: the
      * reading was complete, consistent, and blind to the one column that mattered. Nodes come from
-     * {@link Walker#path}, so the audit follows the plan wherever the planner actually put it.
+     * {@link Navigator#path}, so the audit follows the plan wherever the planner actually put it.
      *
      * <p><b>The three outcomes this separates, for a bot stalled before node {@code i}:</b>
      * <ol>
@@ -138,21 +138,21 @@ public final class WalkerInspector {
      * {@link #progressProbe} — the log stream drops lines under end-of-suite load, {@code
      * results.jsonl} does not.
      *
-     * <p>Read-only: takes a {@link BlockGetter}, touches no walker state, and must stay that way.
+     * <p>Read-only: takes a {@link BlockGetter}, touches no navigator state, and must stay that way.
      * It also must be called BEFORE any scene cleanup — a cleanup that fills the arena with AIR
      * makes every node read {@code open} and the audit becomes a very convincing lie.
      */
     public String planCellAudit(BlockGetter lvl) {
         if (lvl == null) return "nodes=none(level=null)";
-        if (wk.route.path() == null) return "nodes=none(plan=null)";
-        if (wk.route.path().isEmpty()) return "nodes=none(plan empty)";
-        StringBuilder sb = new StringBuilder("nodeCount=").append(wk.route.path().size()).append(" step=").append(wk.route.step());
-        for (int i = 0; i < wk.route.path().size(); i++) {
-            BlockPos n = wk.route.path().get(i);
+        if (nav.route.path() == null) return "nodes=none(plan=null)";
+        if (nav.route.path().isEmpty()) return "nodes=none(plan empty)";
+        StringBuilder sb = new StringBuilder("nodeCount=").append(nav.route.path().size()).append(" step=").append(nav.route.step());
+        for (int i = 0; i < nav.route.path().size(); i++) {
+            BlockPos n = nav.route.path().get(i);
             sb.append(" node").append(i).append('=')
               .append(n.getX()).append(',').append(n.getY()).append(',').append(n.getZ());
-            String mv = (wk.route.edges() != null && i < wk.route.edges().size() && wk.route.edges().get(i) != null)
-                    ? String.valueOf(wk.route.edges().get(i).move) : "no edge";
+            String mv = (nav.route.edges() != null && i < nav.route.edges().size() && nav.route.edges().get(i) != null)
+                    ? String.valueOf(nav.route.edges().get(i).move) : "no edge";
             sb.append('[').append(mv).append(']');
             appendCell(sb, lvl, " cell=", n);
             appendCell(sb, lvl, " support=", n.below());
@@ -189,9 +189,9 @@ public final class WalkerInspector {
      * decision under investigation did not consult.
      */
     public String planTerrain(WorldView w) {
-        if (wk.route.path() == null || wk.route.path().isEmpty() || w == null) return "no path";
+        if (nav.route.path() == null || nav.route.path().isEmpty() || w == null) return "no path";
         StringBuilder sb = new StringBuilder();
-        int n = wk.route.path().size();
+        int n = nav.route.path().size();
         int stride = Math.max(1, (n - 1) / 4);
         for (int i = 0; i < n; i += stride) {
             if (sb.length() > 0) sb.append(' ');
@@ -202,7 +202,7 @@ public final class WalkerInspector {
     }
 
     private String sample(WorldView w, int i) {
-        BlockPos c = wk.route.path().get(i);
+        BlockPos c = nav.route.path().get(i);
         BlockPos under = c.below();
         return "[" + i + "]" + c.toShortString()
                 + " cell=" + (w.isSolid(c) ? "solid" : w.isWater(c) ? "water" : "open")
@@ -230,11 +230,11 @@ public final class WalkerInspector {
      * per-cell waypoints and the seven smoothed walks carried the remaining thirty-six.
      *
      * <p>That is the third reading in this family to be mistaken for a distance, after
-     * {@link Walker#pathLen()} (nodes, not blocks) and {@link #pathMove()} (one edge, not the plan). The
+     * {@link Navigator#pathLen()} (nodes, not blocks) and {@link #pathMove()} (one edge, not the plan). The
      * rule they share: <b>ask what a path reading counts before dividing by it.</b>
      */
     public String planTally() {
-        return tallyOf(wk.route.path(), wk.route.edges()) + " reachesGoal=" + !wk.route.seg.pathBestEffort;
+        return tallyOf(nav.route.path(), nav.route.edges()) + " reachesGoal=" + !nav.route.seg.pathBestEffort;
     }
 
     public static String tallyOf(List<BlockPos> nodes, List<Move.Edge> es) {
@@ -259,13 +259,13 @@ public final class WalkerInspector {
      * broke an invariant its own input satisfied. Without this row the smoothed path is the only
      * evidence and it cannot tell them apart.
      */
-    public String rawPlanTally() { return wk.rawPlan == null ? "none" : wk.rawPlan; }
+    public String rawPlanTally() { return nav.rawPlan == null ? "none" : nav.rawPlan; }
 
     /** What the first parkour leap of this walk was launched with. {@code Parkour3} is costed as the
      *  <b>sprint-jump maximum</b>, so {@code sprinting=false} at takeoff means the executor attempted
      *  a leap the planner priced for a run-up it was not allowed to take. Deliberately not read from
      *  {@code onGround}: this bot's is wrong in both directions. */
-    public String parkourTakeoff() { return wk.drive.parkourTakeoff == null ? "none" : wk.drive.parkourTakeoff; }
+    public String parkourTakeoff() { return nav.drive.parkourTakeoff == null ? "none" : nav.drive.parkourTakeoff; }
 
     /**
      * Every cell the plan's straight lines actually cross, for the first few segments — the reading
@@ -283,7 +283,7 @@ public final class WalkerInspector {
      *
      * <h2>Which path this samples, and what a gap does and does not mean</h2>
      *
-     * <b>The CURRENT adopted path</b> — {@link Walker#path}, the same list {@link #planTally()} and
+     * <b>The CURRENT adopted path</b> — {@link Navigator#path}, the same list {@link #planTally()} and
      * {@link #planTerrain} read, in the same statement. There is no second copy: all three are called
      * from one string concatenation in {@code IntentProcess}, so "the emitted plan is all clear" and
      * "the adopted plan has gaps" are statements about the same nodes and the contradiction between
@@ -296,11 +296,11 @@ public final class WalkerInspector {
      * therefore printed beside it, and the gap count must never be read without it.
      */
     public String planSpans(WorldView w, int segments) {
-        if (wk.route.path() == null || wk.route.path().size() < 2 || w == null) return "no path";
+        if (nav.route.path() == null || nav.route.path().size() < 2 || w == null) return "no path";
         StringBuilder sb = new StringBuilder();
-        int last = Math.min(segments, wk.route.path().size() - 1);
+        int last = Math.min(segments, nav.route.path().size() - 1);
         for (int i = 0; i < last; i++) {
-            BlockPos a = wk.route.path().get(i), b = wk.route.path().get(i + 1);
+            BlockPos a = nav.route.path().get(i), b = nav.route.path().get(i + 1);
             int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
             StringBuilder holes = new StringBuilder();
             int nHoles = 0;
@@ -315,7 +315,7 @@ public final class WalkerInspector {
                 if (nHoles <= 6) holes.append(nHoles == 1 ? "" : ",").append(c.toShortString())
                         .append(w.isKnown(c.below()) ? "" : "(unloaded)");
             }
-            Move.Edge into = wk.route.edgeAt(i + 1);
+            Move.Edge into = nav.route.edgeAt(i + 1);
             String move = into == null || into.move == null ? "?" : into.move;
             sb.append(i == 0 ? "" : " ").append("segment").append(i).append(' ')
               .append(a.toShortString()).append("→").append(b.toShortString())
@@ -332,7 +332,7 @@ public final class WalkerInspector {
     }
 
     /** Node the step-pointer currently targets (null when no path / consumed). Test seam. */
-    public BlockPos pathNode() { return (wk.route.path() != null && wk.route.step() >= 0 && wk.route.step() < wk.route.path().size()) ? wk.route.path().get(wk.route.step()) : null; }
+    public BlockPos pathNode() { return (nav.route.path() != null && nav.route.step() >= 0 && nav.route.step() < nav.route.path().size()) ? nav.route.path().get(nav.route.step()) : null; }
 
     /**
      * Name of the move that ENTERS {@link #pathNode()} — {@code walk}, {@code stepDown},
@@ -344,7 +344,7 @@ public final class WalkerInspector {
      * fixes (a planner budget vs. an executor that overshot).
      */
     public String pathMove() {
-        Move.Edge e = wk.route.edgeAt(wk.route.step());
+        Move.Edge e = nav.route.edgeAt(nav.route.step());
         return e == null ? null : e.move;
     }
 

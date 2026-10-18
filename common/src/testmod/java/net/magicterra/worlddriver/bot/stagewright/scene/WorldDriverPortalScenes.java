@@ -24,8 +24,8 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * The N4–N6/N9 portal family, split out of {@link WorldDriverProcessScenes} verbatim so that class
- * fits the 3000-line source budget (the same mechanical seam-split the {@code WalkerTick*} phase
- * classes did for {@code Walker}). Nothing here is new, renamed or reordered: these are the
+ * fits the 3000-line source budget (the same mechanical seam-split the {@code *Phase} phase
+ * classes did for {@code Navigator}). Nothing here is new, renamed or reordered: these are the
  * obsidian-cast, portal-frame, portal-lighting, nether-transit and end-portal scenes, and
  * {@link WorldDriverProcessScenes#scenes()} calls {@link #register} at exactly the position they
  * occupied in the single list.

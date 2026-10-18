@@ -26,7 +26,7 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
  * The beach step runs ONLY when idle: an active process (goto/runAway) drives
  * its own water-escape moves ({@code SwimAshoreBreak}/{@code SwimUpBreak}) and we
  * must not fight its steering. The lift step is unconditional (compatible with a
- * walking Walker — both want the surface).
+ * walking Navigator — both want the surface).
  *
  * <p><b>gap#70 boundary (live death #18), see {@link #drowningSentinel}:</b> the
  * paragraph above is precisely why an IDLE bot got none of this — {@link #tick}
@@ -47,7 +47,7 @@ public final class AutoSwim {
     /** Max horizontal (Chebyshev) rings scanned for a shore when beaching. */
     private static final int SHORE_SCAN_R = 10;
     /** How far above the bot's foot a climbable bank may sit. Capped at 1: the IDLE
-     *  beach step has no foothold-placer (only an active-process Walker does, via the
+     *  beach step has no foothold-placer (only an active-process Navigator does, via the
      *  waterClimb actuator), so a swimming bot can only mount a single +1 step out of
      *  water. Accepting +2..+4 banks made it steer into a sheer 2–4 block face it
      *  can't climb and grind/bob there (drowning risk). Matches the [by-1, by+1] range
@@ -59,16 +59,16 @@ public final class AutoSwim {
      *  active dig (~1 s): the backstop resumes lifting BEFORE the escape chain preempts,
      *  so a dig that runs the lungs down hands over smoothly instead of at the wire. */
     private static final int DIG_AIR_RESERVE = 20;
-    /** Throttle counter for walkerDebug shore logging. */
+    /** Throttle counter for navigatorDebug shore logging. */
     private int dbg = 0;
 
     // Every input below goes through the body's per-tick command channel, never the shared keybinds.
     //
     // Those are the SHARED global keybinds a human's keyboard maps to, and writing them is not merely
     // impolite — it does not work. The client body's AvatarInput runs vanilla's key pass FIRST and then
-    // OVERWRITES forwardImpulse/leftImpulse with whatever the Walker commanded that tick. So every
+    // OVERWRITES forwardImpulse/leftImpulse with whatever the Navigator commanded that tick. So every
     // horizontal key this class pressed was discarded whenever a movement process was active, while
-    // keyJump — which the Walker usually does not command — survived.
+    // keyJump — which the Navigator usually does not command — survived.
     //
     // Measured 2026-08-22 on the integrated (real-client) ladder: a bot submerged at world spawn bobbed
     // between y=61 and y=63 for 7 800 ticks with zero horizontal displacement, the mine process
@@ -82,7 +82,7 @@ public final class AutoSwim {
 
     /** Idle drowning REFLEX — must be called UNCONDITIONALLY every client tick, same as
      *  its predecessor (NOT behind the autoSwim flag: with autoSwim off, an idle bot left
-     *  submerged after a cancelled goto has no walker and no DrowningEscape, and it
+     *  submerged after a cancelled goto has no navigator and no DrowningEscape, and it
      *  drowned silently twice live 2026-07-02).
      *
      *  <p><b>gap#70 (live death #18):</b> this used to be ALARM-only — it computed the
@@ -116,7 +116,7 @@ public final class AutoSwim {
         if (floating) {
             body.commandJump(true);
             floatHeld = true;
-            if (GameConfig.walkerDebug && (dbg++ % 20 == 0))
+            if (GameConfig.navigatorDebug && (dbg++ % 20 == 0))
                 // blockPosition(), not (int) casts — those truncate toward zero, so at x=-9.3 the
                 // row named -9 while the bot was in -10. See LavaProximityEscape's note: the same
                 // pattern there turned "standing on a lava source" into "adjacent to one".
@@ -146,19 +146,19 @@ public final class AutoSwim {
         // executor), as an in-process drowning backstop — never as an unprompted idle behavior.
         if (idle) return;
         // DIG-PRIORITY YIELD (2026-07-21 live, flooded Mountains channel): while the
-        // Walker holds an active block-break this tick and air is still healthy, the
+        // Navigator holds an active block-break this tick and air is still healthy, the
         // whole in-process backstop stands down. Before this gate, deep-ascent had NO
         // air condition — the moment the head was submerged it force-held jump and
         // zeroed every horizontal key EVERY tick, from FULL lungs, bobbing the bot
         // off the dig cell so vanilla reset destroyProgress; the dig looped to the
-        // sticky-dig 4000t cap without ever finishing a single block. The Walker only
+        // sticky-dig 4000t cap without ever finishing a single block. The Navigator only
         // starts underwater digs that fit one breath (breath-feasibility gate in
-        // WalkerDig), so yielding down to the escape floor is safe: below
+        // Digging), so yielding down to the escape floor is safe: below
         // threshold+reserve the backstop resumes, and DrownEscapeChain (bid 500,
         // air<=drownEscapeAirThreshold) remains the untouched hard survival floor.
         if (world.signals().digging
                 && p.getAirSupply() > ControlConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE) return;
-        // Same yield for the Walker's surface sprint-swim cruise: it puts the eyes under on purpose
+        // Same yield for the Navigator's surface sprint-swim cruise: it puts the eyes under on purpose
         // (the prone pose starts only from there) and breathes on its own above this floor; the
         // held jump and the sprint cancel here would undo the pose every stroke.
         if (world.signals().cruising
@@ -192,20 +192,20 @@ public final class AutoSwim {
         if (p.isUnderWater() && world.isWater(new BlockPos(bx, by + 2, bz))) {
             body.commandJump(true);
             // commandMove(0,0) zeroes BOTH impulses, which is what the four cleared direction keys
-            // were for — and unlike them it survives, because it is the same field the Walker's own
+            // were for — and unlike them it survives, because it is the same field the Navigator's own
             // command writes. Sprint is not an input at all: the body sets it on the entity directly.
             body.commandMove(0f, 0f);
             body.commandSprint(false);
             // gap#80: a held sneak SINKS the bot (DrownEscapeChain.tick's own comment) — a
             // concurrently-latched sneak from a prior process would defeat this straight-up climb.
             body.commandSneak(false);
-            if (GameConfig.walkerDebug && (dbg++ % 8 == 0))
+            if (GameConfig.navigatorDebug && (dbg++ % 8 == 0))
                 LOG.info("[autoSwim] deep-ascent straight-up pos={},{},{} air={}",
                         bx, by, bz, p.getAirSupply());
             return;
         }
         int[] dir = nearestShore(world, bx, by, bz);
-        if (GameConfig.walkerDebug && (dbg++ % 8 == 0)) {
+        if (GameConfig.navigatorDebug && (dbg++ % 8 == 0)) {
             LOG.info("[autoSwim] pos={},{},{} under={} onGround={} idle={} shoreDir={}",
                     bx, by, bz, p.isUnderWater(), p.onGround(), idle,
                     dir == null ? "null" : (dir[0] + "," + dir[1]));

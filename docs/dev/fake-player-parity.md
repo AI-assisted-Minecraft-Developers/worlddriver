@@ -16,7 +16,7 @@ it is worse than a missing row, because it is believed.
 
 ## The bots
 
-Everything the walker and the per-verb processes actuate goes through
+Everything the navigator and the per-verb processes actuate goes through
 [`Body`](../../common/src/main/java/net/magicterra/worlddriver/game/body/Body.java), which
 exposes locomotion and the look. What only some bots have is behind one optional per
 capability — `Body.equipment()`, `attack()`, `blockInteraction()`, `bag()` and `menus()`; a
@@ -71,7 +71,7 @@ client-only, and a statement about what "the API" can reach has to say which of 
 routes it means.
 
 **The mob** answers a different question. It is not a player and is not trying to be
-one; what it tests is whether the same walker and the same pathfinder can carry a
+one; what it tests is whether the same navigator and the same pathfinder can carry a
 non-player entity across terrain a player crosses. It has no hands and no menus, and
 the planner is kept from pricing digs and placements by the world view rather than by a
 flag: over a bot that is not a player, every break is priced as impossible and no block
@@ -247,7 +247,7 @@ The two routes described above do not agree here, and the difference is delibera
 `mc.bot.*` verb addressed at a named bot lands in `application/BodyInteractions`, which does what
 the server's packet handlers do with a packet, reach check included: it refuses a use or an
 attack out of range, where a client's equivalent packet would simply be ignored, and swings
-on a consumed action. The `Equipment` / `Attack` / `BlockInteraction` actuators the walker and the processes drive do neither.
+on a consumed action. The `Equipment` / `Attack` / `BlockInteraction` actuators the navigator and the processes drive do neither.
 That asymmetry is the first thing to check when a scene and an API call disagree about
 whether an action was possible.
 
@@ -374,7 +374,7 @@ player from the same cell along the same route with breaking and placing disable
 | Hands and menus | present | absent; a process that needs either refuses on its first tick with `no_hands` | `Accepted` |
 | Planning | breaks and placements are priced normally | the world view prices every break as impossible and counts no placeable blocks | `Accepted` |
 | Climbing out of water | 28 ticks in the scene that measures it | 40 ticks on the same staging | `Approximate`, unattributed |
-| Head direction | follows the look | the look control is off while driven, so each step turns the head to the yaw the walker set | `Accepted` |
+| Head direction | follows the look | the look control is off while driven, so each step turns the head to the yaw the navigator set | `Accepted` |
 | Idling | a bot nothing steps stands still | the same | `Accepted` |
 
 The climb-out gap is the only reading in that set that differs. Across staircase, one-block
@@ -402,7 +402,7 @@ The `wd.mob*` scenes assert arrival only, for the reasons below.
 | Fish, dolphin, guardian, squid, tadpole | — | swim only: water-only strokes, never planned out of the water, walked by `MediumLocomotor` in three dimensions; a goal out of the water fails `no route closer to the goal through water`, and 40 ticks out of the water fails the order | `Accepted` |
 | Parrot, bee, allay, bat, vex, phantom, blaze, ghast | — | fly only, a parrot, a bee, an allay or a blaze too, though they could land: air-only strokes, walked by `MediumLocomotor`; moved by velocity turned toward the input by a fifth of its cruising speed a tick. Cruising speed: a parrot 0.087 blocks a tick, a bee 0.13 (their vanilla full-input speeds), an allay and a blaze 0.11, a bat and a ghast 0.25, a vex and a phantom 0.3, below the vanilla 0.56 and 1.3. With no input it holds its spot in the air. A vex is planned around blocks though it could pass through them | `Accepted` |
 | Body size | one cell wide, two tall | the strokes of a mob that swims or flies check every cell its box covers: a ghast needs a five-wide hole, an elder guardian a three-wide one | `Accepted` |
-| Axolotl, turtle, frog, drowned | — | walk and swim, through the player walker: across a pool they swim on the surface the way a player does | `Accepted` |
+| Axolotl, turtle, frog, drowned | — | walk and swim, through the player navigator: across a pool they swim on the surface the way a player does | `Accepted` |
 | A mob that ignores input | — | 40 ticks of held input that move it nowhere, against no wall, end the order as `unresponsive` | `Accepted` |
 | Refused mobs | — | one with no AI, of a type in `undrivableMobs`, a wither or an ender dragon, is refused by orders and by `/worlddriver mob` | `Accepted` |
 | Parkour gaps | planned when the sprint jump clears them | never planned: the world view says it cannot sprint-jump | `Accepted` |
@@ -417,7 +417,7 @@ The `wd.mob*` scenes assert arrival only, for the reasons below.
 
 - [testing.md](testing.md) — the gates, the topologies, and how coverage is reconciled
   across them.
-- [movement-tick-phases.md](movement-tick-phases.md) — what the walker does with a bot once
+- [movement-tick-phases.md](movement-tick-phases.md) — what the navigator does with a bot once
   it has one.
 - [bot-layering.md](bot-layering.md) — where the bot seam sits among the other layers.
 - [../design/body-abstraction.md](../design/body-abstraction.md) — why there is one bot

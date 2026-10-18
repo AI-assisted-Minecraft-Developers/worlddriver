@@ -2,7 +2,7 @@
 
 Companion to the branch-coverage tooling in `scripts/coverage/` (`report.py` merges JaCoCo
 execution data and digests it per class; `triage.py` sorts the uncovered lines). Every
-entry below names a family of walker-execution branches that the scene arenas **cannot**
+entry below names a family of navigator-execution branches that the scene arenas **cannot**
 exercise, explains why that is structural rather than an omission, and says where the
 branch is exercised instead.
 
@@ -14,17 +14,17 @@ topology. "Hard to rig" is not an exemption.
 
 | Family | Where | Why the arenas cannot reach it | Covered instead by |
 |---|---|---|---|
-| The dig-hold observers, `DIG-slow` and `DIG-dropped` | `WalkerExpectAlarms.tick` | These watch a break action *held* across ticks. A dig by a server-side player on a dedicated server completes in a single tick, so a hold of the length the alarms look for cannot exist in that topology. | Runs with a real client player, where mining is a held action. |
-| The `GEAR-degraded` sentinel | `WalkerExpectAlarms.GearCheck` | The sentinel samples only the client's own player (the `isClientSide()` guard in front of it), and a dedicated server has no such player. | Client runs with `walkerExpectAlarm` enabled. |
-| The wait and arrive branches of the loaded-chunk frontier commit | `Walker.frontierHoldOrArrive`, `WalkerTickSearch` | They need a search that runs out of known terrain at an unloaded-chunk boundary. A scene's arena force-loads its whole grid window, so no such boundary exists inside it. | Long-distance journeys, which cross chunk-load borders routinely. |
-| The creative-flight descent latch | `WalkerTickPrelude` | It requires a player in creative flight. Server-side players never fly — the abilities are off. | Live creative sessions and the debug tooling. |
+| The dig-hold observers, `DIG-slow` and `DIG-dropped` | `ExpectAlarms.tick` | These watch a break action *held* across ticks. A dig by a server-side player on a dedicated server completes in a single tick, so a hold of the length the alarms look for cannot exist in that topology. | Runs with a real client player, where mining is a held action. |
+| The `GEAR-degraded` sentinel | `ExpectAlarms.GearCheck` | The sentinel samples only the client's own player (the `isClientSide()` guard in front of it), and a dedicated server has no such player. | Client runs with `navigatorExpectAlarm` enabled. |
+| The wait and arrive branches of the loaded-chunk frontier commit | `Navigator.frontierHoldOrArrive`, `SearchPhase` | They need a search that runs out of known terrain at an unloaded-chunk boundary. A scene's arena force-loads its whole grid window, so no such boundary exists inside it. | Long-distance journeys, which cross chunk-load borders routinely. |
+| The creative-flight descent latch | `PreludePhase` | It requires a player in creative flight. Server-side players never fly — the abilities are off. | Live creative sessions and the debug tooling. |
 | The guard-off half of the replay-mode skips | Several phases | `beginReplay` runs the guarded branches, but the *unguarded* half of each pair only differs under the live replay cadence. The arena replay scene covers the guarded side. | The live `mc.debug.replay` tooling. |
 | Debug log lines inside mechanisms that did not trigger | All phases | A log line is only reachable when its enclosing mechanism fires. The debug flag itself is exercised by scenes that run with it on. Each such line is covered or exempted **with its mechanism**, never as "logging". | Follows its mechanism's row. |
 
 ## Not exempt: known-untestable today, candidates for a future rig
 
 The deep-water bank-dig release branches — the ones behind
-`walkerFutileBankDigRelease`, `walkerBankDigForwardExit` and `walkerPillarSurfacePlace` —
+`navigatorFutileBankDigRelease`, `navigatorBankDigForwardExit` and `navigatorPillarSurfacePlace` —
 are covered on their happy paths by the water-bank scene family, but the futile and
 overhang releases are not. They are listed here as debt rather than as exemptions, because
 nothing about the topology makes them structurally unreachable; they are merely very hard
@@ -45,7 +45,7 @@ six rig designs were each defeated by a different real mechanism:
    and "mountable" coincide.
 5. A one-wide canal with an unroutable bank three blocks up: the dry futile-search cap
    failed the run on the shore, because the water exemption only applies once afloat.
-6. The same with headroom added: the walker exhausted search after search on a graph of
+6. The same with headroom added: the navigator exhausted search after search on a graph of
    seventeen cells and never entered the water at all.
 
 The live signature is execution drift — the bot drifts under an overhang while the path
@@ -57,7 +57,7 @@ replay.
 ## Constraints any future rig must respect
 
 Each of these defeated two or three rig versions before being understood, and each was
-proven with the walker's own progress probe embedded in the failure message.
+proven with the navigator's own progress probe embedded in the failure message.
 
 1. **Path adoption measures distance, not connectivity.** Adoption and fast-forward ask
    whether an alternate route passes near the feet in a straight line. A route on the far
@@ -74,7 +74,7 @@ proven with the walker's own progress probe embedded in the failure message.
    tick.
 4. **The futile-search cap races slow mechanisms.** In a sealed rig the cap fails the run
    before a long anti-churn window has a chance to fire. A scene probing slow machinery
-   has to raise `walkerFutileSearchCap`.
+   has to raise `navigatorFutileSearchCap`.
 5. **Partial-width stairs shed the bot.** The drive's lateral drift slides the bot off
    the side face of a narrow stair strip. A staircase the bot must climb should span the
    full approach width, and a recovery staircase revealed by a mutation should be aligned

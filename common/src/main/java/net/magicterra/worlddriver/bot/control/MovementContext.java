@@ -7,11 +7,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
 /** Per-delegated-tick bundle handed to {@link AscendMovement}. Constructed ONCE per delegated tick
- *  from live Walker state; the machine retains no reference across ticks except its own owned
+ *  from live Navigator state; the machine retains no reference across ticks except its own owned
  *  sub-state (which AscendMovement holds). See spec §3.2. */
 public final class MovementContext {
     /** TEST SEAM (spec §8.3): total MovementContext instances ever constructed. The no-op arena
-     *  asserts this does NOT move while walkerAscendMovement is OFF — proving the OFF branch never
+     *  asserts this does NOT move while navigatorAscendMovement is OFF — proving the OFF branch never
      *  allocates a context. Volatile because gametest threads read it. */
     public static volatile long ALLOC_COUNT = 0;
 
@@ -25,7 +25,7 @@ public final class MovementContext {
     public final int maxStepUp;        // world.maxStepUpBlocks()
     public final BlockPos prevNode;    // path.get(step-1) or null — chainAscend peek
     public final BlockPos prevNode2;   // path.get(step-2) or null — chainAscend peek
-    public final boolean digging;      // Walker's breakingEdge this tick — an active planned dig is progress (dead-zone watchdog exemption, #66: bare-hand stone is 150t+/block)
+    public final boolean digging;      // Navigator's breakingEdge this tick — an active planned dig is progress (dead-zone watchdog exemption, #66: bare-hand stone is 150t+/block)
 
     public MovementContext(LivingEntity p, WorldView world, Body avatar, Move.Edge edge,
                            BlockPos foot, BlockPos node, int maxJumpUp, int maxStepUp,

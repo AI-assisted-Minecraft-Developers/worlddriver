@@ -19,7 +19,7 @@ import net.minecraft.tags.FluidTags;
  * Not one step on existing ground. ⚠️ Those are readings from THAT run; the two ladder runs of
  * 2026-08-28 carry no bridging reading at all, so they neither confirm nor refute them.
  *
- * <p>That is not a bug in the walker. The waypoints are bot positions recorded AFTER that run
+ * <p>That is not a bug in the navigator. The waypoints are bot positions recorded AFTER that run
  * bridged, so <b>they describe a causeway, not terrain</b>, and a fresh world has none of it. Every
  * later segment has to rebuild the span it is standing on, and the corridor's pass rate is
  * therefore the per-cell placement success rate raised to the number of laid cells. Segments 11
@@ -88,11 +88,11 @@ final class JourneyCorridorProbe {
      * says "this segment was not reached", and the next round guesses at that walk. But
      * {@code FORTRESS_WAYPOINTS} are bot positions recorded from a run that BRIDGED its way across,
      * so an unknown number of them are cells that run <b>created</b> — and in a fresh world those
-     * columns are open air. A walk aimed at one of them cannot succeed no matter what the walker
+     * columns are open air. A walk aimed at one of them cannot succeed no matter what the navigator
      * does, and it will keep reporting a walking failure because "could not reach it" is the only
      * thing a walk knows how to say.
      *
-     * <p>Measured on wp4 ({@code 63,41,87}): the walker declared {@code arrived} at {@code 63,42,86}
+     * <p>Measured on wp4 ({@code 63,41,87}): the navigator declared {@code arrived} at {@code 63,42,86}
      * with support cells {@code 63,42,86=air 63,42,87=air} — inside the two-block goal sphere, in
      * mid-air, over a shaft — and the bot then fell fourteen blocks. Four runs read that as a pathfinding
      * problem. <b>It is a table problem</b>, and one column scan per waypoint answers it for all

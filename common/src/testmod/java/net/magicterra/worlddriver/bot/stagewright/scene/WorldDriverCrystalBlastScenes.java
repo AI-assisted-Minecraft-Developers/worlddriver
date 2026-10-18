@@ -138,7 +138,7 @@ import net.minecraft.world.phys.AABB;
  *       not measure them</b> — there is no staging for it and no criterion on it, so a green pillar
  *       arm remains no evidence about knockback in either direction. The {@code trajectory} row says
  *       on every run which of the three outcomes this run was.</li>
- *   <li><b>No Walker, no goal, no {@code LevelWorldView}.</b> The sibling void scenes drive a Walker
+ *   <li><b>No Navigator, no goal, no {@code LevelWorldView}.</b> The sibling void scenes drive a Navigator
  *       because their subject is a leap; here the subject is which block is under the feet, and
  *       steering would put a second variable between the two arms. The player is created and stepped
  *       exactly the way {@code wd.parkourVoidShortRunway} creates and steps its own —

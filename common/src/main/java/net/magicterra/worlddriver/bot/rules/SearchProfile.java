@@ -5,7 +5,7 @@ import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
 
-/** The per-intent inputs to a search, bundled so {@link PathFinder}/Walker thread
+/** The per-intent inputs to a search, bundled so {@link PathFinder}/Navigator thread
  *  ONE value instead of three parallel params. {@link #NONE} = plain search,
  *  byte-identical to pre-A2a. All fields defensively copied / defaulted. */
 public record SearchProfile(List<CostModifier> bias, CapabilityProfile capability, List<Constraint> constraints) {

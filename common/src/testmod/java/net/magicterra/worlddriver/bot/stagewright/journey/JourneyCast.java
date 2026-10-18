@@ -155,7 +155,7 @@ final class JourneyCast {
                 + " step to " + dry.toShortString());
         // TOLERANCE ZERO, and a COLUMN rather than a cell. Two readings from the arena decided both
         // halves. The goto above reported `end=arrived`, 1 block from 242843,100000 with a tolerance
-        // of 5: the walker's own arrival radius is five and the `1` this caller passed is a different
+        // of 5: the navigator's own arrival radius is five and the `1` this caller passed is a different
         // quantity, so "arrived" was true of a bot one cell out in the water. And a `Goal.Block`
         // retry returned almost immediately without moving: the exact cell carries a y the swimming
         // bot does not have. Asking for the COLUMN with no slack is the question that has one answer.
@@ -280,7 +280,7 @@ final class JourneyCast {
             // away, then re-picked a nearer pool and failed the pour, and the rung's result named
             // the AIMING LINE. The walk that never happened left no row at all, so the only account
             // of it was three heartbeat lines in the log. Same key shape the lava walk uses.
-            rig.evidence("cast.walk." + approach, JourneyLeg.walkerEnd(rig) + "; stopped at "
+            rig.evidence("cast.walk." + approach, JourneyLeg.navigatorEnd(rig) + "; stopped at "
                     + at.toShortString() + ", "
                     + String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(at.distSqr(water)))
                     + " blocks from the planned water surface " + water.toShortString());
@@ -550,8 +550,8 @@ final class JourneyCast {
             // block out of the main inventory into the selected slot and pushes the bucket back
             // into the bag — hence `lava_bucket.after = 1` beside a cell that is still water.
             //
-            // Its three call sites (one in `WalkerTickDrive.run`, two in
-            // `WalkerTickStallDetect.run` — grep `holdPillarBlock`) and the two
+            // Its three call sites (one in `DrivePhase.run`, two in
+            // `StallDetectPhase.run` — grep `holdPillarBlock`) and the two
             // `ensureHoldingPlaceableAny` ones (`Safety.widenFooting`, `Safety.strideFloorGuard` —
             // grep `holdPlaceable`) ALL short-circuit on
             // `WorldConfig.allowPlace` before they touch the hand, so turning it off for these twelve

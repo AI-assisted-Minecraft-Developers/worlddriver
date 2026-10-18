@@ -74,7 +74,7 @@ project was renamed. In other words this gate is designed, implemented, and not 
 That is worth knowing before citing a corpus result as evidence for anything.
 
 The log line the telemetry reads is a contract: `docs/dev/testing.md` names the scripts as consumers of the
-walker's step line, so its format cannot be changed casually.
+navigator's step line, so its format cannot be changed casually.
 
 ## Where to look
 

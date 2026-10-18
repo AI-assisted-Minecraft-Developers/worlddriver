@@ -49,7 +49,7 @@ it replays.
 The two `replan` modes answer different questions. The default is a faithful re-run:
 A\* is deterministic over identical terrain, so the live run reproduces including its
 re-paths and whatever went wrong during execution. With `replan: false` the recorded
-nodes are fed to the walker with planning disabled, which isolates a pure execution
+nodes are fed to the navigator with planning disabled, which isolates a pure execution
 wedge but diverges wherever the live run re-planned.
 
 Envelope restore is faithful for archives written at schema version 2, which carry

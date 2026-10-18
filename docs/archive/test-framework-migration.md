@@ -160,7 +160,7 @@ retirement and directed deletion of the twin**. Grounds (verbatim):
 2. **Faithful migration physically impossible** — the RED path is a >60 s single-tick A* churn
    that trips the `ServerHangWatchdog` and kills the dogfood harness (crash archived:
    `neoforge/run-dogfood/crash-reports/crash-2026-07-18_12.58.53-server.txt`, stack rooted at
-   `WorldDriverTerrainScenes.descentDrift → Walker.tick → PathFinder$Search.advance`). Any
+   `WorldDriverTerrainScenes.descentDrift → Navigator.tick → PathFinder$Search.advance`). Any
    bounded rewrite either breaks determinism (wall-clock ms cap → non-deterministic, fails the
    ×2 result-set identity gate) or silently rebaselines a broken rig (trimming
    `pathfinderMaxNodes`), both banned.
@@ -177,7 +177,7 @@ retirement and directed deletion of the twin**. Grounds (verbatim):
 | `descentArena` | AgentGameTestTerrain | `wd.descent` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (12-step 1-wide descent, no pit) |
 | `ascentSpeedArena` | AgentGameTestTerrain | `wd.ascentSpeed` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (ascent b/s floor 1.5) |
 | `ledgeOvershootArena` | AgentGameTestTerrain | `wd.ledgeOvershoot` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2; `.withChunkRadius(2)` (runway+terrace dx→+44) |
-| `wallCollisionProbe` | AgentGameTestTerrain | `wd.wallCollisionProbe` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (avatar stops at 2-tall wall; `commandForward`, not Walker) |
+| `wallCollisionProbe` | AgentGameTestTerrain | `wd.wallCollisionProbe` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (avatar stops at 2-tall wall; `commandForward`, not Navigator) |
 | `bridgeDescendArena` | AgentGameTestTerrain | `wd.bridgeDescend` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (descending bridge smoke) |
 | `bareHandDigCadenceArena` | AgentGameTestTerrain | `wd.bareHandDigCadence` | this commit (P4b wave 2) | this commit | identical — PASS both loaders ×2 (gap #66 dig cadence, dropsWhileSolid≤2) |
 
@@ -217,8 +217,8 @@ needed removing. New provider: `WorldDriverBiasScenes` (append line to the commo
 in this commit).
 
 **All 13 are PLANNER-ONLY — the brief's "driver-mode (createIsolated)" hypothesis did not
-hold.** Unlike wave 2 (Terrain, which drove the real `Walker`), no Bias arena drives a
-`Walker` or a registered driver: each builds an immutable `LevelWorldView` over a
+hold.** Unlike wave 2 (Terrain, which drove the real `Navigator`), no Bias arena drives a
+`Navigator` or a registered driver: each builds an immutable `LevelWorldView` over a
 `createUnique` avatar and runs one/two `PathFinder` searches, then asserts on the returned
 `Result` (constraint/bias gates). So there is no executor flakiness, no per-tick stepping, no
 `SimProbes.grantWaterEffects` (nothing moves or takes damage), and the body resolves on the
@@ -231,8 +231,8 @@ geometry helpers (`pathEntersZone`, `minPathY`, `maxPathXZDist`, `pathEntersWate
 **Config-pin faithfulness.** Only the 7 scenes whose legacy body had a `try/finally`
 `BotConfig` save/restore use `pinnedBaseline()` + `ctx.cleanup(pin::close)` (registered FIRST →
 LIFO closes LAST, after avatar discard): `digUpY`, `digDownY`, `columnRadius`, `forbidDig`,
-`escapeFarthestNoRockDrill`, `budgetAwayTunnelChurn` (break/place ± walkerDebug), and
-`shorelineSmoother` (walkerDiagonalStringPull). The 6 pure-constraint scenes that touched no
+`escapeFarthestNoRockDrill`, `budgetAwayTunnelChurn` (break/place ± navigatorDebug), and
+`shorelineSmoother` (navigatorDiagonalStringPull). The 6 pure-constraint scenes that touched no
 config are ported without a pin — faithful, and safe because the harness restores baseline
 between scenes so every planner sees clean defaults.
 
@@ -288,7 +288,7 @@ Two open engine tasks keep their signatures alive **in the surviving `wd.*`
 scenes**, and stay open:
 
 - **task#86** (selfShaftDigUp / gap #53): the `wd.selfShaftDigUp` scene is a
-  *required signature gate* — it PASSES only while the walker fails in exactly
+  *required signature gate* — it PASSES only while the navigator fails in exactly
   the known way (`reached && worstBackslide > 15.0`, golden
   `20.252203415101263`). Deleting `selfShaftDigUpArena` removes the legacy A/B
   double; the defect gate lives on in the scene. task#86 stays open.
@@ -328,19 +328,19 @@ constant needed updating.
 | `goalSnapBuriedArena` | AgentGameTestWaterCross | `wd.goalSnapBuried` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (goal-snap to a standable cell; legacy `floorY=64` kept → mapped `origin.y−136`) |
 | `basinArena` | AgentGameTestWaterCross | `wd.basin` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2; **`.withChunkRadius(2)`** (plateau dz `0..44` > +31 edge; radius-2 window `[−32,+47]`) (`pathfinderDepthPenalty` anti-basin-dive) |
 | `waterClimbOutRouteArena` | AgentGameTestWaterCross | `wd.waterClimbOutRoute` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (floating-water +1 climb-out structural gate, both A/B legs flush) |
-| `waterStepDownFloatArena` | AgentGameTestWaterCross | `wd.waterStepDownFloat` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (`walkerWaterStepDownFloat` OFF-wedge/ON-advance A/B; `beginReplay`) |
+| `waterStepDownFloatArena` | AgentGameTestWaterCross | `wd.waterStepDownFloat` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (`navigatorWaterStepDownFloat` OFF-wedge/ON-advance A/B; `beginReplay`) |
 | `forbidDigPadRamArena` | AgentGameTestWaterCross | `wd.forbidDigPadRam` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (per-goto `forbidDig` lily-pad head-on-break leak; `NoBreak` A/B; `runPadLeg` inlined) |
 | `deepWaterSubmergedCrossArena` | AgentGameTestWaterCross | `wd.deepWaterSubmergedCross` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (`pathfinderFloatingSurfaceCross` — a deterministic planner A/B, NOT subject to the shared-body flake despite the `deepwater*` name) |
 | `vineOverWaterCrossArena` | AgentGameTestWaterCross | `wd.vineOverWaterCross` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (`pathfinderVineOverWaterTax` center-lane detour) |
 | `padOverWaterCrossArena` | AgentGameTestWaterCross | `wd.padOverWaterCross` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (`pathfinderPadOverWaterTax` Y-aware sparse-pad detour) |
 | `padClusterCrossArena` | AgentGameTestWaterCross | `wd.padClusterCross` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2 (`pathfinderPadClusterTax` 3-region A/B: wall / lone / full-width) |
-| `deepWaterFloatBeelineArena` | AgentGameTestWaterCross | `wd.deepWaterFloatBeeline` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2; **`.withChunkRadius(4)`** (`spanX=56` → basin/clear box reach dx `+72` > radius-2 `+47` and radius-3 `+63`; radius-4 window `[−64,+79]`) (`Walker.adoptForTest` anchor-gate accept/reject) |
+| `deepWaterFloatBeelineArena` | AgentGameTestWaterCross | `wd.deepWaterFloatBeeline` | this commit (P4b wave 4) | this commit | identical — PASS both loaders ×2; **`.withChunkRadius(4)`** (`spanX=56` → basin/clear box reach dx `+72` > radius-2 `+47` and radius-3 `+63`; radius-4 window `[−64,+79]`) (`Navigator.adoptForTest` anchor-gate accept/reject) |
 
 **Lottery / optional governance — three optionals this wave (the phase's heaviest `required`-discipline wave).**
 - **`wd.vineOverWaterClimb`** (legacy `required=false`, the live −711 bug): migrated `.withRequired(false)`
   with a javadoc citing the −711 record. It FAILs deterministically (pocketTicks=29, byte-identical
   ×2×2) — the bot detaches off the wall-less vine into the pocket. That optional-FAIL IS the proof it
-  reproduces the live bug against the clean (walkerVineFreeHangClimb-OFF) baseline; its RED stays
+  reproduces the live bug against the clean (navigatorVineFreeHangClimb-OFF) baseline; its RED stays
   VISIBLE, never tuned.
 - **`wd.deepWaterClimboutNoBlock`** (gap #48 shared-body lottery member, solo-GREEN proven this phase,
   full-run flaky in the OLD shared-body suite): in the createUnique isolated body the shared-body flake
@@ -352,9 +352,9 @@ constant needed updating.
   are all deterministic — none flaky, none marked optional.
 - **`wd.riverSheerBank`** (the gap #48 false-green this wave SURFACED, task#91): it is the one WaterBank
   scene isolation flips legacy-GREEN → deterministic RED. The config is byte-identical to legacy — the
-  legacy GameTestServer applies `BotConfig.applyGameTestBaseline()` at boot (zeroing the walker
-  water-escape flag family: walkerBankDig*, walkerBuoyantSearchFromSurface,
-  walkerSwimAshorePillarDespiteDeepDig, walkerFloatingBankBobFreeze, …), the exact baseline
+  legacy GameTestServer applies `BotConfig.applyGameTestBaseline()` at boot (zeroing the navigator
+  water-escape flag family: navigatorBankDig*, navigatorBuoyantSearchFromSurface,
+  navigatorSwimAshorePillarDespiteDeepDig, navigatorFloatingBankBobFreeze, …), the exact baseline
   `pinnedBaseline()` re-applies. Geometry and start pose are byte-identical; the SOLE differentiator is
   the legacy shared body (concurrent GameTest batches shove/teleport the per-level singleton ashore) vs
   the serial createUnique body — precisely the `descentDriftArena` / `descentOvershootResyncArena`
@@ -433,8 +433,8 @@ controller review** (task-4-report.md §agentRpcSmoke) since it resolves a state
 | `buildBlockWhitelistArena` | AgentGameTest | `wd.buildBlockWhitelist` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (`isUsableBuildBlock` + `LevelWorldView.placeableBlockCount` bamboo/sand/whitelist matrix) |
 | `pathArchiveJsonArena` | AgentGameTest | `wd.pathArchiveJson` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (pure-CPU `PathArchive` JSON round-trip + v2 SNBT/NBT) |
 | `nodePhysicsArena` | AgentGameTest | `wd.nodePhysics` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (`NodePhysics.compute` pose-fit/hazard + edit-aware toBreak/toPlace flips; floorY `origin.y−21`) |
-| `pathArchiveCaptureArena` | AgentGameTest | `wd.pathArchiveCapture` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (real Walker goto capture; `Thread.sleep` file-write wait → `await` continuation) |
-| `replayRoundTripArena` | AgentGameTest | `wd.replayRoundTrip` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (record→rebuild→replay round-trip; two sequential file waits → chained `await`s; walker loops stay synchronous) |
+| `pathArchiveCaptureArena` | AgentGameTest | `wd.pathArchiveCapture` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (real Navigator goto capture; `Thread.sleep` file-write wait → `await` continuation) |
+| `replayRoundTripArena` | AgentGameTest | `wd.replayRoundTrip` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (record→rebuild→replay round-trip; two sequential file waits → chained `await`s; navigator loops stay synchronous) |
 | `clientChatLogSemantics` | AgentGameTest | `wd.clientChatLogSemantics` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (pure-JVM `ClientChatLog.Buffer` seq/since/tail/eviction; loads on dedicated server as the legacy twin did) |
 | `threatScanZombieArena` | AgentGameTestCombatSense | `wd.threatScanZombie` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (Enemy-mob scan control; `makeMockPlayer` reproduced + entity-visibility `await`) |
 | `threatScanHurtAttackerArena` | AgentGameTestCombatSense | `wd.threatScanHurtAttacker` | this commit (P4b wave 5) | this commit | identical — PASS both loaders ×2 (gap#55 neutral-attacker `attackedMe` scan; `makeMockPlayer` + entity-visibility `await`) |
@@ -541,7 +541,7 @@ citation in its scene javadoc):
 
 - `wd.vineClingFidelityProbe` — legacy `required=false`; optional-**PASS** (wall-backed
   vine cling fidelity; kept optional to match legacy).
-- `wd.vineOverWaterClimb` — the live **−711** bug (`walkerVineFreeHangClimb`-OFF baseline);
+- `wd.vineOverWaterClimb` — the live **−711** bug (`navigatorVineFreeHangClimb`-OFF baseline);
   optional-**FAIL** deterministically (pocketTicks=29). Its RED IS the repro proof.
 - `wd.riverSheerBank` — **task#91**: a gap #48 shared-body FALSE-GREEN that isolation
   (shared→`createUnique` body) flipped to a deterministic RED (step=FAILED,
@@ -590,7 +590,7 @@ register/tickAll. The canonical `create → createUnique` substitution maps to
 and every station call used — `getInventory()`, `containerMenu`, `inventoryMenu`, `offhand`,
 `setItemSlot` — is a `ServerPlayer` member, so the port is type-faithful on both loaders (fabric has
 no `ServerWorldDriver`/`ServerAvatarManager` shim — it uses the common ones directly). These are
-process-outcome / block-state / resolver gates, not `Walker`-flakiness lotteries, so body isolation
+process-outcome / block-state / resolver gates, not `Navigator`-flakiness lotteries, so body isolation
 does not change any verdict (confirmed byte-identical ×2×2).
 
 **Rig cleanup (#40 persistent-world lesson).** The dogfood world PERSISTS across the ×2 runs, so
@@ -613,7 +613,7 @@ inlined into the provider (private static nested types — not reached across th
 boundary), the wave-2/3 "each provider self-contains its needed helpers" precedent.
 
 **Config pinning.** The 11 scenes whose legacy body saved/restored `BotConfig` (all touch
-`walkerDebug`; `wd.serverCraftTableReclaim` also `craftReclaimTable=true`,
+`navigatorDebug`; `wd.serverCraftTableReclaim` also `craftReclaimTable=true`,
 `wd.serverCraftTableHoleRim` also `craftReclaimTable=false`) use `BotConfig.pinnedBaseline()` +
 `ctx.cleanup(pin::close)`. The 4 that touched no config are ported without a pin — 3 are pure
 `RecipeResolver` tests (`wd.serverRecipeSpecies`, `wd.serverCraftTableInject`,
@@ -699,7 +699,7 @@ unchanged — a straight `check.accept(...)` / `if(...)ctx.fail(...)` sequence p
 | wd.* scene | legacy twin | matrix rows (legacy = scene) | classification | first-run A/B verdict |
 |---|---|---|---|---|
 | `wd.retreatGateMatrix` | `retreatGateMatrixArena` | **43** | world (Skeleton+Zombie refs + `enclosed` geometry leg) | identical — PASS both loaders ×2 (gap#65/#68-①/#71/#72-③④ RetreatChain enter/release/reason matrix) |
-| `wd.walkerTerminalReportMatrix` | `walkerTerminalReportMatrixArena` | **5** | pure (Walker.classifyArrival) | identical — PASS both loaders ×2 (gap#68-R2a ARRIVED honest terminal report) |
+| `wd.navigatorTerminalReportMatrix` | `navigatorTerminalReportMatrixArena` | **5** | pure (Navigator.classifyArrival) | identical — PASS both loaders ×2 (gap#68-R2a ARRIVED honest terminal report) |
 | `wd.antiSuffocateShouldTriggerMatrix` | `antiSuffocateShouldTriggerMatrixArena` | **8** | pure (AntiSuffocateGate) | identical — PASS both loaders ×2 (gap#69 death-#16 desync + M1 proximity-fallback hurtTime gate) |
 | `wd.chainEpisodeCancelMatrix` | `chainEpisodeCancelMatrixArena` | **3** | pure (BunkerChain in-memory) | identical — PASS both loaders ×2 (gap#68-R1a sealed-anchor episode state reset) |
 | `wd.combatGraceMatrix` | `combatGraceMatrixArena` | **2** | pure (CombatChain + BotState) | identical — PASS both loaders ×2 (gap#68-③/⑧ death-grace autoFight suppression decay) |
@@ -714,7 +714,7 @@ unchanged — a straight `check.accept(...)` / `if(...)ctx.fail(...)` sequence p
 bodies.
 
 **Classification (honest, per deletion source).** **Nine are PURE LOGIC — no world, no avatar, no
-walker** (static gate / classifier / in-memory chain-state): `wd.walkerTerminalReportMatrix`,
+navigator** (static gate / classifier / in-memory chain-state): `wd.navigatorTerminalReportMatrix`,
 `wd.antiSuffocateShouldTriggerMatrix`, `wd.chainEpisodeCancelMatrix`, `wd.combatGraceMatrix`,
 `wd.frailBlockedMatrix`, `wd.urgentBidMatrix`, `wd.cancelRouting`, `wd.manualSlotGraceMatrix`,
 `wd.nearestFirstScanMatrix`. Their body runs the matrix once on the first RUN tick and resolves the same
@@ -758,7 +758,7 @@ per-family `xxxMatrix(BiConsumer)` helpers + `wouldEscalateMatrix` + `duskSecure
 the middle of the deletion span and were preserved verbatim. Nine now-orphaned imports were removed
 (`scheduler.RetreatChain`, `scheduler.CombatChain`, `scheduler.DuskSecureChain`, `scheduler.CancelRouting`,
 `scheduler.ChainProcessLifecycle`, `world.HazardField`, `world.SurvivalFacts`, `world.SurvivalMath`,
-`world.WorldModel`); `BunkerChain` / `BunkerProcess` / `RunAwayProcess` / `AntiSuffocateGate` / `Walker` /
+`world.WorldModel`); `BunkerChain` / `BunkerProcess` / `RunAwayProcess` / `AntiSuffocateGate` / `Navigator` /
 `Chain` / `Priorities` / `BotState` / `BotProcess` / `LevelWorldView` were **kept** (still used by surviving
 Server-family arenas). One dangling prose reference in the surviving `drownEscapeChainLifecycleMatrix`
 comment (`same split as chainEpisodeCancelMatrix`) was repointed to `the migrated ad.chainEpisodeCancel
@@ -931,9 +931,9 @@ collision-avoidance the legacy did by hand is now structural); ground-anchored `
 → `ctx.origin()`; `ServerWorldDriver.create` → `ServerWorldDriver.createIsolated` (#48 per-scene body);
 legacy NeoForge `FakePlayer` → common `ServerPlayer`; `try/finally` config save/restore →
 `BotConfig.pinnedBaseline()` + `ctx.cleanup(pin::close)` (snapshots EVERY mutable field, so
-`fleeActive`/`walkerWallDigFallback`/… restore for free); `throw new GameTestAssertException` → `ctx.fail`;
+`fleeActive`/`navigatorWallDigFallback`/… restore for free); `throw new GameTestAssertException` → `ctx.fail`;
 `helper.succeed()` → return; `gtOnlySkips(...)` → deleted. `ServerPlayerAvatar.faithfulBreak` (a static NOT
-covered by `pinnedBaseline`) is saved/restored by its own `ctx.cleanup` in `wd.serverWalkerDeepslateNoTool`.
+covered by `pinnedBaseline`) is saved/restored by its own `ctx.cleanup` in `wd.serverNavigatorDeepslateNoTool`.
 
 ### ⚡ THE THREE RE-ENTRANT `level.tick()` MINES — before/after (the documented ChunkMap-livelock triggers)
 
@@ -994,7 +994,7 @@ empty source set compiles clean). `GameTestManifest` (production main) and `neof
 | `serverFleeArena` | AgentGameTestServer | `wd.serverFlee` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (REAL RunAwayProcess, stateful `fleeActive`; fled ≥ minDist) |
 | `serverMineProcessArena` | AgentGameTestServer | `wd.serverMineProcess` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (REAL MineProcess mines a 3-stone quota holding a pickaxe) |
 | `serverMineNoToolArena` | AgentGameTestServer | `wd.serverMineNoTool` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (gap#2 tool gate: toolless bot mines NONE, aborts clean with a signal naming "pickaxe") |
-| `serverWalkerDeepslateNoToolArena` | AgentGameTestServer | `wd.serverWalkerDeepslateNoTool` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (Walker EXECUTOR clears a bare-hand deepslate plug; `faithfulBreak` ON, saved/restored via ctx.cleanup; reached+plugRemaining==0) |
+| `serverNavigatorDeepslateNoToolArena` | AgentGameTestServer | `wd.serverNavigatorDeepslateNoTool` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (Navigator EXECUTOR clears a bare-hand deepslate plug; `faithfulBreak` ON, saved/restored via ctx.cleanup; reached+plugRemaining==0) |
 | `serverForbidDigWallArena`⚡ | AgentGameTestServer | `wd.serverForbidDigWall` | this commit (P4c wave 9) | this commit | **`for(3) level.tick()` → bounded ArmorStand await** — PASS both loaders (Phase A NoBreak give-up: plug survives, no tunnel; Phase B precision: digs through + reaches stand) |
 | `serverBuildArena` | AgentGameTestServer | `wd.serverBuild` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (REAL BuildProcess places both cobble on a dirt floor) |
 | `serverLookRaycastArena` | AgentGameTestServer | `wd.serverLookRaycast` | this commit (P4c wave 9) | this commit | identical — PASS both loaders (`Avatar.lookingAtBlock()` eye→view raycast resolves the aimed cell) |
@@ -1241,7 +1241,7 @@ y=−60.0** — i.e. **off the lane's west edge, one block down on the natural g
 against the rail's west face. It reaches the goal's Z (final z≈100025.5 vs goal z=100024.5) but never its X
 column (x-error 2.8 > the 1.5 arrival band), and the process never finishes. At `y=200` west-of-lane is
 VOID (no footing → rails+leash keep the bot on the lane); at low-Y-in-terrain the grass gives off-lane
-footing and the walker cannot climb back over the 1-block rail to re-center. **None** of the brief's
+footing and the navigator cannot climb back over the 1-block rail to re-center. **None** of the brief's
 candidate engine roots apply: no dig (leash gate never digs), no scan/entity-index defect (the stand was
 found, both awaits completed), no despawn (the stand is present throughout). The cause is
 **environmental / rig — adjacent natural terrain at this world Y**, the SAME class as the deleted legacy
@@ -1320,13 +1320,13 @@ block-less bank dig trenched the SHEER wall directly beside the bot (risers `z=c
 surface→wallTop) instead of swimming the last few cells to the flat low walk-out. Mechanism: a
 laterally-DISTANT higher waypoint misread as a climb-HERE intent.
 
-**Fix = `walkerWaterClimbLateralGate`** (BotConfig, default **ON**, deliberately **NOT** in
+**Fix = `navigatorWaterClimbLateralGate`** (BotConfig, default **ON**, deliberately **NOT** in
 `applyGameTestBaseline()`'s zero list — a CORRECTNESS invariant, not a tunable, so it survives the
 authored default-OFF baseline the water scenes are pinned to). The floating climb-out (pillar takeover +
 block-less dig) engages only when the climb waypoint is horizontally BESIDE the bot
 (`WATER_CLIMB_LATERAL_MAX=2`, Chebyshev); a farther higher waypoint is the routed corridor exit, reached
 by the swim-drive (the climb re-arms once swum adjacent — self-healing). A genuine bank climb-out floats
-directly below its bank (Chebyshev 0-1) so it is unaffected. Wired in `Walker.wantClimbNow`.
+directly below its bank (Chebyshev 0-1) so it is unaffected. Wired in `Navigator.wantClimbNow`.
 
 **K≥6 A/B (gate OFF ≡ HEAD~, byte-identical to pre-fix since the flag fully gates the delta; gate ON ≡ HEAD):**
 
@@ -1344,8 +1344,8 @@ is `wd.riverSheerBank` (FAILED→ARRIVED). All other WaterBank + WaterCross fami
 tallBankDigClimb / waterClimbOutRoute / waterStepDownFloat / waterFarAimBankCorner / vineOverWater* /
 padOverWaterCross / shorelineHug / shorelineSmoother / forbidWater / waterPhysicsParity) are byte-identical.
 
-Files: `Walker.java` (`wantClimbNow` lateral gate), `BotConfig.java` (`walkerWaterClimbLateralGate=true`,
-NOT baseline-zeroed, javadoc), `WalkerConstants.java` (`WATER_CLIMB_LATERAL_MAX=2`),
+Files: `Navigator.java` (`wantClimbNow` lateral gate), `BotConfig.java` (`navigatorWaterClimbLateralGate=true`,
+NOT baseline-zeroed, javadoc), `NavigatorConstants.java` (`WATER_CLIMB_LATERAL_MAX=2`),
 `WorldDriverWaterBankScenes.java` (required flip + javadoc closure), `expected-scenes-{neoforge,fabric}.txt`
 (header comment), `stagewright/README.md` (carve-out → closed).
 
@@ -1365,7 +1365,7 @@ parkour, not in the fall recovery.
 **Fix = `BotConfig.pathfinderParkourAscendNeedRunway` flipped default ON** (commit `49f25ed`).
 `ParkourAscend.valid` now requires the cell BEHIND the launch (`from.offset(-sx,0,-sz)`, opposite the
 leap, same Y) to be `canStandAt` — a real flat run-up. With the flag ON, A* rejects the runway-less
-pillar-top leap and substitutes a straight-up pillar that tops out clean. `WalkerConstants` /
+pillar-top leap and substitutes a straight-up pillar that tops out clean. `NavigatorConstants` /
 recovery untouched — the fix is a single planner-admissibility gate.
 
 **Scene flipped from golden-FAILURE-signature gate to a STRICT gate.** While gap #53 was open,
@@ -1402,7 +1402,7 @@ the D2 final-review fix commit.]
 
 **Not a scene migration — a structural fix to the persistence layer surfaced by the D2-T1 live run.**
 Recorded here for continuity: the D2-T1 over-forbid live check hit a stale-config side-effect and
-opened this tracker. The Mountains-save client read `walkerWaterClimbLateralGate` as `false` even
+opened this tracker. The Mountains-save client read `navigatorWaterClimbLateralGate` as `false` even
 though the source default is `true` — a *previous session's persisted `properties` file* silently
 overrode a later default flip. Root cause: `BotConfig.save()` wrote **every** persistable field and
 `load()` **unconditionally** re-applied each one, so an old file's snapshot of a bygone default was
@@ -1433,7 +1433,7 @@ compiled-defaults capture. Confirmed: no `worlddriver_bot.properties` appears in
 **Live four-direction verification** (dedicated `:fabric:runServer` + `:fabric:runClient`, both with
 `-Dworlddriver.persistConfig=true`; RPC readback needs a CLIENT because `mc.bot.setting` routes
 `requireBot()` and the bot impl only registers in the client entrypoint — a bare dedicated server
-returns "bot impl not registered"): (a) crafted `walkerWaterClimbLateralGate=false`+`.default=false`
+returns "bot impl not registered"): (a) crafted `navigatorWaterClimbLateralGate=false`+`.default=false`
 → RPC reads `true` (current default wins); (b) `autoSwim=false`+`.default=true` → RPC reads `false`
 (user preserved); (c) legacy `autoFight=true` (no shadow) → RPC reads `true` + WARN drift list
 `[autoFight]` + file upgraded; (d) `mc.bot.setting{autoHeal:true}`→save→restart → RPC reads `true`

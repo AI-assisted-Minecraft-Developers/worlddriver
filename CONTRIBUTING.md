@@ -166,7 +166,7 @@ The type is one of `feat`, `fix`, `refactor`, `docs`, `test`, `perf`, `build`, `
 only Markdown is `docs` even when it documents a bug, and one touching only Gradle scripts is
 `build`.
 
-The scope is the subsystem a reader would search for: `walker`, `pathfinder`, `bot`, `sim`,
+The scope is the subsystem a reader would search for: `navigator`, `pathfinder`, `bot`, `sim`,
 `api`, `mcp`, `rpc`, `script`, `scenes`, `testkit`, `fabric`, `neoforge`, `build`. A change
 that spans subsystems takes no scope at all — `refactor: …` is correct and an invented scope
 is not. A scope is never an issue number.

@@ -100,7 +100,7 @@ Two alternatives that never stop the game:
 - **Thread names.** A client has a `Render thread`; a client hosting an integrated server
   has both that and a `Server thread`; a dedicated server has only `Server thread`.
 - **An instrument records the moment it sampled; the locals at a breakpoint are now.**
-  The walker's telemetry lines and the evidence a scene collects each have their own write
+  The navigator's telemetry lines and the evidence a scene collects each have their own write
   times. To judge one action, read the value recorded closest to it.
 
 ## Front-ends

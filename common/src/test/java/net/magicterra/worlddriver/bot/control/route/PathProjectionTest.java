@@ -29,8 +29,8 @@ class PathProjectionTest {
 
     @Test
     void theBotIsProjectedOntoTheLegItWalks() {
-        boolean was = ControlConfig.walkerProjectCurrentLeg;
-        ControlConfig.walkerProjectCurrentLeg = true;
+        boolean was = ControlConfig.navigatorProjectCurrentLeg;
+        ControlConfig.navigatorProjectCurrentLeg = true;
         try {
             PathProjection proj = projectMidLeg();
             assertEquals(0, proj.segIdx, "the bot is on the diagonal, not the stub past its node");
@@ -38,14 +38,14 @@ class PathProjectionTest {
             assertEquals(45f, proj.tangentYaw, 0.01f, "the heading is the diagonal's");
             assertEquals(45f, proj.pursuitYaw, 3f, "the pursuit closes the 0.1 along the diagonal, got " + proj.pursuitYaw);
         } finally {
-            ControlConfig.walkerProjectCurrentLeg = was;
+            ControlConfig.navigatorProjectCurrentLeg = was;
         }
     }
 
     @Test
     void withoutTheWalkedLegThePursuitCutsForTheStub() {
-        boolean was = ControlConfig.walkerProjectCurrentLeg;
-        ControlConfig.walkerProjectCurrentLeg = false;
+        boolean was = ControlConfig.navigatorProjectCurrentLeg;
+        ControlConfig.navigatorProjectCurrentLeg = false;
         try {
             PathProjection proj = projectMidLeg();
             assertEquals(1, proj.segIdx);
@@ -53,7 +53,7 @@ class PathProjectionTest {
             assertEquals(0.5, proj.aheadX, 1e-9);
             assertEquals(17.5, proj.aheadZ, 1e-9);
         } finally {
-            ControlConfig.walkerProjectCurrentLeg = was;
+            ControlConfig.navigatorProjectCurrentLeg = was;
         }
     }
 }

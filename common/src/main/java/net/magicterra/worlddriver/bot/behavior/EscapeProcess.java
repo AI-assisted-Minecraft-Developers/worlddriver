@@ -24,7 +24,7 @@ import static net.magicterra.worlddriver.game.body.BotUtil.yawFor;
  *
  * <p>Why this exists: a bot stuck foot-in-water in a 1-wide sandstone well at
  * spawn cannot be pathed out — A* routes it through a flush 1-wide WATER channel
- * the Walker physically can't thread (it grinds the wall and never advances),
+ * the Navigator physically can't thread (it grinds the wall and never advances),
  * while it is block-less so it can't {@code pillarUp} the open chimney either.
  * This process sidesteps the pathfinder entirely: each step it picks the driest
  * cardinal whose wall is carvable, breaks the up-forward foot+head cells, and
@@ -33,7 +33,7 @@ import static net.magicterra.worlddriver.game.body.BotUtil.yawFor;
  * needed — it eats the wall, it doesn't build.
  *
  * <p>Crucially it climbs into the DRY rock (preferring directions with no water in
- * the niche), so the climb never re-enters the water that defeats the Walker. The
+ * the niche), so the climb never re-enters the water that defeats the Navigator. The
  * first step out of the water cell rides the jump + buoyancy onto the dry tread.
  *
  * <p>Every launch column must be jump-clear: CARVE opens the cell above the bot's
@@ -75,7 +75,7 @@ public final class EscapeProcess implements BotProcess {
 
     public EscapeProcess(int targetY) { this.targetY = targetY; }
 
-    private static void dbg(String m, Object... a) { if (GameConfig.walkerDebug) LOG.info("[escape] " + m, a); }
+    private static void dbg(String m, Object... a) { if (GameConfig.navigatorDebug) LOG.info("[escape] " + m, a); }
 
     @Override public String kind() { return "escape"; }
 
@@ -333,7 +333,7 @@ public final class EscapeProcess implements BotProcess {
 
     /** Pillar straight up one block: jump and place a support in the old feet cell
      *  ({@code base}) at the apex, lifting the bot to {@code base+1}. Mirrors the
-     *  Walker's pillarUp actuator — vanilla rejects the place until the feet clear
+     *  Navigator's pillarUp actuator — vanilla rejects the place until the feet clear
      *  the cell, so we gate on real height. On arrival, advance and re-PICK (a
      *  sideways rim may now be reachable; else we VERT_BREAK the next ceiling). */
     private boolean vertRise(Body a, WorldView w, LivingEntity p, BlockPos foot, BotState st) {

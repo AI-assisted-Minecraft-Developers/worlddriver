@@ -4,8 +4,8 @@ import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerSettings;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
@@ -22,7 +22,7 @@ import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 
 public final class FollowProcess implements BotProcess {
-    /** Consecutive Walker.FAILED replans before we give up. Each represents one full pathfinder attempt. */
+    /** Consecutive Navigator.FAILED replans before we give up. Each represents one full pathfinder attempt. */
     private static final int MAX_CONSECUTIVE_FAILS = 5;
     private final String entityType;
     private final String name;
@@ -32,7 +32,7 @@ public final class FollowProcess implements BotProcess {
     public static final int DEFAULT_GIVE_UP_TICKS = 600;
     private final int giveUpTicks;
     private final Chase chase;
-    private final Walker walker;
+    private final Navigator navigator;
     private int idleTicks;
     private int consecutiveFails;
     private BlockPos lastTargetBlock;
@@ -43,7 +43,7 @@ public final class FollowProcess implements BotProcess {
     }
 
     /** A3a: pass a per-follow {@link SearchProfile} (e.g. a leashed capability
-     *  envelope) through to the underlying {@link Walker}. */
+     *  envelope) through to the underlying {@link Navigator}. */
     public FollowProcess(String entityType, String name, int radius, int maxIdleTicks, int giveUpTicks,
                          SearchProfile profile) {
         this.entityType = entityType;
@@ -52,7 +52,7 @@ public final class FollowProcess implements BotProcess {
         this.maxIdleTicks = maxIdleTicks;
         this.giveUpTicks = giveUpTicks;
         this.chase = new Chase(giveUpTicks);
-        this.walker = new Walker(WalkerSettings.named("follow")
+        this.navigator = new Navigator(NavigatorSettings.named("follow")
                 .withProfile(profile == null ? SearchProfile.NONE : profile));
     }
 
@@ -93,9 +93,9 @@ public final class FollowProcess implements BotProcess {
             (int) Math.floor(target.getZ()));
         regoal(target.getId(), tBlock);
         st.follow.target = tBlock;
-        Locomotor.Status s = walker.tick(a, w);
-        st.follow.pathLen = walker.pathLen();
-        st.follow.pathStep = walker.pathStep();
+        Locomotor.Status s = navigator.tick(a, w);
+        st.follow.pathLen = navigator.pathLen();
+        st.follow.pathStep = navigator.pathStep();
         if (chase.tick(s.ended(), Math.sqrt(target.distanceToSqr(p)))) {
             return giveUp(st, String.format(Locale.ROOT,
                     "unreachable: no closer than %.1f blocks in %d ticks", chase.closest(), giveUpTicks));
@@ -103,13 +103,13 @@ public final class FollowProcess implements BotProcess {
         if (s == Locomotor.Status.FAILED) {
             consecutiveFails++;
             if (consecutiveFails >= MAX_CONSECUTIVE_FAILS) {
-                return giveUp(st, "unreachable (" + consecutiveFails + " failed replans): " + walker.result().reason());
+                return giveUp(st, "unreachable (" + consecutiveFails + " failed replans): " + navigator.result().reason());
             }
             // Force a fresh A* on the next tick rather than re-walking the dead path.
             lastTargetBlock = null;
         } else if (s.ended()) {
             // Within `radius`: stop walking and watch the target so the
-            // camera tracks it (a tracking shot). The Walker owns yaw while
+            // camera tracks it (a tracking shot). The Navigator owns yaw while
             // moving; here, idle, we point at the entity. smoothAngle pans
             // when smoothLook is on and snaps when off.
             a.commandForward(0f);
@@ -136,8 +136,8 @@ public final class FollowProcess implements BotProcess {
     @Override public String failure() { return failure; }
 
     /**
-     * Aim the walker at the target's cell. The same entity in a new cell is the same pursuit, so it
-     * gets {@link Walker#retarget}: {@code start} zeroes the futile-search counter, and a target
+     * Aim the navigator at the target's cell. The same entity in a new cell is the same pursuit, so it
+     * gets {@link Navigator#retarget}: {@code start} zeroes the futile-search counter, and a target
      * that keeps moving would then never let an unreachable follow trip the cap. Only a different
      * entity starts over.
      */
@@ -146,19 +146,19 @@ public final class FollowProcess implements BotProcess {
         if (!newTarget && tBlock.equals(lastTargetBlock)) return;
         Goal g = new Goal.Near(tBlock, radius);
         if (newTarget) {
-            walker.start(g);
+            navigator.start(g);
             chase.restart();
         } else {
-            walker.retarget(g);
+            navigator.retarget(g);
         }
         lastTargetBlock = tBlock;
         lastTargetId = targetId;
     }
 
-    Walker walker() { return walker; }
+    Navigator navigator() { return navigator; }
 
     /**
-     * Whether the chase is still getting anywhere. The walker's futile-search guard cannot say: a
+     * Whether the chase is still getting anywhere. The navigator's futile-search guard cannot say: a
      * quarry in a pen the bot cannot enter sends it circling the pen, and a bot that moves is never
      * futile. Progress is reaching the standoff or a block gained on the closest approach so far.
      */

@@ -12,7 +12,7 @@ import java.util.Locale;
  *
  * The ladder issues about fifty-six walks. Twenty-two of them go through
  * {@code WorldDriverJourneyScenes.walkToColumn}, which asks — every time, on the arrival path as
- * well as the failure path — where the bot actually stopped and what the walker said about why.
+ * well as the failure path — where the bot actually stopped and what the navigator said about why.
  * The other thirty-four asked nothing, and simply ran their next step.
  *
  * <p>That is not a tidiness problem, it is a diagnosis problem, and this suite has already paid for
@@ -45,7 +45,7 @@ final class JourneyLeg {
 
     /**
      * Write one row saying where a walk ended, how far that is from where it was sent, and what the
-     * walker itself said about the ending.
+     * navigator itself said about the ending.
      *
      * <p>Call it as the first statement of a walk's continuation. The key is
      * {@code <what>.leg}; a rung that records two walks under one {@code what} does not lose either
@@ -59,7 +59,7 @@ final class JourneyLeg {
     static void record(JourneyRig rig, String what, BlockPos goal) {
         BlockPos at = rig.player().blockPosition();
         rig.evidence(what + ".leg", "stopped at " + at.toShortString() + ", " + gap(at, goal)
-                + "; " + walkerEnd(rig));
+                + "; " + navigatorEnd(rig));
     }
 
     /**
@@ -80,13 +80,13 @@ final class JourneyLeg {
     }
 
     /**
-     * What the walker said about the walk it just ended.
+     * What the navigator said about the walk it just ended.
      *
      * <h2>{@code end=null} is a reading, and printing it as "null" throws it away</h2>
      *
      * {@code IntentProcess.attach} nulls {@code endReason}, and the only writes to it are on the
      * terminal exits: {@code tick} returns early on {@code Status.MOVING} and stamps
-     * {@code walker.result().endReason()} only once the step is no longer MOVING (plus
+     * {@code navigator.result().endReason()} only once the step is no longer MOVING (plus
      * {@code crossedOut}'s {@code DIMENSION_CHANGED}). So {@code endReason == null} does not mean
      * "not found"; it means exactly "the process was still walking when this walk was stopped",
      * i.e. something OUTSIDE the process ended it, which in this suite is the {@code settle} budget
@@ -107,8 +107,8 @@ final class JourneyLeg {
      * says "null if last run ok or in-progress", so "none" here means "no error reported" and does
      * <b>not</b> prove the walk is over. Read it beside {@code end=}.
      */
-    static String walkerEnd(JourneyRig rig) {
-        return walkerEnd(rig.body());
+    static String navigatorEnd(JourneyRig rig) {
+        return navigatorEnd(rig.body());
     }
 
     /**
@@ -135,7 +135,7 @@ final class JourneyLeg {
      *
      * <h2>Unknown deliberately means "let it try"</h2>
      *
-     * {@code endReason == null} is the timeout case (see {@link #walkerEnd}: the field is only
+     * {@code endReason == null} is the timeout case (see {@link #navigatorEnd}: the field is only
      * written on a terminating step), and an ending this method does not recognise is treated the
      * same way. The conservative direction for a gate that SUPPRESSES a fallback is to let the
      * fallback run — a mis-read that blocks a working detour turns a passing walk red, while a
@@ -157,7 +157,7 @@ final class JourneyLeg {
      * search genuinely failed are exactly the confusion an A/B is there to rule out, and an arm
      * that ran out of budget is not evidence about the subject at all.
      */
-    static String walkerEnd(PlayerBot driver) {
+    static String navigatorEnd(PlayerBot driver) {
         var goto_ = driver.botState().mc_goto;
         String end = goto_.endReason;
         String err = goto_.lastError;

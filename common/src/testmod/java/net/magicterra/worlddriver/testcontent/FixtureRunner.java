@@ -19,8 +19,8 @@ import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.RouteParams;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTallies;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorTallies;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.DescendProcess;
 import net.magicterra.worlddriver.bot.behavior.ElytraProcess;
@@ -61,9 +61,9 @@ import net.magicterra.worlddriver.bot.stagewright.NpcBot;
  * is legal on every topology, so a file whose {@code body} is {@code npc} or {@code npc:<name>} runs
  * on one, and so does an in-place run that asks for it.
  *
- * <p>Counts come off the process's own {@link WalkerInspector#tallies()} — the walker the task actually
+ * <p>Counts come off the process's own {@link NavigatorInspector#tallies()} — the navigator the task actually
  * ran, on whichever helm — never off the JVM-wide statics, so two bots in one process cannot
- * pollute each other's numbers. A task whose process has no walker (escape, elytra) contributes
+ * pollute each other's numbers. A task whose process has no navigator (escape, elytra) contributes
  * nothing and the auto lines say so.
  */
 public final class FixtureRunner {
@@ -201,7 +201,7 @@ public final class FixtureRunner {
          *  server-side player is where it was put the moment it was put there. */
         default void settle(Runnable then) { then.run(); }
         /** Let the server read where the bot stopped before a task is judged. A client player reaches
-         *  the server a move packet late, so its walker can say arrived while the server still has it
+         *  the server a move packet late, so its navigator can say arrived while the server still has it
          *  a step short; a server-side player and an NPC are read where they are. */
         default void caughtUp(Runnable then) { then.run(); }
     }
@@ -274,7 +274,7 @@ public final class FixtureRunner {
             helm = isNpc(bodyKind) ? npcHelm(foot, start.yaw())
                     : bodyKind.equals("self") ? clientHelm(foot, start.yaw()) : serverHelm(foot, start.yaw());
             // After the helm: adopting the real player pins the baseline again, so a config applied
-            // before it never reached the walker that player's tasks run on.
+            // before it never reached the navigator that player's tasks run on.
             applyConfig(f.config());
             LivingEntity body = helm.entity();
             body.setHealth(body.getMaxHealth());
@@ -311,7 +311,7 @@ public final class FixtureRunner {
                 @Override public void start(BotProcess p) { helm.bot().runProcess(p); }
                 @Override public boolean busy() { return Boolean.TRUE.equals(helm.bot().userTaskLeg().get("busy")); }
                 // The client trails the teleport by the move packets the server has not consumed
-                // (six ticks measured); a walker that snapshots before that plans from the old cell.
+                // (six ticks measured); a navigator that snapshots before that plans from the old cell.
                 @Override public void settle(Runnable then) { helm.sync(10, then); }
                 // The same packets trail a task's last steps; ten ticks outlast the six measured.
                 @Override public void caughtUp(Runnable then) { helm.sync(10, then); }
@@ -357,9 +357,9 @@ public final class FixtureRunner {
             if (i >= f.legs().size()) { finish(); return; }
             SceneFixture.Leg leg = f.legs().get(i);
             BotProcess process = process(leg, i);
-            Walker walker = process instanceof IntentProcess ip ? ip.walker()
-                    : process instanceof MineProcess mp ? mp.walker() : null;
-            if (walker == null) tallied = false;
+            Navigator navigator = process instanceof IntentProcess ip ? ip.navigator()
+                    : process instanceof MineProcess mp ? mp.navigator() : null;
+            if (navigator == null) tallied = false;
             BlockPos goal = leg.goal() == null ? null : FixtureIO.at(origin, leg.goal());
             String tag = "leg." + i;
             helm.start(process);
@@ -377,8 +377,8 @@ public final class FixtureRunner {
                 String endedAt = String.format(Locale.ROOT, "%.2f,%.2f,%.2f", seen.getX(), seen.getY(), seen.getZ());
                 helm.caughtUp(() -> {
                     ticks += waited[0];
-                    if (walker != null) {
-                        WalkerTallies t = walker.inspect().tallies();
+                    if (navigator != null) {
+                        NavigatorTallies t = navigator.inspect().tallies();
                         searches += t.searches;
                         hops += t.recoveryHops;
                         digs += t.digs;
@@ -387,11 +387,11 @@ public final class FixtureRunner {
                     String where = String.format(Locale.ROOT, "%.2f,%.2f,%.2f", body.getX(), body.getY(), body.getZ());
                     boolean arrived = goal != null && arrived(body, goal, leg.goalKind());
                     String how = ended[0] ? "ended at tick " + waited[0] : "budget " + leg.budget() + " spent, process still busy";
-                    // The walker's own end beside the task's: arrived here allows a cell of slack, and a walk
-                    // that stopped a cell short reads arrived=true with the walker saying why it stopped.
+                    // The navigator's own end beside the task's: arrived here allows a cell of slack, and a walk
+                    // that stopped a cell short reads arrived=true with the navigator saying why it stopped.
                     ctx.record(tag, how + ", at " + where + (where.equals(endedAt) ? "" : " (" + endedAt + " as it ended)")
                             + (goal == null ? "" : ", arrived=" + arrived)
-                            + (walker == null ? "" : ", walker ended " + walker.result().endReason()));
+                            + (navigator == null ? "" : ", navigator ended " + navigator.result().endReason()));
                     // What the fixture's config reads when the task ends, not when it was applied.
                     if (!f.config().isEmpty()) {
                         Map<String, Object> now = new LinkedHashMap<>();
@@ -492,7 +492,7 @@ public final class FixtureRunner {
         }
 
         /** Arrival as the marker meant it: a near goal within its radius, a y goal on its level,
-         *  a block goal with the feet on the cell (one cell of slack, the walker's own tolerance). */
+         *  a block goal with the feet on the cell (one cell of slack, the navigator's own tolerance). */
         private static boolean arrived(LivingEntity body, BlockPos goal, String kind) {
             String k = kind == null ? "block" : kind.trim();
             BlockPos feet = body.blockPosition();
@@ -578,7 +578,7 @@ public final class FixtureRunner {
                 observed.put("hops", hops);
                 observed.put("digs", digs);
             } else {
-                line(true, "repaths/hops/digs not observed: a task's process has no walker");
+                line(true, "repaths/hops/digs not observed: a task's process has no navigator");
             }
             Map<String, String> judged = FixtureVerdicts.judge(f.expect(), observed);
             for (var e : judged.entrySet()) {

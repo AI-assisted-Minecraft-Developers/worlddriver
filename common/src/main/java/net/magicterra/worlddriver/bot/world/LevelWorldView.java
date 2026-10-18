@@ -62,7 +62,7 @@ public final class LevelWorldView implements StateWorldView {
     /**
      * A view for any controlled entity. One that is not a player has no hands, so it prices every break as
      * impossible and counts no placeable blocks: a planner that emitted a dig for a mob would hand
-     * the walker an edge its handless stand-in can only stall on. A factory rather than a second
+     * the navigator an edge its handless stand-in can only stall on. A factory rather than a second
      * constructor, so {@code new LevelWorldView(level, null)} keeps meaning what it meant.
      */
     public static LevelWorldView forBody(Level level, LivingEntity body) {
@@ -119,8 +119,8 @@ public final class LevelWorldView implements StateWorldView {
      * {@code allowPlace = false}, and the two consumers of this method — {@code PillarUp.eval} and
      * {@code BridgePlace.eval}, a repo-wide grep finds no third — go on emitting those edges for a
      * server-side player that holds build blocks. Every place actuator on the far side is gated
-     * {@code WorldConfig.allowPlace && …} ({@code WalkerTickDrive}, {@code WalkerTickStallDetect}
-     * twice, {@code Walker}'s well-plug), so the walker then declines an edge A* put in the path.
+     * {@code WorldConfig.allowPlace && …} ({@code DrivePhase}, {@code StallDetectPhase}
+     * twice, {@code Navigator}'s well-plug), so the navigator then declines an edge A* put in the path.
      * Planner LOOSER than executor is the direction that yields a route the bot cannot walk,
      * rather than one it merely never finds.
      *
@@ -151,7 +151,7 @@ public final class LevelWorldView implements StateWorldView {
      * slots 9..35 when the hotbar has none. Counting only 0..8 therefore made the planner stricter
      * than the executor it drives, and two consumers turn that into a failed walk:
      * {@code BridgePlace.eval} refuses to emit a bridge edge at all, and — worse, because it throws
-     * away a path A* already found — {@code WalkerTickSearch}'s block budget re-searches with
+     * away a path A* already found — {@code SearchPhase}'s block budget re-searches with
      * placing OFF whenever the edges outnumber this count.
      *
      * <p>The price was one rung-14 death in four ladder runs, from the same seat every time:

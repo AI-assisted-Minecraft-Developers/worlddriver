@@ -37,7 +37,7 @@ public final class LookProcess implements BotProcess {
         if (track != null) st.look.target = track;
         st.look.startedAtMs = System.currentTimeMillis();
         st.look.lastError = null;
-        if (GameConfig.walkerDebug)
+        if (GameConfig.navigatorDebug)
             LOG.info("[look] attach goal={} smoothLook={} degPerTick={}",
                     st.look.goal, GameConfig.smoothLook, GameConfig.smoothLookDegPerTick);
     }
@@ -58,7 +58,7 @@ public final class LookProcess implements BotProcess {
         p.setYRot(ny); p.yHeadRot = ny; p.yBodyRot = ny; p.setXRot(np);
         float yawErr = Math.abs(Mth.degreesDifference(ny, ty));
         boolean aligned = yawErr < ALIGN_EPS && Math.abs(tp - np) < ALIGN_EPS;
-        if (GameConfig.walkerDebug)
+        if (GameConfig.navigatorDebug)
             LOG.info("[look] t={} yaw {}->{} (tgt {}) pitch {}->{} (tgt {}) yawErr={} aligned={}",
                     ticks, curY, ny, ty, curP, np, tp, yawErr, aligned);
         if (aligned) { st.look.reset(); return true; }
@@ -68,7 +68,7 @@ public final class LookProcess implements BotProcess {
             // lastError only when it is non-null and `attach` cleared it, so a look that never got
             // there reported exactly the clean finish a look that did reports. The residual comes
             // with it because an aim that stopped 0.6° out and one still 90° out want different
-            // work, and the only place that distinction existed was the `walkerDebug` line above —
+            // work, and the only place that distinction existed was the `navigatorDebug` line above —
             // which is off in every normal run, so it is not an instrument.
             failure = st.look.lastError = String.format(Locale.ROOT,
                     "aim did not converge in %d ticks (yawErr=%.2f pitchErr=%.2f, eps=%.2f)",

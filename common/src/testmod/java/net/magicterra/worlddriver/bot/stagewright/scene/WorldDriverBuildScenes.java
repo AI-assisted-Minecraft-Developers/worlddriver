@@ -19,7 +19,7 @@ import net.magicterra.worlddriver.game.observe.BuildBlocks;
  * retired in the same commit.
  *
  * <p><b>Both are pure {@link BotConfig} predicate probes — planner/API-only, no world,
- * no avatar, no {@link net.magicterra.worlddriver.bot.control.Walker} drive.</b> Each builds
+ * no avatar, no {@link net.magicterra.worlddriver.bot.control.Navigator} drive.</b> Each builds
  * nothing in the level: it calls {@code BuildBlocks.isUsableBuildBlock} /
  * {@code isValuablePlacementBlock} / {@code isThrowawaySupportBlock} on a fixed block/item
  * matrix and asserts the classification. So there is no {@code SceneContext.origin()}

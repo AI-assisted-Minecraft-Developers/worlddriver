@@ -18,23 +18,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
-import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
 import net.magicterra.worlddriver.game.body.LookController;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 import net.magicterra.worlddriver.bot.control.route.PathProjection;
 import net.magicterra.worlddriver.bot.control.route.PathSmoothing;
 
 
 /**
- * Mechanical extraction of {@code Walker#tickInner} (pre-split lines 3505–4181): re-centre, carrot aim, target-yaw EMA + trend camera, anti-spin freeze, dive + pitch.
- * One phase of the per-tick pipeline — see {@link Walker#tickInner} for the driver and
- * {@link WalkerTickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
- * original tick body except for the {@code w.}/{@code Walker.} member prefixes; do not
+ * Mechanical extraction of {@code Navigator#tickInner} (pre-split lines 3505–4181): re-centre, carrot aim, target-yaw EMA + trend camera, anti-spin freeze, dive + pitch.
+ * One phase of the per-tick pipeline — see {@link Navigator#tickInner} for the driver and
+ * {@link TickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
+ * original tick body except for the {@code w.}/{@code Navigator.} member prefixes; do not
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
-public final class WalkerTickAim {
+public final class AimPhase {
     /** A continuously-sliding aim point {@code CARROT_DIST} blocks ahead
      *  along the path (interpolated between nodes), capped by line-of-sight —
      *  the pure-pursuit "carrot". Because it's interpolated (not snapped to a
@@ -42,22 +42,22 @@ public final class WalkerTickAim {
      *  so the heading doesn't wobble over the cardinal/diagonal staircase.
      *  Stops at a wall/turn or an action cell so it never aims through one.
      *  Returns {x, z} world coords. */
-    public double[] carrotPoint(Walker wk, WorldView world, BlockPos foot, double px, double pz) {
+    public double[] carrotPoint(Navigator nav, WorldView world, BlockPos foot, double px, double pz) {
         double remaining = CARROT_DIST;
         // Sustained wall collision → the far carrot is steering the bot at a gap only
         // the LOS ray fits (jungle trunks). Collapse pursuit to the immediate node —
-        // the A* chain is walkable at player width by construction (walkerCarrotHColShrink).
-        if (ControlConfig.walkerCarrotHColShrink && wk.stallDetect.churn.hColRamTicks >= 8) remaining = 0.01;
+        // the A* chain is walkable at player width by construction (navigatorCarrotHColShrink).
+        if (ControlConfig.navigatorCarrotHColShrink && nav.stallDetect.churn.hColRamTicks >= 8) remaining = 0.01;
         // No LOS even to the current node falls back to that node, not to the bot itself: a zero aim
         // vector holds the stale yaw, and a bot that walked off a pulled diagonal kept ramming the
         // corner it had drifted onto (live 2026-09-28, 1389.57,66,-478.70: 38 ticks, bearing to wp -131, yaw -178).
         double cx = px, cz = pz;
-        double tx = wk.route.step() < wk.route.path().size() ? wk.route.path().get(wk.route.step()).getX() + 0.5 : px, tz = wk.route.step() < wk.route.path().size() ? wk.route.path().get(wk.route.step()).getZ() + 0.5 : pz;
-        for (int i = wk.route.step(); i < wk.route.path().size() && i - wk.route.step() <= CARROT_MAX_NODES; i++) {
-            BlockPos node = wk.route.path().get(i);
+        double tx = nav.route.step() < nav.route.path().size() ? nav.route.path().get(nav.route.step()).getX() + 0.5 : px, tz = nav.route.step() < nav.route.path().size() ? nav.route.path().get(nav.route.step()).getZ() + 0.5 : pz;
+        for (int i = nav.route.step(); i < nav.route.path().size() && i - nav.route.step() <= CARROT_MAX_NODES; i++) {
+            BlockPos node = nav.route.path().get(i);
             double nx = node.getX() + 0.5, nz = node.getZ() + 0.5;
-            if (hasPendingEdge(world, wk.route.edgeAt(i))) return new double[]{nx, nz}; // face the action cell
-            boolean losOk = ControlConfig.walkerCarrotBodyLos
+            if (hasPendingEdge(world, nav.route.edgeAt(i))) return new double[]{nx, nz}; // face the action cell
+            boolean losOk = ControlConfig.navigatorCarrotBodyLos
                     ? PathSmoothing.losWalkableBody(world, foot, node)
                     : losWalkable(world, foot, node);
             if (!losOk) break;                                                 // don't aim past a wall
@@ -68,26 +68,26 @@ public final class WalkerTickAim {
                 // Past a corner the chord to the carrot is not the checked foot→node line: live
                 // 1489,65,-399 was a pit beside the 1491,66,-400 corner that the chord crossed.
                 // At the box's true half-width: with the margin, a body pressed on a trunk failed every chord.
-                if (i > wk.route.step() && !PathSmoothing.losWalkableBody(world, px, pz, foot, ax, az, node.getY()))
+                if (i > nav.route.step() && !PathSmoothing.losWalkableBody(world, px, pz, foot, ax, az, node.getY()))
                     return new double[]{cx, cz};
                 return new double[]{ax, az};
             }
             // The LOS test ramps y from foot to node, so it passes a straight line up a stair flight that
             // takes one jump per riser: live 1543,64,-151 aimed 45° off a three-stepUp flight and fell
             // into the pit beside it (1541,62,-154), then pillared out (5 s).
-            if (ControlConfig.walkerCarrotStopAtRise && node.getY() > foot.getY()) return new double[]{nx, nz};
+            if (ControlConfig.navigatorCarrotStopAtRise && node.getY() > foot.getY()) return new double[]{nx, nz};
             remaining -= seg;
             cx = nx; cz = nz; tx = nx; tz = nz;
         }
         return new double[]{tx, tz};
     }
 
-    /** Submerged-descent dive latches (task#96 step B), owned by WalkerTickAim; both
+    /** Submerged-descent dive latches (task#96 step B), owned by AimPhase; both
      *  cleared on every journey reset via {@link DiveLatches#reset()}. */
     public final DiveLatches dive = new DiveLatches();
 
     /** Riser-ram fold counters (task#96 step B7): the four stepUpFreeze/bank-follow
-     *  feeders, counted by WalkerTickAim (bankFollowRamTicks also driven in Drive).
+     *  feeders, counted by AimPhase (bankFollowRamTicks also driven in Drive).
      *  All self-zero on their own disengage conditions — no journey reset ever
      *  touched them. */
     public final RamFold ramFold = new RamFold();
@@ -107,10 +107,10 @@ public final class WalkerTickAim {
      *  for {@code RAM_SCRAPE_TICKS}. Sliding along a face at ~0.05 b/t never trips the stall clocks
      *  while the bot presses a heading >60° off its node (live 2026-09-28, 1515.36,75,-237.70: a
      *  stepDown node 80° to the side, stuck=0 throughout, 11+ ticks of scrape). */
-    private boolean ramPinned(Walker wk, LivingEntity p) {
+    private boolean ramPinned(Navigator nav, LivingEntity p) {
         return p.horizontalCollision
-                && (wk.stuckTicks > 40 || (p.onGround() && wk.stallDetect.churn.hColRamTicks >= RAM_SCRAPE_TICKS)
-                    || (ControlConfig.walkerPhysicalStallClock && wk.progress.physStall.stallTicks > 60));
+                && (nav.stuckTicks > 40 || (p.onGround() && nav.stallDetect.churn.hColRamTicks >= RAM_SCRAPE_TICKS)
+                    || (ControlConfig.navigatorPhysicalStallClock && nav.progress.physStall.stallTicks > 60));
     }
 
     /**
@@ -124,27 +124,27 @@ public final class WalkerTickAim {
     /**
      * How far the body faces off a step-up's aim. The smoothed aim lags a sharp turn together with the
      * body, so on the turn's first tick it reads aligned: R1 1387,76,-510 jumped a diagUp 90° off its raw
-     * aim and flew off the notch it stood in (2.5 s). {@code walkerStepUpRawHeading} also asks the raw aim.
+     * aim and flew off the notch it stood in (2.5 s). {@code navigatorStepUpRawHeading} also asks the raw aim.
      */
     private static float stepHeadingErr(LivingEntity p, float aimYaw, float targetYaw) {
         float err = Math.abs(angleDiff(p.getYRot(), aimYaw));
-        return ControlConfig.walkerStepUpRawHeading ? Math.max(err, Math.abs(angleDiff(p.getYRot(), targetYaw))) : err;
+        return ControlConfig.navigatorStepUpRawHeading ? Math.max(err, Math.abs(angleDiff(p.getYRot(), targetYaw))) : err;
     }
 
     /**
      * The EMA rate for the target heading: the slow trend-camera alpha, or — under
-     * {@code walkerOrbitBreaksAimLag} — the cruise alpha once the bot has spent {@code ORBIT_TICKS}
+     * {@code navigatorOrbitBreaksAimLag} — the cruise alpha once the bot has spent {@code ORBIT_TICKS}
      * moving with a mid-range heading error. Under tangent drive the bot follows this EMA, and an
      * error that neither closes nor flips while the bot moves is the bot circling its node one cell
      * out: the slow alpha can never catch a bearing that rotates at its own convergence rate. Dry
      * only — water has its own drive heading.
      */
-    private float smoothingAlpha(Walker wk, LivingEntity p, boolean trendCam, float targetYaw) {
-        float alpha = trendCam ? (float) ControlConfig.walkerDescentYawAlpha : YAW_SMOOTH_ALPHA;
+    private float smoothingAlpha(Navigator nav, LivingEntity p, boolean trendCam, float targetYaw) {
+        float alpha = trendCam ? (float) ControlConfig.navigatorDescentYawAlpha : YAW_SMOOTH_ALPHA;
         AimSmoothing a = aimSmooth;
         float turn = Float.isNaN(a.orbitLastYaw) ? 0f : angleDiff(a.orbitLastYaw, p.getYRot());
         a.orbitLastYaw = p.getYRot();
-        if (!ControlConfig.walkerOrbitBreaksAimLag || !trendCam || p.isInWater()) {
+        if (!ControlConfig.navigatorOrbitBreaksAimLag || !trendCam || p.isInWater()) {
             a.orbitTicks = 0;
             a.orbitWinding = 0;
             a.orbitBreaking = false;
@@ -167,8 +167,8 @@ public final class WalkerTickAim {
             a.orbitTicks++;
         }
         if (a.orbitTicks <= ORBIT_TICKS || Math.abs(a.orbitWinding) < ORBIT_WINDING_DEG) return alpha;
-        if (GameConfig.walkerDebug && !a.orbitBreaking)
-            LOG.info("[walker] orbit-break: heading error {}° over {} ticks, wound {}° — cruise alpha",
+        if (GameConfig.navigatorDebug && !a.orbitBreaking)
+            LOG.info("[navigator] orbit-break: heading error {}° over {} ticks, wound {}° — cruise alpha",
                     String.format("%.0f", err), a.orbitTicks, String.format("%.0f", a.orbitWinding));
         a.orbitBreaking = true;
         return YAW_SMOOTH_ALPHA;
@@ -185,8 +185,8 @@ public final class WalkerTickAim {
      * hundred blocks of R1 turned 3400-5900° of heading against a human's 2060°, most of it under
      * this aim. A point past the node keeps the same line while it stays far enough not to swing.
      */
-    private double[] lookThrough(Walker wk, BlockPos wp, double adx, double adz) {
-        BlockPos prev = wk.route.path().get(wk.route.step() - 1);
+    private double[] lookThrough(Navigator nav, BlockPos wp, double adx, double adz) {
+        BlockPos prev = nav.route.path().get(nav.route.step() - 1);
         double ux = wp.getX() - prev.getX(), uz = wp.getZ() - prev.getZ(), ul = Math.hypot(ux, uz);
         if (ul < 1e-6) return null;
         ux /= ul; uz /= ul;
@@ -194,14 +194,14 @@ public final class WalkerTickAim {
         return tx * ux + tz * uz > 0 ? new double[]{tx, tz} : null;
     }
 
-    /** Last node the trend centroid averages: under {@code walkerCarrotStopAtRise}, the first node above the feet
+    /** Last node the trend centroid averages: under {@code navigatorCarrotStopAtRise}, the first node above the feet
      *  or behind a pending break/place. A flat walk into a stair flight averaged the flight's far nodes and drove
-     *  40° off the first riser (live 1543,64,-151, the twin of {@code Walker.carrotPoint}'s stop); a wade averaged
+     *  40° off the first riser (live 1543,64,-151, the twin of {@code Navigator.carrotPoint}'s stop); a wade averaged
      *  the leg past an undug bank exit and waded 8 blocks along it (1431,62,-355). */
-    private int centroidEnd(Walker wk, WorldView world, BlockPos foot, int lastNode) {
-        if (!ControlConfig.walkerCarrotStopAtRise) return lastNode;
-        for (int k = wk.route.step(); k < lastNode; k++)
-            if (wk.route.path().get(k).getY() > foot.getY() || hasPendingEdge(world, wk.route.edgeAt(k))) return k;
+    private int centroidEnd(Navigator nav, WorldView world, BlockPos foot, int lastNode) {
+        if (!ControlConfig.navigatorCarrotStopAtRise) return lastNode;
+        for (int k = nav.route.step(); k < lastNode; k++)
+            if (nav.route.path().get(k).getY() > foot.getY() || hasPendingEdge(world, nav.route.edgeAt(k))) return k;
         return lastNode;
     }
 
@@ -210,31 +210,31 @@ public final class WalkerTickAim {
      *  cost the R1 hills 0.35 s a run while walking round a staircase's cost the cliff 1.3 s. A heading it turns
      *  to drops the trend camera in {@code run} the way a pinned recovery does, else the centroid overwrites it
      *  and drives on: into the dark oak at R1 1389,112,-584 three times a run, the corner node's bearing in hand. */
-    private float aroundWall(Walker wk, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
-        if (openHeading(wk, world, p, foot, yaw)) return yaw;
-        double[] q = reachableAim(wk, world, foot, p.getX(), p.getZ());
+    private float aroundWall(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
+        if (openHeading(nav, world, p, foot, yaw)) return yaw;
+        double[] q = reachableAim(nav, world, foot, p.getX(), p.getZ());
         if (q != null) return (float) Math.toDegrees(Math.atan2(-(q[0] - p.getX()), q[1] - p.getZ()));
-        return nextNodeHeading(wk, world, p, foot, yaw);
+        return nextNodeHeading(nav, world, p, foot, yaw);
     }
 
     /** Swept at the body's own half-width: a margin here stranded the bot in a one-wide doorway
      *  (wd.serverStepsDownAPlanItSpentInOneTick) and on a water-side wall (wd.buoyantWall). */
-    private boolean openHeading(Walker wk, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
-        return headingClear(world, p, foot, yaw, true, BODY_HALF_WIDTH, jumpedRises(wk, foot)) && !unplannedDrop(wk, world, p, foot, yaw);
+    private boolean openHeading(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
+        return headingClear(world, p, foot, yaw, true, BODY_HALF_WIDTH, jumpedRises(nav, foot)) && !unplannedDrop(nav, world, p, foot, yaw);
     }
 
-    /** The risers {@link #openHeading} may pass (null: every one). Under {@code walkerAvoidLoneRisers}, off a climb
+    /** The risers {@link #openHeading} may pass (null: every one). Under {@code navigatorAvoidLoneRisers}, off a climb
      *  only those at or beside the node that starts one. Nothing jumps a +1 block that is not the path's own step,
      *  so a level heading that meets one rams its face: R1 1527,74,-222 and 1526,74,-223 on a level diagonal,
      *  1544,72,-163 with the climb four blocks on, every run. On a climb (the next two nodes rise) every riser still
      *  passes: walking round the cliff staircase's side steps cost it 2 s a run. */
-    private List<BlockPos> jumpedRises(Walker wk, BlockPos foot) {
-        if (!ControlConfig.walkerAvoidLoneRisers) return null;
+    private List<BlockPos> jumpedRises(Navigator nav, BlockPos foot) {
+        if (!ControlConfig.navigatorAvoidLoneRisers) return null;
         List<BlockPos> rises = new ArrayList<>(1);
-        for (int k = wk.route.step(); k < Math.min(wk.route.path().size(), wk.route.step() + 3); k++)
-            if (wk.route.path().get(k).getY() > foot.getY()) {
-                if (k < wk.route.step() + 2) return null;
-                rises.add(wk.route.path().get(k));
+        for (int k = nav.route.step(); k < Math.min(nav.route.path().size(), nav.route.step() + 3); k++)
+            if (nav.route.path().get(k).getY() > foot.getY()) {
+                if (k < nav.route.step() + 2) return null;
+                rises.add(nav.route.path().get(k));
             }
         return rises;
     }
@@ -258,13 +258,13 @@ public final class WalkerTickAim {
      *  two-deep pit and dug out for 3-9 s. The current node first: the projection never runs behind it, so
      *  short of a corner the tangent already follows the next leg, and at 1388,112,-583 that leg's parallel
      *  ran into a dark oak trunk three times a run. */
-    private float nextNodeHeading(Walker wk, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
-        for (int k = wk.route.step(); k <= Math.min(wk.route.step() + 2, wk.route.path().size() - 1); k++) {
-            BlockPos n = wk.route.path().get(k);
+    private float nextNodeHeading(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
+        for (int k = nav.route.step(); k <= Math.min(nav.route.step() + 2, nav.route.path().size() - 1); k++) {
+            BlockPos n = nav.route.path().get(k);
             double dx = n.getX() + 0.5 - p.getX(), dz = n.getZ() + 0.5 - p.getZ();
-            if (k == wk.route.step() && (dx * dx + dz * dz < ON_NODE_SQ || PathSmoothing.beyondNode(wk.route.path(), k, p))) continue;
+            if (k == nav.route.step() && (dx * dx + dz * dz < ON_NODE_SQ || PathSmoothing.beyondNode(nav.route.path(), k, p))) continue;
             float b = (float) Math.toDegrees(Math.atan2(-dx, dz));
-            if (openHeading(wk, world, p, foot, b)) return b;
+            if (openHeading(nav, world, p, foot, b)) return b;
         }
         return yaw;
     }
@@ -280,7 +280,7 @@ public final class WalkerTickAim {
      *  R1's start into the one-deep holes at 1572,64,-106 and 1570,63,-107 and jumped out of each for a second.
      *  Corners, not the centre: the body stands while any corner has floor, and a centre test read the ledge a
      *  node sits on as a drop in every direction. */
-    private boolean unplannedDrop(Walker wk, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
+    private boolean unplannedDrop(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
         double ux = -Math.sin(Math.toRadians(yaw)), uz = Math.cos(Math.toRadians(yaw)), hw = 0.3;
         for (double d = 0.5; d <= DROP_LOOK; d += 0.25) {
             double fx = p.getX() + ux * d, fz = p.getZ() + uz * d;
@@ -293,8 +293,8 @@ public final class WalkerTickAim {
                     held = world.isSolid(new BlockPos(Mth.floor(fx + sx * hw), foot.getY() - 1, Mth.floor(fz + sz * hw)));
             if (held) continue;
             boolean planned = false;
-            for (int k = Math.max(0, wk.route.step() - 1); k < Math.min(wk.route.path().size(), wk.route.step() + 4) && !planned; k++)
-                planned = wk.route.path().get(k).getX() == x && wk.route.path().get(k).getZ() == z;
+            for (int k = Math.max(0, nav.route.step() - 1); k < Math.min(nav.route.path().size(), nav.route.step() + 4) && !planned; k++)
+                planned = nav.route.path().get(k).getX() == x && nav.route.path().get(k).getZ() == z;
             if (!planned) return true;
         }
         return false;
@@ -310,14 +310,14 @@ public final class WalkerTickAim {
      * (a diagonal climb cuts its corner) walked the parallel into a trunk the line itself clears: R1
      * 1483,66,-312, 17 contacts in six runs. Aiming back at the line first walks around it.
      */
-    private double[] reachableAim(Walker wk, WorldView world, BlockPos foot, double px, double pz) {
-        PathProjection pr = wk.progress.arc.proj;
-        int i = Math.min(pr.aheadNode, wk.route.path().size() - 1);
-        if (PathSmoothing.losWalkableBody(world, px, pz, foot, pr.aheadX, pr.aheadZ, wk.route.path().get(i).getY()))
+    private double[] reachableAim(Navigator nav, WorldView world, BlockPos foot, double px, double pz) {
+        PathProjection pr = nav.progress.arc.proj;
+        int i = Math.min(pr.aheadNode, nav.route.path().size() - 1);
+        if (PathSmoothing.losWalkableBody(world, px, pz, foot, pr.aheadX, pr.aheadZ, nav.route.path().get(i).getY()))
             return new double[]{pr.aheadX, pr.aheadZ};
         double ex = pr.aheadX, ez = pr.aheadZ;
-        for (int k = i; k >= Math.max(1, wk.route.step()); k--) {
-            BlockPos a = wk.route.path().get(k - 1), b = wk.route.path().get(k);
+        for (int k = i; k >= Math.max(1, nav.route.step()); k--) {
+            BlockPos a = nav.route.path().get(k - 1), b = nav.route.path().get(k);
             double sx = a.getX() + 0.5, sz = a.getZ() + 0.5, dx = ex - sx, dz = ez - sz, len = Math.hypot(dx, dz);
             for (double d = k == i ? len - REACH_BACK_STEP : len; d > 0; d -= REACH_BACK_STEP) {
                 double qx = sx + dx * d / len, qz = sz + dz * d / len;
@@ -333,22 +333,22 @@ public final class WalkerTickAim {
     private static final double HEADING_CLEAR_DIST = 2.0;
 
     /** The dry trend heading, or the bearing to the node when only the latter has room for the body (under
-     *  {@code walkerTrendNeedsRoom}). The centroid averages nodes past a corner and its line can cut it: live
+     *  {@code navigatorTrendNeedsRoom}). The centroid averages nodes past a corner and its line can cut it: live
      *  1545,72,-159 drove 162° with the node at 141° and slid along a raised bank for 10 ticks. The node, not the
      *  tangent: at a cliff foot the tangent sat on the next leg and drove the bot away from its stepDown for 4 s.
      *  Only where nothing in the window rises: before a riser the line always meets it, and swapping the trend for
      *  the node there cost 2-8 s per run on the R1 cliff. */
     private static float trendWithRoom(WorldView world, LivingEntity p, BlockPos foot, BlockPos wp, float centroidYaw) {
-        if (!ControlConfig.walkerTrendNeedsRoom || headingClear(world, p, foot, centroidYaw)) return centroidYaw;
+        if (!ControlConfig.navigatorTrendNeedsRoom || headingClear(world, p, foot, centroidYaw)) return centroidYaw;
         float nodeYaw = (float) Math.toDegrees(Math.atan2(-(wp.getX() + 0.5 - p.getX()), wp.getZ() + 0.5 - p.getZ()));
         return headingClear(world, p, foot, nodeYaw) ? nodeYaw : centroidYaw;
     }
 
-    /** Whether the body box widened to {@code walkerHeadingClearHalfWidth}, carried {@link #HEADING_CLEAR_DIST} along
+    /** Whether the body box widened to {@code navigatorHeadingClearHalfWidth}, carried {@link #HEADING_CLEAR_DIST} along
      *  {@code yaw} at the foot's level, meets no solid cell. At the body's own 0.3 a heading with the body's side
      *  flush against a trunk passes. */
     private static boolean headingClear(WorldView world, LivingEntity p, BlockPos foot, float yaw) {
-        return headingClear(world, p, foot, yaw, false, Math.max(BODY_HALF_WIDTH, ControlConfig.walkerHeadingClearHalfWidth), null);
+        return headingClear(world, p, foot, yaw, false, Math.max(BODY_HALF_WIDTH, ControlConfig.navigatorHeadingClearHalfWidth), null);
     }
 
     /** {@link #headingClear}, optionally letting through what a jump takes: a riser, or the second step of a flight
@@ -369,20 +369,20 @@ public final class WalkerTickAim {
         return true;
     }
 
-    private boolean onLastNode(Walker wk) {
-        return ControlConfig.walkerFinalNodeDirectAim && wk.route.path() != null && wk.route.step() == wk.route.path().size() - 1;
+    private boolean onLastNode(Navigator nav) {
+        return ControlConfig.navigatorFinalNodeDirectAim && nav.route.path() != null && nav.route.step() == nav.route.path().size() - 1;
     }
 
     /**
-     * walkerTangentPursuit: the bare tangent carries no cross-track term, so a bot that is off the
+     * navigatorTangentPursuit: the bare tangent carries no cross-track term, so a bot that is off the
      * path (a smoothed route whose first hop is a diagonal off the start, a shove, a corner cut)
      * walks PARALLEL to it and never rejoins — measured in {@code wd.routeStaysOutOfSkeletonSight}:
      * perp 1.4 held for 20 cells, the bot in the open while the route it was given ran in the
      * wall's shadow. Past {@code PURSUIT_PERP} aim at the path's point ahead instead; on the path
      * the two bearings coincide, so the tuned tangent cruise is unchanged there.
      */
-    private float tangentOrPursuit(Walker wk, LivingEntity p, boolean launch, BlockPos foot) {
-        return offPathPursuit(wk, p, launch, foot) ? wk.progress.arc.proj.pursuitYaw : wk.progress.arc.proj.tangentYaw;
+    private float tangentOrPursuit(Navigator nav, LivingEntity p, boolean launch, BlockPos foot) {
+        return offPathPursuit(nav, p, launch, foot) ? nav.progress.arc.proj.pursuitYaw : nav.progress.arc.proj.tangentYaw;
     }
 
     /**
@@ -396,35 +396,35 @@ public final class WalkerTickAim {
      *
      * <p>Scoped to a LEVEL stretch with a segment ahead: dry, the current and the next node at the
      * foot's Y, not the last node. A step down or a plan's last node has its own tuned handling
-     * (walkerDescentNodeHold, the descent decouple), and the first cut of this — perp alone —
+     * (navigatorDescentNodeHold, the descent decouple), and the first cut of this — perp alone —
      * walked the bot west and off the doorway in {@code wd.serverStepsDownAPlanItSpentInOneTick}
      * and lost an ore in {@code wd.serverMineHarvestBuried}; both green with the flag off, both
      * green again with this scope. A buoyant bot rides off its nodes legitimately.
      */
-    private boolean offPathPursuit(Walker wk, LivingEntity p, boolean launch, BlockPos foot) {
-        if (!ControlConfig.walkerTangentAim || !ControlConfig.walkerTangentPursuit || launch || p.isInWater()) return false;
-        if (wk.route.path() == null || wk.route.step() + 1 >= wk.route.path().size()) return false;
-        if (wk.route.path().get(wk.route.step()).getY() != foot.getY() || wk.route.path().get(wk.route.step() + 1).getY() != foot.getY()) return false;
-        return wk.progress.arc.proj.perp > PURSUIT_PERP;
+    private boolean offPathPursuit(Navigator nav, LivingEntity p, boolean launch, BlockPos foot) {
+        if (!ControlConfig.navigatorTangentAim || !ControlConfig.navigatorTangentPursuit || launch || p.isInWater()) return false;
+        if (nav.route.path() == null || nav.route.step() + 1 >= nav.route.path().size()) return false;
+        if (nav.route.path().get(nav.route.step()).getY() != foot.getY() || nav.route.path().get(nav.route.step() + 1).getY() != foot.getY()) return false;
+        return nav.progress.arc.proj.perp > PURSUIT_PERP;
     }
 
     /** The foot the aim judges by. At a +1 jump's apex the foot already reads the node's level, so every
      *  level-walk aim (carrot, tangent, trend centroid) took over mid-air and steered past the step: live
      *  1389,92,-526.7 drove at the next leg's 180° with the node at 74° and rammed a wall 30 ticks. Until
-     *  it lands, an ascent's aim is judged from its take-off level (under {@code walkerCarrotStopAtRise}). The aim
+     *  it lands, an ascent's aim is judged from its take-off level (under {@code navigatorCarrotStopAtRise}). The aim
      *  only: {@code run} goes back to the real foot once the aim is chosen, or the step-up pivot found the node still
      *  above at the jump's apex and cut forward drive mid-air. */
-    private BlockPos ascentAimFoot(Walker wk, LivingEntity p, BlockPos foot, BlockPos wp) {
-        if (!ControlConfig.walkerCarrotStopAtRise || p.onGround() || p.isInWater() || p.onClimbable()
-                || wk.route.path() == null || wk.route.step() <= 0 || wk.route.step() >= wk.route.path().size() || wp == null) return foot;
-        return wp.getY() == foot.getY() && wk.route.path().get(wk.route.step() - 1).getY() < wp.getY() ? foot.below() : foot;
+    private BlockPos ascentAimFoot(Navigator nav, LivingEntity p, BlockPos foot, BlockPos wp) {
+        if (!ControlConfig.navigatorCarrotStopAtRise || p.onGround() || p.isInWater() || p.onClimbable()
+                || nav.route.path() == null || nav.route.step() <= 0 || nav.route.step() >= nav.route.path().size() || wp == null) return foot;
+        return wp.getY() == foot.getY() && nav.route.path().get(nav.route.step() - 1).getY() < wp.getY() ? foot.below() : foot;
     }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    public TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
-        // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
+    public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
+        // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
         LivingEntity p = cx.frame.p;
-        BlockPos foot = ascentAimFoot(wk, p, cx.frame.foot, cx.edges.wp);
+        BlockPos foot = ascentAimFoot(nav, p, cx.frame.foot, cx.edges.wp);
         Move.Edge edge = cx.edges.edge;
         BlockPos wp = cx.edges.wp;
         boolean parkourEdge = cx.edges.parkourEdge;
@@ -478,15 +478,15 @@ public final class WalkerTickAim {
         double recX = 0, recZ = 0;
         // Guard-pin stall clock: while the stride floor-guard pins the bot at an unplanned
         // void edge, its fire ticks DECREMENT stuckTicks by design (the pin is a hold, not a
-        // stall, and recovery bursts at a lip have killed — Walker wrapper) — so every
+        // stall, and recovery bursts at a lip have killed — Navigator wrapper) — so every
         // stuck-gated recovery branch below starves and the pin livelocks (r29 StepTwo:
         // st0/117 at the dogleg edge, 1300 ticks). The guard's own pinStreak IS the stall
         // clock for that state: it accumulates across fire/hold ticks by design. Use it as
         // an alternate trigger while the pin is latched — the branches it enables (reCentre /
         // nodeAim) steer along the corridor, which is exactly what releases the pin.
-        int guardPinClock = wk.safety.guardSneakLatch ? wk.safety.guardPinStreak : 0;
-        if (!aimAtWaypoint && (wk.stuckTicks > 5 || guardPinClock > 5) && wk.route.step() > 0) {
-            BlockPos sp = wk.route.path().get(wk.route.step() - 1);
+        int guardPinClock = nav.safety.guardSneakLatch ? nav.safety.guardPinStreak : 0;
+        if (!aimAtWaypoint && (nav.stuckTicks > 5 || guardPinClock > 5) && nav.route.step() > 0) {
+            BlockPos sp = nav.route.path().get(nav.route.step() - 1);
             boolean onSpine = foot.getX() == sp.getX() && foot.getZ() == sp.getZ();
             if (!onSpine && losWalkable(world, foot, sp)) {
                 double rcx = (sp.getX() + 0.5) - p.getX();
@@ -543,7 +543,7 @@ public final class WalkerTickAim {
             // excludes, and where it engages it flickers between trend- and exact-aim, ADDING thrash.
             // The descent spin needs a different mechanism, not this aim swap. Up-steps only.
             if (!p.isInWater() && !parkourEdge && (wp.getY() - foot.getY()) == 1
-                    && wk.route.step() + 1 < wk.route.path().size()) {
+                    && nav.route.step() + 1 < nav.route.path().size()) {
                 // Path-trend averaging (the root-cause fix). Sum the UNIT direction of
                 // each upcoming segment while they stay consistent (<60° turn), so a diagonal
                 // staircase's ±30° per-step alternation collapses to the steady diagonal and the
@@ -554,9 +554,9 @@ public final class WalkerTickAim {
                 // the stair instead of flipping ±180°. Forward-only (dot>0) never reverses.
                 double tx = 0, tz = 0;
                 BlockPos prev = foot;
-                int last = Math.min(wk.route.step() + STAIR_TREND_LOOKAHEAD, wk.route.path().size() - 1);
-                for (int k = wk.route.step(); k <= last; k++) {
-                    BlockPos nd = wk.route.path().get(k);
+                int last = Math.min(nav.route.step() + STAIR_TREND_LOOKAHEAD, nav.route.path().size() - 1);
+                for (int k = nav.route.step(); k <= last; k++) {
+                    BlockPos nd = nav.route.path().get(k);
                     double sx = nd.getX() - prev.getX(), sz = nd.getZ() - prev.getZ();
                     double sl = Math.sqrt(sx * sx + sz * sz);
                     if (sl < 1e-6) { prev = nd; continue; }
@@ -572,7 +572,7 @@ public final class WalkerTickAim {
                 // immediate-node aim is kept (else the summit pillar + bank-dig plateau mount
                 // mis-aim). Forward-only (dot>0) never reverses.
                 if (Math.sqrt(tx * tx + tz * tz) >= 2.0 && (tx * adx + tz * adz) > 0) { adx = tx; adz = tz; aimSrc = "trend"; }
-                else if (wk.route.step() > 0) { double[] lt = lookThrough(wk, wp, adx, adz); if (lt != null) { adx = lt[0]; adz = lt[1]; aimSrc = "lookThrough"; } }
+                else if (nav.route.step() > 0) { double[] lt = lookThrough(nav, wp, adx, adz); if (lt != null) { adx = lt[0]; adz = lt[1]; aimSrc = "lookThrough"; } }
             }
         } else if (reCentre) {
             aimSrc = "recentre";
@@ -588,7 +588,7 @@ public final class WalkerTickAim {
         // the straight line to the node is walkable (same check reCentre has always had);
         // otherwise fall through to the carrot, which follows the path cell-by-cell. The
         // plain stuckTicks clause keeps its historical unguarded form.
-        } else if (wk.stuckTicks > APPROACH_NODE_AIM_TICKS
+        } else if (nav.stuckTicks > APPROACH_NODE_AIM_TICKS
                 || (guardPinClock > 5 && losWalkable(world, foot, wp))) {
             aimSrc = "nodeAim";
             // FLAT-node carrot-orbit fallback (see APPROACH_NODE_AIM_TICKS). On a flat walk the bot
@@ -602,7 +602,7 @@ public final class WalkerTickAim {
             adz = (wp.getZ() + 0.5) - p.getZ();
         } else {
             aimSrc = "carrot";
-            double[] c = carrotPoint(wk, world, foot, p.getX(), p.getZ());
+            double[] c = carrotPoint(nav, world, foot, p.getX(), p.getZ());
             adx = c[0] - p.getX();
             adz = c[1] - p.getZ();
             // Carrot-swing thrash fix (the residual deep-water stall cluster). When a bank
@@ -631,10 +631,10 @@ public final class WalkerTickAim {
             aimSmooth.lastCarrotBearing = carrotBearing;
             if (aimSmooth.yawThrashTicks > 0) aimSmooth.yawThrashTicks--;
             boolean climbAhead = false;
-            for (int q = wk.route.step(); q < Math.min(wk.route.path().size(), wk.route.step() + WATER_FAR_AIM_LOOKAHEAD + 1); q++)
-                if (wk.route.path().get(q).getY() > foot.getY()) { climbAhead = true; break; }
+            for (int q = nav.route.step(); q < Math.min(nav.route.path().size(), nav.route.step() + WATER_FAR_AIM_LOOKAHEAD + 1); q++)
+                if (nav.route.path().get(q).getY() > foot.getY()) { climbAhead = true; break; }
             if (p.isInWater() && aimSmooth.yawThrashTicks >= WATER_YAW_THRASH_SCORE && !climbAhead) {
-                BlockPos far = wk.route.path().get(Math.min(wk.route.step() + WATER_FAR_AIM_LOOKAHEAD, wk.route.path().size() - 1));
+                BlockPos far = nav.route.path().get(Math.min(nav.route.step() + WATER_FAR_AIM_LOOKAHEAD, nav.route.path().size() - 1));
                 adx = (far.getX() + 0.5) - p.getX();
                 adz = (far.getZ() + 0.5) - p.getZ();
                 aimSrc = "farNode";
@@ -656,7 +656,7 @@ public final class WalkerTickAim {
         //      camera-swing anomaly. Gating on no-progress keeps a precisely-advancing
         //      approach on the TIGHT dead-zone, so the climb-out mount stays accurate
         //      (deepWaterClimboutNoBlockArena regressed when this widened unconditionally).
-        // walkerOvershootReaim: a dry walk-node OVERSHOOT at a cliff base wedges hard — the foot blew PAST
+        // navigatorOvershootReaim: a dry walk-node OVERSHOOT at a cliff base wedges hard — the foot blew PAST
         // the node (cur2 > OVERSHOOT_RESYNC_SQ) but the NEXT node is the climb (>1 up) so `passed` can't
         // advance onto it, and the carrot/tangent aim points the bot the wrong way (backward into a wall)
         // so it never re-centres — a ram-frozen wedge (journey 2026-06-29 -558,82: yaw -179 / yawErr -120 /
@@ -667,30 +667,30 @@ public final class WalkerTickAim {
         // STABLE archive, regressed 161→380 — the hCol subset is where backing up HURTS, i.e. ram-and-push-
         // through, not ram-and-retreat; gating to it dropped the beneficial non-ram firings). Keep the
         // unconditional grounded-overshoot trigger that was NET-POSITIVE (corpus 4811→4104, long-540 −81%).
-        if (ControlConfig.walkerOvershootReaim && wk.route.path() != null && wk.route.step() < wk.route.path().size()
-                && wk.route.step() + 1 < wk.route.path().size() && !p.isInWater() && p.onGround()
-                && wk.stuckTicks > OVERSHOOT_REAIM_STUCK) {
-            BlockPos ow = wk.route.path().get(wk.route.step());
+        if (ControlConfig.navigatorOvershootReaim && nav.route.path() != null && nav.route.step() < nav.route.path().size()
+                && nav.route.step() + 1 < nav.route.path().size() && !p.isInWater() && p.onGround()
+                && nav.stuckTicks > OVERSHOOT_REAIM_STUCK) {
+            BlockPos ow = nav.route.path().get(nav.route.step());
             double ocx = (ow.getX() + 0.5) - p.getX(), ocz = (ow.getZ() + 0.5) - p.getZ();
             if (ocx * ocx + ocz * ocz > OVERSHOOT_RESYNC_SQ
-                    && wk.route.path().get(wk.route.step() + 1).getY() - foot.getY() > 1) {
+                    && nav.route.path().get(nav.route.step() + 1).getY() - foot.getY() > 1) {
                 adx = ocx;
                 adz = ocz;   // walk BACK onto the overshot cliff-base node, then climb cleanly
                 aimSrc = "overshoot";
             }
         }
-        // walkerDryReanchor: the dry repath-rechurn breaker (REGRESSION.md §21). When a move has failed and
+        // navigatorDryReanchor: the dry repath-rechurn breaker (REGRESSION.md §21). When a move has failed and
         // the foot is FAR off the current node (dist² > DRY_REANCHOR_OFFPATH_SQ) with a sustained stall
         // (stuckTicks > DRY_REANCHOR_STUCK) on dry land, override the carrot/tangent/node aim with a FIXED
         // aim at the last cleanly-passed node centre (path[step-1]). That fixed point's bearing barely moves
         // as the bot closes, so the node-orbit yaw-thrash that paces the repath churn collapses and the bot
         // walks deterministically back ONTO the path before resuming — breaking the amplifier common to every
         // heterogeneous wedge. Excludes water (the in-water anti-spin machinery owns that) and the very first
-        // node (no prior anchor). Independent of walkerOvershootReaim (this is the general off-path case; that
+        // node (no prior anchor). Independent of navigatorOvershootReaim (this is the general off-path case; that
         // is the specific cliff-base-overshoot case) — both may compute, the later assignment wins.
-        if (ControlConfig.walkerDryReanchor && !p.isInWater() && wk.route.step() > 0 && wk.route.step() < wk.route.path().size()
-                && wk.stuckTicks > DRY_REANCHOR_STUCK) {
-            BlockPos cn = wk.route.path().get(wk.route.step());
+        if (ControlConfig.navigatorDryReanchor && !p.isInWater() && nav.route.step() > 0 && nav.route.step() < nav.route.path().size()
+                && nav.stuckTicks > DRY_REANCHOR_STUCK) {
+            BlockPos cn = nav.route.path().get(nav.route.step());
             double cnx = (cn.getX() + 0.5) - p.getX(), cnz = (cn.getZ() + 0.5) - p.getZ();
             // ram-while-facing-wrong extension REVERTED 2026-06-29 (§25): adding an `|| (hCol && |yawErr|>90)`
             // trigger made the live -671 diagDown stall MUCH worse (oscillating limit cycle, totStuck 6009 vs
@@ -699,14 +699,14 @@ public final class WalkerTickAim {
             // (§13) and the hCol-gate (§16). A close ram is NOT fixable by aim-back. Keep the FAR-off-path-only
             // trigger (corpus-validated net-positive, §22-24); the close diagDown-ram is a separate open problem.
             if (cnx * cnx + cnz * cnz > DRY_REANCHOR_OFFPATH_SQ) {
-                BlockPos anchor = wk.route.path().get(wk.route.step() - 1);
+                BlockPos anchor = nav.route.path().get(nav.route.step() - 1);
                 adx = (anchor.getX() + 0.5) - p.getX();
                 adz = (anchor.getZ() + 0.5) - p.getZ();
             }
         }
         double aim2 = adx * adx + adz * adz;
         boolean climbAim = aimAtWaypoint && p.isInWater() && wpAimDy > 0.5;
-        boolean waterThrash = p.isInWater() && wk.progress.stepProg.noStepProgressTicks > WATER_YAW_HOLD_STALL;
+        boolean waterThrash = p.isInWater() && nav.progress.stepProg.noStepProgressTicks > WATER_YAW_HOLD_STALL;
         double aimDeadzone = (climbAim || waterThrash) ? CLIMB_AIM_DEADZONE_SQ : YAW_DEADZONE_SQ;
         float targetYaw = (aim2 < aimDeadzone)
                 ? p.getYRot()   // essentially on the aim column — hold heading, don't thrash atan2
@@ -716,7 +716,7 @@ public final class WalkerTickAim {
         // the bot off at an angle (drifts off a narrow landing). Launches bypass both the
         // EMA and the slew cap; everything else is smoothed + capped.
         boolean launch = parkourEdge || steppingOffFall || steppingOffWaterFall;
-        // Phase-2 (walkerTangentAim): replace the immediate-node bearing with the bob-immune path TANGENT
+        // Phase-2 (navigatorTangentAim): replace the immediate-node bearing with the bob-immune path TANGENT
         // ahead of the projection. The node bearing reverses ~180° on a node overshoot — the backward-jump /
         // repeated side-to-side hopping / facing-the-wall dead-corner stall; the tangent never flips, so the camera (via
         // smoothTargetYaw/aimYaw below) and the captured descentNodeYaw both follow the path smoothly. Skipped
@@ -741,30 +741,30 @@ public final class WalkerTickAim {
         // divert the drive mid-ridge and r22's suite hung on a bot that walked off the
         // ridge to bedrock. Plain stuckTicks-triggered nodeAim (no pin) keeps the
         // historical tangent override.
-        boolean pinnedRecovery = (p.horizontalCollision || wk.safety.guardSneakLatch)
+        boolean pinnedRecovery = (p.horizontalCollision || nav.safety.guardSneakLatch)
                 && (reCentre || "nodeAim".equals(aimSrc)), walkedRound = false;
-        if (ControlConfig.walkerTangentAim && !launch && !pinnedRecovery && !onLastNode(wk)
+        if (ControlConfig.navigatorTangentAim && !launch && !pinnedRecovery && !onLastNode(nav)
                 && aim2 >= aimDeadzone
-                && wk.route.path() != null && wk.route.step() < wk.route.path().size()
-                && wk.route.path().get(wk.route.step()).getY() <= foot.getY()) {
-            float tangent = tangentOrPursuit(wk, p, launch, foot);
-            walkedRound = (targetYaw = aroundWall(wk, world, p, foot, tangent)) != tangent;
-            // walkerWallCornerNodeAim: the tangent steers along the path TREND, but at a CORNER where the
+                && nav.route.path() != null && nav.route.step() < nav.route.path().size()
+                && nav.route.path().get(nav.route.step()).getY() <= foot.getY()) {
+            float tangent = tangentOrPursuit(nav, p, launch, foot);
+            walkedRound = (targetYaw = aroundWall(nav, world, p, foot, tangent)) != tangent;
+            // navigatorWallCornerNodeAim: the tangent steers along the path TREND, but at a CORNER where the
             // immediate node sits well off the tangent AND a wall is on the tangent heading, the bot RAMS
             // the wall (horizontalCollision) instead of turning the corner toward the node — it then only
             // creeps across as drift sweeps the geometry (live dry-627 start: yaw frozen 91° / node bearing
             // 122° / hCol=true / 350-tick churn, the stuck-against-a-wall signature). When ramming with the node well
             // off the tangent, yield back to the DIRECT node bearing so the bot turns off the wall onto the
             // node. Gated on hCol so a clean trend-cruise (no wall) keeps the bob-immune tangent unchanged.
-            if (ControlConfig.walkerWallCornerNodeAim && p.horizontalCollision) {
-                BlockPos wn3 = wk.route.path().get(wk.route.step());
+            if (ControlConfig.navigatorWallCornerNodeAim && p.horizontalCollision) {
+                BlockPos wn3 = nav.route.path().get(nav.route.step());
                 float nodeBear = (float) Math.toDegrees(Math.atan2(
                         -((wn3.getX() + 0.5) - p.getX()), (wn3.getZ() + 0.5) - p.getZ()));
-                if (Math.abs(angleDiff(wk.progress.arc.proj.tangentYaw, nodeBear)) > WALL_CORNER_AIM_DEG)
+                if (Math.abs(angleDiff(nav.progress.arc.proj.tangentYaw, nodeBear)) > WALL_CORNER_AIM_DEG)
                     targetYaw = nodeBear;
             }
         }
-        // walkerRamNodeAimRelease (§80): dry wall-pin with the drive heading >60° off the
+        // navigatorRamNodeAimRelease (§80): dry wall-pin with the drive heading >60° off the
         // current-node bearing — the deadzone hold-heading band (A: aim2 inside the deadzone
         // holds a stale yaw that a stepDown node's within-gate never accepts) or a reversed
         // switchback tangent (B: tangent -180° vs node bearing 14°, corner corrector
@@ -773,20 +773,20 @@ public final class WalkerTickAim {
         // both the drive (descentNodeYaw capture below) and the camera follow. Aims at the
         // CURRENT node under a collision gate — not the §25 step-1 reanchor that bounced.
         boolean ramReleaseAim = false;
-        if (ControlConfig.walkerRamNodeAimRelease && !p.isInWater() && ramPinned(wk, p)
-                && wk.route.path() != null && wk.route.step() < wk.route.path().size()) {
-            BlockPos rn = wk.route.path().get(wk.route.step());
+        if (ControlConfig.navigatorRamNodeAimRelease && !p.isInWater() && ramPinned(nav, p)
+                && nav.route.path() != null && nav.route.step() < nav.route.path().size()) {
+            BlockPos rn = nav.route.path().get(nav.route.step());
             double rndx = (rn.getX() + 0.5) - p.getX(), rndz = (rn.getZ() + 0.5) - p.getZ();
             if (rndx * rndx + rndz * rndz > 1e-6) {
                 float rnb = (float) Math.toDegrees(Math.atan2(-rndx, rndz));
                 if (Math.abs(angleDiff(p.getYRot(), rnb)) > 60) {
                     targetYaw = rnb;
                     ramReleaseAim = true;
-                    if (GameConfig.walkerDebug)
-                        LOG.info("[walker] ram-release: node-aim {} (was yaw={}) node={},{},{} stuckT={}",
+                    if (GameConfig.navigatorDebug)
+                        LOG.info("[navigator] ram-release: node-aim {} (was yaw={}) node={},{},{} stuckT={}",
                                 String.format(Locale.ROOT, "%.0f", rnb),
                                 String.format(Locale.ROOT, "%.0f", p.getYRot()),
-                                rn.getX(), rn.getY(), rn.getZ(), wk.stuckTicks);
+                                rn.getX(), rn.getY(), rn.getZ(), nav.stuckTicks);
                 } else if (reCentre) {
                     // CORNER-SNAG branch: the node bearing is within 60° of the pressed yaw —
                     // i.e. the node sits BEHIND the same wall face and aiming at it keeps
@@ -798,10 +798,10 @@ public final class WalkerTickAim {
                     // (the tree's own intermittent reCentre ticks were smoothed away).
                     targetYaw = (float) Math.toDegrees(Math.atan2(-recX, recZ));
                     ramReleaseAim = true;
-                    if (GameConfig.walkerDebug)
-                        LOG.info("[walker] ram-release: corner-snag spine-aim {} (was yaw={}) stuckT={}",
+                    if (GameConfig.navigatorDebug)
+                        LOG.info("[navigator] ram-release: corner-snag spine-aim {} (was yaw={}) stuckT={}",
                                 String.format(Locale.ROOT, "%.0f", targetYaw),
-                                String.format(Locale.ROOT, "%.0f", p.getYRot()), wk.stuckTicks);
+                                String.format(Locale.ROOT, "%.0f", p.getYRot()), nav.stuckTicks);
                 }
             }
         }
@@ -872,8 +872,8 @@ public final class WalkerTickAim {
         //    (Swapping the DRIVE source instead was r30/r31-DISPROVEN — see Drive.)
         boolean recoverySnagAim = !p.isInWater()
                 && ((p.horizontalCollision && (reCentre || ramReleaseAim))
-                    || (wk.safety.guardSneakLatch && (reCentre || "nodeAim".equals(aimSrc))));
-        boolean trendCam = (dryDescent || flatWaterTrend) && !recoverySnagAim && !walkedRound && !offPathPursuit(wk, p, launch, foot);
+                    || (nav.safety.guardSneakLatch && (reCentre || "nodeAim".equals(aimSrc))));
+        boolean trendCam = (dryDescent || flatWaterTrend) && !recoverySnagAim && !walkedRound && !offPathPursuit(nav, p, launch, foot);
         // Smoothed water DRIVE: the raw immediate-node bearing flips ±180° when the slow buoyant bot
         // overshoots a node, so driving it raw makes the bot swim-wobble (live: 52% path efficiency,
         // and the bot suddenly turning away from the target). A light EMA damps the per-tick flip while still tracking the node. WATER
@@ -898,10 +898,10 @@ public final class WalkerTickAim {
             // not the bob's air gap.
             BlockPos losFoot = foot.getY() > wp.getY()
                     ? new BlockPos(foot.getX(), wp.getY(), foot.getZ()) : foot;
-            double[] cp = carrotPoint(wk, world, losFoot, p.getX(), p.getZ());
+            double[] cp = carrotPoint(nav, world, losFoot, p.getX(), p.getZ());
             double cdx = cp[0] - p.getX(), cdz = cp[1] - p.getZ();
-            if (GameConfig.walkerDebug && cdx * cdx + cdz * cdz <= 1.0)
-                LOG.info("[walker] carrot-collapse foot={} wp.y={} posY={} losRaw={} losClamp={}",
+            if (GameConfig.navigatorDebug && cdx * cdx + cdz * cdz <= 1.0)
+                LOG.info("[navigator] carrot-collapse foot={} wp.y={} posY={} losRaw={} losClamp={}",
                         foot.getY(), wp.getY(), String.format("%.2f", p.getY()),
                         losWalkable(world, foot, wp), losWalkable(world, losFoot, wp));
             // Drive source: the carrot ahead, or — when it has collapsed onto the bot (a wall / path
@@ -938,14 +938,14 @@ public final class WalkerTickAim {
             // samples only an endpoint, which itself lands on alternating segments and swings; the
             // full average does not.) MOVEMENT stays on the immediate node via driveTargetYaw below.
             double sumX = 0, sumZ = 0; int cnt = 0;
-            int lastNode = centroidEnd(wk, world, foot, Math.min(wk.route.step() + DESCENT_CAM_LOOKAHEAD, wk.route.path().size() - 1));
-            int firstNode = (lastNode - wk.route.step() >= 4) ? wk.route.step() + 2 : wk.route.step();   // skip the at-foot nodes
-            for (int k = firstNode; k <= lastNode; k++) { sumX += wk.route.path().get(k).getX() + 0.5; sumZ += wk.route.path().get(k).getZ() + 0.5; cnt++; }
+            int lastNode = centroidEnd(nav, world, foot, Math.min(nav.route.step() + DESCENT_CAM_LOOKAHEAD, nav.route.path().size() - 1));
+            int firstNode = (lastNode - nav.route.step() >= 4) ? nav.route.step() + 2 : nav.route.step();   // skip the at-foot nodes
+            for (int k = firstNode; k <= lastNode; k++) { sumX += nav.route.path().get(k).getX() + 0.5; sumZ += nav.route.path().get(k).getZ() + 0.5; cnt++; }
             if (cnt > 0) {
                 double mdx = sumX / cnt - p.getX(), mdz = sumZ / cnt - p.getZ();
                 float centroidYaw = (float) Math.toDegrees(Math.atan2(-mdx, mdz));
                 if (mdx * mdx + mdz * mdz > 1.0)
-                    targetYaw = dryDescent && wk.route.path().get(lastNode).getY() <= foot.getY()
+                    targetYaw = dryDescent && nav.route.path().get(lastNode).getY() <= foot.getY()
                             ? trendWithRoom(world, p, foot, wp, centroidYaw) : centroidYaw;
             }
         }
@@ -962,7 +962,7 @@ public final class WalkerTickAim {
             aimSmooth.smoothTargetYaw = targetYaw;
             aimSmooth.reversalStreak = 0;
         } else {
-            float alpha = smoothingAlpha(wk, p, trendCam, targetYaw);
+            float alpha = smoothingAlpha(nav, p, trendCam, targetYaw);
             // (An antipode EMA-snap here — snap after 6 consecutive >170° ticks —
             // was tried and REVERTED: it regressed wd.vineOverWaterClimb and
             // wd.bridgeStepTwoBypassNoPlace, where per-repath ±180° target flips
@@ -1039,7 +1039,7 @@ public final class WalkerTickAim {
         // spin is rarer (only on an actual nav stall) and better fixed at the stall itself than by
         // freezing the camera here, so keep the overWater scope.
         boolean overWater = p.isInWater() || world.isWater(foot.offset(0, -1, 0));
-        boolean spinFreeze = !launch && overWater && wk.stallDetect.goalSpin.repathsNoProgress > CHURN_REPATH_CAP && targetFlipping;
+        boolean spinFreeze = !launch && overWater && nav.stallDetect.goalSpin.repathsNoProgress > CHURN_REPATH_CAP && targetFlipping;
         // FROZEN-PRESS DEADLOCK VALVE (Mountains notch live, stuckT 720): the freeze
         // exists to steady the bot PRESSING toward a climb-out — pressing implies the
         // bot moves (or bobs while the climb machinery works, as in the vine pocket).
@@ -1057,8 +1057,8 @@ public final class WalkerTickAim {
                 aimSmooth.freezeAnchorZ = p.getZ();
                 aimSmooth.frozenStallTicks = 1;
             } else if (++aimSmooth.frozenStallTicks > FREEZE_PRESS_STALL_TICKS) {
-                if (GameConfig.walkerDebug)
-                    LOG.info("[walker] spin-freeze PRESS-DEADLOCK release: pinned {} ticks at ({},{}) — snap {} → {}",
+                if (GameConfig.navigatorDebug)
+                    LOG.info("[navigator] spin-freeze PRESS-DEADLOCK release: pinned {} ticks at ({},{}) — snap {} → {}",
                             aimSmooth.frozenStallTicks, String.format("%.1f", p.getX()), String.format("%.1f", p.getZ()),
                             String.format("%.0f", aimSmooth.smoothTargetYaw), String.format("%.0f", targetYaw));
                 aimSmooth.smoothTargetYaw = targetYaw;
@@ -1069,17 +1069,17 @@ public final class WalkerTickAim {
         } else {
             aimSmooth.frozenStallTicks = 0;
         }
-        if (!spinFreeze && Math.abs(angleDiff(p.getYRot(), aimYaw)) > ControlConfig.walkerYawHysteresisDeg) {
+        if (!spinFreeze && Math.abs(angleDiff(p.getYRot(), aimYaw)) > ControlConfig.navigatorYawHysteresisDeg) {
             float ny;
             if (snapLaunch) {
                 ny = aimYaw;   // launches must snap — no mid-air course correction (decoupled
                 LookController.requestSnap();   // descending leaps slew instead — see snapLaunch)
             } else {
-                // Cap the per-tick turn (see WALKER_MAX_YAW_SLEW_DEG) so even a transient
+                // Cap the per-tick turn (see MAX_YAW_SLEW_DEG) so even a transient
                 // bad aim vector can only nudge the heading, never reverse it in one tick.
                 float want = smoothAngle(p.getYRot(), aimYaw);
                 float dyaw = angleDiff(p.getYRot(), want);
-                if (Math.abs(dyaw) > WALKER_MAX_YAW_SLEW_DEG) dyaw = Math.copySign(WALKER_MAX_YAW_SLEW_DEG, dyaw);
+                if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
                 // PIVOT FAST-TURN (stop-go sawtooth): a step-up pivot cuts forward
                 // drive entirely until the heading is inside the 40° gate, so every
                 // zigzag staircase corner stalls ~0.5 s at the 8°/tick cruise slew —
@@ -1191,7 +1191,7 @@ public final class WalkerTickAim {
         // excluded, and waterClimbing's pillar takeover needs !onGround so it misses the shallow bank).
         if (p.horizontalCollision && p.onGround() && wp.getY() > foot.getY()) ramFold.stepRamStuckTicks++;
         else ramFold.stepRamStuckTicks = 0;
-        // Bob-immune ascent-ram (walkerAscentRamBobBreak): the steep-bank +1 mount that jumps off the diagonal
+        // Bob-immune ascent-ram (navigatorAscentRamBobBreak): the steep-bank +1 mount that jumps off the diagonal
         // corner & slides back keeps the foot >0.3 BELOW the node while laterally close, but its airborne apex
         // zeroes BOTH stepRamStuckTicks (onGround-gated) and noStepProgressTicks (3D new-low). Tick a counter
         // that ignores onGround so stepUpFreeze engages on time; a clean climb tops out before the bar.
@@ -1201,9 +1201,9 @@ public final class WalkerTickAim {
         boolean ascentNotTopped = wp.getY() > foot.getY() && p.getY() < wp.getY() - 0.3
                 && !parkourEdge && !p.isInWater()
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
-        if (ControlConfig.walkerAscentRamBobBreak && ascentNotTopped) ramFold.ascentRamBobTicks++;
+        if (ControlConfig.navigatorAscentRamBobBreak && ascentNotTopped) ramFold.ascentRamBobTicks++;
         else ramFold.ascentRamBobTicks = 0;
-        // FLOATING water-bank bob (walkerFloatingBankBobFreeze): a buoyant bot at a +1..+3 water bank bobs
+        // FLOATING water-bank bob (navigatorFloatingBankBobFreeze): a buoyant bot at a +1..+3 water bank bobs
         // y(water)↔(air) every 2-3 t with onGround NEVER true, alternating stepUp/climbUp at the riser but
         // frozen in XZ. All other freeze counters miss it: stepRamStuck/shallowBank need onGround (floating
         // has none), ascentRamBob's !isInWater zeroes on each water-dip, and noStepProgress is zeroed by the
@@ -1216,9 +1216,9 @@ public final class WalkerTickAim {
         boolean floatingBankNotTopped = atWaterBank && !p.onGround()
                 && wp.getY() > foot.getY() && (wp.getY() - foot.getY()) <= 3
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
-        if (ControlConfig.walkerFloatingBankBobFreeze && floatingBankNotTopped) ramFold.floatingBankBobTicks++;
+        if (ControlConfig.navigatorFloatingBankBobFreeze && floatingBankNotTopped) ramFold.floatingBankBobTicks++;
         else ramFold.floatingBankBobTicks = 0;
-        // Lateral-bank-follow (walkerFloatingBankFollow): a FLOATING bot ramming a water bank at
+        // Lateral-bank-follow (navigatorFloatingBankFollow): a FLOATING bot ramming a water bank at
         // ANY node-Y — including the walk-ram facet the ascending freeze counter above misses (node
         // AT/BELOW the foot across a 1-block lip). The dominant residual is NON-DETERMINISTIC: the
         // same route lands the buoyant approach on a mountable spot (~0s, steps up) OR a dig-required
@@ -1227,12 +1227,12 @@ public final class WalkerTickAim {
         // sweeps to the nearest mountable exit instead of grinding/digging the dead spot. Self-
         // terminating: any climb-out progress drops onGround/hCol → counter resets → normal mount.
         boolean bankFollowRam = atWaterBank && !p.onGround() && p.horizontalCollision;
-        if (ControlConfig.walkerFloatingBankFollow && bankFollowRam) ramFold.bankFollowRamTicks++;
+        if (ControlConfig.navigatorFloatingBankFollow && bankFollowRam) ramFold.bankFollowRamTicks++;
         else ramFold.bankFollowRamTicks = 0;
         boolean stepUpFreeze = wp.getY() > foot.getY() && !parkourEdge
                 && (!p.isInWater() || shallowBankStep
-                    || (ControlConfig.walkerFloatingBankBobFreeze && ramFold.floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS))
-                && (wk.progress.stepProg.noStepProgressTicks > STEPUP_FREEZE_TICKS || ramFold.stepRamStuckTicks > STEPUP_FREEZE_TICKS
+                    || (ControlConfig.navigatorFloatingBankBobFreeze && ramFold.floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS))
+                && (nav.progress.stepProg.noStepProgressTicks > STEPUP_FREEZE_TICKS || ramFold.stepRamStuckTicks > STEPUP_FREEZE_TICKS
                     || ramFold.ascentRamBobTicks > STEPUP_FREEZE_TICKS
                     || ramFold.floatingBankBobTicks > 2 * STEPUP_FREEZE_TICKS)
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
@@ -1253,11 +1253,11 @@ public final class WalkerTickAim {
         double landDz = (wp.getZ() + 0.5) - p.getZ();
         boolean descendBrake = descendLeap && !p.onGround()
                 && (landDx * landDx + landDz * landDz) < 1.4;   // within ~1.2 block of landing center
-        // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
+        // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
         cx.aim.aimAtWaypoint = aimAtWaypoint;
         cx.aim.reCentre = reCentre;
         cx.aim.aimSrc = aimSrc;
-        wk.aimTag = aimSrc;
+        nav.aimTag = aimSrc;
         cx.aim.descentNodeYaw = descentNodeYaw;
         cx.aim.dryDescent = dryDescent;
         cx.aim.flatWaterTrend = flatWaterTrend;

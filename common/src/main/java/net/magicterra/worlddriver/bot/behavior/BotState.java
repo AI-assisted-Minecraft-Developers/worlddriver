@@ -172,8 +172,8 @@ public final class BotState {
          * <table><caption>what each writer puts here</caption>
          * <tr><th>writer</th><th>{@code pathLen}</th><th>{@code pathStep}</th></tr>
          * <tr><td>builder / mine / follow / explore / mc_goto</td>
-         *     <td>{@code walker.pathLen()} — remaining path NODES</td>
-         *     <td>{@code walker.pathStep()} — node index</td></tr>
+         *     <td>{@code navigator.pathLen()} — remaining path NODES</td>
+         *     <td>{@code navigator.pathStep()} — node index</td></tr>
          * <tr><td>{@code BridgeProcess}</td><td>blocks the bridge will span</td>
          *     <td>Manhattan blocks travelled from the start foot</td></tr>
          * <tr><td>{@code TowerProcess}</td><td>blocks of HEIGHT to gain</td>
@@ -200,7 +200,7 @@ public final class BotState {
          * WHERE the plan is steering, and by what move — the cell {@link #pathStep} names, plus the
          * edge that enters it ({@code walk} / {@code stepDown} / {@code fall7} / …).
          *
-         * <p>On the slots where {@code pathLen}/{@code pathStep} really are a walker's (see their
+         * <p>On the slots where {@code pathLen}/{@code pathStep} really are a navigator's (see their
          * javadoc — on five other writers they are not), they say how far along a plan the bot is
          * and nothing about what the plan asked for. That gap ended a diagnosis: a nether crossing
          * left the ground and fell eleven blocks into lava, and the only readings anyone had were
@@ -214,16 +214,16 @@ public final class BotState {
         public volatile BlockPos pathNode;
         public volatile String pathMove;
         /**
-         * WHICH BRANCH of the walker's tick actuated this one, and who commanded its jump.
+         * WHICH BRANCH of the navigator's tick actuated this one, and who commanded its jump.
          *
          * <p>The same debugging channel as {@link #pathNode}, and it exists for the same reason a
-         * fall could not be read without that one. {@code Walker.tickInner} has dozens of early
+         * fall could not be read without that one. {@code Navigator.tickInner} has dozens of early
          * returns — pillar, dig, escape, step-up — and the drive TAIL, where the lethal-edge
          * sneak-pin and the sprint/jump decision live, runs only on the ticks that reach it. So
          * "the bot was not sneaking beside a lava drop" has two completely different causes: the
-         * pin evaluated false, or the tick never got to the pin. {@code WalkerInspector.driveTag} already
-         * distinguishes them (it is null on an early return) and nothing outside the walker could
-         * read it — the journey's crossing runs its own {@code IntentProcess} walker, not the
+         * pin evaluated false, or the tick never got to the pin. {@code NavigatorInspector.driveTag} already
+         * distinguishes them (it is null on an early return) and nothing outside the navigator could
+         * read it — the journey's crossing runs its own {@code IntentProcess} navigator, not the
          * driver's.
          *
          * <p>Excluded from {@link #snapshot()} for the same reason {@code pathNode} is: this is for
@@ -253,7 +253,7 @@ public final class BotState {
          * the run it describes has ended.
          */
         public volatile String firstPlan;
-        /** The first parkour leap's takeoff state — see WalkerInspector.parkourTakeoff(). Kept across
+        /** The first parkour leap's takeoff state — see NavigatorInspector.parkourTakeoff(). Kept across
          *  reset() like lastError: it is read after the run it describes has ended. */
         public volatile String parkourTakeoff;
 

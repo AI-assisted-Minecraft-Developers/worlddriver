@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.bot.world.WorldView;
  *
  *  <p>The one entry point is {@link #tick(Body, WorldView, BotState)}: it drives whatever
  *  player the {@code Body} wraps (the client's {@code LocalPlayer}, a joined server player),
- *  exactly like {@code Walker.tick(Body, ...)}. The scheduler's chains hand a process the
+ *  exactly like {@code Navigator.tick(Body, ...)}. The scheduler's chains hand a process the
  *  {@code Body} the scheduler was given, and the client tick chain builds a
  *  {@code ClientPlayerBody} once per tick for that. There used to be a
  *  {@code tick(Minecraft, …)} bridge here for the client callers; nothing overrode it and
@@ -44,17 +44,17 @@ public interface BotProcess {
      *  from the current position rather than reuse a path that went stale during suspension.
      *
      *  <p><b>Exactly one process actually does that</b> ({@code IntentProcess}). The other
-     *  nine that own a {@code Walker} and run under {@code UserTaskChain} — Mine, Follow,
+     *  nine that own a {@code Navigator} and run under {@code UserTaskChain} — Mine, Follow,
      *  Explore, Build, Backfill, BboxFill, Farm, RunAway, Sleep — inherit this no-op and resume
      *  on a path computed from a position the bot may have been dragged out of.
      *  {@code UserTaskChain} calls the hook faithfully; there is simply nothing on the other end.
      *  Written down rather than fixed because "pathing processes override" read as a
      *  description and was a wish.
      *
-     *  <p>The membership of that list is measured off {@code new Walker(} and off who hands the
+     *  <p>The membership of that list is measured off {@code new Navigator(} and off who hands the
      *  process to {@code UserTaskChain.setProcess}, not off which verbs feel path-shaped — it read
-     *  "…Farm, Bridge, Tower" for a while and both of those own no {@code Walker} at all (they use
-     *  {@code WalkerGeometry} only), which quietly excused the two that do. Two more Walker owners
+     *  "…Farm, Bridge, Tower" for a while and both of those own no {@code Navigator} at all (they use
+     *  {@code NavigatorGeometry} only), which quietly excused the two that do. Two more Navigator owners
      *  are outside the list on purpose: {@code ReplayProcess} overrides this explicitly to a no-op
      *  (its plan is fixed, so repathing would discard the thing it exists to replay), and
      *  {@code CombatProcess} is minted by {@code CombatChain} rather than {@code UserTaskChain}, so
@@ -68,10 +68,10 @@ public interface BotProcess {
      *
      *  <p><b>No process in this package flushes an archive here except {@code IntentProcess}.</b>
      *  It is not the only OVERRIDE — {@code MineProcess} overrides it too — but that one releases
-     *  the log-cost waiver ({@code LogWaiver}) and never touches its {@code Walker}, so a
+     *  the log-cost waiver ({@code LogWaiver}) and never touches its {@code Navigator}, so a
      *  cancelled mine drops its path archive exactly like build/farm/follow do. Count the overrides
      *  with {@code grep -rn "void onCancelled"}, and read each method body before concluding it repaths:
-     *  "overrides the hook" and "finalizes the walker" are two different questions, and this
+     *  "overrides the hook" and "finalizes the navigator" are two different questions, and this
      *  sentence answered the second with the first for a while. */
     default void onCancelled(String reason) {}
 

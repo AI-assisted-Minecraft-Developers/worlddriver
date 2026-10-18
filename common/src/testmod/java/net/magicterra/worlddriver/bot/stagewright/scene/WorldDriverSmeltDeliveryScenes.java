@@ -75,7 +75,7 @@ public final class WorldDriverSmeltDeliveryScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         // Empty the furnace BEFORE the block goes, or AbstractFurnaceBlock.onRemove drops its

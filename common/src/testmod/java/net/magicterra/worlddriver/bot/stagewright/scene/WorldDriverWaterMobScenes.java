@@ -17,7 +17,7 @@ import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.bot.BotRegistry;
-import net.magicterra.worlddriver.bot.control.WalkerTelemetry;
+import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
@@ -53,7 +53,7 @@ public final class WorldDriverWaterMobScenes implements SceneProvider {
     private static final int SETTLE_TICKS = 100;
     /** Ticks a swim gets before the scene reads where it got to. */
     private static final int DEADLINE = 600;
-    /** Samples of the walker's trace, one every five ticks, kept for a swim that does not succeed. */
+    /** Samples of the navigator's trace, one every five ticks, kept for a swim that does not succeed. */
     private static final int TRAIL = 24;
 
     @Override
@@ -96,7 +96,7 @@ public final class WorldDriverWaterMobScenes implements SceneProvider {
             ctx.await(() -> {
                 lowest[0] = Math.min(lowest[0], mob.blockPosition().getY());
                 if ((ctx.ticks() - start) % 5 == 0) {
-                    trail.addLast("t" + (ctx.ticks() - start) + ": " + WalkerTelemetry.of(mob).lastTickTrace);
+                    trail.addLast("t" + (ctx.ticks() - start) + ": " + NavigatorTelemetry.of(mob).lastTickTrace);
                     if (trail.size() > TRAIL) trail.removeFirst();
                 }
                 return !bot.busy() || ctx.ticks() - start >= DEADLINE;
@@ -134,7 +134,7 @@ public final class WorldDriverWaterMobScenes implements SceneProvider {
                     .within(DEADLINE + 50).then(() -> {
                 Map<?, ?> action = read(api, actionId(go));
                 ctx.record("ended", cod.blockPosition().toShortString() + " ticks=" + (ctx.ticks() - start) + " inWater="
-                        + cod.isInWater() + " " + action + " trace=" + WalkerTelemetry.of(cod).lastTickTrace);
+                        + cod.isInWater() + " " + action + " trace=" + NavigatorTelemetry.of(cod).lastTickTrace);
                 ctx.check("failed".equals(action.get("state")) && cod.isInWater())
                         .as("the cod's goto to the rim fails, and the cod is still in the water: at "
                                 + cod.blockPosition().toShortString() + ", inWater=" + cod.isInWater() + ", " + action)
@@ -205,7 +205,7 @@ public final class WorldDriverWaterMobScenes implements SceneProvider {
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
         // The shipped arrival rule, which the pinned baseline turns off.
-        ControlConfig.walkerHoldLastNodeUntilStanding = true;
+        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
     }
 
     /** An invulnerable mob of {@code type} at {@code at}, facing +x. */

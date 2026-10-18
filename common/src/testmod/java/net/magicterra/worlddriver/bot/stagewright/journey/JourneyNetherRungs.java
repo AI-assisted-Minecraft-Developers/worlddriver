@@ -12,7 +12,7 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
-import net.magicterra.worlddriver.bot.control.WalkerGeometry;
+import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
 import net.magicterra.worlddriver.bot.behavior.CombatProcess;
 import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
@@ -257,14 +257,14 @@ public final class JourneyNetherRungs {
         // But the radius WAS zero, and zero is what killed the 2026-08-22 run. THE EXECUTOR MUST NOT
         // BE ASKED FOR MORE THAN THE JUDGE REQUIRES. Goal.Block demands the exact cell; the judge
         // accepts WAYPOINT_ARRIVE_WITHIN. On segment 4 the bot reached 63,42,87 — one block from the waypoint
-        // 63,41,87, comfortably inside a bar of two — and the walker, still owing an exact cell, kept
+        // 63,41,87, comfortably inside a bar of two — and the navigator, still owing an exact cell, kept
         // working: pinned 30 ticks on the lip, guard discarded the plan as a genuine livelock (it WAS
         // one, by a criterion that is right), then descended 22 blocks and drowned in lava at
         // 63,20,87, where `expanded=1` meant it could not plan its way back out. Every tick after
         // off=1 was spent buying something nobody had asked for.
         //
         // The waypoint itself is not standable, which is why the engine was silently re-aiming:
-        // Walker.snapGoalToStandable rewrites an unstandable Goal.Block onto the nearest standable
+        // Navigator.snapGoalToStandable rewrites an unstandable Goal.Block onto the nearest standable
         // neighbour, and the pathfinder logs read `goal=Block{63,41,86}` and later `{64,41,86}` for a
         // segment this file believes it aimed at 63,41,87. 63,41,87 is the SOLID BLOCK the ladder's bot
         // stood ON — its feet were at 63,42,87 — so FORTRESS_WAYPOINTS mixes feet cells with floor
@@ -314,7 +314,7 @@ public final class JourneyNetherRungs {
                 // make the difference between "on the surveyed cell" and "near it" visible.
                 rig.evidence(leg + ".at", now.toShortString() + ", " + off + " blocks from the waypoint (with y,"
                         + " tolerance " + WAYPOINT_ARRIVE_WITHIN + "); " + aboveBand(now, ceiling) + "; "
-                        + JourneyLeg.walkerEnd(rig)
+                        + JourneyLeg.navigatorEnd(rig)
                         // The drop is printed even when it is zero blocks of movement but the bot
                         // was unsupported, because "no support when the walk ended" is the defect
                         // whether or not the landing allowance was long enough to resolve it.
@@ -476,7 +476,7 @@ public final class JourneyNetherRungs {
                 rig.evidence(leg + ".detourReask", "re-asked " + want.toShortString() + " from "
                         + over.toShortString() + ": stopped at " + now.toShortString() + ", " + off
                         + " blocks off (with y, tolerance " + WAYPOINT_ARRIVE_WITHIN + "); "
-                        + aboveBand(now, ceiling) + "; " + JourneyLeg.walkerEnd(rig)
+                        + aboveBand(now, ceiling) + "; " + JourneyLeg.navigatorEnd(rig)
                         + (ended.equals(now) ? "" : "; ⚠️ the walk ended at " + ended.toShortString()
                                 + " unsupported and was judged after landing (fell " + (ended.getY() - now.getY())
                                 + " blocks)"));
@@ -508,8 +508,8 @@ public final class JourneyNetherRungs {
      * How long the post-detour re-ask gets.
      *
      * <p>Half a segment's budget, because it is at most {@link #DETOUR_OVERSHOOT} blocks of walking — but
-     * deliberately MORE than the walker's own 1200-tick no-progress give-up, so that a re-ask which
-     * cannot be solved reports the walker's reason and not my stopwatch's. A budget that races the
+     * deliberately MORE than the navigator's own 1200-tick no-progress give-up, so that a re-ask which
+     * cannot be solved reports the navigator's reason and not my stopwatch's. A budget that races the
      * subject's own diagnostic buys a timeout where a cause was available.
      */
     private static final int DETOUR_REASK_TICKS = 1_500;
@@ -566,7 +566,7 @@ public final class JourneyNetherRungs {
      */
     private static List<CostModifier> lipTax(JourneyRig rig) {
         return List.of((from, to, edge, goal, world) ->
-                WalkerGeometry.dropAdjacentExceeds(world, to, LIP_DROP) ? LIP_TAX : 0.0);
+                NavigatorGeometry.dropAdjacentExceeds(world, to, LIP_DROP) ? LIP_TAX : 0.0);
     }
 
     /**
@@ -611,7 +611,7 @@ public final class JourneyNetherRungs {
     private static List<CostModifier> lipAndBandTax(int ceiling) {
         return List.of(
                 (from, to, edge, goal, world) ->
-                        WalkerGeometry.dropAdjacentExceeds(world, to, LIP_DROP) ? LIP_TAX : 0.0,
+                        NavigatorGeometry.dropAdjacentExceeds(world, to, LIP_DROP) ? LIP_TAX : 0.0,
                 (from, to, edge, goal, world) -> {
                     int above = to.getY() - ceiling;
                     return above > 0 ? above * BAND_TAX : 0.0;
@@ -669,7 +669,7 @@ public final class JourneyNetherRungs {
         JourneyCorridorProbe.record(rig, "fortress.wp" + (i + 1), now, FORTRESS_WAYPOINTS, i, 3);
         ctx.fail("cannot reach waypoint " + (i + 1) + " " + want.toShortString() + ": stopped at "
                 + now.toShortString() + ", " + off + " blocks off (tolerance " + WAYPOINT_ARRIVE_WITHIN
-                + "). **The search gave up** (" + JourneyLeg.walkerEnd(rig) + "), not the budget, so no detour:"
+                + "). **The search gave up** (" + JourneyLeg.navigatorEnd(rig) + "), not the budget, so no detour:"
                 + " aiming past asks the same search a harder question, and both measured tries put the bot in"
                 + " lava (wp5 at 59,5,90, wp11 at 62,3,86) gaining nothing. The bot stands where the search"
                 + " died; read fortress.wp" + (i + 1) + ".*" + causewayNote(rig, bridged));
@@ -693,7 +693,7 @@ public final class JourneyNetherRungs {
      *
      * <p>The stock is the whole inventory, which is the right denominator here: the server avatar's
      * {@code holdPlaceable} swaps up from slots 9..35, so unlike the client's it is not blind to the
-     * bag. A hotbar-only reading would understate what the walker can actually spend.
+     * bag. A hotbar-only reading would understate what the navigator can actually spend.
      */
     private static String causewayNote(JourneyRig rig, int bridged) {
         return ". This corridor's second half is a causeway built during the run, not ground (the table"
@@ -1597,7 +1597,7 @@ public final class JourneyNetherRungs {
      * the journey's bot is created in the overworld at SPAWN and never replaced. So from the moment
      * it steps through the portal, every {@code BotProcess} it runs is handed a view of the
      * OVERWORLD indexed by nether coordinates. Nothing about that is visible from the outside: the
-     * walker plans a route, drives it, and reports a perfectly ordinary failure to arrive.
+     * navigator plans a route, drives it, and reports a perfectly ordinary failure to arrive.
      *
      * <p>Failing here rather than walking is deliberate. A nether crossing is thousands of blocks
      * and this rung's whole budget; spending it to rediscover something one comparison already
@@ -1788,7 +1788,7 @@ public final class JourneyNetherRungs {
      *
      * <p>and the server log carries <b>2402 {@code search-begin} lines from the one cell
      * {@code 66,43,67}</b> — one full A* budget per tick, for two solid minutes, every one of them
-     * returning nothing the walker would adopt. The bot was not stuck on terrain: it stood on
+     * returning nothing the navigator would adopt. The bot was not stuck on terrain: it stood on
      * netherrack, dry, with air on three sides. It was stuck on the QUESTION. Two thirds of the
      * crossing's ticks went to a bot that had no plan at all, which is the reading that separates
      * this from "the nether is hard terrain" and it did not exist until {@code JourneyFlight}
@@ -1824,7 +1824,7 @@ public final class JourneyNetherRungs {
         // (the guard's pin-and-discard count going to zero) only exist on hops that wedge.
         rig.evidence(what + ".lipTax", "each lip cell costs " + (int) LIP_TAX + " extra (a walk is 10 per block,"
                 + " so a " + (int) (LIP_TAX / 10) + "-block detour is cheaper); the test is the executor's own"
-                + " WalkerGeometry.dropAdjacentExceeds (a horizontal neighbour whose foot cell and the one below"
+                + " NavigatorGeometry.dropAdjacentExceeds (a horizontal neighbour whose foot cell and the one below"
                 + " are empty, with a hazard in the drop or a drop over " + LIP_DROP + "). Not the 'survivable"
                 + " fall' height: surviving a fall into a pit the bot cannot leave ends this crossing like a fatal"
                 + " one — see LIP_DROP. A cost, not a ban: a route that must follow a lip is still walkable");
@@ -1896,7 +1896,7 @@ public final class JourneyNetherRungs {
      *
      * <p>Three things at once, and none of them is what the previous three rounds went looking for.
      * {@code onGround} was <b>not</b> lagging — vanilla's own ground question agreed with it on the
-     * same tick. The bot was <b>already sneaking</b>: the walker's lethal-edge brake had seen the
+     * same tick. The bot was <b>already sneaking</b>: the navigator's lethal-edge brake had seen the
      * lava bay and pinned it. And it left the ground <b>by jumping</b> (+0.333 of upward velocity is
      * a 0.42 jump one tick old), from a cell where a third of one sole was on rock and the rest was
      * over an eleven-block drop into that bay. Vanilla's sneak pin clamps a player's WALK off a ledge;
@@ -2113,7 +2113,7 @@ public final class JourneyNetherRungs {
             // walking when the budget ran out". Rung 14
             // of 2026-08-20 spent eight of its ten wedged hops in exactly that state and could not
             // be told from a search that ran and lost.
-            rig.evidence(what + ".goto." + hop, JourneyLeg.walkerEnd(rig));
+            rig.evidence(what + ".goto." + hop, JourneyLeg.navigatorEnd(rig));
             rig.evidence(what + ".around." + hop, surroundings(rig.player(), at));
             if (c.wedged >= MAX_WEDGED_HOPS) {
                 // Says NOTHING about whether the bot moved — it may have walked 200 blocks. What it
@@ -2375,13 +2375,13 @@ public final class JourneyNetherRungs {
         // true while the sole is on nothing. wd.crossingRowSeparatesAPerchFromMidAir stages both and
         // measured the two rows BYTE-IDENTICAL before this line existed.
         //
-        // Through WalkerGeometry, not a local scan: soleOnSolid/soleRow are this repo's single
+        // Through NavigatorGeometry, not a local scan: soleOnSolid/soleRow are this repo's single
         // enumeration of "which cells the bot is standing on", and a row that answered it differently
         // from the guards that steer on it is how a diagnosis comes to describe a bot that does not exist.
         LevelWorldView view = new LevelWorldView(level, fp);
         sb.append(" sole=")
-          .append(String.format(java.util.Locale.ROOT, "%.4f/0.36", WalkerGeometry.soleOnSolid(view, fp)))
-          .append(" (").append(WalkerGeometry.soleRow(view, fp)).append(")");
+          .append(String.format(java.util.Locale.ROOT, "%.4f/0.36", NavigatorGeometry.soleOnSolid(view, fp)))
+          .append(" (").append(NavigatorGeometry.soleRow(view, fp)).append(")");
         return sb.toString();
     }
 
@@ -2519,9 +2519,9 @@ public final class JourneyNetherRungs {
      * aims at ground the run is not holding.
      *
      * <p>900 ticks is 45 seconds for a walk of 48 blocks, which is five times the ~270 ticks a
-     * healthy hop costs. It is deliberately under the walker's own 1200-tick no-progress stall, so a
+     * healthy hop costs. It is deliberately under the navigator's own 1200-tick no-progress stall, so a
      * wedged hop is ended by THIS budget with the hop's readings attached rather than by a generic
-     * stall verdict inside the walker.
+     * stall verdict inside the navigator.
      */
     private static final int NETHER_HOP = 48;
     private static final int HOP_TICKS = 900;
@@ -2546,13 +2546,13 @@ public final class JourneyNetherRungs {
      * plan pointed back up to 14.18 blocks (bot 90,41,96 is 55 from goal, next cell 90,41,78 is 69)
      * </pre>
      *
-     * <p>The bot was walking the shore of a lava sea. {@code WalkerGeometry.lethalDropAdjacent}
+     * <p>The bot was walking the shore of a lava sea. {@code NavigatorGeometry.lethalDropAdjacent}
      * pinned it there — correctly, that is what the guard is for — every pin ran to
      * {@code guardPinStreak >= 30} and threw the plan away, and the re-search handed back a route
      * pointing fifteen blocks BACK from the goal. Nine hops of that is a crossing that shuttles.
      *
-     * <p><b>The defect is that only one half of the walker knows those cells are dangerous.</b> The
-     * executor asks {@code WalkerGeometry.lethalDropAdjacent}; the planner asks
+     * <p><b>The defect is that only one half of the navigator knows those cells are dangerous.</b> The
+     * executor asks {@code NavigatorGeometry.lethalDropAdjacent}; the planner asks
      * {@code ClientWorldView.dangerCost}, and those are different predicates.
      * {@link WorldConfig#lavaDangerPenalty} is 300 and was ON for the whole run — but it prices a
      * stand cell that TOUCHES lava, and a lip cell touches nothing: the lava is eight blocks down,
@@ -2679,7 +2679,7 @@ public final class JourneyNetherRungs {
             // {63,41,87} STOOD HERE AND IS DELETED. The audit reports the cell and the one below it
             // empty, with no floor within twenty-four blocks — a shaft. It was a cell the recording
             // run bridged to, not ground. Its own evidence says the same thing without the audit: the
-            // walker reported `goalReached=true end=arrived` at 63,42,86 with both support cells air,
+            // navigator reported `goalReached=true end=arrived` at 63,42,86 with both support cells air,
             // one block inside the two-block sphere and in free fall, and the bot then dropped
             // fourteen blocks. Deleting rather than re-baking because there is nothing under it to
             // re-bake ONTO, and both neighbours are verified ground: {71,43,69} → {72,42,85} is sixteen

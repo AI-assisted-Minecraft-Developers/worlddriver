@@ -6,8 +6,8 @@ import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 import net.magicterra.worlddriver.bot.control.controller.RouteDig;
 
 /**
@@ -18,11 +18,11 @@ import net.magicterra.worlddriver.bot.control.controller.RouteDig;
 public final class StandToWork {
     private StandToWork() {}
 
-    public static TickStep run(Walker wk, WalkerTickCtx cx, Body a, RouteDig.Work work) {
+    public static TickStep run(Navigator nav, TickCtx cx, Body a, RouteDig.Work work) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         Keys.forward(a, false);
-        wk.keys.jump(a, false);
+        nav.keys.jump(a, false);
         p.setSprinting(false);
         if (work == null || work.cell() == null) return TickStep.WALKING;
         String move = work.move();
@@ -57,7 +57,7 @@ public final class StandToWork {
             if ((swimEscapeBreak && p.isInWater() && !p.isUnderWater()) || climbBreak) {
                 Keys.forward(a, true);     // press into the aimed bank (surface only)
                 if (climbBreak || move.startsWith("swimAshore"))
-                    wk.keys.jump(a, true);   // rise to mount the +1 / out of the pocket
+                    nav.keys.jump(a, true);   // rise to mount the +1 / out of the pocket
             }
         } else if (work.kind() == RouteDig.Kind.PLACE) {
             // Descending-place LIP ANCHOR (task#4, replay-0013): the place
@@ -70,7 +70,7 @@ public final class StandToWork {
             // edge, the place lands, and the moment the cell is solid
             // the dig controller stops — the normal (sneak-free) walk
             // performs the planned step-down. Same-level places are untouched.
-            if (ControlConfig.walkerBridgeDescentPlaceAnchor
+            if (ControlConfig.navigatorBridgeDescentPlaceAnchor
                     && work.cell().getY() < foot.getY() && p.onGround()) {
                 Keys.sneak(a, true);
                 p.setShiftKeyDown(true);

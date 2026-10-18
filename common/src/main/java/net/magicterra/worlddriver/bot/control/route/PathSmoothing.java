@@ -15,13 +15,13 @@ import java.util.List;
 import java.util.Collections;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import net.magicterra.worlddriver.bot.control.WalkerConstants;
+import net.magicterra.worlddriver.bot.control.NavigatorConstants;
 
 /**
- * Path post-processing for the {@link Walker}: string-pulling flat staircase
+ * Path post-processing for the {@link Navigator}: string-pulling flat staircase
  * runs into straight segments (danger-aware), line-of-sight walkability checks,
  * and the pending-edge predicate. Extracted from the former BotApiImpl
- * god-class. All members are package-internal to bot.movement; the Walker pulls
+ * god-class. All members are package-internal to bot.movement; the Navigator pulls
  * them in via {@code import static …PathSmoothing.*}.
  */
 public final class PathSmoothing {
@@ -98,20 +98,20 @@ public final class PathSmoothing {
                     && plainFlatWalk(edges.get(j + 1))
                     && path.get(j + 1).getY() == path.get(i).getY()
                     && (!afloat || Math.max(Math.abs(path.get(j + 1).getX() - path.get(i).getX()),
-                            Math.abs(path.get(j + 1).getZ() - path.get(i).getZ())) <= WalkerConstants.WATER_PULL_SPAN)
+                            Math.abs(path.get(j + 1).getZ() - path.get(i).getZ())) <= NavigatorConstants.WATER_PULL_SPAN)
                     // Only straighten genuinely AXIS-ALIGNED corridors (the merged
                     // segment shares an x or z with the start). Collapsing a zigzag
                     // into a multi-block DIAGONAL fabricates a long corner-cut the
-                    // walker can't thread in tight quarters — it aims at the far
+                    // navigator can't thread in tight quarters — it aims at the far
                     // node and grinds every wall the diagonal skims past (the
                     // spawn-maze stall). Diagonal staircases stay as their cardinal
-                    // steps, which the walker threads one cell at a time.
+                    // steps, which the navigator threads one cell at a time.
                     && (path.get(j + 1).getX() == path.get(i).getX()
                         || path.get(j + 1).getZ() == path.get(i).getZ()
                         // §90: a DIAGONAL merge is admitted only under the honest
                         // player-width corridor probe — the ray-only guard is what made
                         // diagonal collapsing fabricate unthreadable corner-cuts.
-                        || (ControlConfig.walkerDiagonalStringPull
+                        || (ControlConfig.navigatorDiagonalStringPull
                             && losWalkableBody(w, path.get(i), path.get(j + 1))))
                     && losWalkable(w, path.get(i), path.get(j + 1))) {
                 j++;
@@ -181,7 +181,7 @@ public final class PathSmoothing {
      *
      * <p>Static because it is read from a scene through {@link #smoothingAudit()}: this is a pure
      * function with no instance to hang state on, and the alternative — threading a recorder through
-     * a call the Walker makes on every adopt — would cost more than the question is worth.
+     * a call the Navigator makes on every adopt — would cost more than the question is worth.
      */
     private static void auditEmit(WorldView w, BlockPos a, BlockPos b) {
         emits++;
@@ -202,7 +202,7 @@ public final class PathSmoothing {
 
     /** True if the straight horizontal line from {@code a} to {@code b} is
      *  walkable the whole way (floor support + foot/head clearance + no hazard),
-     *  sampled per cell. Used by the Walker's carrot aim to avoid pointing the
+     *  sampled per cell. Used by the Navigator's carrot aim to avoid pointing the
      *  camera through walls / across gaps. */
     public static boolean losWalkable(WorldView w, BlockPos a, BlockPos b) {
         int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
@@ -218,7 +218,7 @@ public final class PathSmoothing {
             if (!w.isPassable(c.offset(0, 1, 0)) || w.isHazard(c.offset(0, 1, 0))) return false;
             if (!w.isSolid(c.offset(0, -1, 0)) && !w.isWater(c) && !w.isClimbable(c)) return false;
             // Diagonal hop between samples: the two L-corner cells must BOTH be
-            // clear, else the straight line clips a solid corner the walker would
+            // clear, else the straight line clips a solid corner the navigator would
             // wedge on. Without this, string-pulling collapses an L-shaped pair of
             // safe cardinals into a single corner-cutting diagonal and the bot
             // snags (the spawn-pit sandstone-corner stall). Match foot+head.
@@ -236,10 +236,10 @@ public final class PathSmoothing {
      *  hitbox overlaps (4-corner AABB probe, half-width 0.3), plus the centre cell's
      *  floor support. Catches the "ray threads a slit the bot can't" case (jungle
      *  trunks: the centre line stays in passable cells while the bot radius clips a
-     *  trunk column — the walkerCarrotHColShrink A/B showed the far carrot bearing is
+     *  trunk column — the navigatorCarrotHColShrink A/B showed the far carrot bearing is
      *  the right detour, so the cure is to make the carrot's LOS honest about the player's
-     *  width instead of shrinking pursuit). Used by the Walker's carrotPoint behind
-     *  {@code walkerCarrotBodyLos}; path smoothing keeps the cheaper ray test. */
+     *  width instead of shrinking pursuit). Used by the Navigator's carrotPoint behind
+     *  {@code navigatorCarrotBodyLos}; path smoothing keeps the cheaper ray test. */
     public static boolean losWalkableBody(WorldView w, BlockPos a, BlockPos b) {
         return losWalkableBody(w, a.getX() + 0.5, a.getZ() + 0.5, a, b);
     }
@@ -250,7 +250,7 @@ public final class PathSmoothing {
     public static boolean losWalkableBody(WorldView w, double ax, double az, BlockPos a, BlockPos b) {
         int steps = 2 * Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
         return steps == 0 || losWalkableBody(w, ax, az, a, b.getX() + 0.5, b.getZ() + 0.5, b.getY(), steps,
-                ControlConfig.walkerCarrotBodyHalfWidth);
+                ControlConfig.navigatorCarrotBodyHalfWidth);
     }
 
     /** {@link #losWalkableBody(WorldView, double, double, BlockPos, BlockPos)} from the body's true position to the
@@ -391,8 +391,8 @@ public final class PathSmoothing {
             for (Move cand : Move.ALL)
                 if (e.move.equals(cand.name()) && cand.apply(from).equals(e.to)) { m = cand; break; }
             if (m == null || m.eval(w, from) != null) continue;
-            if (GameConfig.walkerDebug)
-                LOG.info("[walker] stale plan: edge {} {} {},{},{} → {},{},{} no longer admitted by the world → {}",
+            if (GameConfig.navigatorDebug)
+                LOG.info("[navigator] stale plan: edge {} {} {},{},{} → {},{},{} no longer admitted by the world → {}",
                         i, e.move, from.getX(), from.getY(), from.getZ(), e.to.getX(), e.to.getY(), e.to.getZ(),
                         i == 1 ? "discard" : "cut to " + i + " nodes");
             if (i == 1) return new PathFinder.Result(List.of(), List.of(), false, res.expanded(), res.ms(), res.finalCost());

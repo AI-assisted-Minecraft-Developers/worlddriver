@@ -14,10 +14,10 @@ import net.minecraft.core.BlockPos;
 
 import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.losWalkable;
 import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.stringPull;
-import static net.magicterra.worlddriver.bot.control.WalkerGeometry.isOpenWaterLine;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.isOpenWaterLine;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerInspector;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorInspector;
 
 /**
  * Turning a search result into the walk's plan: anchor it to where the body is, straighten it, cut a
@@ -39,8 +39,8 @@ public final class RouteAdoption {
      * fires (live 2026-06-09: cave pocket, step1 4 blocks up / 4.5 away, 15 s freeze). Refused too when
      * the world changed under its first edge while the search ran.
      */
-    public static Route.Adoption adopt(Walker wk, PathFinder.Result res, WorldView world, BlockPos foot) {
-        Route route = wk.route;
+    public static Route.Adoption adopt(Navigator nav, PathFinder.Result res, WorldView world, BlockPos foot) {
+        Route route = nav.route;
         if (foot != null && !res.path().isEmpty()) {
             String misanchored = misanchored(world, res, foot);
             if (misanchored != null) return Route.Adoption.refused(misanchored);
@@ -49,8 +49,8 @@ public final class RouteAdoption {
             return Route.Adoption.refused("stale: the world changed under its first edge while it was searched");
         // String-pull flat walk runs so the heading stays steady over the staircase (no left-right
         // camera wobble) and the bot walks straight; action/vertical/parkour nodes are preserved.
-        wk.rawPlan = WalkerInspector.tallyOf(res.path(), res.edges());
-        SmoothResult sm = stringPull(world, res.path(), res.edges(), wk.profile.bias());
+        nav.rawPlan = NavigatorInspector.tallyOf(res.path(), res.edges());
+        SmoothResult sm = stringPull(world, res.path(), res.edges(), nav.profile.bias());
         List<BlockPos> path = sm.path;
         List<Move.Edge> edges = sm.edges;
         boolean bestEffort = !res.goalReached();
@@ -61,7 +61,7 @@ public final class RouteAdoption {
                 edges = Collections.unmodifiableList(new ArrayList<>(edges.subList(0, cut + 1)));
             }
         }
-        wk.search.gov.noPathWaitTicks = 0;            // a segment was found → the no-path wait starts over
+        nav.search.gov.noPathWaitTicks = 0;            // a segment was found → the no-path wait starts over
         // A segment that ends FARTHER from the goal than it starts can only be
         // the last-resort ESCAPE (every other selector is strictly goal-ward):
         // its start is a PROVEN dead pocket. Charge it now so subsequent searches
@@ -69,24 +69,24 @@ public final class RouteAdoption {
         // is fully deterministic (live 2026-06-09: escape→high route→fall→free
         // h-improving corridors all funnel back to the same pocket, ~3 min/lap,
         // and nothing on the lap ever calls penalizeStuckNode).
-        if (wk.goal != null && path.size() > 1
-                && wk.goal.estimate(path.get(path.size() - 1)) > wk.goal.estimate(path.get(0))) {
+        if (nav.goal != null && path.size() > 1
+                && nav.goal.estimate(path.get(path.size() - 1)) > nav.goal.estimate(path.get(0))) {
             world.penalizeStuckNode(path.get(0));
             world.penalizeStuckNode(path.get(0).above());
-            if (GameConfig.walkerDebug)
-                LOG.info("[walker] escape segment adopted → penalize dead pocket at {}", path.get(0));
+            if (GameConfig.navigatorDebug)
+                LOG.info("[navigator] escape segment adopted → penalize dead pocket at {}", path.get(0));
         }
         int step = foot == null ? 1 : fastForward(world, path, edges, foot);
         route.install(path, edges, step, bestEffort);
-        restartFollowing(wk, foot == null);
-        if (GameConfig.walkerDebug) {
+        restartFollowing(nav, foot == null);
+        if (GameConfig.navigatorDebug) {
             StringBuilder sbp = new StringBuilder();
             for (int i = 0; i < path.size(); i++) {
                 Move.Edge e = i < edges.size() ? edges.get(i) : null;
                 sbp.append(i).append(':').append(path.get(i).getX()).append(',').append(path.get(i).getY())
                    .append(',').append(path.get(i).getZ()).append('[').append(e != null ? e.move : "-").append("] ");
             }
-            LOG.info("[walker] path = {}", sbp);
+            LOG.info("[navigator] path = {}", sbp);
         }
         return Route.Adoption.ADOPTED;
     }
@@ -145,7 +145,7 @@ public final class RouteAdoption {
         // The exemption suppresses BOTH reject conditions (the d2 distance gate AND the |Δy| jump gate):
         // for an open-water bee-line the Y difference is a buoyant swim-UP to the surface node, not a dry
         // jump/fall, so the maxJumpUp gate (which exists to bar impossible dry climbs) must not veto it.
-        boolean openWaterBeeline = ControlConfig.walkerDeepWaterFloatBeeline
+        boolean openWaterBeeline = ControlConfig.navigatorDeepWaterFloatBeeline
                 && world.isWater(foot)
                 && Math.abs(raw.get(anchor).getY() - foot.getY()) <= 4
                 && losWalkable(world, foot, raw.get(anchor))
@@ -157,11 +157,11 @@ public final class RouteAdoption {
                     "mis-anchored: nearest prefix node %d,%d,%d (d2=%d) vs foot %d,%d,%d",
                     raw.get(anchor).getX(), raw.get(anchor).getY(), raw.get(anchor).getZ(),
                     (int) anchorD, foot.getX(), foot.getY(), foot.getZ());
-            if (GameConfig.walkerDebug) LOG.info("[walker] reject {}", why);
+            if (GameConfig.navigatorDebug) LOG.info("[navigator] reject {}", why);
             return why;
         }
-        if (openWaterBeeline && anchorD > rejectGate && GameConfig.walkerDebug)
-            LOG.info("[walker] accept open-water bee-line segment: far node {},{},{} (d2={}) reachable by clear-LOS swim from foot {},{},{}",
+        if (openWaterBeeline && anchorD > rejectGate && GameConfig.navigatorDebug)
+            LOG.info("[navigator] accept open-water bee-line segment: far node {},{},{} (d2={}) reachable by clear-LOS swim from foot {},{},{}",
                     raw.get(anchor).getX(), raw.get(anchor).getY(), raw.get(anchor).getZ(),
                     (int) anchorD, foot.getX(), foot.getY(), foot.getZ());
         return null;
@@ -225,11 +225,11 @@ public final class RouteAdoption {
      * Restart what the follower measured against the old geometry. These counters belong to whoever
      * follows the plan, not to the plan, and they restart because the cells they were timing are gone.
      */
-    private static void restartFollowing(Walker wk, boolean stub) {
-        wk.stuckTicks = 0;
-        wk.progress.stepProg.stuckStep = -1;        // new path geometry → restart the progress window
-        wk.progress.stepProg.noStepProgressTicks = 0;   // new path → restart the wedge timer (else a same-index step re-triggers instantly)
-        wk.progress.stepProg.noProgressStep = -1;
+    private static void restartFollowing(Navigator nav, boolean stub) {
+        nav.stuckTicks = 0;
+        nav.progress.stepProg.stuckStep = -1;        // new path geometry → restart the progress window
+        nav.progress.stepProg.noStepProgressTicks = 0;   // new path → restart the wedge timer (else a same-index step re-triggers instantly)
+        nav.progress.stepProg.noProgressStep = -1;
         // A freshly adopted PROGRESSIVE stub (quick-start / open-water bee-line —
         // the only adopts with foot==null) is a brand-new runway in a NEW
         // direction, so the wedge-burst counter accrued against the stale segment
@@ -242,10 +242,10 @@ public final class RouteAdoption {
         // counter simply re-arms and bursts as before. The big-search continuation
         // (foot != null) keeps its burst intact — that's the deterministic
         // same-segment deadlock breaker and must not be reset away.
-        if (stub) wk.recovery.dropWedgeAnchor();
-        wk.progress.stepProg.bestStepDist = Double.POSITIVE_INFINITY;
-        wk.progress.stepProg.stuckStepHigh = wk.route.step() - 1;   // new path, new index semantics: one fresh window on the first tick, then high-water applies
-        wk.actionTicks = 0;
+        if (stub) nav.recovery.dropWedgeAnchor();
+        nav.progress.stepProg.bestStepDist = Double.POSITIVE_INFINITY;
+        nav.progress.stepProg.stuckStepHigh = nav.route.step() - 1;   // new path, new index semantics: one fresh window on the first tick, then high-water applies
+        nav.actionTicks = 0;
     }
 
     /** Where a best-effort segment's commit stops, which is where the continuation launches from; 0 to
@@ -260,7 +260,7 @@ public final class RouteAdoption {
      *  Ridge retreat: see {@link PathSmoothing#sunkTailCut}. */
     private static int commitTailCut(WorldView world, List<BlockPos> path) {
         int cut = -1;
-        if (ControlConfig.walkerCommitTailPlatform && path.size() > 4) {
+        if (ControlConfig.navigatorCommitTailPlatform && path.size() > 4) {
             for (int k = path.size() - 1; k >= Math.max(2, path.size() - 8) && cut < 0; k--) {
                 BlockPos n = path.get(k);
                 int flat = 0;
@@ -269,11 +269,11 @@ public final class RouteAdoption {
                 if (flat >= 2) cut = k;
             }
         }
-        int peak = ControlConfig.walkerCommitTailPeak ? PathSmoothing.sunkTailCut(path) : -1;
+        int peak = ControlConfig.navigatorCommitTailPeak ? PathSmoothing.sunkTailCut(path) : -1;
         if (peak > 0 && (cut < 0 || peak < cut)) cut = peak;
         if (cut <= 0 || cut >= path.size() - 1) return 0;
-        if (GameConfig.walkerDebug)
-            LOG.info("[walker] commit-tail retreat: {} -> {} ({} {},{},{})", path.size() - 1, cut,
+        if (GameConfig.navigatorDebug)
+            LOG.info("[navigator] commit-tail retreat: {} -> {} ({} {},{},{})", path.size() - 1, cut,
                     cut == peak ? "ridge" : "platform", path.get(cut).getX(), path.get(cut).getY(), path.get(cut).getZ());
         return cut;
     }

@@ -13,11 +13,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 
 /**
- * Surfacing for air (walkerDrowningEscape). A submerged climb-out deadlock can pin the bot under a bank lip
+ * Surfacing for air (navigatorDrowningEscape). A submerged climb-out deadlock can pin the bot under a bank lip
  * until its air runs out — Peaceful does not prevent drowning (live 2026-06-29: died at (-21,60,-42) while
  * the climb-out place spun 26 engage/bail cycles). Air below ~3 s while under water latches a surface-for-air
  * override that outranks every climb, dig and pillar: hold the swim-up jump, and if a solid lip caps the
@@ -53,39 +53,39 @@ public final class DrownEscape implements Controller {
     /** As long as the air takes to come back; the latch, not a count, ends it. */
     @Override public int maxTicks() { return Integer.MAX_VALUE; }
 
-    @Override public void sense(Walker wk, WalkerTickCtx cx, WorldView world) {
-        if (!ControlConfig.walkerDrowningEscape) return;
+    @Override public void sense(Navigator nav, TickCtx cx, WorldView world) {
+        if (!ControlConfig.navigatorDrowningEscape) return;
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         reallyInWater = p.getHealth() > 0 && (world.isWater(foot) || world.isWater(foot.above()));
         if (reallyInWater && p.isUnderWater() && p.getAirSupply() <= 60) {
-            if (!latch && GameConfig.walkerDebug)
-                LOG.info("[walker] DROWNING-ESCAPE engaged: air={} foot={},{},{} → surface for air",
+            if (!latch && GameConfig.navigatorDebug)
+                LOG.info("[navigator] DROWNING-ESCAPE engaged: air={} foot={},{},{} → surface for air",
                         p.getAirSupply(), foot.getX(), foot.getY(), foot.getZ());
             latch = true;
         } else if (!reallyInWater || !p.isInWater() || p.getAirSupply() >= 240) {
-            if (latch && GameConfig.walkerDebug)
-                LOG.info("[walker] DROWNING-ESCAPE released: air={} → resume", p.getAirSupply());
+            if (latch && GameConfig.navigatorDebug)
+                LOG.info("[navigator] DROWNING-ESCAPE released: air={} → resume", p.getAirSupply());
             latch = false;
         }
     }
 
-    @Override public String whyNot(Walker wk, WalkerTickCtx cx, WorldView world) {
-        if (!ControlConfig.walkerDrowningEscape) return "switched off";
+    @Override public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
+        if (!ControlConfig.navigatorDrowningEscape) return "switched off";
         if (!latch) return "air is fine";
         if (!reallyInWater || !cx.frame.p.isInWater()) return "not in water";
         return null;
     }
 
-    @Override public boolean canContinue(Walker wk, WalkerTickCtx cx, WorldView world) {
-        return whyNot(wk, cx, world) == null;
+    @Override public boolean canContinue(Navigator nav, TickCtx cx, WorldView world) {
+        return whyNot(nav, cx, world) == null;
     }
 
-    @Override public boolean tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    @Override public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
-        wk.keys.jump(a, true);
-        wk.blocks.breakHold(false);
+        nav.keys.jump(a, true);
+        nav.blocks.breakHold(false);
         p.setSprinting(false);
         boolean riseBlocked = world.isSolid(foot.offset(0, 2, 0)) || p.horizontalCollision;
         if (riseBlocked) {

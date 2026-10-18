@@ -43,7 +43,7 @@ public final class PinchArena {
 
     /**
      * Build the cliff arena and run the read-only segment-commitment chain (mirrors the
-     * Walker / PlanProbeTool chain: feed each committed endpoint back as the next start).
+     * Navigator / PlanProbeTool chain: feed each committed endpoint back as the next start).
      * {@code maxNodes} sets the per-search budget that forces the boxed condition.
      */
     public static Result run(int maxNodes) {

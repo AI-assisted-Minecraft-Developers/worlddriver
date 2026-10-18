@@ -16,8 +16,8 @@ import net.magicterra.worlddriver.bot.rules.Move;
  * {@link PathTraceHolder#SINK}.
  *
  * <p><b>Sinks must never break the bot.</b> These callbacks fire from inside the
- * pathfinder/Walker tick (e.g. {@code onSearchBegin} from a {@code Search}
- * constructor, {@code onSearchResult}/{@code onWalkerTick} from {@code Walker.tick}).
+ * pathfinder/Navigator tick (e.g. {@code onSearchBegin} from a {@code Search}
+ * constructor, {@code onSearchResult}/{@code onNavigatorTick} from {@code Navigator.tick}).
  * A debug/archive sink that throws would propagate up and kill the active goto.
  * So every per-sink call is wrapped: an exception is logged (with stack) and
  * swallowed, and the remaining sinks still run. Observability is never worth a
@@ -66,8 +66,8 @@ public final class MultiTrace implements PathTrace {
     }
 
     @Override
-    public void onWalkerTick(WalkerSample sample) {
-        forEach("onWalkerTick", s -> s.onWalkerTick(sample));
+    public void onNavigatorTick(NavigatorSample sample) {
+        forEach("onNavigatorTick", s -> s.onNavigatorTick(sample));
     }
 
     @Override

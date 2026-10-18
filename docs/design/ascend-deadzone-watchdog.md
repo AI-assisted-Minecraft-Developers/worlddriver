@@ -3,7 +3,7 @@
 ## The problem
 
 A bot that lands short of a cell it is climbing to — roughly 1.2 to 1.5 blocks away
-horizontally — sits in a gap between the walker's two step-advance tests. It is too far away
+horizontally — sits in a gap between the navigator's two step-advance tests. It is too far away
 for the arrival test, whose threshold `REACH_DIST_SQ` is 0.45, and too near for the
 overshoot re-sync, whose threshold `OVERSHOOT_RESYNC_SQ` is 4.0. A measured stall sat at
 about 1.48, squarely between them.
@@ -35,7 +35,7 @@ supplying the trigger is the whole contribution.
 
 ### The machine owns the clock and nothing else
 
-`AscendMovement` is deliberately thin. The legacy drive in the walker remains the single source
+`AscendMovement` is deliberately thin. The legacy drive in the navigator remains the single source
 of actuation — the delegation branch falls through on every status except the failure one, and the
 machine emits no inputs at all. It owns the per-edge episode and the watchdog. Step advancement
 stays with the existing advance loop, and the success status is telemetry.
@@ -45,7 +45,7 @@ jump timing, the break ordering and the pillar recovery for an ascent. That was 
 was being built, and the class as it exists is the narrower thing.
 
 An episode is a run of consecutive delegated ticks on the same target cell with the same move
-name. Changing either — because the walker advanced a step, or a replan swapped the edge — starts
+name. Changing either — because the navigator advanced a step, or a replan swapped the edge — starts
 a fresh episode with a fresh clock.
 
 ### Progress marks are monotonic high-water marks
@@ -110,14 +110,14 @@ watchdog already covers it by construction; if the watchdog is not firing on it,
 progress definition, not a missing gate.
 
 The machine may not actuate. If a future change needs an ascent to be driven differently, that belongs in
-the walker's phase classes, not here — otherwise there are two actuation sources for one edge and the
+the navigator's phase classes, not here — otherwise there are two actuation sources for one edge and the
 byte-identical fallback is lost.
 
 ## Where to look
 
 - `bot/control/AscendMovement.java` — the episode, the high-water marks, and the clock.
 - `bot/control/Movement.java`, `MovementStatus.java`, `MovementContext.java` — the seam it plugs into.
-- `bot/control/WalkerConstants.java` — `REACH_DIST_SQ`, `OVERSHOOT_RESYNC_SQ`, `STEPUP_FREEZE_TICKS` and
+- `bot/control/NavigatorConstants.java` — `REACH_DIST_SQ`, `OVERSHOOT_RESYNC_SQ`, `STEPUP_FREEZE_TICKS` and
   the watchdog budget derived from it.
-- `config/ControlConfig.java` — `walkerAscendMovement`, whose javadoc carries the comparison result.
-- `docs/dev/movement-tick-phases.md` — the walker decomposition this sits beside.
+- `config/ControlConfig.java` — `navigatorAscendMovement`, whose javadoc carries the comparison result.
+- `docs/dev/movement-tick-phases.md` — the navigator decomposition this sits beside.

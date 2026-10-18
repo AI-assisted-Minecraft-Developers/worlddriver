@@ -328,7 +328,7 @@ public final class JourneyTerrain {
     public static final int LIP_DEPTH = 8;
 
     /** The eight cells a bot can drift into from a stand — four cardinals and four diagonals, the
-     *  same set {@code WalkerGeometry.EDGE_NEIGHBOURS} pins and for the same reason: the drift that
+     *  same set {@code NavigatorGeometry.EDGE_NEIGHBOURS} pins and for the same reason: the drift that
      *  takes a bot off a lip is as often sideways along it as forward over it. */
     private static final int[][] EDGE_NEIGHBOURS = {
             {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
@@ -336,7 +336,7 @@ public final class JourneyTerrain {
     /**
      * Is the lake one sideways step from this cell — the reading that makes a stand a trap?
      *
-     * <p>The hazard half of {@code WalkerGeometry.lethalDropAdjacent}, written out here rather than
+     * <p>The hazard half of {@code NavigatorGeometry.lethalDropAdjacent}, written out here rather than
      * called: that class is package-private to {@code bot.movement} and opening it up to a scene is
      * an engine change this finding does not need. It is also deliberately narrower — the rung's
      * hazard is <b>the lake</b> and not any deep hole, because a dry shaft beside a stand costs a
@@ -344,7 +344,7 @@ public final class JourneyTerrain {
      *
      * <p>A neighbour counts when its own foot cell AND the cell below it are both open — a floor
      * there is a flat walk or a one-block step down — and the column then falls to lava within
-     * {@link #LIP_DEPTH}. Water is a splash, not a drop, exactly as the walker treats it.
+     * {@link #LIP_DEPTH}. Water is a splash, not a drop, exactly as the navigator treats it.
      *
      * <p>It is asked of a cell that is EMPTY, so it is a question about the cell rather than about
      * the bot in it, which is what makes it usable before any bot is standing there. The reading
@@ -385,12 +385,12 @@ public final class JourneyTerrain {
      * <p>Because the destination was never the thing that killed this approach: the ROUTE is.
      * Measured on the {@code east} rehearsal of 2026-08-17, with the walk already re-aimed at a
      * chosen bank cell one block from the pool ({@code lava.bank = -8, 66, 19}) rather than at the
-     * lake's own column, the walker put the bot on the rim anyway and all three walks died there:
+     * lake's own column, the navigator put the bot on the rim anyway and all three walks died there:
      *
      * <pre>
-     * [walker] footing guard: sole 0.0362 &lt; 0.18 at -14,66,21 beside a lethal drop → sneak-pin
-     * [walker] footing guard: sole 0.0025 &lt; 0.18 at -13,66,20 beside a lethal drop → sneak-pin
-     * [walker] footing guard: sole 0.0000 &lt; 0.18 at -13,66,21 beside a lethal drop → sneak-pin
+     * [navigator] footing guard: sole 0.0362 &lt; 0.18 at -14,66,21 beside a lethal drop → sneak-pin
+     * [navigator] footing guard: sole 0.0025 &lt; 0.18 at -13,66,20 beside a lethal drop → sneak-pin
+     * [navigator] footing guard: sole 0.0000 &lt; 0.18 at -13,66,21 beside a lethal drop → sneak-pin
      * lava.goto.1/2/3 = end=failed:no progress for 1200 ticks     FAIL 3826t
      * </pre>
      *
@@ -533,7 +533,7 @@ public final class JourneyTerrain {
      * <p>Rung 12 opens by walking to {@code XZ(lava.x, lava.z)}: the lake's own centre column, a
      * destination no bot can ever occupy. Every archived rehearsal walk says so in one row —
      * {@code lava.gotoEnd.1 = end=failed:…} in <b>six runs of six</b>, not one arrival among them —
-     * because the walker plans INTO the crater and then either is pinned on its rim
+     * because the navigator plans INTO the crater and then either is pinned on its rim
      * ({@code footing guard: sole 0.0000 … beside a lethal drop}, ending
      * {@code failed:no progress for 1200 ticks} at {@code -13,66,21}) or gets all the way in
      * ({@code failed:no path (expanded=1)} from {@code -12,63,20} at the lava's own row, which is

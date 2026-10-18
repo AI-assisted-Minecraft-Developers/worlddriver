@@ -11,7 +11,7 @@ import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.rules.moves.PillarUp;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
@@ -64,7 +64,7 @@ import net.minecraft.world.level.block.Blocks;
  *   <li>the {@code gtOnlySkips(...)} probe first line → deleted (the testkit gate
  *       reconciles itself).</li>
  * </ul>
- * The in-body synchronous walker loops are carried over unchanged (they run on the
+ * The in-body synchronous navigator loops are carried over unchanged (they run on the
  * scene's first RUN tick, same as the legacy GameTest shell), so the old/new-shell A/B
  * compares like with like.
  *
@@ -92,7 +92,7 @@ import net.minecraft.world.level.block.Blocks;
  * scene</b>: the RED path is an open-void A* churn needing ~110 s of compute, and the dogfood
  * harness runs a scene body in ONE server tick, so it blows the 60 s {@code ServerHangWatchdog}
  * and CRASHES the whole suite (evidence: crash-2026-07-18_12.58.53-server.txt, stack rooted at
- * {@code descentDrift → Walker.tick → PathFinder.advance}). The determinism-critical config
+ * {@code descentDrift → Navigator.tick → PathFinder.advance}). The determinism-critical config
  * ({@code pathfinderMaxNodes} node budget, sliceMs/maxMs=MAX) cannot be trimmed to fit without
  * rebaselining the search of an already-broken rig, and a wall-clock cap would be non-deterministic.
  * Per the P4b escape hatch this was raised as a retired-without-scene candidate and the controller
@@ -121,9 +121,9 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                 Scene.of("wd.bareHandDigCadence", 200, WorldDriverTerrainScenes::bareHandDigCadence));
     }
 
-    /** Ported from {@code AgentGameTestTerrain#summitArena}: the REAL {@link Walker} pillars
+    /** Ported from {@code AgentGameTestTerrain#summitArena}: the REAL {@link Navigator} pillars
      *  a {@link ServerPlayerBody} up through an oak-leaf canopy (cardinal-neighbour leaf at
-     *  each rung ceiling). Break+place ON; the {@code walkerPillarReachGoalNoSnap} flag keeps
+     *  each rung ceiling). Break+place ON; the {@code navigatorPillarReachGoalNoSnap} flag keeps
      *  the elevated air goal pillar-reachable. Asserts the canopy {@code toBreak} fix
      *  ({@link PillarUp#eval}) AND that the avatar reaches the elevated goal. */
     private static void summit(SceneContext ctx) {
@@ -143,7 +143,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        ControlConfig.walkerPillarReachGoalNoSnap = true;
+        ControlConfig.navigatorPillarReachGoalNoSnap = true;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.06, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -161,10 +161,10 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
             ctx.fail("summit: canopy fix: PillarUp.eval did not add the ceiling-neighbour leaf "
                     + neighbourLeaf + " to toBreak (got " + (pe == null ? "null" : pe.toBreak) + ")");
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
+        for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
         boolean reached = Math.abs(fp.getX() - (cx + 0.5)) < 1.5
                 && Math.abs(fp.getZ() - (cz + 0.5)) < 1.5
                 && fp.getY() >= standY + 3 - 0.4;
@@ -172,10 +172,10 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         WorldDriverCommon.LOG.info("[wd.summit] step={} y={} reached={} leafCleared={}",
                 s, fp.getY(), reached, leafCleared);
         if (!reached)
-            ctx.fail("summit: real Walker failed to pillar to goal: y=" + fp.getY() + " step=" + s);
+            ctx.fail("summit: real Navigator failed to pillar to goal: y=" + fp.getY() + " step=" + s);
     }
 
-    /** Ported from {@code AgentGameTestTerrain#sheerWallArena}: the REAL {@link Walker} climbs a
+    /** Ported from {@code AgentGameTestTerrain#sheerWallArena}: the REAL {@link Navigator} climbs a
      *  +5 SHEER (vertical, stepless) wall onto a plateau behind it. Break OFF (no tunnelling),
      *  place ON (pillar/scaffold is the only way up). Asserts the avatar reaches the plateau. */
     private static void sheerWall(SceneContext ctx) {
@@ -201,7 +201,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -210,24 +210,24 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));
         fp.getInventory().selected = 0;
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         Locomotor.Status s = Locomotor.Status.MOVING;
         double maxY = fp.getY();
         for (int t = 0; t < 600 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w); av.step();
+            s = navigator.tick(av, w); av.step();
             maxY = Math.max(maxY, fp.getY());
         }
         boolean onPlateau = fp.getZ() > wallZ + 0.5 && fp.getY() >= topY + 1 - 0.4;
         WorldDriverCommon.LOG.info("[wd.sheerWall] step={} pos=({},{},{}) maxY={} onPlateau={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), maxY, onPlateau);
         if (!onPlateau)
-            ctx.fail("sheerWall: Walker failed to climb the +" + wallH + " sheer wall: pos=("
+            ctx.fail("sheerWall: Navigator failed to climb the +" + wallH + " sheer wall: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY + " step=" + s);
     }
 
-    /** Ported from {@code AgentGameTestTerrain#bridgeGapArena}: the REAL {@link Walker} bridges a
+    /** Ported from {@code AgentGameTestTerrain#bridgeGapArena}: the REAL {@link Navigator} bridges a
      *  3-cell void gap (full x-width, so the only crossing is a +z bridge). Break OFF = no
      *  dig-around, place ON. Asserts the avatar reaches the far platform. */
     private static void bridgeGap(SceneContext ctx) {
@@ -252,7 +252,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = false;   // force the bridge — no dig-around
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz - 4 + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -261,22 +261,22 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));
         fp.getInventory().selected = 0;
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         Locomotor.Status s = Locomotor.Status.MOVING;
-        for (int t = 0; t < 600 && s == Locomotor.Status.MOVING; t++) { s = walker.tick(av, w); av.step(); }
+        for (int t = 0; t < 600 && s == Locomotor.Status.MOVING; t++) { s = navigator.tick(av, w); av.step(); }
         boolean crossed = fp.getZ() > cz + 3 - 0.5 && fp.getY() >= standY - 0.4;
         WorldDriverCommon.LOG.info("[wd.bridgeGap] step={} pos=({},{},{}) crossed={}",
                 s, fp.getX(), fp.getY(), fp.getZ(), crossed);
         if (!crossed)
-            ctx.fail("bridgeGap: Walker failed to bridge the 3-cell gap: pos=("
+            ctx.fail("bridgeGap: Navigator failed to bridge the 3-cell gap: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
     }
 
     /** Ported from {@code AgentGameTestTerrain#parkourAscendArena}: regression guard for the
      *  parkour-ascend sprint fix — a 2-block cardinal gap landing +1 higher clears only with a
-     *  SPRINT-jump. Break/place OFF. Asserts the Walker sprint-jumps onto the +1 landing without
+     *  SPRINT-jump. Break/place OFF. Asserts the Navigator sprint-jumps onto the +1 landing without
      *  falling into the deep pit. */
     private static void parkourAscend(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -297,7 +297,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -306,13 +306,13 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         Locomotor.Status s = Locomotor.Status.MOVING;
         double minY = fp.getY();
         for (int t = 0; t < 300 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w); av.step();
+            s = navigator.tick(av, w); av.step();
             minY = Math.min(minY, fp.getY());
         }
         boolean fellInPit = minY <= pitY + 3;
@@ -354,7 +354,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -363,14 +363,14 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         Locomotor.Status s = Locomotor.Status.MOVING;
         double px = fp.getX(), pz = fp.getZ();
         int noProgress = 0, maxNoProgress = 0;
         for (int t = 0; t < 700 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w); av.step();
+            s = navigator.tick(av, w); av.step();
             double dx = fp.getX() - px, dz = fp.getZ() - pz;
             if (dx * dx + dz * dz < 0.0025) noProgress++;   // <0.05 b/tick horizontally
             else noProgress = 0;
@@ -395,7 +395,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
      *  short of centre, cur2≈0.55, zero velocity) every tick — a pure function of pose + stall
      *  counter, so it is deterministic by construction (auto slot safe). Arm 0 (flag OFF) must WEDGE
      *  (step frozen), arm 1 (flag ON) must ADVANCE. The ONLY variable is
-     *  {@code walkerStepUpCrestReach}. A single {@code createUnique} player is reused across both
+     *  {@code navigatorStepUpCrestReach}. A single {@code createUnique} player is reused across both
      *  arms (the truest port of the legacy shared player repositioned for each arm). */
     private static void stepUpCrestOrbit(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -436,41 +436,41 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         boolean[] advanced = new boolean[2];
         double[] obsCur2 = { Double.NaN, Double.NaN };
         for (int leg = 0; leg < 2; leg++) {
-            ControlConfig.walkerStepUpCrestReach = (leg == 1);
-            GameConfig.walkerDebug = true;
+            ControlConfig.navigatorStepUpCrestReach = (leg == 1);
+            GameConfig.navigatorDebug = true;
             fp.setPos(poseX, poseY, poseZ);
             fp.setDeltaMovement(0, 0, 0);
-            Walker walker = new Walker();
+            Navigator navigator = new Navigator();
             List<BlockPos> plan = List.of(approach, node, cont, goalN);
             List<Move.Edge> planEdges = List.of(
                     new Move.Edge(approach, 10, List.of(), List.of(), "walk"),
                     new Move.Edge(node, 10, List.of(), List.of(), "stepUp"),
                     new Move.Edge(cont, 10, List.of(), List.of(), "diagUp"),
                     new Move.Edge(goalN, 10, List.of(), List.of(), "walk"));
-            walker.replay(w, plan, planEdges, goal, node);
+            navigator.replay(w, plan, planEdges, goal, node);
 
             Locomotor.Status s = Locomotor.Status.MOVING;
             for (int t = 0; t < 200 && s == Locomotor.Status.MOVING; t++) {
                 fp.setPos(poseX, poseY, poseZ);
                 fp.setDeltaMovement(0, 0, 0);
-                s = walker.tick(av, w);
+                s = navigator.tick(av, w);
                 av.step();
                 fp.setPos(poseX, poseY, poseZ);     // re-assert after physics too
                 fp.setDeltaMovement(0, 0, 0);
-                BlockPos pn = walker.inspect().pathNode();
+                BlockPos pn = navigator.inspect().pathNode();
                 if (pn != null && pn.equals(node)) {
                     double dx = (node.getX() + 0.5) - poseX;
                     double dz = (node.getZ() + 0.5) - poseZ;
                     obsCur2[leg] = dx * dx + dz * dz;
                     nodeDwell[leg]++;
                 }
-                if (advanceTick[leg] < 0 && walker.pathStep() >= 2) {
+                if (advanceTick[leg] < 0 && navigator.pathStep() >= 2) {
                     advanceTick[leg] = t;
                     advanced[leg] = true;
                 }
             }
             WorldDriverCommon.LOG.info("[wd.stepUpCrestOrbit] leg={} flagOn={} advanced={} advanceTick={} nodeDwell={} endStep={} heldCur2={} step={}",
-                    leg, leg == 1, advanced[leg], advanceTick[leg], nodeDwell[leg], walker.pathStep(),
+                    leg, leg == 1, advanced[leg], advanceTick[leg], nodeDwell[leg], navigator.pathStep(),
                     String.format(Locale.ROOT, "%.3f", obsCur2[leg]), s);
         }
         if (!(obsCur2[0] > 0.45 && obsCur2[0] < 1.3))
@@ -481,7 +481,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                     + "(advanceTick=" + advanceTick[0] + ") — the orbit did not reproduce; the OFF arm must stay "
                     + "pinned (within needs cur2<0.45 and passed can't fire at the held orbit pose).");
         if (!advanced[1])
-            ctx.fail("stepUpCrestOrbit: with walkerStepUpCrestReach ON the step-pointer FAILED to advance past the "
+            ctx.fail("stepUpCrestOrbit: with navigatorStepUpCrestReach ON the step-pointer FAILED to advance past the "
                     + "crest stepUp node (pinned " + nodeDwell[1] + " ticks) — the fix did not fire. heldCur2_ON="
                     + String.format(Locale.ROOT, "%.3f", obsCur2[1]));
         if (advanceTick[1] > 40)
@@ -508,7 +508,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -517,13 +517,13 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         Locomotor.Status s = Locomotor.Status.MOVING;
         double minY = fp.getY();
         for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w); av.step();
+            s = navigator.tick(av, w); av.step();
             minY = Math.min(minY, fp.getY());
         }
         boolean fellInPit = minY <= pitFloorY + 2;
@@ -546,7 +546,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
     // AgentGameTestTerrain) were DELETED in this same wave.
 
     /** Ported from {@code AgentGameTestTerrain#ascentSpeedArena}: SMOOTHNESS gate measuring the real
-     *  {@link Walker}'s average horizontal speed UP a gentle staircase vs across flat ground (6 steps,
+     *  {@link Navigator}'s average horizontal speed UP a gentle staircase vs across flat ground (6 steps,
      *  2 blocks deep each, +1 y per step, flat run-up + flat top). Break/place OFF. Logs ascent/flat
      *  b/s + sprint%/hCol% and asserts the bot tops out and keeps a minimum ascent speed floor. */
     private static void ascentSpeed(SceneContext ctx) {
@@ -574,7 +574,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -583,15 +583,15 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         int flatTicks = 0, ascTicks = 0;
         double flatStartX = Double.NaN, flatEndX = 0, ascStartX = Double.NaN, ascEndXObs = 0;
         int flatSprint = 0, ascSprint = 0, flatHcol = 0, ascHcol = 0;
         Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < 500 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w); av.step();
+            s = navigator.tick(av, w); av.step();
             double x = fp.getX();
             boolean spr = fp.isSprinting(), hc = fp.horizontalCollision;
             if (x < cx) {
@@ -646,7 +646,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -655,8 +655,8 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         double prevX = fp.getX(), prevZ = fp.getZ();
         int backSteps = 0, moved = 0;
@@ -664,7 +664,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         boolean pastLip = false;
         Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w); av.step();
+            s = navigator.tick(av, w); av.step();
             double ddx = fp.getX() - prevX, ddz = fp.getZ() - prevZ;
             if (!pastLip && fp.getX() > cx + RUN && fp.getY() < H - 1.5) {
                 pastLip = true;
@@ -693,7 +693,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
 
     /** Ported from {@code AgentGameTestTerrain#wallCollisionProbe}: does the sim avatar collide with a
      *  2-tall vertical wall? Drives the avatar straight (+z) into a 2-tall wall via
-     *  {@code commandForward} (NOT the Walker) and asserts it does NOT pass through. Break OFF. */
+     *  {@code commandForward} (NOT the Navigator) and asserts it does NOT pass through. Break OFF. */
     private static void wallCollisionProbe(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
@@ -749,7 +749,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = true;                 // bridging needs placement
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -759,13 +759,13 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
 
         Locomotor.Status s = Locomotor.Status.MOVING;
         int crossTick = -1;
         for (int t = 0; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w); av.step();
+            s = navigator.tick(av, w); av.step();
             if (crossTick < 0 && fp.getX() > cx + 5 && fp.getY() <= baseY + 1.4) crossTick = t;
         }
         boolean crossed = fp.getX() > cx + 5 && fp.getY() <= baseY + 1.4;
@@ -799,7 +799,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = true;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -808,14 +808,14 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();   // BARE HANDS — 150t/stone is the whole point
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(new BlockPos(cx + 2, base + 1, cz)));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(new BlockPos(cx + 2, base + 1, cz)));
 
         Locomotor.Status s = Locomotor.Status.MOVING;
         boolean prevHeld = false;
         int heldTicks = 0, dropsWhileSolid = 0;
         for (int t = 0; t < 1500 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w); av.step();
+            s = navigator.tick(av, w); av.step();
             boolean held = av.breakHeld();
             boolean wallSolid = level.getBlockState(wallFeet).isSolid() || level.getBlockState(wallHead).isSolid();
             if (prevHeld && !held && wallSolid) {

@@ -53,7 +53,7 @@ public final class HorizonArena {
 
     /**
      * Build the corridor and run the read-only segment-commitment chain (mirrors the
-     * Walker: feed each committed endpoint back as the next start) under the given
+     * Navigator: feed each committed endpoint back as the next start) under the given
      * {@code horizonBlocks}. Saves/restores the live {@link PlanningConfig#pathfinderHorizonBlocks}.
      */
     public static Result run(int horizonBlocks) {
@@ -81,7 +81,7 @@ public final class HorizonArena {
         // This used to write PlanningConfig.pathfinderHorizonBlocks / pathfinderSoftCommitNodes and put
         // them back in a finally. That is unsound the moment anything else in the JVM is planning,
         // and it silently disconnected this arena's only variable: the planner's horizon read 0
-        // whenever a process-global escalation flag was set, and a client Walker on another thread
+        // whenever a process-global escalation flag was set, and a client Navigator on another thread
         // wrote that flag every tick it ran. On integratedServerNeoforge, with the client bot
         // churning on an unreachable goal, run(48) planned with the horizon OFF and returned numbers
         // byte-identical to run(0) — the scene measured nothing and still reported a colour.
@@ -105,7 +105,7 @@ public final class HorizonArena {
                 if (r.goalReached()) { from = end; segments++; break; }
                 if (end.equals(from)) break;   // no progress
                 // A segment ending FARTHER from the goal is the last-resort ESCAPE
-                // (boxed search, budget burned): the corridor is over. The Walker
+                // (boxed search, budget burned): the corridor is over. The Navigator
                 // penalizes the dead pocket and breaks out; this read-only probe
                 // has no penalty model, so chaining on would just bounce 0↔210.
                 if (goal.estimate(end) > goal.estimate(from)) break;

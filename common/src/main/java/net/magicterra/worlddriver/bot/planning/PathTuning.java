@@ -9,9 +9,9 @@ import net.magicterra.worlddriver.config.PlanningConfig;
  *
  * <p>These used to be read straight off {@code BotConfig} inside the search loop, through getters
  * that consulted a {@code PlanningConfig.pathfinderBoxedEscalate} flag: per-bot, per-tick state that
- * {@code WalkerTickPrelude} wrote on every walker tick — into a process-global. One JVM with two
+ * {@code PreludePhase} wrote on every navigator tick — into a process-global. One JVM with two
  * bots in it therefore had them editing each other's planner, and that is not hypothetical: on the
- * integrated topology a client Walker churning on an unreachable goal held the flag true, so a
+ * integrated topology a client Navigator churning on an unreachable goal held the flag true, so a
  * server-thread {@code HorizonArena.run(48)} planned with the horizon switched OFF and returned
  * numbers byte-identical to {@code run(0)}. The scene measured nothing and still reported a colour.
  *

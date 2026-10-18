@@ -320,17 +320,17 @@ client's click is silently ignored, `useItem` on an entity answers `menu` instea
 ### `mc.bot.setting` keys
 Single source: **`SettingsRegistry.java`** — the ordered `HAND` list (canonical key
 names, some with a `dotted.name` ⇄ `botConfigField` remap like
-`walker.repathEveryTicks`→`walkerRepathEveryTicks`) **plus a reflective pass that
+`navigator.repathEveryTicks`→`navigatorRepathEveryTicks`) **plus a reflective pass that
 auto-includes every `public static volatile` primitive/String field of
 the config classes (`BotConfig.CLASSES`).** So the *field is the schema*: adding a settable field
 to one of them makes it a valid key with no second edit. Ranges live in **`SettingsDocs.java`**: a
 key's row opens with `[min,max]`, that row is the key's schema description, and the
 contract rejects any number outside it as `out_of_range` (an aliased field's own name,
-e.g. `walkerRepathEveryTicks`, is held to its alias's range). `SettingsContracts.java`
+e.g. `navigatorRepathEveryTicks`, is held to its alias's range). `SettingsContracts.java`
 turns that table into one typed property per key, so the schema and the
 generated TypeScript (`SettingValues`) both know each key's value type.
 The set is large — **on the order of 200 keys** (currently ~120 boolean, ~70
-numeric, plus a handful of list/string keys); the great majority are `walker*` /
+numeric, plus a handful of list/string keys); the great majority are `navigator*` /
 `pathfinder*` movement-research toggles.
 
 **Read the live full set with `mc.bot.setting {"op":"read"}`** (no `keys` ⇒ every
@@ -358,20 +358,20 @@ mod, which is the #1 reason to drive a just-added setting over RPC).
 **Booleans** — reflexes & toggles: `paused, autoEat, autoRespawn, autoRetreat,
 autoBunker, autoFight, autoDodge, autoShield, autoHeal, autoTotem, autoEquip,
 combatCrit, autoSwim, antiSuffocate, autoTool, autoBackfill, autoSecureAtDusk,
-avoidDanger, avoidMobs, smoothLook`. Pathfinder/walker move toggles: `allowParkour4,
+avoidDanger, avoidMobs, smoothLook`. Pathfinder/navigator move toggles: `allowParkour4,
 allowBreak, allowPlace, allowParkourPlace, allowSwimEscapeBreak, allowSwimEscapePlace,
 allowWaterBucketFall, waterBucketScoop, collisionAwarePathing, pathfinderCacheEnabled,
-pathfinderGoalField, pathfinderFrontierCommit`. Debug: `walkerDebug, elytraDebug,
+pathfinderGoalField, pathfinderFrontierCommit`. Debug: `navigatorDebug, elytraDebug,
 pathDebug, pathArchive, pathChartAutoDump`.
 
-Beyond those, `SettingsRegistry.HAND` carries a **large family of per-move walker/
-pathfinder research flags** (all boolean) — e.g. `walkerVerticalResync,
-walkerLevelRiserJump, walkerParkourAscendHold, walkerSteepDescentLatch,
-walkerDescentFlipHold, walkerStepUpCrestReach, walkerWaterWalkReach, walkerTangentAim,
-walkerArcLengthWedge, walkerArcProgressWedge, walkerFellBelowAlign,
-walkerFutileBankDigRelease, walkerBankDigForwardExit, walkerFloatingBankFollow,
-walkerFasterChurnRepath, walkerDeepWaterFloatBeeline, walkerVineFreeHangClimb,
-walkerVineDescentDrop, walkerAscendMovement, walkerEdgeBrakeVelocityProbe,
+Beyond those, `SettingsRegistry.HAND` carries a **large family of per-move navigator/
+pathfinder research flags** (all boolean) — e.g. `navigatorVerticalResync,
+navigatorLevelRiserJump, navigatorParkourAscendHold, navigatorSteepDescentLatch,
+navigatorDescentFlipHold, navigatorStepUpCrestReach, navigatorWaterWalkReach, navigatorTangentAim,
+navigatorArcLengthWedge, navigatorArcProgressWedge, navigatorFellBelowAlign,
+navigatorFutileBankDigRelease, navigatorBankDigForwardExit, navigatorFloatingBankFollow,
+navigatorFasterChurnRepath, navigatorDeepWaterFloatBeeline, navigatorVineFreeHangClimb,
+navigatorVineDescentDrop, navigatorAscendMovement, navigatorEdgeBrakeVelocityProbe,
 craftReclaimTable` and parkour/water forbid-gates `pathfinderForbidParkourIntoDeepWater,
 pathfinderForbidParkourFromFloatingWater, pathfinderForbidParkourOverWaterGap,
 pathfinderParkourAscendNeedRunway, pathfinderFloatingSurfaceCross,
@@ -380,10 +380,10 @@ list is illustrative — read live for the current complete set and defaults.
 
 **Numbers (integer, [min,max])** — survival/combat: `autoEatFoodThreshold[0,20],
 bunkerMinHostiles[1,10], bunkerDepth[1,5], bunkerTriggerRadius[1,16],
-hazardGridRadius[4,32], hazardGridDecimateTicks[1,20]`. Pathfinder/walker:
+hazardGridRadius[4,32], hazardGridDecimateTicks[1,20]`. Pathfinder/navigator:
 `deepWaterMax[1,64], swimBankClimbMaxHeight[0,64], sceneQueryMaxRadius[4,48],
 rangedAvoidRadius[4,48], autoBackfillRadius[1,16], maxWaterBucketFall[4,256],
-walker.repathEveryTicks[20,10000], walker.totalTickBudget[200,36000],
+navigator.repathEveryTicks[20,10000], navigator.totalTickBudget[200,36000],
 mine.searchVerticalRadius[1,32], breakTimeoutTicks[20,2000],
 pathfinder.maxNodes[1000,1000000], pathfinder.maxMs[100,30000],
 pathfinder.sliceMs[1,50], pathfinder.idleSliceMs[1,50], pathfinder.ledgeDangerMinDrop[1,64],
@@ -404,7 +404,7 @@ pathfinder.avoidZonePenalty[0,5000], pathfinder.heuristicWeight[1.0,3.0],
 pathfinderDepthPenalty[0,100], pathfinderDescendCost[0,200],
 pathfinderWaterCellCost, pathfinderWaterClimbOutCost, pathfinderSubmergedWaterCost,
 pathfinderBridgeCost[0,1000], pathfinderPillarCost, pathfinderThinObstacleHeight[0,1],
-smoothLookDegPerTick[1,180], walker.yawHysteresisDeg[0,30]`.
+smoothLookDegPerTick[1,180], navigator.yawHysteresisDeg[0,30]`.
 
 **Other** — `autoBackfillBlock:id`, `blocksToAvoid:[id]`, `buildBlockWhitelist:[id]`,
 `mutedEvents:[type]`, `undrivableMobs:[entity type id]`, `avoidPoints:[{x,y,z,radius?}]`; `debugFly:bool` (apply-only

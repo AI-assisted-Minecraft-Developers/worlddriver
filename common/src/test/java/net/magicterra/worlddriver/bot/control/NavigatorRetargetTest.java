@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
  * search, never counts one: the follow of an unreachable target runs forever, and a reachable one too
  * far for the quick stub never gets a route.
  */
-class WalkerRetargetTest {
+class NavigatorRetargetTest {
 
     private static PathFinder.Search footSearch() {
         GridWorldView w = new GridWorldView(-4, 60, -4, 16, 8, 16);
@@ -23,35 +23,35 @@ class WalkerRetargetTest {
         return new PathFinder(w).newSearch(new BlockPos(0, 64, 0), new Goal.Near(new BlockPos(5, 64, 0), 1));
     }
 
-    private final Walker walker = new Walker(WalkerSettings.named("follow"));
+    private final Navigator navigator = new Navigator(NavigatorSettings.named("follow"));
 
     @Test
     void aChaseReAimKeepsTheSearchRunningFromTheFeet() {
-        walker.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
+        navigator.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
         PathFinder.Search s = footSearch();
-        walker.route.searchFromFoot(s, false);
+        navigator.route.searchFromFoot(s, false);
 
-        walker.retarget(new Goal.Near(new BlockPos(6, 64, 0), 1));
-        assertSame(s, walker.route.seg.activeSearch, "the search toward the quarry's last cell must be allowed to land");
+        navigator.retarget(new Goal.Near(new BlockPos(6, 64, 0), 1));
+        assertSame(s, navigator.route.seg.activeSearch, "the search toward the quarry's last cell must be allowed to land");
     }
 
     @Test
     void aContinuationFromTheSegmentEndGoesWithThePathItWouldExtend() {
-        walker.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
-        walker.route.install(java.util.List.of(new BlockPos(0, 64, 0), new BlockPos(3, 64, 0)),
+        navigator.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
+        navigator.route.install(java.util.List.of(new BlockPos(0, 64, 0), new BlockPos(3, 64, 0)),
                 java.util.Arrays.asList(null, null), 1, true);
-        walker.route.searchFromEnd(walker, new GridWorldView(-4, 60, -4, 16, 8, 16));
+        navigator.route.searchFromEnd(navigator, new GridWorldView(-4, 60, -4, 16, 8, 16));
 
-        walker.retarget(new Goal.Near(new BlockPos(6, 64, 0), 1));
-        assertNull(walker.route.seg.activeSearch, "the re-aim clears the path, so there is nothing left to splice onto");
+        navigator.retarget(new Goal.Near(new BlockPos(6, 64, 0), 1));
+        assertNull(navigator.route.seg.activeSearch, "the re-aim clears the path, so there is nothing left to splice onto");
     }
 
     @Test
     void aNewGoalStillDropsTheSearch() {
-        walker.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
-        walker.route.searchFromFoot(footSearch(), false);
+        navigator.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
+        navigator.route.searchFromFoot(footSearch(), false);
 
-        walker.start(new Goal.Near(new BlockPos(6, 64, 0), 1));
-        assertNull(walker.route.seg.activeSearch);
+        navigator.start(new Goal.Near(new BlockPos(6, 64, 0), 1));
+        assertNull(navigator.route.seg.activeSearch);
     }
 }

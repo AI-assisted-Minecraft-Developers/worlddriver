@@ -13,9 +13,9 @@ import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerGeometry;
-import net.magicterra.worlddriver.bot.control.WalkerInspector;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
+import net.magicterra.worlddriver.bot.control.NavigatorInspector;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -167,7 +167,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowPlace = true;                 // the remedy IS a placement
         WorldConfig.allowBreak = false;                // digging out is not the subject
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
 
         // Nudge outward until the sole reads under the guard's own threshold rather than computing
         // an offset: the guard's predicate is the authority on what "barely on" means, and a rig
@@ -176,20 +176,20 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);
-        double sole = WalkerGeometry.soleOnSolid(w, fp);
+        double sole = NavigatorGeometry.soleOnSolid(w, fp);
         double nudge = 0.5;
-        for (int i = 0; i < 40 && sole >= WalkerInspector.footingMin(); i++) {
+        for (int i = 0; i < 40 && sole >= NavigatorInspector.footingMin(); i++) {
             nudge += 0.02;
             fp.setPos(cx + nudge, standY, cz + 0.5);
-            sole = WalkerGeometry.soleOnSolid(w, fp);
+            sole = NavigatorGeometry.soleOnSolid(w, fp);
         }
         ctx.record("rig", "1-wide obsidian ledge x=" + cx + " z=" + (cz - 3) + ".." + cz
                 + " y=" + deckY + " | landing (one up, one across)=" + landing.getX() + ","
                 + landing.getY() + "," + landing.getZ() + " | " + VOID_DEPTH
                 + " clear cells under it, catch floor y=" + (deckY - VOID_DEPTH));
         ctx.record("staged", String.format(Locale.ROOT, "bot x=%.2f sole=%.4f (threshold %s)",
-                nudge, sole, WalkerInspector.footingMin()));
-        if (sole >= WalkerInspector.footingMin()) {
+                nudge, sole, NavigatorInspector.footingMin()));
+        if (sole >= NavigatorInspector.footingMin()) {
             ctx.fail("THE RIG, not the subject: could not stage a stand under the footing threshold"
                     + " (sole=" + sole + ")");
             return;
@@ -202,7 +202,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         for (int i = 0; i < SETTLE_TICKS; i++) av.step();
         ctx.record("settle", String.format(Locale.ROOT,
                 "%d ticks with no driver: y=%.3f sole=%.4f", SETTLE_TICKS, fp.getY(),
-                WalkerGeometry.soleOnSolid(w, fp)));
+                NavigatorGeometry.soleOnSolid(w, fp)));
         if (fp.getY() < standY - 0.5) {
             ctx.fail("THE RIG, not the subject: vanilla itself dropped the staged stand in "
                     + SETTLE_TICKS + " idle ticks (y=" + fp.getY() + "), so this arena is not the"
@@ -220,7 +220,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 + " foot=" + footCell.getX() + "," + footCell.getY() + "," + footCell.getZ()
                 + " (" + level.getBlockState(footCell) + ")"
                 + " below=" + level.getBlockState(footCell.below())
-                + " lethalDropAdjacent=" + WalkerGeometry.lethalDropAdjacent(w, fp, footCell));
+                + " lethalDropAdjacent=" + NavigatorGeometry.lethalDropAdjacent(w, fp, footCell));
 
         fp.getInventory().clearContent();
         fp.getInventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
@@ -228,21 +228,21 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ctx.record("stock", "64 cobblestone in slot " + slot + " ("
                 + (slot <= 8 ? "hotbar" : "backpack") + "), holdPlaceable=" + av.holdPlaceable());
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(landing.above()));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(landing.above()));
         double minY = fp.getY();
         int t = 0;
         Locomotor.Status s = Locomotor.Status.MOVING;
         int fireable = 0;                 // ticks on which the guard's whole predicate held
         StringBuilder soles = new StringBuilder();
         for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            double sn = WalkerGeometry.soleOnSolid(w, fp);
+            double sn = NavigatorGeometry.soleOnSolid(w, fp);
             BlockPos fc = BlockPos.containing(fp.getX(), fp.getY() + 0.05, fp.getZ());
             if (ControlConfig.lethalEdgeBrake && !fp.isInWater() && sn > 0.0
-                    && sn < WalkerInspector.footingMin() && WalkerGeometry.lethalDropAdjacent(w, fp, fc))
+                    && sn < NavigatorInspector.footingMin() && NavigatorGeometry.lethalDropAdjacent(w, fp, fc))
                 fireable++;
             if (t < 8) soles.append(String.format(Locale.ROOT, " t%d=%.3f", t, sn));
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             minY = Math.min(minY, fp.getY());
             if (fp.getY() < deckY - 3) break;        // shed: nothing after this is about footing
@@ -256,7 +256,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
         ctx.record("fireable", fireable + " of " + t + " drive ticks had the guard's WHOLE"
                 + " predicate true; its log line is unconditional, so any gap between this count"
-                + " and the [walker] footing guard lines is the guard not being reached at all."
+                + " and the [navigator] footing guard lines is the guard not being reached at all."
                 + " sole per tick:" + soles);
         ctx.record("drive", String.format(Locale.ROOT, "%d ticks, bot=(%.2f,%.2f,%.2f) step=%s",
                 t, fp.getX(), fp.getY(), fp.getZ(), s));
@@ -296,7 +296,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * {@link ServerPlayerBody#holdPlaceable()} swaps a stack up from slots 9..35 when the hotbar
      * has none — the executor is not limited to the hotbar. The planner was: {@code
      * LevelWorldView.placeableBlockCount()} counted 0..8 only. Two consumers turn that gap into a
-     * failed walk — {@code BridgePlace.eval} emits no bridge edge, and {@code WalkerTickSearch}'s
+     * failed walk — {@code BridgePlace.eval} emits no bridge edge, and {@code SearchPhase}'s
      * block budget throws away a path A* has ALREADY FOUND and re-searches with placing OFF whenever
      * the edges outnumber the count. Over a nether gap, place-off leaves only walking, and walking
      * is what spends the node budget.
@@ -330,7 +330,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         final int farCells = 4;       // deck on the other side
 
         // Void everywhere in the working box, and genuinely bottomless: a catch floor below the gap
-        // would let the walker fall and recover, which measures the arena instead of the planner.
+        // would let the navigator fall and recover, which measures the arena instead of the planner.
         for (int dx = -4; dx <= 4; dx++)
             for (int dz = -4; dz <= nearCells + gapCells + farCells + 4; dz++)
                 for (int y = level.getMinBuildHeight(); y <= deckY + 6; y++)
@@ -348,7 +348,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowPlace = true;
         WorldConfig.allowBreak = false;   // there is nothing to dig through; bridging is the only answer
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -369,14 +369,14 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         for (int s = 0; s < 9; s++) hotbar += fp.getInventory().items.get(s).getCount();
         final int planner = w.placeableBlockCount();
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(new BlockPos(cx, standY, cz + farStart + farCells - 1)));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(new BlockPos(cx, standY, cz + farStart + farCells - 1)));
         double minY = fp.getY();
         double farZ = fp.getZ();
         int t = 0;
         Locomotor.Status s = Locomotor.Status.MOVING;
         for (; t < 500 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             minY = Math.min(minY, fp.getY());
             farZ = Math.max(farZ, fp.getZ());
@@ -477,7 +477,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz),
                             Blocks.AIR.defaultBlockState());
         // A genuine shaft under and past the bridge: the guard only arms instantly over a column
-        // that is bottomless to Walker's own scan floor, so a catch floor would measure the arena.
+        // that is bottomless to Navigator's own scan floor, so a catch floor would measure the arena.
         for (int dx = -4; dx <= 4; dx++)
             for (int dz = -4; dz <= 16; dz++)
                 for (int y = level.getMinBuildHeight(); y < deckY; y++)
@@ -491,7 +491,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowPlace = true;      // bridging onward is a legitimate answer, and the best one
         WorldConfig.allowBreak = false;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
@@ -510,15 +510,15 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
         // A goal well past the deck's end, so the walk has every reason to keep going and the only
         // thing that can stop it at the head is the guard.
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(
                 new BlockPos(cx + lateral, standY, cz + deckCells + 6)));
         double minY = fp.getY();
         double farZ = fp.getZ();
         int t = 0;
         Locomotor.Status s = Locomotor.Status.MOVING;
         for (; t < 400 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             minY = Math.min(minY, fp.getY());
             farZ = Math.max(farZ, fp.getZ());
@@ -566,7 +566,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * cause is removed is measuring something else, and thirty minutes per reading is the wrong
      * price for finding out what.
      *
-     * <p>So: flat stone, a player, a bow, arrows, and nothing else — no dragon, no walker, no
+     * <p>So: flat stone, a player, a bow, arrows, and nothing else — no dragon, no navigator, no
      * knockback, no fountain. Hold the use for well past a full draw and ask the only question that
      * matters: <b>did the quiver go down?</b> Everything the ladder adds on top of this is a
      * separate question, and none of it is worth asking until this one has an answer.
@@ -708,7 +708,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *
      * <pre>{@code
      * fortress.ground.3.0 = previous tick: position (80.407, 42.0000, 81.368) velocity (0.109, -0.078, 0.045)
-     *   onGround=true sneaking=false; walker on that tick: drive=y-59 F1.00 L0.00 s0.00 f1.00
+     *   onGround=true sneaking=false; navigator on that tick: drive=y-59 F1.00 L0.00 s0.00 f1.00
      *   vanilla's own check (any collision within 0.0784 blocks below the feet)=none; solid contact area 0.0000/0.36
      *   lethal-edge brake recomputed from the level: 1/0=lava10 -1/0=drop1 0/1=lava10 0/-1=floor ... -> should fire
      * fortress.fell.3.0   = from 80, 42, 81 ... -> fell into lava at 80, 29, 81, a 13-block fall
@@ -718,7 +718,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * <p>Three brakes could have held that bot and all three were off, for three different reasons:
      *
      * <ul>
-     *   <li>{@code WalkerTickDrive}'s {@code edgeBrake} — released, because {@code plannedDescent}
+     *   <li>{@code DrivePhase}'s {@code edgeBrake} — released, because {@code plannedDescent}
      *       was true: the node it was steering at ({@code 77,41,83}) sits one below the foot.</li>
      *   <li>{@link Safety#footingGuard} — released by the SAME planned-descent exemption, and on the
      *       last two ticks also by {@code sole <= 0.0}. Both releases are deliberate and both are
@@ -737,7 +737,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * straight through the lake and stopped on its netherrack bed. Measured on that cell: the lava
      * begins 13 rows down and the bed sits <b>exactly 23</b> rows down, which is the loop's own reach
      * at full health ({@code ceil(20)+3}). It found a floor on the last index it looks at and called
-     * the stride safe. {@code WalkerGeometry.dropAdjacentExceeds} learned this same lesson in round52
+     * the stride safe. {@code NavigatorGeometry.dropAdjacentExceeds} learned this same lesson in round52
      * and carries the {@code isHazard} line; this guard never got it.
      *
      * <h2>Two arms, one variable</h2>
@@ -751,7 +751,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *
      * <h2>Each arm carries its own control</h2>
      *
-     * Every arm drives the shelf TWICE over an identical staging, with {@code walkerStrideFloorGuard}
+     * Every arm drives the shelf TWICE over an identical staging, with {@code navigatorStrideFloorGuard}
      * as the only difference between the two drives. On lava they must DISAGREE — the control walks
      * in, and an arm whose control did not walk in has not earned the right to report that the
      * subject stayed out. On stone they must AGREE, both reaching the bay floor, because there the
@@ -768,7 +768,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * <h2>The drive is the rig's, not the pathfinder's</h2>
      *
      * The bot is walked forward at walking speed on a heading the rig re-imposes every tick, and the
-     * walker is ticked only so that its guards run — they live in {@code Walker#tick}'s single-exit
+     * navigator is ticked only so that its guards run — they live in {@code Navigator#tick}'s single-exit
      * wrapper, after every branch of {@code tickInner}. A goal is set because a null one NPEs in the
      * stall detector, and it is overridden immediately; nothing here is a claim about A*. Sneak
      * travels on a different channel from the impulse, so a guard's pin survives the rig's drive and
@@ -818,7 +818,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowPlace = false;      // the subject is the PIN; paving the bay is another answer
         WorldConfig.allowBreak = false;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.lethalEdgeBrake = false; // see the class note: this is the isolation, not a shortcut
         ctx.cleanup(() -> clearShore(ctx));
 
@@ -833,7 +833,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         Shore control = drive(ctx, "control", false);
         ctx.record("control.after", (control.inLava() ? 1 : 0) + " fault(s): " + control.endedAt());
         if (lava && !control.inLava())
-            ctx.fail("THE RIG, not the subject: with walkerStrideFloorGuard off the bot still did not walk"
+            ctx.fail("THE RIG, not the subject: with navigatorStrideFloorGuard off the bot still did not walk"
                     + " into the lava, so the check \"the subject stayed out of the lava\" cannot"
                     + " distinguish \"the guard stopped it\" from \"this arena cannot be walked into at all\": "
                     + control.endedAt());
@@ -897,15 +897,15 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
     /**
      * Walk the shelf once and report what stopped the bot, if anything.
      *
-     * <p>{@code strideGuard} is the arm's only variable. The walker is ticked for its guards alone —
-     * they run in {@code Walker#tick}'s single-exit wrapper after every branch of {@code tickInner} —
+     * <p>{@code strideGuard} is the arm's only variable. The navigator is ticked for its guards alone —
+     * they run in {@code Navigator#tick}'s single-exit wrapper after every branch of {@code tickInner} —
      * and the heading, the impulse and the jump are re-imposed after that call so the bot walks one
-     * straight line whatever the walker would rather do. Sneak is NOT re-imposed: it is the channel a
+     * straight line whatever the navigator would rather do. Sneak is NOT re-imposed: it is the channel a
      * guard pins on, and it is the thing being measured.
      */
     private static Shore drive(SceneContext ctx, String arm, boolean strideGuard) {
         ServerLevel level = ctx.level();
-        ControlConfig.walkerStrideFloorGuard = strideGuard;
+        ControlConfig.navigatorStrideFloorGuard = strideGuard;
 
         double startZ = ctx.origin().getZ() + 1.5;
         int standY = ctx.rel(0, SHELF + 1, 0).getY();
@@ -921,13 +921,13 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
             ctx.fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y="
                     + fp.getY() + " after " + SETTLE_TICKS + " idle ticks)");
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(ctx.rel(0, SHELF + 1, SHELF_CELLS - 1)));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(ctx.rel(0, SHELF + 1, SHELF_CELLS - 1)));
         double minY = fp.getY(), farZ = fp.getZ();
         boolean inLava = false;
         int pinned = 0, t = 0;
         for (; t < SHORE_TICKS; t++) {
-            walker.tick(av, w);
+            navigator.tick(av, w);
             aim(fp);
             av.commandMove(0f, 1f);
             av.commandJump(false);
@@ -943,7 +943,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                         + " pinned %d ticks, block below=%s%s",
                 t, fp.getX(), fp.getY(), fp.getZ(), minY, farZ - startZ, pinned,
                 blockUnder(level, fp), inLava ? ", submerged in lava" : "");
-        ctx.record(arm + ".drive", "walkerStrideFloorGuard=" + strideGuard + " → " + ended);
+        ctx.record(arm + ".drive", "navigatorStrideFloorGuard=" + strideGuard + " → " + ended);
         return new Shore(t, farZ - startZ, minY, inLava, pinned, ended);
     }
 
@@ -953,7 +953,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
     }
 
     /** Face +z, head and body with it. Vanilla rotates the movement impulse by the yaw, so a heading
-     *  the walker is free to slew would turn this rig's straight walk into whatever the walker
+     *  the navigator is free to slew would turn this rig's straight walk into whatever the navigator
      *  wanted, and the arm would be measuring A* instead of a guard. */
     private static void aim(ServerPlayer fp) {
         fp.setYRot(0f);
@@ -1052,11 +1052,11 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * run:
      *
      * <pre>{@code
-     * [walker] stride floor-guard: bottomless stride -10,64,16 (vel -0.12, -0.00) -> sneak-pin
-     * [walker] stride floor-guard: bottomless stride -10,64,16 (vel -0.08, -0.00) -> sneak-pin
-     * [walker] stride floor-guard: bottomless stride -10,64,16 (vel -0.06, -0.00) -> sneak-pin
-     * [walker] stride floor-guard: bottomless stride -10,64,16 (vel -0.05, -0.00) -> sneak-pin
-     * [walker] stride floor-guard: bottomless stride -10,64,16 (vel -0.04, -0.00) -> sneak-pin
+     * [navigator] stride floor-guard: bottomless stride -10,64,16 (vel -0.12, -0.00) -> sneak-pin
+     * [navigator] stride floor-guard: bottomless stride -10,64,16 (vel -0.08, -0.00) -> sneak-pin
+     * [navigator] stride floor-guard: bottomless stride -10,64,16 (vel -0.06, -0.00) -> sneak-pin
+     * [navigator] stride floor-guard: bottomless stride -10,64,16 (vel -0.05, -0.00) -> sneak-pin
+     * [navigator] stride floor-guard: bottomless stride -10,64,16 (vel -0.04, -0.00) -> sneak-pin
      * }</pre>
      *
      * <p>The word {@code bottomless} in that line is a hardcoded literal, not a classification — the
@@ -1085,7 +1085,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *
      * <h2>Each arm carries its own control</h2>
      *
-     * Both arms drive the rim TWICE over identical staging with {@code walkerStrideFloorGuard} as the
+     * Both arms drive the rim TWICE over identical staging with {@code navigatorStrideFloorGuard} as the
      * only difference. On lava the two must DISAGREE — the control walks in at 36 ticks with
      * {@code block below=lava}, and an arm whose control did not walk in has not earned the right to report
      * that the subject stayed out. On stone they must AGREE, both dropping into the trench, because
@@ -1131,7 +1131,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowPlace = false;      // the subject is the PIN; paving the trench is another answer
         WorldConfig.allowBreak = false;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.lethalEdgeBrake = false; // see the class note: this is the isolation, not a shortcut
         ctx.cleanup(() -> clearRim(ctx));
 
@@ -1151,7 +1151,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         Rim control = rimDrive(ctx, "control", false);
         ctx.record("control.after", (control.inLava() ? 1 : 0) + " fault(s): " + control.endedAt());
         if (lava && !control.inLava())
-            ctx.fail("THE RIG, not the subject: with walkerStrideFloorGuard off the bot still did not walk"
+            ctx.fail("THE RIG, not the subject: with navigatorStrideFloorGuard off the bot still did not walk"
                     + " into the lava, so the check \"the subject stayed out of the lava\" cannot"
                     + " distinguish \"the guard stopped it\" from \"this arena cannot be walked into at all\": "
                     + control.endedAt());
@@ -1244,7 +1244,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      * Walk the rim once and report what the guard cost.
      *
      * <p>Same rig as the shore pair's {@link #drive}: the heading and the impulse are re-imposed
-     * after {@code walker.tick} so the bot walks one straight diagonal whatever the walker would
+     * after {@code navigator.tick} so the bot walks one straight diagonal whatever the navigator would
      * rather do, and sneak is NOT re-imposed because sneak is the channel a guard pins on and the
      * thing being measured. The goal is level and well up the deck — nothing here is a claim about
      * A*, and a goal BELOW the foot would hand the guard its planned-descent exemption and measure
@@ -1252,7 +1252,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      */
     private static Rim rimDrive(SceneContext ctx, String arm, boolean strideGuard) {
         ServerLevel level = ctx.level();
-        ControlConfig.walkerStrideFloorGuard = strideGuard;
+        ControlConfig.navigatorStrideFloorGuard = strideGuard;
 
         double startX = ctx.origin().getX() + 1.5, startZ = ctx.origin().getZ() + 0.5;
         int standY = ctx.rel(0, RIM_DECK + 1, 0).getY();
@@ -1267,13 +1267,13 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
             ctx.fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y="
                     + fp.getY() + " after " + SETTLE_TICKS + " idle ticks)");
 
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(ctx.rel(0, RIM_DECK + 1, 18)));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(ctx.rel(0, RIM_DECK + 1, 18)));
         double minY = fp.getY(), farZ = fp.getZ(), pinZ = Double.NaN, farAfterPin = 0.0;
         boolean inLava = false;
         int pinned = 0, run = 0, longest = 0, t = 0;
         for (; t < RIM_TICKS; t++) {
-            walker.tick(av, w);
+            navigator.tick(av, w);
             aimRim(fp);
             av.commandMove(0f, 1f);
             av.commandJump(false);
@@ -1295,12 +1295,12 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 + " block below=%s%s",
                 t, fp.getX(), fp.getY(), fp.getZ(), minY, farZ - startZ, farAfterPin, pinned,
                 longest, blockUnder(level, fp), inLava ? ", submerged in lava" : "");
-        ctx.record(arm + ".drive", "walkerStrideFloorGuard=" + strideGuard + " → " + ended);
+        ctx.record(arm + ".drive", "navigatorStrideFloorGuard=" + strideGuard + " → " + ended);
         return new Rim(t, farZ - startZ, farAfterPin, minY, inLava, pinned, longest, ended);
     }
 
     /** Face {@link #RIM_YAW}, head and body with it — see {@link #aim} for why the heading has to be
-     *  re-imposed every tick rather than left to the walker. */
+     *  re-imposed every tick rather than left to the navigator. */
     private static void aimRim(ServerPlayer fp) {
         fp.setYRot(RIM_YAW);
         fp.yHeadRot = RIM_YAW;

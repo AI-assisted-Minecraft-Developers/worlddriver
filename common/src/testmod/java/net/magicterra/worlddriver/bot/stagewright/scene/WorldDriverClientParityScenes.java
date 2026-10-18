@@ -116,7 +116,7 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
         return e;
     }
 
-    /** The questions, named the way the walker asks them. */
+    /** The questions, named the way the navigator asks them. */
     private record Question(String name, BiFunction<WorldView, BlockPos, Object> ask) {}
 
     private static List<Question> questions() {

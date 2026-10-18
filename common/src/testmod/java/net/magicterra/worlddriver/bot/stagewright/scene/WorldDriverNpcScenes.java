@@ -17,8 +17,8 @@ import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerSettings;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BridgeProcess;
 import net.magicterra.worlddriver.bot.behavior.CombatProcess;
@@ -45,7 +45,7 @@ import net.minecraft.world.level.block.state.BlockState;
  *
  * <p><b>Two arms on one terrain.</b> The driven piglin walks the course first. Where a headless
  * server-side player may be created (the dedicated server), a {@code ServerPlayerBody} then walks the
- * same course with the same walker, so a red on the NPC arm arrives with the player's reading beside
+ * same course with the same navigator, so a red on the NPC arm arrives with the player's reading beside
  * it: both failing is the rig, only the NPC failing is a difference between the two driven entities.
  * On a server a client hosts the NPC arm runs alone; the player arm's coverage is the dedicated gate's.
  *
@@ -58,7 +58,7 @@ public final class WorldDriverNpcScenes implements SceneProvider {
     private static final BlockState AIR = Blocks.AIR.defaultBlockState();
     private static final BlockState WATER = Blocks.WATER.defaultBlockState();
 
-    /** Steps with no input before the walker starts: after a spawn the first move finds no floor. */
+    /** Steps with no input before the navigator starts: after a spawn the first move finds no floor. */
     private static final int SETTLE_STEPS = 5;
 
     @Override
@@ -226,20 +226,20 @@ public final class WorldDriverNpcScenes implements SceneProvider {
                              Predicate<LivingEntity> arrived) {
         LivingEntity e = body.entity();
         for (int i = 0; i < SETTLE_STEPS; i++) step.run();
-        Walker walker = new Walker(WalkerSettings.named("scene"));
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator(NavigatorSettings.named("scene"));
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         double minY = e.getY();
         boolean at = false;
         int t = 0;
         while (t < maxTicks && !at) {
-            s = walker.tick(body, view);
+            s = navigator.tick(body, view);
             step.run();
             t++;
             minY = Math.min(minY, e.getY());
             at = arrived.test(e);
         }
-        return new Leg(t, at, String.format(Locale.ROOT, "%d ticks, entity=(%.2f,%.2f,%.2f), lowest y=%.2f, walker=%s, arrived=%b",
+        return new Leg(t, at, String.format(Locale.ROOT, "%d ticks, entity=(%.2f,%.2f,%.2f), lowest y=%.2f, navigator=%s, arrived=%b",
                 t, e.getX(), e.getY(), e.getZ(), minY, s, at));
     }
 
@@ -249,7 +249,7 @@ public final class WorldDriverNpcScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         ServerLevel level = ctx.level();

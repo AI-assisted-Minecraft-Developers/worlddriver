@@ -26,7 +26,7 @@ import net.minecraft.world.level.GameType;
  * <p>{@link SceneBody} creates headless bot players and refuses to on an integrated server; {@code JourneyRig}
  * adopts the real player but only for the ladder. This is the third shape: an arena scene that stages
  * terrain, puts the real player in it, and drives it through the client's own user-task chain
- * ({@link BotApi#runProcess}) — so the walker under test is the client walker, on the client thread,
+ * ({@link BotApi#runProcess}) — so the navigator under test is the client navigator, on the client thread,
  * with vanilla client physics and every reflex chain armed, which is the thing the headless scenes
  * cannot reach.
  *

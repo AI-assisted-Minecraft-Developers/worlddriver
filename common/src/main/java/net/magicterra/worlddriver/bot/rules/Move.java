@@ -58,7 +58,7 @@ public abstract class Move {
 
     /**
      * True if this move PLACES a block from inventory (bridge/pillar/parkour-place).
-     * The Walker uses this to drop all placing moves from a search when the bot
+     * The Navigator uses this to drop all placing moves from a search when the bot
      * doesn't carry enough blocks for a committed path's placements — check the block
      * count before bridging, otherwise dig: rather than bridge partway and strand, re-search with placing
      * off so A* digs through / routes around (break moves need no blocks). Default false.
@@ -109,7 +109,7 @@ public abstract class Move {
      * A resolved A* edge: the destination foot-position, the (possibly
      * variable) cost, and the blocks that must be broken / placed to execute
      * it. {@code toBreak}/{@code toPlace} are empty for pure-movement moves —
-     * the Walker only runs its mine/place actuator when they're non-empty, so
+     * the Navigator only runs its mine/place actuator when they're non-empty, so
      * the all-walk hot path is unchanged.
      */
     public static final class Edge {
@@ -179,7 +179,7 @@ public abstract class Move {
     public static final int RUNUP_CELLS = 2;
 
     /** How far down a gap must be clear before it counts as bottomless rather than as a pit the
-     *  bot would merely fall into. Matches the walker's own {@code BOTTOMLESS_SCAN_FLOOR}: the two
+     *  bot would merely fall into. Matches the navigator's own {@code BOTTOMLESS_SCAN_FLOOR}: the two
      *  must agree, or the planner routes over a gap the executor's guards then refuse to cross. */
     public static final int VOID_SCAN_FLOOR = -70;
 

@@ -205,7 +205,7 @@ told, so the cursor is best-effort.
 
 `bot/` is the largest and most actively changed subsystem. Its internal layering has its
 own documents: [`bot-layering.md`](bot-layering.md) for the facade, scheduler, process,
-walker and pathfinder spine, [`movement-tick-phases.md`](movement-tick-phases.md) for the
+navigator and pathfinder spine, [`movement-tick-phases.md`](movement-tick-phases.md) for the
 per-tick phase decomposition one level below that, and
 [`coverage-exemptions.md`](coverage-exemptions.md) for which uncovered branches are
 deliberate.

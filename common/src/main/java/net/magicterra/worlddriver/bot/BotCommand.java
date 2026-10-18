@@ -19,7 +19,7 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * {@code /worlddriver server …}: spawns and commands a fully server-side {@link PlayerBot}
- * (a joined player steered by the real Walker on the server tick) — no client, no LocalPlayer. The
+ * (a joined player steered by the real Navigator on the server tick) — no client, no LocalPlayer. The
  * driver is registered with {@link BotTicker}, so once spawned it is driven autonomously
  * by the live server tick.
  *

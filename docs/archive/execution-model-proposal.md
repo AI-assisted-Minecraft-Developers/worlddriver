@@ -165,8 +165,8 @@ final class UserTaskChain implements Chain {
     public void tick(Minecraft mc, WorldView w, BotState st) {
         if (process != null && process.tick(mc, w, st)) process = null;  // clear on completion
     }
-    public void onInterrupt(Chain by) { Walker.releaseKeys(); }  // release WASD, stop where we are
-    public void onResume() { Walker.forceRepath(); }             // replan on resume; never reuse a stale path
+    public void onInterrupt(Chain by) { Navigator.releaseKeys(); }  // release WASD, stop where we are
+    public void onResume() { Navigator.forceRepath(); }             // replan on resume; never reuse a stale path
 }
 ```
 

@@ -29,9 +29,9 @@ import net.minecraft.core.BlockPos;
  * sole ownership of "is already submerged" — and only fires when a goto
  * explicitly requests {@code dive:true}.
  *
- * <p>The executor needs no new machinery for this: the Walker's dive actuation
+ * <p>The executor needs no new machinery for this: the Navigator's dive actuation
  * (pitch-down + active sink + suppressed swim-up jump) is keyed on the edge
- * NAME via {@code move.startsWith("swimDown")} (see Walker.java), not on
+ * NAME via {@code move.startsWith("swimDown")} (see Navigator.java), not on
  * whether the foot was already submerged when the edge was chosen — so naming
  * this move {@code "swimDownSurface"} inherits every one of those exemptions
  * for free.

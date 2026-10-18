@@ -11,7 +11,7 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * A {@link Body} over a mob: the same walker and pathfinder, driving the mob's own input fields.
+ * A {@link Body} over a mob: the same navigator and pathfinder, driving the mob's own input fields.
  *
  * <p><b>The channel is the one both player bots use.</b> Each step writes {@code xxa}/{@code zza},
  * {@code jumping} and the sneak flag, then vanilla's {@code aiStep} and {@code travel} move the
@@ -21,7 +21,7 @@ import net.minecraft.world.phys.Vec3;
  * on a mob moving at speed modifier 1.
  *
  * <p><b>No hands, no menus.</b> Every optional capability keeps {@link Body}'s empty default, so a
- * process that needs one refuses with {@code no_hands}, and the walker drives its handless stand-in. The planner is kept from pricing digs and placements by the
+ * process that needs one refuses with {@code no_hands}, and the navigator drives its handless stand-in. The planner is kept from pricing digs and placements by the
  * view: {@code LevelWorldView} over an entity that is not a player prices every break as impossible
  * and counts no placeable blocks.
  *
@@ -76,7 +76,7 @@ public final class LivingBody implements Body {
      * One tick of the mob on this step's input.
      *
      * <p>{@code Mob.setSpeed} writes {@code zza} too, so the speed goes first and the impulse after.
-     * The head is turned to the yaw the walker set, because the look control that would turn it is
+     * The head is turned to the yaw the navigator set, because the look control that would turn it is
      * off while driven.
      */
     public void step() {

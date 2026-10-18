@@ -120,7 +120,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
             SceneArena.clearBox(level, ax, floorY, az, 6, 8);
             SceneArena.clearBox(level, bx, floorY, bz, 6, 8);
         });
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
 
         SceneArena.clearBox(level, ax, floorY + 1, az, 6, 6);
         SceneArena.clearBox(level, bx, floorY + 1, bz, 6, 6);
@@ -168,7 +168,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> SceneArena.clearBox(level, cx, floorY, cz, 3, 5));
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
 
         SceneArena.clearBox(level, cx, floorY + 1, cz, 3, 3);
         for (int dx = -1; dx <= 1; dx++)
@@ -238,7 +238,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         BotTicker.clear();
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> SceneArena.clearBox(level, cx, floorY, cz, 3, 5));
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
 
         SceneArena.clearBox(level, cx, floorY + 1, cz, 3, 3);
         for (int dx = -1; dx <= 1; dx++)
@@ -376,7 +376,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         BehaviorConfig.elytraDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;

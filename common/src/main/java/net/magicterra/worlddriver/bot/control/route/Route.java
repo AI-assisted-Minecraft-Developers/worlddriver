@@ -8,14 +8,14 @@ import net.magicterra.worlddriver.game.observe.BlockChanges;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerConstants;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorConstants;
 
 /**
  * The plan a walk follows, and the only thing that changes it: the nodes, the edge entering each, the
  * node the body is heading for, and the searches that will replace or extend them.
  *
- * <p>Every other part of the walker reads the plan through the accessors here. Writing it is one of
+ * <p>Every other part of the navigator reads the plan through the accessors here. Writing it is one of
  * four named acts — installing an adopted search result ({@link RouteAdoption#adopt}, the only caller of
  * {@link #install}), moving on to the next node, dropping the plan with a reason, or clearing it for a
  * new goal — so a reader can find every place a plan ends by searching for those, which the nine tick
@@ -160,8 +160,8 @@ public final class Route {
      * Start the continuation from the committed segment end — the one place one starts. Its result waits
      * in {@code pendingSegment} until the body reaches that end, and is spliced on there.
      */
-    public void searchFromEnd(Walker wk, net.magicterra.worlddriver.bot.world.WorldView world) {
-        seg.activeSearch = wk.newPathFinder(world).newSearch(seg.commitEnd, wk.goal);
+    public void searchFromEnd(Navigator nav, net.magicterra.worlddriver.bot.world.WorldView world) {
+        seg.activeSearch = nav.newPathFinder(world).newSearch(seg.commitEnd, nav.goal);
         seg.searchFromEnd = true;
         seg.searchSuppressedPlace = false;
     }
@@ -170,16 +170,16 @@ public final class Route {
      * At a loaded-chunk frontier the (stale) eager continuation from commitEnd — computed before the bot
      * arrived — found no onward route. Re-search FRESH from the frontier: now that the bot stands there,
      * chunks ~render-distance further have loaded and the next segment is visible. Bounded by
-     * {@link WalkerConstants#FRONTIER_WAIT_CAP} (the bot is stationary while waiting, so retrying more
+     * {@link NavigatorConstants#FRONTIER_WAIT_CAP} (the bot is stationary while waiting, so retrying more
      * can't load new chunks) so a genuine box-in still terminates.
      *
      * @return true while a retry is running, so the caller holds; false when out of retries
      */
-    public boolean retryAtFrontier(Walker wk, net.magicterra.worlddriver.bot.world.WorldView world) {
+    public boolean retryAtFrontier(Navigator nav, net.magicterra.worlddriver.bot.world.WorldView world) {
         if (replay || !net.magicterra.worlddriver.config.PlanningConfig.pathfinderFrontierCommit
-                || seg.commitEnd == null || seg.frontierWaitTicks >= WalkerConstants.FRONTIER_WAIT_CAP) return false;
+                || seg.commitEnd == null || seg.frontierWaitTicks >= NavigatorConstants.FRONTIER_WAIT_CAP) return false;
         seg.frontierWaitTicks++;
-        if (seg.activeSearch == null) searchFromEnd(wk, world);
+        if (seg.activeSearch == null) searchFromEnd(nav, world);
         return true;
     }
 
@@ -241,7 +241,7 @@ public final class Route {
      *
      * <p>The question vanilla asks of every mob navigation on each block update, with two differences: it
      * is asked once a tick from the log rather than inside the update, and changes within the body's reach
-     * are ignored, because the walker digs and places there itself and a replan for each of its own blocks
+     * are ignored, because the navigator digs and places there itself and a replan for each of its own blocks
      * would tear up every bridge and climb it builds.
      *
      * @return true when the held change should be replanned now

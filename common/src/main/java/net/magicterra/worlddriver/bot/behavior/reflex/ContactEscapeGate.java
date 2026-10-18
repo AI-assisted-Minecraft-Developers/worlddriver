@@ -25,7 +25,7 @@ public final class ContactEscapeGate {
      * "onFire" (the burn persists after leaving the fire block — movement does
      * not help, and shoving a burning bot mid-fight would fight the combat
      * chain), "freeze" (powder snow rescue is a climb-out, not a step-away),
-     * "lava" (DrownEscape/walker lava handling owns fluids), and every
+     * "lava" (DrownEscape/navigator lava handling owns fluids), and every
      * entity-attributed id (mob/arrow/player — those belong to the retreat
      * reflexes' entity attribution, gap#65/#68).
      */

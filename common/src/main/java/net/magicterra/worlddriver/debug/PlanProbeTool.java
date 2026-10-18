@@ -32,7 +32,7 @@ import java.util.TreeMap;
  * work on backtracking at pinch points.
  *
  * <p>It runs one {@link PathFinder#findPath} from a fixed start to an XZ goal and answers the committed
- * best-effort segment plus a backtrack verdict, WITHOUT engaging the Walker — so it never walks, never
+ * best-effort segment plus a backtrack verdict, WITHOUT engaging the Navigator — so it never walks, never
  * breaks a block, and never mutates the world. That removes the two confounds that made live A/B
  * unreliable: terrain mutation from the bot's own digging across runs, and wall-clock-budget jitter (use a
  * NODE budget — the {@code pathfinder.maxNodes} setting with a large {@code maxMs} — and the search is fully
@@ -63,7 +63,7 @@ final class PlanProbeTool {
             return single(start, goal, p.goal(), r, (System.nanoTime() - t0) / 1_000_000L);
         }
 
-        // Chained simulation of the Walker's segment-commitment trajectory, read-only: feed each committed
+        // Chained simulation of the Navigator's segment-commitment trajectory, read-only: feed each committed
         // best-effort endpoint back in as the next start. Reproduces the live repath trail with zero
         // walking / mutation / wall-clock noise, so the backtrack it surfaces is purely the selectSegment +
         // cost-model decision.
@@ -79,7 +79,7 @@ final class PlanProbeTool {
             PathFinder.Result r = new PathFinder(world).withOwner("debug.plan").findPath(from, goal);
             totalExpanded += r.expanded();
             List<BlockPos> path = r.path();
-            int cut = ControlConfig.walkerCommitTailPeak && !r.goalReached() ? PathSmoothing.sunkTailCut(path) : -1;
+            int cut = ControlConfig.navigatorCommitTailPeak && !r.goalReached() ? PathSmoothing.sunkTailCut(path) : -1;
             BlockPos end = path.isEmpty() ? from : path.get(cut > 0 ? cut : path.size() - 1);
             double hFrom = goal.estimate(from), hEnd = goal.estimate(end);
             if (hEnd > hFrom + 1e-6) backwardSegs++;

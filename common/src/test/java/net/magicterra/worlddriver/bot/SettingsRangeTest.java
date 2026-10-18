@@ -68,7 +68,7 @@ class SettingsRangeTest {
     /** An aliased key's backing field is a key of its own; it must not bypass the alias's range. */
     @Test
     void theFieldNameOfAnAliasedKeyHasTheSameRange() throws ReflectiveOperationException {
-        assertRejectedAndUnchanged("walkerRepathEveryTicks", 5, "walkerRepathEveryTicks");
+        assertRejectedAndUnchanged("navigatorRepathEveryTicks", 5, "navigatorRepathEveryTicks");
         assertRejectedAndUnchanged("dangerPenaltyPerCell", 5000.0, "dangerPenaltyPerCell");
     }
 

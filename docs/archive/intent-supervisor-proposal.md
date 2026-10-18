@@ -15,7 +15,7 @@
 > that reached the caller — or worse, the caller was told the wrong thing, because a give-up was
 > being reported as an arrival.
 >
-> That last defect was fixed directly rather than through a supervisor: the walker now classifies
+> That last defect was fixed directly rather than through a supervisor: the navigator now classifies
 > and names its exit, described in `docs/design/scheduler-semantics.md`. The "tell the caller its
 > conditions stopped working" half was answered by the route events in
 > `docs/design/route-selection.md`, which fire only for conditions the caller declared. Nothing was
@@ -52,7 +52,7 @@ channel for reporting that upwards; or, worse, it reports the wrong conclusion.*
 ```
 IntentSupervisorChain (priority()==0, never takes the slot; both client and server)
   ├─ reads existing health signals every tick (no new probes):
-  │    Walker: churnEscapes / noStepProgressTicks / stuckTicks(monotonic) /
+  │    Navigator: churnEscapes / noStepProgressTicks / stuckTicks(monotonic) /
   │            lastStats(expanded, goalReached, pathLen) / the step's terminal state
   │    IntentProcess: terminator state / target delta / constraint margin
   │    Avatar/Player: y velocity, inWater/air supply, fall distance, HP delta

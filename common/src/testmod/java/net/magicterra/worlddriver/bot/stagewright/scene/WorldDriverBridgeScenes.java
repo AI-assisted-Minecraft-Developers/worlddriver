@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
+import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -144,7 +144,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
     }
 
     private record Run(Locomotor.Status step, int ticks, double minY, double maxX,
-                       Walker walker, ServerPlayer fp, String breach, String journey,
+                       Navigator navigator, ServerPlayer fp, String breach, String journey,
                        String pinWindow, String invEvents, boolean walkedBestEffort) {}
 
     private static int bagCount(ServerPlayer fp) {
@@ -153,17 +153,17 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         return n;
     }
 
-    /** Drive one walker journey to {@code goal}, capped at {@code n} sim ticks; tracks
+    /** Drive one navigator journey to {@code goal}, capped at {@code n} sim ticks; tracks
      *  the no-fall guard (minY) and the farthest +x progress (origin-relative).
      *  {@code guardStandY}: the scene's lowest legitimate stand level (origin-relative);
-     *  the first tick the player dips below it, the walker's state is snapshotted so a
+     *  the first tick the player dips below it, the navigator's state is snapshotted so a
      *  fall failure reports WHERE and in WHAT state the player left the deck (the final
      *  probe is post-fall and has misled triage before). */
     private static Run drive(SceneContext ctx, ServerPlayerBody av, int n, BlockPos goal, int guardStandY) {
         ServerPlayer fp = av.fakePlayer();
         LevelWorldView w = new LevelWorldView(ctx.level(), fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(goal));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(goal));
         Locomotor.Status s = Locomotor.Status.MOVING;
         double minY = fp.getY();
         double maxX = fp.getX() - ctx.origin().getX();
@@ -190,35 +190,35 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         // footholdPlace) fail on END-state bag counts with no way to tell WHEN/WHERE the
         // blocks went — a planned foothold spends 1-2 at the face, a stall-recovery rung
         // (jt=pillarRecoverRung) spends one per churn cycle anywhere. Snapshot each change
-        // with position + the walker probe so the fail message carries the attribution.
+        // with position + the navigator probe so the fail message carries the attribution.
         java.util.List<String> invEvents = new java.util.ArrayList<>();
         int invCount = bagCount(fp);
         boolean walkedBestEffort = false;
         int t = 0;
         for (; t < n && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
-            if (!walkedBestEffort) walkedBestEffort = walker.inspect().progressProbe().contains(" bestEffort");
+            if (!walkedBestEffort) walkedBestEffort = navigator.inspect().progressProbe().contains(" bestEffort");
             minY = Math.min(minY, fp.getY());
             maxX = Math.max(maxX, fp.getX() - ctx.origin().getX());
             var vel = fp.getDeltaMovement();
-            String probe = walker.inspect().tickProbe();
+            String probe = navigator.inspect().tickProbe();
             String pid = probe.length() >= 5 ? probe.substring(0, 5) : probe;
             if (!pid.equals(lastPid) || t < 12) {
                 lastPid = pid;
                 if (journey.size() < 52)
                     journey.add("t" + t + "@" + String.format("(%.1f,%.1f)",
                             fp.getX() - ctx.origin().getX(), fp.getZ() - ctx.origin().getZ())
-                            + (journey.size() < 16 ? " " + walker.inspect().planProbe() : " " + probe));
+                            + (journey.size() < 16 ? " " + navigator.inspect().planProbe() : " " + probe));
             }
             trail.addLast(String.format("t=%d p=(%.2f,%.2f,%.2f) v=(%.3f,%.3f,%.3f) yaw=%.0f g=%b sn=%b sp=%b hc=%b jt=%s",
                     t, fp.getX() - ctx.origin().getX(), fp.getY() - ctx.origin().getY(),
                     fp.getZ() - ctx.origin().getZ(), vel.x, vel.y, vel.z,
                     fp.getYRot(), fp.onGround(), fp.isShiftKeyDown(), fp.isSprinting(),
                     fp.horizontalCollision,
-                    walker.inspect().jumpTag() == null ? "-" : walker.inspect().jumpTag())
-                    + " as=" + (walker.inspect().aimTag() == null ? "-" : walker.inspect().aimTag())
-                    + " dr=[" + (walker.inspect().driveTag() == null ? "EARLY-RETURN" : walker.inspect().driveTag()) + "]"
+                    navigator.inspect().jumpTag() == null ? "-" : navigator.inspect().jumpTag())
+                    + " as=" + (navigator.inspect().aimTag() == null ? "-" : navigator.inspect().aimTag())
+                    + " dr=[" + (navigator.inspect().driveTag() == null ? "EARLY-RETURN" : navigator.inspect().driveTag()) + "]"
                     + " " + probe);
             if (trail.size() > 16) trail.removeFirst();
             int ic = bagCount(fp);
@@ -227,7 +227,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                     invEvents.add("t" + t + "Δ" + (ic - invCount) + "@" + String.format("(%.1f,%.1f,%.1f)",
                             fp.getX() - ctx.origin().getX(), fp.getY() - ctx.origin().getY(),
                             fp.getZ() - ctx.origin().getZ())
-                            + " jt=" + (walker.inspect().jumpTag() == null ? "-" : walker.inspect().jumpTag()) + " " + probe);
+                            + " jt=" + (navigator.inspect().jumpTag() == null ? "-" : navigator.inspect().jumpTag()) + " " + probe);
                 invCount = ic;
             }
             if (Math.abs(fp.getX() - spx) < 0.01 && Math.abs(fp.getZ() - spz) < 0.01) staticTicks++;
@@ -237,12 +237,12 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
             if (breach == null && fp.getY() < guardAbs) {
                 breach = "breach@t=" + t + " pos=(" + String.format("%.1f,%.1f,%.1f",
                         fp.getX() - ctx.origin().getX(), fp.getY() - ctx.origin().getY(),
-                        fp.getZ() - ctx.origin().getZ()) + ")rel " + walker.inspect().progressProbe()
-                        + " ;; " + walker.inspect().planProbe()
+                        fp.getZ() - ctx.origin().getZ()) + ")rel " + navigator.inspect().progressProbe()
+                        + " ;; " + navigator.inspect().planProbe()
                         + " ;; shed-window: " + String.join(" ;; ", trail);
             }
         }
-        return new Run(s, t, minY, maxX, walker, fp, breach, String.join(" ;; ", journey),
+        return new Run(s, t, minY, maxX, navigator, fp, breach, String.join(" ;; ", journey),
                 pinWindow == null ? "-" : pinWindow,
                 invEvents.isEmpty() ? "-" : String.join(" ;; ", invEvents), walkedBestEffort);
     }
@@ -259,14 +259,14 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         double floorAbs = ctx.origin().getY() + lowestStandY - 0.5;
         if (r.minY() < floorAbs)
             ctx.fail(scene + ": the bot dropped below the deck (minY=" + r.minY() + " < " + floorAbs
-                    + ") — fell off the bridge | " + r.breach() + " | final " + r.walker().inspect().progressProbe());
+                    + ") — fell off the bridge | " + r.breach() + " | final " + r.navigator().inspect().progressProbe());
     }
 
     private static void assertArrived(SceneContext ctx, String scene, Run r, BlockPos goal) {
         if (!atGoal(ctx, r, goal))
             ctx.fail(scene + ": did not arrive: step=" + r.step() + " ticks=" + r.ticks()
-                    + " pos=" + r.fp().position() + " goal=" + goal + " | " + r.walker().inspect().progressProbe()
-                    + " | " + r.walker().inspect().planProbe() + " ;; pin-window: " + r.pinWindow()
+                    + " pos=" + r.fp().position() + " goal=" + goal + " | " + r.navigator().inspect().progressProbe()
+                    + " | " + r.navigator().inspect().planProbe() + " ;; pin-window: " + r.pinWindow()
                     + " ;; journey: " + r.journey());
     }
 
@@ -280,11 +280,11 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         if (r.maxX() < barrierX - 4)
             ctx.fail(scene + ": never approached the barrier (maxX=" + r.maxX() + " < " + (barrierX - 4)
                     + ") — expected to advance to the farthest reachable point | end=" + r.step()
-                    + "@t" + r.ticks() + " | " + r.walker().inspect().progressProbe()
+                    + "@t" + r.ticks() + " | " + r.navigator().inspect().progressProbe()
                     + " ;; journey: " + r.journey());
         if (r.maxX() > barrierX + 1.0)
             ctx.fail(scene + ": crossed the sealed barrier (maxX=" + r.maxX() + " > " + (barrierX + 1)
-                    + ") | " + r.walker().inspect().progressProbe());
+                    + ") | " + r.navigator().inspect().progressProbe());
     }
 
     /** Standard course frame: start pad (centre x=-2), 1-wide deck x=0..len, end pad
@@ -323,7 +323,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         WorldConfig.allowPlace = false;
         // Default-OFF, but the sealed-goal scenes need it to end at the farthest reachable point
         // instead of ping-ponging the deck; see its BotConfig javadoc for why it is not shipped.
-        ControlConfig.walkerFromEndNoProgressDiscard = true;
+        ControlConfig.navigatorFromEndNoProgressDiscard = true;
     }
 
     // ---------------------------------------------------------------- scenes ----
@@ -410,7 +410,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
      *
      *  <p><b>The {@code assertBlock} is staging self-defence, not a behavioural test.</b>
      *  {@code liveStack} pins {@code allowBreak=false}, which prunes break edges in the planner
-     *  ({@code Move}) and refuses them in the executor ({@code Walker.mayBreak}), so nothing in
+     *  ({@code Move}) and refuses them in the executor ({@code Navigator.mayBreak}), so nothing in
      *  this arm can remove that stone and the row cannot fail on behaviour. It is worth keeping
      *  only as a check that the staging is what the scene thinks it is. The arm that really
      *  grades "dig or detour" is {@link #bridgeDetourCheap}, whose identical two lines mean
@@ -463,11 +463,11 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         headBlockStop(ctx, "bridgeHeadBlockStop");
     }
 
-    /** The same stop on the shipped walker, whose from-end discard is OFF: the journey must still
+    /** The same stop on the shipped navigator, whose from-end discard is OFF: the journey must still
      *  reach the barrier and hold there instead of ping-ponging at the start pad. */
     private static void bridgeHeadBlockStopShipped(SceneContext ctx) {
         liveStack(ctx);
-        ControlConfig.walkerFromEndNoProgressDiscard = false;
+        ControlConfig.navigatorFromEndNoProgressDiscard = false;
         headBlockStop(ctx, "bridgeHeadBlockStopShipped");
     }
 
@@ -519,7 +519,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
     /** Descending bridge placement into a shaft — ROUTE regression cover for replay-0013, NOT a wedge
      *  repro: a step-up lip over a ceiling-sealed 2-wide shaft whose only continuation
      *  is a DESCENDING bridgePlace (support cell below the lip's foot). Both A/B arms
-     *  of walkerBridgeDescentPlaceAnchor PASS here — the live wedge (74× climb-slide-
+     *  of navigatorBridgeDescentPlaceAnchor PASS here — the live wedge (74× climb-slide-
      *  repath during the place-aim ticks) needs the async-search/escalation regime a
      *  deterministic synchronous-search scene structurally cannot enter (same conclusion
      *  as the futileBankDig family). This scene pins the descending-place ROUTE:
@@ -601,7 +601,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                 ctx.fail(name + ": crossed a lethal gap with no fall-break available");
             if (r.maxX() < 8)
                 ctx.fail(name + ": never approached the lip (maxX=" + r.maxX()
-                        + ") | " + r.walker().inspect().progressProbe());
+                        + ") | " + r.navigator().inspect().progressProbe());
         }
     }
 

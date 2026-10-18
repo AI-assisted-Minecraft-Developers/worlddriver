@@ -19,9 +19,9 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  * on, and the cells that stop it rising.
  *
  * <p>"Is this bot standing on something" must have exactly ONE answer in this repo: an actuator
- * asking a different one from the walker's footing guard is how an executor and a guard come to
+ * asking a different one from the navigator's footing guard is how an executor and a guard come to
  * disagree about the same tick. So the enumeration lives here, below both, and the question of
- * which cell counts as solid is the caller's: the walker passes its {@code WorldView}'s, a body
+ * which cell counts as solid is the caller's: the navigator passes its {@code WorldView}'s, a body
  * passes the block's own {@code blocksMotion()}.
  */
 public final class BodyGeometry {

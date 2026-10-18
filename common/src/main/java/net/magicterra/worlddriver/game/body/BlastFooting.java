@@ -145,7 +145,7 @@ public final class BlastFooting {
      *
      * <p>The footing is read with {@link BodyGeometry#eachSoleCell} — the same row and the same
      * cells {@link BodyGeometry#soleOnSolid} sums and {@link BodyGeometry#soleRow} prints, so
-     * this guard and every edge guard in the walker agree by construction about which block the
+     * this guard and every edge guard in the navigator agree by construction about which block the
      * bot is standing on. The only predicate added on top is {@code isAir}, to skip cells that
      * hold nothing; the weakest remaining cell decides, because losing any one of them is losing
      * that part of the support.

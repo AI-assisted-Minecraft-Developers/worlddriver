@@ -10,7 +10,7 @@ public final class GameConfig {
     private GameConfig() {}
 
     /** Camera smoothing for stream/demo scenarios. When on, the pathfinding
-     *  Walker and the {@code mc.bot.lookAt} verb rotate toward their target by
+     *  Navigator and the {@code mc.bot.lookAt} verb rotate toward their target by
      *  at most {@link #smoothLookDegPerTick} per tick instead of snapping
      *  instantly. Off by default so headless/scripted behavior (and the
      *  validation suite) is unchanged. Functional aiming that gates an
@@ -24,10 +24,10 @@ public final class GameConfig {
 
     /** Stream-grade camera guarantee (AIRI). When on, EVERY bot camera write is
      *  rate-limited at a single chokepoint ({@code LookController.apply} at the end
-     *  of the client tick) so NO actuator — Walker, swim, pillar look-down, the
+     *  of the client tick) so NO actuator — Navigator, swim, pillar look-down, the
      *  build/bunker/farm processes, the reflexes — can snap the view; the worst a
      *  snap-style write does is begin a smooth multi-tick pan. Unlike
-     *  {@link #smoothLook} (which only shapes the Walker/lookAt TARGET and is opt-in),
+     *  {@link #smoothLook} (which only shapes the Navigator/lookAt TARGET and is opt-in),
      *  this is a global post-write clamp and is ON by default. Functional exact aims
      *  (camera-raycast mine/attack, a leap's takeoff heading) bypass it for one tick
      *  via {@code LookController.requestSnap()}. Inert headless (no client tick). */
@@ -45,7 +45,7 @@ public final class GameConfig {
      *  so the player's physical mouse stops fighting the bot's aim. The mouse-side
      *  companion to the E1 keyboard work ({@code InputReleaseGate}) — {@code MouseHandler}
      *  is a shared object exactly like {@code mc.options.keyXXX} was, and a human nudging
-     *  the mouse writes the same yaw/pitch the Walker/LookController write every tick.
+     *  the mouse writes the same yaw/pitch the Navigator/LookController write every tick.
      *  Double-tap ESC takes the cursor back for the rest of the drive burst; the bot going
      *  idle hands it back automatically. Client-only — a dedicated server never grabs a
      *  cursor, so this is inert there. See {@code MouseYieldGate} for the state machine. */
@@ -73,11 +73,11 @@ public final class GameConfig {
      *  Whole-list replace; pass [] to clear. */
     public static volatile Set<String> buildBlockWhitelist = Set.of();
 
-    /** Diagnostic — when on, the Walker logs its per-tick decision (flight,
+    /** Diagnostic — when on, the Navigator logs its per-tick decision (flight,
      *  onGround, descending, foot, step, branch, repath outcome) to the
      *  {@code WorldDriver} logger. Off by default; toggle via
-     *  {@code mc.bot.setting{walkerDebug:true}} when chasing a movement bug. */
-    public static volatile boolean walkerDebug = false;
+     *  {@code mc.bot.setting{navigatorDebug:true}} when chasing a movement bug. */
+    public static volatile boolean navigatorDebug = false;
 
     /** Keep the game ticking while the BOT is driving and the window loses focus.
      *

@@ -26,9 +26,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * consumer. Nothing checked that the flag is actually consulted.
  *
  * <p>That gap fails the way the whole settings surface is designed not to: silently
- * and affirmatively. Add {@code walkerFooBar} to BotConfig meaning to gate a new
+ * and affirmatively. Add {@code navigatorFooBar} to BotConfig meaning to gate a new
  * behavior, never land the read site (or delete the behavior later and leave the
- * knob), and {@code mc.bot.setting{walkerFooBar:true}} returns success, the snapshot
+ * knob), and {@code mc.bot.setting{navigatorFooBar:true}} returns success, the snapshot
  * echoes {@code true} back, and the bot does exactly what it did before. The caller
  * — often an LLM — has every signal that it changed something.
  *
@@ -63,10 +63,10 @@ class SettingsConsumerTest {
 
     /** Settings I have watched being consumed; if the scan stops seeing these it is broken. */
     private static final List<String> POSITIVE_CONTROLS = List.of(
-            "walkerArcLengthAdvance",    // WalkerTickProgress, arc-length step advance
-            "walkerAscendMovement",      // WalkerTickDrive, task#82 ascent machine
+            "navigatorArcLengthAdvance",    // ProgressPhase, arc-length step advance
+            "navigatorAscendMovement",      // DrivePhase, task#82 ascent machine
             "pathfinderDepthPenalty",    // PathFinder, via PlanningConfig#pfDepthPenalty
-            "walkerDebug");
+            "navigatorDebug");
 
     @Test
     void everySettingIsReadBySomething() {
@@ -105,7 +105,7 @@ class SettingsConsumerTest {
         assertTrue(keys.size() >= 150,
                 "expected the full BotConfig knob surface (218 at last count), got "
                 + keys.size() + " — reflectivePrimitiveFields changed shape");
-        assertTrue(keys.contains("walkerDebug"), "sanity: walkerDebug should be a key");
+        assertTrue(keys.contains("navigatorDebug"), "sanity: navigatorDebug should be a key");
     }
 
     // ---------------------------------------------------------------- helpers

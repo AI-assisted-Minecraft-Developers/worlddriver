@@ -247,7 +247,7 @@ public final class BotConfig {
     }
 
     /** Snapshot every mutable config key (the {@link #persistable} set — all
-     *  walker/pathfinder flags included). Rig guard for tests that flip config
+     *  navigator/pathfinder flags included). Rig guard for tests that flip config
      *  beyond a handful of named keys — especially anything calling
      *  {@link #applyGameTestBaseline} mid-suite: pair with {@link #restoreAll}
      *  in a finally so a {@code /test} run on an integrated server can't leak
@@ -312,49 +312,49 @@ public final class BotConfig {
         WorldConfig.allowBreak = false;
         WorldConfig.allowPlace = false;
         WorldConfig.allowWaterBucketFall = false;
-        ControlConfig.walkerStepUpBackoffRetry = false;
-        ControlConfig.walkerCarrotBodyLos = false;
-        ControlConfig.walkerBankDigGroundBlip = false;
-        ControlConfig.walkerExpectAlarm = false;
-        ControlConfig.walkerStuckStepMonotonic = false;
-        ControlConfig.walkerPillarSurfacePlace = false;
-        ControlConfig.walkerAboveNodeStallRecover = false;
-        ControlConfig.walkerDigAimPriority = false;
-        ControlConfig.walkerWallDigFallback = false;
+        ControlConfig.navigatorStepUpBackoffRetry = false;
+        ControlConfig.navigatorCarrotBodyLos = false;
+        ControlConfig.navigatorBankDigGroundBlip = false;
+        ControlConfig.navigatorExpectAlarm = false;
+        ControlConfig.navigatorStuckStepMonotonic = false;
+        ControlConfig.navigatorPillarSurfacePlace = false;
+        ControlConfig.navigatorAboveNodeStallRecover = false;
+        ControlConfig.navigatorDigAimPriority = false;
+        ControlConfig.navigatorWallDigFallback = false;
         WorldConfig.pathfinderBreakCostMultiplier = 1.0;
-        ControlConfig.walkerDryReanchor = false;
-        ControlConfig.walkerBuoyantSearchFromSurface = false;
-        ControlConfig.walkerBankDigSkipWhenCwpSwims = false;
-        ControlConfig.walkerBankDigSkipOverhang = false;
-        ControlConfig.walkerVineDescentDrop = false;
-        ControlConfig.walkerAscentRamBobBreak = false;
-        ControlConfig.walkerPillarReachGoalNoSnap = false;
+        ControlConfig.navigatorDryReanchor = false;
+        ControlConfig.navigatorBuoyantSearchFromSurface = false;
+        ControlConfig.navigatorBankDigSkipWhenCwpSwims = false;
+        ControlConfig.navigatorBankDigSkipOverhang = false;
+        ControlConfig.navigatorVineDescentDrop = false;
+        ControlConfig.navigatorAscentRamBobBreak = false;
+        ControlConfig.navigatorPillarReachGoalNoSnap = false;
         RulesConfig.pathfinderForbidParkourFromFloatingWater = false;
-        ControlConfig.walkerDeepWaterFloatBeeline = false;
-        ControlConfig.walkerWaterWalkReach = false;
-        ControlConfig.walkerWaterStepDownFloat = false;
-        ControlConfig.walkerWallCornerFastChurn = false;
-        ControlConfig.walkerSwimAshorePillarDespiteDeepDig = false;
-        ControlConfig.walkerFootholdBeforeBankDig = false;
-        ControlConfig.walkerClimbIntentFromSurface = false;
-        ControlConfig.walkerPillarTopsOutAtFlushExit = false;
-        ControlConfig.walkerFinalNodeDirectAim = false;
-        ControlConfig.walkerHoldLastNodeUntilStanding = false;
-        ControlConfig.walkerShallowWaterSideFoothold = false;
-        ControlConfig.walkerClimbOutResyncsAim = false;
-        ControlConfig.walkerOrbitBreaksAimLag = false;
-        ControlConfig.walkerSurfaceSprintSwim = false;
-        ControlConfig.walkerFutileBankDigRelease = false;
-        ControlConfig.walkerBankDigForwardExit = false;
-        ControlConfig.walkerFloatingBankBobFreeze = false;
-        ControlConfig.walkerDrowningEscape = false;
-        ControlConfig.walkerClimbGaveUpSticky = false;
+        ControlConfig.navigatorDeepWaterFloatBeeline = false;
+        ControlConfig.navigatorWaterWalkReach = false;
+        ControlConfig.navigatorWaterStepDownFloat = false;
+        ControlConfig.navigatorWallCornerFastChurn = false;
+        ControlConfig.navigatorSwimAshorePillarDespiteDeepDig = false;
+        ControlConfig.navigatorFootholdBeforeBankDig = false;
+        ControlConfig.navigatorClimbIntentFromSurface = false;
+        ControlConfig.navigatorPillarTopsOutAtFlushExit = false;
+        ControlConfig.navigatorFinalNodeDirectAim = false;
+        ControlConfig.navigatorHoldLastNodeUntilStanding = false;
+        ControlConfig.navigatorShallowWaterSideFoothold = false;
+        ControlConfig.navigatorClimbOutResyncsAim = false;
+        ControlConfig.navigatorOrbitBreaksAimLag = false;
+        ControlConfig.navigatorSurfaceSprintSwim = false;
+        ControlConfig.navigatorFutileBankDigRelease = false;
+        ControlConfig.navigatorBankDigForwardExit = false;
+        ControlConfig.navigatorFloatingBankBobFreeze = false;
+        ControlConfig.navigatorDrowningEscape = false;
+        ControlConfig.navigatorClimbGaveUpSticky = false;
         // §87 second flip wave (C100+C101 double-green endorsement)
-        ControlConfig.walkerRouteHysteresis = false;
-        ControlConfig.walkerDigCommitHoldRepath = false;
-        ControlConfig.walkerRamNodeAimRelease = false;
-        ControlConfig.walkerPhysicalStallClock = false;
-        ControlConfig.walkerBridgeHoldRepath = false;
+        ControlConfig.navigatorRouteHysteresis = false;
+        ControlConfig.navigatorDigCommitHoldRepath = false;
+        ControlConfig.navigatorRamNodeAimRelease = false;
+        ControlConfig.navigatorPhysicalStallClock = false;
+        ControlConfig.navigatorBridgeHoldRepath = false;
         WorldConfig.pathfinderFloatingBreakTax = false;
         WorldConfig.pathfinderLogBreakTax = 1.0;
     }

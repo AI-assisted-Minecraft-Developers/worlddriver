@@ -23,7 +23,7 @@ final class ReplayInstaller {
 
     /**
      * Walk a stored plan: arm the path-archive recorder for replay capture, then install a
-     * {@link ReplayProcess} that drives {@code Walker.beginReplay} so the wedge reproduces with no
+     * {@link ReplayProcess} that drives {@code Navigator.beginReplay} so the wedge reproduces with no
      * re-planning. Throws when there is no player.
      */
     static void startReplay(BotBrain bot, List<BlockPos> plan, List<Move.Edge> edges, BlockPos start, Goal endGoal,

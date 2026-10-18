@@ -7,7 +7,7 @@ import net.minecraft.core.BlockPos;
 
 /**
  * Out of the water by placing a foothold: from the surface water cell to the air cell above it.
- * The edge the walker's water climb-out takeover really performs — a ground jump and a fill in
+ * The edge the navigator's water climb-out takeover really performs — a ground jump and a fill in
  * one-deep water, a side rung on a neighbouring floor, or a press against a bank while the fill
  * cell is placed under the risen feet — and legal only in those three shapes, with a block in
  * hand. Replaces the legacy {@code swimUp} "into the air" edge, which A* could plan over any

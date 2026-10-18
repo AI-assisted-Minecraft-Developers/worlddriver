@@ -72,7 +72,7 @@ wd.vineOverWaterCross
 wd.padOverWaterCross
 wd.padClusterCross
 wd.deepWaterFloatBeeline
-# Core family — the walker and pathfinder basics every other family assumes.
+# Core family — the navigator and pathfinder basics every other family assumes.
 wd.agentRpcSmoke
 wd.pinch
 wd.horizon
@@ -121,7 +121,7 @@ wd.serverCraftFailGridReturn
 
 # Scheduler-semantics family — the ordering and pre-emption rules the process scheduler promises.
 wd.retreatGateMatrix
-wd.walkerTerminalReportMatrix
+wd.navigatorTerminalReportMatrix
 wd.antiSuffocateShouldTriggerMatrix
 wd.chainEpisodeCancelMatrix
 wd.combatGraceMatrix
@@ -160,7 +160,7 @@ wd.serverElytra
 wd.serverBotJoinsPastModdedPayload
 
 # Process-core family — the per-verb process lifecycle: start, poll, cancel, finish.
-# driver/mine/process/flee/mineProcess/mineNoTool/walkerDeepslate/forbidDigWall/build/lookRaycast/follow/combat/look/mineCanopyRadius/bridgePillar
+# driver/mine/process/flee/mineProcess/mineNoTool/navigatorDeepslate/forbidDigWall/build/lookRaycast/follow/combat/look/mineCanopyRadius/bridgePillar
 wd.serverDriver
 wd.serverMine
 wd.serverProcess
@@ -174,7 +174,7 @@ wd.serverWalkIntoAPit
 wd.serverWalkIntoAPitArmed
 wd.serverAvatarEarnsAdvancement
 wd.serverMineNoTool
-wd.serverWalkerDeepslateNoTool
+wd.serverNavigatorDeepslateNoTool
 wd.serverForbidDigWall
 wd.serverBuild
 wd.serverLookRaycast
@@ -466,7 +466,7 @@ wd.serverStepsDownTheLastNodeOfItsPlan
 
 # The same defect through a TWO-node plan, which is why the first fix's pointer-index scope
 # (step == 1) did not hold it: A* routed sideways onto the standable cell beside the bot and then
-# down, and the walker spent both nodes in one tick without moving. A second verbatim copy of the
+# down, and the navigator spent both nodes in one tick without moving. A second verbatim copy of the
 # same rung's doorway, from the run after.
 wd.serverStepsDownAPlanItSpentInOneTick
 

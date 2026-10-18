@@ -51,7 +51,7 @@ block opens with <p> or @param, so the two were one document" covers only 5 of t
 
 TWO MORE THINGS THIS CANNOT SEE:
   * Which HALF of a split document is missing. A description and its @return can end
-    up hundreds of lines apart in the same file (measured: Walker.adoptPath, whose
+    up hundreds of lines apart in the same file (measured: Navigator.adoptPath, whose
     surviving half was a lone @return block that reads like a complete document).
     This reports that a block was dropped, never what it was separated from.
   * A block comment deliberately demoted to an ordinary one. Section headers are

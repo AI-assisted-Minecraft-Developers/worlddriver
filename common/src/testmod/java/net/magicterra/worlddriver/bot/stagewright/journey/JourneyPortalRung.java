@@ -201,7 +201,7 @@ public final class JourneyPortalRung {
      * further than that).
      *
      * <p>Both are the same mistake, and it is not a tolerance: <b>the destination was a cell no player
-     * can occupy</b>, so where the walk ended was decided by how the walker gave up. Naming a bank
+     * can occupy</b>, so where the walk ended was decided by how the navigator gave up. Naming a bank
      * cell instead makes the landing a choice, and {@link JourneyTerrain#bankStandNear} makes it
      * with the same lip rule the loading station is already chosen by.
      *
@@ -249,7 +249,7 @@ public final class JourneyPortalRung {
         BlockPos bank = pinTheApproach(ctx, rig, lava);
         JourneyStairwell.lavaPool = lava;
         // THE ROUTE, not only its end. See JourneyTerrain#poolsLipCells: a chosen bank cell did not
-        // stop the walker planning along the rim and pinning the bot on it, because a destination
+        // stop the navigator planning along the rim and pinning the bot on it, because a destination
         // cannot steer a path. The set is built on the server thread; the search's own thread only
         // ever does a hash lookup against an immutable set.
         JourneyTerrain.RimTax tax = JourneyTerrain.avoidTheRim(ctx.level(), lava);
@@ -855,7 +855,7 @@ public final class JourneyPortalRung {
      * instead of saying so.
      *
      * <p><b>The bot stands in the corridor first.</b> {@code PlayerBot.mine} is
-     * {@code walker.start(Near(cell, 2))} with breaking on, and a walker asked to get near a cell
+     * {@code navigator.start(Near(cell, 2))} with breaking on, and a navigator asked to get near a cell
      * in a wall will happily tunnel through the wall — which here is the mould. That is what the same
      * run did: it ended at {@code -10,59,34}, and {@code -10,59,34} is not a corridor cell at all, it
      * is an <b>interior cell of the portal's own doorway</b>, three of which the save shows opened.
@@ -895,7 +895,7 @@ public final class JourneyPortalRung {
     /**
      * Dig one cell of the mould WITHOUT letting the walk to it dig anything else.
      *
-     * <p>{@code PlayerBot.mine} is a walker goal plus a swing, and the walker plans with
+     * <p>{@code PlayerBot.mine} is a navigator goal plus a swing, and the navigator plans with
      * {@code WorldConfig.allowBreak} on for the whole casting phase — so when the cell it is sent to
      * has no walkable approach, it invents one THROUGH the mould. {@link #standBehind} was the first
      * answer to that and it only covers the case where a corridor stand exists; when it reports
@@ -932,7 +932,7 @@ public final class JourneyPortalRung {
      * <p>Behind, because that cell is in {@link #forgeCorridor} by construction — the corridor is the
      * two ranks between the shaft and the frame plane, and every frame cell's own dx is inside the
      * corridor's width — so it is a place the rung has already hollowed and is entitled to stand in.
-     * {@link NoBreak} on the walk is the whole point: the alternative is the walker inventing its own
+     * {@link NoBreak} on the walk is the whole point: the alternative is the navigator inventing its own
      * route, and the route it invented went through the doorway.
      *
      * <p><b>Only when that cell has a floor</b>, and the guard is a measurement rather than caution.
@@ -1300,7 +1300,7 @@ public final class JourneyPortalRung {
      * <p><b>It no longer prints {@code mine.lastError} or {@code mine.endReason}, and that is a
      * correction rather than a trim.</b> Those two live in {@code botState().mine}, which only a
      * {@link net.magicterra.worlddriver.bot.behavior.MineProcess} ever writes — and this dig is not
-     * one. {@code PlayerBot.mine(BlockPos)} sets {@code mineTarget} and a walker goal and
+     * one. {@code PlayerBot.mine(BlockPos)} sets {@code mineTarget} and a navigator goal and
      * explicitly clears {@code process}, so what the line reported was the LAST MineProcess to have
      * run, from somewhere else entirely. On the ladder run of 2026-08-12 it printed
      * {@code end=collect swept everything it could reach (broke 64/64 …)} beside a cell that had

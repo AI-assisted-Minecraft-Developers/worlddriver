@@ -49,7 +49,7 @@ links to; read that page before arguing with the rule.
    `neoforge/src/main/resources/META-INF/accesstransformer.cfg`.
    Check: `./gradlew :fabric:build && python3 scripts/check_remap_safety.py`.
    Why: `docs/dev/loader-glue.md`.
-10. **Do not change a `[walker]` or `[expect]` log format without its consumers.**
+10. **Do not change a `[navigator]` or `[expect]` log format without its consumers.**
     Check: `python3 scripts/check_log_contract.py` after a dedicated-server gate run.
     Why: `docs/dev/testing.md`.
 11. **A scene's terrain must fit its force-loaded arena**; prefer `ctx.setBlock(dx, dy, dz, …)`.

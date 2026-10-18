@@ -20,25 +20,25 @@ import static net.magicterra.worlddriver.game.body.BotInteract.*;
 import static net.magicterra.worlddriver.game.body.BotUtil.*;
 import java.util.Locale;
 import static net.magicterra.worlddriver.config.Mod.LOG;
-import static net.magicterra.worlddriver.bot.control.WalkerConstants.*;
-import static net.magicterra.worlddriver.bot.control.WalkerGeometry.*;
-// Not in WalkerGeometry: that class is pure functions of their arguments and reads no BotConfig.
-// This one consults walkerPillarSurfacePlace, so it stays with the phase that owns the carve-out.
-import static net.magicterra.worlddriver.bot.control.WalkerGeometry.floodedShaft;
+import static net.magicterra.worlddriver.bot.control.NavigatorConstants.*;
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.*;
+// Not in NavigatorGeometry: that class is pure functions of their arguments and reads no BotConfig.
+// This one consults navigatorPillarSurfacePlace, so it stays with the phase that owns the carve-out.
+import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.floodedShaft;
 import net.magicterra.worlddriver.bot.control.WalkVerdict;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerGeometry;
-import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 
 
 /**
- * Mechanical extraction of {@code Walker#tickInner} (pre-split lines 1647–2347): progressive quick-start hold, stall clocks, step-advance loop, arc-length shadow.
- * One phase of the per-tick pipeline — see {@link Walker#tickInner} for the driver and
- * {@link WalkerTickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
- * original tick body except for the {@code w.}/{@code Walker.} member prefixes; do not
+ * Mechanical extraction of {@code Navigator#tickInner} (pre-split lines 1647–2347): progressive quick-start hold, stall clocks, step-advance loop, arc-length shadow.
+ * One phase of the per-tick pipeline — see {@link Navigator#tickInner} for the driver and
+ * {@link TickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the
+ * original tick body except for the {@code w.}/{@code Navigator.} member prefixes; do not
  * restructure here without live/testkit evidence (this file is state-machine surgery).
  */
-public final class WalkerTickProgress {
+public final class ProgressPhase {
     /**
      * One line per STEP ADVANCE — which gate consumed the node, and whether the bot was standing
      * on anything when it did.
@@ -53,7 +53,7 @@ public final class WalkerTickProgress {
      * terms — a distance without a footing is the same row in both worlds, and the whole point of
      * the line is that they be different rows.
      *
-     * <p>{@code soleOnSolid} is {@link WalkerGeometry#soleOnSolid}, the predicate the walker's
+     * <p>{@code soleOnSolid} is {@link NavigatorGeometry#soleOnSolid}, the predicate the navigator's
      * footing guards steer by, deliberately rather than a second opinion about what standing means:
      * an executor and a reading that answer that question differently is how a diagnosis comes to
      * describe a bot that does not exist.
@@ -71,28 +71,28 @@ public final class WalkerTickProgress {
      * {@code cap reached} line — and, as there, the gate is an ORDINAL and never the clock:
      * {@code wd.buriedOre} pumps its whole body inside ONE server tick, so a game-time latch would
      * print the first line and go blind for the rest of the run. NOT gated on
-     * {@code GameConfig.walkerDebug}, which that scene switches off.
+     * {@code GameConfig.navigatorDebug}, which that scene switches off.
      */
-    public void noteStepAdvance(Walker wk, WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx,
+    public void noteStepAdvance(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx,
                          String cause, double cur2, double nd2, boolean overshot) {
-        if (seenLegEpoch != wk.tel.legEpoch) {             // a new walk: fresh budget, see WalkerTelemetry#newLeg
-            seenLegEpoch = wk.tel.legEpoch;
+        if (seenLegEpoch != nav.tel.legEpoch) {             // a new walk: fresh budget, see NavigatorTelemetry#newLeg
+            seenLegEpoch = nav.tel.legEpoch;
             stepAdvEvents = 0;
             stepAdvCapped = false;
         }
         if (stepAdvEvents >= STEP_ADV_EVENTS) {
             if (!stepAdvCapped) {
                 stepAdvCapped = true;
-                LOG.info("[walker] step advance: seq={}+/{} cap reached, later events are not logged (printed once)",
+                LOG.info("[navigator] step advance: seq={}+/{} cap reached, later events are not logged (printed once)",
                         STEP_ADV_EVENTS + 1, STEP_ADV_EVENTS);
             }
             return;
         }
         stepAdvEvents++;
-        wk.tel.stepAdvancesLogged++;
-        LOG.info("[walker] step advance: seq={}/{} cause={} oldStep={} newStep={} w={} nx={} foot={} exact=({}) "
+        nav.tel.stepAdvancesLogged++;
+        LOG.info("[navigator] step advance: seq={}/{} cause={} oldStep={} newStep={} w={} nx={} foot={} exact=({}) "
                         + "cur2={} nd2={} overshot={} |w.y-p.y|={} |nx.y-p.y|={} onGround={} soleOnSolid={} fallSpeed={}",
-                stepAdvEvents, STEP_ADV_EVENTS, cause, wk.route.step(), wk.route.step() + 1,
+                stepAdvEvents, STEP_ADV_EVENTS, cause, nav.route.step(), nav.route.step() + 1,
                 w == null ? "none" : w.toShortString(),
                 nx == null ? "none(last node)" : nx.toShortString(),
                 foot == null ? "none" : foot.toShortString(),
@@ -108,8 +108,8 @@ public final class WalkerTickProgress {
     /**
      * Step-advance lines emitted per WALK before the latch goes quiet.
      *
-     * <p>Sixty-four, and the number is measured rather than chosen. It was 8 <b>per walker</b>, and
-     * a walker outlives a whole rung: on the 2026-08-20 ladder the budget was spent in the first
+     * <p>Sixty-four, and the number is measured rather than chosen. It was 8 <b>per navigator</b>, and
+     * a navigator outlives a whole rung: on the 2026-08-20 ladder the budget was spent in the first
      * seconds of a 5 209-tick crossing, so the four wedged hops that are the entire question —
      * 900 ticks each, 61 to 76 walk edges apiece — produced not one advance line between them. The
      * reading those hops need is whether the pointer advanced through nodes the bot never walked,
@@ -124,14 +124,14 @@ public final class WalkerTickProgress {
 
     private int stepAdvEvents;
 
-    /** The walk this walker last refreshed its advance budget for — see {@link WalkerTelemetry#newLeg}. */
+    /** The walk this navigator last refreshed its advance budget for — see {@link NavigatorTelemetry#newLeg}. */
     private int seenLegEpoch = -1;
 
     /** One-shot latch for the "the cap swallowed an advance" line — see {@link #noteStepAdvance}. */
     private boolean stepAdvCapped;
 
     /** Ticks the pointer has been HELD on a final node that is the goal while the foot is not yet
-     *  in it (walkerHoldLastNodeUntilStanding); keyed to the path and step it counts for. */
+     *  in it (navigatorHoldLastNodeUntilStanding); keyed to the path and step it counts for. */
     public int finalNodeHold;
     public Object finalNodeHoldPath;
     public int finalNodeHoldStep = -1;
@@ -147,19 +147,19 @@ public final class WalkerTickProgress {
      *  (§71 wall-pin, §80 pin were the first two, masked there because the path
      *  happened to be stable). Anchor resets on >1.5 XZ blocks moved; vertical
      *  bob (jump-ram) deliberately does not count as movement.
-     *  <p>Physical-stall anchor (task#96 step B7), owned by WalkerTickProgress; the stall
+     *  <p>Physical-stall anchor (task#96 step B7), owned by ProgressPhase; the stall
      *  verdict is read by the aim/drive gates. Self-managing (re-anchors on real motion)
      *  — no journey reset ever touched it. */
     public final PhysicalStall physStall = new PhysicalStall();
 
-    /** Per-step progress clocks (task#96 step B6), owned by WalkerTickProgress (the
+    /** Per-step progress clocks (task#96 step B6), owned by ProgressPhase (the
      *  per-tick updater); their verdicts feed StallDetect's wedge/ram folds and the
-     *  aim/drive stall gates, and WalkerTickPrelude forwards noStepProgressTicks to the
+     *  aim/drive stall gates, and PreludePhase forwards noStepProgressTicks to the
      *  expectation alarms. {@link StepProgress#restartWindows()} is the journey reset
      *  (start + replan — exactly the five fields both cleared); adoption and
      *  beginScriptedFollow keep their DIFFERENT partial restarts as direct writes
      *  (adoption re-bases stuckStepHigh to step-1, not -1). The dwell/orbit counters
-     *  self-manage on step/path change inside WalkerTickProgress. */
+     *  self-manage on step/path change inside ProgressPhase. */
     public final StepProgress stepProg = new StepProgress();
 
     /** Phase-3: |ds| (blocks of arc-length per tick) at/under which the bot counts as making NO forward
@@ -170,15 +170,15 @@ public final class WalkerTickProgress {
      *  30 ticks (1.5 s) cuts the legacy ~100-tick (5 s) wedge wait by 70% while sitting well past a legit
      *  stepUp/diagUp jump-mount (which presses the riser only ~5-10 t before it tops out and ds jumps). */
     public static final int ARC_WEDGE_TICKS = 30;
-    /** Phase-3b net-arc-progress window (walkerArcProgressWedge). 40 ticks (2 s): a healthy walk advances ~8 blocks
+    /** Phase-3b net-arc-progress window (navigatorArcProgressWedge). 40 ticks (2 s): a healthy walk advances ~8 blocks
      *  of arc-length, the slowest legit climb still clears several, so requiring ≥ ARC_PROG_MIN net progress over the
      *  window flags an oscillating/frozen limit cycle (net ≈ 0) without misfiring on slow-but-moving travel. Shorter
      *  than the legacy 100-tick wedge so it recovers ~2.5× sooner. */
     static final int ARC_PROG_WINDOW = 40;
     static final double ARC_PROG_MIN = 2.0;
-    // ===== Phase-0 SHADOW arc-length pursuit (walkerArcLengthShadow) — DRIVES NOTHING, logged only =====
+    // ===== Phase-0 SHADOW arc-length pursuit (navigatorArcLengthShadow) — DRIVES NOTHING, logged only =====
     /** Arc-length shadow pursuit (task#96 step B8): updated ONLY by {@link #arcShadowTick}
-     *  (called per tick from WalkerTickProgress); the wedge/stall verdicts are consumed by
+     *  (called per tick from ProgressPhase); the wedge/stall verdicts are consumed by
      *  StallDetect/Drive, the projection by Aim/Progress. NO journey reset — everything
      *  self-resets on a path-identity change (shadowPath != path), and Progress clears the
      *  windows on a no-projection tick. */
@@ -189,7 +189,7 @@ public final class WalkerTickProgress {
         stepProg.restartWindows();
     }
 
-    /** Phase-0 SHADOW arc-length pursuit (walkerArcLengthShadow). Projects the continuous foot XZ onto the
+    /** Phase-0 SHADOW arc-length pursuit (navigatorArcLengthShadow). Projects the continuous foot XZ onto the
      *  path polyline within a FORWARD window [step, step+W] (so it can't snap backward onto a self-overlapping
      *  earlier segment — the dominant projection risk), honouring the adoption's overlap barriers (a submerged
      *  below-node is a hard dive barrier; a pending break/place edge stops the scan). Reports the projected
@@ -197,10 +197,10 @@ public final class WalkerTickProgress {
      *  heading at s+lookahead — and counts backward-snap events (ds&lt;-0.5). DRIVES NOTHING; this only proves
      *  (via replay) that s is monotonic and the projected segment tracks the live {@code step} on clean runs,
      *  the precondition for Phase 1 driving the step pointer off the projection. */
-    private void arcShadowTick(Walker wk, WorldView world, BlockPos foot, double px, double pz, float liveYaw, boolean inW, boolean hCol) {
-        arc.proj.compute(wk.route.path(), wk.route.edges(), world, wk.route.step(), foot.getY(), px, pz, 16, 2.5);
+    private void arcShadowTick(Navigator nav, WorldView world, BlockPos foot, double px, double pz, float liveYaw, boolean inW, boolean hCol) {
+        arc.proj.compute(nav.route.path(), nav.route.edges(), world, nav.route.step(), foot.getY(), px, pz, 16, 2.5);
         // Monotonic / backward-snap check vs the previous tick (reset on a fresh path object).
-        boolean reset = (wk.route.path() != arc.shadowPath);
+        boolean reset = (nav.route.path() != arc.shadowPath);
         double ds = (reset || Double.isNaN(arc.shadowS)) ? 0.0 : arc.proj.s - arc.shadowS;
         if (!reset && ds < -0.5) arc.monoViol++;
         // Phase-3 arc-wedge accumulator: a grounded DRY forward-RAM that makes no arc progress. Excluded when the
@@ -220,19 +220,19 @@ public final class WalkerTickProgress {
         if (reset || inW) { arc.progBaseS = arc.proj.s; arc.progWindowTicks = 0; arc.progStall = false; }
         else if (++arc.progWindowTicks >= ARC_PROG_WINDOW) {
             arc.progStall = !arc.proj.barrierHit && (arc.proj.s - arc.progBaseS) < ARC_PROG_MIN;
-            if (arc.progStall && GameConfig.walkerDebug)
-                LOG.info("[walker] arc-progress-wedge: net s={} < {} over {} ticks at step={} node={} → fellOffPath",
-                        String.format("%.2f", arc.proj.s - arc.progBaseS), ARC_PROG_MIN, ARC_PROG_WINDOW, wk.route.step(),
-                        (wk.route.step() < wk.route.path().size() ? wk.route.path().get(wk.route.step()) : null));
+            if (arc.progStall && GameConfig.navigatorDebug)
+                LOG.info("[navigator] arc-progress-wedge: net s={} < {} over {} ticks at step={} node={} → fellOffPath",
+                        String.format("%.2f", arc.proj.s - arc.progBaseS), ARC_PROG_MIN, ARC_PROG_WINDOW, nav.route.step(),
+                        (nav.route.step() < nav.route.path().size() ? nav.route.path().get(nav.route.step()) : null));
             arc.progBaseS = arc.proj.s;
             arc.progWindowTicks = 0;
         }
-        arc.shadowPath = wk.route.path();
+        arc.shadowPath = nav.route.path();
         arc.shadowS = arc.proj.s;
         float dYaw = angleDiff(arc.proj.tangentYaw, liveYaw);    // the camera-vs-tangent gap
-        if (GameConfig.walkerDebug)
-            LOG.info("[walker] arc-shadow step={} projSeg={} segFrac={} s={} ds={} perp={} tanYaw={} liveYaw={} dYaw={} monoViol={} inW={}",
-                    wk.route.step(), arc.proj.segIdx, String.format("%.2f", arc.proj.segFrac), String.format("%.2f", arc.proj.s),
+        if (GameConfig.navigatorDebug)
+            LOG.info("[navigator] arc-shadow step={} projSeg={} segFrac={} s={} ds={} perp={} tanYaw={} liveYaw={} dYaw={} monoViol={} inW={}",
+                    nav.route.step(), arc.proj.segIdx, String.format("%.2f", arc.proj.segFrac), String.format("%.2f", arc.proj.s),
                     String.format("%.2f", ds), String.format("%.2f", arc.proj.perp),
                     String.format("%.1f", arc.proj.tangentYaw), String.format("%.1f", liveYaw),
                     String.format("%.1f", Math.abs(dYaw)),
@@ -253,20 +253,20 @@ public final class WalkerTickProgress {
      *  Only for a bot that has come up to the node: one still short of it along the incoming leg keeps the
      *  tight gate. On a 1-wide strip (wd.bridgeStepTwoBypassNoPlace) a bot 0.76 short took the next diagUp
      *  from there, cut across the void beside the strip and was pinned at its edge. */
-    private boolean levelAtClimb(Walker wk, LivingEntity p, BlockPos w, double dyNode, double cur2) {
+    private boolean levelAtClimb(Navigator nav, LivingEntity p, BlockPos w, double dyNode, double cur2) {
         if (!p.onGround() || p.isInWater() || Math.abs(dyNode) >= 0.05 || cur2 >= LEVEL_CLIMB_REACH_SQ) return false;
-        if (shortOfNode(wk, p, w)) return false;
-        if (wk.route.step() + 1 >= wk.route.path().size()) return false;
-        BlockPos next = wk.route.path().get(wk.route.step() + 1);
+        if (shortOfNode(nav, p, w)) return false;
+        if (nav.route.step() + 1 >= nav.route.path().size()) return false;
+        BlockPos next = nav.route.path().get(nav.route.step() + 1);
         if (next.getY() > w.getY()) return true;
-        boolean climbIn = wk.route.step() > 0 && wk.route.path().get(wk.route.step() - 1).getY() < w.getY();
+        boolean climbIn = nav.route.step() > 0 && nav.route.path().get(nav.route.step() - 1).getY() < w.getY();
         return climbIn && Math.max(Math.abs(next.getX() - w.getX()), Math.abs(next.getZ() - w.getZ())) >= 2;
     }
 
     /** Behind {@code w} along the leg from the previous node by more than the tight gate's radius. */
-    private boolean shortOfNode(Walker wk, LivingEntity p, BlockPos w) {
-        if (wk.route.step() == 0) return false;
-        BlockPos a = wk.route.path().get(wk.route.step() - 1);
+    private boolean shortOfNode(Navigator nav, LivingEntity p, BlockPos w) {
+        if (nav.route.step() == 0) return false;
+        BlockPos a = nav.route.path().get(nav.route.step() - 1);
         double ax = w.getX() - a.getX(), az = w.getZ() - a.getZ(), len = Math.hypot(ax, az);
         if (len == 0) return false;
         double along = ((p.getX() - (w.getX() + 0.5)) * ax + (p.getZ() - (w.getZ() + 0.5)) * az) / len;
@@ -282,16 +282,16 @@ public final class WalkerTickProgress {
      *  advance (-823 dimple churn): logs which advance fired + the descend-geometry sub-conditions.
      *  Lifted out of {@link #run} verbatim (same gate, same fields, same order) so the step-advance
      *  reading could be added without growing that method past its source budget. */
-    private void stepAdvDiag(Walker wk, LivingEntity p, BlockPos foot, BlockPos w, Move.Edge se,
+    private void stepAdvDiag(Navigator nav, LivingEntity p, BlockPos foot, BlockPos w, Move.Edge se,
                                     boolean within, boolean passed, boolean crossedDescendNode,
                                     boolean crossedWalkNode, double cur2) {
-        if (!(GameConfig.walkerDebug && !within && p.onGround() && cur2 > OVERSHOOT_RESYNC_SQ
-                && stepProg.noStepProgressTicks > 6 && wk.route.step() + 1 < wk.route.path().size())) return;
-        BlockPos dN = wk.route.path().get(wk.route.step() + 1);
+        if (!(GameConfig.navigatorDebug && !within && p.onGround() && cur2 > OVERSHOOT_RESYNC_SQ
+                && stepProg.noStepProgressTicks > 6 && nav.route.step() + 1 < nav.route.path().size())) return;
+        BlockPos dN = nav.route.path().get(nav.route.step() + 1);
         double dsegx = dN.getX() - w.getX(), dsegz = dN.getZ() - w.getZ();
         double doffx = p.getX() - (w.getX() + 0.5), doffz = p.getZ() - (w.getZ() + 0.5);
-        LOG.info("[walker] STEP-ADV-DIAG step={}/{} w={} cur2={} footNodeDy={} se={} disc={} | passed={} crossDesc={} crossWalk={} | nx={} nxY={} pY={} fwdDot={} nxYgate={}",
-                wk.route.step(), wk.route.path().size(), w, String.format("%.2f", cur2),
+        LOG.info("[navigator] STEP-ADV-DIAG step={}/{} w={} cur2={} footNodeDy={} se={} disc={} | passed={} crossDesc={} crossWalk={} | nx={} nxY={} pY={} fwdDot={} nxYgate={}",
+                nav.route.step(), nav.route.path().size(), w, String.format("%.2f", cur2),
                 foot.getY() - w.getY(), (se != null && se.move != null ? se.move : "null"),
                 (se != null && se.move != null && (se.move.startsWith("fall") || se.move.equals("stepDown"))),
                 passed, crossedDescendNode, crossedWalkNode,
@@ -322,7 +322,7 @@ public final class WalkerTickProgress {
     }
 
     /** Ticks of stalled step progress after which a far-ahead best-effort tail stops being
-     *  held (walkerTailConsumeDirectional) and the legacy distance-consume applies — a
+     *  held (navigatorTailConsumeDirectional) and the legacy distance-consume applies — a
      *  wedge-scale window: long enough to ride out a slow but real approach, short enough
      *  that walled pockets re-enter the repath/churn machinery promptly. */
     private static final int TAIL_HOLD_STALL_TICKS = 30;
@@ -330,10 +330,10 @@ public final class WalkerTickProgress {
     /** Distance alone reads a tail still far ahead as blown past, so hold it until the foot is
      *  beyond it along the incoming segment. A stalled approach is not held, since walled pockets
      *  escape through the consume, and neither is a vertical segment, which has no heading. */
-    private boolean tailStillAhead(Walker wk, LivingEntity p, BlockPos w) {
-        if (!ControlConfig.walkerTailConsumeDirectional || wk.route.step() == 0
+    private boolean tailStillAhead(Navigator nav, LivingEntity p, BlockPos w) {
+        if (!ControlConfig.navigatorTailConsumeDirectional || nav.route.step() == 0
                 || stepProg.noStepProgressTicks > TAIL_HOLD_STALL_TICKS) return false;
-        BlockPos pv = wk.route.path().get(wk.route.step() - 1);
+        BlockPos pv = nav.route.path().get(nav.route.step() - 1);
         double sgx = w.getX() - pv.getX(), sgz = w.getZ() - pv.getZ();
         if (sgx == 0 && sgz == 0) return false;
         double ofx = p.getX() - (w.getX() + 0.5), ofz = p.getZ() - (w.getZ() + 0.5);
@@ -345,7 +345,7 @@ public final class WalkerTickProgress {
      *
      * <p>The nine advance gates each answer "has the bot reached node {@code w}?" with a horizontal
      * test plus a vertical one taken <b>at this instant's y</b>, and mid-jump this instant's y is a
-     * lie about where the bot will be standing. Consuming {@code w} at the apex points the walker
+     * lie about where the bot will be standing. Consuming {@code w} at the apex points the navigator
      * at {@code nx}; if {@code nx} is higher than {@code w} and the bot then lands back on {@code
      * w}'s floor, the pointer is now one step further AND one block higher than anything the bot can
      * reach — a {@code +2} that {@code StepUp2}'s own gate says A* never plans. Measured on
@@ -374,13 +374,13 @@ public final class WalkerTickProgress {
      *       flat surface swim advances on {@code passed} every few ticks. Without this term the
      *       water family would not stall occasionally — it would never advance again.</li>
      *   <li><b>{@code soleOnSolid < FOOTING_MIN}, not {@code !onGround()}.</b> Same predicate as
-     *       {@code Walker}'s footing guard and {@code TowerProcess}'s footing check, so this
+     *       {@code Navigator}'s footing guard and {@code TowerProcess}'s footing check, so this
      *       introduces no further opinion about what standing means. {@code onGround} describes the previous {@code move()} and is
      *       wrong in both directions.</li>
      * </ul>
      *
      * <p><b>Part of what this does is move the failure, deliberately.</b> With the pointer held on
-     * {@code w} the walker keeps driving the bot at a cell the arena's own audit says is standable;
+     * {@code w} the navigator keeps driving the bot at a cell the arena's own audit says is standable;
      * if it genuinely cannot get there, {@code noStepProgressTicks} accumulates and the wedge/repath
      * machinery takes it from there. That is the entire gain: the old behaviour was a silent chase of
      * an unreachable target, silent precisely because every counter that could have complained sees a
@@ -404,9 +404,9 @@ public final class WalkerTickProgress {
      */
     private static boolean airborneClimbConsume(WorldView world, LivingEntity p, BlockPos w, BlockPos nx) {
         if (nx == null || nx.getY() <= w.getY() || p.isInWater()) return false;
-        double sole = WalkerGeometry.soleOnSolid(world, p);
+        double sole = NavigatorGeometry.soleOnSolid(world, p);
         boolean stacked = nx.getX() == w.getX() && nx.getZ() == w.getZ();
-        if (ControlConfig.walkerCornerFootingConsume && !stacked && sole > 0 && Math.abs(p.getY() - w.getY()) < 1e-3) return false;
+        if (ControlConfig.navigatorCornerFootingConsume && !stacked && sole > 0 && Math.abs(p.getY() - w.getY()) < 1e-3) return false;
         return sole < FOOTING_MIN;
     }
 
@@ -439,11 +439,11 @@ public final class WalkerTickProgress {
      * {@code no reachable target}. Over water the hold is cheap because the bot cannot go anywhere
      * but down; over land the same hold turns a consumed node into a missed one.
      */
-    private boolean airborneDryArrival(Walker wk, WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx) {
+    private boolean airborneDryArrival(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx) {
         return nx == null && !world.isWater(w)
                 && (world.isWater(foot) || world.isWater(foot.below()))
-                && wk.goal.reached(w) && !wk.goal.reached(foot)
-                && WalkerGeometry.soleOnSolid(world, p) < FOOTING_MIN;
+                && nav.goal.reached(w) && !nav.goal.reached(foot)
+                && NavigatorGeometry.soleOnSolid(world, p) < FOOTING_MIN;
     }
 
     /**
@@ -461,7 +461,7 @@ public final class WalkerTickProgress {
      * 0.36 of sole on the corner of {@code 158,52,187}, with a column three cells away that ends in
      * the lava lake at {@code y=50}. The footing guard sneak-pinned it, correctly. A* answered with
      * the three-node way out, {@code [158,53,187 → 159,52,187 → 159,51,188]}, every cell of it
-     * standable; the walker consumed all three in ONE tick without moving:
+     * standable; the navigator consumed all three in ONE tick without moving:
      *
      * <pre>{@code
      * step advance: seq=1/8 cause=within oldStep=1 newStep=2 w=158,53,187 nx=159,52,187 foot=(159.092,53.000,187.700) cur2=0.390 |w.y-p.y|=0.000
@@ -498,11 +498,11 @@ public final class WalkerTickProgress {
      *   <li><b>The LAST node counts too, but only when consuming it would declare an arrival the bot
      *       has not made.</b> This shipped scoped {@code nx != null} — mid-path nodes only — on the
      *       reading that the pointer reaching {@code path.size()} merely hands the segment to the
-     *       walker's arrival handling. That is true when the bot is already at the node and false
+     *       navigator's arrival handling. That is true when the bot is already at the node and false
      *       when the last node is a step DOWN it has not taken: then "arrival" is not the remaining
      *       work, the step across is. Journey rung 13 (2026-08-20) mined its one way into a lit portal
      *       and could not walk the last cell. A* answered {@code Goal.Block(3,58,19)} with the one-step
-     *       plan {@code [3,59,18 → 3,58,19]}, its only node both first and last, and the walker spent
+     *       plan {@code [3,59,18 → 3,58,19]}, its only node both first and last, and the navigator spent
      *       it on the tick it was adopted:
      *
      *       <pre>{@code
@@ -520,26 +520,26 @@ public final class WalkerTickProgress {
      *       measured on the dedicated-server gate rather than argued:
      *
      *       <ul>
-     *         <li>{@code wk.goal.reached(w) && !wk.goal.reached(foot)} — spending this node would
+     *         <li>{@code nav.goal.reached(w) && !nav.goal.reached(foot)} — spending this node would
      *             report an arrival that has not happened. Without it (hold every final node below
      *             the feet) {@code wd.serverFightsAFlyingBlaze} wedged the server thread for
-     *             <b>60 seconds</b> and took a watchdog crash: that scene pumps ~3 000 walker ticks
+     *             <b>60 seconds</b> and took a watchdog crash: that scene pumps ~3 000 navigator ticks
      *             inside ONE server tick, so a held node that never resolves is a pathfinder search
      *             per iteration. The clause excludes it because a BEST-EFFORT segment's last node
      *             does not satisfy the goal — it is a splice point, not an arrival — and a bot
      *             already inside its goal has nothing left to walk. It is deliberately the same
      *             question the disk-goal hold below asks, extended from radius-{@code >0} goals.</li>
-     *         <li>{@code foot.getY() >= wk.path.get(0).getY()} — the bot has not gone DOWN under
+     *         <li>{@code foot.getY() >= nav.path.get(0).getY()} — the bot has not gone DOWN under
      *             this plan, so the descent the plan ends in has not been taken. Without a term of
      *             this kind the hold reached every ordinary descent's last node — 299 firings inside
      *             {@code wd.descent} alone in one gate run — a blast radius this reading does not
      *             justify, and one that put {@code wd.serverMineHarvest} red across three runs.
      *
      *             <p><b>Two narrower terms were tried first and both were wrong, each measured.</b>
-     *             {@code wk.step == 1} — a POINTER index standing in for "the bot has not walked
+     *             {@code nav.step == 1} — a POINTER index standing in for "the bot has not walked
      *             this plan" — failed on rung 13's next run: A* answered {@code Goal.Block(3,57,20)}
      *             from {@code 3,58,20} with a TWO-node plan, {@code [3,58,21 → 3,57,20]} (sideways
-     *             onto the standable cell beside the bot, then down), and the walker spent BOTH in
+     *             onto the standable cell beside the bot, then down), and the navigator spent BOTH in
      *             one tick, at the same bot coordinates to three decimals:
      *
      *             <pre>{@code
@@ -599,12 +599,12 @@ public final class WalkerTickProgress {
      *       tick per tread, the perch 20 ticks over a 260-tick drive).</li>
      * </ul>
      */
-    private boolean unwalkedDescentConsume(Walker wk, WorldView world, LivingEntity p,
+    private boolean unwalkedDescentConsume(Navigator nav, WorldView world, LivingEntity p,
                                                   BlockPos foot, BlockPos w, BlockPos nx) {
-        boolean unwalked = ControlConfig.walkerDescentNodeHold
+        boolean unwalked = ControlConfig.navigatorDescentNodeHold
                 && w.getY() < foot.getY()
                 && !p.isInWater()
-                && WalkerGeometry.soleOnSolid(world, p) > 0.0
+                && NavigatorGeometry.soleOnSolid(world, p) > 0.0
                 && stepProg.noStepProgressTicks <= TAIL_HOLD_STALL_TICKS
                 // A dip the bot stepped over: the plan goes down to w and straight back up to the
                 // bot's own row, so there is no descent left to strand (live 1539,71,-180 held with the
@@ -619,10 +619,10 @@ public final class WalkerTickProgress {
         //     approach that is working, never outlive one that has stopped;
         //   · and the plan's end satisfies the goal while the bot does not.
         boolean held = unwalked && (nx != null
-                || (foot.getY() >= wk.route.path().get(0).getY()
+                || (foot.getY() >= nav.route.path().get(0).getY()
                         && stepProg.noStepProgressTicks == 0
-                        && wk.goal != null && wk.goal.reached(w) && !wk.goal.reached(foot)));
-        if (held) wk.tel.descentHolds++;
+                        && nav.goal != null && nav.goal.reached(w) && !nav.goal.reached(foot)));
+        if (held) nav.tel.descentHolds++;
         return held;
     }
 
@@ -632,8 +632,8 @@ public final class WalkerTickProgress {
     /** A best-effort tail whose continuation has already landed is a splice point, not a target: standing on its
      *  row within a block of it is reach enough. Held to the 0.45 gate, a bot that landed a diagUp 0.7 past R1's
      *  1387,77,-509 circled it, the bearing sweeping round and the camera 320° with it, in every run. */
-    private boolean tailReady(Walker wk, LivingEntity p, BlockPos foot, BlockPos w, double cur2) {
-        PathFinder.Result next = wk.route.seg.pendingSegment;
+    private boolean tailReady(Navigator nav, LivingEntity p, BlockPos foot, BlockPos w, double cur2) {
+        PathFinder.Result next = nav.route.seg.pendingSegment;
         return next != null && next.hasPath() && p.onGround() && !p.isInWater()
                 && foot.getY() == w.getY() && cur2 < TAIL_READY_SQ;
     }
@@ -649,13 +649,13 @@ public final class WalkerTickProgress {
      * later node on the foot's row that the body can walk straight to, or -1. Only grounded and dry,
      * with the current node exactly one row up and every edge in between a plain walk or descent.
      */
-    private int dropAheadTarget(Walker wk, WorldView world, LivingEntity p, BlockPos foot) {
-        if (!ControlConfig.walkerDropAheadResync || foot == null || wk.route.path() == null || wk.route.step() >= wk.route.path().size()
-                || p.isInWater() || !p.onGround() || wk.route.path().get(wk.route.step()).getY() != foot.getY() + 1) return -1;
+    private int dropAheadTarget(Navigator nav, WorldView world, LivingEntity p, BlockPos foot) {
+        if (!ControlConfig.navigatorDropAheadResync || foot == null || nav.route.path() == null || nav.route.step() >= nav.route.path().size()
+                || p.isInWater() || !p.onGround() || nav.route.path().get(nav.route.step()).getY() != foot.getY() + 1) return -1;
         int prevY = foot.getY() + 1;
-        for (int k = wk.route.step() + 1; k < wk.route.path().size() && k <= wk.route.step() + DROP_AHEAD_NODES; k++) {
-            BlockPos n = wk.route.path().get(k);
-            Move.Edge e = wk.route.edgeAt(k);
+        for (int k = nav.route.step() + 1; k < nav.route.path().size() && k <= nav.route.step() + DROP_AHEAD_NODES; k++) {
+            BlockPos n = nav.route.path().get(k);
+            Move.Edge e = nav.route.edgeAt(k);
             if (n.getY() > prevY || n.getY() < foot.getY() || e == null || e.move == null
                     || !(e.move.equals("walk") || e.move.equals("stepDown") || e.move.equals("diagDown"))
                     || !e.toBreak.isEmpty() || !e.toPlace.isEmpty()) return -1;
@@ -675,8 +675,8 @@ public final class WalkerTickProgress {
      * bot's own foot cell — 400 ticks of placing into itself. The stacked-above-w tie-break in the
      * passed block protects the pillar BASE; this protects the pillar itself, in both gates.
      */
-    private boolean unclimbedUnderOverhead(Walker wk, BlockPos foot, BlockPos w) {
-        BlockPos nx = wk.route.step() + 1 < wk.route.path().size() ? wk.route.path().get(wk.route.step() + 1) : null;
+    private boolean unclimbedUnderOverhead(Navigator nav, BlockPos foot, BlockPos w) {
+        BlockPos nx = nav.route.step() + 1 < nav.route.path().size() ? nav.route.path().get(nav.route.step() + 1) : null;
         boolean nxOverhead = nx != null && nx.getY() > foot.getY()
                 && nx.getX() == foot.getX() && nx.getZ() == foot.getZ();
         return nxOverhead && w.getY() > foot.getY();
@@ -689,7 +689,7 @@ public final class WalkerTickProgress {
      * with goal.reached(foot) still FALSE — the segment-end handler hits frontierHoldOrArrive,
      * STOPS the drive and declares ARRIVED a block short (live 2026-06-23: XZ -1700,900 r6 pinned
      * the bot at foot -1693, dx=7, OUTSIDE r6, then fake-ARRIVED). Exact goals, bounded
-     * ({@code walkerHoldLastNodeUntilStanding}): spending the last node from 0.67 away or from the
+     * ({@code navigatorHoldLastNodeUntilStanding}): spending the last node from 0.67 away or from the
      * air ends the walk "path-consumed goalReached=false" with the bot about to stand in the goal
      * cell a few ticks later — a reading the ladder acts on. Either way the normal pure-pursuit
      * walks the foot ONTO the node and the goal.reached check at the top of the tick fires for
@@ -697,7 +697,7 @@ public final class WalkerTickProgress {
      * cannot stand in still ends the walk the honest way.
      */
     /** A node the bot went PAST at arm's length: across the plane through it square to the incoming
-     *  segment, within {@link WalkerConstants#SKIRT_PASS_SQ}, and with a walkable line on to the next
+     *  segment, within {@link NavigatorConstants#SKIRT_PASS_SQ}, and with a walkable line on to the next
      *  node. The halfway rule ({@code nd2 < cur2}) alone waits until the bot is nearer the NEXT node,
      *  so a node skirted 1.1 blocks to the side of a long pulled diagonal, followed by a 5-block leg,
      *  stayed current for half that leg; the stall clock ran up to a recovery hop on every such
@@ -707,16 +707,16 @@ public final class WalkerTickProgress {
      *  own ray crossed a one-deep hole the leg itself misses (R1 1424,63,-402), the node stayed
      *  current while the bot walked the leg, and 3 blocks on offPath re-searched from the hole onto
      *  another cliff face (+8 s). */
-    private boolean skirtedPast(Walker wk, WorldView world, LivingEntity p, BlockPos foot, BlockPos nx, double cur2) {
-        BlockPos w = wk.route.path().get(wk.route.step());
+    private boolean skirtedPast(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, BlockPos nx, double cur2) {
+        BlockPos w = nav.route.path().get(nav.route.step());
         int wy = w.getY();
         return cur2 <= SKIRT_PASS_SQ && !p.isInWater() && p.onGround() && foot.getY() == wy && nx.getY() == wy
-                && beyondNode(wk.route.path(), wk.route.step(), p) && (losWalkable(world, foot, nx) || onLeg(wk, w, nx, p));
+                && beyondNode(nav.route.path(), nav.route.step(), p) && (losWalkable(world, foot, nx) || onLeg(nav, w, nx, p));
     }
 
     /** On a plain walk leg w → nx: within {@link #LEG_HALF_WIDTH} of its centre line, forward of w. */
-    private boolean onLeg(Walker wk, BlockPos w, BlockPos nx, LivingEntity p) {
-        if (!plainFlatWalk(wk.route.edgeAt(wk.route.step() + 1))) return false;
+    private boolean onLeg(Navigator nav, BlockPos w, BlockPos nx, LivingEntity p) {
+        if (!plainFlatWalk(nav.route.edgeAt(nav.route.step() + 1))) return false;
         double ax = nx.getX() - w.getX(), az = nx.getZ() - w.getZ(), len = Math.hypot(ax, az);
         double px = p.getX() - (w.getX() + 0.5), pz = p.getZ() - (w.getZ() + 0.5);
         return len > 0 && px * ax + pz * az > 0 && Math.abs(px * az - pz * ax) / len <= LEG_HALF_WIDTH;
@@ -724,23 +724,23 @@ public final class WalkerTickProgress {
 
     private static final double LEG_HALF_WIDTH = 0.8;
 
-    private boolean holdLastNode(Walker wk, BlockPos foot, BlockPos w) {
-        if (wk.route.step() + 1 < wk.route.path().size() || wk.goal.reached(foot)) return false;
-        boolean diskGoal = (wk.goal instanceof Goal.XZ xz && xz.radius() > 0)
-                || (wk.goal instanceof Goal.Near nr && nr.radius() > 0);
-        if (diskGoal) return wk.goal.reached(wk.route.path().get(wk.route.path().size() - 1));
-        if (!ControlConfig.walkerHoldLastNodeUntilStanding || wk.route.seg.pathBestEffort || !wk.goal.reached(w)) return false;
-        if (finalNodeHoldPath != wk.route.path() || finalNodeHoldStep != wk.route.step()) {
-            finalNodeHoldPath = wk.route.path();
-            finalNodeHoldStep = wk.route.step();
+    private boolean holdLastNode(Navigator nav, BlockPos foot, BlockPos w) {
+        if (nav.route.step() + 1 < nav.route.path().size() || nav.goal.reached(foot)) return false;
+        boolean diskGoal = (nav.goal instanceof Goal.XZ xz && xz.radius() > 0)
+                || (nav.goal instanceof Goal.Near nr && nr.radius() > 0);
+        if (diskGoal) return nav.goal.reached(nav.route.path().get(nav.route.path().size() - 1));
+        if (!ControlConfig.navigatorHoldLastNodeUntilStanding || nav.route.seg.pathBestEffort || !nav.goal.reached(w)) return false;
+        if (finalNodeHoldPath != nav.route.path() || finalNodeHoldStep != nav.route.step()) {
+            finalNodeHoldPath = nav.route.path();
+            finalNodeHoldStep = nav.route.step();
             finalNodeHold = 0;
         }
         return finalNodeHold++ < FINAL_NODE_HOLD_TICKS;
     }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    public TickStep run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
-        // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
+    public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
+        // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         // ---- original body (byte-identical modulo member prefixes) ----
@@ -750,7 +750,7 @@ public final class WalkerTickProgress {
         // stub segment toward the goal and start walking it this very tick;
         // the big result supersedes it on landing. Only hold if no useful
         // stub exists (boxed in — moving blind would jitter).
-        if (wk.route.path() == null) {
+        if (nav.route.path() == null) {
             // A5 DIVE-INTENT HOLD: while a DIVE-opt-in intent's search is pending and
             // the bot floats IN WATER, do NOT adopt a progressive stub — HOLD (tread
             // water) until the real plan lands. tryQuickStart is a genuine mini-A*
@@ -758,7 +758,7 @@ public final class WalkerTickProgress {
             // water-surface start it beat the sliced big search every time and hauled
             // the bot ASHORE before the first plan existed — by then the search start
             // was on LAND and the dive route was gone (live 2026-07-06 rc-a5c: every
-            // t=2 sample already climbing out at ~(601.7,-49.6) with no [walker]
+            // t=2 sample already climbing out at ~(601.7,-49.6) with no [navigator]
             // repath line yet; at maxMs=8000 the land-start search burned 90k nodes
             // honestly-unreachable). tryWaterBeeline likewise marches the floater
             // AWAY along the surface, moving the next search's start off the dive
@@ -769,24 +769,24 @@ public final class WalkerTickProgress {
             // of a dive-intent journey keep their stubs (gate requires isInWater).
             // No DIVE opt-in → allowsOptIn false → byte-identical.
             boolean diveIntentWaterHold = p.isInWater()
-                    && wk.profile.capability().allowsOptIn(Capability.DIVE);
+                    && nav.profile.capability().allowsOptIn(Capability.DIVE);
             // A replay never plans again, so a replay with no plan is over: the plan was refused, or
             // something dropped it, and lastDrop says which. Holding here instead (as this once did)
             // spent the caller's whole tick budget standing still.
-            if (wk.route.replay())
-                return wk.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.STUCK, null,
-                        "replay-dropped:" + wk.route.lastDrop(), foot);
-            if (wk.route.seg.activeSearch == null || diveIntentWaterHold
-                    || (!RouteStubs.landBeeline(wk, world, foot, wk.goal)
-                        && !RouteStubs.quickStart(wk, world, foot, wk.goal) && !RouteStubs.waterBeeline(wk, world, foot, wk.goal))) {
+            if (nav.route.replay())
+                return nav.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.STUCK, null,
+                        "replay-dropped:" + nav.route.lastDrop(), foot);
+            if (nav.route.seg.activeSearch == null || diveIntentWaterHold
+                    || (!RouteStubs.landBeeline(nav, world, foot, nav.goal)
+                        && !RouteStubs.quickStart(nav, world, foot, nav.goal) && !RouteStubs.waterBeeline(nav, world, foot, nav.goal))) {
                 Keys.forward(a, false);
-                wk.keys.jump(a, false);
+                nav.keys.jump(a, false);
                 p.setSprinting(false);
                 return TickStep.WALKING;
             }
             // stub adopted → fall through and walk it
         }
-        wk.repath.ticksSinceRepath++;
+        nav.repath.ticksSinceRepath++;
         // §84 physical stall clock — see field doc. Ticks on XZ displacement only,
         // survives every path/step/repath reset.
         // Euclidean 2.0 window (rig-metric parity): the first cut used |dx|+|dz|>1.5,
@@ -813,7 +813,7 @@ public final class WalkerTickProgress {
         // count the whole climb as stuck. Bridge edges still hard-zero the counter
         // (a sneak crawl barely moves the carrot, so even node-distance can stall
         // mid-place).
-        Move.Edge curBridgeE = wk.route.edgeAt(wk.route.step()), nxtBridgeE = wk.route.edgeAt(wk.route.step() + 1);
+        Move.Edge curBridgeE = nav.route.edgeAt(nav.route.step()), nxtBridgeE = nav.route.edgeAt(nav.route.step() + 1);
         boolean onBridge = (curBridgeE != null && "bridgePlace".equals(curBridgeE.move))
                 || (nxtBridgeE != null && "bridgePlace".equals(nxtBridgeE.move));
         // Jitter-immune WEDGE timer: counts raw ticks the bot stays on the SAME path
@@ -822,26 +822,26 @@ public final class WalkerTickProgress {
         // that can't place, or a fallN that can't drop, dwells on one step indefinitely
         // and IS a wedge; the progress-based stuckTicks (which a bob/creep keeps zeroing,
         // and which onBridge hard-zeroes) misses both, so without this the bot deadlocks.
-        // walkerStuckStepMonotonic (2nd site): a step RETREAT (projection jitter, repath
+        // navigatorStuckStepMonotonic (2nd site): a step RETREAT (projection jitter, repath
         // oscillation) must not reset the wedge clock either — C25-J2's ADVANCE-deadzone
         // stream showed noStepProg pinned at exactly 61 (threshold+1): the counter reached
         // the gate and was immediately re-zeroed by the next flip, so every wedge-gated
         // recovery re-armed forever. Only an ADVANCE opens a fresh window; a retreat
         // re-bases the closest-approach reference on the CURRENT distance (not +INF, which
         // would fake a new-low next tick and zero the clock through the progress branch).
-        boolean npStepFresh = (wk.route.path() == null || wk.route.step() >= wk.route.path().size()
-                || (ControlConfig.walkerStuckStepMonotonic ? wk.route.step() > stepProg.noProgressStep : wk.route.step() != stepProg.noProgressStep));
-        if (!npStepFresh && ControlConfig.walkerStuckStepMonotonic
-                && wk.route.path() != null && wk.route.step() < wk.route.path().size() && wk.route.step() < stepProg.noProgressStep) {
-            stepProg.noProgressStep = wk.route.step();
-            BlockPos rn = wk.route.path().get(wk.route.step());
+        boolean npStepFresh = (nav.route.path() == null || nav.route.step() >= nav.route.path().size()
+                || (ControlConfig.navigatorStuckStepMonotonic ? nav.route.step() > stepProg.noProgressStep : nav.route.step() != stepProg.noProgressStep));
+        if (!npStepFresh && ControlConfig.navigatorStuckStepMonotonic
+                && nav.route.path() != null && nav.route.step() < nav.route.path().size() && nav.route.step() < stepProg.noProgressStep) {
+            stepProg.noProgressStep = nav.route.step();
+            BlockPos rn = nav.route.path().get(nav.route.step());
             double rdx = (rn.getX() + 0.5) - p.getX();
             double rdy = rn.getY() - p.getY();
             double rdz = (rn.getZ() + 0.5) - p.getZ();
             stepProg.noProgressBestD2 = rdx * rdx + rdy * rdy + rdz * rdz;
         }
         if (npStepFresh) {
-            stepProg.noProgressStep = wk.route.step();
+            stepProg.noProgressStep = nav.route.step();
             stepProg.noStepProgressTicks = 0;
             stepProg.noProgressBestD2 = Double.POSITIVE_INFINITY;
             stepProg.rawStepDwellTicks = 0;
@@ -852,7 +852,7 @@ public final class WalkerTickProgress {
             // NEVER on a 3D new-low. noStepProgressTicks (below) zeroes on every closest-approach
             // improvement, and a steep-ascent slide-back's re-approach / vertical bob manufactures those,
             // jitter-defeating the ram-recovery stall gates that hang on it (live J3b -877,75: diagUp node
-            // 3 above the foot, 156 t / 7.8 s before recovery). This gives walkerAscentRamJitterImmune a
+            // 3 above the foot, 156 t / 7.8 s before recovery). This gives navigatorAscentRamJitterImmune a
             // bob-immune wedge timer so it recovers on time.
             stepProg.rawStepDwellTicks++;
             // Genuinely closing in on the current node is progress, not a wedge: a
@@ -862,7 +862,7 @@ public final class WalkerTickProgress {
             // (monotonic, so a bob against a wall can't keep resetting) and only
             // count wedge ticks while that stops improving — a fall2 that can't
             // drop or a blocked bridgePlace never closes in and still trips.
-            BlockPos wn = wk.route.path().get(wk.route.step());
+            BlockPos wn = nav.route.path().get(nav.route.step());
             double wdx = (wn.getX() + 0.5) - p.getX();
             double wdy = wn.getY() - p.getY();
             double wdz = (wn.getZ() + 0.5) - p.getZ();
@@ -876,12 +876,12 @@ public final class WalkerTickProgress {
             // unmountable bank without gaining XZ) still fails to close XZ and trips the wedge
             // exactly as before (so deep-water climb-out detection is unchanged). Dry land keeps
             // the full 3D test (a stepUp/pillar that gains height IS progress there).
-            // walkerDryWedgeFootY: at an ABOVE node on dry land, the continuous p.getY() vertical term lets the
+            // navigatorDryWedgeFootY: at an ABOVE node on dry land, the continuous p.getY() vertical term lets the
             // jump/buoyant bob (p.y oscillates ~0.1 toward the node) manufacture a wd2 new-low every tick →
             // resets the wedge timer → a stalled +1 climb (stepUp ram / stairUpBreak whose break never completes)
             // never trips recovery and churns. Quantize the vertical term to foot.getY() so only a REAL climb
-            // (foot rises a whole block) counts; an in-place bob does not. See ControlConfig.walkerDryWedgeFootY.
-            double wdyEff = (ControlConfig.walkerDryWedgeFootY && !p.isInWater() && wn.getY() > foot.getY())
+            // (foot rises a whole block) counts; an in-place bob does not. See ControlConfig.navigatorDryWedgeFootY.
+            double wdyEff = (ControlConfig.navigatorDryWedgeFootY && !p.isInWater() && wn.getY() > foot.getY())
                     ? (wn.getY() - foot.getY())
                     : wdy;
             double wd2 = p.isInWater()
@@ -895,16 +895,16 @@ public final class WalkerTickProgress {
             }
         }
         if (onBridge) {
-            wk.stuckTicks = 0;
+            nav.stuckTicks = 0;
             stepProg.bestStepDist = Double.POSITIVE_INFINITY;
-            stepProg.stuckStep = wk.route.step();
-        } else if (wk.route.path() != null && wk.route.step() >= 0 && wk.route.step() < wk.route.path().size()) {
-            BlockPos sn = wk.route.path().get(wk.route.step());
+            stepProg.stuckStep = nav.route.step();
+        } else if (nav.route.path() != null && nav.route.step() >= 0 && nav.route.step() < nav.route.path().size()) {
+            BlockPos sn = nav.route.path().get(nav.route.step());
             double sdx = (sn.getX() + 0.5) - p.getX();
             double sdy = sn.getY() - p.getY();
             double sdz = (sn.getZ() + 0.5) - p.getZ();
             double sd2 = sdx * sdx + sdy * sdy + sdz * sdz;
-            // walkerStuckStepMonotonic: only a step ADVANCE opens a fresh progress window.
+            // navigatorStuckStepMonotonic: only a step ADVANCE opens a fresh progress window.
             // On an open-water straight path the buoyant drift makes the projection/within
             // machinery jitter the step pointer back and forth (wp 375↔387↔374 in one 44s
             // stall, A-4 2026-07-02); with the old `step != stuckStep` test every jitter
@@ -915,53 +915,53 @@ public final class WalkerTickProgress {
             // the retreat re-base LOWERED it, so an oscillating pointer (5↔6 at a sand
             // pond lip, 1200t) still cleared the clock on every "advance" of the pair.
             // Only a step beyond the highest index EVER seen on this path is fresh.
-            boolean stepWindowFresh = ControlConfig.walkerStuckStepMonotonic
-                    ? wk.route.step() > stepProg.stuckStepHigh : wk.route.step() != stepProg.stuckStep;
-            if (ControlConfig.walkerStuckStepMonotonic && !stepWindowFresh && wk.route.step() != stepProg.stuckStep) {
+            boolean stepWindowFresh = ControlConfig.navigatorStuckStepMonotonic
+                    ? nav.route.step() > stepProg.stuckStepHigh : nav.route.step() != stepProg.stuckStep;
+            if (ControlConfig.navigatorStuckStepMonotonic && !stepWindowFresh && nav.route.step() != stepProg.stuckStep) {
                 // Retreat OR revisit inside the seen range: keep the stall clock running
                 // but re-base the progress reference on the new node, else its
                 // naturally-different sd2 would fake "real progress" through the side door.
-                stepProg.stuckStep = wk.route.step();
+                stepProg.stuckStep = nav.route.step();
                 stepProg.bestStepDist = sd2;
             }
             if (stepWindowFresh) {                         // new node → fresh progress window
-                stepProg.stuckStep = wk.route.step();
-                stepProg.stuckStepHigh = wk.route.step();
+                stepProg.stuckStep = nav.route.step();
+                stepProg.stuckStepHigh = nav.route.step();
                 stepProg.bestStepDist = sd2;
-                wk.stuckTicks = 0;
+                nav.stuckTicks = 0;
             } else if (sd2 < stepProg.bestStepDist
                     // Medium-split margin (§94): the dry 0.05 margin (C40-J1 wall-creep
                     // starvation fix) starves water's naturally slow rounding manoeuvres
                     // and the tripped recovery pins the bot on the obstacle corner.
                     - (p.isInWater() ? STUCK_PROGRESS_EPS_WATER : STUCK_PROGRESS_EPS)) {
                 stepProg.bestStepDist = sd2;                        // closer than ever to this node → real progress
-                wk.stuckTicks = 0;
+                nav.stuckTicks = 0;
             } else {
-                wk.stuckTicks++;                              // no closer this tick → maybe stalled
+                nav.stuckTicks++;                              // no closer this tick → maybe stalled
             }
         } else {
-            wk.stuckTicks = 0;
+            nav.stuckTicks = 0;
         }
 
-        // ===== Phase-0 SHADOW arc-length pursuit (walkerArcLengthShadow) — DRIVES NOTHING =====
+        // ===== Phase-0 SHADOW arc-length pursuit (navigatorArcLengthShadow) — DRIVES NOTHING =====
         // Projects the continuous foot XZ onto the path polyline within a forward window and reports the
         // projected segment, cumulative arc-length s, horizontal perpendicular distance, and the tangent
         // heading at s+lookahead. The structural replacement (refactor plan §7) for the ~8 instantaneous
         // step-advance gates + the bob-immune dwell zoo, which exist ONLY because the buoyancy bob defeats
         // the per-tick cur2<0.45 / |dyNode|<1.2 gates. Logged only, so a replay can confirm s is monotonic
         // and the projected segment tracks the live `step` on clean runs BEFORE Phase 1 drives off it.
-        if ((ControlConfig.walkerArcLengthShadow || ControlConfig.walkerArcLengthAdvance || ControlConfig.walkerTangentAim
-                || ControlConfig.walkerArcLengthWedge || ControlConfig.walkerArcProgressWedge || ControlConfig.walkerFellBelowAlign)
-                && wk.route.path() != null && wk.route.step() < wk.route.path().size() && foot != null) {
-            arcShadowTick(wk, world, foot, p.getX(), p.getZ(), p.getYRot(), p.isInWater(), p.horizontalCollision);
+        if ((ControlConfig.navigatorArcLengthShadow || ControlConfig.navigatorArcLengthAdvance || ControlConfig.navigatorTangentAim
+                || ControlConfig.navigatorArcLengthWedge || ControlConfig.navigatorArcProgressWedge || ControlConfig.navigatorFellBelowAlign)
+                && nav.route.path() != null && nav.route.step() < nav.route.path().size() && foot != null) {
+            arcShadowTick(nav, world, foot, p.getX(), p.getZ(), p.getYRot(), p.isInWater(), p.horizontalCollision);
         } else {
             arc.wedgeTicks = 0;   // no projection this tick → don't carry a stale ram count into the next path
             arc.progBaseS = Double.NaN; arc.progWindowTicks = 0; arc.progStall = false;   // reset the net-progress window too
         }
 
-        int dropAheadTo = dropAheadTarget(wk, world, p, foot);
-        while (wk.route.step() < wk.route.path().size()) {
-            Move.Edge se = wk.route.edgeAt(wk.route.step());
+        int dropAheadTo = dropAheadTarget(nav, world, p, foot);
+        while (nav.route.step() < nav.route.path().size()) {
+            Move.Edge se = nav.route.edgeAt(nav.route.step());
             // Buoyant pillar (bunker / flooded-pit self-exit): the bot rises through
             // a water-filled shaft. Detect it from the WORLD — the cell being risen
             // FROM is water — not p.isInWater(), which flickers false at the bob peak
@@ -970,9 +970,9 @@ public final class WalkerTickProgress {
             // straight up; a buoyant pillar more broadly is any pillarUp begun from
             // water (cell below is water / bot in water) — including the dry-air
             // chimney where the bot must place a support to climb out.
-            boolean shaftFlooded = se != null && "pillarUp".equals(se.move) && floodedShaft(world, wk.route.path().get(wk.route.step()));
+            boolean shaftFlooded = se != null && "pillarUp".equals(se.move) && floodedShaft(world, nav.route.path().get(nav.route.step()));
             boolean waterPillar = se != null && "pillarUp".equals(se.move)
-                    && (shaftFlooded || p.isInWater() || world.isWater(wk.route.path().get(wk.route.step()).offset(0, -1, 0)));
+                    && (shaftFlooded || p.isInWater() || world.isWater(nav.route.path().get(nav.route.step()).offset(0, -1, 0)));
             // Don't advance past a cell whose break/place actions are still
             // pending — otherwise a DownBreak (foot vertically aligned, < 1.2
             // away) would be skipped before we ever mine the floor.
@@ -990,7 +990,7 @@ public final class WalkerTickProgress {
             // pillar (dry, or the water-exit place) must be grounded first so we
             // don't advance mid-jump / before the support lands.
             if (se != null && "pillarUp".equals(se.move)
-                    && !((p.onGround() || shaftFlooded) && p.getY() >= wk.route.path().get(wk.route.step()).getY() - 0.1)) break;
+                    && !((p.onGround() || shaftFlooded) && p.getY() >= nav.route.path().get(nav.route.step()).getY() - 0.1)) break;
             // Don't advance past a parkour-place edge while airborne — keep the
             // settle phase owning the descent so it brakes the leap on landing.
             if (se != null && se.move != null && se.move.startsWith("parkourPlace")
@@ -1015,7 +1015,7 @@ public final class WalkerTickProgress {
             // advancing to the climb-out it already overshot into (live 2026-06-24 -582
             // pool: parkour landed at -581,62 past node -582,62,536, ~15 s of backward bob).
             if (se != null && se.move != null && se.move.startsWith("parkourDescend")
-                    && !p.onGround() && !p.isInWater() && wk.aim.surfaceWaterLatch <= 0) break;
+                    && !p.onGround() && !p.isInWater() && nav.aim.surfaceWaterLatch <= 0) break;
             // An ASCENDING parkour leap (parkourAscend / a rising parkour2d-3d that lands
             // higher than the launch) is the ONE jumped move WITHOUT a "don't advance until
             // executed" gate — pillarUp (above), parkourPlace and parkourDescend all have one,
@@ -1039,12 +1039,12 @@ public final class WalkerTickProgress {
             // just sooner and from the correct node). Strict extension: a rising parkour mid-leap is
             // ALREADY below its landing and not grounded, so this is inert on a clean leap (it was going
             // to hold via the airborne state anyway); only the premature drift-skip is suppressed.
-            if (ControlConfig.walkerParkourAscendHold
+            if (ControlConfig.navigatorParkourAscendHold
                     && se != null && se.move != null && se.move.startsWith("parkour")
                     && !se.move.startsWith("parkourDescend") && !se.move.startsWith("parkourPlace")
-                    && wk.route.path().get(wk.route.step()).getY() > foot.getY()
-                    && !(p.onGround() && p.getY() >= wk.route.path().get(wk.route.step()).getY() - 0.5)) break;
-            BlockPos w = wk.route.path().get(wk.route.step());
+                    && nav.route.path().get(nav.route.step()).getY() > foot.getY()
+                    && !(p.onGround() && p.getY() >= nav.route.path().get(nav.route.step()).getY() - 0.5)) break;
+            BlockPos w = nav.route.path().get(nav.route.step());
             double dx = (w.getX() + 0.5) - p.getX();
             double dz = (w.getZ() + 0.5) - p.getZ();
             double cur2 = dx * dx + dz * dz;
@@ -1089,15 +1089,15 @@ public final class WalkerTickProgress {
             double floatOverFloor = diveEdge ? -2.5 : -FLOATOVER_NONDIVE_MAX_DROP;
             boolean floatOverSubmerged = p.isInWater() && dyNode < -0.5 && dyNode > floatOverFloor
                     && (!diveEdge || stepProg.noStepProgressTicks > WATER_DESCEND_GIVEUP);
-            boolean unclimbedUnderOverhead = unclimbedUnderOverhead(wk, foot, w);
-            // A surface sprint-swim cruise (WalkerTickDrive.surfaceCruise) rides 1-2 blocks UNDER its
+            boolean unclimbedUnderOverhead = unclimbedUnderOverhead(nav, foot, w);
+            // A surface sprint-swim cruise (DrivePhase.surfaceCruise) rides 1-2 blocks UNDER its
             // surface nodes on purpose, so the vertical gates here and in `passed` read every node as an
             // unclimbed rise and the pointer only crawls after the arc projection — one node BEHIND the
             // bot, whose bearing then drives it backward (the impulse goes negative and vanilla drops
             // the sprint for "no forward impulse"). Under the cruise, reach is horizontal: the bot is
             // at the surface for every purpose the gates protect.
-            boolean cruiseUnder = wk.drive.driveLatch.cruiseOn && p.isInWater() && dyNode > 0 && dyNode <= 3.0;
-            boolean within = (cur2 < REACH_DIST_SQ || levelAtClimb(wk, p, w, dyNode, cur2))
+            boolean cruiseUnder = nav.drive.driveLatch.cruiseOn && p.isInWater() && dyNode > 0 && dyNode <= 3.0;
+            boolean within = (cur2 < REACH_DIST_SQ || levelAtClimb(nav, p, w, dyNode, cur2))
                     && (Math.abs(dyNode) < 1.2 || floatOverSubmerged || cruiseUnder)
                     && !(p.isInWater() && dyNode > 0.5 && !cruiseUnder)
                     && !unclimbedUnderOverhead;
@@ -1112,8 +1112,8 @@ public final class WalkerTickProgress {
             // fired and this block never ran — the honest reading for "never computed", not a zero.
             double nd2 = Double.NaN;
             boolean overshot = false;
-            if (!within && wk.route.step() + 1 < wk.route.path().size()) {
-                BlockPos nx = wk.route.path().get(wk.route.step() + 1);
+            if (!within && nav.route.step() + 1 < nav.route.path().size()) {
+                BlockPos nx = nav.route.path().get(nav.route.step() + 1);
                 double ndx = (nx.getX() + 0.5) - p.getX();
                 double ndz = (nx.getZ() + 0.5) - p.getZ();
                 // Skip the current node only if the player is genuinely beyond it
@@ -1168,8 +1168,8 @@ public final class WalkerTickProgress {
                         && nx.getY() <= w.getY();
                 boolean cruisePassed = cruiseUnder && nx.getY() <= w.getY();   // the next surface node is no higher: see cruiseUnder at `within`
                 passed = (nx.getX() == w.getX() && nx.getZ() == w.getZ()   // stacked next node: see STACKED_PASS_SQ
-                            ? cur2 <= STACKED_PASS_SQ || (overshot && beyondNode(wk.route.path(), wk.route.step(), p))
-                            : (overshot ? nd2 <= cur2 : nd2 < cur2) || skirtedPast(wk, world, p, foot, nx, cur2))
+                            ? cur2 <= STACKED_PASS_SQ || (overshot && beyondNode(nav.route.path(), nav.route.step(), p))
+                            : (overshot ? nd2 <= cur2 : nd2 < cur2) || skirtedPast(nav, world, p, foot, nx, cur2))
                         && (Math.abs(w.getY() - p.getY()) < 1.5 || droppedPastDescend || cruisePassed)
                         && (Math.abs(nx.getY() - p.getY()) < 1.2 || cruisePassed)
                         && !unclimbedUnderOverhead   // see the note at `within`
@@ -1201,9 +1201,9 @@ public final class WalkerTickProgress {
                         || se.move.equals("stepDown"));
             boolean tailDroppedPast = !p.isInWater() && descendTail
                     && p.getY() < w.getY() - 2.0;
-            boolean tailOvershot = cur2 > OVERSHOOT_RESYNC_SQ && !tailStillAhead(wk, p, w);
-            boolean tailConsumed = !within && wk.route.step() + 1 == wk.route.path().size() && wk.route.seg.pathBestEffort
-                    && (tailOvershot || tailDroppedPast || tailReady(wk, p, foot, w, cur2));
+            boolean tailOvershot = cur2 > OVERSHOOT_RESYNC_SQ && !tailStillAhead(nav, p, w);
+            boolean tailConsumed = !within && nav.route.step() + 1 == nav.route.path().size() && nav.route.seg.pathBestEffort
+                    && (tailOvershot || tailDroppedPast || tailReady(nav, p, foot, w, cur2));
             // DESCENT OVERSHOOT-ADVANCE (the in-place back-hop fix the in-place-hop comment
             // points to): on a dry descent step the bot drives the IMMEDIATE node
             // (driveTargetYaw = descentNodeYaw). The instant the foot crosses PAST that node
@@ -1224,8 +1224,8 @@ public final class WalkerTickProgress {
             boolean discreteDescend = se != null && se.move != null
                     && (se.move.startsWith("fall") || se.move.equals("stepDown"));
             boolean crossedDescendNode = false;
-            if (!within && !passed && discreteDescend && !p.isInWater() && wk.route.step() + 1 < wk.route.path().size()) {
-                BlockPos nxd = wk.route.path().get(wk.route.step() + 1);
+            if (!within && !passed && discreteDescend && !p.isInWater() && nav.route.step() + 1 < nav.route.path().size()) {
+                BlockPos nxd = nav.route.path().get(nav.route.step() + 1);
                 double segx = nxd.getX() - w.getX(), segz = nxd.getZ() - w.getZ();
                 double offx = p.getX() - (w.getX() + 0.5), offz = p.getZ() - (w.getZ() + 0.5);
                 crossedDescendNode = (offx * segx + offz * segz) > 0
@@ -1244,10 +1244,10 @@ public final class WalkerTickProgress {
             if (!within && !passed && !crossedDescendNode
                     && se != null && se.move != null
                     && (se.move.equals("walk")
-                        || (ControlConfig.walkerTraverseBreakOvershootResync && se.move.equals("traverseBreak")))
+                        || (ControlConfig.navigatorTraverseBreakOvershootResync && se.move.equals("traverseBreak")))
                     && !p.isInWater() && stepProg.noStepProgressTicks > WALK_OVERSHOOT_STUCK_TICKS
-                    && wk.route.step() + 1 < wk.route.path().size()) {
-                BlockPos nxw = wk.route.path().get(wk.route.step() + 1);
+                    && nav.route.step() + 1 < nav.route.path().size()) {
+                BlockPos nxw = nav.route.path().get(nav.route.step() + 1);
                 double segx = nxw.getX() - w.getX(), segz = nxw.getZ() - w.getZ();
                 double offx = p.getX() - (w.getX() + 0.5), offz = p.getZ() - (w.getZ() + 0.5);
                 crossedWalkNode = (offx * segx + offz * segz) > 0
@@ -1267,19 +1267,19 @@ public final class WalkerTickProgress {
             // step-down, a deep floating-water landing, a submerged node, and climb/walk/parkour edges
             // are all byte-identical inert (the gate never matches them).
             boolean waterStepDownFloat = false;
-            if (ControlConfig.walkerWaterStepDownFloat && !within && !passed
+            if (ControlConfig.navigatorWaterStepDownFloat && !within && !passed
                     && !crossedDescendNode && !crossedWalkNode
                     && se != null && se.move != null
                     && (se.move.equals("stepDown") || se.move.startsWith("fall") || se.move.startsWith("diagDown"))
-                    && (p.isInWater() || wk.aim.surfaceWaterLatch > 0)
+                    && (p.isInWater() || nav.aim.surfaceWaterLatch > 0)
                     && stepProg.noStepProgressTicks > WATER_STEPDOWN_STALL_TICKS
                     && cur2 < WATER_STEPDOWN_REACH_SQ
                     && Math.abs(dyNode) < 1.2
                     && world.isWater(w) && world.isSolid(w.below()) && !world.isWater(w.above())) {
                 waterStepDownFloat = true;
-                if (GameConfig.walkerDebug)
-                    LOG.info("[walker] water-stepdown-float ADVANCE step={}/{} node={} move={} cur2={} dyNode={} stall={}",
-                            wk.route.step(), wk.route.path().size(), w, se.move, String.format(Locale.ROOT, "%.3f", cur2),
+                if (GameConfig.navigatorDebug)
+                    LOG.info("[navigator] water-stepdown-float ADVANCE step={}/{} node={} move={} cur2={} dyNode={} stall={}",
+                            nav.route.step(), nav.route.path().size(), w, se.move, String.format(Locale.ROOT, "%.3f", cur2),
                             String.format(Locale.ROOT, "%.2f", dyNode), stepProg.noStepProgressTicks);
             }
             // STEPUP-CREST float-and-advance: a +1 stepUp/diagUp CREST node (a diagonal-staircase plateau
@@ -1302,7 +1302,7 @@ public final class WalkerTickProgress {
             // are owned by floatOverSubmerged / the in-water climb gate). A non-ascent edge, a node not yet
             // reached vertically, a fast clean climb, and any in-water case are all byte-identical inert.
             // BOB-IMMUNE crest-orbit dwell: noStepProgressTicks (the stall gate below) resets on every new
-            // 3D-low (Walker:1669), and a DRY topped-out crest's vertical bob folds wdy into wd2 and
+            // 3D-low (Navigator:1669), and a DRY topped-out crest's vertical bob folds wdy into wd2 and
             // manufactures a new low each bob cycle, so on a WIDE bob orbit the gate is never reached and the
             // crest never advances (live -677,80: cur2 0.5→8.6, ADVANCE never fired, 120-173 t orbit). Count
             // raw ticks the bot dwells on the SAME dry stepUp/diagUp crest step without within/passed
@@ -1311,14 +1311,14 @@ public final class WalkerTickProgress {
             // tick, so this never advances a node the foot hasn't risen to (no skip-node strand).
             boolean onAscentCrest = se != null && se.move != null
                     && (se.move.equals("stepUp") || se.move.equals("diagUp")) && !p.isInWater();
-            if (wk.route.step() != stepProg.crestOrbitStep) {
-                stepProg.crestOrbitStep = wk.route.step();
+            if (nav.route.step() != stepProg.crestOrbitStep) {
+                stepProg.crestOrbitStep = nav.route.step();
                 stepProg.crestOrbitTicks = 0;
             } else if (onAscentCrest && !within && !passed) {
                 stepProg.crestOrbitTicks++;
             }
             boolean stepUpCrestReach = false;
-            if (ControlConfig.walkerStepUpCrestReach && !within && !passed
+            if (ControlConfig.navigatorStepUpCrestReach && !within && !passed
                     && !crossedDescendNode && !crossedWalkNode && !waterStepDownFloat
                     && se != null && se.move != null
                     && (se.move.equals("stepUp") || se.move.equals("diagUp"))
@@ -1327,9 +1327,9 @@ public final class WalkerTickProgress {
                     && cur2 < STEPUP_CREST_REACH_SQ
                     && Math.abs(dyNode) < 0.5) {
                 stepUpCrestReach = true;
-                if (GameConfig.walkerDebug)
-                    LOG.info("[walker] stepup-crest-reach ADVANCE step={}/{} node={} move={} cur2={} dyNode={} crestStall={} noStep={}",
-                            wk.route.step(), wk.route.path().size(), w, se.move, String.format(Locale.ROOT, "%.3f", cur2),
+                if (GameConfig.navigatorDebug)
+                    LOG.info("[navigator] stepup-crest-reach ADVANCE step={}/{} node={} move={} cur2={} dyNode={} crestStall={} noStep={}",
+                            nav.route.step(), nav.route.path().size(), w, se.move, String.format(Locale.ROOT, "%.3f", cur2),
                             String.format(Locale.ROOT, "%.2f", dyNode), stepProg.crestOrbitTicks, stepProg.noStepProgressTicks);
             }
             // WATER-SURFACE WALK relaxed-advance (the turn / wall-corner FREEZE breaker): a flat `walk`
@@ -1341,26 +1341,26 @@ public final class WalkerTickProgress {
             // within=0, aim swinging 403° — the stuck-against-a-wall or stuck-in-water jank; attack=0, NOT digging). Mirror
             // waterStepDownFloat / stepUpCrestReach: on a CONFIRMED in-water stall at a flat walk water node
             // within a relaxed reach, advance so the segment continues / repaths from here. In water
-            // noStepProgressTicks is HORIZONTAL-only (Walker:~1666) so the bob can't fake-reset it — only a
+            // noStepProgressTicks is HORIZONTAL-only (Navigator:~1666) so the bob can't fake-reset it — only a
             // genuine non-closing freeze accumulates it past the gate; a clean crossing advances via `passed`
             // in 1-2 ticks (noStepProgress stays low) and never trips it. The |Δy|<1.2 gate on the next node
             // bars an impossible climb-skip; dry walk and every non-walk edge are byte-identical inert.
             boolean waterWalkReach = false;
-            if (ControlConfig.walkerWaterWalkReach && !within && !passed
+            if (ControlConfig.navigatorWaterWalkReach && !within && !passed
                     && !crossedDescendNode && !crossedWalkNode && !waterStepDownFloat && !stepUpCrestReach
                     && se != null && se.move != null && se.move.equals("walk")
                     && p.isInWater()
                     && stepProg.noStepProgressTicks > WATER_WALK_STALL_TICKS
                     && cur2 < WATER_WALK_REACH_SQ
-                    && wk.route.step() + 1 < wk.route.path().size()
-                    && Math.abs(wk.route.path().get(wk.route.step() + 1).getY() - p.getY()) < 1.2) {
+                    && nav.route.step() + 1 < nav.route.path().size()
+                    && Math.abs(nav.route.path().get(nav.route.step() + 1).getY() - p.getY()) < 1.2) {
                 waterWalkReach = true;
-                if (GameConfig.walkerDebug)
-                    LOG.info("[walker] water-walk-reach ADVANCE step={}/{} node={} cur2={} stall={}",
-                            wk.route.step(), wk.route.path().size(), w, String.format(Locale.ROOT, "%.3f", cur2), stepProg.noStepProgressTicks);
+                if (GameConfig.navigatorDebug)
+                    LOG.info("[navigator] water-walk-reach ADVANCE step={}/{} node={} cur2={} stall={}",
+                            nav.route.step(), nav.route.path().size(), w, String.format(Locale.ROOT, "%.3f", cur2), stepProg.noStepProgressTicks);
             }
-            stepAdvDiag(wk, p, foot, w, se, within, passed, crossedDescendNode, crossedWalkNode, cur2);
-            // Phase-1 (walkerArcLengthAdvance): the bob-immune path projection ADDS a step-advance the legacy
+            stepAdvDiag(nav, p, foot, w, se, within, passed, crossedDescendNode, crossedWalkNode, cur2);
+            // Phase-1 (navigatorArcLengthAdvance): the bob-immune path projection ADDS a step-advance the legacy
             // gates miss — advance when the foot's forward projection has reached a later segment
             // (arcProj.segIdx > step). It is a SUPPLEMENT, not a replacement: the seven legacy gates
             // (passed/tailConsumed/crossedDescend/crossedWalk/waterStepDownFloat/stepUpCrestReach/waterWalkReach)
@@ -1371,50 +1371,50 @@ public final class WalkerTickProgress {
             // advancing than either alone, so it both kills the bob-defeated step-freeze (projection drives) AND
             // keeps the reach helpers (legacy drives). Edge-execution holds above still gate advancement.
             boolean legacyAdvance = within || passed || tailConsumed || crossedDescendNode || crossedWalkNode
-                    || waterStepDownFloat || stepUpCrestReach || waterWalkReach || dropAheadTo > wk.route.step();
-            BlockPos nxt = wk.route.step() + 1 < wk.route.path().size() ? wk.route.path().get(wk.route.step() + 1) : null;
-            boolean doAdvance = (legacyAdvance || (ControlConfig.walkerArcLengthAdvance && arc.proj.segIdx > wk.route.step()))
+                    || waterStepDownFloat || stepUpCrestReach || waterWalkReach || dropAheadTo > nav.route.step();
+            BlockPos nxt = nav.route.step() + 1 < nav.route.path().size() ? nav.route.path().get(nav.route.step() + 1) : null;
+            boolean doAdvance = (legacyAdvance || (ControlConfig.navigatorArcLengthAdvance && arc.proj.segIdx > nav.route.step()))
                     && !airborneClimbConsume(world, p, w, nxt)             // ONE outlet for all nine gates — an airborne bot must not spend a node on a climb; see the helper's javadoc for the wd.buriedOre reading
-                    && !unwalkedDescentConsume(wk, world, p, foot, w, nxt) // …and a standing bot must not spend one on a descent — the LAST node too when spending it would fake an arrival; see that helper for the rung-14 and rung-13 readings
-                    && !airborneDryArrival(wk, world, p, foot, w, nxt);    // …and a bot that is not standing must not spend a dry LAST node — the flush-bank reading on the real client
+                    && !unwalkedDescentConsume(nav, world, p, foot, w, nxt) // …and a standing bot must not spend one on a descent — the LAST node too when spending it would fake an arrival; see that helper for the rung-14 and rung-13 readings
+                    && !airborneDryArrival(nav, world, p, foot, w, nxt);    // …and a bot that is not standing must not spend a dry LAST node — the flush-bank reading on the real client
             if (doAdvance) {
-                if (holdLastNode(wk, foot, w)) break;
-                // The step-advance reading, at the ONE `step++` in the walker (so within/passed/tail
-                // are all covered here) and AFTER the disk-goal hold — see Walker#noteStepAdvance.
-                noteStepAdvance(wk, world, p, foot, w, nxt,
+                if (holdLastNode(nav, foot, w)) break;
+                // The step-advance reading, at the ONE `step++` in the navigator (so within/passed/tail
+                // are all covered here) and AFTER the disk-goal hold — see Navigator#noteStepAdvance.
+                noteStepAdvance(nav, world, p, foot, w, nxt,
                         advanceCause(within, passed, tailConsumed, crossedDescendNode, crossedWalkNode,
                                 waterStepDownFloat, stepUpCrestReach, waterWalkReach,
-                                ControlConfig.walkerArcLengthAdvance && arc.proj.segIdx > wk.route.step(),
-                                dropAheadTo > wk.route.step()),
+                                ControlConfig.navigatorArcLengthAdvance && arc.proj.segIdx > nav.route.step(),
+                                dropAheadTo > nav.route.step()),
                         cur2, nd2, overshot);
-                wk.route.advance();
+                nav.route.advance();
             }
             else break;
         }
-        if (wk.route.step() >= wk.route.path().size()) {
-            if (!wk.route.seg.pathBestEffort || wk.goal.reached(foot)) {
+        if (nav.route.step() >= nav.route.path().size()) {
+            if (!nav.route.seg.pathBestEffort || nav.goal.reached(foot)) {
                 // A path that actually reaches the goal (or we ended up standing in
                 // the goal cell): the journey is done.
-                return wk.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null,
-                        WalkVerdict.classifyArrival(wk.route.seg.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
+                return nav.terminalReport(TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null,
+                        WalkVerdict.classifyArrival(nav.route.seg.pathBestEffort, nav.goal.reached(foot), nav.goalSnapped), foot);
             }
             // Best-effort segment consumed but the goal is still ahead. DON'T give
             // up — this is the long-distance splice point. Adopt the continuation
             // if its background search has landed; otherwise hold here (keys
             // released) until it does. The total-tick budget above still bounds a
             // goal we can never make real progress toward, so this can't hang.
-            if (wk.route.seg.pendingSegment != null) {
-                PathFinder.Result next = wk.route.takeContinuation();
+            if (nav.route.seg.pendingSegment != null) {
+                PathFinder.Result next = nav.route.takeContinuation();
                 if (next.hasPath() && next.path().size() > 1) {
-                    Route.Adoption adoption = RouteAdoption.adopt(wk, next, world, foot);
+                    Route.Adoption adoption = RouteAdoption.adopt(nav, next, world, foot);
                     if (!adoption.adopted()) {
                         // Mis-anchored continuation (the bot never made it to the
                         // commitEnd it was computed from) — drop it and force a
                         // fresh foot-search next tick instead of hanging on an
                         // unreachable step 1.
-                        wk.route.abandonSegment("continuation refused: " + adoption.refusal());
+                        nav.route.abandonSegment("continuation refused: " + adoption.refusal());
                         Keys.forward(a, false);
-                        wk.keys.jump(a, false);
+                        nav.keys.jump(a, false);
                         p.setSprinting(false);
                         return TickStep.WALKING;
                     }
@@ -1423,26 +1423,26 @@ public final class WalkerTickProgress {
                     // Stale eager continuation found nothing — at a chunk frontier the
                     // newly-loaded terrain may now reveal the next segment, so re-search
                     // fresh before giving up (bounded).
-                    return wk.search.frontierHoldOrArrive(wk, a, world, p);
+                    return nav.search.frontierHoldOrArrive(nav, a, world, p);
                 }
             } else {
-                if (!wk.route.replay() && wk.route.seg.activeSearch == null && wk.route.seg.commitEnd != null) wk.route.searchFromEnd(wk, world);
+                if (!nav.route.replay() && nav.route.seg.activeSearch == null && nav.route.seg.commitEnd != null) nav.route.searchFromEnd(nav, world);
                 // PROGRESSIVE QUICK-START at the splice gap: the continuation
                 // search hasn't landed yet (eager precompute missed this one) —
                 // walk a synchronous stub toward the goal instead of holding
                 // at the segment end until it does.
-                if (wk.route.replay() || wk.route.seg.activeSearch == null
-                        || (!RouteStubs.landBeeline(wk, world, foot, wk.goal)
-                            && !RouteStubs.waterBeeline(wk, world, foot, wk.goal) && !RouteStubs.quickStart(wk, world, foot, wk.goal))) {
+                if (nav.route.replay() || nav.route.seg.activeSearch == null
+                        || (!RouteStubs.landBeeline(nav, world, foot, nav.goal)
+                            && !RouteStubs.waterBeeline(nav, world, foot, nav.goal) && !RouteStubs.quickStart(nav, world, foot, nav.goal))) {
                     Keys.forward(a, false);
-                    wk.keys.jump(a, false);
+                    nav.keys.jump(a, false);
                     p.setSprinting(false);
                     return TickStep.WALKING;
                 }
                 // stub adopted (path replaced, step=1) → fall through and walk it
             }
         }
-        // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
+        // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
         return null;
     }
 }

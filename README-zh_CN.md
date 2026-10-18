@@ -174,7 +174,7 @@ worlddriver/
 │   ├── src/main/java/net/magicterra/worlddriver/
 │   │   ├── api/            方法契约，以及运行它们的路由器 ApiRegistry
 │   │   ├── application/    每个方法背后的处理器
-│   │   ├── bot/            客户端侧自主层：寻路器、walker、各进程
+│   │   ├── bot/            客户端侧自主层：寻路器、navigator、各进程
 │   │   ├── mcp/            MCP HTTP 服务器与工具目录
 │   │   ├── rpc/            Netty WebSocket 服务器与 JSON 编解码
 │   │   ├── script/         Rhino 接入、求值器、可选的类过滤器

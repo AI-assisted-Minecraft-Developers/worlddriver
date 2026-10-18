@@ -30,7 +30,7 @@ import java.util.List;
  * {@code from+(dx,1,dz)} and head {@code from+(dx,2,dz)} if solid; gated on the
  * water-escape break ({@link WorldView#escapeBreakCost}, default ON); must break
  * ≥1 cell or a plain {@link StepUp} is cheaper. The name shares the {@code
- * swimAshore} prefix so the Walker's water-escape break actuator (press-into-bank
+ * swimAshore} prefix so the Navigator's water-escape break actuator (press-into-bank
  * + jump-to-mount) drives it with no new executor branch.
  */
 public final class SwimBankClimbBreak extends Move {
@@ -69,7 +69,7 @@ public final class SwimBankClimbBreak extends Move {
         return new Edge(to, cost + bc, List.copyOf(br), List.of(), name());
     }
 
-    /** Shares the {@code swimAshore} prefix so the Walker's water-escape break
+    /** Shares the {@code swimAshore} prefix so the Navigator's water-escape break
      *  actuator (press-into-bank + jump-to-mount) drives this with no new branch. */
     public String name() { return "swimAshoreClimb"; }
 

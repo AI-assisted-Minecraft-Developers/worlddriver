@@ -4,8 +4,8 @@ import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerSettings;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.Body;
@@ -48,8 +48,8 @@ public class PlayerBot extends ServerBot {
     private final ServerPlayerBody avatar;
     /** The name it is addressed by, or null until {@link #named} gives it one. */
     private volatile String name;
-    /** The walker the bare {@link #gotoGoal}/{@link #mine} tasks drive; processes own their own. */
-    private final Walker walker = new Walker(WalkerSettings.named("server"));
+    /** The navigator the bare {@link #gotoGoal}/{@link #mine} tasks drive; processes own their own. */
+    private final Navigator navigator = new Navigator(NavigatorSettings.named("server"));
 
     public PlayerBot(ServerPlayerBody avatar) {
         super(avatar.fakePlayer());
@@ -75,14 +75,14 @@ public class PlayerBot extends ServerBot {
      * {@link #mine} for how that was found.
      */
     public PlayerBot gotoGoal(Goal goal) {
-        runProcess(new WalkerTask("goto", null));
-        walker.start(goal);
+        runProcess(new NavigatorTask("goto", null));
+        navigator.start(goal);
         return this;
     }
 
     /**
      * Mine task: navigate within reach of {@code target}, then break it. A real headless task beyond
-     * movement — reuses the validated Walker + the {@link ServerPlayerBody} break actuator.
+     * movement — reuses the validated Navigator + the {@link ServerPlayerBody} break actuator.
      *
      * <p>⚠️ Superseding the held process is the fix for a silent no-op. The tick ran the process
      * before it looked at the mine target, and neither this method nor {@link #gotoGoal} used to
@@ -96,8 +96,8 @@ public class PlayerBot extends ServerBot {
      * ordering where the bug cannot appear.
      */
     public PlayerBot mine(BlockPos target) {
-        runProcess(new WalkerTask("mine", target.immutable()));
-        walker.start(new Goal.Near(target, 2));
+        runProcess(new NavigatorTask("mine", target.immutable()));
+        navigator.start(new Goal.Near(target, 2));
         return this;
     }
 
@@ -126,16 +126,16 @@ public class PlayerBot extends ServerBot {
     /** A joined player has no client to run its physics, so the step does. */
     @Override protected void step() { avatar.step(); }
 
-    /** {@link #gotoGoal} and {@link #mine} on the bare walker, held as a process so the reflex
+    /** {@link #gotoGoal} and {@link #mine} on the bare navigator, held as a process so the reflex
      *  chains preempt it as they preempt any task. Claims no status slot, as the bare tasks never
-     *  did; {@link #lastStatus()} carries the walker's own verdict. */
-    private final class WalkerTask implements BotProcess {
+     *  did; {@link #lastStatus()} carries the navigator's own verdict. */
+    private final class NavigatorTask implements BotProcess {
         private final String kind;
         /** Non-null for a mine: navigate near, then break it. */
         private final BlockPos target;
         private String failure;
 
-        WalkerTask(String kind, BlockPos target) {
+        NavigatorTask(String kind, BlockPos target) {
             this.kind = kind;
             this.target = target;
         }
@@ -143,14 +143,14 @@ public class PlayerBot extends ServerBot {
         @Override public String kind() { return kind; }
         @Override public void attach(BotState st) {}
         @Override public String failure() { return failure; }
-        @Override public void onResume() { walker.replan(); }
+        @Override public void onResume() { navigator.replan(); }
 
         @Override public boolean tick(Body a, WorldView w, BotState st) {
-            Locomotor.Status s = walker.tick(a, w);
+            Locomotor.Status s = navigator.tick(a, w);
             if (target == null) {
                 last = s;
                 if (s == Locomotor.Status.MOVING) return false;
-                if (s == Locomotor.Status.FAILED) failure = "walker failed: " + walker.result().reason();
+                if (s == Locomotor.Status.FAILED) failure = "navigator failed: " + navigator.result().reason();
                 return true;
             }
             if (!w.isSolid(target)) {            // already broken (or arrived + broke last tick)

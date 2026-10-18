@@ -23,7 +23,7 @@ water is a known way to drown.
 - **A hard rule** is a `Constraint`, evaluated per edge in the neighbour loop, pruning successors.
 - **What the bot is allowed to do** is a capability profile, checked against each move type's
   declared requirement.
-- **When to stop and when to replan** belong to the process and the walker.
+- **When to stop and when to replan** belong to the process and the navigator.
 
 The first three, plus the capability profile, are bundled into one `SearchProfile` value that is
 threaded through a search.

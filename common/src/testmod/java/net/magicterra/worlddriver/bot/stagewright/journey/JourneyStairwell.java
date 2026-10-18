@@ -60,7 +60,7 @@ final class JourneyStairwell {
      * The flight as a list of waypoints, top-first when {@code down}.
      *
      * <p>Waypoints down the flight ITSELF, not just its two ends, and that is a measurement rather
-     * than a precaution. Given {@code Goal.Block(stairBottom)} the walker takes the shortest line it
+     * than a precaution. Given {@code Goal.Block(stairBottom)} the navigator takes the shortest line it
      * can see, and from the top of the stairs the shortest line is ACROSS THE SURFACE: measured
      * twice, the bot walked to {@code -10,66,34} — ground level directly above the staircase at
      * z=34 — and then re-searched for a cell eight blocks below it through untouched rock, every two
@@ -319,7 +319,7 @@ final class JourneyStairwell {
      * consolidates with.
      *
      * <p>So the one walk stays, and it stays because of what it RECORDS: {@code flightLastStep} says
-     * the step was needed, {@code flightLastStepEnd} says what the walker did about it, and
+     * the step was needed, {@code flightLastStepEnd} says what the navigator did about it, and
      * {@code flightLastStepMissed} says it did not land. Before those rows existed, a step that was
      * never needed and a step that was needed and refused left the same log.
      */
@@ -330,14 +330,14 @@ final class JourneyStairwell {
                 + " (the " + LEG_ARRIVED + "-block arrival tolerance counted this step as arrived;"
                 + " walking it to the end here; " + landingStory(rig) + ")");
         // TURN THE BOT BEFORE ASKING IT TO WALK. This is the whole step, and every term of it was
-        // measured on `wd.journeyWalksOffTheLipOntoTheDryStep` with walker rows on:
+        // measured on `wd.journeyWalksOffTheLipOntoTheDryStep` with navigator rows on:
         //
         //   path = 0:99999,218[-] 1:99998,218[walk] 2:99999,217[stepDown]   goalReached=true
         //   t=1..3  node=99999,217  yaw=0  bear=-90  yawErr=-90  driveYaw=0  up=true
         //           p=(99999.20,218.00,100000.50 → .60 → .70)   hCol=true
         //
-        // A* plans it, the walker presses forward — and the bot walks 90° off, into +z, until it
-        // hits a wall. The heading never turns because `WalkerTickAim` holds it: the aim vector to
+        // A* plans it, the navigator presses forward — and the bot walks 90° off, into +z, until it
+        // hits a wall. The heading never turns because `AimPhase` holds it: the aim vector to
         // the node is (0.30, 0.00), and `YAW_DEADZONE_SQ = 0.25` (half a block) makes
         // `targetYaw = p.getYRot()` — the bot's CURRENT yaw, whatever it is. That dead-zone is
         // correct and is not being fought here: its javadoc names this very manoeuvre ("during a
@@ -352,15 +352,15 @@ final class JourneyStairwell {
         rig.evidence(tag + ".flightLastStepAim", String.format(java.util.Locale.ROOT,
                 "yaw %.1f° → %.1f° (aimed at the centre of terminal waypoint %s; the dead zone holds"
                 + " the bot's current yaw, so the turn has to happen before the walk starts, not be"
-                + " left to the walker mid-walk)",
+                + " left to the navigator mid-walk)",
                 yawWas, rig.player().getYRot(), ends.toShortString()));
         rig.settle(lastStep(ends), LAST_STEP_TICKS, () -> {
             BlockPos got = rig.player().blockPosition();
-            // WHAT THE WALKER SAID, on both outcomes. `settle` walks carry no `end=`/`err=` of their
+            // WHAT THE NAVIGATOR SAID, on both outcomes. `settle` walks carry no `end=`/`err=` of their
             // own the way `drive` walks do, so a walk that ended because A* found no path and one
             // that ended having walked read identically — which is how "a repeated walk does not
             // move" stood as a mechanism for a whole ladder without ever being checked.
-            rig.evidence(tag + ".flightLastStepEnd", JourneyLeg.walkerEnd(rig));
+            rig.evidence(tag + ".flightLastStepEnd", JourneyLeg.navigatorEnd(rig));
             // ⚠️ NOT `down(got, ends)` ON ITS OWN. That reads the BLOCK row, and a bot's feet cross
             // into the terminal's row while it is still most of a block above that row's FLOOR —
             // it is the cell index that is low enough, not the bot. Measured across eight rung-12
@@ -386,7 +386,7 @@ final class JourneyStairwell {
             boolean afoot = afootBy > SETTLED_SLACK;
             if (down(got, ends) && !afoot) { then.run(); return; }
             // A BOT ONE ROW ABOVE THE TERMINAL MAY BE FALLING INTO IT, and this callback is the
-            // wrong tick to ask. Measured on the rung-12 rehearsal of 2026-08-25, whose last walker
+            // wrong tick to ask. Measured on the rung-12 rehearsal of 2026-08-25, whose last navigator
             // row before this judgment put the bot at cell 1,58,20, exact (1.454,58.000,20.500),
             // cur2=0.002, solid-under-feet fraction 0.0000, cause=within — horizontally on the
             // terminal's centre with nothing under the feet — and one second later the bot was two
@@ -612,11 +612,11 @@ final class JourneyStairwell {
     }
 
     /**
-     * Cut the way down as a STAIRCASE, and let the walker use it in both directions.
+     * Cut the way down as a STAIRCASE, and let the navigator use it in both directions.
      *
      * <h2>What this replaces, and why</h2>
      *
-     * A one-wide vertical shaft. It was the cheapest hole to dig and it has no route: the walker
+     * A one-wide vertical shaft. It was the cheapest hole to dig and it has no route: the navigator
      * cannot climb one, so both trips of every cast had to be scripted, and each scripted trip failed
      * in its own way. Four separate bugs, all of them the shaft's:
      *
@@ -691,11 +691,11 @@ final class JourneyStairwell {
         int step = cap - budget;
         // ONE STEP, OR TWO WHEN ONE HAS ALREADY BEEN REFUSED. See noteStairWedge: a walk that ends
         // `path-consumed` with the bot half a block short of a step it has verified open is the
-        // walker calling a partial path an arrival, and asking it again is the retry that changes
+        // navigator calling a partial path an arrival, and asking it again is the retry that changes
         // nothing — measured as eighty identical walks, twice.
         //
         // Cutting the NEXT step too and aiming at THAT changes the question rather than relaxing it:
-        // the goal moves from one cell across and one down — close enough that the walker's own
+        // the goal moves from one cell across and one down — close enough that the navigator's own
         // arrival tolerance swallows it — to two and two, which no tolerance can call reached from
         // here. Every cell of both steps is still cut, so the flight the return walks use is the
         // same flight; the bot simply does not stop on the first of them.
@@ -790,7 +790,7 @@ final class JourneyStairwell {
      * the goal cell is not standable at all, a route exists and the bot cannot walk it, or the bot
      * is simply still falling. They want four different answers and the row could not pick.
      *
-     * <p>So this prints the walker's own end reason beside the four cells that decide whether the
+     * <p>So this prints the navigator's own end reason beside the four cells that decide whether the
      * step exists — and the capability flags, because a goal the bot would have to BREAK its way to
      * is reachable or not depending on a global this rung turns off on its way down.
      */
@@ -805,7 +805,7 @@ final class JourneyStairwell {
                 now.toShortString(), STAIR_WEDGE_WAITS,
                 rig.player().getX(), rig.player().getY(), rig.player().getZ(),
                 foot.toShortString(),
-                JourneyLeg.walkerEnd(rig),
+                JourneyLeg.navigatorEnd(rig),
                 foot.below().toShortString(), level.getBlockState(foot.below()).getBlock(),
                 foot.toShortString(), level.getBlockState(foot).getBlock(),
                 foot.above().toShortString(), level.getBlockState(foot.above()).getBlock(),
@@ -923,7 +923,7 @@ final class JourneyStairwell {
     private static void walkHome(SceneContext ctx, JourneyRig rig, int floorY, String tag,
                                  int tries, Runnable then) {
         // VIA THE STAIRWELL MOUTH, not straight at the bottom. The bottom is ten blocks down at the
-        // far end of fifteen steps, and asked for directly the walker takes the shortest line it can
+        // far end of fifteen steps, and asked for directly the navigator takes the shortest line it can
         // see — overland. Measured: the bot walked to -9,66,34, which is the surface directly ABOVE
         // the staircase at z=34, and then re-searched for -9,57,36 every two seconds from a spot
         // separated from it by eight blocks of untouched rock. The stairs are a corridor and a
@@ -961,7 +961,7 @@ final class JourneyStairwell {
                             + " emptied in the lava) - pillaring back up to ground level y="
                             + stairTop.getY() + " with placing allowed, then walking to the stairwell mouth "
                             + stairTop.toShortString());
-                    // TOWER, not walk. Asking the walker again is a retry that changes nothing: it
+                    // TOWER, not walk. Asking the navigator again is a retry that changes nothing: it
                     // failed because there is no walkable route out of a pit, and run 34 measured
                     // exactly that — `cast2.returnStuck.2` at `-10,60,21`, then two thousand ticks of
                     // pathing, then the same cell. What gets a bot out of a hole is the scripted

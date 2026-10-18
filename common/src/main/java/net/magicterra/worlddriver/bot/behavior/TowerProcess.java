@@ -4,8 +4,8 @@ import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerGeometry;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.BodyGeometry;
 import net.minecraft.core.BlockPos;
@@ -143,7 +143,7 @@ public final class TowerProcess implements BotProcess {
         // itself is vanilla's on both the client and the server-side player and does wait for
         // onGround, so a press made while the bit is still false is refused and the short-jump
         // retry below presses again.
-        boolean footed = WalkerGeometry.soleOnSolid(w, p) > 0.0;
+        boolean footed = NavigatorGeometry.soleOnSolid(w, p) > 0.0;
         if (feetY >= targetY && footed) {
             // A tower that was never needed and a tower that built must not read alike. They did:
             // both said `done (placed=N)`, so a rung whose bot was already above its target printed
@@ -205,7 +205,7 @@ public final class TowerProcess implements BotProcess {
                 // rise a whole block here can never make that placement, however many times it tries.
                 //
                 // ASKED WITH THE PLAYER'S OWN BOX, not with its block coordinate. See
-                // WalkerGeometry#pillarRiseBlockers: a 0.6-wide player standing within 0.3 of a cell
+                // NavigatorGeometry#pillarRiseBlockers: a 0.6-wide player standing within 0.3 of a cell
                 // boundary lifts a corner of itself through the NEIGHBOUR's cell, and every
                 // column-shaped question about it — including the ceiling clear this process's own
                 // caller does before each course — comes back clean.
@@ -229,7 +229,7 @@ public final class TowerProcess implements BotProcess {
                 // begun at the end of a walk launches sideways once per course — measured, that was
                 // the half of `wd.serverTowersAfterAWalk`'s drift that survived waiting for the bot
                 // to stop (4 cells -> 2). Cleared here rather than in `releaseInputs` because that
-                // default is on every avatar and the Walker rewrites the flag every tick anyway;
+                // default is on every avatar and the Navigator rewrites the flag every tick anyway;
                 // this process is the one that must never have it set.
                 p.setSprinting(false);
                 // And BRAKE, not merely stop asking. The READY gate waits for horizontal speed to

@@ -82,7 +82,7 @@ public final class Actuate {
         @Override public void aimAtBlock(BlockPos cell) { real.aimAtBlock(cell); }
         @Override public BlockPos lookingAtBlock() { return real.lookingAtBlock(); }
 
-        // The walker's own trace reads what it has commanded so far this tick.
+        // The navigator's own trace reads what it has commanded so far this tick.
         @Override public boolean dbgForwardImpulse() {
             return frame.hasPush() || frame.hasForward() ? frame.moving() : real.dbgForwardImpulse();
         }

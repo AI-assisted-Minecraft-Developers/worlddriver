@@ -23,7 +23,7 @@ import net.magicterra.worlddriver.config.WorldConfig;
  * distance-3 shares the {@link net.magicterra.worlddriver.config.RulesConfig#allowParkour4}
  * gate like the other long leaps. Cost = flat-parkour + 4/drop (falling is
  * cheap, as in {@link Fall}). The {@code parkourDescend} name starts with
- * "parkour" so the Walker's existing parkour actuator drives it unchanged.
+ * "parkour" so the Navigator's existing parkour actuator drives it unchanged.
  */
 public final class ParkourDescend extends Move {
     private final int dist, drop;

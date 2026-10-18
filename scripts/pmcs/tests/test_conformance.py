@@ -1,9 +1,9 @@
-from scripts.pmcs.telemetry import WalkerTick
+from scripts.pmcs.telemetry import NavigatorTick
 from scripts.pmcs.conformance import conformance_table
 
 
 def tick(step, move, tot):
-    return WalkerTick(t=0, step=step, path_len=20, move=move, x=0, y=0, z=0,
+    return NavigatorTick(t=0, step=step, path_len=20, move=move, x=0, y=0, z=0,
                       within=False, on_ground=True, in_water=False, stuck=0, tot_stuck=tot)
 
 

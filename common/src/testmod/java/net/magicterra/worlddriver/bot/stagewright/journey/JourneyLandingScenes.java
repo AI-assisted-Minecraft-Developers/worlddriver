@@ -54,7 +54,7 @@ public final class JourneyLandingScenes implements SceneProvider {
                 // returns `end=path-consumed` one cell short of a bank that is flush with the water,
                 // so no amount of asking moves the bot the last step. When J47 lands this flips to
                 // PASS by itself, which is the whole reason it stays in the suite red rather than
-                // being softened into something a broken walker can satisfy.
+                // being softened into something a broken navigator can satisfy.
                 Scene.of("wd.journeyGetsAshoreBeforePouring", 6_000,
                         JourneyLandingScenes::getsAshoreBeforePouring).withRequired(false),
                 Scene.of("wd.journeyScoopsPastItsOwnObsidian", 6_000,
@@ -146,7 +146,7 @@ public final class JourneyLandingScenes implements SceneProvider {
                     + " end position, not by the number of steps): end y=" + ended.getY() + ", ground y="
                     + ground).isTrue();
             ctx.check(countOf(fp, Items.COBBLESTONE) > cobbleBefore).as(
-                    "D the tower was mined back into the inventory - every course is a block the walker spent,"
+                    "D the tower was mined back into the inventory - every course is a block the navigator spent,"
                     + " and recovering them is the **purpose** of removing the tower, not a side effect: "
                     + cobbleBefore + " → " + countOf(fp, Items.COBBLESTONE)).isTrue();
         });
@@ -244,7 +244,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         BlockPos bank = JourneyTerrain.nearestDryColumn(level, foot, 16);
         ctx.check(bank).as("control B: the bank must be in reach, otherwise the recovery has no route").isNotNull();
         // WHAT THE CHOSEN COLUMN ACTUALLY IS, spelled out. The first two arena runs both ended one
-        // cell short of it and no row on disk could say whether that was the walker refusing a step
+        // cell short of it and no row on disk could say whether that was the navigator refusing a step
         // or the target being a cell nothing can stand in. Reasoning about the staging arithmetic
         // got the wrong answer twice; this asks the world.
         ctx.record("staged.bankColumn", column(level, bank));
@@ -532,12 +532,12 @@ public final class JourneyLandingScenes implements SceneProvider {
     private static void bankedPondScoop(SceneContext ctx, boolean farSeat) {
         ServerLevel level = ctx.level();
         ctx.cleanup(() -> clearBox(ctx));
-        // The ladder this guards walks on the shipped walker, which holds the last node until the
+        // The ladder this guards walks on the shipped navigator, which holds the last node until the
         // foot stands in it. The arena baseline spends it from the air, mid-way up the bank, and an
         // idle bot that lets go of its keys there drops back into the cell it was leaving.
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ControlConfig.walkerHoldLastNodeUntilStanding = true;
+        ControlConfig.navigatorHoldLastNodeUntilStanding = true;
         flatGround(ctx);
 
         // The seat, one below the surface. The bank is the untouched stone at dx=-1.
@@ -651,7 +651,7 @@ public final class JourneyLandingScenes implements SceneProvider {
             // `Goal.Block` reports "arrived" one cell out (the first staging of it measured expected
             // `…382,221,99999`, actual `…381,221,99999`, which is arrival tolerance and not a bot
             // that got dragged anywhere). Asking for cell identity there would red the scene for the
-            // walker's tolerance while the thing under test was fine.
+            // navigator's tolerance while the thing under test was fine.
             //
             // What the guard actually promises is "the re-entry did not walk the bot back to
             // `water`", so that is what the far variant asks: still OUTSIDE the approach radius.
@@ -792,17 +792,17 @@ public final class JourneyLandingScenes implements SceneProvider {
      * {@code stairBottom} unconditionally, so a scene that cuts a flight without naming its ends hands
      * the production path a null. Cleared with the cells for the same reason they are.
      *
-     * <p>WALKER ROWS, unconditionally. {@code walkerDebug} is off in every gate run, so its step-trace
+     * <p>NAVIGATOR ROWS, unconditionally. {@code navigatorDebug} is off in every gate run, so its step-trace
      * and guard lines can never explain a run that did not set it — and these scenes' whole subject is
      * which tick-phase refuses the last tenth of a block. Five ticks of rows is not a volume worth
      * throttling for, so it is not put behind a second flag of its own.
      */
     private static BlockPos stageLipArena(SceneContext ctx) {
         ServerLevel level = ctx.level();
-        boolean debugWas = net.magicterra.worlddriver.config.GameConfig.walkerDebug;
-        net.magicterra.worlddriver.config.GameConfig.walkerDebug = true;
+        boolean debugWas = net.magicterra.worlddriver.config.GameConfig.navigatorDebug;
+        net.magicterra.worlddriver.config.GameConfig.navigatorDebug = true;
         ctx.cleanup(() -> {
-            net.magicterra.worlddriver.config.GameConfig.walkerDebug = debugWas;
+            net.magicterra.worlddriver.config.GameConfig.navigatorDebug = debugWas;
             JourneyStairs.forget();
             JourneyStairwell.stairTop = null;
             JourneyStairwell.stairBottom = null;
@@ -846,7 +846,7 @@ public final class JourneyLandingScenes implements SceneProvider {
      * <p>That arm's control B asserts {@code onGround} — "the bot must be **standing**, not falling" —
      * so the whole airborne family is deliberately outside it, and no green run of it can say anything
      * about the branch that family reaches. The rung-12 rehearsal of 2026-08-25 is what that family
-     * looks like: the walker's last row reported an exact position of (1.454,58.000,20.500),
+     * looks like: the navigator's last row reported an exact position of (1.454,58.000,20.500),
      * {@code cur2=0.002} and a solid-footing fraction of 0.0000, horizontally on the terminal's
      * centre with nothing under the feet, and the
      * judgment fired a tick or two before the drop landed. Same shape as the blaze fight's fall guard
@@ -919,7 +919,7 @@ public final class JourneyLandingScenes implements SceneProvider {
                     fp.getX(), fp.getY(), fp.getZ(), fp.onGround()));
             ctx.record("subject.settled", String.valueOf(settled));
             ctx.record("subject.missed", String.valueOf(missed));
-            ctx.record("subject.walkerEnd", String.valueOf(rig.evidenceOf("drop.flightLastStepEnd")));
+            ctx.record("subject.navigatorEnd", String.valueOf(rig.evidenceOf("drop.flightLastStepEnd")));
 
             // A IS THE WHOLE POINT, and it is asked first because the other two are 0==0 without it.
             // No settled row means the callback never saw the bot in the head room — either the drop
@@ -962,7 +962,7 @@ public final class JourneyLandingScenes implements SceneProvider {
      * in the terminal's column.
      *
      * <p><b>The outcome is asserted; which walk achieved it is recorded.</b> An isolated arena is not
-     * the ladder and the walker may well land it in one walk here — demanding two would be a red that
+     * the ladder and the navigator may well land it in one walk here — demanding two would be a red that
      * says nothing about the production path. What IS asserted is the implication: if the first walk
      * missed, the second must have fired. That is the branch the ladder never had.
      */
@@ -986,26 +986,26 @@ public final class JourneyLandingScenes implements SceneProvider {
         ctx.check(fp.onGround()).as("control B: the bot must be **standing**, not falling - a falling bot"
                 + " drops in on its own after a moment, and that does not test the fix: " + fp.onGround()).isTrue();
 
-        // DID THE GUARD THAT ALREADY EXISTS FIRE? `WalkerTickProgress.unwalkedDescentConsume` was
-        // written for this exact shape — journey rung 13, a last node one row DOWN that the walker
-        // spends on the tick it adopts it — and it bumps the body's `WalkerTelemetry.descentHolds` every time it holds.
-        // A counter is the honest instrument here: `walkerDebug` is behind a flag no gate turns on,
+        // DID THE GUARD THAT ALREADY EXISTS FIRE? `ProgressPhase.unwalkedDescentConsume` was
+        // written for this exact shape — journey rung 13, a last node one row DOWN that the navigator
+        // spends on the tick it adopts it — and it bumps the body's `NavigatorTelemetry.descentHolds` every time it holds.
+        // A counter is the honest instrument here: `navigatorDebug` is behind a flag no gate turns on,
         // so its step-trace rows prove nothing about a run that did not set it, while a counter delta is a
         // state change that happened or did not.
-        long holdsBefore = net.magicterra.worlddriver.bot.control.WalkerTelemetry.of(fp).descentHolds;
+        long holdsBefore = net.magicterra.worlddriver.bot.control.NavigatorTelemetry.of(fp).descentHolds;
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
         JourneyStairwell.finishTheFlight(rig, "lip", ends, () -> {
             BlockPos got = fp.blockPosition();
             Object missed = rig.evidenceOf("lip.flightLastStepMissed");
             Object end = rig.evidenceOf("lip.flightLastStepEnd");
-            ctx.record("subject.descentHolds", (net.magicterra.worlddriver.bot.control.WalkerTelemetry.of(fp).descentHolds
+            ctx.record("subject.descentHolds", (net.magicterra.worlddriver.bot.control.NavigatorTelemetry.of(fp).descentHolds
                     - holdsBefore) + " (times the last-node hold branch fired; 0 = the guard is inert for this"
                     + " failure family, non-zero = it fired and the bot still did not descend; these are two"
                     + " entirely different paths)");
             ctx.record("subject.endedAt", String.format(java.util.Locale.ROOT,
                     "%s exact %.2f/%.2f/%.2f", got.toShortString(), fp.getX(), fp.getY(), fp.getZ()));
             ctx.record("subject.missed", String.valueOf(missed));
-            ctx.record("subject.walkerEnd", String.valueOf(end));
+            ctx.record("subject.navigatorEnd", String.valueOf(end));
             ctx.record("subject.rowsAbove", String.valueOf(got.getY() - ends.getY()));
             ctx.record("subject.movedBy", String.format(java.util.Locale.ROOT,
                     "%.2f blocks (from %.2f/%.2f to %.2f/%.2f)",
@@ -1022,7 +1022,7 @@ public final class JourneyLandingScenes implements SceneProvider {
             // nothing.
             ctx.check(end != null).as("B the last-step movement task must really have run and left a result"
                     + " message - no flightLastStepEnd means finishTheFlight took the \"already low enough\""
-                    + " branch, and criterion A becomes 0==0. walkerEnd=" + end).isTrue();
+                    + " branch, and criterion A becomes 0==0. navigatorEnd=" + end).isTrue();
         });
     }
 

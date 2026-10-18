@@ -68,7 +68,7 @@ public final class JourneyFill {
      *
      * <p>This is the staircase's lesson applied to the other end of the trip. {@link #standToFill}
      * ranks stands by straight-line distance from the bot, and the straight line from the
-     * stairwell's mouth to the far bank goes over the lake — so the walker took it, and six runs
+     * stairwell's mouth to the far bank goes over the lake — so the navigator took it, and six runs
      * running the bot ended up UNDER the surface: {@code cast2.return=-10,60,20},
      * {@code climb.0 above=Block{minecraft:lava} onGround=false},
      * {@code climb.0.wouldOpenFluid=-10,62,20} (mining it would release lava, so the climb did not
@@ -114,7 +114,7 @@ public final class JourneyFill {
      * the same thing about the approach.
      *
      * <p>So a candidate is refused when the lake is a step away from it — {@link JourneyTerrain#onThePoolsLip},
-     * the hazard half of the walker's own {@code lethalDropAdjacent}, asked at the cell AND at the
+     * the hazard half of the navigator's own {@code lethalDropAdjacent}, asked at the cell AND at the
      * cell above it, because the bot arrives there first and run B never got any further.
      *
      * <p><b>A preference, not a rule</b>, the same two-pass shape and for the same reason as
@@ -322,7 +322,7 @@ public final class JourneyFill {
                   + spot.stand().toShortString() + " aiming at " + spot.source().toShortString());
         Goal where = spot == null ? new Goal.Near(src, 2) : new Goal.Block(spot.stand());
         // THE WATER RECOVER MAY NOT DIG ITS WAY THERE. Its source sits inside the frame the rung is
-        // building, so the only thing between a floor-level bot and it is the frame — and a walker
+        // building, so the only thing between a floor-level bot and it is the frame — and a navigator
         // with `allowBreak` on treats that as terrain. Measured, single-bucket rehearsal 2026-08-17:
         // `recover8.spot` found no stand that sees a source and fell back to `Near(-9,61,38,2)`, and
         // then `frame.lost.1` reported that `-9,60,38` had been cast to obsidian and was gone again,
@@ -925,7 +925,7 @@ public final class JourneyFill {
      * Is the straight line from the bot to this stand over the pool?
      *
      * <p>A stand is chosen by how far the BOT has to go, and straight-line distance is the only
-     * cheap measure of that — but a straight line across a lava lake is a route the walker will
+     * cheap measure of that — but a straight line across a lava lake is a route the navigator will
      * genuinely try, and this rung's lake sits between the stairwell's mouth and the far bank.
      * Measured in four consecutive runs, and always the same shape: {@code lava2.spot} chose a stand
      * at {@code -13,64,21}
@@ -998,7 +998,7 @@ public final class JourneyFill {
      * A cell beside the pool the bot can STAND in, and a source it can provably reach from there.
      *
      * <p>The exact counterpart of {@link JourneyPour#standToPour}, and it is missing for the same
-     * reason that one was: the rung asked the walker to get NEAR a coordinate and then hoped the
+     * reason that one was: the rung asked the navigator to get NEAR a coordinate and then hoped the
      * geometry worked out. It does not, at a lake's edge — a bucket clips from the eyes with
      * {@code Fluid.SOURCE_ONLY} and a finger of bank one cell wide is enough to stop it, so "there
      * is lava two blocks away" and "this bucket will fill" are different claims. Measured twice at

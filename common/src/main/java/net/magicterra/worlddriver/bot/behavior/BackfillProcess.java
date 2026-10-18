@@ -7,8 +7,8 @@ import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerSettings;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -39,7 +39,7 @@ public final class BackfillProcess implements BotProcess {
             new SearchProfile(List.of(), CapabilityProfile.ALL, List.of(new NoBreak()));
 
     private final BackfillTracker tracker;
-    private final Walker walker = new Walker(WalkerSettings.named("backfill").withProfile(NO_DIG));
+    private final Navigator navigator = new Navigator(NavigatorSettings.named("backfill").withProfile(NO_DIG));
     private final Set<BlockPos> failed = new HashSet<>();
     private String failure;
 
@@ -100,13 +100,13 @@ public final class BackfillProcess implements BotProcess {
                 currentStand = pl.stand;
                 currentFace = pl.face;
                 st.builder.target = currentBlock;
-                walker.start(new Goal.Block(currentStand));
+                navigator.start(new Goal.Block(currentStand));
                 phase = Phase.GOING;
             }
             case GOING -> {
-                Locomotor.Status s = walker.tick(a, w);
-                st.builder.pathLen = walker.pathLen();
-                st.builder.pathStep = walker.pathStep();
+                Locomotor.Status s = navigator.tick(a, w);
+                st.builder.pathLen = navigator.pathLen();
+                st.builder.pathStep = navigator.pathStep();
                 if (s == Locomotor.Status.FAILED) {
                     failed.add(currentBlock);
                     tracker.remove(currentBlock);

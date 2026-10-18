@@ -69,9 +69,9 @@ class FixtureVerdictsTest {
     void acceptNeedsAPassAndSkipsUnobservedQuantities() {
         assertNull(FixtureVerdicts.acceptFrom(List.of(run(100, 1, 0, 0).judged("t", "g", "flaky", ""))));
         assertNull(FixtureVerdicts.acceptFrom(List.of()));
-        FixtureVerdicts.Record noWalker = new FixtureVerdicts.Record("t", "g", "dev", "x", Map.of(),
+        FixtureVerdicts.Record noNavigator = new FixtureVerdicts.Record("t", "g", "dev", "x", Map.of(),
                 Map.of("ticks", 100), null, "pass").judged("t", "g", "pass", "");
-        assertEquals(Map.of("arriveBy", 120), FixtureVerdicts.acceptFrom(List.of(noWalker)));
+        assertEquals(Map.of("arriveBy", 120), FixtureVerdicts.acceptFrom(List.of(noNavigator)));
     }
 
     @Test

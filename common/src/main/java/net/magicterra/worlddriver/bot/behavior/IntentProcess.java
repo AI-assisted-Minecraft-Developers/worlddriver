@@ -9,8 +9,8 @@ import net.magicterra.worlddriver.bot.rules.ProfileRisk;
 import net.magicterra.worlddriver.bot.rules.RiskAt;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerSettings;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.CostModifier;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
@@ -29,7 +29,7 @@ import java.util.List;
 
 /**
  * The generic navigation process for the LLM navigation intent layer: drives the
- * {@link Walker} toward an {@link Intent}'s target. Supersedes the old
+ * {@link Navigator} toward an {@link Intent}'s target. Supersedes the old
  * {@code GotoProcess} — the {@code mc.bot.goto} verb, replay installs, and the
  * server-side {@code Body} proof all build an {@link Intent} and start this process. Phase A1
  * handles a static target (behavior-identical to the old goto); later phases add
@@ -52,18 +52,18 @@ public final class IntentProcess implements BotProcess {
     public static final String DIMENSION_CHANGED = "dimension-changed";
 
     private final Intent intent;
-    private final Walker walker;
-    /** The walker driving this intent, for its {@link WalkerInspector#tallies()}: a scene that holds the
+    private final Navigator navigator;
+    /** The navigator driving this intent, for its {@link NavigatorInspector#tallies()}: a scene that holds the
      *  process reads the counts of the player it handed the process to, on either helm. */
-    public Walker walker() { return walker; }
-    /** Which of {@link Intent#targets()} the walker is on. The waypoints ({@code route.via}) come
+    public Navigator navigator() { return navigator; }
+    /** Which of {@link Intent#targets()} the navigator is on. The waypoints ({@code route.via}) come
      *  first; arriving at one moves to the next, and only the last one ends the process. */
     private int leg;
     /** The dimension the goal's coordinates belong to, latched on the first tick that has a player.
      *  Not taken in {@link #attach} because that is handed a {@link BotState} and no {@code Body}. */
     private ResourceKey<Level> plannedIn;
     /** The route events of this intent (null when the route declared nothing to report on),
-     *  judged once per finished deep search: {@link #searchesJudged} is the walker's count the
+     *  judged once per finished deep search: {@link #searchesJudged} is the navigator's count the
      *  last judgement saw. Dies with the intent, as the exposure memory it keeps should. */
     private final RouteEvents events;
     private final RiskAt risk;
@@ -79,8 +79,8 @@ public final class IntentProcess implements BotProcess {
 
     public IntentProcess(Intent intent, RouteEvents.Emitter emitter) {
         this.intent = intent;
-        this.walker = new Walker(WalkerSettings.named("goto").withProfile(intent.searchProfile()));
-        walker.start(intent.targets().get(0));
+        this.navigator = new Navigator(NavigatorSettings.named("goto").withProfile(intent.searchProfile()));
+        navigator.start(intent.targets().get(0));
         boolean conditions = !intent.bias().isEmpty() || !intent.constraints().isEmpty();
         boolean sight = intent.bias().stream().anyMatch(m -> m instanceof SightExposure)
                 || intent.constraints().stream().anyMatch(c -> c instanceof SightExposure);
@@ -88,15 +88,15 @@ public final class IntentProcess implements BotProcess {
         risk = sight ? new ProfileRisk(intent.searchProfile()) : null;
     }
 
-    /** Judges the route events for a deep search the walker finished since the last tick. */
+    /** Judges the route events for a deep search the navigator finished since the last tick. */
     private void judgeSearch(BlockPos foot) {
         if (events == null) return;
         events.tick();
-        int n = walker.inspect().tallies().searches;
+        int n = navigator.inspect().tallies().searches;
         if (n == searchesJudged) return;
         searchesJudged = n;
-        PathFinder.Result res = walker.inspect().tallies().lastResult;
-        PathFinder.Search search = walker.inspect().tallies().lastSearch;
+        PathFinder.Result res = navigator.inspect().tallies().lastResult;
+        PathFinder.Search search = navigator.inspect().tallies().lastSearch;
         events.onSearch(res, intent.targets().get(leg), foot, leg, risk,
                 search == null ? null : () -> search.taxTotals(res));
     }
@@ -104,7 +104,7 @@ public final class IntentProcess implements BotProcess {
     /** The Intent this process drives — the preview/adoption and the route events read it. */
     public Intent intent() { return intent; }
 
-    /** Zero-based index of the goal the walker is on; {@code targets().size() - 1} is the goal proper. */
+    /** Zero-based index of the goal the navigator is on; {@code targets().size() - 1} is the goal proper. */
     public int leg() { return leg; }
 
     public String kind() { return "goto"; }
@@ -126,7 +126,7 @@ public final class IntentProcess implements BotProcess {
 
     /** Written against {@code Body}: drives the client LocalPlayer (via the BotProcess bridge)
      *  or a server FakePlayer (PlayerBot) identically — pure movement, so
-     *  it just hands the Walker the same {@code Body}. */
+     *  it just hands the Navigator the same {@code Body}. */
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity body = a.entity();
         ResourceKey<Level> here = body == null ? null : body.level().dimension();
@@ -150,61 +150,61 @@ public final class IntentProcess implements BotProcess {
                         LOG.info("[IntentProcess] anchor re-solve: {} -> {} (was {}), repath",
                                 el.entity(), ab.toShortString(), lastAnchor == null ? "first" : lastAnchor.toShortString());
                         lastAnchor = ab;
-                        walker.replan(profileWith(el, ab));
+                        navigator.replan(profileWith(el, ab));
                     }
                 }
                 // anchor==null → stale lastAnchor keeps governing; tolerated, not fatal.
             }
         }
-        Locomotor.Status s = walker.tick(a, w);
+        Locomotor.Status s = navigator.tick(a, w);
         judgeSearch(body == null ? null : body.blockPosition());
-        st.mc_goto.pathLen = walker.pathLen();
-        st.mc_goto.pathStep = walker.pathStep();
+        st.mc_goto.pathLen = navigator.pathLen();
+        st.mc_goto.pathStep = navigator.pathStep();
         // LATCH THE FIRST PLAN, ONCE. See BotState.ProcessSlot.firstPlan: everything else in this
         // slot is a live value, and a walk that ends where the bot should never have been reports
         // the planning of THAT place. Latched on the first tick that actually holds a path, so it
         // records the plan the run started from rather than the one it died in.
-        if (st.mc_goto.firstPlan == null && walker.pathLen() > 0) {
+        if (st.mc_goto.firstPlan == null && navigator.pathLen() > 0) {
             st.mc_goto.firstPlan = "bot at " + (body == null ? "?" : body.blockPosition().toShortString())
-                    + " firstMove=" + walker.inspect().pathMove()
-                    + " firstNode=" + (walker.inspect().pathNode() == null ? "?" : walker.inspect().pathNode().toShortString())
-                    + "; smoothed: " + walker.inspect().planTally()
-                    + "; before smoothing: " + walker.inspect().rawPlanTally()
-                    + "; terrain along the path: " + walker.inspect().planTerrain(w)
-                    + "; cell by cell: " + walker.inspect().planSpans(w, 4)
+                    + " firstMove=" + navigator.inspect().pathMove()
+                    + " firstNode=" + (navigator.inspect().pathNode() == null ? "?" : navigator.inspect().pathNode().toShortString())
+                    + "; smoothed: " + navigator.inspect().planTally()
+                    + "; before smoothing: " + navigator.inspect().rawPlanTally()
+                    + "; terrain along the path: " + navigator.inspect().planTerrain(w)
+                    + "; cell by cell: " + navigator.inspect().planSpans(w, 4)
                     + "; smoothing self-audit: "
                     + net.magicterra.worlddriver.bot.control.route.PathSmoothing.smoothingAudit();
         }
         // Published from the SAME tick as the two counters above, so a reader cannot pair a step
-        // index with a node the walker had already moved past. See BotState.ProcessSlot.pathNode.
-        st.mc_goto.pathNode = walker.inspect().pathNode();
-        st.mc_goto.pathMove = walker.inspect().pathMove();
+        // index with a node the navigator had already moved past. See BotState.ProcessSlot.pathNode.
+        st.mc_goto.pathNode = navigator.inspect().pathNode();
+        st.mc_goto.pathMove = navigator.inspect().pathMove();
         // Same tick, same reason (see BotState.ProcessSlot.driveTag): whether this tick reached the
         // drive tail at all is what separates "the edge guard said no" from "the edge guard never
-        // ran", and only the walker knows.
-        if (walker.inspect().parkourTakeoff() != "none") st.mc_goto.parkourTakeoff = walker.inspect().parkourTakeoff();
-        st.mc_goto.driveTag = walker.inspect().driveTag();
-        st.mc_goto.jumpTag = walker.inspect().jumpTag();
+        // ran", and only the navigator knows.
+        if (navigator.inspect().parkourTakeoff() != "none") st.mc_goto.parkourTakeoff = navigator.inspect().parkourTakeoff();
+        st.mc_goto.driveTag = navigator.inspect().driveTag();
+        st.mc_goto.jumpTag = navigator.inspect().jumpTag();
         if (s == Locomotor.Status.MOVING) return false;
-        // A waypoint reached: on to the next goal. start resets the walker's path and every
+        // A waypoint reached: on to the next goal. start resets the navigator's path and every
         // per-goal latch, so the next segment plans afresh from where the bot stands; the search
         // profile (the route's conditions) carries over untouched. A segment that fell short ends
         // the whole intent, a give-up that stopped as ARRIVED included — a waypoint the bot did not
         // reach is the caller's condition unmet, not a detour to take silently.
-        String shortfall = walker.result().reason();
+        String shortfall = navigator.result().reason();
         int last = intent.targets().size() - 1;
         if (shortfall == null && leg < last) {
             leg++;
             LOG.info("[IntentProcess] via {} reached, segment {}/{} → {}",
                     intent.targets().get(leg - 1), leg + 1, intent.targets().size(), intent.targets().get(leg));
-            walker.start(intent.targets().get(leg));
+            navigator.start(intent.targets().get(leg));
             st.mc_goto.goal = intent.targets().get(leg).toString();
             return false;
         }
-        if (s == Locomotor.Status.FAILED) st.mc_goto.lastError = walker.result().reason();
-        st.mc_goto.goalReached = walker.result().goalReached();
-        st.mc_goto.endReason = walker.result().endReason();
-        st.mc_goto.finalDist = walker.result().finalDist();
+        if (s == Locomotor.Status.FAILED) st.mc_goto.lastError = navigator.result().reason();
+        st.mc_goto.goalReached = navigator.result().goalReached();
+        st.mc_goto.endReason = navigator.result().endReason();
+        st.mc_goto.finalDist = navigator.result().finalDist();
         st.mc_goto.reset();
         failure = shortfall == null || leg == last ? shortfall
                 : "waypoint " + (leg + 1) + " of " + last + ": " + shortfall;
@@ -221,13 +221,13 @@ public final class IntentProcess implements BotProcess {
      *
      * <h2>Why a walk must not survive a portal</h2>
      *
-     * A {@link Goal}'s coordinates are dimension-scoped. Nothing in the walker knows that, so a
+     * A {@link Goal}'s coordinates are dimension-scoped. Nothing in the navigator knows that, so a
      * process that keeps ticking after a transfer plans a route across the NEW world's terrain toward
      * the OLD world's numbers — and then drives the bot along it. Measured on rung 19,
      * 2026-08-17: the End crossing happened inside a 1200-tick {@code settle} aimed at the
      * stronghold's portal cell {@code -1092,25,1314}. Vanilla delivered the bot correctly onto the
      * 5x5 arrival platform at {@code 100,49,0} — {@code platform.obsidian = 25/25} proves the
-     * platform was there — and the walker, still pushing toward an overworld coordinate a thousand
+     * platform was there — and the navigator, still pushing toward an overworld coordinate a thousand
      * blocks away, walked it straight off the edge. Two runs, {@code arrived.at = 87,-4376,-1} and
      * {@code 84,-4290,4}: different landing spots, which is what a bot that WALKED off looks like
      * and not what a mis-delivered teleport looks like.
@@ -248,7 +248,7 @@ public final class IntentProcess implements BotProcess {
     private boolean crossedOut(BotState st, ResourceKey<Level> here) {
         // Fire the pathfinder's terminal so an in-flight path archive is flushed for the partial run,
         // exactly as an external cancel does. Without it the trace for this run is never closed.
-        walker.cancel(DIMENSION_CHANGED);
+        navigator.cancel(DIMENSION_CHANGED);
         st.mc_goto.goalReached = false;
         st.mc_goto.endReason = DIMENSION_CHANGED;
         st.mc_goto.lastError = "goal was set in " + plannedIn.location()
@@ -265,12 +265,12 @@ public final class IntentProcess implements BotProcess {
 
     /** Resumed after preemption — discard the stale path and repath from where the
      *  bot ended up (it may have been knocked back while suspended). */
-    @Override public void onResume() { walker.replan(); }
+    @Override public void onResume() { navigator.replan(); }
 
-    /** Cancelled before arriving (mc.bot.cancel / superseded): fire the Walker's
+    /** Cancelled before arriving (mc.bot.cancel / superseded): fire the Navigator's
      *  pathfinder terminal so an in-progress path archive is flushed for the
      *  partial run. */
-    @Override public void onCancelled(String reason) { walker.cancel(reason); }
+    @Override public void onCancelled(String reason) { navigator.cancel(reason); }
 
     /** Rebuild the search profile with a leash modifier/constraint at the anchor's
      *  CURRENT cell centre — the only mutable seam of the dynamic anchor. */

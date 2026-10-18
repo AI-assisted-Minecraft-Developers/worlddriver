@@ -8,7 +8,7 @@
 
 ## The problem
 
-Everything above the pathfinder — the walker, the processes, the reflex chains — was written
+Everything above the pathfinder — the navigator, the processes, the reflex chains — was written
 against `Player`, and in practice against the client's `LocalPlayer`. That had two costs.
 
 It limited the whole layer to a single entity. There was no way to drive a second entity, and no way to
@@ -42,7 +42,7 @@ A process that needs hands checks for them when it attaches and refuses with a s
 if they are absent. Processes that only need to move — following, exploring, running away, and the
 intent process behind `goto` — need nothing else.
 
-Dimensions and abilities come from the real entity rather than from an enum. The walker already
+Dimensions and abilities come from the real entity rather than from an enum. The navigator already
 branched on step height and jump height; it had simply always been handed the player's values.
 
 ### All three bots drive vanilla's own physics
@@ -139,7 +139,7 @@ mob nearly always reuses a vanilla navigation while its class may extend anythin
 phantom, the vex, the bat and the blaze keep a ground navigation they never use, so their class says
 they fly. A body that only swims, or that flies at all, lives in one medium: it plans with strokes
 through that medium only (`MediumMove`), never leaves it, and is walked by `MediumLocomotor`, a separate
-executor that follows the nodes in three dimensions. The player walker's phases are a player's walk,
+executor that follows the nodes in three dimensions. The player navigator's phases are a player's walk,
 full of surfacing, hopping and landing that a fish or a bird never does. A parrot, a bee or an allay
 could land and walk, but only flies: flying is faster and one catalog keeps the plan simple. Every
 stroke checks every cell the body's box covers on the way, so a ghast (four blocks wide) or an elder

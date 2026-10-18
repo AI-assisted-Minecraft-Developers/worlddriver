@@ -16,8 +16,8 @@ import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.hasPend
 import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.game.body.BotUtil.blockReachToCentre;
 import static net.magicterra.worlddriver.game.body.BotUtil.eyeWithin;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 
 /**
  * Breaking and placing the blocks the current edge needs before the bot walks into its cell. It holds the
@@ -63,78 +63,78 @@ public final class RouteDig implements Controller {
         return work;
     }
 
-    @Override public void sense(Walker wk, WalkerTickCtx cx, WorldView world) {
+    @Override public void sense(Navigator nav, TickCtx cx, WorldView world) {
         work = null;
         LivingEntity p = cx.frame.p;
-        Move.Edge edge = wk.route.edgeAt(wk.route.step());
+        Move.Edge edge = nav.route.edgeAt(nav.route.step());
         breakInReach = true;
         if (edge == null) return;
         for (BlockPos b : edge.toBreak) {
             if (!world.isSolid(b)) continue;
             breakInReach = eyeWithin(p, b, blockReachToCentre(p));
-            if (!breakInReach && GameConfig.walkerDebug && p.tickCount % 20 == 0)
-                LOG.info("[walker] break cell {},{},{} out of reach ({} blocks from the eye) → walk to it first",
+            if (!breakInReach && GameConfig.navigatorDebug && p.tickCount % 20 == 0)
+                LOG.info("[navigator] break cell {},{},{} out of reach ({} blocks from the eye) → walk to it first",
                         b.getX(), b.getY(), b.getZ(),
                         String.format(Locale.ROOT, "%.1f", Math.sqrt(p.getEyePosition().distanceToSqr(b.getCenter()))));
             break;
         }
     }
 
-    @Override public String whyNot(Walker wk, WalkerTickCtx cx, WorldView world) {
-        Move.Edge edge = wk.route.edgeAt(wk.route.step());
+    @Override public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
+        Move.Edge edge = nav.route.edgeAt(nav.route.step());
         if (edge == null) return "no edge";
         // While a fall-below-route recovery climbs, the edge's HIGH break cell is out of reach from down
         // there: a dig would hold a futile swing until its own timeout and starve the recovery.
-        if (wk.pillar.recoverLatch > 0) return "a recovery pillar is climbing";
+        if (nav.pillar.recoverLatch > 0) return "a recovery pillar is climbing";
         if (!breakInReach) return "the break cell is out of reach";
         if (!hasPendingEdge(world, edge)) return "nothing left to break or place";
         return null;
     }
 
-    @Override public boolean canContinue(Walker wk, WalkerTickCtx cx, WorldView world) {
-        return whyNot(wk, cx, world) == null;
+    @Override public boolean canContinue(Navigator nav, TickCtx cx, WorldView world) {
+        return whyNot(nav, cx, world) == null;
     }
 
-    @Override public boolean tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+    @Override public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
-        Move.Edge edge = wk.route.edgeAt(wk.route.step());
-        wk.totalTicks = 0;                       // breaking/placing IS progress
-        wk.stuckTicks = 0;                       // foot stays put while placing — don't trip the wiggle-jump (it'd leap off a 1-wide bridge)
-        if (++wk.actionTicks > ControlConfig.breakTimeoutTicks) {
+        Move.Edge edge = nav.route.edgeAt(nav.route.step());
+        nav.totalTicks = 0;                       // breaking/placing IS progress
+        nav.stuckTicks = 0;                       // foot stays put while placing — don't trip the wiggle-jump (it'd leap off a 1-wide bridge)
+        if (++nav.actionTicks > ControlConfig.breakTimeoutTicks) {
             // Lag or an unexpected obstruction — drop the path and let
             // the next tick repath from the current position.
-            wk.blocks.breakHold(false);
-            wk.error = "break/place stalled at " + wk.route.path().get(wk.route.step());
-            wk.route.drop(wk.error);
+            nav.blocks.breakHold(false);
+            nav.error = "break/place stalled at " + nav.route.path().get(nav.route.step());
+            nav.route.drop(nav.error);
             work = new Work(Kind.DROPPED, null, edge.move);
             return true;
         }
         for (BlockPos b : edge.toBreak) {
             if (world.isSolid(b)) {
-                wk.equipment.selectTool(b);
-                if (WalkerDig.bailOnBreathInfeasibleDig(wk, a, p, b)) {
+                nav.equipment.selectTool(b);
+                if (Digging.bailOnBreathInfeasibleDig(nav, a, p, b)) {
                     work = new Work(Kind.DROPPED, b, edge.move);
                     return true;
                 }
                 world.signals().digging = true;
                 // Claim, aim and drive all live inside avatarDig: digging `b` first and claiming it
                 // afterwards drove a cell another phase already held.
-                WalkerDig.avatarDig(wk, a, b, false);
+                Digging.avatarDig(nav, a, b, false);
                 work = new Work(Kind.DIG, b, edge.move);
                 return true;
             }
         }
-        wk.blocks.breakHold(false);
+        nav.blocks.breakHold(false);
         for (BlockPos b : edge.toPlace) {
             if (!world.isSolid(b)) {
-                if (GameConfig.walkerDebug)
+                if (GameConfig.navigatorDebug)
                     LOG.info(
-                            "[walker] place-act foot={},{},{} y={} step={} placing={},{},{} onGround={} edge={}",
+                            "[navigator] place-act foot={},{},{} y={} step={} placing={},{},{} onGround={} edge={}",
                             foot.getX(), foot.getY(), foot.getZ(), String.format(Locale.ROOT, "%.2f", p.getY()),
-                            wk.route.step(), b.getX(), b.getY(), b.getZ(), p.onGround(), edge.move);
+                            nav.route.step(), b.getX(), b.getY(), b.getZ(), p.onGround(), edge.move);
                 a.aimAtBlock(b);
-                wk.blocks.place(world::isSolid, b);
+                nav.blocks.place(world::isSolid, b);
                 work = new Work(Kind.PLACE, b, edge.move);
                 return true;
             }

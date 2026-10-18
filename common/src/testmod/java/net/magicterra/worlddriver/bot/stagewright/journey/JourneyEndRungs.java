@@ -78,7 +78,7 @@ import net.minecraft.world.phys.Vec3;
  *       from two rungs that are still unscripted. It therefore SKIPS rather than fails when the bag
  *       is empty: "nobody has written rung 14 yet" is not a finding about crafting.</li>
  *   <li><b>17 STRONGHOLD</b> — the longest walk in the game. 1745 blocks of real terrain from world
- *       spawn to {@link JourneyRoute#stronghold}, in segments, re-planning from wherever the walker
+ *       spawn to {@link JourneyRoute#stronghold}, in segments, re-planning from wherever the navigator
  *       actually stopped. Then a scan for the frame, then a shaft down to it.</li>
  *   <li><b>18 END_PORTAL</b> — twelve {@code useOn}-only interactions. {@code EnderEyeItem} overrides
  *       {@code useOn} and nothing else, so it must go through {@code Body.useBlock}; a bot that
@@ -137,7 +137,7 @@ public final class JourneyEndRungs {
         out.add(stage("wd.journey18EndPortal", JourneyStage.END_PORTAL, 30_000,
                 JourneyEndRungs::endPortal));
         // 20 000: a player's own portal wait is ~80 ticks; the rest is the couple of steps into it
-        // and the retries for the cells the walker will not path onto.
+        // and the retries for the cells the navigator will not path onto.
         out.add(stage("wd.journey19End", JourneyStage.END, 20_000, JourneyEndRungs::end));
         // 500 000: bridging to the island, ten pillar climbs, and a duel whose tempo vanilla sets —
         // 20 ticks of invulnerability per hit, and a dragon that is only in reach while it perches.
@@ -231,7 +231,7 @@ public final class JourneyEndRungs {
     /** Cube radius rung 19 scans for the portal it is about to step into. */
     private static final int PORTAL_SEARCH = 12;
 
-    /** How many portal cells the crossing tries before calling it. Vanilla opens nine; a walker that
+    /** How many portal cells the crossing tries before calling it. Vanilla opens nine; a navigator that
      *  will not path onto one may still path onto another, and trying a second is what a player does. */
     private static final int MAX_PORTAL_STEPS = 4;
 
@@ -485,7 +485,7 @@ public final class JourneyEndRungs {
      * <ol>
      *   <li><b>Get back to the overworld.</b> The rung above this one ends in the Nether, and there
      *       are no strongholds there. The way back is the portal the run lit itself.</li>
-     *   <li><b>March.</b> In segments, re-planning from wherever the walker actually stopped —
+     *   <li><b>March.</b> In segments, re-planning from wherever the navigator actually stopped —
      *       {@code IntentProcess} reports its goal reached for a partial path, so one drive can come
      *       back "done" with the bot eighty blocks short. A segment that moves nothing is not
      *       repeated: it sidesteps first, because three identical questions get three identical
@@ -635,7 +635,7 @@ public final class JourneyEndRungs {
      * start 99,41,11 portal 104,93,7   third run  → 100, 23, 20  (down 18, not found by the scan)
      * }</pre>
      *
-     * <p>Same state, same goal, opposite outcome — the walker's per-tick search budget is spent
+     * <p>Same state, same goal, opposite outcome — the navigator's per-tick search budget is spent
      * against a wall-clock slice, so the route it has found when the settle ends is not a function
      * of the world alone. A stretch that gets exactly one attempt against a nondeterministic search
      * is a coin flip, and reporting a coin flip as "cannot climb up" names the wrong thing.
@@ -700,7 +700,7 @@ public final class JourneyEndRungs {
             int ended = (int) Math.round(Math.sqrt(now.distSqr(home)));
             rig.evidence("return.climb." + leg, what + ": " + xyz(at) + " → " + xyz(now)
                     + " (distance to the portal " + away + " → " + ended + " blocks)"
-                    + JourneyLeg.walkerEnd(rig));
+                    + JourneyLeg.navigatorEnd(rig));
             climbLeg(ctx, rig, home, leg + 1, Math.min(best, ended), then);
         });
     }
@@ -868,7 +868,7 @@ public final class JourneyEndRungs {
         int sz = (int) Math.round(at.getZ() + Math.sin(aim) * reach);
         rig.evidence(trek.key() + "." + leg + ".wedged", xyz(at) + " did not move this segment ("
                 + (stuck + 1) + " in a row); turn " + turn + "° and step " + reach + " blocks sideways to "
-                + sx + "," + sz + " (goto " + JourneyLeg.walkerEnd(rig) + ")");
+                + sx + "," + sz + " (goto " + JourneyLeg.navigatorEnd(rig) + ")");
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(sx, sz, 3))), MARCH_LEG_TICKS / 2,
                 () -> march(ctx, rig, trek, leg + 1, stuck + 1));
     }
@@ -925,7 +925,7 @@ public final class JourneyEndRungs {
                 + " → room y=" + stand.getY());
         WorldDriverJourneyScenes.walkToColumn(rig, "shaftTop", stand.getX(), stand.getZ(), 2,
                 12_000, WorldDriverJourneyScenes.MAX_WALK_ATTEMPTS, () -> {
-            // The shaft must not be bridged over. A walker allowed to place while descending fills
+            // The shaft must not be bridged over. A navigator allowed to place while descending fills
             // in the hole it is standing in, which reads as "the block broke but the bot did not
             // sink" — the same confusion the overworld shafts already had to disarm.
             WorldConfig.allowPlace = false;
@@ -1096,7 +1096,7 @@ public final class JourneyEndRungs {
      * asserted, because a bot that is not on the platform cannot fight anything.
      *
      * <p>Up to {@link #MAX_PORTAL_STEPS} cells are tried. Vanilla opens nine, they sit over the
-     * stronghold's lava pool, and a walker that refuses to path onto one may well take another —
+     * stronghold's lava pool, and a navigator that refuses to path onto one may well take another —
      * trying a second door is what a player does, and it costs a few hundred ticks.
      */
     private static void end(SceneContext ctx) {
@@ -1129,7 +1129,7 @@ public final class JourneyEndRungs {
             BlockPos at = rig.player().blockPosition();
             rig.evidence("stand.at", xyz(at));
             rig.evidence("stand.in", blockAt(rig, at));
-            rig.evidence("stand.goto", JourneyLeg.walkerEnd(rig));
+            rig.evidence("stand.goto", JourneyLeg.navigatorEnd(rig));
             ctx.fail("cannot walk into the end portal: tried " + attempt + " portal cells, the bot is"
                     + " still at " + rig.dimension() + " " + at + ". The position after each attempt is"
                     + " in step.* (the stronghold portal sits over a lava pool, so walking into it and"
@@ -1345,7 +1345,7 @@ public final class JourneyEndRungs {
      *       and the executor pushed the bot anyway. A cost/passability fault.</li>
      * </ul>
      *
-     * So each segment now records what a climb SPENT and what the walker was actually holding:
+     * So each segment now records what a climb SPENT and what the navigator was actually holding:
      * {@code island.N.plan} carries {@code placed K blocks}, {@code pathLen}, the name of the move entering
      * the current node, and the run's own verdict. The three read differently — {@code K > 0} is the
      * footing fault; {@code K = 0} with a bridge move planned is the ordering fault; {@code K = 0}
@@ -1386,13 +1386,13 @@ public final class JourneyEndRungs {
             rig.evidence("island." + leg + ".plan", planOf(rig, pillar, stock));
             if (flatDistance(at, now) >= WEDGED_UNDER) { marchInTheEnd(ctx, rig, leg + 1); return; }
             rig.evidence("island." + leg + ".wedged",
-                    xyz(now) + " did not move this segment (goto " + JourneyLeg.walkerEnd(rig) + ")");
+                    xyz(now) + " did not move this segment (goto " + JourneyLeg.navigatorEnd(rig) + ")");
             marchInTheEnd(ctx, rig, leg + 1);
         });
     }
 
     /**
-     * What the segment spent and what the walker was holding — the row that separates the three ways
+     * What the segment spent and what the navigator was holding — the row that separates the three ways
      * a bridge fails to happen.
      *
      * <p><b>{@code active} is printed because {@code pathLen}/{@code move} are misleading without
@@ -1748,8 +1748,8 @@ public final class JourneyEndRungs {
      * <p><b>Same counting method as {@code island.*.plan}</b> — {@link #blocksSpent}, called from
      * both — so a crystal walk and a march segment can be compared without first asking which counter each used.
      *
-     * <p><b>{@code end}/{@code err} are the walker's own words</b>: {@code IntentProcess} copies
-     * {@code Walker.result().endReason()} into {@code mc_goto.endReason} and {@code Walker.result().reason()} into
+     * <p><b>{@code end}/{@code err} are the navigator's own words</b>: {@code IntentProcess} copies
+     * {@code Navigator.result().endReason()} into {@code mc_goto.endReason} and {@code Navigator.result().reason()} into
      * {@code mc_goto.lastError} at every terminal exit, and both survive {@code reset()} precisely so
      * they can be read afterwards. Nothing here invents a verdict word of its own.
      */
@@ -1844,7 +1844,7 @@ public final class JourneyEndRungs {
      * <p>The first cut scanned the column at exactly {@code x=0,z=0} and returned the first non-air
      * cell's {@code above()}. That column is the exit portal's own hole: it is not floor, and the
      * cell above whatever the scan hits is not supported. The march then walked the bot to it, the
-     * walker reported {@code ARRIVED}, and the departure trace caught it: a step of ARRIVED with the
+     * navigator reported {@code ARRIVED}, and the departure trace caught it: a step of ARRIVED with the
      * bot at -0.75,59.00,-0.76, horizontal speed 0.007 and sole support 0.000 — standing still, at the
      * podium, with nothing whatsoever under the sole. Five rounds of gating leap and diagonal
      * families had been chasing island-rim coordinates while the fall was happening at the target.
@@ -1919,7 +1919,7 @@ public final class JourneyEndRungs {
                     + podium.toShortString() + " → stopped at " + me.toShortString() + " ("
                     + String.format(Locale.ROOT, "%.1f", Math.sqrt(me.distSqr(podium)))
                     + " blocks away, height difference " + (me.getY() - podium.getY()) + ")"
-                    + (close ? " arrived" : " not arrived " + JourneyLeg.walkerEnd(rig)));
+                    + (close ? " arrived" : " not arrived " + JourneyLeg.navigatorEnd(rig)));
             if (close) { then.run(); return; }
             // Six rounds of the same stall at (43,52,13) — 46 blocks out and EIGHT BELOW the podium —
             // is not bad luck a seventh round fixes. Below the target the walk has to solve "climb
@@ -2807,7 +2807,7 @@ public final class JourneyEndRungs {
     //     bot standing in the right column and thirteen blocks up its own pillar. Every rung
     //     after a walk is planned as if the bot were on the ground.
     //   * `<what>.gotoEnd.<attempt>` on the ARRIVAL branch. `arrivedDistance=4, walkAttempts=1`
-    //     is the same two digits for a bot that walked here and stopped, and one the walker GAVE
+    //     is the same two digits for a bot that walked here and stopped, and one the navigator GAVE
     //     UP on four blocks out — and the tolerance accepts both.
     //
     // Neither had reached this file. The one call site passed `tolerance=2`, where the old test

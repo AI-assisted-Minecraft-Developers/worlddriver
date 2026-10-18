@@ -14,10 +14,10 @@ import net.magicterra.worlddriver.bot.behavior.BotProcess;
  * suite had available also STEERS, and steering is exactly what ruins a shaft.
  *
  * <p>Measured, twice. {@code Goal.YLevel(targetY)} descends to the wrong place: "be at y=60" is
- * satisfied anywhere, and the walker took the cheapest way down it could find, landing six blocks
+ * satisfied anywhere, and the navigator took the cheapest way down it could find, landing six blocks
  * off the ore column. {@code Goal.Block(cellJustEmptied)} names the right cell and still fails in
  * the field: the bot stood exactly on the surveyed column ({@code arrived.horizontalDistance=0}),
- * broke the floor clean through, and the walker then carried it sideways one cell at a time —
+ * broke the floor clean through, and the navigator then carried it sideways one cell at a time —
  * {@code 72 → 73 → 74} — because open ground offers it alternatives that a sealed test arena does
  * not. {@code wd.serverSelfShaftDescends} passes precisely because there is nowhere else to go
  * there.

@@ -108,7 +108,7 @@ class ConfigPinDisciplineTest {
     private static final Map<String, String> ACCOUNTED_FOR = new TreeMap<>(Map.of(
             // ---- verified: restores by hand, on a path that survives a failure ----
             "journey/JourneyLandingScenes#stageLipArena",
-            "saves walkerDebug and restores it inside ctx.cleanup — survives a fail like a pin does",
+            "saves navigatorDebug and restores it inside ctx.cleanup — survives a fail like a pin does",
             "scene/WorldDriverCoreScenes#buildBlockWhitelist",
             "saves the whitelist and restores it inside ctx.cleanup (the scene's subject IS the field)",
             "scene/WorldDriverSurvivalScenes#drownEscapeChainLifecycleMatrix",
@@ -280,7 +280,7 @@ class ConfigPinDisciplineTest {
         return out;
     }
 
-    /** Operand bytes after each opcode; the three variable-length ones are handled in the walker. */
+    /** Operand bytes after each opcode; the three variable-length ones are handled in the navigator. */
     private static final int[] OPLEN = new int[256];
 
     static {

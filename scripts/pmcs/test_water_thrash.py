@@ -1,9 +1,9 @@
 """water_yaw_thrash: the in-water player-yaw swing metric."""
-from scripts.pmcs.telemetry import water_yaw_thrash, _yaw_delta, WalkerTick
+from scripts.pmcs.telemetry import water_yaw_thrash, _yaw_delta, NavigatorTick
 
 
 def _tk(t, yaw, inw):
-    return WalkerTick(t=t, step=1, path_len=9, move="walk", x=0, y=0, z=0,
+    return NavigatorTick(t=t, step=1, path_len=9, move="walk", x=0, y=0, z=0,
                       within=False, on_ground=True, in_water=inw, stuck=0, tot_stuck=0, yaw=yaw)
 
 

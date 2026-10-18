@@ -11,8 +11,8 @@ import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerSettings;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.rules.CapabilityProfile;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
@@ -140,7 +140,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -148,12 +148,12 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(new Goal.Block(buried));
+        Navigator navigator = new Navigator();
+        navigator.start(new Goal.Block(buried));
         Locomotor.Status s = Locomotor.Status.MOVING;
         int arrivedTick = -1;
         for (int t = 0; t < 300 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
             if (s.ended()) { arrivedTick = t; break; }
         }
@@ -199,7 +199,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // each search runs to completion (deterministic)
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxNodes = 1_000_000;
@@ -283,7 +283,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         double oco = PlanningConfig.pathfinderWaterClimbOutCost;   // the configured default (baseline value)
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxNodes = 1_000_000;
@@ -315,7 +315,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
      *  SHALLOW WATER-SURFACE STEP-DOWN bob-stall. The node is HEAD-WALLED so the seeded buoyant bot pins in
      *  the east-adjacent 1-deep water cell (cur2≈0.6-1.0, hCol). Run 0 (flag OFF) must WEDGE (step frozen —
      *  the live bug), run 1 (flag ON) must ADVANCE. Clean A/B on the step-advance gate; the only variable is
-     *  {@code walkerWaterStepDownFloat}. */
+     *  {@code navigatorWaterStepDownFloat}. */
     private static void waterStepDownFloat(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
@@ -363,8 +363,8 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         double[] minCur2 = { Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY };
         // Run 0 = flag OFF (must WEDGE), run 1 = flag ON (must ADVANCE).
         for (int leg = 0; leg < 2; leg++) {
-            ControlConfig.walkerWaterStepDownFloat = (leg == 1);
-            GameConfig.walkerDebug = true;
+            ControlConfig.navigatorWaterStepDownFloat = (leg == 1);
+            GameConfig.navigatorDebug = true;
             // SEED the bot in the EAST-adjacent 1-deep water cell (cx+1), pressed WEST toward the head-walled
             // node, with a small west velocity. It grounds (foot=waterY) but its head is blocked → pins short.
             ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, waterY, cz + 0.5);
@@ -374,7 +374,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             fp.setDeltaMovement(-0.10, 0, 0);
             SimProbes.grantWaterEffects(fp);
             LevelWorldView w = new LevelWorldView(level, fp);
-            Walker walker = new Walker();
+            Navigator navigator = new Navigator();
             // Plan: step0 = east approach cell (cx+1) → step1 = NODE → cont → goal, all WEST along the shelf.
             BlockPos approach = new BlockPos(cx + 1, waterY, cz);
             List<BlockPos> plan = List.of(approach, node, cont, goalN);
@@ -385,13 +385,13 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     new Move.Edge(goalN, 10, List.of(), List.of(), "walk"));
             // beginReplay: pin the scripted plan with replayMode → the safety repath is DISABLED, so the OFF
             // run's wedge is a TRUE permanent stall (no A* escape muddies the A/B).
-            walker.replay(w, plan, planEdges, goal, approach);
+            navigator.replay(w, plan, planEdges, goal, approach);
 
             Locomotor.Status s = Locomotor.Status.MOVING;
             for (int t = 0; t < 200 && s == Locomotor.Status.MOVING; t++) {
-                s = walker.tick(av, w);
+                s = navigator.tick(av, w);
                 av.step();
-                BlockPos pn = walker.inspect().pathNode();
+                BlockPos pn = navigator.inspect().pathNode();
                 if (pn != null && pn.equals(node)) {
                     double dx = (node.getX() + 0.5) - fp.getX();
                     double dz = (node.getZ() + 0.5) - fp.getZ();
@@ -399,13 +399,13 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     nodeDwell[leg]++;            // ticks the step-pointer sat ON the water node
                 }
                 // ADVANCE = the step-pointer moved PAST the water node (step>=2).
-                if (advanceTick[leg] < 0 && walker.pathStep() >= 2) {
+                if (advanceTick[leg] < 0 && navigator.pathStep() >= 2) {
                     advanceTick[leg] = t;
                     advanced[leg] = true;
                 }
             }
             WorldDriverCommon.LOG.info("[wd.waterStepDownFloat] leg={} flagOn={} advanced={} advanceTick={} nodeDwell={} endStep={} minCur2={} endPos=({},{},{}) step={}",
-                    leg, leg == 1, advanced[leg], advanceTick[leg], nodeDwell[leg], walker.pathStep(),
+                    leg, leg == 1, advanced[leg], advanceTick[leg], nodeDwell[leg], navigator.pathStep(),
                     String.format(Locale.ROOT, "%.3f", minCur2[leg]),
                     String.format(Locale.ROOT, "%.2f", fp.getX()), String.format(Locale.ROOT, "%.2f", fp.getY()),
                     String.format(Locale.ROOT, "%.2f", fp.getZ()), s);
@@ -422,7 +422,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     + "OFF run must stay pinned (within needs cur2<0.45, unreachable at the buoyant pin).");
         // ON must ADVANCE promptly.
         if (!advanced[1])
-            ctx.fail("waterStepDownFloat: with walkerWaterStepDownFloat ON the step-pointer "
+            ctx.fail("waterStepDownFloat: with navigatorWaterStepDownFloat ON the step-pointer "
                     + "FAILED to advance past the water-surface stepDown node (pinned " + nodeDwell[1] + " ticks) — the fix did "
                     + "not fire. minCur2_ON=" + String.format(Locale.ROOT, "%.3f", minCur2[1]));
         if (advanceTick[1] > 40)
@@ -469,8 +469,8 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = true;             // leak precondition: only forbidDig should stop the pad punch
         WorldConfig.allowPlace = false;
-        GameConfig.walkerDebug = false;
-        ControlConfig.walkerWallDigFallback = false; // irrelevant in water; isolate the pad break
+        GameConfig.navigatorDebug = false;
+        ControlConfig.navigatorWallDigFallback = false; // irrelevant in water; isolate the pad break
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -502,7 +502,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         fp.setDeltaMovement(-0.10, 0, 0);        // residual west approach momentum → press into the head-wall
         SimProbes.grantWaterEffects(fp);
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker(WalkerSettings.DEFAULT.withProfile(profile));
+        Navigator navigator = new Navigator(NavigatorSettings.DEFAULT.withProfile(profile));
         BlockPos approach = new BlockPos(cx + 1, waterY, cz);
         List<BlockPos> plan = List.of(approach, node, cont, goalN);
         List<Move.Edge> planEdges = List.of(
@@ -510,10 +510,10 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                 new Move.Edge(node,  10, List.of(), List.of(), "stepDown"),
                 new Move.Edge(cont,  10, List.of(), List.of(), "walk"),
                 new Move.Edge(goalN, 10, List.of(), List.of(), "walk"));
-        walker.replay(w, plan, planEdges, goal, approach);
+        navigator.replay(w, plan, planEdges, goal, approach);
         Locomotor.Status s = Locomotor.Status.MOVING;
         for (int t = 0; t < 120 && s == Locomotor.Status.MOVING; t++) {
-            s = walker.tick(av, w);
+            s = navigator.tick(av, w);
             av.step();
         }
         return level.getBlockState(padCell).is(Blocks.LILY_PAD);
@@ -523,7 +523,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
      *  surface-bias ({@code pathfinderFloatingSurfaceCross}). A deep (9-block) open-water channel; the search
      *  is seeded submerged (surface-1) for a Y-aware Near goal on the far bank. Part A (planner A/B): the legacy
      *  water model with the bias OFF threads MANY submerged crossing nodes (the bug); the surface-node model
-     *  with the bias ON surfaces immediately. Part B (integration): the floating Walker crosses and reaches the
+     *  with the bias ON surfaces immediately. Part B (integration): the floating Navigator crosses and reaches the
      *  far bank, spending almost no ticks below the surface. */
     private static void deepWaterSubmergedCross(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -613,23 +613,23 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             ctx.fail("deepWaterSubmergedCross: with the flag ON A* failed to reach the goal "
                     + "(the surface route must still solve the crossing).");
 
-        // ---- Part B: integration — the floating Walker crosses cleanly with the flag ON ----
+        // ---- Part B: integration — the floating Navigator crosses cleanly with the flag ON ----
         PlanningConfig.pathfinderFloatingSurfaceCross = true;
         WorldConfig.pathfinderSurfaceWaterNodes = true;
-        GameConfig.walkerDebug = true;
+        GameConfig.navigatorDebug = true;
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, surface - 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
         LevelWorldView w = new LevelWorldView(level, fp);
-        Walker walker = new Walker();
-        walker.start(goal);
+        Navigator navigator = new Navigator();
+        navigator.start(goal);
         Locomotor.Status st = Locomotor.Status.MOVING;
         int submergedTicks = 0;
         double maxX = fp.getX();
         for (int t = 0; t < 1200 && st == Locomotor.Status.MOVING; t++) {
-            st = walker.tick(av, w);
+            st = navigator.tick(av, w);
             av.step();
             maxX = Math.max(maxX, fp.getX());
             BlockPos foot = BlockPos.containing(fp.getX(), fp.getY() + 0.1, fp.getZ());
@@ -640,7 +640,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                 ashore, st, String.format(Locale.ROOT, "%.2f", fp.getX()), String.format(Locale.ROOT, "%.2f", fp.getY()),
                 String.format(Locale.ROOT, "%.2f", fp.getZ()), String.format(Locale.ROOT, "%.2f", maxX), submergedTicks);
         if (!ashore)
-            ctx.fail("deepWaterSubmergedCross: with the flag ON the floating Walker failed to cross "
+            ctx.fail("deepWaterSubmergedCross: with the flag ON the floating Navigator failed to cross "
                     + "and reach the far bank: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxX=" + maxX + " step=" + st);
         if (submergedTicks > 40)
             ctx.fail("deepWaterSubmergedCross: with the flag ON the bot spent " + submergedTicks
@@ -706,7 +706,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each search completes in one go
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxNodes = 1_000_000;
@@ -813,7 +813,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each search completes in one go
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxNodes = 1_000_000;
@@ -925,7 +925,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each search completes in one go
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxNodes = 1_000_000;
@@ -1017,8 +1017,8 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
     }
 
     /** Ported from {@code AgentGameTestWaterCross#deepWaterFloatBeelineArena}: deep-water-float bee-line
-     *  anchor-gate exemption ({@code walkerDeepWaterFloatBeeline}). Exercises the fix's DECISION POINT via
-     *  {@link Walker#adoptForTest}: (1) OFF — the far open-water continuation is REJECTED (the live dead-stop
+     *  anchor-gate exemption ({@code navigatorDeepWaterFloatBeeline}). Exercises the fix's DECISION POINT via
+     *  {@link Navigator#adoptForTest}: (1) OFF — the far open-water continuation is REJECTED (the live dead-stop
      *  root); (2) ON — the SAME continuation is ACCEPTED and drives EAST; (2b) ON + SUNK foot accepts past the
      *  |Δy| jump gate; (3a) ON is INERT for a WALLED line, (3b) ON is INERT from a DRY foot. Unit-level. */
     private static void deepWaterFloatBeeline(SceneContext ctx) {
@@ -1074,7 +1074,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, waterFootY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -1095,8 +1095,8 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     + "long open-water crossing (need ≥ the 64 reject gate). Lengthen spanX.");
 
         // (1) OFF: the far open-water continuation must be REJECTED (the live dead-stop root).
-        ControlConfig.walkerDeepWaterFloatBeeline = false;
-        Walker wOff = new Walker();
+        ControlConfig.navigatorDeepWaterFloatBeeline = false;
+        Navigator wOff = new Navigator();
         boolean acceptOff = wOff.adoptForTest(w, cont, contEdges, foot);
         WorldDriverCommon.LOG.info("[wd.deepWaterFloatBeeline] OFF accept={} (expect false: anchor-gate rejects mis-anchored)", acceptOff);
         if (acceptOff)
@@ -1105,13 +1105,13 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     + "not reproduce. Baseline broken.");
 
         // (2) ON: the SAME continuation must be ACCEPTED and the step driven toward the far node.
-        ControlConfig.walkerDeepWaterFloatBeeline = true;
-        Walker wOn = new Walker();
+        ControlConfig.navigatorDeepWaterFloatBeeline = true;
+        Navigator wOn = new Navigator();
         boolean acceptOn = wOn.adoptForTest(w, cont, contEdges, foot);
         WorldDriverCommon.LOG.info("[wd.deepWaterFloatBeeline] ON accept={} step={} node={} (expect true: clear-LOS open-water bee-line)",
                 acceptOn, wOn.pathStep(), wOn.inspect().pathNode());
         if (!acceptOn)
-            ctx.fail("deepWaterFloatBeeline: with walkerDeepWaterFloatBeeline ON the anchor-gate "
+            ctx.fail("deepWaterFloatBeeline: with navigatorDeepWaterFloatBeeline ON the anchor-gate "
                     + "STILL rejected the clear-LOS open-water continuation — the bee-line exemption did not fire.");
         BlockPos drive = wOn.inspect().pathNode();
         if (drive == null || drive.getX() <= foot.getX())
@@ -1124,7 +1124,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         if (!w.isWater(sunkFoot) || Math.abs(farNode.getY() - sunkFoot.getY()) <= w.maxJumpUpBlocks() + 2)
             ctx.fail("deepWaterFloatBeeline: the sunk-foot probe " + sunkFoot + " is not 4-below "
                     + "submerged water past the jump gate — vacuous (|Δy|=" + Math.abs(farNode.getY() - sunkFoot.getY()) + ").");
-        Walker wSunk = new Walker();
+        Navigator wSunk = new Navigator();
         boolean acceptSunk = wSunk.adoptForTest(w, cont, contEdges, sunkFoot);
         WorldDriverCommon.LOG.info("[wd.deepWaterFloatBeeline] ON+SUNK accept={} (expect true: swim-up bee-line past the |Δy| jump gate)", acceptSunk);
         if (!acceptSunk)
@@ -1137,7 +1137,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         BlockPos wallHi = new BlockPos(cx + 20, waterFootY + 1, cz);
         level.setBlockAndUpdate(wallAt, Blocks.STONE.defaultBlockState());
         level.setBlockAndUpdate(wallHi, Blocks.STONE.defaultBlockState());
-        Walker wWall = new Walker();
+        Navigator wWall = new Navigator();
         boolean acceptWall = wWall.adoptForTest(w, cont, contEdges, foot);
         WorldDriverCommon.LOG.info("[wd.deepWaterFloatBeeline] ON+WALL accept={} (expect false: LOS blocked by stone)", acceptWall);
         level.setBlockAndUpdate(wallAt, Blocks.WATER.defaultBlockState());   // restore the channel
@@ -1154,7 +1154,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(dryFoot.getX() + dx, surface + 1, cz + dz), Blocks.AIR.defaultBlockState());
                 level.setBlockAndUpdate(new BlockPos(dryFoot.getX() + dx, surface + 2, cz + dz), Blocks.AIR.defaultBlockState());
             }
-        Walker wDry = new Walker();
+        Navigator wDry = new Navigator();
         boolean acceptDry = wDry.adoptForTest(w, cont, contEdges, dryFoot);   // far continuation, dry foot
         WorldDriverCommon.LOG.info("[wd.deepWaterFloatBeeline] ON+DRYFOOT accept={} (expect false: exemption needs a floating foot)", acceptDry);
         if (acceptDry)

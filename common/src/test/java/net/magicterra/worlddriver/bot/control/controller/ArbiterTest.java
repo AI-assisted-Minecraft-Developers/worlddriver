@@ -12,8 +12,8 @@ import java.util.Set;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.Body;
 import org.junit.jupiter.api.Test;
-import net.magicterra.worlddriver.bot.control.Walker;
-import net.magicterra.worlddriver.bot.control.WalkerTickCtx;
+import net.magicterra.worlddriver.bot.control.Navigator;
+import net.magicterra.worlddriver.bot.control.TickCtx;
 
 /** The arbiter's rules, on controllers that only record what they were asked to do. */
 class ArbiterTest {
@@ -38,11 +38,11 @@ class ArbiterTest {
         @Override public Set<Channel> channels() { return channels; }
         @Override public int priority() { return priority; }
         @Override public int maxTicks() { return maxTicks; }
-        @Override public String whyNot(Walker wk, WalkerTickCtx cx, WorldView world) {
+        @Override public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
             return wanted > 0 ? null : "not wanted";
         }
-        @Override public boolean canContinue(Walker wk, WalkerTickCtx cx, WorldView world) { return wanted > 0; }
-        @Override public boolean tick(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
+        @Override public boolean canContinue(Navigator nav, TickCtx cx, WorldView world) { return wanted > 0; }
+        @Override public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
             if (letGo) return false;
             ticked++;
             wanted--;

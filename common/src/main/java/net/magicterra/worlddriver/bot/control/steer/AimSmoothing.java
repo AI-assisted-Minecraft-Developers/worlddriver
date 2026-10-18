@@ -1,9 +1,9 @@
 package net.magicterra.worlddriver.bot.control.steer;
 
 /**
- * Aim/heading smoothing state, owned by {@link WalkerTickAim} and held on {@link Walker#aimSmooth}
- * ({@code smoothWaterDriveYaw} is also read by {@link WalkerTickDrive}; {@code lastAimYaw} by
- * {@link WalkerTickEdgeGuards}'s per-tick trace). {@link #reset()} resyncs the EMA chain + the yaw-thrash
+ * Aim/heading smoothing state, owned by {@link AimPhase} and held on {@link Navigator#aimSmooth}
+ * ({@code smoothWaterDriveYaw} is also read by {@link DrivePhase}; {@code lastAimYaw} by
+ * {@link EdgeGuardsPhase}'s per-tick trace). {@link #reset()} resyncs the EMA chain + the yaw-thrash
  * detector — exactly the four fields both journey resets cleared; the remaining fields self-manage
  * (NaN resync / decay / streak logic).
  */
@@ -15,7 +15,7 @@ public final class AimSmoothing {
     int yawThrashTicks = 0;                     // decaying score: +4 per carrot-bearing reversal in water (cap 12), −1/tick → steady turn winds to 0, oscillation holds high
     float lastAimYaw = Float.NaN;               // previous tick's smoothed aim heading — feeds the anti-spin target-stability gate (a flipping target winds; a stable one converges)
     int aimStableTicks = 0;                     // consecutive ticks the smoothed aim target barely moved; once past AIM_STABLE_TICKS the anti-spin freeze releases (a stable target can't wind the camera)
-    float rawLastTargetYaw = Float.NaN;         // previous tick's RAW (pre-EMA) target heading — the antipode-proof stability signal (see WalkerTickAim reversal fix)
+    float rawLastTargetYaw = Float.NaN;         // previous tick's RAW (pre-EMA) target heading — the antipode-proof stability signal (see AimPhase reversal fix)
     int rawStableTicks = 0;                     // consecutive ticks the RAW target barely moved; releases the anti-spin freeze even when the EMA oscillates at the ±180° antipode
     double freezeAnchorX, freezeAnchorZ;       // player pos when the frozen-press stall window opened (spinFreeze deadlock valve)
     int frozenStallTicks = 0;                   // consecutive frozen ticks with <FREEZE_PRESS_MOVE displacement — valve trips past FREEZE_PRESS_STALL_TICKS

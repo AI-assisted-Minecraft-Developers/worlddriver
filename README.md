@@ -194,7 +194,7 @@ worlddriver/
 │   ├── src/main/java/net/magicterra/worlddriver/
 │   │   ├── api/            The method contracts and ApiRegistry, the router that runs them
 │   │   ├── application/    The handler behind each method
-│   │   ├── bot/            The client-side autonomous layer: pathfinder, walker, processes
+│   │   ├── bot/            The client-side autonomous layer: pathfinder, navigator, processes
 │   │   ├── mcp/            The MCP HTTP server and the tool catalog
 │   │   ├── rpc/            The Netty WebSocket server and the JSON codec
 │   │   ├── script/         Rhino integration, the evaluator, the optional class filter

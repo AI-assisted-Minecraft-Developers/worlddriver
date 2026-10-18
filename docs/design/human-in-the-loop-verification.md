@@ -10,7 +10,7 @@
 Writing an integration scene in Java means describing terrain cell by cell with
 `ctx.setBlock`. That is fine for a geometric hypothesis and hopeless for a situation a person
 noticed while watching the bot: a particular river bank, a particular overhang, the exact
-shape of ground on which the walker did something silly. Reproducing it by hand in code is
+shape of ground on which the navigator did something silly. Reproducing it by hand in code is
 slow and usually gets it subtly wrong, and "subtly wrong terrain" is the failure mode that
 looks exactly like a bot defect.
 

@@ -81,7 +81,7 @@ import net.minecraft.world.level.block.Blocks;
  * </ul>
  *
  * <p><b>All 13 are PLANNER-ONLY.</b> Unlike wave 2 (Terrain), no Bias arena drives a
- * {@link net.magicterra.worlddriver.bot.control.Walker} or a registered driver — each builds an
+ * {@link net.magicterra.worlddriver.bot.control.Navigator} or a registered driver — each builds an
  * immutable {@link LevelWorldView} and runs one or two {@link PathFinder} searches, then
  * asserts on the returned {@code Result}. So there is no executor flakiness, no per-tick
  * stepping, and no {@code SimProbes.grantWaterEffects} (nothing ever moves or takes damage).
@@ -634,7 +634,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
      *  live red where {@code stringPull} straightened a bank-hugging bow across the taxed dry interior.
      *  An L-shaped water channel whose straight chord crosses only dry slab: smoothing WITHOUT the bias
      *  must collapse out of the shoreline band (proves the arena discriminates), smoothing WITH the bias
-     *  must keep every node in-band. Pins {@code walkerDiagonalStringPull=true}. Planner-only. Needs
+     *  must keep every node in-band. Pins {@code navigatorDiagonalStringPull=true}. Planner-only. Needs
      *  {@code .withChunkRadius(2)}: basin reaches dx/dz +32. */
     private static void shorelineSmoother(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -670,7 +670,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        ControlConfig.walkerDiagonalStringPull = true;
+        ControlConfig.navigatorDiagonalStringPull = true;
 
         PathFinder.Result hugged = new PathFinder(w, hug).findPath(start, new Goal.Block(goal));
         BlockPos rawWorst = firstOutOfBand(hugged, 2, w);
@@ -747,7 +747,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
     /** Ported from {@code AgentGameTestBias#budgetAwayTunnelChurnArena}: gap#63. A budget-capped
      *  search from a chamber sealed in rock toward a goal ABOVE must not commit a best-effort segment
      *  that runs a walkable tunnel AWAY from the goal. GREEN = goal reached, a partial that does not
-     *  end farther from the goal (small slack), or NO path. Break+place ON, walkerDebug ON (pinned).
+     *  end farther from the goal (small slack), or NO path. Break+place ON, navigatorDebug ON (pinned).
      *  Planner-only. */
     private static void budgetAwayTunnelChurn(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -782,7 +782,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = true;   // STOP line names the committing branch
+        GameConfig.navigatorDebug = true;   // STOP line names the committing branch
 
         PathFinder.Result r = new PathFinder(w, 200, 100, SearchProfile.NONE)
                 .findPath(start, new Goal.Block(goalPos));

@@ -11,25 +11,25 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 
 /**
- * The {@link Equipment} and {@link BlockInteraction} the walker drives when the bot lacks them:
+ * The {@link Equipment} and {@link BlockInteraction} the navigator drives when the bot lacks them:
  * nothing is held, nothing places, nothing breaks, and every reading says so.
  *
- * <p>The walker is not a verb — it cannot refuse an order the way a process does at the top of
+ * <p>The navigator is not a verb — it cannot refuse an order the way a process does at the top of
  * its tick — and its dig/place sites are already gated on {@code WorldConfig.allowBreak} /
  * {@code allowPlace} and on {@code holdPlaceable()} answering true. So a handless bot is driven
  * with these hands rather than a null the fifty sites would each have to guard: the gates fall
  * closed on their own, and the readings ({@code breakHeld()} false, {@code destroyProgress()}
  * −1) are the same ones a client player reports between digs. What this does NOT do is keep the
  * pathfinder from planning a dig for a bot that cannot dig — that is the move catalog's job
- * ({@code MoveCatalog}), and lands with the first non-player. Walker-private on purpose: a process reaching
+ * ({@code MoveCatalog}), and lands with the first non-player. Navigator-private on purpose: a process reaching
  * for a null-object here to make an order "succeed" without hands is the failure the split
  * exists to make impossible.
  */
-final class WalkerNoHands implements Equipment, BlockInteraction {
+final class NoHands implements Equipment, BlockInteraction {
 
-    static final WalkerNoHands INSTANCE = new WalkerNoHands();
+    static final NoHands INSTANCE = new NoHands();
 
-    private WalkerNoHands() {}
+    private NoHands() {}
 
     @Override public LivingEntity entity() { return null; }
     @Override public boolean holdPlaceable() { return false; }

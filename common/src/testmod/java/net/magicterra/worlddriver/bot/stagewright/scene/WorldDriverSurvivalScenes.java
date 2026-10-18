@@ -167,7 +167,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -219,7 +219,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -334,7 +334,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
 
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().clearContent();
@@ -398,7 +398,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         BlockPos from = new BlockPos(cx - 2, floorY + 13, cz);
         final int minDist = 10;   // satisfied at dx ≥ 8, right after the planned descent
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.lowHealthCareful = 6.0;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
@@ -468,7 +468,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -542,7 +542,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         BlockPos bottomCell = new BlockPos(cx, floorY + 1, cz);   // first water cell ON the sealed floor
         Goal.Near goal = new Goal.Near(bottomCell, 1);
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         ControlConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         PlanningConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -663,7 +663,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         BlockPos goalCell = new BlockPos(cx + 4, floorY + 3, cz);   // AIR-pocket cell above the water
         Goal.Near goal = new Goal.Near(goalCell, 2);
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         // SMALL slice (NOT the usual unbounded pin): the executor's search must take MANY TICKS
         // to resolve so the arena reproduces the live PRE-PATH RACE. maxMs stays unbounded so
         // the search itself is still node-budget-deterministic.
@@ -1151,7 +1151,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         ctx.cleanup(BotTicker::clear);
         ctx.cleanup(() -> level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.AIR.defaultBlockState()));
 
-        GameConfig.walkerDebug = false;
+        GameConfig.navigatorDebug = false;
         level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.STONE.defaultBlockState());
         PlayerBot driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();

@@ -1059,10 +1059,10 @@ public final class JourneyRehearsal {
         // hole — so the frame stood on a ledge over a void, which is a shape no nether portal has
         // and which rung 17 therefore had no business being asked about. The bot walked in on the
         // surrounding rock, arrived on top of the FRAME (the only solid thing at that height), and
-        // then could not get off it: the walker's own guards refused every step, correctly —
+        // then could not get off it: the navigator's own guards refused every step, correctly —
         //
-        //   [walker] stride floor-guard: bottomless stride 105,37,8 → sneak-pin
-        //   [walker] footing guard: sole 0.1787 < 0.18 at 105,37,8 beside a lethal drop → sneak-pin
+        //   [navigator] stride floor-guard: bottomless stride 105,37,8 → sneak-pin
+        //   [navigator] footing guard: sole 0.1787 < 0.18 at 105,37,8 beside a lethal drop → sneak-pin
         //
         // — while A* went on returning routes through those cells, 816 identical searches from one
         // cell to one goal. The staging had reproduced, in its own fixture, exactly the class of
@@ -1126,7 +1126,7 @@ public final class JourneyRehearsal {
      * end is a cross-check rather than a number nobody can read.
      *
      * <p><b>No cobblestone, deliberately.</b> {@code generousPathfinding} leaves
-     * {@code allowPlace = true} and rung 18 never turns it off, so a bag of blocks lets the walker
+     * {@code allowPlace = true} and rung 18 never turns it off, so a bag of blocks lets the navigator
      * pillar to a frame — which replaces "walk to within EYE_REACH", the thing under test, with
      * something else. What a climb actually arrives here carrying is unknown: rung 17 records no
      * inventory at all, so there is no key to calibrate against yet. Adding a {@code stock.*}
@@ -1146,7 +1146,7 @@ public final class JourneyRehearsal {
         kit.put("minecraft:iron_sword", 1);
         kit.put("minecraft:cooked_beef", 16);
         ctx.record("rehearsal.noBlocks", "no cobblestone given — this rung places no blocks, but"
-                + " allowPlace is on; giving stone would let the walker pillar up to the frame and"
+                + " allowPlace is on; giving stone would let the navigator pillar up to the frame and"
                 + " replace 'walk to within EYE_REACH' with something else. How much stone the real"
                 + " ladder carries to this rung is not known yet (rung 17 records no inventory) —"
                 + " calibration first needs a stock.* row on rung 17");
@@ -1268,8 +1268,8 @@ public final class JourneyRehearsal {
      * stronghold's nine portal cells sit over the room's lava pool, and rung 19's own failure message
      * (that the stronghold's door opens over the lava pool, and stepping into it is not the same as
      * standing beside it) is a finding it must be able to report. {@code generousPathfinding} leaves
-     * {@code allowPlace = true}, so a bag of blocks lets the walker bridge over that pool — which
-     * would silently convert "the walker can reach a portal cell" into "the walker can build a path
+     * {@code allowPlace = true}, so a bag of blocks lets the navigator bridge over that pool — which
+     * would silently convert "the navigator can reach a portal cell" into "the navigator can build a path
      * to one" and make the rung permanently unable to report
      * the thing it exists to catch. What a climb actually arrives with is unknown: rung 19 records no
      * inventory, so there is no key to calibrate against and the fix is a {@code stock.*} row on rung
@@ -1286,7 +1286,7 @@ public final class JourneyRehearsal {
         kit.put("minecraft:iron_sword", 1);
         kit.put("minecraft:cooked_beef", 16);
         ctx.record("rehearsal.noBlocks", "no cobblestone given — the door opens over the lava pool, and"
-                + " allowPlace is on; giving stone would let the walker bridge over the pool, replacing"
+                + " allowPlace is on; giving stone would let the navigator bridge over the pool, replacing"
                 + " 'can reach a door cell' with 'can build a path to a door cell', and the finding this"
                 + " rung most needs to report could never be reported. How much stone the real ladder"
                 + " carries to this rung is not known yet (rung 19 records no inventory) — calibration"
@@ -1440,7 +1440,7 @@ public final class JourneyRehearsal {
      *
      * "Bridging and climbing the towers are this rung's own task" is only half established: the
      * bridging half is an assumption nobody had measured. Sampled 2026-08-17 along the plan the
-     * walker actually made from the arrival platform: <b>every node had solid ground under it and
+     * navigator actually made from the arrival platform: <b>every node had solid ground under it and
      * every chunk was loaded</b> — nodes [0] 100,49,0 through [16] 51,57,0 all had a solid block
      * below, with eight {@code stepUp} edges climbing y 49→57. The planner was not routing over the
      * void; it was routing up a real slope toward the island.
@@ -1535,7 +1535,7 @@ public final class JourneyRehearsal {
         fp.setDeltaMovement(Vec3.ZERO);
         // Where the bot was standing WHEN IT LEFT, in the terms the swim branches read. A cross-
         // dimension teleport does not recompute the fluid flags — those are written by baseTick, and
-        // the walker ticks BEFORE the avatar's step — so whatever is true here is what WalkerTickDrive
+        // the navigator ticks BEFORE the avatar's step — so whatever is true here is what DrivePhase
         // sees on its first tick in the End. Measured 2026-08-17: the swimColumn branch, with in-water
         // and under-water both true, fired a jump on the dry obsidian platform, and the flags read
         // false again seven ticks later.
@@ -1557,7 +1557,7 @@ public final class JourneyRehearsal {
         // ServerPlayerBody.step(), which does not run while the driver is unregistered — which is
         // exactly when staging runs. So a fixture teleport left the flags frozen at whatever the player
         // last saw: measured 2026-08-17, rung 20 arrived on the dry obsidian platform still reading
-        // in-water and under-water true from an overworld pool, and WalkerTickDrive's `swimColumn` (both of whose
+        // in-water and under-water true from an overworld pool, and DrivePhase's `swimColumn` (both of whose
         // terms are player entity flags, so it never reads the world when isUnderWater is set) fired
         // a 0.42 on the platform. The bot was still airborne seven ticks later when the parkour edge
         // came up, the ground gate correctly refused it, and it walked into the void.

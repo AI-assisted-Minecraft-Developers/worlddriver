@@ -387,10 +387,10 @@ loom {
             // exists to provide, and "whether a real player is present" would depend on boot
             // timing.
             property 'stagewright.awaitPlayer', 'true'
-            // Empty unless asked for; the default lives in JourneyRig. -PwalkerDebug=true turns on
-            // the per-tick walker/AutoSwim account, which is the only record of what the client
+            // Empty unless asked for; the default lives in JourneyRig. -PnavigatorDebug=true turns on
+            // the per-tick navigator/AutoSwim account, which is the only record of what the client
             // helm does to a submerged player.
-            property 'worlddriver.journey.walkerDebug', (project.findProperty('walkerDebug') ?: '')
+            property 'worlddriver.journey.navigatorDebug', (project.findProperty('navigatorDebug') ?: '')
             property 'stagewright.client.world', 'JourneyClient'
             property 'stagewright.client.exitWhenDone', 'true'
             property 'worlddriver.journey', 'true'
@@ -583,7 +583,7 @@ loom {
             property 'stagewright.client.world', 'RehearsalClient'
             property 'stagewright.client.exitWhenDone', 'true'
             property 'worlddriver.journey', 'true'
-            property 'worlddriver.journey.walkerDebug', (project.findProperty('walkerDebug') ?: '')
+            property 'worlddriver.journey.navigatorDebug', (project.findProperty('navigatorDebug') ?: '')
             property 'worlddriver.journey.rehearse', project.findProperty('rehearse') ?: 'PORTAL_LIT'
             property 'worlddriver.journey.rehearse.budget',
                     (project.findProperty('rehearseBudget') ?: '').toString()

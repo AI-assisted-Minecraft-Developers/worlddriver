@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * Logs a server-side block change into {@link BlockChanges}, at the call where vanilla asks each mob's
- * navigation whether the change made its path stale, so a walker can ask the same question of its route.
+ * navigation whether the change made its path stale, so a navigator can ask the same question of its route.
  */
 @Mixin(ServerLevel.class)
 abstract class ServerLevelMixin {

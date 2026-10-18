@@ -22,12 +22,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The {@link WalkerTickCtx} handoff contract, as assertions instead of a javadoc.
+ * The {@link TickCtx} handoff contract, as assertions instead of a javadoc.
  *
- * <p>{@code WalkerTickCtx} says "a phase writes its OWN product group ... a phase's
+ * <p>{@code TickCtx} says "a phase writes its OWN product group ... a phase's
  * rehydrate block names exactly what it consumes", and the driver runs the eight phases
  * in a fixed order. Nothing enforced either half. The failure that costs the most is
- * silent: a phase that reads {@code cx.aim.diving} before {@link WalkerTickAim} has run
+ * silent: a phase that reads {@code cx.aim.diving} before {@link AimPhase} has run
  * gets {@code false} every single tick — no exception, no log, just a guard that never
  * fires and a bot that behaves subtly wrong. The same shape as the transport bugs this
  * suite already pins: the normal path works, the broken path says nothing.
@@ -41,12 +41,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * allows a phase to re-publish {@code frame} basics it recomputed, so read-before-write
  * is keyed off the FIRST writer in driver order, which stays correct if that happens.
  */
-class WalkerTickDataflowTest {
+class PhaseDataflowTest {
 
     private static final Path MOVEMENT =
             Path.of("src/main/java/net/magicterra/worlddriver/bot/control");
 
-    /** Phase order as the driver actually calls them, read from {@code Walker#tickInner}. */
+    /** Phase order as the driver actually calls them, read from {@code Navigator#tickInner}. */
     private static final List<String> ORDER = driverOrder();
     /** {@code group.field} -> phases that assign it. */
     private static final Map<String, Set<String>> WRITES = new TreeMap<>();
@@ -65,16 +65,16 @@ class WalkerTickDataflowTest {
         // below is measuring something other than what runs.
         Set<String> onDisk = new TreeSet<>();
         try (Stream<Path> files = Files.walk(MOVEMENT)) {
-            Pattern name = Pattern.compile("WalkerTick(\\w+)\\.java");
+            Pattern name = Pattern.compile("(\\w+)Phase\\.java");
             files.forEach(p -> {
                 Matcher m = name.matcher(p.getFileName().toString());
-                if (m.matches() && !"Ctx".equals(m.group(1))) onDisk.add(m.group(1));
+                if (m.matches()) onDisk.add(m.group(1));
             });
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
         assertEquals(onDisk, new TreeSet<>(ORDER),
-                "WalkerTick*.java files and the phases Walker#tickInner calls disagree — "
+                "*Phase.java files and the phases Navigator#tickInner calls disagree — "
                 + "a phase that exists but is never invoked is dead, and one invoked from "
                 + "elsewhere breaks the single-pipeline assumption these tests rest on");
         assertEquals(ORDER.size(), new LinkedHashSet<>(ORDER).size(),
@@ -88,7 +88,7 @@ class WalkerTickDataflowTest {
             if (!WRITES.containsKey(field)) orphans.add(field);
         }
         assertTrue(orphans.isEmpty(),
-                "these WalkerTickCtx fields are never assigned by any phase, so every "
+                "these TickCtx fields are never assigned by any phase, so every "
                 + "reader gets the zero value forever — delete them or produce them: " + orphans);
     }
 
@@ -102,7 +102,7 @@ class WalkerTickDataflowTest {
             if (!w.isEmpty() && !consumed) unread.add(field + " (written by " + w + ")");
         }
         assertTrue(unread.isEmpty(),
-                "WalkerTickCtx exists for CROSS-phase handoff; a product no other phase "
+                "TickCtx exists for CROSS-phase handoff; a product no other phase "
                 + "reads should be a local in its producer instead: " + unread);
     }
 
@@ -134,7 +134,7 @@ class WalkerTickDataflowTest {
         assertEquals("Prelude", ORDER.get(0));
         assertEquals("Drive", ORDER.get(ORDER.size() - 1));
         assertEquals(32, declaredFields().size(),
-                "WalkerTickCtx field census changed: " + declaredFields());
+                "TickCtx field census changed: " + declaredFields());
         assertEquals(declaredFields(), new TreeSet<>(WRITES.keySet()),
                 "the write scan and the ctx declaration disagree — one of the two parsers "
                 + "is matching the wrong thing");
@@ -156,9 +156,9 @@ class WalkerTickDataflowTest {
         return src.replaceAll("(?s)/\\*.*?\\*/", " ").replaceAll("//[^\n]*", " ");
     }
 
-    /** The phase's source file, in whichever subpackage of the walker it lives. */
+    /** The phase's source file, in whichever subpackage of the navigator it lives. */
     private static Path phaseFile(String phase) {
-        String name = "WalkerTick" + phase + ".java";
+        String name = phase + "Phase.java";
         try (Stream<Path> files = Files.walk(MOVEMENT)) {
             return files.filter(p -> p.getFileName().toString().equals(name)).findFirst()
                     .orElseThrow(() -> new AssertionError("no " + name + " under " + MOVEMENT));
@@ -167,17 +167,17 @@ class WalkerTickDataflowTest {
         }
     }
 
-    /** The phases are Walker fields ({@code prelude = new WalkerTickPrelude()}); the order is that of their
+    /** The phases are Navigator fields ({@code prelude = new PreludePhase()}); the order is that of their
      *  {@code run} calls, mapped back through the declarations to the phase names. */
     private static List<String> driverOrder() {
         assertTrue(Files.isDirectory(MOVEMENT),
                 "expected the module dir as cwd; got " + Path.of(".").toAbsolutePath());
-        String walker = strip(read(MOVEMENT.resolve("Walker.java")));
+        String navigator = strip(read(MOVEMENT.resolve("Navigator.java")));
         Map<String, String> phaseOfField = new LinkedHashMap<>();
-        Matcher d = Pattern.compile("final\\s+WalkerTick(\\w+)\\s+(\\w+)\\s*=\\s*new\\s+WalkerTick\\1\\s*\\(")
-                .matcher(walker);
+        Matcher d = Pattern.compile("final\\s+(\\w+)Phase\\s+(\\w+)\\s*=\\s*new\\s+\\1Phase\\s*\\(")
+                .matcher(navigator);
         while (d.find()) phaseOfField.put(d.group(2), d.group(1));
-        Matcher m = Pattern.compile("\\b(\\w+)\\.run\\s*\\(\\s*this\\b").matcher(walker);
+        Matcher m = Pattern.compile("\\b(\\w+)\\.run\\s*\\(\\s*this\\b").matcher(navigator);
         List<String> order = new ArrayList<>();
         while (m.find()) {
             String phase = phaseOfField.get(m.group(1));
@@ -186,9 +186,9 @@ class WalkerTickDataflowTest {
         return List.copyOf(order);
     }
 
-    /** {@code group.field} for every field declared inside a WalkerTickCtx product class. */
+    /** {@code group.field} for every field declared inside a TickCtx product class. */
     private static Set<String> declaredFields() {
-        String src = strip(read(MOVEMENT.resolve("WalkerTickCtx.java")));
+        String src = strip(read(MOVEMENT.resolve("TickCtx.java")));
         Map<String, String> groupOfClass = new LinkedHashMap<>();   // Frame -> frame
         Matcher g = Pattern.compile("final\\s+(\\w+)\\s+(\\w+)\\s*=\\s*new\\s+\\1\\s*\\(\\s*\\)")
                 .matcher(src);
@@ -214,8 +214,8 @@ class WalkerTickDataflowTest {
      */
     private static void scan(String phase) {
         String src = strip(read(phaseFile(phase)));
-        Matcher sig = Pattern.compile("WalkerTickCtx\\s+(\\w+)\\s*[,)]").matcher(src);
-        assertTrue(sig.find(), "no WalkerTickCtx parameter found in WalkerTick" + phase);
+        Matcher sig = Pattern.compile("TickCtx\\s+(\\w+)\\s*[,)]").matcher(src);
+        assertTrue(sig.find(), "no TickCtx parameter found in " + phase + "Phase");
         String ctx = sig.group(1);
 
         Pattern write = Pattern.compile(Pattern.quote(ctx) + "\\.(\\w+)\\.(\\w+)\\s*=(?!=)");

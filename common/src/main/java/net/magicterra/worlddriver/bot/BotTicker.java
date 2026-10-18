@@ -15,7 +15,7 @@ import net.minecraft.world.entity.LivingEntity;
  * {@code bot_removed}), or when its tick throws, so a single faulty agent can never wedge the
  * whole server tick.
  *
- * <p>This is the seam that makes agent driving headless: the same Walker loop
+ * <p>This is the seam that makes agent driving headless: the same Navigator loop
  * the arenas exercise now runs autonomously on the dedicated-server tick, with
  * no {@code LocalPlayer} / client involved.
  *

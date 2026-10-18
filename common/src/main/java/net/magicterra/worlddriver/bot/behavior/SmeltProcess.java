@@ -456,7 +456,7 @@ public final class SmeltProcess implements BotProcess {
      * Auto mode fixes gap#64①: the old rule was "first {@code isFuel} stack in slot
      * order", which fed the CRAFTING TABLE to the furnace while coal sat in the bag.
      * Now: never burn an interactive workstation ({@link BuildBlocks#isInteractiveBlock}
-     * — same safety class that keeps the walker from bridging with furnaces, #57),
+     * — same safety class that keeps the navigator from bridging with furnaces, #57),
      * and among the rest prefer the highest vanilla burn value per item, so a
      * dedicated fuel (coal 1600t) beats scaffolding wood (planks 300t).
      * Package-private static so the gametest can assert the policy directly.

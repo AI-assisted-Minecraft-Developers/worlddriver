@@ -8,7 +8,7 @@
 #   2) MCP: mc.debug.replay { file:"<archive>", restoreBlocks:true }
 #   3) bash: scripts/replay_regression_track.sh <maxStuckThreshold> <arriveX> <arriveCmp>
 #
-# Tracks the live [walker] telemetry, extracts the peak totStuck and whether the bot
+# Tracks the live [navigator] telemetry, extracts the peak totStuck and whether the bot
 # reached the goal, and prints PASS/FAIL against the threshold. Deterministic because the
 # replay restores the exact block envelope + start (so the same archive+flags reproduce
 # byte-for-byte). This is the oracle the project was missing: a real recorded failure,
@@ -25,7 +25,7 @@ THRESH=${1:?maxStuckThreshold}; ARRIVEX=${2:?arriveX}; CMP=${3:?ge|le}; MAXS=${4
 MAXSTUCK=0; PREV=""; FROZEN=0; ARRIVED=0; ITERS=$((MAXS/6))
 for i in $(seq 1 "$ITERS"); do
   sleep 6
-  LINE=$(grep -E "\[walker\] t=" "$LOG" 2>/dev/null | tail -1)
+  LINE=$(grep -E "\[navigator\] t=" "$LOG" 2>/dev/null | tail -1)
   POS=$(echo "$LINE" | grep -oE "p=\(-?[0-9.]+,[0-9.]+,-?[0-9.]+\)")
   TS=$(echo "$LINE" | grep -oE "totStuck=[0-9]+" | grep -oE "[0-9]+")
   X=$(echo "$POS" | grep -oE "\(-?[0-9]+" | tr -d '(')

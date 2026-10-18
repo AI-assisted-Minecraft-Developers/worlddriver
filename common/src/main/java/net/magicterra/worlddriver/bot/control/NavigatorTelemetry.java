@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.control;
 
-import net.magicterra.worlddriver.bot.control.route.WalkerTickProgress;
+import net.magicterra.worlddriver.bot.control.route.ProgressPhase;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import java.time.Duration;
@@ -10,50 +10,50 @@ import java.util.concurrent.atomic.AtomicLongArray;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
- * What the walkers driving one body have done, for readers that hold no walker: scenes, the journey
+ * What the navigators driving one body have done, for readers that hold no navigator: scenes, the journey
  * rig, {@code mc.bot.status}.
  *
- * <p><b>One per body, not one per JVM.</b> These counters used to be statics on {@link Walker}, so a
+ * <p><b>One per body, not one per JVM.</b> These counters used to be statics on {@link Navigator}, so a
  * client bot and a server bot walking at the same time added into the same numbers and each read the
  * other's last trace. A body is what a reader means by "this bot": a bot's processes each carry their
- * own walker, and an instrument that takes a delta across a journey wants every walker that drove the
- * body in that window. So the walker writes into the telemetry of whatever body it ticked, and a reader
+ * own navigator, and an instrument that takes a delta across a journey wants every navigator that drove the
+ * body in that window. So the navigator writes into the telemetry of whatever body it ticked, and a reader
  * asks for the body's. Keyed by the player's id and side rather than by the entity object, which a
  * respawn replaces mid-journey; a delta across that would read negative.
  *
  * <p><b>Nothing branches on any of this.</b> Every field is a write-only breadcrumb; behaviour that
- * read one would be reading another walker's state. Fields are volatile because readers sit on other
+ * read one would be reading another navigator's state. Fields are volatile because readers sit on other
  * threads (status, the scene thread) and only the ticking thread writes.
  */
-public final class WalkerTelemetry {
+public final class NavigatorTelemetry {
 
     /** A body as a reader means it: the same player across a respawn or a dimension change (both
      *  replace the entity object), and the client's copy apart from the server's. */
     private record Key(UUID id, boolean client) {}
 
     /** Every live bot's telemetry is touched every tick, so only finished scene avatars expire. */
-    private static final Cache<Key, WalkerTelemetry> BY_BODY =
+    private static final Cache<Key, NavigatorTelemetry> BY_BODY =
             CacheBuilder.newBuilder().expireAfterAccess(Duration.ofMinutes(10)).build();
 
     /** The telemetry of {@code body}, created on first use. Never null. */
-    public static WalkerTelemetry of(LivingEntity body) {
+    public static NavigatorTelemetry of(LivingEntity body) {
         return of(body.getUUID(), body.level().isClientSide());
     }
 
     /** The telemetry of the player {@code id} on one side — how a server-thread scene reads the client
      *  bot of the same player, whose entity it cannot hold. */
-    public static WalkerTelemetry of(UUID id, boolean clientSide) {
+    public static NavigatorTelemetry of(UUID id, boolean clientSide) {
         try {
-            return BY_BODY.get(new Key(id, clientSide), WalkerTelemetry::new);
+            return BY_BODY.get(new Key(id, clientSide), NavigatorTelemetry::new);
         } catch (ExecutionException e) {
             throw new IllegalStateException(e);   // the loader is a constructor; it does not throw
         }
     }
 
-    /** A sink for a walker that has not ticked a body yet; nobody can read it. */
-    WalkerTelemetry() {}
+    /** A sink for a navigator that has not ticked a body yet; nobody can read it. */
+    NavigatorTelemetry() {}
 
-    /** The most recent deep-search result any walker on this body finished. */
+    /** The most recent deep-search result any navigator on this body finished. */
     public record PathStats(int expanded, long ms, boolean goalReached, double finalCost, int pathLen,
                             boolean sightBudgetExhausted, boolean snapshotTruncated) {
         public PathStats(int expanded, long ms, boolean goalReached, double finalCost, int pathLen) {
@@ -65,7 +65,7 @@ public final class WalkerTelemetry {
     public volatile PathStats lastStats;
 
     /**
-     * How many times {@code WalkerTickProgress}'s unwalked-descent refusal has held the step pointer
+     * How many times {@code ProgressPhase}'s unwalked-descent refusal has held the step pointer
      * on a node below the bot's feet. Monotone — a caller that wants a window takes the difference.
      *
      * <p>Exists so a scene can tell "the hold cost nothing" from "the hold never ran", which are the
@@ -78,7 +78,7 @@ public final class WalkerTelemetry {
     /**
      * Which walk the per-walk log budgets belong to; {@link #newLeg} starts a new one.
      *
-     * <p>A walker outlives every walk that uses it, so a per-walker budget is spent by whichever walk
+     * <p>A navigator outlives every walk that uses it, so a per-navigator budget is spent by whichever walk
      * happens to run first. What the instruments mean by a walk is already defined — {@code
      * JourneyFlight} is constructed once per walk and takes its {@link #guardForcedRepaths} delta from
      * exactly that moment — so this is bumped from the same constructor rather than being given a
@@ -86,7 +86,7 @@ public final class WalkerTelemetry {
      */
     public volatile int legEpoch;
 
-    /** Start a new walk: the per-walk log budget of every walker on this body refreshes on its next line. */
+    /** Start a new walk: the per-walk log budget of every navigator on this body refreshes on its next line. */
     public void newLeg() { legEpoch++; }
 
     /**
@@ -98,7 +98,7 @@ public final class WalkerTelemetry {
 
     /** The per-walk advance budget, for the instrument that reports how much of it a walk spent. An
      *  accessor rather than a copied literal, so a row stays a report about this budget when it changes. */
-    public static int stepAdvanceBudget() { return WalkerTickProgress.STEP_ADV_EVENTS; }
+    public static int stepAdvanceBudget() { return ProgressPhase.STEP_ADV_EVENTS; }
 
     /**
      * What the guard pin's forced-repath decision chose, and what the last decision of each kind looked
@@ -169,7 +169,7 @@ public final class WalkerTelemetry {
     public final AtomicLongArray futileGateBuckets = new AtomicLongArray(FUTILE_GATE_BUCKETS.length);
 
     /**
-     * What the walker was doing on its most recent tick. The journey rig latches a fall long after the
+     * What the navigator was doing on its most recent tick. The journey rig latches a fall long after the
      * tick that caused it and otherwise could report only WHERE the bot last stood.
      */
     public volatile String lastTickTrace = "no tick has run yet";

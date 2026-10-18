@@ -416,7 +416,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK ? hit.getBlockPos() : null;
     }
 
-    // HOW OFTEN THE WALKER ASKED, AND THE TWO SILENT WAYS THAT ASK ENDS IN NOTHING.
+    // HOW OFTEN THE NAVIGATOR ASKED, AND THE TWO SILENT WAYS THAT ASK ENDS IN NOTHING.
     //
     // Both early returns below used to be invisible: no log, no counter, no return value. A caller
     // that watched its own inventory could see that no block had been spent and could not see WHY —
@@ -532,7 +532,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     /**
      * Break the aimed cell, and say so once if the bot was standing on it.
      *
-     * <p>Asked with {@code soleOnSolid}, the reading the walker's footing guards use, before and
+     * <p>Asked with {@code soleOnSolid}, the reading the navigator's footing guards use, before and
      * after, so there is no second notion of "standing" to keep in sync: sole area {@code > 0} then
      * {@code 0} means the block that vanished was the one carrying this bot. That is a real invariant break — a bot may dig its
      * own floor deliberately (a descent, a shaft), but it must then FALL, and what the log records is
@@ -572,7 +572,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      * playthrough could not gather buried ore. Measured on {@code wd.serverMineHarvestBuried}: the
      * bot broke two ores under an intact floor and both drops landed in a sealed 1×1×1 pocket,
      * {@code openSides=0}, {@code above=dirt} / {@code above=stone}. No pathfinder reaches those,
-     * and two rounds of work went into the walker and the collect sweep before this measurement
+     * and two rounds of work went into the navigator and the collect sweep before this measurement
      * existed. The sweep was right to give up; the mine should never have happened.
      *
      * <p>Two conditions, both of which a real dig satisfies for free:

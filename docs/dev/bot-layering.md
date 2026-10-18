@@ -19,7 +19,7 @@ The bot is a stack. Each package may use the ones below it in this table, then `
 | `bot/` | The facade: `BotApi`, `BotBrain` (one bot's decision stack; the client's `BotApi` is `application/client/ClientBot` around one), the verb orders, the status view, the addressable bots (`Bot`, `PlayerBot`, `BotRegistry`, `BotTicker`, `BotCommand`), the `mc.bot.setting` verb |
 | `bot/arbitration/` | Who gets the one movement channel: `ProcessScheduler`, `Chain`, `Priorities`, the chain implementations, `HeldProcess` |
 | `bot/behavior/` | One class per verb (`BotProcess` and its implementations), `Readiness`, and in `reflex/` the always-on ambient behaviours (eat, heal, shield, swim, tool, …) |
-| `bot/control/` | Executing a path: `Walker`, the `WalkerTick*` phases, aim and path smoothing, the clutch |
+| `bot/control/` | Executing a path: `Navigator`, the `*Phase` classes, aim and path smoothing, the clutch |
 | `bot/planning/` | Searching for a path: `PathFinder` and the elytra planner |
 | `bot/rules/` | What a search may do: `Move` and `MoveCatalog`, and in `moves/`, `constraints/` and `modifiers/` the moves, hard limits and cost taxes |
 | `bot/world/` | The bot's picture of the world: `WorldView` and its implementations, hazard fields, threat scans, survival facts |
@@ -57,7 +57,7 @@ mc.bot.<verb>
               └─ ProcessScheduler   one movement channel, chains bid per tick
               └─ Chain          a policy: how badly it wants the channel this tick
                   └─ BotProcess one verb's behaviour, ticked
-                      └─ Walker executes a path
+                      └─ Navigator executes a path
                           └─ PathFinder  A* over the move catalog
 ```
 
@@ -119,7 +119,7 @@ the channel after preemption so it can repath from where the bot actually is; on
 process in the package implements it, and the rest inherit the no-op and resume on a path
 computed from a position the bot may have been dragged out of. `onCancelled(String)` is
 called when a process is superseded before finishing; overriding it and finalising the
-walker are two different things, and counting overrides does not answer the second
+navigator are two different things, and counting overrides does not answer the second
 question.
 
 The chains take a `Body` too — `Chain.priority(Body, …)`, `Chain.tick(Body, …)`,
@@ -128,31 +128,31 @@ The chains take a `Body` too — `Chain.priority(Body, …)`, `Chain.tick(Body, 
 `equipment()`. No chain names a client type, so the same chains run over any body. The headless
 scenes pass a null `Body` when they tick the scheduler to exercise the bidding alone.
 
-## `Walker` — executing a path
+## `Navigator` — executing a path
 
-`Walker` consumes a path and drives the bot along it, reporting `Step.WALKING`,
+`Navigator` consumes a path and drives the bot along it, reporting `Step.WALKING`,
 `ARRIVED` or `FAILED`.
 
 Two things regularly surprise contributors.
 
-**Unplanned falls are not the walker's job.** Water-bucket clutch handling lives in the
+**Unplanned falls are not the navigator's job.** Water-bucket clutch handling lives in the
 always-on `ClutchController`, one per bot, ticked at the top of the bot's tick, so a falling bot
-rescues itself whether or not a walker is driving. The walker only signals a *planned* fall as
+rescues itself whether or not a navigator is driving. The navigator only signals a *planned* fall as
 it steps off a lip, and biases the step-off keys so the bot drops close to vertically.
 
-**What a walker reports goes through `MoveSignals`.** Each `WorldView` carries one: the walker
+**What a navigator reports goes through `MoveSignals`.** Each `WorldView` carries one: the navigator
 says it is digging or cruising underwater, a flee process says it is fleeing, the edge guards
 plan a clutch. The bot clears it every tick, once the clutch has taken last tick's plan and
 before the scheduler runs. These used to be static flags, which every bot in the JVM shared.
 
-**Its counters belong to the body and are never reset.** `WalkerTelemetry.of(body)` holds
-`lastStats`, `descentHolds` and the guard counters for every walker that drove that player,
+**Its counters belong to the body and are never reset.** `NavigatorTelemetry.of(body)` holds
+`lastStats`, `descentHolds` and the guard counters for every navigator that drove that player,
 the client copy apart from the server's; a caller that wants a window takes a difference.
 They exist so a test can tell "the guard cost nothing" apart from "the guard never ran" —
 two readings that look identical from outside and call for opposite conclusions. They used
 to be statics, so two bots in one JVM added into each other's numbers.
 
-The walker's per-tick work is split into `WalkerTick*` phase classes.
+The navigator's per-tick work is split into `*Phase` classes.
 [`movement-tick-phases.md`](movement-tick-phases.md) covers that decomposition and the
 data that flows between phases; read it before touching a phase.
 
@@ -197,13 +197,13 @@ walk (`MoveCatalog.medium`) — gets `MediumMove.FLY` or `MediumMove.SWIM` inste
 of the 26 neighbours through that medium only, kept out of `ALL`. A stroke checks every cell the
 body's box covers on the way (`WorldView.bodyWidth()` and `bodyHeight()`), so a large body is never
 planned through a hole it does not fit. Its search drops the "get out of the water" handling and the
-depth penalty a player's needs, and `Walker` hands its orders and ticks to `MediumLocomotor`, which follows the
+depth penalty a player's needs, and `Navigator` hands its orders and ticks to `MediumLocomotor`, which follows the
 nodes in three dimensions. Riding has no moves yet.
 
 ## The `Body` seam
 
-`Walker` and every process drive a `Body` (package `game/body/`), not a player. A `Body`'s
-`entity()` is a `LivingEntity`, so everything the walker reads — position, ground contact,
+`Navigator` and every process drive a `Body` (package `game/body/`), not a player. A `Body`'s
+`entity()` is a `LivingEntity`, so everything the navigator reads — position, ground contact,
 water, velocity, bounding box, health — and every pose it sets is identical on a client
 `LocalPlayer`, a server `ServerPlayer` and a driven mob. The interface itself carries only
 what every driven entity has: locomotion impulse and the look.
@@ -215,7 +215,7 @@ asks at the top of its tick and, when one is empty, stamps its slot's `lastError
 `no_hands` reason from `Readiness` and finishes; a caller that never asks cannot compile a
 call to them. `asPlayer()` is the raw `Player` view for the few readers of a player's own
 state such as food, abilities and the attack cooldown, and is null for an entity that is
-not a player. The walker, which cannot refuse an order, drives `WalkerNoHands` for an entity
+not a player. The navigator, which cannot refuse an order, drives `NoHands` for an entity
 without equipment or block interaction, so its dig and place checks fail closed on their own
 readings.
 
@@ -306,7 +306,7 @@ is on the script's grandfather list, in which case it may shrink but never grow.
 hold only a comment do not count, so explaining code costs nothing against either limit.
 Read the script for the current numbers.
 
-The `WalkerTick*` phase classes are the reference pattern for carving up a large
+The `*Phase` classes are the reference pattern for carving up a large
 sequential method. Four of them are on the grandfather list precisely because that split
 moved text without decomposing the method — which is why the method budget exists at all.
 
@@ -318,7 +318,7 @@ them.
 
 Behaviour in this subsystem is judged by scenes, not unit tests. [`testing.md`](testing.md)
 explains how to run them and how to add one. Two rules bite hardest here: a new scene must
-be registered and listed in the manifest in the same change, and the `[walker]` and
+be registered and listed in the manifest in the same change, and the `[navigator]` and
 `[expect]` log formats are a contract that several development tools parse by regular
 expression — a regular expression that stops matching does not raise, it returns nothing,
 which reads as "no problem found".

@@ -1,7 +1,7 @@
 # The replay corpus
 
 The mod can record a `goto` session — the routes the planner produced, the terrain it
-planned over, and the trajectory the walker actually flew — into a single JSON file, and
+planned over, and the trajectory the navigator actually flew — into a single JSON file, and
 replay that file later to reproduce the run. A corpus of such recordings is the regression
 check for movement and pathfinding changes: replay all of them before and after a change,
 and compare how badly the bot churned.
@@ -15,7 +15,7 @@ here.
 ## What a recorded run contains
 
 Recording is off by default, because it captures the whole block corridor around the route
-and every walker tick, which is heavy on a long run. It is turned on per session through the
+and every navigator tick, which is heavy on a long run. It is turned on per session through the
 `pathArchive` setting, and completing or cancelling the `goto` writes the archive.
 
 An archive is one JSON object with seven top-level fields.
@@ -27,7 +27,7 @@ An archive is one JSON object with seven top-level fields.
 | `header` | session metadata: world seed (may be null), dimension, start time, the goal as it was described, the start and goal coordinates, and how the session ended |
 | `segments` | one entry per adopted route, so a session that re-planned has several |
 | `envelope` | the blocks around the route, enough to restore it |
-| `trajectory` | one sample per walker tick |
+| `trajectory` | one sample per navigator tick |
 | `planRef` | on a replay capture, the archive it replayed |
 
 A **segment** carries the search result — nodes expanded, milliseconds spent, final cost,
@@ -171,11 +171,11 @@ The modules divide as follows.
 - `corpus.py` loads and validates the manifest.
 - `run_case.py` is the live link for one archive: it copies the archive into the game's run
   directory if it is not there, sets the candidate settings over the websocket — together
-  with the telemetry switch `walkerDebug`, which has to be on for any of this to be
+  with the telemetry switch `navigatorDebug`, which has to be on for any of this to be
   measurable and is not part of what is being tested — issues `mc.debug.replay`, then polls
-  the game log for walker telemetry until the bot crosses the arrival coordinate or the
+  the game log for navigator telemetry until the bot crosses the arrival coordinate or the
   timeout expires, and parses that slice of the log.
-- `telemetry.py` parses the `[walker]` lines into tick records.
+- `telemetry.py` parses the `[navigator]` lines into tick records.
 - `conformance.py` aggregates those ticks per move kind.
 - `gate.py` decides accept or reject.
 - `sweep.py` and `run_corpus.py` drive the whole manifest.
@@ -186,7 +186,7 @@ x and the comparison direction, tracks the live log, and prints a verdict.
 
 ### What the check compares, and what counts as a difference
 
-The measured quantity is **`maxStuck`**: the peak of the walker telemetry's running stall
+The measured quantity is **`maxStuck`**: the peak of the navigator telemetry's running stall
 counter over the run, in ticks. Twenty ticks is a second. A run whose peak stays under the
 silky threshold of 120 ticks — about six seconds — never visibly stalled. The comparison is
 per archive against a baseline matrix, plus a boolean for whether the bot arrived, where
@@ -216,7 +216,7 @@ divergent set is reported as a union across the corpus.
 
 ### The telemetry contract
 
-The harness recovers everything from log lines a format string in the walker's tick path
+The harness recovers everything from log lines a format string in the navigator's tick path
 emits. Nothing in the compiler connects the two. Renaming a field, adding one, or moving one
 compiles, passes every scene, and silently turns every scraper into a no-op — a regex that
 matches nothing does not raise, it yields an empty iterator, and the tool then reports "no
