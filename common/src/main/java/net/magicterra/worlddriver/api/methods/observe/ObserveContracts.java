@@ -259,7 +259,7 @@ public final class ObserveContracts {
     public static final ApiType<ThreatsParams> THREATS_PARAMS = ApiTypes.record(ThreatsParams.class, "ThreatsParams",
             ApiField.field("radius", ApiTypes.integer(1, 64)).describe("Blocks around the player.")
                     .defaulted(24).forGetter(ThreatsParams::radius),
-            ApiField.field("bot", Responses.BOT_REF).describe("A server player bot: the threats its own scan sees. Omitted: self.")
+            ApiField.field("bot", Responses.BOT_REF).describe("A server bot, player or mob: the threats its own scan sees. Omitted: self.")
                     .optional().forGetter(ThreatsParams::bot),
             ThreatsParams::new);
 
@@ -299,8 +299,8 @@ public final class ObserveContracts {
     // Pollable: one bounded scan of the client's own entity set, on the client thread.
     public static final MethodSpec<ThreatsParams, Threats> THREATS = MethodSpec.of("mc.observe.threats", THREATS_PARAMS,
                     THREATS_REPLY,
-                    "Scored hostiles and incoming projectiles around this client's player, or a named server player "
-                            + "bot, as that bot's own reflexes see them. For self, empty lists without a client.")
+                    "Scored hostiles and incoming projectiles around this client's player, or a named server bot, "
+                            + "player or mob, as that bot's own reflexes see them. For self, empty lists without a client.")
             .asPollable();
 
     // ------------------------------------------------------------------ boss

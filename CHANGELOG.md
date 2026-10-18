@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **`mc.observe.threats` reads a driven mob's scan too.** `bot` may name a mob bot (`mob:<name>` or an
+  adopted `entity:<uuid>`), not only a server player bot; the answer is that mob's own scan, which
+  counts a mob only when it targets this one.
 - **`TestContent` moved to `api/game`.** The construction-time service test content implements is
   `net.magicterra.worlddriver.api.game.TestContent` now, and its service file is named after it.
 - **`faithfulBreak` is a setting.** Digging at the real speed for the tool on a server bot, instead

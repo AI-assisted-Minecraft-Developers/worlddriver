@@ -38,6 +38,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -73,9 +74,10 @@ public final class ObserveService implements ObserveApi {
         if (p.bot().isPresent() && !BotRegistry.isSelf(p.bot().get())) {
             String ref = p.bot().get();
             return api.requireServerHop().submit(() -> {
-                if (!(BotRegistry.get(ref) instanceof ServerBot bot) || !(bot.entity() instanceof Player self)) {
-                    throw ApiException.invalidParam("/bot", ApiIssue.Code.INVALID_VALUE, "no server player bot named " + ref);
+                if (!(BotRegistry.get(ref) instanceof ServerBot bot) || bot.entity() == null) {
+                    throw ApiException.invalidParam("/bot", ApiIssue.Code.INVALID_VALUE, "no server bot named " + ref);
                 }
+                LivingEntity self = bot.entity();
                 return WorldReadings.threats(self.level(), self, p.radius(), bot.threatVelocities());
             }, ctx);
         }

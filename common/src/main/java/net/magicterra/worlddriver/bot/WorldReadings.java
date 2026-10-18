@@ -31,7 +31,7 @@ import net.magicterra.worlddriver.bot.world.WorldModel;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
@@ -41,7 +41,7 @@ public final class WorldReadings {
 
     /** The scored hostiles and incoming projectiles around {@code self}: {@code mc.observe.threats}' reply.
      *  {@code projVel} is a threat watch's derived projectile velocities, empty to read each off the entity. */
-    public static ObserveContracts.Threats threats(Level level, Player self, int radius, Map<Integer, Vec3> projVel) {
+    public static ObserveContracts.Threats threats(Level level, LivingEntity self, int radius, Map<Integer, Vec3> projVel) {
         ThreatScanner.Scan s = ThreatScanner.compute(level, self, radius, projVel);
         List<ObserveContracts.Threat> threats = new ArrayList<>();
         for (ThreatScanner.Threat t : s.threats()) {
