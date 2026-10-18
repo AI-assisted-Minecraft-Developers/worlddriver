@@ -5,7 +5,7 @@ import java.util.Comparator;
 import java.util.concurrent.locks.LockSupport;
 
 import net.magicterra.worlddriver.api.game.Positions;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
@@ -200,7 +200,7 @@ public final class TestArena {
                         + " but not for entities, so every entity check downstream would report an"
                         + " empty world instead of this");
             }
-            WorldDriverCommon.host().clearEvents();
+            WorldDriver.host().clearEvents();
             return null;
         });
     }

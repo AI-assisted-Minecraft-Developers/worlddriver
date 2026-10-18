@@ -7,7 +7,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.bot.BotRegistry;
@@ -71,7 +71,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
      * an action, runs on the bot's tick, and its result answers {@code mc.wait.result}.
      */
     private static void runsARegisteredTask(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         Mob mob = stage(ctx, ctx.origin().above(20), NpcContent.VELOCITY_MOB.get());
         String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
@@ -99,7 +99,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
      * on the unregistered stand-in walks here.
      */
     private static void registeredDriverWalks(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         BlockPos goal = o.offset(COURSE, 0, 0);
@@ -129,7 +129,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
      * the driver's own route would have to go round.
      */
     private static void registeredMoverTravels(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         BlockPos goal = o.offset(COURSE, 0, 0);
@@ -163,7 +163,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
      * and the mob's own tick keeps running.
      */
     private static void castsItsOwnControlWalks(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         BlockPos goal = o.offset(COURSE, 0, 0);
@@ -192,7 +192,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
 
     /** A stand-in for a modded mob whose own travel reads no input: its goto fails as unresponsive. */
     private static void ignoresInputFailsUnresponsive(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         Mob mob = stage(ctx, o, NpcContent.SELF_MOVING_MOB.get());
@@ -220,7 +220,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
      * them and by {@code /worlddriver mob}, and neither is taken over.
      */
     private static void undrivableIsRefused(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         Mob listed = stage(ctx, o, EntityType.WOLF);
@@ -315,7 +315,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
     }
 
     private static void zombieByEntityRef(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         BlockPos goal = o.offset(COURSE, 0, 0);
@@ -373,7 +373,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
     }
 
     private static void wolfByCommand(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         BlockPos goal = o.offset(COURSE, 0, 0);
@@ -406,7 +406,7 @@ public final class WorldDriverMobScenes implements SceneProvider {
     }
 
     private static void removedEndsItsAction(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         Mob zombie = stage(ctx, o, EntityType.ZOMBIE);

@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.config.GameConfig;
@@ -289,7 +290,7 @@ public final class WorldDriverScenes implements SceneProvider {
             ctx.fail("settingRegistry: mc.bot.setting accepted an unknown key — #280 would silently return");
 
         // (5) mc.test.reset registered — the SPI's regression net: a typed method, from StageWright's batch.
-        var api = WorldDriverCommon.registry();
+        var api = WorldDriver.registry();
         if (api == null)
             ctx.fail("settingRegistry: the API registry is not booted — cannot check mc.test.reset registration");
         if (!api.methods().contains("mc.test.reset") || api.spec("mc.test.reset") == null)

@@ -25,9 +25,11 @@ recipe script system debug client screen test`. The implementations live outside
 Outside `api/`: the three transports (`rpc/`, `mcp/`, `script/`) use protocol, schema and the
 runtime, never the game layer, and so receive events already in their wire form. They subscribe
 through `registry/EventFeed`, which the game layer's `DriverHost` extends without naming a game
-type in it; they call through the `ApiRegistry` (`WorldDriverCommon.registry()`), and the game side
-holds the driver by `DriverHost` (`WorldDriverCommon.host()`). `application/`
-may use every layer and `bot/`. The bot's planning and movement core uses none of `api/`.
+type in it; they call through the `ApiRegistry` they are handed, and the game side holds the driver
+by `DriverHost`. Other code in the game, another mod's or the test scenes', finds both through
+`api/game/WorldDriver` (`registry()`, `host()`, the two ports, and `whenReady` for code that loads
+before the driver is up). `application/` may use every layer and `bot/`. The bot's planning and
+movement core uses none of `api/`.
 
 ## Why it is cut this way
 

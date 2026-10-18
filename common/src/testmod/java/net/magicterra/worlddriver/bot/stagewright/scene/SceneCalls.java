@@ -10,7 +10,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import net.magicterra.stagewright.scene.SceneContext;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
@@ -31,7 +31,7 @@ final class SceneCalls {
     /** How long a reply may take, in server ticks. */
     private static final int REPLY_TICKS = 40;
 
-    static ApiRegistry api() { return WorldDriverCommon.registry(); }
+    static ApiRegistry api() { return WorldDriver.registry(); }
 
     /** Continues with {@code call}'s reply; a call that fails fails the scene. */
     static <R> void ask(SceneContext ctx, String tag, CompletionStage<R> call, Consumer<R> then) {

@@ -9,6 +9,7 @@ import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.event.events.common.TickEvent;
 import net.magicterra.worlddriver.api.game.DriverHost;
+import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotCommand;
@@ -77,7 +78,7 @@ public final class WorldDriverEvents {
 
     private static EventResult onBlockBreak(net.minecraft.world.level.Level level, BlockPos pos,
             BlockState state, ServerPlayer player, dev.architectury.utils.value.IntValue xp) {
-        DriverHost api = WorldDriverCommon.host();
+        DriverHost api = WorldDriver.host();
         if (api != null) {
             String id = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
             api.emitExternal(EventCatalog.BLOCK_BREAK, pos.immutable(), id);
@@ -87,7 +88,7 @@ public final class WorldDriverEvents {
 
     private static EventResult onBlockPlace(net.minecraft.world.level.Level level, BlockPos pos,
             BlockState state, Entity placer) {
-        DriverHost api = WorldDriverCommon.host();
+        DriverHost api = WorldDriver.host();
         if (api != null && placer != null) {
             String id = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
             api.emitExternal(EventCatalog.BLOCK_PLACE, pos.immutable(), id);
@@ -97,7 +98,7 @@ public final class WorldDriverEvents {
 
     private static EventResult onLivingDeath(LivingEntity entity,
             net.minecraft.world.damagesource.DamageSource source) {
-        DriverHost api = WorldDriverCommon.host();
+        DriverHost api = WorldDriver.host();
         if (api != null) {
             String id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
             api.emitExternal(EventCatalog.ENTITY_DEATH, entity.blockPosition(), id);
@@ -106,13 +107,13 @@ public final class WorldDriverEvents {
     }
 
     private static void emitPlayer(EventCatalog.Entry<String> type, ServerPlayer player) {
-        DriverHost api = WorldDriverCommon.host();
+        DriverHost api = WorldDriver.host();
         if (api == null) return;
         api.emitExternal(type, player.blockPosition(), player.getGameProfile().getName());
     }
 
     private static EventResult onChat(ServerPlayer player, net.minecraft.network.chat.Component message) {
-        DriverHost api = WorldDriverCommon.host();
+        DriverHost api = WorldDriver.host();
         if (api != null) {
             api.emitExternal(EventCatalog.CHAT_MESSAGE, player.blockPosition(),
                     new EventCatalog.ChatMessage(player.getGameProfile().getName(), message.getString()));

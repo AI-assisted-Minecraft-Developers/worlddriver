@@ -26,6 +26,7 @@ import dev.architectury.event.events.common.CommandRegistrationEvent;
 import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.TickEvent;
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.registry.ApiBatch;
@@ -123,7 +124,7 @@ public final class SceneVerbs {
     }
 
     private static void publishVerbs() {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) {
             WorldDriverCommon.LOG.warn("[{}] scene verbs not registered: the driver API is not up", WorldDriverCommon.MOD_ID);
             return;

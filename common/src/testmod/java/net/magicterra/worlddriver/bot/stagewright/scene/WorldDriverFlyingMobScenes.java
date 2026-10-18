@@ -15,7 +15,7 @@ import java.util.Map;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.bot.BotRegistry;
@@ -134,7 +134,7 @@ public final class WorldDriverFlyingMobScenes implements SceneProvider {
      * above the minimum, also that its feet got that high on the way.
      */
     private static void fly(SceneContext ctx, Mob mob, BlockPos goal, int mustReachY, String what) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         String name = mob.getType().toShortString();
         String ref = BotRegistry.ENTITY_PREFIX + mob.getUUID();
@@ -172,7 +172,7 @@ public final class WorldDriverFlyingMobScenes implements SceneProvider {
 
     /** A parrot sent to a point six up in open air gets there, and holds that point, not falling, once it has. */
     private static void parrotHoversWhereItArrived(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         ServerLevel level = ctx.level();
@@ -217,7 +217,7 @@ public final class WorldDriverFlyingMobScenes implements SceneProvider {
 
     /** An order naming a wither or an ender dragon is refused and says why. */
     private static void bossesAreRefused(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(30);
         Mob wither = spawn(ctx, EntityType.WITHER, new Vec3(o.getX() + 0.5, o.getY(), o.getZ() + 0.5));

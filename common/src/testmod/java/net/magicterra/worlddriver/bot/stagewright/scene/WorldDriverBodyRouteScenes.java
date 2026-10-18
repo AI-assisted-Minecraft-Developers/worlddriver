@@ -7,7 +7,7 @@ import java.util.Map;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.config.BotConfig;
@@ -96,7 +96,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
     }
 
     private static void walkAPlayerAndAnNpcByName(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         BlockPos playerStart = o.offset(0, 0, -2), playerGoal = o.offset(COURSE, 0, -2);
@@ -171,7 +171,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
     }
 
     private static void startProcessesByName(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         BlockPos playerStart = o.offset(1, 0, -2), npcStart = o.offset(1, 0, 2);

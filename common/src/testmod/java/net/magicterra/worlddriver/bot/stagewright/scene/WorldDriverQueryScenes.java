@@ -5,7 +5,7 @@ import java.util.List;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.game.WorldDriver;
 import static net.magicterra.worlddriver.api.game.Positions.position;
 
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
@@ -49,7 +49,7 @@ public final class WorldDriverQueryScenes implements SceneProvider {
     private static void clientBlocksNameUnloadedChunks(SceneContext ctx) {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.client.blocks is client-only — only an integrated server has its handler here");
-        if (WorldDriverCommon.registry() == null) ctx.fail("the API registry is not initialized — was the mod loaded?");
+        if (WorldDriver.registry() == null) ctx.fail("the API registry is not initialized — was the mod loaded?");
         var client = ClientApi.of(SceneCalls.api());
 
         // Asked, not awaited: the scan runs on the client thread, which this server thread may not wait for.
@@ -65,7 +65,7 @@ public final class WorldDriverQueryScenes implements SceneProvider {
     }
 
     private static void blocksStayInLoadedChunks(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) ctx.fail("the API registry is not initialized — was the mod loaded?");
         var query = QueryApi.of(api);
         for (int d : new int[] {-MAX_RADIUS, MAX_RADIUS})

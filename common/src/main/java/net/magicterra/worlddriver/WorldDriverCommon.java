@@ -4,7 +4,7 @@ import net.magicterra.worlddriver.application.DriverApplication;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import net.magicterra.worlddriver.api.game.DriverHost;
+import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.config.BotConfigFile;
 import net.magicterra.worlddriver.config.Mod;
@@ -39,20 +39,8 @@ public final class WorldDriverCommon {
     private static volatile DriverApplication api;
     private static RpcServer rpcServer;
     private static McpServer mcpServer;
-    private static volatile int rpcPort = -1;
-    private static volatile int mcpPort = -1;
 
     private WorldDriverCommon() {}
-
-    public static int rpcPort() { return rpcPort; }
-    public static int mcpPort() { return mcpPort; }
-    /** Every method the driver answers, the entry for calls made inside this JVM. Null until {@link #ensureRpcUp}. */
-    public static ApiRegistry registry() {
-        DriverApplication a = api;
-        return a == null ? null : a.registry();
-    }
-    /** What the game side calls on the driver: lifecycle, events, restore. Null until {@link #ensureRpcUp}. */
-    public static DriverHost host() { return api; }
 
     /**
      * Idempotently bring up the driver + RPC server. Called from both the
@@ -60,7 +48,8 @@ public final class WorldDriverCommon {
      * screen — no world needed) AND from onServerStarting. Subsequent calls
      * are no-ops once the API exists. The port is written to
      * {@code worlddriver-rpc.port} in the JVM working directory so external drivers
-     * (e.g. the ReAct smoke harness) can discover it without log scraping.
+     * (e.g. the ReAct smoke harness) can discover it without log scraping. Code in the
+     * game finds the driver and its ports through {@link WorldDriver}.
      */
     public static synchronized void ensureRpcUp() {
         if (api != null && rpcServer != null) return;
@@ -75,6 +64,7 @@ public final class WorldDriverCommon {
                 // Every method is typed and validated by its own contract, so nothing more needs wiring
                 // before a socket listens. StageWright publishes mc.test.* as its own batch at
                 // SERVER_STARTED; a server without it simply has no mc.test.* surface.
+                WorldDriver.up(app.registry(), app);
             }
         } catch (Exception e) {
             LOG.error("[{}] failed to start RPC server", MOD_ID, e);
@@ -99,7 +89,8 @@ public final class WorldDriverCommon {
                             MOD_ID, wantPort, bindFail.getMessage());
                     rpcServer = new RpcServer(api.registry(), api, bindHost, 0);
                 }
-                rpcPort = rpcServer.port();
+                int rpcPort = rpcServer.port();
+                WorldDriver.rpcListening(rpcPort);
                 LOG.info("[{}] RPC server listening on ws://{}:{}/rpc", MOD_ID, urlHost(bindHost), rpcPort);
                 writePortFile("worlddriver-rpc.port", rpcPort);
             }
@@ -131,7 +122,8 @@ public final class WorldDriverCommon {
                         MOD_ID, wantPort, bindFail.getMessage());
                 mcpServer = new McpServer(api.registry(), api, bindHost, 0);
             }
-            mcpPort = mcpServer.port();
+            int mcpPort = mcpServer.port();
+            WorldDriver.mcpListening(mcpPort);
             LOG.info("[{}] MCP server listening on http://{}:{}/mcp", MOD_ID, urlHost(bindHost), mcpPort);
             writePortFile("worlddriver-mcp.port", mcpPort);
         } catch (IOException e) {
@@ -293,7 +285,7 @@ public final class WorldDriverCommon {
 
     private static int cmdPort(CommandContext<CommandSourceStack> ctx) {
         ctx.getSource().sendSuccess(
-                () -> Component.literal("Agent RPC port: " + rpcPort),
+                () -> Component.literal("Agent RPC port: " + WorldDriver.rpcPort()),
                 false
         );
         return 1;
@@ -301,7 +293,7 @@ public final class WorldDriverCommon {
 
     private static int cmdMcp(CommandContext<CommandSourceStack> ctx) {
         ctx.getSource().sendSuccess(
-                () -> Component.literal("Agent MCP endpoint: http://127.0.0.1:" + mcpPort + "/mcp"),
+                () -> Component.literal("Agent MCP endpoint: http://127.0.0.1:" + WorldDriver.mcpPort() + "/mcp"),
                 false
         );
         return 1;
@@ -334,8 +326,9 @@ public final class WorldDriverCommon {
                 LOG.warn("[{}] user scripts path is not a directory: {}", MOD_ID, dir);
                 return 0;
             }
-            RpcBridge bridge = new RpcBridge("127.0.0.1", rpcPort);
+            RpcBridge bridge = new RpcBridge("127.0.0.1", WorldDriver.rpcPort());
             ApiRegistry a = api.registry();
+            int mcpPort = WorldDriver.mcpPort();
             McpBridge mcpBridge = (mcpPort > 0) ? new McpBridge("127.0.0.1", mcpPort, name -> {
                 var spec = a.spec(name);
                 return spec == null ? null : spec.image();

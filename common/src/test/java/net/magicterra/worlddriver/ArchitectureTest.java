@@ -100,10 +100,9 @@ class ArchitectureTest {
             }
             if (Set.of("bot/behavior", "bot/arbitration", "bot/control", "bot/planning", "bot/rules")
                     .contains(firstTwo(name))) {
+                // The api ban also keeps out the global driver lookup, WorldDriver in api/game.
                 banned.addAll(List.of("net.magicterra.worlddriver.mcp.", "net.magicterra.worlddriver.rpc.",
                         "net.magicterra.worlddriver.api."));
-                if (Pattern.compile("WorldDriverCommon\\s*\\.\\s*(registry|host)\\s*\\(").matcher(text).find())
-                    bad.add(name + ": global driver API lookup in core behaviour");
             }
             banned.add("net.magicterra.stagewright.");
             for (String dependency : banned) {

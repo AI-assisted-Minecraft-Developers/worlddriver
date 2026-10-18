@@ -13,7 +13,7 @@ import java.util.Map;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.bot.BotRegistry;
@@ -73,7 +73,7 @@ public final class WorldDriverWaterMobScenes implements SceneProvider {
 
     /** A mob that only swims crosses the tank, under the wall through its one gap, and the order succeeds. */
     private static void swimsUnderAWall(SceneContext ctx, EntityType<? extends Mob> type) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         BlockPos goal = o.offset(COURSE, 0, 0);
@@ -116,7 +116,7 @@ public final class WorldDriverWaterMobScenes implements SceneProvider {
 
     /** A cod sent to a cell on the tank's rim, out of the water: the order fails and the cod is still in the water. */
     private static void landGoalFailsInWater(SceneContext ctx) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         BlockPos rim = o.offset(COURSE, 3, 3);
@@ -145,7 +145,7 @@ public final class WorldDriverWaterMobScenes implements SceneProvider {
 
     /** A mob that walks and swims crosses the course, through the pool in its middle, and the order succeeds. */
     private static void walksAndSwims(SceneContext ctx, EntityType<? extends Mob> type) {
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         if (api == null) { ctx.fail("the API registry is not initialized — was the mod loaded?"); return; }
         BlockPos o = ctx.origin().above(20);
         BlockPos goal = o.offset(COURSE, 0, 0);

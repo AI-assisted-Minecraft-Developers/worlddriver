@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.debug;
 import net.magicterra.worlddriver.debug.PathArchive;
 
 import net.magicterra.worlddriver.api.call.CallContext;
-import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.game.WorldCell;
 import net.magicterra.worlddriver.api.schema.ApiError;
@@ -148,7 +148,7 @@ final class ReplayTool {
     /** The server's half: restore the envelope and teleport to the start's block centre; completes with the cells restored. */
     private static CompletionStage<Integer> prepare(ApiRegistry api, List<WorldCell> cells, BlockPos start, CallContext ctx) {
         CompletionStage<Integer> restored = cells.isEmpty() ? CompletableFuture.completedFuture(0)
-                : WorldDriverCommon.host().restoreCellsOnServer(cells, ctx);
+                : WorldDriver.host().restoreCellsOnServer(cells, ctx);
         String tp = String.format(Locale.ROOT, "tp %.1f %d %.1f", start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
         return restored.thenCompose(n -> {
             // No server to command, or the command failed: the client places its player at the start anyway.

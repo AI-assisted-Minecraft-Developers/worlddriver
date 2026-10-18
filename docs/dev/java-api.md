@@ -10,7 +10,7 @@ Each group of methods has an interface whose methods have real Java names, with 
 records as parameters and results:
 
 ```java
-SettingsStubApi settings = SettingsApi.of(WorldDriverCommon.registry());
+SettingsStubApi settings = SettingsApi.of(WorldDriver.registry());
 CompletionStage<SettingsReply> reply = settings.setting(SettingsContracts.Read.of("autoEat"));
 
 switch (ApiRegistry.await(reply, 5_000)) {
@@ -22,6 +22,12 @@ switch (ApiRegistry.await(reply, 5_000)) {
 
 Every reply union is sealed, so a `switch` like the one above is checked for every case the method
 can answer.
+
+`WorldDriver` (`api/game/`) is where the registry is found. It is null until the driver is up: at
+client init on a client, at server start on a dedicated server, in both cases after every mod's own
+setup. Code that runs earlier and wants to publish methods of its own passes them to
+`WorldDriver.whenReady(registry -> registry.registerBatch(…))`, which runs at once if the driver is
+already up.
 
 | Interface | Methods |
 |---|---|

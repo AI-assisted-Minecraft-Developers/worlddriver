@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **Code in the game finds the driver through `api/game/WorldDriver`.** `registry()`, `host()`,
+  `rpcPort()` and `mcpPort()` moved there from `WorldDriverCommon`, which no longer has them, and
+  `whenReady` runs a callback once the driver is up, for a mod whose setup runs before it.
 - **Another mod can add a body task.** `BodyTasks.register("<modid>.<verb>", …)` in `api/game`
   publishes a method that starts the mod's own `TaskStep` on a bot and answers as the `mc.bot.*`
   tasks do: accepted as an action, superseded by the next task, cancellable, and read back through

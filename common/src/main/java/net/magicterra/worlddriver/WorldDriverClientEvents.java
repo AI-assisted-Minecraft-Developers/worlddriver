@@ -9,6 +9,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses;
 import dev.architectury.event.events.client.ClientTickEvent;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.game.DriverHost;
+import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.thread.GameThreads;
@@ -56,7 +57,7 @@ public final class WorldDriverClientEvents {
         // Optional, strippable: wire the path-debug recorder + mc.debug.pathChart now that
         // the registry exists. Removing the debug package + this line fully strips the feature.
         // ensureRpcUp logs and swallows a failed boot, leaving no registry to register on.
-        ApiRegistry registry = WorldDriverCommon.registry();
+        ApiRegistry registry = WorldDriver.registry();
         if (registry != null) PathDebugBootstrap.init(registry);
         else WorldDriverCommon.LOG.warn("[{}] driver not ready; mc.debug.* not registered", WorldDriverCommon.MOD_ID);
         // Looked up per event: a driver that failed to boot leaves api() null, and the bot still
@@ -65,7 +66,7 @@ public final class WorldDriverClientEvents {
                 net.magicterra.worlddriver.game.ui.ClientWorld::level,
                 net.magicterra.worlddriver.game.ui.ClientWorld::player);
         BotBrain brain = new BotBrain((type, pos, data) -> {
-            DriverHost api = WorldDriverCommon.host();
+            DriverHost api = WorldDriver.host();
             if (api != null) api.emitExternal(type, pos, JsonValue.of(data));
         }, () -> world);
         // The world view applies the world model's lethal-cell penalty in its danger cost.

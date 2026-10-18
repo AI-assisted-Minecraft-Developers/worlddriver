@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.game.WorldDriver;
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
 import net.magicterra.worlddriver.api.schema.ApiException;
@@ -185,7 +186,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ServerPlayer player = ctx.playerHere();
         // Typed, so a change to the verb's answer breaks this compile rather than silently skipping the
         // teleport below (it did, for three gate runs, when the shape this read by hand moved).
-        BlockPosition o = ApiRegistry.await(SystemApi.of(WorldDriverCommon.registry())
+        BlockPosition o = ApiRegistry.await(SystemApi.of(WorldDriver.registry())
                 .testOrigin(new NoParams()), 5_000);
         BlockPos pad = Positions.blockPos(o);
         // Offset by one on both axes rather than landing on the origin cell: the seed puts an
@@ -247,7 +248,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  swallow) still trips. This is a topology-aware assertion of each topology's correct value, NOT a
      *  blanket skip — the suite executes in full on both. */
     private static void agentRpcSmoke(SceneContext ctx) {
-        if (WorldDriverCommon.registry() == null) {
+        if (WorldDriver.registry() == null) {
             ctx.fail("agentRpcSmoke: the API registry is not initialized — was the mod loaded?");
             return;
         }
@@ -256,7 +257,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             return;
         }
         try {
-            TestArena.seed(WorldDriverCommon.registry(), ctx.level().getServer());
+            TestArena.seed(WorldDriver.registry(), ctx.level().getServer());
             standOnTestArea(ctx);
         } catch (RuntimeException | Error e) {
             ValidationSuite.release();
@@ -270,7 +271,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // out, on FAIL and TIMEOUT too. A dedicated server has no bot. Sent without waiting: self's
         // cancel runs on the client thread, which a cleanup on the server thread may not wait for.
         if (BotHooks.isAvailable()) {
-            ctx.cleanup(() -> ControlApi.of(WorldDriverCommon.registry()).cancel(CancelParams.all()));
+            ctx.cleanup(() -> ControlApi.of(WorldDriver.registry()).cancel(CancelParams.all()));
         }
 
         AtomicReference<Integer> result = new AtomicReference<>();
@@ -536,7 +537,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
 
     private static void assertUnionType(SceneContext ctx, String toolName, String propName, List<String> expectedTypes) {
         Map<String, Object> tool = null;
-        for (Map<String, Object> t : McpTools.list(WorldDriverCommon.registry())) {
+        for (Map<String, Object> t : McpTools.list(WorldDriver.registry())) {
             if (toolName.equals(t.get("name"))) { tool = t; break; }
         }
         if (tool == null) { ctx.fail("schemaUnionRendering: tool not found in tools/list: " + toolName); return; }
@@ -1568,7 +1569,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     private static void clientSettingSchema(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        var settings = SettingsApi.of(WorldDriverCommon.registry());
+        var settings = SettingsApi.of(WorldDriver.registry());
         SceneCalls.askFailure(ctx, "unknownKey", settings.setting(SettingsContracts.Patch.of(Map.of("definitelyNotAKnob", true))), refused -> {
             List<ApiIssue> issues = refused.issues();
             ctx.expect(issues.stream().anyMatch(i -> i.path().equals("/values/definitelyNotAKnob") && i.message().contains("definitelyNotAKnob")))
@@ -1624,7 +1625,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ctx.command("item replace entity " + name + " container.20 with minecraft:emerald 7");
         ctx.command("item replace entity " + name + " container.35 with minecraft:gold_ingot 3");
 
-        Object obs = WorldDriverCommon.registry().route("mc.observe.player", Map.of("name", name));
+        Object obs = WorldDriver.registry().route("mc.observe.player", Map.of("name", name));
         Object rows = obs instanceof Map<?, ?> m && m.get("player") instanceof Map<?, ?> p ? p.get("inventory") : null;
         ctx.expect(rows instanceof List<?>).as("observe.player carries an inventory list")
                 .isEqualTo(true);
@@ -1697,7 +1698,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
 
     /** {@code mc.observe.player}'s AttackSnap for one named player, or empty when absent. */
     private static Map<?, ?> attackSnap(String name) {
-        Object obs = WorldDriverCommon.registry().route("mc.observe.player", Map.of("name", name));
+        Object obs = WorldDriver.registry().route("mc.observe.player", Map.of("name", name));
         Object attack = obs instanceof Map<?, ?> m && m.get("player") instanceof Map<?, ?> p ? p.get("attack") : null;
         return attack instanceof Map<?, ?> a ? a : Map.of();
     }
@@ -2049,7 +2050,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         if (ctx.server().isDedicatedServer())
             ctx.skip("player.hurt is emitted client-side, so a dedicated server's observe ring never"
                     + " carries it — the packet-boundary half still needs a client push subscription");
-        ApiRegistry api = WorldDriverCommon.registry();
+        ApiRegistry api = WorldDriver.registry();
         String name = ctx.player().getGameProfile().getName();
 
         // Healed on both sides: before, so two points cannot kill a player an earlier scene left
@@ -2110,7 +2111,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     private static void clientPlayerInWorld(SceneContext ctx) {
         if (ctx.server().isDedicatedServer())
             ctx.skip("mc.client.player is client-only — only an integrated server has its handler here");
-        ask(ctx, "clientPlayer", ClientApi.of(WorldDriverCommon.registry()).player(new NoParams()), cp -> {
+        ask(ctx, "clientPlayer", ClientApi.of(WorldDriver.registry()).player(new NoParams()), cp -> {
             ctx.expect(cp.present()).as("mc.client.player reports a LocalPlayer in a world")
                     .isEqualTo(true);
             ctx.expect(cp.pos().isPresent()).as("mc.client.player's pos is there, not a hole in a well-shaped payload")
