@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **`mc.debug.cells` says what a block is worth as something to place.** Each cell also answers
+  `buildBlock` (the block there may be placed as footing), `valuable` (a gathered resource the bot
+  never spends as filler) and `throwaway` (its item is filler the bot spends first).
 - **`TestContent` moved to `api/game`.** The construction-time service test content implements is
   `net.magicterra.worlddriver.api.game.TestContent` now, and its service file is named after it.
 - **`faithfulBreak` is a setting.** Digging at the real speed for the tool on a server bot, instead

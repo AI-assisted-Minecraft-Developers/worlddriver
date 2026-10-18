@@ -46,13 +46,16 @@ import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.BlastFooting;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
+import net.magicterra.worlddriver.game.observe.BuildBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -182,9 +185,11 @@ final class BotReadings {
         List<Cell> cells = new ArrayList<>();
         for (BlockPosition c : p.cells()) {
             BlockPos b = cell(c);
+            Block block = level.getBlockState(b).getBlock();
             cells.add(new Cell(c, view.isKnown(b), view.isSolid(b), view.isPassable(b), view.isHazard(b), view.isWater(b),
                     view.isClimbable(b), view.isLeaves(b), view.isFallingBlock(b), view.isBreakableObstruction(b),
-                    view.canStandOn(b), view.canStandAt(b)));
+                    view.canStandOn(b), view.canStandAt(b), BuildBlocks.isUsableBuildBlock(block),
+                    BuildBlocks.isValuablePlacementBlock(block), BuildBlocks.isThrowawaySupportBlock(new ItemStack(block.asItem()))));
         }
         Optional<NodeFacts> node = p.node().map(q -> node(level, q));
         return new CellsReading(whose, level.dimension().location().toString(), cells, node);
