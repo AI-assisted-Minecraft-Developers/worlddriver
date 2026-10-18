@@ -1,12 +1,14 @@
 package net.magicterra.worlddriver.bot.behavior;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.config.PlanningConfig;
 import net.magicterra.worlddriver.bot.rules.Goal;
@@ -24,7 +26,13 @@ class RouteEventsTest {
     private record Ev(String type, BlockPos pos, Map<String, Object> data) {}
 
     private final List<Ev> out = new ArrayList<>();
-    private final RouteEvents.Emitter sink = (t, p, d) -> out.add(new Ev(t, p, d));
+    /** RouteEvents may not name the event catalog, so every payload it builds is held to its entry here. */
+    private final RouteEvents.Emitter sink = (t, p, d) -> {
+        EventCatalog.Entry<?> entry = EventCatalog.byType(t);
+        assertNotNull(entry, t + " is not in the event catalog");
+        entry.payload().decode(d);
+        out.add(new Ev(t, p, d));
+    };
     private double savedRatio;
     private int savedCooldown;
 

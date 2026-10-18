@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.api.game.WorldCell;
 
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.api.schema.JsonValue;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.world.WorldApi;
 import net.magicterra.worlddriver.api.methods.world.WorldApiBinding;
@@ -139,8 +139,8 @@ public final class WorldService implements WorldApi {
         long cursor = api.eventCursor();
         return api.requireServerHop().submit(() -> {
             snap.restore(level);
-            api.emit("world.restore", new BlockPos(snap.minX, snap.minY, snap.minZ),
-                    JsonValue.of(id + "@" + snap.cells() + " blocks"));
+            api.emit(EventCatalog.WORLD_RESTORE, new BlockPos(snap.minX, snap.minY, snap.minZ),
+                    new EventCatalog.WorldRestore(id, snap.cells()));
             if (p.discard()) synchronized (store) { store.remove(id); }
             return new Restored(id, snap.cells(), snap.blockEntities(), api.eventsAfter(cursor, p.returnEvents()));
         }, ctx);

@@ -6,7 +6,7 @@ import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.game.Positions;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.api.schema.JsonValue;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.api.methods.action.ActionApi;
 import net.magicterra.worlddriver.api.methods.action.ActionApiBinding;
 import net.magicterra.worlddriver.api.methods.action.ActionContracts;
@@ -26,7 +26,6 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 
@@ -46,8 +45,8 @@ public final class ActionService implements ActionApi {
     /**
      * Fill an axis-aligned box with one block type in a single server-thread hop. The contract
      * refuses a box over the cell budget rather than clamping it, so a caller never believes a
-     * truncated region was filled. Emits one {@code block.fill} event with {from,to,type} as the
-     * data payload — not one per cell, so listeners aren't flooded.
+     * truncated region was filled. Emits one {@code block.fill} event for the box — not one per
+     * cell, so listeners aren't flooded.
      */
     @Override
     public CompletionStage<Filled> fill(FillParams p, CallContext ctx) {
@@ -55,14 +54,14 @@ public final class ActionService implements ActionApi {
                 Math.min(p.from().z(), p.to().z()));
         BlockPos max = new BlockPos(Math.max(p.from().x(), p.to().x()), Math.max(p.from().y(), p.to().y()),
                 Math.max(p.from().z(), p.to().z()));
-        BlockPos from = Positions.blockPos(p.from()), to = Positions.blockPos(p.to());
+        BlockPos from = Positions.blockPos(p.from());
         ServerLevel level = api.level();
         // An unknown id is refused here, before anything is written.
         BlockState state = block("/type", p.type());
         long cursor = api.eventCursor();
         return api.requireServerHop().submit(() -> {
             int n = BlockEdits.fill(level, min, max, state);
-            api.emit("block.fill", from, JsonValue.of(p.type() + "@" + from + "->" + to));
+            api.emit(EventCatalog.BLOCK_FILL, from, new EventCatalog.BlockFill(p.type(), p.from(), p.to()));
             return new Filled(n, api.eventsAfter(cursor, p.returnEvents()));
         }, ctx);
     }
@@ -83,7 +82,7 @@ public final class ActionService implements ActionApi {
                 ActionContracts.Placement row = p.blocks().get(i);
                 BlockPos bp = Positions.blockPos(row.pos());
                 BlockEdits.set(level, bp, states.get(i));
-                api.emit("block.place", bp, JsonValue.of(row.type()));
+                api.emit(EventCatalog.BLOCK_PLACE, bp, row.type());
             }
             return new Placed(states.size(), api.eventsAfter(cursor, p.returnEvents()));
         }, ctx);
@@ -148,7 +147,9 @@ public final class ActionService implements ActionApi {
                 BlockState newState = isAir ? Blocks.AIR.defaultBlockState() : block("/cmd", type);
                 return api.requireServerHop().submit(() -> {
                     String prev = RegistryIds.blockId(BlockEdits.set(level, pos, newState));
-                    api.emit(isAir ? "block.break" : "block.place", pos, JsonValue.of(isAir ? prev : type));
+                    // The registry's id, not the command's text: "stone" is not a resource id.
+                    if (isAir) api.emit(EventCatalog.BLOCK_BREAK, pos, prev);
+                    else api.emit(EventCatalog.BLOCK_PLACE, pos, RegistryIds.blockId(newState));
                     return new CommandResult(true, Optional.of(Via.FAST_PATH), Optional.empty(), true, 1, List.of(),
                             api.eventsAfter(cursor, p.returnEvents()));
                 }, ctx);
@@ -162,7 +163,7 @@ public final class ActionService implements ActionApi {
             ServerCommands.Outcome o = ServerCommands.run(s, finalCmd);
             // Push a command.result event so subscribers see commands run by any
             // agent/transport (the synchronous return only reaches the caller).
-            api.emit("command.result", null, JsonValue.of(Map.of("cmd", finalCmd, "ok", o.ok(), "success", o.success())));
+            api.emit(EventCatalog.COMMAND_RESULT, null, new EventCatalog.CommandResult(finalCmd, o.ok(), o.success()));
             return new CommandResult(o.ok(), o.ok() ? Optional.of(Via.BRIGADIER) : Optional.empty(),
                     Optional.ofNullable(o.error()), o.success(), o.value(), o.feedback(),
                     api.eventsAfter(cursor, p.returnEvents()));

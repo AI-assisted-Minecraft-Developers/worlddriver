@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.application.client;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.api.game.Positions.blockPos;
 import net.magicterra.worlddriver.api.game.HandWords;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotBrain;
 import net.magicterra.worlddriver.bot.BotRegistry;
@@ -366,8 +367,8 @@ public final class ClientBot implements BotApi {
                 String type = mc.screen.getClass().getSimpleName();
                 mc.player.closeContainer();
                 mc.setScreen(null);
-                brain.emit("screen.autoClosed", mc.player.blockPosition(), java.util.Map.of(
-                                "screen", type, "blockedTicks", (double) screenBlockTicks));
+                brain.emit(EventCatalog.SCREEN_AUTO_CLOSED, mc.player.blockPosition(),
+                        new EventCatalog.ScreenAutoClosed(type, screenBlockTicks));
                 LOG.warn(
                         "[screenWatchdog] closed stray {} after {} blocked ticks", type, screenBlockTicks);
                 screenBlockTicks = 0;

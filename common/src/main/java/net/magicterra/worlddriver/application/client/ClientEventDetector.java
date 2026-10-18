@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.application.client;
 
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.bot.BotBrain;
 import net.magicterra.worlddriver.game.observe.TimeSnap;
 import net.magicterra.worlddriver.game.ui.ClientChatLog;
@@ -82,10 +83,9 @@ final class ClientEventDetector {
                     .of((net.minecraft.client.gui.screens.DeathScreen) mc.screen);
             net.minecraft.core.BlockPos at = mc.player != null
                     ? mc.player.blockPosition() : net.minecraft.core.BlockPos.ZERO;
-            java.util.Map<String, Object> data = new java.util.HashMap<>();
-            data.put("health", mc.player != null ? (double) mc.player.getHealth() : 0.0);
-            if (cause != null && !cause.isEmpty()) data.put("cause", cause);
-            brain.emit("player.death", at, data);
+            brain.emit(EventCatalog.PLAYER_DEATH, at, new EventCatalog.PlayerDeath(
+                    mc.player != null ? (double) mc.player.getHealth() : 0.0,
+                    cause != null && !cause.isEmpty() ? java.util.Optional.of(cause) : java.util.Optional.empty()));
             onDeathCancel.run();
         }
         evtDeathScreenSeen = onDeath;
@@ -108,26 +108,26 @@ final class ClientEventDetector {
 
         float hp = pl.getHealth();
         if (!Float.isNaN(evtLastHealth) && hp < evtLastHealth - 0.01f && !dead) {
-            java.util.Map<String, Object> hurtData = new java.util.HashMap<>();
-            hurtData.put("health", (double) hp);
-            hurtData.put("prev", (double) evtLastHealth);
-            hurtData.put("lost", (double) (evtLastHealth - hp));
             // Damage attribution (gap #55): without it a fall in a self-dug pit and a
             // mob bite are indistinguishable HP deltas, and both the combat chain and
             // the agent engage phantoms. The client mirrors the server's DamageSource
             // via handleDamageEvent (ClientboundDamageEventPacket, 40-tick window).
             net.minecraft.world.damagesource.DamageSource src = pl.getLastDamageSource();
+            java.util.Optional<String> source = java.util.Optional.empty();
+            java.util.Optional<Integer> attackerId = java.util.Optional.empty();
+            java.util.Optional<String> attackerType = java.util.Optional.empty();
+            java.util.Optional<Double> attackerDistance = java.util.Optional.empty();
             if (src != null) {
-                hurtData.put("source", src.getMsgId());
+                source = java.util.Optional.of(src.getMsgId());
                 net.minecraft.world.entity.Entity att = src.getEntity();
                 if (att != null && att != pl) {
-                    hurtData.put("attackerId", att.getId());
-                    hurtData.put("attackerType", net.minecraft.core.registries.BuiltInRegistries
-                            .ENTITY_TYPE.getKey(att.getType()).toString());
-                    hurtData.put("attackerDistance", att.distanceTo(pl));
+                    attackerId = java.util.Optional.of(att.getId());
+                    attackerType = java.util.Optional.of(BuiltInRegistries.ENTITY_TYPE.getKey(att.getType()).toString());
+                    attackerDistance = java.util.Optional.of((double) att.distanceTo(pl));
                 }
             }
-            brain.emit("player.hurt", at, hurtData);
+            brain.emit(EventCatalog.PLAYER_HURT, at, new EventCatalog.PlayerHurt(hp, evtLastHealth, evtLastHealth - hp,
+                    source, attackerId, attackerType, attackerDistance));
         }
         evtLastHealth = hp;
 
@@ -140,12 +140,12 @@ final class ClientEventDetector {
         // re-entering re-fires.
         boolean inWater = pl.isInWater();
         if (inWater && !evtInWater) {
-            brain.emit("player.enteredWater", at, Map.of("submerged", pl.isUnderWater()));
+            brain.emit(EventCatalog.PLAYER_ENTERED_WATER, at, new EventCatalog.EnteredWater(pl.isUnderWater()));
         }
         evtInWater = inWater;
         boolean inLava = pl.isInLava();
         if (inLava && !evtInLava) {
-            brain.emit("player.enteredLava", at, Map.of("health", (double) pl.getHealth()));
+            brain.emit(EventCatalog.PLAYER_ENTERED_LAVA, at, new EventCatalog.EnteredLava(pl.getHealth()));
         }
         evtInLava = inLava;
 
@@ -162,8 +162,7 @@ final class ClientEventDetector {
             String phase = TimeSnap.phase(mc.level.getDayTime());
             if (!phase.equals(evtLastPhase)) {
                 if (evtLastPhase != null) {
-                    brain.emit("time.phase", at, Map.of(
-                            "phase", phase, "prev", evtLastPhase, "dayTime", tod));
+                    brain.emit(EventCatalog.TIME_PHASE, at, new EventCatalog.TimePhase(phase, evtLastPhase, tod));
                 }
                 evtLastPhase = phase;
             }
@@ -186,8 +185,7 @@ final class ClientEventDetector {
                 for (Map.Entry<String, Integer> e : cur.entrySet()) {
                     int delta = e.getValue() - evtInvCounts.getOrDefault(e.getKey(), 0);
                     if (delta > 0) {
-                        brain.emit("item.pickup", at, Map.of(
-                                "id", e.getKey(), "count", delta, "total", e.getValue()));
+                        brain.emit(EventCatalog.ITEM_PICKUP, at, new EventCatalog.ItemPickup(e.getKey(), delta, e.getValue()));
                     }
                 }
             }
@@ -204,9 +202,8 @@ final class ClientEventDetector {
             if (evtInvInit && evtMainhandId != null
                     && evtMainhandDamage >= evtMainhandMax - 2
                     && cur.getOrDefault(evtMainhandId, 0) < evtInvCounts.getOrDefault(evtMainhandId, 0)) {
-                brain.emit("tool.broke", at, Map.of(
-                        "id", evtMainhandId,
-                        "damage", evtMainhandDamage, "maxDamage", evtMainhandMax));
+                brain.emit(EventCatalog.TOOL_BROKE, at,
+                        new EventCatalog.ToolBroke(evtMainhandId, evtMainhandDamage, evtMainhandMax));
             }
             ItemStack mh = pl.getMainHandItem();
             if (!mh.isEmpty() && mh.isDamageableItem()) {
@@ -247,7 +244,7 @@ final class ClientEventDetector {
                         if (!(e.getKey() instanceof AdvancementHolder holder)) continue;
                         String key = holder.id().toString();
                         if (evtDoneAdv.add(key) && evtAdvInit) {
-                            brain.emit("advancement", at, Map.of("id", key));
+                            brain.emit(EventCatalog.ADVANCEMENT, at, new EventCatalog.Advancement(key));
                         }
                     }
                     break;   // first Map field is the progress map
@@ -286,7 +283,8 @@ final class ClientEventDetector {
                     // Entry.row() = the same {seq,kind,text,self} shape chat.history
                     // returns, so consumers can reconcile the two surfaces by seq
                     // and skip the bot's own echoed lines via self.
-                    brain.emit("client.message", at, e.row());
+                    brain.emit(EventCatalog.CLIENT_MESSAGE, at,
+                            new EventCatalog.ChatLine(e.seq(), e.kind(), e.text(), e.self()));
                 }
             }
         } catch (Throwable ignored) { /* never break the tick */ }
@@ -295,7 +293,7 @@ final class ClientEventDetector {
         try {
             String ab = componentFieldText(gui, "overlayMessageString");
             if (ab != null && !ab.isEmpty() && !ab.equals(evtLastActionBar)) {
-                brain.emit("client.actionBar", at, Map.of("text", ab));
+                brain.emit(EventCatalog.CLIENT_ACTION_BAR, at, new EventCatalog.ClientText(ab));
             }
             evtLastActionBar = ab;
         } catch (Throwable ignored) { }
@@ -305,9 +303,8 @@ final class ClientEventDetector {
             String title = componentFieldText(gui, "title");
             if (title != null && !title.isEmpty() && !title.equals(evtLastTitle)) {
                 String sub = componentFieldText(gui, "subtitle");
-                brain.emit("client.title", at,
-                        sub != null && !sub.isEmpty()
-                                ? Map.of("text", title, "subtitle", sub) : Map.of("text", title));
+                brain.emit(EventCatalog.CLIENT_TITLE, at, new EventCatalog.ClientTitle(title,
+                        sub != null && !sub.isEmpty() ? java.util.Optional.of(sub) : java.util.Optional.empty()));
             }
             evtLastTitle = title;
         } catch (Throwable ignored) { }

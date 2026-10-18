@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.api.game;
 
 import java.util.Optional;
 
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 
@@ -14,7 +15,9 @@ public final class EventWire {
 
     public static EventContracts.Event dto(DriverEvent e) {
         Optional<BlockPosition> pos = e.pos == null ? Optional.empty() : Optional.of(Positions.position(e.pos));
+        EventCatalog.Entry<?> entry = EventCatalog.byType(e.type);
         return new EventContracts.Event(e.seq, e.timestamp, e.type, pos,
-                e.data.isNull() ? Optional.empty() : Optional.of(e.data));
+                e.data.isNull() ? Optional.empty() : Optional.of(e.data),
+                entry != null && entry.untrusted() ? Optional.of(true) : Optional.empty());
     }
 }

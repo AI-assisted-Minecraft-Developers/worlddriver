@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot;
 
-import java.util.Map;
-
+import net.magicterra.worlddriver.api.game.Positions;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.bot.behavior.RouteEvents;
 import net.magicterra.worlddriver.bot.world.ThreatScanner;
 import net.magicterra.worlddriver.bot.world.WorldModel;
@@ -31,9 +31,9 @@ final class PerceptionEvents {
             return;
         }
         BlockPos at = snap.pos();
-        Map<String, Object> pos = Map.of("pos", Map.of("x", at.getX(), "y", at.getY(), "z", at.getZ()));
-        if (snap.exposedAtNight() && !prevExposedAtNight) events.emit("duskExposed", at, pos);
-        if (snap.cornered() && !prevCornered) events.emit("cornered", at, pos);
+        EventCatalog.At pos = new EventCatalog.At(Positions.position(at));
+        if (snap.exposedAtNight() && !prevExposedAtNight) BotBrain.emit(events, EventCatalog.DUSK_EXPOSED, at, pos);
+        if (snap.cornered() && !prevCornered) BotBrain.emit(events, EventCatalog.CORNERED, at, pos);
         prevExposedAtNight = snap.exposedAtNight();
         prevCornered = snap.cornered();
     }
@@ -43,9 +43,8 @@ final class PerceptionEvents {
         ThreatScanner.Threat top = scan.top();
         int topId = top != null ? top.id() : -1;
         if (topId != -1 && topId != lastThreatId) {
-            events.emit("threat.appeared", top.entity().blockPosition(), Map.of(
-                    "type", top.type(), "id", topId,
-                    "distance", top.distance(), "score", top.score()));
+            BotBrain.emit(events, EventCatalog.THREAT_APPEARED, top.entity().blockPosition(),
+                    new EventCatalog.ThreatAppeared(top.type(), topId, top.distance(), top.score()));
         }
         lastThreatId = topId;
     }

@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.application;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +23,7 @@ import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes;
 import net.magicterra.worlddriver.api.methods.event.EventApi;
 import net.magicterra.worlddriver.api.methods.event.EventApiBinding;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.api.methods.event.EventContracts.Emit;
 import net.magicterra.worlddriver.api.methods.event.EventContracts.Emitted;
@@ -196,12 +196,9 @@ public final class EventService implements EventApi {
                 stopped = true;
                 watchers.remove(id);
             }
-            Map<String, Object> data = new LinkedHashMap<>();
-            data.put("watch", id);
-            data.put("invoke", spec.invoke());
-            spec.field().ifPresent(f -> data.put("field", f));
-            value.ifPresent(v -> data.put("value", v.tree()));
-            api.emit(spec.emitAs(), null, JsonValue.of(data));
+            // condition.met's payload under whatever name the watcher was given.
+            api.emit(spec.emitAs(), null, EventCatalog.CONDITION_MET.encode(
+                    new EventCatalog.ConditionMet(id, spec.invoke(), spec.field(), value)));
         }
     }
 

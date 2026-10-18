@@ -38,6 +38,14 @@ if (arrived.outcome === 'done' && !arrived.timedOut) {
     void Driver.wait.result({ kind: 'wait', waitId: arrived.waitId });
 }
 Driver.events({ op: 'watch', invoke: 'mc.bot.status', field: 'status.busy', value: false, once: true });
+
+const said: WorldDriver.Events['chat.message'] = { player: 'Steve', text: 'hello' };
+void said;
+const hurt: WorldDriver.Events['player.hurt'] = { health: 12, prev: 16, lost: 4, source: 'mob' };
+void hurt;
+// @ts-expect-error a chat message is no longer one "name: text" string
+const flat: WorldDriver.Events['chat.message'] = 'Steve: hello';
+void flat;
 // @ts-expect-error a cursor is a decimal string
 Driver.wait.event({ cursor: 5 });
 

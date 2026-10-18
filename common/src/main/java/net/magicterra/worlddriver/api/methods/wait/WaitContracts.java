@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.RecordType;
 import net.magicterra.worlddriver.api.schema.UnionType;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.api.methods.event.EventContracts.Event;
 import net.magicterra.worlddriver.api.methods.shared.ActionResults;
@@ -23,7 +24,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.ActionSnapshot;
  * <p>Each answers {@code {outcome:'done', …}} when it ends, satisfied or out of time. With
  * {@code background:true} it answers {@code {outcome:'started', waitId}} at once instead and keeps
  * waiting on its own; its {@code done} reply is then read with {@code mc.wait.result{kind:'wait'}} and
- * pushed as the {@link WaitDone} payload of a {@code wait.done} event. Waiting holds no request thread;
+ * pushed as the {@link EventCatalog.WaitDone} payload of a {@code wait.done} event. Waiting holds no request thread;
  * a foreground wait is refused on a game thread before it starts.
  */
 public final class WaitContracts {
@@ -155,23 +156,6 @@ public final class WaitContracts {
                     + "invoke must be a pollable read such as mc.bot.status; anything else is invalid_params at "
                     + "/invoke. E.g. {invoke:'mc.bot.status', field:'status.busy', value:false}. In live play prefer "
                     + "background:true for long waits, so the caller stays free to react to events."));
-
-    // ------------------------------------------------------------------ wait.done
-
-    /**
-     * The {@code wait.done} event's payload: the background wait's {@code done} reply as {@code result}, or
-     * the error that ended it.
-     */
-    public record WaitDone(String waitId, String method, Optional<JsonValue> result, Optional<JsonValue> error) {}
-
-    public static final RecordType<WaitDone> WAIT_DONE = ApiTypes.record(WaitDone.class, "WaitDone",
-            ApiField.field("waitId", ApiTypes.string(1, 128)).required().forGetter(WaitDone::waitId),
-            ApiField.field("method", ApiTypes.string(1, 128)).required().forGetter(WaitDone::method),
-            ApiField.field("result", ApiTypes.jsonObject()).describe("The wait's {outcome:'done', …} reply.")
-                    .optional().forGetter(WaitDone::result),
-            ApiField.field("error", ApiTypes.jsonObject()).describe("The ApiError that ended it instead.")
-                    .optional().forGetter(WaitDone::error),
-            WaitDone::new);
 
     // ------------------------------------------------------------------ mc.wait.result
     //

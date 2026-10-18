@@ -9,7 +9,7 @@ import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.event.events.common.TickEvent;
 import net.magicterra.worlddriver.api.game.DriverHost;
-import net.magicterra.worlddriver.api.schema.JsonValue;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.bot.BotCommand;
 import net.magicterra.worlddriver.bot.BotTicker;
@@ -70,8 +70,8 @@ public final class WorldDriverEvents {
         BlockEvent.BREAK.register(WorldDriverEvents::onBlockBreak);
         BlockEvent.PLACE.register(WorldDriverEvents::onBlockPlace);
         EntityEvent.LIVING_DEATH.register(WorldDriverEvents::onLivingDeath);
-        PlayerEvent.PLAYER_JOIN.register(player -> emitPlayer("player.join", player));
-        PlayerEvent.PLAYER_QUIT.register(player -> emitPlayer("player.leave", player));
+        PlayerEvent.PLAYER_JOIN.register(player -> emitPlayer(EventCatalog.PLAYER_JOIN, player));
+        PlayerEvent.PLAYER_QUIT.register(player -> emitPlayer(EventCatalog.PLAYER_LEAVE, player));
         ChatEvent.RECEIVED.register(WorldDriverEvents::onChat);
     }
 
@@ -80,7 +80,7 @@ public final class WorldDriverEvents {
         DriverHost api = WorldDriverCommon.host();
         if (api != null) {
             String id = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
-            api.emitExternal("block.break", pos.immutable(), JsonValue.of(id));
+            api.emitExternal(EventCatalog.BLOCK_BREAK, pos.immutable(), id);
         }
         return EventResult.pass();
     }
@@ -90,7 +90,7 @@ public final class WorldDriverEvents {
         DriverHost api = WorldDriverCommon.host();
         if (api != null && placer != null) {
             String id = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
-            api.emitExternal("block.place", pos.immutable(), JsonValue.of(id));
+            api.emitExternal(EventCatalog.BLOCK_PLACE, pos.immutable(), id);
         }
         return EventResult.pass();
     }
@@ -100,22 +100,22 @@ public final class WorldDriverEvents {
         DriverHost api = WorldDriverCommon.host();
         if (api != null) {
             String id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
-            api.emitExternal("entity.death", entity.blockPosition(), JsonValue.of(id));
+            api.emitExternal(EventCatalog.ENTITY_DEATH, entity.blockPosition(), id);
         }
         return EventResult.pass();
     }
 
-    private static void emitPlayer(String type, ServerPlayer player) {
+    private static void emitPlayer(EventCatalog.Entry<String> type, ServerPlayer player) {
         DriverHost api = WorldDriverCommon.host();
         if (api == null) return;
-        api.emitExternal(type, player.blockPosition(), JsonValue.of(player.getGameProfile().getName()));
+        api.emitExternal(type, player.blockPosition(), player.getGameProfile().getName());
     }
 
     private static EventResult onChat(ServerPlayer player, net.minecraft.network.chat.Component message) {
         DriverHost api = WorldDriverCommon.host();
         if (api != null) {
-            api.emitExternal("chat.message", player.blockPosition(),
-                    JsonValue.of(player.getGameProfile().getName() + ": " + message.getString()));
+            api.emitExternal(EventCatalog.CHAT_MESSAGE, player.blockPosition(),
+                    new EventCatalog.ChatMessage(player.getGameProfile().getName(), message.getString()));
         }
         return EventResult.pass();
     }

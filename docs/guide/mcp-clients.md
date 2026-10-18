@@ -143,7 +143,8 @@ What it does, and why you might want it over a direct HTTP connection:
   game restarts constantly while you are working on the mod.
 - It opens the mod's `GET /mcp` event stream and re-emits each `notifications/message` as a
   channel notification, so a client that renders pushed events sees them as they happen. It
-  marks `chat.message` events as untrusted, because their content is typed by a player.
+  passes on the event's own `untrusted` mark (`chat.message`, `client.message`, …), which the mod
+  sets on every event whose text a player typed or a server sent.
 - While the mod is offline, a tool call returns an `isError` result saying so rather than
   failing the transport.
 

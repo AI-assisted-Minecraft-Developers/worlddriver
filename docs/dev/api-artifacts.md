@@ -15,7 +15,8 @@ code.
 | `driver-function.d.ts` | StageWright's `driver(method, params)` over the same table | `worlddriver-api/` in the jar |
 | `driver-api.js` | One named wrapper per method, `Driver.bot.clearArea(params)` | `data/worlddriver/scripts/generated/`, loaded right after `prelude.js` |
 | `methods.json` | Each method's input and output schema and its execution profile | `worlddriver-api/` in the jar |
-| `api-reference.md` | The same, for a person | `worlddriver-api/` in the jar |
+| `events.json` | Each built-in event type's payload schema, severity and trust, from `EventCatalog` | `worlddriver-api/` in the jar |
+| `api-reference.md` | The same two, for a person | `worlddriver-api/` in the jar |
 
 `processResources` depends on the task, so a normal build always ships current files. The
 generated files are not committed: a change to the API shows up in review as a change to the

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **Every event type the driver emits has a declared payload, and three payloads changed shape.**
+  `chat.message` was one `"name: text"` string and is now `{player, text}`; `block.fill` was
+  `"type@from->to"` and is now `{block, from, to}`; `world.restore` was `"id@N blocks"` and is now
+  `{id, cells}`. `screen.autoClosed`'s `blockedTicks` is an integer. The types and shapes are in the
+  generated `events.json`, the API reference and `WorldDriver.Events` in the declarations. An event
+  whose text a player typed or a server sent (`chat.message`, `client.message`, `client.actionBar`,
+  `client.title`) carries `untrusted: true`, and the channel bridge marks it from that instead of
+  from the type's name. `mc.events` may still emit any type, but one of the driver's own types must
+  carry that type's payload, and a watcher's `emitAs` may not name a built-in type other than
+  `condition.met`. A `setblock` through `mc.action.runCommand` reports the block's full id
+  (`minecraft:stone`) where it used to echo the command's text (`stone`).
 - **The walker is now the navigator, everywhere its name shows.** Every `walker…` setting is now
   `navigator…` (`walkerDebug` is `navigatorDebug`, `walker.repathEveryTicks` is
   `navigator.repathEveryTicks`), and the old names are not accepted. A saved

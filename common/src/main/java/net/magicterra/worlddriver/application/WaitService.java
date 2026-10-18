@@ -40,7 +40,8 @@ import net.magicterra.worlddriver.api.methods.wait.WaitContracts.EventParams;
 import net.magicterra.worlddriver.api.methods.wait.WaitContracts.EventsArrived;
 import net.magicterra.worlddriver.api.methods.wait.WaitContracts.Outcome;
 import net.magicterra.worlddriver.api.methods.wait.WaitContracts.Started;
-import net.magicterra.worlddriver.api.methods.wait.WaitContracts.WaitDone;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog.WaitDone;
 import net.magicterra.worlddriver.api.methods.wait.WaitContracts.WorldReady;
 import net.magicterra.worlddriver.api.methods.wait.WaitContracts.WorldReadyParams;
 import net.magicterra.worlddriver.api.game.DriverEvent;
@@ -155,7 +156,7 @@ public final class WaitService implements WaitApi {
             IN_FLIGHT.remove(waitId);
             lease.close();
         }
-        api.emit("wait.done", null, JsonValue.of(WaitContracts.WAIT_DONE.encode(done)));
+        api.emit(EventCatalog.WAIT_DONE, null, done);
     }
 
     private static WaitDone failed(MethodSpec<?, ?> spec, String waitId, Throwable t) {

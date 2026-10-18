@@ -6,6 +6,7 @@ import net.magicterra.worlddriver.api.game.DriverEvent;
 import net.magicterra.worlddriver.api.game.DriverHost;
 import net.magicterra.worlddriver.api.game.EventWire;
 import net.magicterra.worlddriver.api.game.WorldCell;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.api.registry.ApiBatch;
 import net.magicterra.worlddriver.api.registry.ApiMethod;
@@ -163,12 +164,27 @@ public final class DriverApplication implements DriverHost {
         emit(type, pos, data);
     }
 
+    /** Append a catalogued event, its payload encoded by the entry's own type. */
+    public <T> long emit(EventCatalog.Entry<T> entry, BlockPos pos, T payload) {
+        return append(entry.type(), pos, entry.encode(payload));
+    }
+
+    /**
+     * Append an event by name. A catalogued type still has to carry its payload's shape: the emitters
+     * below the bot's facade may not name the catalog, so this is where their payloads are held to it.
+     */
+    long emit(String type, BlockPos pos, JsonValue data) {
+        EventCatalog.Entry<?> entry = EventCatalog.byType(type);
+        if (entry != null) entry.payload().decode(data.tree());
+        return append(type, pos, data);
+    }
+
     /** Append an event to the ring buffer (for replay via {@code mc.observe.eventsSince})
      *  AND fan it out to live push subscribers. The buffer append is synchronous and
      *  cheap; listener delivery is handed to the single-thread {@link #eventDispatch}
      *  so the calling thread (server tick / client tick / watcher) never blocks on a
      *  socket write. Returns the assigned sequence number. */
-    long emit(String type, BlockPos pos, JsonValue data) {
+    private long append(String type, BlockPos pos, JsonValue data) {
         DriverEvent e;
         // The seq is taken under the lock: readers advance their cursor to the last seq they
         // saw, so an event appended behind a higher seq would never be returned to them.

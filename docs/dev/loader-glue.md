@@ -46,7 +46,7 @@ two of the three differences are visible in what the driver reports.
   Architectury injects at the head of `LivingEntity.die`; on NeoForge it hooks the
   platform's living-death event. Same position, same payload, cancellable on both.
 
-The body of `chat.message` is the message component's string on both loaders. Architectury
+The `text` of a `chat.message` is the message component's string on both loaders. Architectury
 takes the decorated content on Fabric and the server chat event's message on NeoForge;
 vanilla decoration is the identity transform, so the two produce the same text.
 

@@ -17,6 +17,7 @@ import net.magicterra.worlddriver.api.schema.WireName;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.api.schema.TsContext;
 import net.magicterra.worlddriver.api.methods.debug.DebugApiBinding;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.application.CoreMethods;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 
@@ -28,6 +29,7 @@ import net.magicterra.worlddriver.protocol.JsonCodec;
  *   <li>{@code driver-function.d.ts}: StageWright's {@code driver(method, params)} over the same table;</li>
  *   <li>{@code driver-api.js}: the named wrappers the script prelude loads;</li>
  *   <li>{@code methods.json}: each method's schemas and execution profile, for clients outside the JVM;</li>
+ *   <li>{@code events.json}: each built-in event type's payload schema, severity and trust;</li>
  *   <li>{@code api-reference.md}: the same for a person.</li>
  * </ul>
  *
@@ -49,7 +51,37 @@ public final class ApiArtifacts {
         Files.writeString(dir.resolve("driver-function.d.ts"), DRIVER_FUNCTION, StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("driver-api.js"), wrappers(methods), StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("methods.json"), JsonCodec.encode(methodTable(methods)), StandardCharsets.UTF_8);
-        Files.writeString(dir.resolve("api-reference.md"), reference(methods), StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("events.json"), JsonCodec.encode(eventTable()), StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("api-reference.md"), reference(methods) + eventReference(), StandardCharsets.UTF_8);
+    }
+
+    /** Each built-in event type's payload schema, severity and trust. */
+    static Map<String, Object> eventTable() {
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (EventCatalog.Entry<?> e : EventCatalog.all()) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("description", e.description());
+            row.put("level", e.level().wireName());
+            row.put("untrusted", e.untrusted());
+            row.put("payloadSchema", e.payload().schema());
+            out.put(e.type(), row);
+        }
+        return out;
+    }
+
+    static String eventReference() {
+        StringBuilder out = new StringBuilder("\n# Events\n\n");
+        out.append("The types the driver emits itself. A script's own `mc.events` types come too, with any payload.\n");
+        for (EventCatalog.Entry<?> e : EventCatalog.all()) {
+            TsContext ts = new TsContext();
+            String payload = e.payload().ts(ts);
+            out.append("\n## `").append(e.type()).append("`\n\n").append(e.description()).append("\n\n");
+            out.append("- Payload: `").append(payload).append("`; level: ").append(e.level().wireName())
+                    .append(e.untrusted() ? "; untrusted: the text is a player's or a server's" : "").append("\n");
+            String decls = ts.render("    ");
+            if (!decls.isEmpty()) out.append("\n```typescript\n").append(decls.stripTrailing()).append("\n```\n");
+        }
+        return out.toString();
     }
 
     /** {@code mc.bot.clearArea} → {@code [bot, clearArea]}; other names keep every segment. */
@@ -93,6 +125,8 @@ public final class ApiArtifacts {
         TsContext ts = new TsContext();
         Map<MethodSpec<?, ?>, String[]> types = new LinkedHashMap<>();
         for (MethodSpec<?, ?> m : methods) types.put(m, new String[] {m.input().ts(ts), m.output().ts(ts)});
+        Map<String, String> events = new LinkedHashMap<>();
+        for (EventCatalog.Entry<?> e : EventCatalog.all()) events.put(e.type(), e.payload().ts(ts));
 
         StringBuilder out = new StringBuilder();
         out.append("// Generated from the WorldDriver method descriptions. Do not edit.\n");
@@ -108,6 +142,12 @@ public final class ApiArtifacts {
         for (Map.Entry<MethodSpec<?, ?>, String[]> e : types.entrySet()) {
             out.append("        ").append(TsContext.literal(e.getKey().name())).append(": { params: ")
                     .append(e.getValue()[0]).append("; result: ").append(e.getValue()[1]).append(" };\n");
+        }
+        out.append("    }\n");
+        out.append("    /** The payload of each event type the driver emits itself. */\n");
+        out.append("    interface Events {\n");
+        for (Map.Entry<String, String> e : events.entrySet()) {
+            out.append("        ").append(TsContext.literal(e.getKey())).append(": ").append(e.getValue()).append(";\n");
         }
         out.append("    }\n");
         out.append("""

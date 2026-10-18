@@ -15,6 +15,7 @@ import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.methods.bot.CombatContracts;
+import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientScene;
@@ -195,7 +196,19 @@ public final class BotBrain {
     public Map<Integer, Vec3> threatVelocities() { return state.threats.velocities(); }
 
     /** Push an event to the agent, on the stream the bot's own events use. */
-    public void emit(String type, BlockPos pos, Map<String, Object> data) { events.emit(type, pos, data); }
+    public <T> void emit(EventCatalog.Entry<T> entry, BlockPos pos, T payload) { emit(events, entry, pos, payload); }
+
+    /**
+     * A catalogued event through the bot's emitter. The emitter carries payloads as maps because the
+     * layers below this facade may not name the catalog, so only an entry with an object payload fits.
+     */
+    @SuppressWarnings("unchecked")
+    static <T> void emit(RouteEvents.Emitter to, EventCatalog.Entry<T> entry, BlockPos pos, T payload) {
+        if (!(entry.payload().encode(payload) instanceof Map<?, ?> tree)) {
+            throw new IllegalArgumentException(entry.type() + "'s payload is not an object");
+        }
+        to.emit(entry.type(), pos, (Map<String, Object>) tree);
+    }
 
     /** What the navigators driving this bot's body have done; null until the first tick with a body. */
     private volatile NavigatorTelemetry navigatorTelemetry;
