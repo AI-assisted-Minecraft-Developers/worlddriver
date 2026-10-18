@@ -19,7 +19,7 @@ import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.protocol.JsonCodec;
 import org.junit.jupiter.api.Test;
 
-/** status, cancel and waypoint: which params go together, and what each answers. */
+/** status, cancel, waypoint and roster: which params go together, and what each answers. */
 class ControlContractsTest {
 
     private static <T> T decode(ApiType<T> type, String json) {
@@ -77,5 +77,26 @@ class ControlContractsTest {
     void aWaypointAnswerIsTaggedWithItsOp() {
         assertEquals("{\"op\":\"delete\",\"name\":\"home\",\"existed\":true,\"count\":0}", JsonCodec.encode(
                 ControlContracts.WAYPOINT_SPEC.output().encode(new ControlContracts.Deleted("home", true, 0))));
+    }
+
+    @Test
+    void aRosterOpNamesItsBotAsAPlayerNameAndNeverRemovesSelf() {
+        ControlContracts.Spawn spawn = assertInstanceOf(ControlContracts.Spawn.class,
+                decode(ControlContracts.ROSTER_PARAMS, "{\"op\":\"spawn\",\"name\":\"alex_2\"}"));
+        assertTrue(spawn.dimension().isEmpty() && spawn.pos().isEmpty());
+        ControlContracts.Adopt adopt = assertInstanceOf(ControlContracts.Adopt.class,
+                decode(ControlContracts.ROSTER_PARAMS, "{\"op\":\"adopt\",\"entityId\":7}"));
+        assertTrue(adopt.name().isEmpty());
+        assertEquals("/name", issue(ControlContracts.ROSTER_PARAMS, "{\"op\":\"spawn\",\"name\":\"a:b\"}").path());
+        assertEquals("/name", issue(ControlContracts.ROSTER_PARAMS, "{\"op\":\"spawn\",\"name\":\"seventeen_letters\"}").path());
+        assertEquals("/entityId", issue(ControlContracts.ROSTER_PARAMS, "{\"op\":\"adopt\"}").path());
+        assertEquals("/bot", issue(ControlContracts.ROSTER_PARAMS, "{\"op\":\"remove\",\"bot\":\"self\"}").path());
+        assertInstanceOf(ControlContracts.Remove.class, decode(ControlContracts.ROSTER_PARAMS, "{\"op\":\"remove\",\"bot\":\"mob:pig\"}"));
+    }
+
+    @Test
+    void aRosterChangeAnswersTheBot() {
+        assertEquals("{\"outcome\":\"done\",\"bot\":\"player:alex\"}", JsonCodec.encode(
+                ControlContracts.ROSTER.output().encode(new Responses.Rostered("player:alex"))));
     }
 }

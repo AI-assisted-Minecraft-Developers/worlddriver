@@ -202,17 +202,20 @@ that can pre-empt it, and a per-verb process for each thing it can be asked to d
 client's player, which makes them client-only. Most of them also take a `bot` parameter
 naming a bot from `mc.bot.status`; with a bot other than `self`, the call goes down a
 path that names no client class at all, which is why the same verbs answer for server-side
-players on a dedicated server. `mc.bot.status` itself works everywhere. The exceptions —
+players on a dedicated server. `mc.bot.status` itself works everywhere, and `mc.bot.roster`
+adds and removes bots: `op: 'spawn'` with a `name` joins a server-side player as
+`player:<name>`, at `pos` in `dimension` or at the world spawn. The exceptions —
 `equip`, `setting`, `waypoint` and `playbook` — take no `bot` and are client-only. A
 server-side player has the same reflexes as your own, switched on by the same settings. A bot
 that is not a player entity has no hands, so a task or a hand verb that needs them is refused
 as `unsupported_capability`.
 
 **Driving a vanilla mob.** Any loaded mob can be made a bot. Name it in an order as
-`entity:<uuid>`, and that order takes it over; or run `/worlddriver mob <entity> <name>` on the
-server, and it answers to `mob:<name>`. From then on its own behaviour is off, it no longer
-despawns, and its reflexes run whether or not it has an order, until
-`/worlddriver mob release <bot>` hands it back or it dies or is removed. A mob walks, swims and
+`entity:<uuid>`, and that order takes it over; or call `mc.bot.roster` with `op: 'adopt'`, its
+`entityId` and a `name` (or run `/worlddriver mob <entity> <name>` on the server), and it answers
+to `mob:<name>`. From then on its own behaviour is off, it no longer despawns, and its reflexes run
+whether or not it has an order, until `mc.bot.roster` with `op: 'remove'` (or
+`/worlddriver mob release <bot>`) hands it back or it dies or is removed. A mob walks, swims and
 climbs at the pace it chases at, never takes a parkour jump, and reacts one tick later than a player.
 Reading `mc.bot.status` or cancelling never takes a mob over; only an order does.
 

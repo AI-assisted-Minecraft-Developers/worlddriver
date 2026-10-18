@@ -27,7 +27,7 @@ can answer.
 |---|---|
 | `bot.BotTaskApi` | the body tasks: `goTo`, `mine`, `craft`, `build`, `combat`, … |
 | `interact.InteractApi` | `lookAt`, `holdItem`, `useItem`, `attackEntity`, `equip` |
-| `control.ControlApi` | `cancel`, `status`, `waypoint` |
+| `control.ControlApi` | `cancel`, `status`, `waypoint`, `roster` |
 | `SettingsApi` (in `bot`, outside `api`) | `setting` |
 | `wait.WaitApi` | `event`, `worldReady`, `condition`, `result` |
 | `observe.ObserveApi` | `player`, `threats`, `boss`, `scene`, `map` |
@@ -131,7 +131,7 @@ EntityDrivers.register(MY_CREATURE.get(), creature -> new EntityDriver() {
 });
 ```
 
-From then on a mob of that type, adopted by an order to `entity:<uuid>` or by `/worlddriver mob`, is
+From then on a mob of that type, adopted by an order to `entity:<uuid>` or by `mc.bot.roster`, is
 driven through it. The bot still searches the route and picks each step; every server tick it hands
 `input` what a player would press for that step, relative to `in.yaw()`. Taking the creature's own AI
 off while it is driven, and giving it back in `release`, is the driver's job. `movements()` declares

@@ -21,4 +21,7 @@ public interface ControlApi {
 
     @Spec(value = ControlContracts.class, spec = "WAYPOINT_SPEC")
     CompletionStage<ControlContracts.WaypointReply> waypoint(ControlContracts.WaypointOp op, CallContext ctx);
+
+    @Spec(value = ControlContracts.class, spec = "ROSTER")
+    CompletionStage<ImmediateResponse> roster(ControlContracts.RosterOp op, CallContext ctx);
 }

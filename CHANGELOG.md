@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-10-19
 
+- **Bots can be spawned, adopted and removed through the API.** `mc.bot.roster` with `op: 'spawn'`
+  joins a server-side player as `player:<name>`, `adopt` takes a mob over by its `entityId`, and
+  `remove` lets a bot go, which used to need the `/worlddriver` commands. The commands now go
+  through the same code. An unknown bot in `mc.bot.status` and `mc.bot.cancel` now carries
+  `unready: unknown_bot`, as it does in the task verbs.
 - **Another mod can register how to drive a mob of its own.** `EntityDrivers.register(type, …)` in
   `api/game` takes an `EntityDriver` that turns the bot's per-tick input into the creature's motion,
   for a mob whose own movement ignores input and used to fail every goto as `unresponsive`. A driver

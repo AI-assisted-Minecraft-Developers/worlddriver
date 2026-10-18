@@ -8,7 +8,7 @@ Every method, `mc.bot.setting` key and event type the driver itself publishes, f
 
 - [`mc`](#mc) — events, query, skill
 - [`mc.action`](#mcaction) — fill, placeMany, runCommand
-- [`mc.bot`](#mcbot) — attackEntity, build, bunker, cancel, clearArea, combat, construct, craft, elytraFly, equip, escape, explore, farm, follow, goto, holdItem, lookAt, mine, playbook, runAway, setting, sleep, smelt, status, useItem, waypoint
+- [`mc.bot`](#mcbot) — attackEntity, build, bunker, cancel, clearArea, combat, construct, craft, elytraFly, equip, escape, explore, farm, follow, goto, holdItem, lookAt, mine, playbook, roster, runAway, setting, sleep, smelt, status, useItem, waypoint
 - [`mc.client`](#mcclient) — blocks, overlays, player, scene, screenshot
 - [`mc.client.chat`](#mcclientchat) — history, send
 - [`mc.client.input`](#mcclientinput) — click, key, keybind, mouseMove, replaceText, setHotbarSlot, slider, slotClick, typeText
@@ -203,6 +203,13 @@ A boss fight run by a script on a background thread, so it outlives mc.script.ev
 
 - Params: `PlaybookParams`; reply: `PlaybookReply`
 - Effects: script_run
+
+### `mc.bot.roster`
+
+Which bots exist. spawn joins a server-side player; adopt takes a mob over, its own AI off until it is removed; remove ends the bot's running action as bot_removed, gives a mob its AI back and takes a player out of the world. done names the bot. A taken name, or an entity that is not a mob, a player or already a bot, is invalid_world_target.
+
+- Params: `RosterParams`; reply: `RosterResponse`
+- Effects: world_write
 
 ### `mc.bot.runAway`
 
@@ -1940,6 +1947,30 @@ type PlaybookReply =
         outcome?: ScriptOutcome;
     }
     | { op: 'cancel'; stopped?: string; };
+type RosterParams =
+    | { op: 'spawn';
+        /** The bot is player:<name>. */
+        name: string;
+        /** Omitted: minecraft:overworld. */
+        dimension?: string;
+        /** Omitted: the world spawn. */
+        pos?: BlockPosition;
+    }
+    | { op: 'adopt';
+        /** The mob to take over. */
+        entityId: number;
+        /** The bot is mob:<name>. Omitted: entity:<uuid>. */
+        name?: string;
+    }
+    | { op: 'remove'; bot: BotRef; };
+type RosterResponse =
+    | { outcome: 'done'; bot: BotRef; }
+    | { outcome: 'refused';
+        reason: RefusalReason;
+        message: string;
+        /** With bot_unavailable: what stops the bot from acting now, when the driver can tell. */
+        unready?: Unready;
+    };
 interface RunAwayParams {
     bot?: BotRef;
     /** Omitted: where the body stands. */

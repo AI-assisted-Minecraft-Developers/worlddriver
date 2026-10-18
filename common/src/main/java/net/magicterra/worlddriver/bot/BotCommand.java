@@ -78,32 +78,21 @@ public final class BotCommand {
     private static int adopt(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         CommandSourceStack src = ctx.getSource();
         Entity e = EntityArgument.getEntity(ctx, "entity");
-        String id = MobBot.KIND + ":" + StringArgumentType.getString(ctx, "name");
         if (!(e instanceof Mob mob)) {
             src.sendFailure(Component.literal("worlddriver mob: " + e.getName().getString() + " is not a mob"));
             return 0;
         }
-        String refusal = MobBot.refusal(mob);
-        if (refusal != null) {
-            src.sendFailure(Component.literal("worlddriver mob: cannot drive this mob: " + refusal));
-            return 0;
-        }
-        if (BotRegistry.get(id) != null) {
-            src.sendFailure(Component.literal("worlddriver mob: a bot named " + id + " already exists"));
-            return 0;
-        }
-        for (Bot b : BotRegistry.all()) {
-            if (b.entity() == mob) {
-                src.sendFailure(Component.literal("worlddriver mob: that mob is already " + b.id()));
-                return 0;
+        return switch (Roster.adopt(mob, StringArgumentType.getString(ctx, "name"))) {
+            case Roster.Done d -> {
+                src.sendSuccess(() -> Component.literal("worlddriver mob: " + mob.getType().getDescription().getString()
+                        + " is now " + d.bot()), false);
+                yield 1;
             }
-        }
-        MobBot bot = MobBot.adopt(mob, id);
-        BotRegistry.register(bot);
-        BotTicker.register(bot);
-        src.sendSuccess(() -> Component.literal("worlddriver mob: " + mob.getType().getDescription().getString()
-                + " is now " + id), false);
-        return 1;
+            case Roster.Refusal r -> {
+                src.sendFailure(Component.literal("worlddriver mob: " + r.message()));
+                yield 0;
+            }
+        };
     }
 
     /** {@code /worlddriver mob release <bot>}: give a mob bot's AI back; a bare name means {@code mob:<name>}. */
@@ -115,26 +104,32 @@ public final class BotCommand {
             src.sendFailure(Component.literal("worlddriver mob: no mob bot named " + id));
             return 0;
         }
-        BotRegistry.unregister(id);
+        Roster.remove(id);
         src.sendSuccess(() -> Component.literal("worlddriver mob: released " + id), false);
         return 1;
     }
 
     private static int spawn(CommandContext<CommandSourceStack> ctx, String name) {
         CommandSourceStack src = ctx.getSource();
-        String id = name == null ? null : PlayerBot.KIND + ":" + name;
-        // Checked before the player joins, so a taken name spawns nothing. Commands and every other
-        // registry writer run on the server thread, so nothing can take the name in between.
-        if (id != null && BotRegistry.get(id) != null) {
-            src.sendFailure(Component.literal("worlddriver server: a bot named " + id + " already exists"));
-            return 0;
-        }
         ServerLevel level = src.getLevel();
         Vec3 p = src.getPosition();
-        current = PlayerBot.createIsolated(level, p.x, p.y, p.z);
-        BotTicker.register(current);
-        if (id != null) BotRegistry.register(current.named(name));
-        String what = id == null ? "a server-side agent" : id;
+        String what;
+        if (name == null) {
+            current = PlayerBot.createIsolated(level, p.x, p.y, p.z);
+            BotTicker.register(current);
+            what = "a server-side agent";
+        } else {
+            switch (Roster.spawn(level, p, name)) {
+                case Roster.Refusal r -> {
+                    src.sendFailure(Component.literal("worlddriver server: " + r.message()));
+                    return 0;
+                }
+                case Roster.Done d -> {
+                    current = (PlayerBot) BotRegistry.get(d.bot());
+                    what = d.bot();
+                }
+            }
+        }
         src.sendSuccess(() -> Component.literal("worlddriver server: spawned " + what + " at "
                 + String.format("%.1f %.1f %.1f", p.x, p.y, p.z) + " (active=" + BotTicker.activeCount() + ")"), false);
         return 1;

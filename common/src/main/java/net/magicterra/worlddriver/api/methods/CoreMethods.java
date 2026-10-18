@@ -58,6 +58,7 @@ public final class CoreMethods {
                 ControlContracts.STATUS,
                 ControlContracts.CANCEL,
                 ControlContracts.WAYPOINT_SPEC,
+                ControlContracts.ROSTER,
                 SettingsContracts.SPEC,
                 WaitContracts.RESULT,
                 ScriptContracts.EVAL,

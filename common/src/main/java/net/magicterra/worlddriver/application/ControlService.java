@@ -22,20 +22,31 @@ import net.magicterra.worlddriver.api.methods.shared.Responses.CancelReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
 import net.magicterra.worlddriver.api.methods.shared.Responses.RefusalReason;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Refused;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Rostered;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Status;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Stopped;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Unready;
 import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.bot.Roster;
 import net.magicterra.worlddriver.bot.StatusView;
 import net.magicterra.worlddriver.bot.Bot;
 import net.magicterra.worlddriver.bot.BotRegistry;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.phys.Vec3;
 
 /**
- * {@code mc.bot.status}, {@code mc.bot.cancel} and {@code mc.bot.waypoint}. A named bot is read and stopped on
- * the server thread, which is the thread that advances it; {@code self} on the client thread. None of these
- * asks whether the body can act: a dead or paused body is still read and stopped.
+ * {@code mc.bot.status}, {@code mc.bot.cancel}, {@code mc.bot.waypoint} and {@code mc.bot.roster}. A named bot is
+ * read, stopped, spawned and removed on the server thread, which is the thread that advances it; {@code self} on
+ * the client thread. None of these asks whether the body can act: a dead or paused body is still read and stopped.
  */
 final class ControlService implements ControlApi {
     private final DriverApplication app;
@@ -102,6 +113,41 @@ final class ControlService implements ControlApi {
         }, ctx);
     }
 
+    @Override
+    public CompletionStage<ImmediateResponse> roster(ControlContracts.RosterOp op, CallContext ctx) {
+        ServerThreadHop hop = app.serverHop();
+        if (hop == null) return refused("the roster is the server's, and no server is attached");
+        return hop.<ImmediateResponse>submit(() -> {
+            MinecraftServer server = app.server();
+            Roster.Outcome out = switch (op) {
+                case ControlContracts.Spawn s -> {
+                    ResourceLocation dim = ResourceLocation.parse(s.dimension().orElse("minecraft:overworld"));
+                    ServerLevel level = server.getLevel(ResourceKey.create(Registries.DIMENSION, dim));
+                    if (level == null) yield new Roster.Refusal("no dimension " + dim, false);
+                    BlockPos at = s.pos().map(Positions::blockPos).orElseGet(level::getSharedSpawnPos);
+                    yield Roster.spawn(level, Vec3.atBottomCenterOf(at), s.name());
+                }
+                case ControlContracts.Adopt a -> {
+                    Entity e = null;
+                    for (ServerLevel level : server.getAllLevels()) {
+                        if ((e = level.getEntity(a.entityId())) != null) break;
+                    }
+                    if (!(e instanceof Mob mob)) {
+                        yield new Roster.Refusal(e == null ? "no entity " + a.entityId() : "entity " + a.entityId()
+                                + " is not a mob", false);
+                    }
+                    yield Roster.adopt(mob, a.name().orElse(null));
+                }
+                case ControlContracts.Remove r -> Roster.remove(r.bot());
+            };
+            return switch (out) {
+                case Roster.Done d -> new Rostered(d.bot());
+                case Roster.Refusal f when f.unknown() -> unknown(((ControlContracts.Remove) op).bot());
+                case Roster.Refusal f -> new Refused<>(RefusalReason.INVALID_WORLD_TARGET, f.message());
+            };
+        }, ctx);
+    }
+
     /**
      * The registered bots, in registration order, read on the server thread. Nothing registered answers
      * without a hop, which matters on a client joined to a remote server: there is no server thread there.
@@ -129,7 +175,8 @@ final class ControlService implements ControlApi {
             + "(a dedicated server); name a bot with bot: player:<name>, mob:<name> or entity:<uuid>";
 
     private static ImmediateResponse unknown(String body) {
-        return new Refused<>(RefusalReason.BOT_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots");
+        return new Refused<>(RefusalReason.BOT_UNAVAILABLE, "no bot named " + body + "; mc.bot.status lists the bots",
+                Optional.of(Unready.UNKNOWN_BOT));
     }
 
     private static CompletionStage<ImmediateResponse> refused(String message) {

@@ -113,7 +113,7 @@ public final class Responses {
      * What a method that acts on a body within the call answers (holding an item, one click): {@code done}
      * with what came of it, or {@link Refused} with the same reasons a task is refused for.
      */
-    public sealed interface ImmediateResponse permits Refused, Held, Used, Attacked, Equipped, Stopped, Status {}
+    public sealed interface ImmediateResponse permits Refused, Held, Used, Attacked, Equipped, Stopped, Status, Rostered {}
 
     /** {@code waitTimedOut}: the call's wait ran out with the action still running; always false for awaitMs 0. */
     public record Accepted<R>(ActionSnapshot<R> action, boolean waitTimedOut) implements ActionResponse<R> {}
@@ -153,6 +153,9 @@ public final class Responses {
     /** {@code mc.bot.status}: {@code status} is the asked bot; absent when no bot was named and there is no client. */
     public record Status(List<ControlContracts.BotSummary> bots, Optional<ControlContracts.BotStatus> status)
             implements ImmediateResponse {}
+
+    /** {@code mc.bot.roster}: the bot spawned, adopted or removed. */
+    public record Rostered(String bot) implements ImmediateResponse {}
 
     /** The bot ref of this client's own player, every bot parameter's default. */
     public static final String SELF = "self";

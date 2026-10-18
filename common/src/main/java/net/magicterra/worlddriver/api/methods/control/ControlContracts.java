@@ -16,11 +16,15 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ActionSnapshot;
 import net.magicterra.worlddriver.api.methods.shared.Responses.ImmediateResponse;
+import net.magicterra.worlddriver.api.methods.shared.Responses.Rostered;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Status;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Stopped;
 import net.magicterra.worlddriver.api.methods.wait.WaitContracts;
 
-/** Reading and stopping what the bots do: {@code mc.bot.status}, {@code mc.bot.cancel} and {@code mc.bot.waypoint}. */
+/**
+ * Reading and stopping what the bots do, and which bots there are: {@code mc.bot.status}, {@code mc.bot.cancel},
+ * {@code mc.bot.waypoint} and {@code mc.bot.roster}.
+ */
 public final class ControlContracts {
     private ControlContracts() {}
 
@@ -315,4 +319,46 @@ public final class ControlContracts {
                     "Named positions this client keeps in memory, for goto's waypoint target; not saved to disk. A name "
                             + "that was never saved is invalid_params at /name. This client's own player only.")
             .effects(MethodSpec.Effect.CONFIG_WRITE);
+
+    // ------------------------------------------------------------------ roster
+
+    public sealed interface RosterOp permits Spawn, Adopt, Remove {}
+    public record Spawn(String name, Optional<String> dimension, Optional<BlockPosition> pos) implements RosterOp {}
+    public record Adopt(int entityId, Optional<String> name) implements RosterOp {}
+    public record Remove(String bot) implements RosterOp {}
+
+    private static final ApiType<String> BOT_NAME = ApiTypes.pattern("[A-Za-z0-9_]{1,16}",
+            "letters, digits and underscores, at most 16, as a player name");
+
+    public static final UnionType<RosterOp> ROSTER_PARAMS = ApiTypes.taggedUnion("RosterParams", "op",
+            ApiTypes.variant("spawn", Spawn.class, ApiTypes.record(Spawn.class, null,
+                    ApiField.field("name", BOT_NAME).describe("The bot is player:<name>.").required().forGetter(Spawn::name),
+                    ApiField.field("dimension", CommonTypes.RESOURCE_ID).describe("Omitted: minecraft:overworld.")
+                            .optional().forGetter(Spawn::dimension),
+                    ApiField.field("pos", CommonTypes.BLOCK_POSITION).describe("Omitted: the world spawn.")
+                            .optional().forGetter(Spawn::pos),
+                    Spawn::new)),
+            ApiTypes.variant("adopt", Adopt.class, ApiTypes.record(Adopt.class, null,
+                    ApiField.field("entityId", CommonTypes.ENTITY_ID).describe("The mob to take over.")
+                            .required().forGetter(Adopt::entityId),
+                    ApiField.field("name", BOT_NAME).describe("The bot is mob:<name>. Omitted: entity:<uuid>.")
+                            .optional().forGetter(Adopt::name),
+                    Adopt::new)),
+            ApiTypes.variant("remove", Remove.class, ApiTypes.record(Remove.class, null,
+                    ApiField.field("bot", Responses.BOT_REF).required().forGetter(Remove::bot),
+                    Remove::new)
+                    .checked((r, at) -> {
+                        if (Responses.SELF.equals(r.bot())) at.field("bot").fail(ApiIssue.Code.INVALID_VALUE,
+                                "self is this client's own player, not a bot on the roster");
+                    })));
+
+    public static final MethodSpec<RosterOp, ImmediateResponse> ROSTER = MethodSpec.of("mc.bot.roster", ROSTER_PARAMS,
+                    Responses.immediate("Roster", Rostered.class, ApiTypes.record(Rostered.class, null,
+                            ApiField.field("bot", Responses.BOT_REF).required().forGetter(Rostered::bot),
+                            Rostered::new)),
+                    "Which bots exist. spawn joins a server-side player; adopt takes a mob over, its own AI off until "
+                            + "it is removed; remove ends the bot's running action as bot_removed, gives a mob its AI "
+                            + "back and takes a player out of the world. done names the bot. A taken name, or an entity "
+                            + "that is not a mob, a player or already a bot, is invalid_world_target.")
+            .effects(MethodSpec.Effect.WORLD_WRITE);
 }
